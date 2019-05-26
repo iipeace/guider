@@ -12283,8 +12283,14 @@ Examples:
     - Monitor syscalls for a specific thread
         # {0:1} {1:1} -g a.out
 
+    - Monitor syscalls for a specific thread every 2 second
+        # {0:1} {1:1} -g 1234 -R 2:
+
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
+
+    - Monitor systemcalls with breakpoint for read including register info for a specific thread
+        # {0:1} {1:1} -g 1234 -c read -a
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -12306,8 +12312,14 @@ Examples:
     - Monitor usercalls for a specific thread
         # {0:1} {1:1} -g a.out
 
+    - Monitor usercalls for a specific thread every 2 second with 1ms sampling
+        # {0:1} {1:1} -g 1234 -i 1000 -R 2:
+
     - Monitor CPU usage on whole system of usercalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
+
+    - Monitor usercalls with breakpoint for peace including register info for a specific thread
+        # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -12551,7 +12563,7 @@ Examples:
     - Trace all read systemcalls for a specific thread and save summary tables, call history to ./guider.out
         # {0:1} {1:1} -g 1234 -t read -o . -a
 
-    - Trace all read systemcalls with breakpoint including register info for a specific thread
+    - Trace all systemcalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
 
     - Trace all systemcalls for a specific thread only for 1 minute
@@ -12568,7 +12580,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Trace user functions
+    Trace usercalls
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -12592,25 +12604,25 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Trace user function calls for a specific thread in 100us cycles
+    - Trace usercalls for a specific thread in 100us cycles
         # {0:1} {1:1} -g 1234
 
-    - Trace user function calls for a specific thread in 10ms cycles
-        # {0:1} {1:1} -g 1234 -R 1h:10000
+    - Trace usercalls for a specific thread in 10ms cycles
+        # {0:1} {1:1} -g 1234 -i 10000
 
-    - Trace user function calls with 1/10 instructions for a specific thread
+    - Trace usercalls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g 1234 -H 10
 
-    - Trace user function calls for a specific thread and save summary tables, call history to ./guider.out
+    - Trace usercalls for a specific thread and save summary tables, call history to ./guider.out
         # {0:1} {1:1} -g 1234 -o . -a
 
-    - Trace user function  with breakpoint including register info for a specific thread
+    - Trace usercalls with breakpoint for peace including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c peace -a
 
-    - Trace user function calls for a specific thread only for 2 seconds
+    - Trace usercalls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g 1234 -R 2s
 
-    - Trace user function calls and pause when catching PLT function call
+    - Trace usercalls and pause when catching PLT function call
         # {0:1} {1:1} -I "ls -al" -c PLT
                     '''.format(cmd, mode)
 
@@ -16833,7 +16845,10 @@ Copyright:
                 SystemManager.repeatInterval = interval
 
                 # get count #
-                SystemManager.repeatCount = int(repeatParams[1])
+                if repeatParams[1] == '':
+                    SystemManager.repeatCount = sys.maxsize
+                else:
+                    SystemManager.repeatCount = int(repeatParams[1])
 
                 # get termination flag #
                 if len(repeatParams) == 3:
@@ -19232,6 +19247,7 @@ Copyright:
                 sys.stdout.write(msg + suffix)
                 sys.stdout.flush()
                 sys.stdin.readline()
+                sys.stdout.write("\033[F")
         except SystemExit:
             sys.exit(0)
         except:
@@ -25401,6 +25417,40 @@ class Debugger(object):
 
 
 
+    def checkSymbol(self, sym, newline=False):
+        if not SystemManager.customCmd:
+            return
+
+        if sym in SystemManager.customCmd:
+            if SystemManager.showAll:
+                # print register set #
+                self.printRegs(newline)
+
+            SystemManager.waitUserInput(\
+                wait=0, msg="%s is detected! Press enter to continue..." % sym)
+
+
+
+    def doSampling(self):
+        # continue target thread #
+        self.cont(check=True)
+
+        # check realtime report interval #
+        if self.isExceedInterval():
+            self.printIntervalSummary()
+
+        # wait for sampling time #
+        time.sleep(self.sampleTime)
+
+        # check run status #
+        self.runStatus = self.isInRun()
+
+        # stop target thread #
+        if self.stop() < 0:
+            sys.exit(0)
+
+
+
     def handleUsercall(self):
         # get register set of target #
         if not self.getRegs():
@@ -25522,16 +25572,10 @@ class Debugger(object):
         # backup register #
         self.prevsp = self.sp
 
-        # check pause condition #
+        # check symbol #
         if SystemManager.customCmd:
             onlySym = sym.split('@')[0]
-            if onlySym in SystemManager.customCmd:
-                if SystemManager.showAll:
-                    # print register set #
-                    self.printRegs()
-
-                SystemManager.waitUserInput(\
-                    wait=0, msg="Press enter key...")
+            self.checkSymbol(onlySym)
 
 
 
@@ -25630,15 +25674,9 @@ class Debugger(object):
                 SystemManager.printPipe(\
                     callString, newline=False, flush=True)
 
-            # check pause condition #
-            if SystemManager.customCmd and \
-                name in SystemManager.customCmd:
-                if SystemManager.showAll:
-                    # print register set #
-                    self.printRegs(newline=True)
-
-                SystemManager.waitUserInput(\
-                    wait=0, msg="Press enter key...")
+            # check symbol #
+            if SystemManager.customCmd:
+                self.checkSymbol(name, newline=True)
 
         # exit #
         elif status == 'exit':
@@ -25706,12 +25744,16 @@ class Debugger(object):
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SystemManager.procPath, self.pid, self.pid)
                 self.statFd = open(statPath, 'r')
                 stat = self.statFd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning('Fail to open %s' % statPath)
 
@@ -25836,11 +25878,11 @@ class Debugger(object):
                 self.getCpuUsage()
 
             # set sampling rate to 100us #
-            if SystemManager.repeatCount > 0:
+            if SystemManager.findOption('i'):
                 self.sampleTime = \
-                    SystemManager.repeatCount / float(1000000)
+                    long(SystemManager.getOption('i')) / float(1000000)
             else:
-                self.sampleTime = 0.0001
+                self.sampleTime = float(0.0001)
 
             SystemManager.printInfo(\
                 'Do sampling every %f second' % self.sampleTime)
@@ -25894,7 +25936,8 @@ class Debugger(object):
         # set timer #
         if self.isRealtime:
             # set default interval #
-            if SystemManager.intervalEnable == 0:
+            if not SystemManager.findOption('R') or \
+                SystemManager.intervalEnable == 0:
                 SystemManager.intervalEnable = 1
 
             if self.mode == 'syscall':
@@ -25918,22 +25961,7 @@ class Debugger(object):
                         ret = self.ptrace(cmd, 0, 0)
                 # wait to sample calls #
                 elif mode == 'sample':
-                    # continue target thread #
-                    self.cont(check=True)
-
-                    # check realtime report interval #
-                    if self.isExceedInterval():
-                        self.printIntervalSummary()
-
-                    # wait for sampling time #
-                    time.sleep(self.sampleTime)
-
-                    # check run status #
-                    self.runStatus = self.isInRun()
-
-                    # stop target thread #
-                    if self.stop() < 0:
-                        sys.exit(0)
+                    self.doSampling()
                 # setup trap #
                 else:
                     # check realtime report interval #
@@ -26054,8 +26082,8 @@ class Debugger(object):
 
     @staticmethod
     def destroyDebugger(instance):
+        # this will not effective because the instance exists in exitFuncList #
         try:
-            # this will not effective because the instance exists in exitFuncList #
             del instance
         except:
             pass
@@ -26191,7 +26219,7 @@ class Debugger(object):
             '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %f]') % \
                 (ctype, elapsed, samplingStr, \
                 convert(long(nrTotal)), sampleRateStr, \
-                convert(len(callTable))))
+                convert(len(callTable)), instance.sampleTime))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
