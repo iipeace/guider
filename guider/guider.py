@@ -25096,7 +25096,7 @@ class Debugger(object):
 
         SystemManager.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[NrSymbols: %s] [CPU: %.1f%%] [SampleTime: %f]\n%s\n') % \
+            '[NrSymbols: %s] [CPU: %.1f%%] [SampleTime: %g]\n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
                 convert(self.totalCall), len(self.callTable), \
                 cpuUsage, self.sampleTime, twoLine))
@@ -25885,7 +25885,7 @@ class Debugger(object):
                 self.sampleTime = float(0.0001)
 
             SystemManager.printInfo(\
-                'Do sampling every %f second' % self.sampleTime)
+                'Do sampling every %g second' % self.sampleTime)
 
         # set trap event type #
         if self.isRunning:
@@ -26205,18 +26205,15 @@ class Debugger(object):
             perSample = '0'
 
         if instance.sampleTime > 0:
-            samplingStr = '[Sampling: %f]' % instance.sampleTime
-        else:
-            samplingStr = ''
-
-        if instance.sampleTime > 0:
+            samplingStr = '[Sampling: %g]' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
+            samplingStr = ''
             sampleRateStr = ''
 
         SystemManager.printPipe((\
             '\n[Trace %s Info] [Time: %f] %s '
-            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %f]') % \
+            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]') % \
                 (ctype, elapsed, samplingStr, \
                 convert(long(nrTotal)), sampleRateStr, \
                 convert(len(callTable)), instance.sampleTime))
