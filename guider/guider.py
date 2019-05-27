@@ -3707,6 +3707,46 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def setRemoteNetwork(service, ip, port):
+        # set default service #
+        if not service:
+            service = 'REPORT_ALWAYS'
+
+        if not ip or not SystemManager.isEffectiveRequest(service):
+            SystemManager.printError((\
+                "wrong option value with -N option, "
+                "input [%s]@IP:PORT in format") % \
+                    '|'.join(ThreadAnalyzer.requestType))
+            sys.exit(0)
+
+        if not port:
+            port = SystemManager.defaultPort
+
+        networkObject = NetworkManager('client', ip, port)
+        if not networkObject.ip:
+            sys.exit(0)
+        else:
+            networkObject.status = 'ALWAYS'
+            networkObject.request = service
+            naddr = '%s:%s' % (ip, str(port))
+
+            if service == 'PRINT':
+                SystemManager.addrListForPrint[naddr] = networkObject
+            elif service.startswith('REPORT_'):
+                SystemManager.reportEnable = True
+                SystemManager.addrListForReport[naddr] = networkObject
+            else:
+                SystemManager.printError((\
+                    "wrong option value with -N option, "
+                    "input [%s]@IP:PORT in format") % \
+                        '|'.join(ThreadAnalyzer.requestType))
+
+        SystemManager.printInfo(\
+            "use %s:%d as remote address to request %s" % (ip, port, service))
+
+
+
+    @staticmethod
     def setServerNetwork(ip, port, force=False, blocking=False):
         if SystemManager.localServObj and not force:
             SystemManager.printWarning(\
@@ -17364,36 +17404,7 @@ Copyright:
             elif option == 'N':
                 service, ip, port = NetworkManager.parseAddr(value)
 
-                if not service or not ip or not port or \
-                    SystemManager.isEffectiveRequest(service) is False:
-                    SystemManager.printError((\
-                        "wrong option value with -N option, "
-                        "input [%s]@IP:PORT in format") % \
-                            '|'.join(ThreadAnalyzer.requestType))
-
-                    sys.exit(0)
-
-                networkObject = NetworkManager('client', ip, port)
-                if not networkObject.ip:
-                    sys.exit(0)
-                else:
-                    networkObject.status = 'ALWAYS'
-                    networkObject.request = service
-                    naddr = '%s:%s' % (ip, str(port))
-
-                    if service == 'PRINT':
-                        SystemManager.addrListForPrint[naddr] = networkObject
-                    elif service.startswith('REPORT_'):
-                        SystemManager.reportEnable = True
-                        SystemManager.addrListForReport[naddr] = networkObject
-                    else:
-                        SystemManager.printError((\
-                            "wrong option value with -N option, "
-                            "input [%s]@IP:PORT in format") % \
-                                '|'.join(ThreadAnalyzer.requestType))
-
-                SystemManager.printInfo(\
-                    "use %s:%d as remote address" % (ip, port))
+                NetworkManager.setRemoteNetwork(service, ip, port)
 
             elif option == 'j':
                 if SystemManager.checkReportTopCond(value) is False:
@@ -44103,17 +44114,19 @@ class ThreadAnalyzer(object):
 
         # report system status to socket #
         for addr, cli in addrlist.items():
-            if cli.request == 'REPORT_ALWAYS':
-                if cli.status == 'SENT' and cli.ignore > 1:
-                    SystemManager.printInfo(\
-                        "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
+            if cli.request != 'REPORT_ALWAYS':
+                continue
+
+            if cli.status == 'SENT' and cli.ignore > 1:
+                SystemManager.printInfo(\
+                    "unregistered %s:%d for REPORT" % (cli.ip, cli.port))
+                del SystemManager.addrListForReport[addr]
+            else:
+                ret = cli.send(data)
+                if ret is False:
                     del SystemManager.addrListForReport[addr]
                 else:
-                    ret = cli.send(data)
-                    if ret is False:
-                        del SystemManager.addrListForReport[addr]
-                    else:
-                        cli.ignore += 1
+                    cli.ignore += 1
 
 
 
