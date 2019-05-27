@@ -12047,6 +12047,39 @@ Examples:
         # {0:1} guider.dat -o . -t read, write
                     '''.format(cmd, mode)
 
+                # report #
+                elif SystemManager.isReportMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Report analysis result based on guider.dat
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+OPTIONS:
+        -e  <CHARACTER>             enable options
+              p:pipe | e:encode
+        -d  <CHARACTER>             disable options
+              e:encode
+        -o  <DIR|FILE>              save output data
+        -m  <ROWS:COLS>             set terminal size
+        -a                          show all stats and events
+        -g  <COMM|TID{:FILE}>       set filter
+        -E  <FILE>                  set error log path
+        -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - report analysis result based on guider.dat to ./guider.out
+        # {0:1} {1:1}
+
+    - report all analysis result based on guider.dat for a specific thread to ./guider.out
+        # {0:1} {1:1} -g 1234 -a
+                    '''.format(cmd, mode)
+
                 # system record #
                 elif SystemManager.isSystemRecordMode():
                     helpStr = '''
@@ -13285,7 +13318,7 @@ COMMAND:
                 wsstop      <memory>
                 reptop      <JSON>
                 filetop     <file>
-                systop     <syscall>
+                systop      <syscall>
                 usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
@@ -13295,6 +13328,7 @@ COMMAND:
                 filerecord  <file>
                 syscrecord  <syscall>
                 sysrecord   <system>
+                report      <report>
                 mem         <page>
 
     [visual]    draw        <image>
@@ -18258,6 +18292,18 @@ Copyright:
                 return False
 
         return True
+
+
+
+    @staticmethod
+    def isReportMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'report':
+            return True
+        else:
+            return False
 
 
 
@@ -36565,11 +36611,12 @@ class ThreadAnalyzer(object):
                     indent = '\n'
 
                 for idx in xrange(0, depth):
-                    indent = '%s%s|' % (indent, '     ')
+                    indent = '%s%s|' % (indent, ' ' * 5)
 
                 nrChild = len(childs)
                 if nrChild > 0:
-                    treestr += '%s- %s(%s)[%s]\n' % (indent, comm, pid, nrChild)
+                    treestr += '%s- %s(%s)[%s]\n' % \
+                        (indent, comm, pid, nrChild)
                 else:
                     treestr += '%s- %s(%s)\n' % (indent, comm, pid)
 
@@ -44341,6 +44388,11 @@ def main(args=None):
     #==================== ANALYSIS PART ====================#
     # register exit handler #
     atexit.register(SystemManager.doExit)
+
+    #-------------------- REPORT MODE --------------------#
+    if SystemManager.isReportMode():
+        SystemManager.inputFile = 'guider.dat'
+        SystemManager.printFile = '.'
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
