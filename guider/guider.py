@@ -14865,7 +14865,7 @@ Copyright:
             if SystemManager.isThreadMode() and \
                 cmdFormat[0] in SystemManager.cmdList:
                 SystemManager.printError(\
-                    "Fail to use default event '%s' as custom event" % \
+                    "Fail to use a default event '%s' as a custom event" % \
                     cmdFormat[0])
                 sys.exit(0)
 
@@ -32573,8 +32573,9 @@ class ThreadAnalyzer(object):
                     "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'], \
                     val['minPeriod']))
+
                 for key, value in sorted(self.customInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['count'], \
                     reverse=True):
                     try:
                         SystemManager.printPipe(\
@@ -34257,7 +34258,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.customInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['count'], \
                     reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
@@ -34325,7 +34326,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.userInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], \
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
                     reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
@@ -34394,10 +34395,12 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if len(SystemManager.kernelEventList) > 0:
             for idx, val in sorted(\
-                self.kernelEventInfo.items(), key=lambda e: e[1]['count'], reverse=True):
+                self.kernelEventInfo.items(), key=lambda e: e[1]['count'], \
+                reverse=True):
 
                 for key, value in sorted(self.kernelInfo.items(), \
-                    key=lambda e: 0 if not idx in e[1] else e[1][idx], reverse=True):
+                    key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
+                    reverse=True):
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = int(float(self.totalTime) / intervalEnable) + 1
@@ -37568,7 +37571,10 @@ class ThreadAnalyzer(object):
         d = m.groupdict()
         comm = d['comm']
         core = str(int(d['core']))
-        func = d['func'][:-1]
+        if d['func'][-1] == ':':
+            func = d['func'][:-1]
+        else:
+            func = d['func']
         etc = d['etc']
         time = d['time']
 
@@ -37660,6 +37666,9 @@ class ThreadAnalyzer(object):
 
         # calculate usage of threads in interval #
         self.processIntervalData(time)
+
+        # define flag for special events #
+        handleSpecialEvents = False
 
         if func == "sched_switch":
             m = re.match((\
@@ -39506,202 +39515,209 @@ class ThreadAnalyzer(object):
             self.threadData[thread]['customEvent'][func]['start'] = float(time)
 
         else:
-            # user event #
-            for name in SystemManager.userEventList:
-                if func.startswith(name) is False:
-                    continue
+            handleSpecialEvents = True
 
-                if not self.threadData[thread]['userEvent']:
-                    self.threadData[thread]['userEvent'] = {}
+        # check special event flag #
+        if not handleSpecialEvents:
+            return
 
-                self.threadData[thread]['userEvent'].setdefault(\
-                    name, dict(self.init_eventData))
+        # user event #
+        for name in SystemManager.userEventList:
+            if not func.startswith(name):
+                continue
 
-                self.userEventInfo.setdefault(name, dict(self.init_eventData))
+            if not self.threadData[thread]['userEvent']:
+                self.threadData[thread]['userEvent'] = {}
 
-                # define eventObj #
-                eventObj = self.threadData[thread]['userEvent'][name]
+            self.threadData[thread]['userEvent'].setdefault(\
+                name, dict(self.init_eventData))
 
-                if func == '%s_enter' % name:
-                    # add data into list #
-                    ntime = float(time) - float(SystemManager.startTime)
-                    self.userEventData.append(\
-                        ['ENTER', name, comm, thread, ntime, ''])
+            self.userEventInfo.setdefault(name, dict(self.init_eventData))
 
-                    # get interval #
-                    interDiff = 0
-                    if eventObj['start'] > 0:
-                        interDiff = float(time) - eventObj['start']
+            # define eventObj #
+            eventObj = self.threadData[thread]['userEvent'][name]
 
-                    self.threadData[thread]['userEvent'][name]['count'] += 1
-                    self.threadData[thread]['userEvent'][name]['start'] = float(time)
+            if func == '%s_enter' % name:
+                # add data into list #
+                ntime = float(time) - float(SystemManager.startTime)
+                self.userEventData.append(\
+                    ['ENTER', name, comm, thread, ntime, ''])
 
-                    # update period of thread #
-                    if interDiff > eventObj['maxPeriod'] or \
-                        eventObj['maxPeriod'] == 0:
-                        self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
-                    if interDiff < eventObj['minPeriod'] or \
-                        eventObj['minPeriod'] == 0:
-                        self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
+                # get interval #
+                interDiff = 0
+                if eventObj['start'] > 0:
+                    interDiff = float(time) - eventObj['start']
 
-                    self.userEventInfo[name]['count'] += 1
+                self.threadData[thread]['userEvent'][name]['count'] += 1
+                self.threadData[thread]['userEvent'][name]['start'] = float(time)
 
-                    # update period of system #
-                    if interDiff > self.userEventInfo[name]['maxPeriod'] or \
-                        self.userEventInfo[name]['maxPeriod'] == 0:
-                        self.userEventInfo[name]['maxPeriod'] = interDiff
-                    if interDiff < self.userEventInfo[name]['minPeriod'] or \
-                        self.userEventInfo[name]['minPeriod'] == 0:
-                        self.userEventInfo[name]['minPeriod'] = interDiff
+                # update period of thread #
+                if interDiff > eventObj['maxPeriod'] or \
+                    eventObj['maxPeriod'] == 0:
+                    self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
+                if interDiff < eventObj['minPeriod'] or \
+                    eventObj['minPeriod'] == 0:
+                    self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
 
-                elif func == '%s_exit' % name:
-                    # add data into list #
-                    ntime = float(time) - float(SystemManager.startTime)
-                    self.userEventData.append(\
-                        ['EXIT', name, comm, thread, ntime, \
-                        etc[etc.find('(')+1:etc.rfind('<-')]])
+                self.userEventInfo[name]['count'] += 1
 
-                    # get usage #
-                    usage = 0
-                    if eventObj['start'] > 0:
-                        usage = float(time) - eventObj['start']
-                        self.threadData[thread]['userEvent'][name]['usage'] += usage
-                        self.userEventInfo[name]['usage'] += usage
+                # update period of system #
+                if interDiff > self.userEventInfo[name]['maxPeriod'] or \
+                    self.userEventInfo[name]['maxPeriod'] == 0:
+                    self.userEventInfo[name]['maxPeriod'] = interDiff
+                if interDiff < self.userEventInfo[name]['minPeriod'] or \
+                    self.userEventInfo[name]['minPeriod'] == 0:
+                    self.userEventInfo[name]['minPeriod'] = interDiff
 
-                        # update usage of thread #
-                        if usage > eventObj['max'] or eventObj['max'] == 0:
-                            self.threadData[thread]['userEvent'][name]['max'] = usage
-                        if usage < eventObj['min'] or eventObj['min'] == 0:
-                            self.threadData[thread]['userEvent'][name]['min'] = usage
+            elif func == '%s_exit' % name:
+                # add data into list #
+                ntime = float(time) - float(SystemManager.startTime)
+                self.userEventData.append(\
+                    ['EXIT', name, comm, thread, ntime, \
+                    etc[etc.find('(')+1:etc.rfind('<-')]])
 
-                        # update usage of system #
-                        if usage > self.userEventInfo[name]['max'] or \
-                            self.userEventInfo[name]['max'] == 0:
-                            self.userEventInfo[name]['max'] = usage
-                        if usage < self.userEventInfo[name]['min'] or \
-                            self.userEventInfo[name]['min'] == 0:
-                            self.userEventInfo[name]['min'] = usage
+                # get usage #
+                usage = 0
+                if eventObj['start'] > 0:
+                    usage = float(time) - eventObj['start']
+                    self.threadData[thread]['userEvent'][name]['usage'] += usage
+                    self.userEventInfo[name]['usage'] += usage
 
-            # kernel event #
-            for name in SystemManager.kernelEventList:
-                if not func.startswith(name):
-                    continue
+                    # update usage of thread #
+                    if usage > eventObj['max'] or eventObj['max'] == 0:
+                        self.threadData[thread]['userEvent'][name]['max'] = usage
+                    if usage < eventObj['min'] or eventObj['min'] == 0:
+                        self.threadData[thread]['userEvent'][name]['min'] = usage
 
-                if not self.threadData[thread]['kernelEvent']:
-                    self.threadData[thread]['kernelEvent'] = {}
+                    # update usage of system #
+                    if usage > self.userEventInfo[name]['max'] or \
+                        self.userEventInfo[name]['max'] == 0:
+                        self.userEventInfo[name]['max'] = usage
+                    if usage < self.userEventInfo[name]['min'] or \
+                        self.userEventInfo[name]['min'] == 0:
+                        self.userEventInfo[name]['min'] = usage
 
-                self.threadData[thread]['kernelEvent'].setdefault(\
-                    name, dict(self.init_eventData))
+        # kernel event #
+        for name in SystemManager.kernelEventList:
+            if not func.startswith(name):
+                continue
 
-                self.kernelEventInfo.setdefault(name, dict(self.init_eventData))
+            if not self.threadData[thread]['kernelEvent']:
+                self.threadData[thread]['kernelEvent'] = {}
 
-                # define eventObj #
-                eventObj = self.threadData[thread]['kernelEvent'][name]
+            self.threadData[thread]['kernelEvent'].setdefault(\
+                name, dict(self.init_eventData))
 
-                if func == '%s_enter' % name:
-                    # add data into list #
-                    ntime = float(time) - float(SystemManager.startTime)
+            self.kernelEventInfo.setdefault(name, dict(self.init_eventData))
 
-                    isSaved = True
+            # define eventObj #
+            eventObj = self.threadData[thread]['kernelEvent'][name]
+
+            if func == '%s_enter' % name:
+                # add data into list #
+                ntime = float(time) - float(SystemManager.startTime)
+
+                isSaved = True
+                m = re.match(\
+                    r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
+                if m:
+                    d = m.groupdict()
+                    self.kernelEventData.append(\
+                        ['ENTER', name, d['addr'], comm, thread, ntime, '', d['args']])
+                else:
                     m = re.match(\
-                        r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
+                        r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
                     if m:
                         d = m.groupdict()
                         self.kernelEventData.append(\
-                            ['ENTER', name, d['addr'], comm, thread, ntime, '', d['args']])
+                            ['ENTER', name, '', comm, thread, ntime, '', d['args']])
                     else:
-                        m = re.match(\
-                            r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
-                        if m:
-                            d = m.groupdict()
-                            self.kernelEventData.append(\
-                                ['ENTER', name, '', comm, thread, ntime, '', d['args']])
-                        else:
-                            isSaved = False
-                            SystemManager.printWarning(\
-                                "Fail to recognize '%s' kernel event" % etc)
+                        isSaved = False
+                        SystemManager.printWarning(\
+                            "Fail to recognize '%s' kernel event" % etc)
 
-                    if isSaved is False:
-                        continue
+                if isSaved is False:
+                    continue
 
-                    # get interval #
-                    interDiff = 0
-                    if eventObj['start'] > 0:
-                        interDiff = float(time) - eventObj['start']
+                # get interval #
+                interDiff = 0
+                if eventObj['start'] > 0:
+                    interDiff = float(time) - eventObj['start']
 
-                    self.threadData[thread]['kernelEvent'][name]['count'] += 1
-                    self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
+                self.threadData[thread]['kernelEvent'][name]['count'] += 1
+                self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
 
-                    # update period of thread #
-                    if interDiff > eventObj['maxPeriod'] or \
-                        eventObj['maxPeriod'] == 0:
-                        self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
-                    if interDiff < eventObj['minPeriod'] or \
-                        eventObj['minPeriod'] == 0:
-                        self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
+                # update period of thread #
+                if interDiff > eventObj['maxPeriod'] or \
+                    eventObj['maxPeriod'] == 0:
+                    self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
+                if interDiff < eventObj['minPeriod'] or \
+                    eventObj['minPeriod'] == 0:
+                    self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
 
-                    self.kernelEventInfo[name]['count'] += 1
+                self.kernelEventInfo[name]['count'] += 1
 
-                    # update period of system #
-                    if interDiff > self.kernelEventInfo[name]['maxPeriod'] or \
-                        self.kernelEventInfo[name]['maxPeriod'] == 0:
-                        self.kernelEventInfo[name]['maxPeriod'] = interDiff
-                    if interDiff < self.kernelEventInfo[name]['minPeriod'] or \
-                        self.kernelEventInfo[name]['minPeriod'] == 0:
-                        self.kernelEventInfo[name]['minPeriod'] = interDiff
+                # update period of system #
+                if interDiff > self.kernelEventInfo[name]['maxPeriod'] or \
+                    self.kernelEventInfo[name]['maxPeriod'] == 0:
+                    self.kernelEventInfo[name]['maxPeriod'] = interDiff
+                if interDiff < self.kernelEventInfo[name]['minPeriod'] or \
+                    self.kernelEventInfo[name]['minPeriod'] == 0:
+                    self.kernelEventInfo[name]['minPeriod'] = interDiff
 
-                elif func == '%s_exit' % name:
-                    # add data into list #
-                    ntime = float(time) - float(SystemManager.startTime)
+            elif func == '%s_exit' % name:
+                # add data into list #
+                ntime = float(time) - float(SystemManager.startTime)
 
-                    isSaved = True
+                isSaved = True
+                m = re.match((\
+                    r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
+                    r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
+                if m:
+                    d = m.groupdict()
+                    self.kernelEventData.append(\
+                        ['EXIT', name, d['addr'], comm, thread, ntime, \
+                        d['caller'], d['args'], d['caddr']])
+                else:
                     m = re.match((\
-                        r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
-                        r'(?P<name>.+) <(?P<addr>.+)>\)(?P<args>.*)'), etc)
+                        r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- '
+                        r'(?P<name>.+)\)(?P<args>.*)'), etc)
                     if m:
                         d = m.groupdict()
                         self.kernelEventData.append(\
-                            ['EXIT', name, d['addr'], comm, thread, ntime, \
-                            d['caller'], d['args'], d['caddr']])
+                            ['EXIT', name, '', comm, thread, ntime, \
+                            d['caller'], d['args'], ''])
                     else:
-                        m = re.match((\
-                            r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <- '
-                            r'(?P<name>.+)\)(?P<args>.*)'), etc)
-                        if m:
-                            d = m.groupdict()
-                            self.kernelEventData.append(\
-                                ['EXIT', name, '', comm, thread, ntime, \
-                                d['caller'], d['args'], ''])
-                        else:
-                            isSaved = False
-                            SystemManager.printWarning(\
-                                "Fail to recognize '%s' kernel event" % etc)
+                        isSaved = False
+                        SystemManager.printWarning(\
+                            "Fail to recognize '%s' kernel event" % etc)
 
-                    if isSaved is False:
-                        continue
+                if not isSaved:
+                    continue
 
-                    # get usage #
-                    usage = 0
-                    if eventObj['start'] > 0:
-                        usage = float(time) - eventObj['start']
-                        self.threadData[thread]['kernelEvent'][name]['usage'] += usage
-                        self.kernelEventInfo[name]['usage'] += usage
+                # get usage #
+                if eventObj['start'] <= 0:
+                    continue
 
-                        # update usage of thread #
-                        if usage > eventObj['max'] or \
-                            eventObj['max'] == 0:
-                            self.threadData[thread]['kernelEvent'][name]['max'] = usage
-                        if usage < eventObj['min'] or \
-                            eventObj['min'] == 0:
-                            self.threadData[thread]['kernelEvent'][name]['min'] = usage
+                usage = float(time) - eventObj['start']
+                self.threadData[thread]['kernelEvent'][name]['usage'] += usage
+                self.kernelEventInfo[name]['usage'] += usage
 
-                        # update usage of system #
-                        if usage > self.kernelEventInfo[name]['max'] or \
-                            self.kernelEventInfo[name]['max'] == 0:
-                            self.kernelEventInfo[name]['max'] = usage
-                        if usage < self.kernelEventInfo[name]['min'] or \
-                            self.kernelEventInfo[name]['min'] == 0:
-                            self.kernelEventInfo[name]['min'] = usage
+                # update usage of thread #
+                if usage > eventObj['max'] or \
+                    eventObj['max'] == 0:
+                    self.threadData[thread]['kernelEvent'][name]['max'] = usage
+                if usage < eventObj['min'] or \
+                    eventObj['min'] == 0:
+                    self.threadData[thread]['kernelEvent'][name]['min'] = usage
+
+                # update usage of system #
+                if usage > self.kernelEventInfo[name]['max'] or \
+                    self.kernelEventInfo[name]['max'] == 0:
+                    self.kernelEventInfo[name]['max'] = usage
+                if usage < self.kernelEventInfo[name]['min'] or \
+                    self.kernelEventInfo[name]['min'] == 0:
+                    self.kernelEventInfo[name]['min'] = usage
 
 
 
