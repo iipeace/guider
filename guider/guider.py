@@ -11672,8 +11672,9 @@ class SystemManager(object):
                     SystemManager.encodeEnable = False
                     SystemManager.remoteRun = True
 
-                # set encode type #
-                if 'tty' in os.ttyname(sys.stdout.fileno()):
+                # check encode condition #
+                if not "LANG" in os.environ or \
+                    'tty' in os.ttyname(sys.stdout.fileno()):
                     SystemManager.encodeEnable = False
             except:
                 pass
