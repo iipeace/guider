@@ -17234,6 +17234,7 @@ Copyright:
                     SystemManager.diskEnable = True
 
                 if options.rfind('E') > -1:
+                    SystemManager.reportEnable = True
                     SystemManager.elasticEnable = True
 
                 if options.rfind('c') > -1:
@@ -20328,9 +20329,11 @@ Copyright:
             if mode == 'syscall':
                 Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
             elif mode == 'usercall':
-                if SystemManager.funcDepth > 0:
+                # tracing #
+                if SystemManager.isUtraceMode():
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='inst', wait=wait)
+                # monitoring #
                 else:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait)
@@ -20341,7 +20344,7 @@ Copyright:
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Stopped to trace syscall because %s" % err)
+                "Stopped to trace %s because %s" % (mode, err))
 
         sys.exit(0)
 
@@ -21006,41 +21009,32 @@ Copyright:
                 continue
 
             comm = fd.readline()[0:-1]
-            if comm[0:compLen] == __module__:
-                if nrSig == signal.SIGINT:
-                    waitStatus = False
+            if comm[0:compLen] != __module__:
+                continue
 
+            if nrSig == signal.SIGINT:
+                waitStatus = False
+
+                try:
+                    cmdFd = open(procPath + '/cmdline', 'r')
+                    cmdList = cmdFd.readline().split('\x00')
+                    for val in cmdList:
+                        if val == '-c':
+                            waitStatus = True
+                except:
+                    continue
+
+                if SystemManager.isStartMode() and waitStatus:
                     try:
-                        cmdFd = open(procPath + '/cmdline', 'r')
-                        cmdList = cmdFd.readline().split('\x00')
-                        for val in cmdList:
-                            if val == '-c':
-                                waitStatus = True
+                        os.kill(int(pid), nrSig)
+                        SystemManager.printInfo(\
+                            "started %s process to profile" % pid)
                     except:
-                        continue
-
-                    if SystemManager.isStartMode() and waitStatus:
-                        try:
-                            os.kill(int(pid), nrSig)
-                            SystemManager.printInfo(\
-                                "started %s process to profile" % pid)
-                        except:
-                            SystemManager.printError(\
-                                "Fail to send signal %s to %s because %s" % \
-                                (SIG_LIST[nrSig], pid, \
-                                ' '.join(list(map(str, sys.exc_info()[1].args)))))
-                    elif SystemManager.isStopMode():
-                        try:
-                            os.kill(int(pid), nrSig)
-                            SystemManager.printInfo(\
-                                "sent signal %s to %s process" % \
-                                (SIG_LIST[nrSig], pid))
-                        except:
-                            SystemManager.printError(\
-                                "Fail to send signal %s to %s because %s" % \
-                                (SIG_LIST[nrSig], pid, \
-                                ' '.join(list(map(str, sys.exc_info()[1].args)))))
-                else:
+                        SystemManager.printError(\
+                            "Fail to send signal %s to %s because %s" % \
+                            (SIG_LIST[nrSig], pid, \
+                            ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                elif SystemManager.isStopMode():
                     try:
                         os.kill(int(pid), nrSig)
                         SystemManager.printInfo(\
@@ -21051,8 +21045,19 @@ Copyright:
                             "Fail to send signal %s to %s because %s" % \
                             (SIG_LIST[nrSig], pid, \
                             ' '.join(list(map(str, sys.exc_info()[1].args)))))
+            else:
+                try:
+                    os.kill(int(pid), nrSig)
+                    SystemManager.printInfo(\
+                        "sent signal %s to %s process" % \
+                        (SIG_LIST[nrSig], pid))
+                except:
+                    SystemManager.printError(\
+                        "Fail to send signal %s to %s because %s" % \
+                        (SIG_LIST[nrSig], pid, \
+                        ' '.join(list(map(str, sys.exc_info()[1].args)))))
 
-                nrProc += 1
+            nrProc += 1
 
         if nrProc == 0:
             SystemManager.printInfo("No running process in the background")
@@ -25124,9 +25129,11 @@ class Debugger(object):
         if self.mode == 'syscall':
             ctype = 'Syscall'
             addInfo = 'Count'
+            sampleStr = ''
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilManager.convertNumber
@@ -25135,17 +25142,17 @@ class Debugger(object):
         cpuUsage = self.getCpuUsage()
         cpuUsage = cpuUsage / diff
 
-        if SystemManager.cpuEnable:
+        if not SystemManager.showAll and SystemManager.cpuEnable:
             floatUsage = cpuUsage / 100
         else:
             floatUsage = 1
 
         SystemManager.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[NrSymbols: %s] [CPU: %.1f%%] [SampleTime: %g]\n%s\n') % \
+            '[NrSymbols: %s] [CPU: %.1f%%]%s \n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
                 convert(self.totalCall), len(self.callTable), \
-                cpuUsage, self.sampleTime, twoLine))
+                cpuUsage, sampleStr, twoLine))
 
         SystemManager.addPrint(\
             '{0:^7} | {1:^64} | {2:^76}\n{3:<1}\n'.format(\
@@ -25802,6 +25809,7 @@ class Debugger(object):
                 sys.exit(0)
             except:
                 SystemManager.printWarning('Fail to open %s' % statPath)
+                return
 
         # convert string to list #
         statList = stat.split(')')[1].split()
@@ -25827,6 +25835,7 @@ class Debugger(object):
                 stat = self.statFd.readlines()[0]
             except:
                 SystemManager.printWarning('Fail to open %s' % statPath)
+                return
 
         # check stat change #
         if self.prevStat == stat:
@@ -25909,9 +25918,11 @@ class Debugger(object):
         # set tracing attribute #
         if mode == 'syscall':
             if self.isRealtime:
+                self.getCpuUsage()
                 signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
         # inst #
-        elif SystemManager.funcDepth > 0:
+        elif SystemManager.isUtraceMode() and \
+            SystemManager.funcDepth > 0:
             # set sampling rate for instruction #
             self.skipInst = SystemManager.funcDepth
 
@@ -25920,6 +25931,7 @@ class Debugger(object):
                     SystemManager.funcDepth)
         # sample #
         else:
+            # get 1st cpu usage #
             if self.isRealtime:
                 self.getCpuUsage()
 
@@ -26088,6 +26100,15 @@ class Debugger(object):
 
                 # exit #
                 elif stat == -1:
+                    # check target is running #
+                    try:
+                        os.kill(pid, 0)
+                        continue
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
                     if self.status == 'exit':
                         SystemManager.printPipe(' ')
 
@@ -27504,6 +27525,7 @@ class ElfAnalyzer(object):
     cachedHeaderFiles = {}
     stripedFiles = {}
     failedFiles = {}
+    cachedDemangleTable = {}
 
 
 
@@ -27670,14 +27692,19 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def demangleSymbol(symbol):
-        symbol = symbol.replace('@@', '@')
-
         if not SystemManager.demangleEnable:
             return symbol
 
         # check mangling #
         if not symbol.startswith('_Z'):
             return symbol
+
+        # check cache table #
+        if symbol in ElfAnalyzer.cachedDemangleTable:
+            return ElfAnalyzer.cachedDemangleTable[symbol]
+
+        origSym = symbol
+        symbol = symbol.replace('@@', '@')
 
         # check including version #
         if symbol.rfind('@') > -1:
@@ -27751,7 +27778,9 @@ class ElfAnalyzer(object):
             # free demangled string array #
             #SystemManager.libcObj.free(ret)
 
-            return '%s%s' % (dmSymbol, version)
+            demangledSym = '%s%s' % (dmSymbol, version)
+            ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
+            return demangledSym
         except SystemExit:
             sys.exit(0)
         except:
@@ -27761,7 +27790,7 @@ class ElfAnalyzer(object):
                 "so that disable demangle feature") % \
                     (symbol, err), True)
             SystemManager.demangleEnable = False
-            return symbol
+            return origSym
 
 
 
