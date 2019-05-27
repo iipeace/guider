@@ -2629,6 +2629,15 @@ class UtilManager(object):
 
 
     @staticmethod
+    def encodeStr(value):
+        try:
+            return value.encode()
+        except:
+            return value
+
+
+
+    @staticmethod
     def isString(value):
         if isinstance(value, str):
             return True
@@ -3175,7 +3184,7 @@ class NetworkManager(object):
                         continue
                     else:
                         totalSize = long(size.decode())
-                        receiver.send('ACK'.encode())
+                        receiver.send('ACK')
                         break
 
                 # receive file #
@@ -3237,7 +3246,7 @@ class NetworkManager(object):
                 # receive file size #
                 stat = os.stat(origPath)
                 st_size = '%s' % stat.st_size
-                sender.send(st_size.encode())
+                sender.send(st_size)
 
                 # read for ACK #
                 while 1:
@@ -3414,7 +3423,7 @@ class NetworkManager(object):
 
         # encode message #
         if UtilManager.isString(message):
-            message = message.encode()
+            message = UtilManager.encodeStr(message)
 
         try:
             if not write and SystemManager.localServObj:
@@ -3450,7 +3459,7 @@ class NetworkManager(object):
 
         # encode message #
         if UtilManager.isString(message):
-            message = message.encode()
+            message = UtilManager.encodeStr(message)
 
         try:
             self.socket.sendto(message, (ip, port))
@@ -15837,7 +15846,7 @@ Copyright:
         # apply command #
         try:
             if append:
-                os.write(fd, bytes(val.encode()))
+                os.write(fd, bytes(UtilManager.encodeStr(val)))
             else:
                 fd.write(val)
 
@@ -19614,7 +19623,7 @@ Copyright:
                 # send file size #
                 stat = os.stat(targetPath)
                 st_size = '%s' % stat.st_size
-                sender.send(st_size.encode())
+                sender.send(UtilManager.encodeStr(st_size))
 
                 # read for ACK #
                 while 1:
@@ -19676,7 +19685,7 @@ Copyright:
                         continue
                     else:
                         totalSize = long(size.decode())
-                        receiver.send('ACK'.encode())
+                        receiver.send('ACK')
                         break
 
                 # receive file #
@@ -24951,7 +24960,7 @@ class Debugger(object):
 
         # convert string to bytes #
         if UtilManager.isString(data):
-            data = data.encode()
+            data = UtilManager.encodeStr(data)
         elif type(data) is not bytes:
             SystemManager.printError((\
                 "Fail to recognize data to write because "
@@ -27759,7 +27768,7 @@ class ElfAnalyzer(object):
             funcp.restype = c_char_p
 
             status = c_int()
-            mSymbol = c_char_p(symbol.encode())
+            mSymbol = c_char_p(UtilManager.encodeStr(symbol))
 
             # call to demangle symbol #
             ret = funcp(mSymbol, None, None, pointer(status))
