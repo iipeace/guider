@@ -10928,24 +10928,20 @@ class SystemManager(object):
                 tids = value[0]
 
                 for tid in list(map(int, tids.split(','))):
-                    try:
-                        os.kill(int(tid), signal.SIGKILL)
-                    except:
-                        SystemManager.printError(
-                            "Fail to send signal SIGKILL to %s because %s" % \
-                            (tid, ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                    os.kill(int(tid), signal.SIGKILL)
             elif len(value) == 2 and value[1] == 'CONT':
                 tids = value[0]
 
                 SystemManager.killFilter.append(tids)
             else:
-                raise Exception()
+                raise Exception("wrong input")
 
         except SystemExit:
             sys.exit(0)
         except:
+            err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to kill tasks, input {tids} in format")
+                "Fail to kill tasks because %s, input {tids} in format" % err)
             sys.exit(0)
 
 
@@ -18956,6 +18952,12 @@ Copyright:
         # get pids #
         pids = SystemManager.getProcPids(name)
         if len(pids) == 1:
+            # check permission #
+            if not SystemManager.isRoot():
+                SystemManager.printError(\
+                    "Fail to get address because of root permission")
+                sys.exit(0)
+
             # get socket objects #
             objs = SystemManager.getProcSocketObjs(pids[0])
 
