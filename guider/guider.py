@@ -10263,7 +10263,7 @@ class FileAnalyzer(object):
                 except:
                     pass
 
-                if val['isRep'] is False:
+                if not val['isRep']:
                     continue
 
             if not val['fd']:
@@ -11116,8 +11116,9 @@ class SystemManager(object):
 
             for pid in threadList:
                 try:
-                    ret = \
-                        SystemManager.guiderObj.sched_setaffinity(int(pid), mask)
+                    if SystemManager.guiderObj:
+                        guiderObj = SystemManager.guiderObj
+                        ret = guiderObj.sched_setaffinity(int(pid), mask)
                 except:
                     pass
 
@@ -13579,11 +13580,12 @@ Copyright:
     @staticmethod
     def openPerfEvent(econfig, cpu=-1, pid=-1):
         try:
+            perfEventList = ConfigManager.PERF_EVENT_TYPE
             if econfig in ConfigManager.PERF_HW_EVENT_TYPE:
-                nrType = ConfigManager.PERF_EVENT_TYPE.index('PERF_TYPE_HARDWARE')
+                nrType = perfEventList.index('PERF_TYPE_HARDWARE')
                 nrConfig = ConfigManager.PERF_HW_EVENT_TYPE.index(econfig)
             elif econfig in ConfigManager.PERF_SW_EVENT_TYPE:
-                nrType = ConfigManager.PERF_EVENT_TYPE.index('PERF_TYPE_SOFTWARE')
+                nrType = perfEventList.index('PERF_TYPE_SOFTWARE')
                 nrConfig = ConfigManager.PERF_SW_EVENT_TYPE.index(econfig)
             else:
                 raise Exception()
@@ -15624,69 +15626,68 @@ Copyright:
 
     @staticmethod
     def alarmHandler(signum, frame):
-        if SystemManager.repeatCount > SystemManager.progressCnt or \
-            not SystemManager.isTerm:
-
-            # update count #
-            SystemManager.progressCnt += 1
-            progressCnt = SystemManager.progressCnt
-            repeatInterval = SystemManager.repeatInterval
-            repeatCount = SystemManager.repeatCount
-
-            # disable alarm handler #
-            signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
-
-            if SystemManager.pipeEnable:
-                if repeatCount == progressCnt:
-                    SystemManager.stopRecording()
-                    SystemManager.recordStatus = False
-                signal.alarm(repeatInterval)
-            elif SystemManager.outputFile:
-                if repeatCount == 1 and SystemManager.isTerm:
-                    output = SystemManager.outputFile
-                else:
-                    output = '%s.%ds_%ds' % (SystemManager.outputFile, \
-                        (progressCnt - 1) * repeatInterval, \
-                        progressCnt * repeatInterval)
-
-                try:
-                    # save system info #
-                    SystemManager.sysInstance.saveResourceSnapshot()
-
-                    with open(os.path.join(\
-                        SystemManager.mountPath, '../trace'), 'r') as fr:
-                        with open(output, 'w') as fw:
-                            SystemManager.printInfo(\
-                                "wait for writing data to %s" % (fw.name))
-
-                            fw.seek(0,0)
-                            fw.writelines(SystemManager.magicString + '\n')
-                            fw.writelines(SystemManager.systemInfoBuffer)
-                            fw.writelines(SystemManager.magicString + '\n')
-                            SystemManager.clearInfoBuffer()
-                            fw.write(fr.read())
-
-                            try:
-                                fsize = UtilManager.convertSize2Unit(\
-                                    int(os.path.getsize(output)))
-                            except:
-                                fsize = '?'
-
-                            SystemManager.printInfo(\
-                                'finish saving trace data into '
-                                '%s [%s] successfully' % (output, fsize))
-                except:
-                    SystemManager.printWarning(\
-                        'Fail to save trace data to %s' % output)
-            else:
-                SystemManager.printError(\
-                    'Fail to save trace data because output file is not set')
-                sys.exit(0)
-
-            # enable alarm handler #
-            signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
-        else:
+        if SystemManager.repeatCount <= SystemManager.progressCnt and \
+            SystemManager.isTerm:
             sys.exit(0)
+
+        # update count #
+        SystemManager.progressCnt += 1
+        progressCnt = SystemManager.progressCnt
+        repeatInterval = SystemManager.repeatInterval
+        repeatCount = SystemManager.repeatCount
+
+        # disable alarm handler #
+        signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+
+        if SystemManager.pipeEnable:
+            if repeatCount == progressCnt:
+                SystemManager.stopRecording()
+                SystemManager.recordStatus = False
+            signal.alarm(repeatInterval)
+        elif SystemManager.outputFile:
+            if repeatCount == 1 and SystemManager.isTerm:
+                output = SystemManager.outputFile
+            else:
+                output = '%s.%ds_%ds' % (SystemManager.outputFile, \
+                    (progressCnt - 1) * repeatInterval, \
+                    progressCnt * repeatInterval)
+
+            try:
+                # save system info #
+                SystemManager.sysInstance.saveResourceSnapshot()
+
+                with open(os.path.join(\
+                    SystemManager.mountPath, '../trace'), 'r') as fr:
+                    with open(output, 'w') as fw:
+                        SystemManager.printInfo(\
+                            "wait for writing data to %s" % (fw.name))
+
+                        fw.seek(0,0)
+                        fw.writelines(SystemManager.magicString + '\n')
+                        fw.writelines(SystemManager.systemInfoBuffer)
+                        fw.writelines(SystemManager.magicString + '\n')
+                        SystemManager.clearInfoBuffer()
+                        fw.write(fr.read())
+
+                        try:
+                            fsize = UtilManager.convertSize2Unit(\
+                                int(os.path.getsize(output)))
+                        except:
+                            fsize = '?'
+
+                        SystemManager.printInfo(\
+                            'finish saving trace data into '
+                            '%s [%s] successfully' % (output, fsize))
+            except:
+                SystemManager.printWarning(\
+                    'Fail to save trace data to %s' % output)
+        else:
+            SystemManager.printError(\
+                'Fail to save trace data because output file is not set')
+            sys.exit(0)
+
+        # enable alarm handler #
+        signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
 
 
 
@@ -15884,11 +15885,13 @@ Copyright:
             "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if SystemManager.printFile and \
-            SystemManager.printStreamEnable:
-            string = '\n'.join(\
-                [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
-            print(string[:-1])
+        if not SystemManager.printFile or \
+            not SystemManager.printStreamEnable:
+            return
+
+        string = '\n'.join(\
+            [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+        print(string[:-1])
 
 
 
@@ -16311,7 +16314,8 @@ Copyright:
                     '%s%s' % (SystemManager.mountPath, '../trace_marker')
 
             try:
-                SystemManager.eventLogFD = open(SystemManager.eventLogFile, 'w')
+                SystemManager.eventLogFD = \
+                    open(SystemManager.eventLogFile, 'w')
             except:
                 SystemManager.printWarning(\
                     "Fail to open %s to write event\n" % \
