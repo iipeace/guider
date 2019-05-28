@@ -17347,7 +17347,8 @@ Copyright:
                         SystemManager.syscallList[sidx] = nrSyscall
                     except:
                         SystemManager.printError(\
-                            "No %s syscall in %s ABI" % (val, SystemManager.arch))
+                            "No %s syscall in %s ABI" % \
+                            (val, SystemManager.arch))
                         SystemManager.syscallList.remove(val)
                         sys.exit(0)
 
@@ -20312,6 +20313,10 @@ Copyright:
         # no use pager #
         if not SystemManager.isTopMode():
             SystemManager.printStreamEnable = True
+
+        # set priority #
+        if not SystemManager.prio:
+            SystemManager.setPriority(SystemManager.pid, 'C', -20)
 
         # define wait syscall #
         wait = None
@@ -25643,7 +25648,7 @@ class Debugger(object):
             if SystemManager.showAll:
                 self.callPrint.append(callString)
         else:
-            SystemManager.printPipe(callString)
+            SystemManager.printPipe('\n%s' % callString, newline=False)
 
         # backup register #
         self.prevsp = self.sp
@@ -25748,7 +25753,7 @@ class Debugger(object):
                     self.callPrint.append(callString)
             else:
                 SystemManager.printPipe(\
-                    callString, newline=False, flush=True)
+                    '\n%s' % callString, newline=False, flush=True)
 
             # check symbol #
             if SystemManager.customCmd:
@@ -25794,7 +25799,7 @@ class Debugger(object):
             elif self.isRealtime:
                 pass
             else:
-                SystemManager.printPipe(callString, flush=True)
+                SystemManager.printPipe(callString, newline=False, flush=True)
 
             self.clearArgs()
 
@@ -25968,13 +25973,6 @@ class Debugger(object):
             SystemManager.printInfo(\
                 'Do sampling every %g second' % self.sampleTime)
 
-        # set trap event type #
-        if self.isRunning:
-            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-        else:
-            self.ptraceEvent('PTRACE_O_TRACEEXEC')
-            self.status = 'ready'
-
         # check the process is running #
         try:
             os.kill(pid, 0)
@@ -25988,21 +25986,34 @@ class Debugger(object):
         # set start time #
         self.start = self.last = time.time()
 
+        SystemManager.printInfo(\
+            "Start profiling thread %d" % pid)
+
+        # set trap event type #
+        if self.isRunning:
+            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+
+            if mode != 'syscall':
+                try:
+                    # load symbols from binaries mapped #
+                    self.loadSymbols()
+
+                    # interprete current user function call #
+                    if not SystemManager.isTopMode():
+                        self.handleUsercall()
+                except SystemExit:
+                    return
+                except:
+                    pass
+        else:
+            self.ptraceEvent('PTRACE_O_TRACEEXEC')
+            self.status = 'ready'
+
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
         elif mode == 'inst' or mode == 'sample':
             cmd = plist.index('PTRACE_SINGLESTEP')
-
-            try:
-                # interprete current user function call #
-                if self.isRunning:
-                    self.loadSymbols()
-                    self.handleUsercall()
-            except SystemExit:
-                return
-            except:
-                pass
         else:
             SystemManager.printError(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -26010,9 +26021,6 @@ class Debugger(object):
 
         # register summary function #
         SystemManager.addExitFunc(Debugger.printSummary, self)
-
-        SystemManager.printInfo(\
-            "Start profiling thread %d\n" % pid)
 
         # set timer #
         if self.isRealtime:
@@ -27633,6 +27641,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def saveObject(obj, path):
+        # check cache dir #
         if not os.path.isdir(SystemManager.elfCachePath):
             try:
                 os.mkdir(SystemManager.elfCachePath)
@@ -27645,15 +27654,6 @@ class ElfAnalyzer(object):
         # build cache path #
         cpath = '%s/%s' % \
             (SystemManager.elfCachePath, path.replace('/', '_'))
-
-        # get file size #
-        try:
-            if obj.fileSize == os.stat(cpath).st_size:
-                return False
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
 
         return UtilManager.saveObjectToFile(obj, cpath)
 
@@ -27668,6 +27668,11 @@ class ElfAnalyzer(object):
         # load object from file #
         obj = UtilManager.loadObjectFromFile(cpath)
         if not obj:
+            return None
+
+        # check binary size #
+        dpath = obj.path
+        if obj.fileSize != os.stat(dpath).st_size:
             return None
 
         return obj
@@ -27715,6 +27720,9 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def demangleSymbol(symbol):
+        origSym = symbol
+        symbol = symbol.replace('@@', '@')
+
         if not SystemManager.demangleEnable:
             return symbol
 
@@ -27725,9 +27733,6 @@ class ElfAnalyzer(object):
         # check cache table #
         if symbol in ElfAnalyzer.cachedDemangleTable:
             return ElfAnalyzer.cachedDemangleTable[symbol]
-
-        origSym = symbol
-        symbol = symbol.replace('@@', '@')
 
         # check including version #
         if symbol.rfind('@') > -1:
@@ -28361,15 +28366,16 @@ class ElfAnalyzer(object):
         debugPath = '%s/.debug/%s' % (dirname, filename)
         if os.path.isfile(debugPath):
             SystemManager.printWarning(\
-                'Use %s instead of %s for debug symbols\n' % (debugPath, path))
-            path = debugPath
+                'Use %s instead of %s for debug symbols\n' % \
+                (debugPath, path))
+            self.path = path = debugPath
         else:
             debugPath = '/usr/lib/debug%s' % path
             if os.path.isfile(debugPath):
                 SystemManager.printWarning(\
                     'Use %s instead of %s for debug symbols\n' % \
                     (debugPath, path))
-                path = debugPath
+                self.path = path = debugPath
 
         # open file #
         try:
