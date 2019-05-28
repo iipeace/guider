@@ -19157,6 +19157,8 @@ Copyright:
                     try:
                         with open(targetPath, 'r') as fd:
                             comm = fd.readline()[0:-1]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         continue
 
@@ -27700,6 +27702,8 @@ class ElfAnalyzer(object):
             try:
                 ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
                 SystemManager.printInfo("[Done]", prefix=False, notitle=True)
+            except SystemExit:
+                sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
                 SystemManager.printInfo("[Fail]", prefix=False, notitle=True)
@@ -27835,6 +27839,8 @@ class ElfAnalyzer(object):
                 return True
             else:
                 return False
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
