@@ -3316,7 +3316,6 @@ class NetworkManager(object):
             print(oneLine)
 
             # run mainloop #
-            buf = ''
             isPrint = False
             while 1:
                 try:
@@ -3328,14 +3327,8 @@ class NetworkManager(object):
                     if not output:
                         break
 
-                    # check split packet #
-                    if output[-1] != '\n':
-                        buf = '%s%s' % (buf, output)
-                    else:
-                        # concatenate split lines #
-                        print('%s%s' % (buf, output[:-1]))
-                        isPrint = True
-                        buf = ''
+                    print(output[:-1])
+                    isPrint = True
                 except:
                     break
 
@@ -3473,7 +3466,7 @@ class NetworkManager(object):
 
 
 
-    def recv(self, size=None):
+    def recv(self, size=0):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
@@ -3483,32 +3476,45 @@ class NetworkManager(object):
                 "Fail to use socket for client because it is not set")
             return False
 
-        if not size:
-            try:
-                return self.socket.recv()
-            except:
-                pass
-        else:
-            try:
-                return self.socket.recv(size)
-            except:
-                pass
+        # set recv size #
+        if size == 0:
+            size = SystemManager.packetSize
+
+        try:
+            return self.socket.recv(size)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                "Fail to send data to %s:%d as client because %s" % \
+                (self.ip, self.port, err))
+            return False
 
 
 
     def getData(self):
-        output = self.recvfrom()[0]
-        if not output:
-            return output
+        try:
+            data = b''
+
+            # receive and composite packets #
+            while 1:
+                output = self.recvfrom()[0]
+                data = data[:-1] + output
+                if len(output) < SystemManager.packetSize:
+                    break
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
 
         try:
-            return output.decode()
+            retstr = data.decode()
+            return retstr
         except:
-            return
+            return None
 
 
 
-    def recvfrom(self):
+    def recvfrom(self, size=0):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
@@ -3518,12 +3524,20 @@ class NetworkManager(object):
                 "Fail to use socket for client because it is not set")
             return False
 
+        # set recv size #
+        if size == 0:
+            size = SystemManager.packetSize
+
         try:
-            message, address = self.socket.recvfrom(SystemManager.packetSize)
+            message, address = self.socket.recvfrom(size)
             return (message, address)
         except SystemExit:
             sys.exit(0)
         except:
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                "Fail to send data to %s:%d as client because %s" % \
+                (self.ip, self.port, err))
             return None
 
 
@@ -3574,7 +3588,11 @@ class NetworkManager(object):
 
         # set server address #
         if SystemManager.isLinux and not SystemManager.remoteServObj:
-            addr = SystemManager.getProcAddrs(__module__)
+            try:
+                addr = SystemManager.getProcAddrs(__module__)
+            except:
+                addr = None
+
             if not addr:
                 printError()
                 return None
@@ -24511,6 +24529,10 @@ class Debugger(object):
         self.callTable = {}
         self.breakList = {}
 
+        self.backtrace = {
+            'aarch64': self.getBacktrace_AARCH64,
+        }
+
         self.pc = None
         self.lr = None
         self.sp = None
@@ -25535,6 +25557,50 @@ class Debugger(object):
         # stop target thread #
         if self.stop() < 0:
             sys.exit(0)
+
+
+
+    def getBacktrace(self):
+        try:
+            return self.backtrace[SystemManager.arch]()
+        except:
+            return None
+
+
+
+    def getBacktrace_AARCH64(self):
+        nextFp = self.fp
+        nextLr = self.lr
+        btList = [self.pc, nextLr]
+        wordSize = ConfigManager.wordSize
+
+        while 1:
+            if not nextLr or \
+                not nextFp or \
+                nextLr & 0x1:
+                break
+
+            # get FP and LR #
+            try:
+                nextLr = self.accessMem(\
+                    self.peekIdx, nextFp + ConfigManager.wordSize)
+                nextFp = self.accessMem(self.peekIdx, nextFp)
+            except:
+                break
+
+            # add address to list #
+            btList.append(nextLr)
+
+        # get symbol and file from address #
+        clist = []
+        for addr in btList:
+            res = self.getSymbolInfo(addr)
+            if res:
+                clist.append([addr, res[0], res[1]])
+            else:
+                clist.append([addr, '??', '??'])
+
+        return clist
 
 
 
