@@ -26280,7 +26280,7 @@ class Debugger(object):
     def destroyDebugger(instance):
         # this will not effective because the instance exists in exitFuncList #
         try:
-            del instance
+            instance.__del__()
         except:
             pass
 
