@@ -15713,15 +15713,15 @@ Copyright:
                         SystemManager.clearInfoBuffer()
                         fw.write(fr.read())
 
-                        try:
-                            fsize = UtilManager.convertSize2Unit(\
-                                int(os.path.getsize(output)))
-                        except:
-                            fsize = '?'
+                try:
+                    fsize = UtilManager.convertSize2Unit(\
+                        int(os.path.getsize(output)))
+                except:
+                    fsize = '?'
 
-                        SystemManager.printInfo(\
-                            'finish saving trace data into '
-                            '%s [%s] successfully' % (output, fsize))
+                SystemManager.printInfo(\
+                    'finish saving trace data into '
+                    '%s [%s] successfully' % (output, fsize))
             except:
                 SystemManager.printWarning(\
                     'Fail to save trace data to %s' % output)
@@ -17488,7 +17488,10 @@ Copyright:
 
             elif option == 'H':
                 try:
-                    SystemManager.funcDepth = int(value)
+                    if not value:
+                        SystemManager.funcDepth = sys.maxsize
+                    else:
+                        SystemManager.funcDepth = int(value)
                     if SystemManager.funcDepth < 0:
                         raise Exception()
                 except:
@@ -17670,7 +17673,10 @@ Copyright:
 
             elif option == 'H':
                 try:
-                    SystemManager.funcDepth = int(value)
+                    if not value:
+                        SystemManager.funcDepth = sys.maxsize
+                    else:
+                        SystemManager.funcDepth = int(value)
                     if SystemManager.funcDepth < 0:
                         raise Exception()
                 except:
@@ -25372,6 +25378,9 @@ class Debugger(object):
 
 
     def getSymbolInfo(self, vaddr):
+        if not vaddr:
+            return None
+
         if not self.pid:
             SystemManager.printError("Fail to get PID to get symbol")
             return None
