@@ -3497,13 +3497,25 @@ class NetworkManager(object):
 
             # receive and composite packets #
             while 1:
-                output = self.recvfrom()[0]
+                output = self.recvfrom(noTimeout=True)
+
+                # handle timeout #
+                if not output:
+                    continue
+
+                # get only data #
+                output = output[0]
+
                 data = data[:-1] + output
                 if len(output) < SystemManager.packetSize:
                     break
         except SystemExit:
             sys.exit(0)
         except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to get data from %s:%d as client because %s" % \
+                (self.ip, self.port, err))
             return None
 
         try:
@@ -3514,7 +3526,7 @@ class NetworkManager(object):
 
 
 
-    def recvfrom(self, size=0):
+    def recvfrom(self, size=0, noTimeout=False):
         if self.ip is None or self.port is None:
             SystemManager.printError(\
                 "Fail to use IP address for server because it is not set")
@@ -3524,21 +3536,35 @@ class NetworkManager(object):
                 "Fail to use socket for client because it is not set")
             return False
 
+        # get socket object #
+        socket = SystemManager.getPkg('socket', False)
+
         # set recv size #
         if size == 0:
             size = SystemManager.packetSize
 
-        try:
-            message, address = self.socket.recvfrom(size)
-            return (message, address)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            err = SystemManager.getErrReason()
-            SystemManager.printWarning(\
-                "Fail to send data to %s:%d as client because %s" % \
-                (self.ip, self.port, err))
-            return None
+        while 1:
+            try:
+                message, address = self.socket.recvfrom(size)
+                return (message, address)
+            except socket.timeout:
+                if noTimeout:
+                    continue
+                else:
+                    SystemManager.printError(\
+                        "Fail to get data from %s:%d as client because %s" % \
+                        (self.ip, self.port, 'timeout'))
+                    return None
+            except KeyboardInterrupt:
+                sys.exit(0)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to get data from %s:%d as client because %s" % \
+                    (self.ip, self.port, err))
+                return None
 
 
 
