@@ -1,0 +1,32 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en">
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>Flask</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.21/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue-socket.io@3.0.4/dist/vue-socketio.min.js"></script>
+</head>
+<body>
+가이더 - 플라스크 - VUE 테스트
+<script lang="javascript">
+        Vue.prototype.$serverAddr = "%% server_addr %%";
+  </script>
+    <div id="app">
+        <div>
+            <input type="text" v-model="clientMsg" @keyup.enter="emitMsg"/>
+            <button id="emitStart" @click="emitStart">Start</button>
+            <input type="text" v-model="targetTimestamp" />
+            <button id="emitStop" @click="emitStop">Stop</button>
+            <button id="connectSocket" @click="connectSocket">Connect</button>
+            <button id="disconnectSocket" @click="disconnectSocket">Disconnect</button>
+
+        </div>
+        <br />
+        <pre>{{ log }}</pre>
+    </div>
+  <script src="%% url_for('static', filename="../static/js/index.js") %%"> </script>
+</body>
+</html>
