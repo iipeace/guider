@@ -3550,20 +3550,15 @@ class NetworkManager(object):
             except socket.timeout:
                 if noTimeout:
                     continue
-                else:
-                    SystemManager.printError(\
-                        "Fail to get data from %s:%d as client because %s" % \
-                        (self.ip, self.port, 'timeout'))
-                    return None
+                SystemManager.printWarning(\
+                    "Fail to receive data from %s:%d as client because %s" % \
+                    (self.ip, self.port, 'timeout'))
+                return None
             except KeyboardInterrupt:
                 sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SystemManager.getErrReason()
-                SystemManager.printError(\
-                    "Fail to get data from %s:%d as client because %s" % \
-                    (self.ip, self.port, err))
                 return None
 
 
@@ -9935,6 +9930,8 @@ class FileAnalyzer(object):
             # open maps #
             try:
                 fd = open(path, 'r')
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning(\
                     'Fail to open %s to get process memory map' % path)
@@ -12407,6 +12404,9 @@ Examples:
     - Monitor syscalls for a specific thread
         # {0:1} {1:1} -g a.out
 
+    - Monitor syscalls with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -H
+
     - Monitor syscalls for a specific thread every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
@@ -12435,6 +12435,9 @@ Description:
 Examples:
     - Monitor usercalls for a specific thread
         # {0:1} {1:1} -g a.out
+
+    - Monitor usercalls with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -H
 
     - Monitor usercalls for a specific thread every 2 second with 1ms sampling
         # {0:1} {1:1} -g 1234 -i 1000 -R 2:
@@ -24559,6 +24562,7 @@ class Debugger(object):
         self.callstack = []
         self.totalCall = 0
         self.callTable = {}
+        self.fileTable = {}
         self.breakList = {}
 
         self.backtrace = {
@@ -25272,6 +25276,24 @@ class Debugger(object):
 
             cnt += 1
 
+            if len(value['backtrace']) > 0:
+                for bt, cnt in sorted(\
+                    value['backtrace'].items(), \
+                    key=lambda x:x[1], reverse=True):
+
+                    bper = cnt / float(value['cnt']) * 100
+                    if bper < 1 and \
+                        not SystemManager.showAll:
+                        break
+
+                    SystemManager.addPrint(\
+                        '{0:>17} | {1:<1}\n'.format('%.1f%%' % bper, bt))
+
+                    # cut by rows of terminal #
+                    if SystemManager.checkCutCond():
+                        SystemManager.addPrint('---more---')
+                        break
+
             # cut by rows of terminal #
             if SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
@@ -25534,7 +25556,7 @@ class Debugger(object):
 
 
 
-    def addSample(self, sym, filename, current=None, realtime=False):
+    def addSample(self, sym, filename, current=None, realtime=False, bt=None):
         if realtime:
             self.totalCall += 1
 
@@ -25549,9 +25571,27 @@ class Debugger(object):
                 self.callTable[sym] = dict()
                 self.callTable[sym]['cnt'] = 1
                 self.callTable[sym]['path'] = filename
+                self.callTable[sym]['backtrace'] = dict()
 
-            # toDo: add file table #
+            # add file table #
+            try:
+                self.fileTable[filename]['cnt'] += 1
+            except:
+                self.fileTable[filename] = dict()
+                self.fileTable[filename]['cnt'] = 1
 
+            # add backtrace #
+            if bt:
+                btString = ''
+                for item in bt:
+                    btString = '%s <- %s[%s]' % (btString, item[1], item[2])
+
+                try:
+                    self.callTable[sym]['backtrace'][btString] += 1
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    self.callTable[sym]['backtrace'][btString] = 1
             return
 
         if not current:
@@ -25595,18 +25635,20 @@ class Debugger(object):
 
 
 
-    def getBacktrace(self):
+    def getBacktrace(self, limit=sys.maxsize):
         try:
-            return self.backtrace[SystemManager.arch]()
+            return self.backtrace[SystemManager.arch](limit)
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
 
 
-    def getBacktrace_AARCH64(self):
+    def getBacktrace_AARCH64(self, limit=sys.maxsize):
         nextFp = self.fp
         nextLr = self.lr
-        btList = [self.pc, nextLr]
+        btList = [nextLr]
         wordSize = ConfigManager.wordSize
 
         while 1:
@@ -25615,11 +25657,17 @@ class Debugger(object):
                 nextLr & 0x1:
                 break
 
+            # check max length #
+            if len(btList) >= limit:
+                break
+
             # get FP and LR #
             try:
                 nextLr = self.accessMem(\
                     self.peekIdx, nextFp + ConfigManager.wordSize)
                 nextFp = self.accessMem(self.peekIdx, nextFp)
+            except SystemExit:
+                sys.exit(0)
             except:
                 break
 
@@ -25656,9 +25704,11 @@ class Debugger(object):
             # add sample #
             if self.isRealtime:
                 self.addSample(\
-                    self.prevCallInfo[0], self.prevCallInfo[1], realtime=True)
+                    self.prevCallInfo[0], self.prevCallInfo[1], \
+                    realtime=True, bt=self.prevCallInfo[4])
             elif SystemManager.printFile:
-                self.addSample(self.prevCallInfo[0], self.prevCallInfo[1])
+                self.addSample(\
+                    self.prevCallInfo[0], self.prevCallInfo[1])
 
         # get new symbol info from program counter of target #
         ret = self.getSymbolInfo(self.pc)
@@ -25671,12 +25721,19 @@ class Debugger(object):
             fstart = '??'
             fend = '??'
 
+        # get backtrace #
+        if self.isRealtime and \
+            SystemManager.funcDepth > 0:
+            backtrace = self.getBacktrace(SystemManager.funcDepth)
+        else:
+            backtrace = None
+
         # print unknown call address #
         if fname == '??':
             if self.isRealtime:
-                self.addSample('??', fname, realtime=True)
+                self.addSample('??', fname, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
-                self.addSample('??', fname)
+                self.addSample('??', fname, bt=backtrace)
             return
 
         # get filter addr #
@@ -25696,14 +25753,14 @@ class Debugger(object):
         if sym == '??' and self.prevCallInfo:
             if self.prevCallInfo[0] == sym:
                 # save current call info as previous call #
-                self.prevCallInfo = [sym, fname, vstart, vend]
+                self.prevCallInfo = [sym, fname, vstart, vend, backtrace]
                 return
             elif self.prevCallInfo[0].startswith('mmap'):
                 # enable memory update flag #
                 self.needRescan = True
 
         # save current call info as previous call #
-        self.prevCallInfo = [sym, fname, vstart, vend]
+        self.prevCallInfo = [sym, fname, vstart, vend, backtrace]
 
         # toDo: add additional call stack info #
         pass
@@ -25748,14 +25805,15 @@ class Debugger(object):
 
         # print call info #
         if self.isRealtime:
-            self.addSample(sym, fname, current, realtime=True)
+            self.addSample(sym, fname, current, realtime=True, bt=backtrace)
         elif SystemManager.printFile:
             self.addSample(sym, fname, current)
 
             if SystemManager.showAll:
                 self.callPrint.append(callString)
         else:
-            SystemManager.printPipe('\n%s' % callString, newline=False)
+            SystemManager.printPipe(\
+                '\n%s' % callString, newline=False, flush=True)
 
         # backup register #
         self.prevsp = self.sp
@@ -25852,7 +25910,10 @@ class Debugger(object):
 
             # print call info #
             if self.isRealtime:
-                self.addSample(name, '??', current, realtime=True)
+                if SystemManager.funcDepth > 0:
+                    backtrace = self.getBacktrace(SystemManager.funcDepth)
+                self.addSample(\
+                    name, '??', current, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
                 self.addSample(name, '??', current)
 
@@ -26096,22 +26157,26 @@ class Debugger(object):
         SystemManager.printInfo(\
             "Start profiling thread %d" % pid)
 
-        # set trap event type #
+        # prepare environment for profiling #
         if self.isRunning:
             self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
 
-            if mode != 'syscall':
+            # load user symbols #
+            if mode != 'syscall' or \
+                SystemManager.funcDepth > 0:
                 try:
-                    # load symbols from binaries mapped #
                     self.loadSymbols()
-
-                    # interprete current user function call #
-                    if not SystemManager.isTopMode():
-                        self.handleUsercall()
-                except SystemExit:
-                    return
                 except:
-                    pass
+                    return
+
+            # handle current user symbol #
+            if mode != 'syscall' and \
+                not SystemManager.isTopMode():
+                try:
+                    self.handleUsercall()
+                except:
+                    return
+        # set trap event type #
         else:
             self.ptraceEvent('PTRACE_O_TRACEEXEC')
             self.status = 'ready'
@@ -26128,6 +26193,9 @@ class Debugger(object):
 
         # register summary function #
         SystemManager.addExitFunc(Debugger.printSummary, self)
+
+        # update time #
+        self.last = time.time()
 
         # set timer #
         if self.isRealtime:
@@ -26737,24 +26805,26 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, c_ulong
 
         try:
             # load standard libc library #
             if not SystemManager.libcObj:
                 SystemManager.libcObj = \
-                    cdll.LoadLibrary(SystemManager.libcPath)
+                    ctypes.cdll.LoadLibrary(SystemManager.libcPath)
 
             # type converting #
             SystemManager.libcObj.ptrace.argtypes = \
-                (c_ulong, c_ulong, c_ulong, c_ulong)
-            SystemManager.libcObj.ptrace.restype = c_ulong
+                (ctypes.c_ulong, ctypes.c_ulong, \
+                    ctypes.c_ulong, ctypes.c_ulong)
+            SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printWarning('Fail to call ptrace in libc')
+            err = SystemManager.getErrReason()
+            SystemManager.printWarning(\
+                'Fail to call ptrace in libc because %s' % err)
 
 
 
