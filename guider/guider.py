@@ -24566,6 +24566,9 @@ class Debugger(object):
         self.breakList = {}
 
         self.backtrace = {
+            'x86': self.getBacktrace_X86,
+            'x64': self.getBacktrace_X64,
+            'arm': self.getBacktrace_ARM,
             'aarch64': self.getBacktrace_AARCH64,
         }
 
@@ -25642,6 +25645,33 @@ class Debugger(object):
             sys.exit(0)
         except:
             return None
+
+
+
+    def getBacktrace_X86(self, limit=sys.maxsize):
+        SystemManager.printError(\
+            '%s platform is not supported yet for backtrace' % \
+            SystemManager.arch)
+        SystemManager.funcDepth=0
+        return
+
+
+
+    def getBacktrace_X64(self, limit=sys.maxsize):
+        SystemManager.printError(\
+            '%s platform is not supported yet for backtrace' % \
+            SystemManager.arch)
+        SystemManager.funcDepth=0
+        return
+
+
+
+    def getBacktrace_ARM(self, limit=sys.maxsize):
+        SystemManager.printError(\
+            '%s platform is not supported yet for backtrace' % \
+            SystemManager.arch)
+        SystemManager.funcDepth=0
+        return
 
 
 
