@@ -25188,6 +25188,7 @@ class Debugger(object):
             argtype = argtype[6:]
 
         # toDo: handle file path #
+        pass
 
         # toDo: handle pointer data type #
         if argtype.endswith("*"):
@@ -25525,6 +25526,7 @@ class Debugger(object):
             deref = self.readMem(val)
             try:
                 deref = '"%s"' % deref.decode("utf-8")
+                deref = re.sub('\W+','', deref)
             except:
                 deref = hex(UtilManager.bstring2word(deref))
             SystemManager.printPipe(\
@@ -25609,12 +25611,20 @@ class Debugger(object):
             return
 
         if sym in SystemManager.customCmd:
+            sys.stdout.write('\n')
+
             if SystemManager.showAll:
                 # print register set #
                 self.printRegs(newline)
 
-            SystemManager.waitUserInput(\
-                wait=0, msg="%s is detected! Press enter to continue..." % sym)
+                # print backtrace #
+                try:
+                    bt = self.getBacktrace()
+                except:
+                    pass
+
+            SystemManager.waitUserInput(wait=0, \
+                msg="%s is detected! Press enter to continue..." % sym)
 
 
 
@@ -25653,7 +25663,7 @@ class Debugger(object):
             '%s platform is not supported yet for backtrace' % \
             SystemManager.arch)
         SystemManager.funcDepth=0
-        return
+        sys.exit(0)
 
 
 
@@ -25662,7 +25672,7 @@ class Debugger(object):
             '%s platform is not supported yet for backtrace' % \
             SystemManager.arch)
         SystemManager.funcDepth=0
-        return
+        sys.exit(0)
 
 
 
@@ -25671,7 +25681,7 @@ class Debugger(object):
             '%s platform is not supported yet for backtrace' % \
             SystemManager.arch)
         SystemManager.funcDepth=0
-        return
+        sys.exit(0)
 
 
 
