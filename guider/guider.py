@@ -16664,7 +16664,9 @@ Copyright:
                 SystemManager.encodeEnable = False
                 SystemManager.pipeForPrint.write(line + retstr)
             except:
-                SystemManager.printError("Fail to print to pipe\n")
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to print to pipe because %s\n" % err)
                 SystemManager.pipeForPrint = None
 
         # file output #
@@ -22833,7 +22835,7 @@ Copyright:
                 if SystemManager.writeCmd(str(idx) + '/enable', '0') >= 0:
                     SystemManager.writeCmd(str(idx) + '/filter', '0')
 
-        if SystemManager.graphEnable is False and \
+        if not SystemManager.graphEnable and \
             SystemManager.customCmd:
 
             for cmd in SystemManager.customCmd:
@@ -28028,6 +28030,12 @@ class ElfAnalyzer(object):
 
             # free demangled string array #
             #SystemManager.libcObj.free(ret)
+
+            # remove () #
+            try:
+                dmSymbol = dmSymbol.split('(', 1)[0]
+            except:
+                pass
 
             demangledSym = '%s%s' % (dmSymbol, version)
             ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
