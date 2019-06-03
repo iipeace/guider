@@ -16638,7 +16638,7 @@ Copyright:
                             os.popen(poption, 'w')
                     elif UtilManager.which('more'):
                         SystemManager.pipeForPrint = \
-                                os.popen('more', 'w')
+                            os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
                     if UtilManager.which('more'):
                         SystemManager.pipeForPrint = \
@@ -16648,6 +16648,8 @@ Copyright:
                     SystemManager.pipeForPrint = False
 
                 SystemManager.encodeEnable = False
+
+                SystemManager.setPipeHandler()
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarning(\
@@ -16663,6 +16665,8 @@ Copyright:
             except UnicodeEncodeError:
                 SystemManager.encodeEnable = False
                 SystemManager.pipeForPrint.write(line + retstr)
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
@@ -19639,6 +19643,15 @@ Copyright:
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+
+
+
+    @staticmethod
+    def setPipeHandler():
+        if not sys.platform.startswith('linux'):
+            return
+
+        signal.signal(signal.SIGPIPE, SystemManager.exitHandler)
 
 
 
