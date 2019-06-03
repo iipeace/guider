@@ -3917,7 +3917,7 @@ class NetworkManager(object):
                 ip = item[1]
                 if ip == '0.0.0.0' or \
                     ip == '127.0.0.1' or \
-                    ip.endswith('.1') is False:
+                    not ip.endswith('.1'):
                     continue
 
                 gw = '%s.1' % ip[:ip.rfind('.')]
@@ -4224,10 +4224,10 @@ class PageAnalyzer(object):
             try:
                 target = line[:-1].split()
 
-                if soffset.startswith('0x') is False:
+                if not soffset.startswith('0x'):
                     soffset = '0x%s' % soffset
 
-                if eoffset.startswith('0x') is False:
+                if not eoffset.startswith('0x'):
                     eoffset = '0x%s' % eoffset
 
                 SystemManager.printPipe('%18s-%18s %s' % \
@@ -5106,9 +5106,9 @@ class FunctionAnalyzer(object):
                     tempSym = self.posData[addr]['symbol']
 
                     # Ignore this function if there is no symbol #
-                    if SystemManager.showAll is False and \
+                    if not SystemManager.showAll and \
                         self.posData[addr]['origBin'] == '??' and \
-                            (tempSym == addr or \
+                        (tempSym == addr or \
                             tempSym == self.posData[addr]['offset'] or \
                             addr == '00c0ffee'):
                         continue
@@ -5539,7 +5539,7 @@ class FunctionAnalyzer(object):
             SystemManager.addr2linePath = addr2linePath
         else:
             for path in SystemManager.addr2linePath:
-                if os.path.isfile(path) is False:
+                if not os.path.isfile(path):
                     SystemManager.printError(\
                         "Fail to find %s to use addr2line" % path)
                     sys.exit(0)
@@ -5793,7 +5793,7 @@ class FunctionAnalyzer(object):
         nowCtx = self.nowCtx
 
         # stack of kernel thread #
-        if SystemManager.userRecordEnable is False or \
+        if not SystemManager.userRecordEnable or \
             nowCtx['prevMode'] != nowCtx['curMode'] == 'kernel':
             if len(nowCtx['userCallStack']) == 0 and \
                 len(nowCtx['kernelCallStack']) > 0:
@@ -5964,7 +5964,7 @@ class FunctionAnalyzer(object):
                     self.posData[pos]['unlockCnt'] += 1
 
             # Skip pos because it is usercall or no symbol #
-            elif SystemManager.showAll is False and not path:
+            elif not SystemManager.showAll and not path:
                 return
 
             self.posData[pos]['symbol'] = path
@@ -6757,7 +6757,7 @@ class FunctionAnalyzer(object):
             return True
 
         # custom event #
-        elif isFixedEvent is False:
+        elif not isFixedEvent:
             try:
                 if len([event for event in self.customEventTable \
                     if event.endswith(func[:-1])]) == 0:
@@ -6869,7 +6869,7 @@ class FunctionAnalyzer(object):
             # Check core filter #
             if len(SystemManager.perCoreList) > 0 and \
                 int(d['core']) not in SystemManager.perCoreList and \
-                d['func'].startswith("tracing_mark_write") is False and \
+                not d['func'].startswith("tracing_mark_write") and \
                 d['func'] != '0:':
                 pass
 
@@ -7175,7 +7175,7 @@ class FunctionAnalyzer(object):
                 breakCond = int(cpuPer[:cpuPer.rfind('.')])
 
             # check condition for stop #
-            if breakCond < 1 and SystemManager.showAll is False:
+            if breakCond < 1 and not SystemManager.showAll:
                 pass
 
             # set lifecycle flags #
@@ -7645,7 +7645,7 @@ class FunctionAnalyzer(object):
 
                 if len(subStack) == 0:
                     continue
-                elif len(subStack) == 1 and SystemManager.showAll is False and \
+                elif len(subStack) == 1 and not SystemManager.showAll and \
                     (not self.posData[subStack[0]]['symbol'] or \
                     self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
@@ -7794,7 +7794,7 @@ class FunctionAnalyzer(object):
                 cpuPer = \
                     round(float(value['tickCnt']) / \
                     float(self.periodicEventCnt) * 100, 1)
-                if cpuPer < 1 and SystemManager.showAll is False:
+                if cpuPer < 1 and not SystemManager.showAll:
                     break
 
                 SystemManager.printPipe(\
@@ -7831,7 +7831,7 @@ class FunctionAnalyzer(object):
 
                         cpuPer = \
                             round(float(cpuCnt) / float(value['tickCnt']) * 100, 1)
-                        if cpuPer < 1 and SystemManager.showAll is False:
+                        if cpuPer < 1 and not SystemManager.showAll:
                             break
 
                         indentLen = len("\t" * 4 * 4)
@@ -7867,7 +7867,7 @@ class FunctionAnalyzer(object):
                 cpuPer = \
                     round(float(value['totalTickCnt']) / \
                     float(self.periodicEventCnt) * 100, 1)
-                if cpuPer < 1 and SystemManager.showAll is False:
+                if cpuPer < 1 and not SystemManager.showAll:
                     break
 
                 SystemManager.printPipe(\
@@ -7901,7 +7901,7 @@ class FunctionAnalyzer(object):
                 cpuPer = \
                     round(float(value['tickCnt']) / \
                     float(self.periodicEventCnt) * 100, 1)
-                if cpuPer < 1 and SystemManager.showAll is False:
+                if cpuPer < 1 and not SystemManager.showAll:
                     break
 
                 SystemManager.printPipe(\
@@ -7947,7 +7947,7 @@ class FunctionAnalyzer(object):
 
             cpuPer = \
                 round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
-            if cpuPer < 1 and SystemManager.showAll is False:
+            if cpuPer < 1 and not SystemManager.showAll:
                 break
 
             SystemManager.printPipe("{0:7}% |{1:^134}".format(cpuPer, idx))
@@ -7987,7 +7987,7 @@ class FunctionAnalyzer(object):
 
                 if len(subStack) == 0:
                     symbolStack = ' <- USER'
-                elif len(subStack) == 1 and SystemManager.showAll is False and \
+                elif len(subStack) == 1 and not SystemManager.showAll and \
                     (not self.posData[subStack[0]]['symbol'] or \
                     self.posData[subStack[0]]['symbol'] == 'NoFile'):
                     # Pass unmeaningful part #
@@ -8006,7 +8006,7 @@ class FunctionAnalyzer(object):
                 mergedSymbolChain.items(), key=lambda e:e[1], reverse=True):
                 cpuPer = \
                     round(tick / float(value['tickCnt']) * 100, 1)
-                if cpuPer < 1 and SystemManager.showAll is False:
+                if cpuPer < 1 and not SystemManager.showAll:
                     break
 
                 SystemManager.printPipe(\
@@ -10496,7 +10496,7 @@ class LogManager(object):
             return
 
         try:
-            if self.notified is False:
+            if not self.notified:
                 SystemManager.printError((\
                     'Please report %s file to '
                     'https://github.com/iipeace/guider/issues') % \
@@ -11131,7 +11131,7 @@ class SystemManager(object):
             pids = list(pids)
         elif type(pids) is list:
             for pid in pids:
-                if str(pid).isdigit() is False:
+                if not str(pid).isdigit():
                     SystemManager.printError('Fail to recognize pid %s' % pid)
                     return
         else:
@@ -11333,7 +11333,7 @@ class SystemManager(object):
             return None
 
         # save package object #
-        if isTemp is False:
+        if not isTemp:
             SystemManager.impPkg[name] = obj
 
         return obj
@@ -14444,8 +14444,8 @@ Copyright:
             SystemManager.printError(\
                 "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
             sys.exit(0)
-        elif os.path.isfile(\
-            SystemManager.mountPath + '../kprobe_events') is False:
+        elif not os.path.isfile(\
+            SystemManager.mountPath + '../kprobe_events'):
             SystemManager.printError(\
                 "enable CONFIG_KPROBES & CONFIG_KPROBE_EVENTS kernel option")
             sys.exit(0)
@@ -14455,7 +14455,7 @@ Copyright:
 
             # check command format #
             cmdCnt = len(cmdFormat)
-            if 4 < cmdCnt or cmdCnt < 2:
+            if not (2 <= cmdCnt <= 4):
                 SystemManager.printError(\
                     "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
                 sys.exit(0)
@@ -14611,8 +14611,8 @@ Copyright:
             SystemManager.printError(\
                 "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
             sys.exit(0)
-        elif os.path.isfile(\
-            SystemManager.mountPath + '../uprobe_events') is False:
+        elif not os.path.isfile(\
+            SystemManager.mountPath + '../uprobe_events'):
             SystemManager.printError(\
                 "enable CONFIG_UPROBES & CONFIG_UPROBE_EVENT kernel option")
             sys.exit(0)
@@ -14639,7 +14639,7 @@ Copyright:
                 sys.exit(0)
 
             # check binary file #
-            if os.path.isfile(cmdFormat[2]) is False:
+            if not os.path.isfile(cmdFormat[2]):
                 SystemManager.printError(\
                     "Fail to find '%s' binary" % cmdFormat[2])
                 sys.exit(0)
@@ -14670,7 +14670,7 @@ Copyright:
                             "use %s as objdump path" % \
                             SystemManager.objdumpPath)
                 # symbol input with objdump #
-                elif os.path.isfile(SystemManager.objdumpPath) is False:
+                elif not os.path.isfile(SystemManager.objdumpPath):
                     SystemManager.printError(\
                         "Fail to find %s to use objdump" % \
                         SystemManager.objdumpPath)
@@ -14745,7 +14745,7 @@ Copyright:
         scmd = ""
 
         if SystemManager.isFunctionMode() and \
-            SystemManager.heapEnable is False:
+            not SystemManager.heapEnable:
             cmd = 'raw_syscalls/sys_enter/enable'
         else:
             cmd = 'raw_syscalls/enable'
@@ -17377,7 +17377,7 @@ Copyright:
                     sys.exit(0)
 
                 for item in SystemManager.perCoreList:
-                    if item.isdigit() is False:
+                    if not item.isdigit():
                         SystemManager.printError(\
                             "wrong option value with -O option, "
                             "input number in integer format")
@@ -17474,7 +17474,7 @@ Copyright:
                 NetworkManager.setRemoteNetwork(service, ip, port)
 
             elif option == 'j':
-                if SystemManager.checkReportTopCond(value) is False:
+                if not SystemManager.checkReportTopCond(value):
                     sys.exit(0)
 
             elif option == 'x':
@@ -18729,8 +18729,8 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to use PMU")
             return False
-        elif os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
-            SystemManager.procPath) is False:
+        elif not os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
+            SystemManager.procPath):
             SystemManager.printError(\
                 "Fail to use PMU, please check kernel configuration")
             return False
@@ -18791,7 +18791,7 @@ Copyright:
         if os.path.isdir(reportPath) == False:
             upDirPos = reportPath.rfind('/')
             if upDirPos > 0 and \
-                os.path.isdir(reportPath[:upDirPos]) is False:
+                not os.path.isdir(reportPath[:upDirPos]):
                 SystemManager.printError(\
                     "wrong path %s with -j option to report stats" % \
                     reportPath)
@@ -19115,7 +19115,7 @@ Copyright:
     @staticmethod
     def broadcastEvent(event, pids=[]):
         # convert event name #
-        if event.startswith('EVENT_') is False:
+        if not event.startswith('EVENT_'):
             event = 'EVENT_%s' % event
 
         if len(pids) == 0:
@@ -20965,7 +20965,7 @@ Copyright:
                             val['running'] = False
                     # continue #
                     else:
-                        if val['running'] is False:
+                        if not val['running']:
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, signal.SIGCONT)
@@ -21512,7 +21512,7 @@ Copyright:
 
     @staticmethod
     def setTtyAuto(setRows=True, setCols=True):
-        if SystemManager.isLinux is False:
+        if not SystemManager.isLinux:
             return
 
         # update current terminal size #
@@ -21534,7 +21534,7 @@ Copyright:
 
     @staticmethod
     def setTty(rows, cols):
-        if SystemManager.isLinux is False:
+        if not SystemManager.isLinux:
             return
 
         try:
@@ -21573,7 +21573,7 @@ Copyright:
 
     @staticmethod
     def updateTty():
-        if SystemManager.isLinux is False:
+        if not SystemManager.isLinux:
             return
 
         # get fcntl object #
@@ -21593,7 +21593,7 @@ Copyright:
 
     @staticmethod
     def getTty():
-        if SystemManager.isLinux is False:
+        if not SystemManager.isLinux:
             return
 
         try:
@@ -21809,7 +21809,7 @@ Copyright:
                     typelist = os.listdir(cachePath)
 
                     for index in sorted(typelist):
-                        if index.startswith('index') is False:
+                        if not index.startswith('index'):
                             continue
 
                         level = '?'
@@ -22817,9 +22817,9 @@ Copyright:
 
     @staticmethod
     def stopRecording():
-        if (SystemManager.isRecordMode() and \
+        if not (SystemManager.isRecordMode() and \
             (SystemManager.isThreadMode() or \
-            SystemManager.isFunctionMode())) is False:
+            SystemManager.isFunctionMode())):
             return
 
         # write signal command #
@@ -26947,7 +26947,7 @@ class EventAnalyzer(object):
         eventData = EventAnalyzer.eventData
 
         if len(eventData) > 0:
-            if SystemManager.isFunctionMode() is False:
+            if not SystemManager.isFunctionMode():
                 SystemManager.printPipe("\n\n\n")
 
             SystemManager.printPipe("[%s] [ Total: %d ]" % \
@@ -29897,8 +29897,8 @@ class ThreadAnalyzer(object):
                 if key.startswith('0['):
                     continue
 
-                if SystemManager.isExceptTarget(\
-                    key, self.threadData, plist=plist) is False:
+                if not SystemManager.isExceptTarget(\
+                    key, self.threadData, plist=plist):
                     continue
 
                 # remove thread #
@@ -29950,7 +29950,7 @@ class ThreadAnalyzer(object):
             SystemManager.printError(\
                 "Fail to get root permission to analyze opened files")
             sys.exit(0)
-        elif os.path.isdir(SystemManager.procPath) is False:
+        elif not os.path.isdir(SystemManager.procPath):
             SystemManager.printError("Fail to access proc filesystem")
             sys.exit(0)
 
@@ -33337,7 +33337,8 @@ class ThreadAnalyzer(object):
             else:
                 breakCond = usagePercent
 
-            if breakCond < 1 and SystemManager.showAll is False and \
+            if breakCond < 1 and \
+                not SystemManager.showAll and \
                 SystemManager.filterGroup == []:
                 break
 
@@ -33763,7 +33764,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(oneLine)
 
         # prepare to draw graph #
-        if SystemManager.isRecordMode() is False and SystemManager.graphEnable:
+        if not SystemManager.isRecordMode() and SystemManager.graphEnable:
             # get pylab object #
             pylab = SystemManager.getPkg('pylab')
             from pylab import rc, rcParams
@@ -33946,7 +33947,7 @@ class ThreadAnalyzer(object):
 
 
     def printDepInfo(self):
-        if SystemManager.depEnable is False:
+        if not SystemManager.depEnable:
             return
 
         SystemManager.printPipe('\n[Thread Dependency Info]')
@@ -34363,7 +34364,7 @@ class ThreadAnalyzer(object):
 
 
     def printConsoleInfo(self):
-        if len(self.consoleData) == 0 or SystemManager.showAll is False:
+        if len(self.consoleData) == 0 or not SystemManager.showAll:
             return
 
         SystemManager.printPipe('\n[Thread Message Info]')
@@ -34794,7 +34795,7 @@ class ThreadAnalyzer(object):
         # total CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), \
             key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
-            if SystemManager.cpuEnable is False:
+            if not SystemManager.cpuEnable:
                 break
 
             if key[0:2] != '0[':
@@ -35234,7 +35235,7 @@ class ThreadAnalyzer(object):
             self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
 
             if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
-                SystemManager.showAll is False:
+                not SystemManager.showAll:
                 break
             elif key[0:2] == '0[':
                 continue
@@ -38824,9 +38825,9 @@ class ThreadAnalyzer(object):
                 self.wakeupData['nr'] = str(nr)
                 self.wakeupData['args'] = args
 
-                if (self.wakeupData['valid'] > 0 and \
+                if not (self.wakeupData['valid'] > 0 and \
                     (self.wakeupData['tid'] == thread and \
-                    self.wakeupData['from'] == comm)) is False:
+                    self.wakeupData['from'] == comm)):
                     self.wakeupData['valid'] += 1
 
                     if self.wakeupData['valid'] > 1:
@@ -38960,7 +38961,7 @@ class ThreadAnalyzer(object):
                     futexTime, '', d['ret'], ''])
 
             try:
-                if SystemManager.depEnable is False:
+                if not SystemManager.depEnable:
                     raise Exception()
                 elif nr == ConfigManager.sysList.index("sys_write") and \
                     self.wakeupData['valid'] > 0:
@@ -39191,8 +39192,8 @@ class ThreadAnalyzer(object):
                 rBioEnd = request['address'] + request['size']
 
                 # skip irrelevant requests #
-                if (bioStart <= request['address'] < bioEnd or \
-                    bioStart < rBioEnd <= bioEnd) is False:
+                if not (bioStart <= request['address'] < bioEnd or \
+                    bioStart < rBioEnd <= bioEnd):
                     continue
 
                 # remove bio request in table #
@@ -39896,7 +39897,7 @@ class ThreadAnalyzer(object):
                         SystemManager.printWarning(\
                             "Fail to recognize '%s' kernel event" % etc)
 
-                if isSaved is False:
+                if not isSaved:
                     continue
 
                 # get interval #
@@ -40128,7 +40129,7 @@ class ThreadAnalyzer(object):
                             if path.find(fileItem) >= 0:
                                 found = True
                                 break
-                        if found is False:
+                        if not found:
                             continue
 
                     if procInfo != '':
