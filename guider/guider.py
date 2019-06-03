@@ -7761,7 +7761,7 @@ class FunctionAnalyzer(object):
 
     def printCpuUsage(self):
         # no cpu event #
-        if self.cpuEnabled is False or self.periodicEventCnt == 0:
+        if not self.cpuEnabled or self.periodicEventCnt == 0:
             return
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
@@ -8023,7 +8023,7 @@ class FunctionAnalyzer(object):
 
     def printUnknownMemFreeInfo(self):
         # check memory event #
-        if self.memEnabled is False:
+        if not self.memEnabled:
             return
 
         title = 'Function Free-Only-Page Info'
@@ -8383,7 +8383,7 @@ class FunctionAnalyzer(object):
 
     def printMemUsage(self):
         # check memory event #
-        if self.memEnabled is False:
+        if not self.memEnabled:
             return
 
         title = 'Function Alloc-Only-Page Info'
@@ -9019,7 +9019,7 @@ class FunctionAnalyzer(object):
 
     def printBlockWrUsage(self):
         # no block write event #
-        if self.bwriteEnabled is False:
+        if not self.bwriteEnabled:
             return
 
         title = 'Function Write-Block Info'
@@ -9151,7 +9151,7 @@ class FunctionAnalyzer(object):
 
     def printBlockRdUsage(self):
         # no block read event #
-        if self.breadEnabled is False:
+        if not self.breadEnabled:
             return
 
         title = 'Function Read-Block Info'
@@ -14952,8 +14952,8 @@ Copyright:
         if SystemManager.outputFile:
             return
 
-        if SystemManager.isRecordMode() is False and \
-            SystemManager.isTopMode() is False:
+        if not SystemManager.isRecordMode() and \
+            not SystemManager.isTopMode():
             # common options #
             enableStat += SystemManager.arch.upper() + ' '
             if SystemManager.warningEnable:
@@ -14961,12 +14961,12 @@ Copyright:
 
         # function mode #
         if SystemManager.isFunctionMode():
-            if SystemManager.heapEnable is False:
+            if not SystemManager.heapEnable:
                 disableStat += 'HEAP '
             else:
                 enableStat += 'HEAP '
 
-            if SystemManager.userEnable is False:
+            if not SystemManager.userEnable:
                 disableStat += 'USER '
             else:
                 enableStat += 'USER '
@@ -44411,7 +44411,7 @@ class ThreadAnalyzer(object):
                 del SystemManager.addrListForReport[addr]
             else:
                 ret = cli.send(data)
-                if ret is False:
+                if not ret:
                     del SystemManager.addrListForReport[addr]
                 else:
                     cli.ignore += 1
@@ -44458,7 +44458,7 @@ class ThreadAnalyzer(object):
                     del SystemManager.addrListForPrint[addr]
                 else:
                     ret = cli.send(SystemManager.bufferString)
-                    if ret is False:
+                    if not ret:
                         del SystemManager.addrListForPrint[addr]
                     else:
                         cli.ignore += 1
@@ -44789,7 +44789,7 @@ def main(args=None):
 
     # set tty setting automatically #
     if SystemManager.isTopMode() and \
-        SystemManager.ttyEnable is False:
+        not SystemManager.ttyEnable:
         SystemManager.setTtyAuto(True, False)
 
     #-------------------- REALTIME MODE --------------------
