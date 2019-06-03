@@ -15675,7 +15675,11 @@ Copyright:
     def alarmHandler(signum, frame):
         if SystemManager.repeatCount <= SystemManager.progressCnt and \
             SystemManager.isTerm:
+            UtilManager.deleteProgress()
             sys.exit(0)
+
+        UtilManager.printProgress(\
+            SystemManager.progressCnt, SystemManager.repeatCount)
 
         # update count #
         SystemManager.progressCnt += 1
@@ -29894,27 +29898,30 @@ class ThreadAnalyzer(object):
             procFilter = []
             fileFilter = []
 
-            if SystemManager.filterGroup != []:
-                newFilter = ','.join(SystemManager.filterGroup)
-                newFilter = newFilter.split(':')
+            if SystemManager.filterGroup == []:
+                return [procFilter, fileFilter]
 
-                for pval in newFilter[0].split(','):
-                    if pval != '':
-                        procFilter.append(pval)
-                if len(procFilter) > 0:
-                    plist = ', '.join(procFilter)
-                    SystemManager.printInfo(\
-                        "only specific processes including [ %s ] are shown" % \
-                        plist)
+            newFilter = ','.join(SystemManager.filterGroup)
+            newFilter = newFilter.split(':')
 
-                if len(newFilter) > 1:
-                    for fval in newFilter[1].split(','):
-                        if fval != '':
-                            fileFilter.append(fval)
-                if len(fileFilter) > 0:
-                    flist = ', '.join(fileFilter)
-                    SystemManager.printInfo(\
-                        "only specific files including [ %s ] are shown" % flist)
+            for pval in newFilter[0].split(','):
+                if pval != '':
+                    procFilter.append(pval)
+
+            if len(procFilter) > 0:
+                plist = ', '.join(procFilter)
+                SystemManager.printInfo(\
+                    "only specific processes including [ %s ] are shown" % \
+                    plist)
+
+            if len(newFilter) > 1:
+                for fval in newFilter[1].split(','):
+                    if fval != '':
+                        fileFilter.append(fval)
+            if len(fileFilter) > 0:
+                flist = ', '.join(fileFilter)
+                SystemManager.printInfo(\
+                    "only specific files including [ %s ] are shown" % flist)
 
             return [procFilter, fileFilter]
 
@@ -30038,7 +30045,12 @@ class ThreadAnalyzer(object):
             # check repeat count #
             if SystemManager.countEnable:
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
+                    UtilManager.deleteProgress()
                     os.kill(SystemManager.pid, signal.SIGINT)
+
+                UtilManager.printProgress(\
+                    SystemManager.progressCnt, SystemManager.repeatCount)
+
                 SystemManager.progressCnt += 1
 
             # reset system status #
@@ -37101,7 +37113,7 @@ class ThreadAnalyzer(object):
             start = end = -1
             buf = None
 
-            # make delay because some filtered logs are not written soon #
+            # make delay because some filtered logs are not written immediately #
             time.sleep(0.1)
 
             try:
@@ -44529,22 +44541,6 @@ def main(args=None):
 
             SystemManager.waitEvent()
 
-        # set signal #
-        if SystemManager.repeatCount > 0 and \
-            SystemManager.repeatInterval > 0 and \
-            (SystemManager.isThreadMode() or SystemManager.isFunctionMode()):
-
-            # set alarm interval #
-            signal.alarm(SystemManager.repeatInterval)
-
-            if not SystemManager.outputFile:
-                SystemManager.printError(\
-                    "wrong option with -s, input also path to save data")
-                sys.exit(0)
-        else:
-            SystemManager.repeatInterval = 0
-            SystemManager.repeatCount = 0
-
         # set normal signal #
         SystemManager.setNormalSignal()
 
@@ -44615,6 +44611,17 @@ def main(args=None):
         while SystemManager.repeatInterval > 0:
             signal.alarm(SystemManager.repeatInterval)
 
+            # get init time in buffer for verification #
+            initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
+
+            # wait for timer #
+            try:
+                time.sleep(SystemManager.repeatInterval)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             if SystemManager.pipeEnable:
                 if SystemManager.outputFile:
                     SystemManager.copyPipeToFile(\
@@ -44627,19 +44634,15 @@ def main(args=None):
 
                 sys.exit(0)
 
-            # get init time in buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SystemManager.inputFile)
-
-            # wait for timer #
-            time.sleep(SystemManager.repeatInterval)
-
+            # check counter #
             if SystemManager.repeatCount <= SystemManager.progressCnt and \
                 SystemManager.isTerm:
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SystemManager.inputFile):
-                SystemManager.printError("buffer size is not enough (%sKB)" % \
+                SystemManager.printError(\
+                    "buffer size is not enough (%sKB)" % \
                     SystemManager.getBufferSize())
                 sys.exit(0)
             else:
