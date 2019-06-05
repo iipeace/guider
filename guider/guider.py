@@ -2883,6 +2883,9 @@ class UtilManager(object):
         if not pickle:
             return
 
+        # disable compression for performance #
+        SystemManager.compressEnable = False
+
         # compress by gzip #
         if SystemManager.compressEnable:
             compressor = SystemManager.getPkg('gzip', False)
@@ -2918,6 +2921,9 @@ class UtilManager(object):
         pickle = SystemManager.getPicklePkg(False)
         if not pickle:
             return None
+
+        # disable compression for performance #
+        SystemManager.compressEnable = False
 
         # decompress by gzip #
         if SystemManager.compressEnable:
@@ -4488,17 +4494,13 @@ class FunctionAnalyzer(object):
         self.init_subStackPageInfo = [0, 0, 0]
         # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
 
-        # Open log file #
-        try:
-            with open(logFile, 'r') as fd:
-                lines = fd.readlines()
-        except:
-            SystemManager.printError(\
-                "Fail to open %s" % logFile)
-            sys.exit(0)
+        # read trace data #
+        lines = ThreadAnalyzer.readTraceData(logFile)
 
-        # Save data and quit #
-        SystemManager.saveAndQuit(lines)
+        # save trace data to file #
+        if SystemManager.outputFile:
+            SystemManager.saveTraceData(lines)
+            sys.exit(0)
 
         # Check target thread setting #
         if len(SystemManager.filterGroup) == 0:
@@ -10584,7 +10586,7 @@ class SystemManager(object):
     addr2linePath = None
     objdumpPath = None
     demangleEnable = True
-    compressEnable = False
+    compressEnable = True
     rootPath = ''
     fontPath = None
     pipeForPrint = None
@@ -11974,7 +11976,7 @@ OPTIONS:
               m:memory | b:block | p:pipe | e:encode
               h:heap | L:lock | g:graph | c:cgroup
         -d  <CHARACTER>             disable options
-              c:cpu | e:encode | a:all | u:user
+              c:cpu | e:encode | a:all | u:user | C:compress
         -s  <DIR|FILE>              save trace data
         -u                          run in the background
         -b  <SIZE:KB>               set buffer size
@@ -12217,7 +12219,7 @@ OPTIONS:
                 m:memory | b:block | p:pipe | i:irq | L:lock
                 e:encode | n:net | P:power | r:reset | g:graph
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | a:all
+                c:cpu | e:encode | a:all | C:compress
         -s  <DIR|FILE>              save trace data
         -u                          run in the background
         -W                          wait for signal
@@ -15073,6 +15075,11 @@ Copyright:
         else:
             disableStat += 'LOCK '
 
+        if SystemManager.compressEnable:
+            enableStat += 'COMP '
+        else:
+            disableStat += 'COMP '
+
         if SystemManager.countEnable:
             enableStat += 'CUT '
         else:
@@ -15390,6 +15397,11 @@ Copyright:
                 else:
                     disableStat += 'LOCK '
 
+                if SystemManager.compressEnable:
+                    enableStat += 'COMP '
+                else:
+                    disableStat += 'COMP '
+
                 if SystemManager.disableAll:
                     enableStat += 'DISABLE '
                 else:
@@ -15467,6 +15479,11 @@ Copyright:
 
             if SystemManager.resetEnable:
                 enableStat += 'RESET '
+
+            if SystemManager.compressEnable:
+                enableStat += 'COMP '
+            else:
+                disableStat += 'COMP '
 
             if SystemManager.disableAll:
                 enableStat += 'DISABLE '
@@ -15703,22 +15720,40 @@ Copyright:
                     (progressCnt - 1) * repeatInterval, \
                     progressCnt * repeatInterval)
 
+            # save system info #
+            SystemManager.sysInstance.saveResourceSnapshot()
+
+            # compress by gzip #
+            if SystemManager.compressEnable:
+                compressor = SystemManager.getPkg('gzip', False)
+            else:
+                compressor = None
+
+            # save trace data #
             try:
-                # save system info #
-                SystemManager.sysInstance.saveResourceSnapshot()
+                rpath = os.path.join(SystemManager.mountPath, '../trace')
+                fr = open(rpath, 'r')
 
-                with open(os.path.join(\
-                    SystemManager.mountPath, '../trace'), 'r') as fr:
-                    with open(output, 'w') as fw:
-                        SystemManager.printInfo(\
-                            "wait for writing data to %s" % (fw.name))
+                if compressor:
+                    with open(output, 'wt') as fd:
+                        magicStr = 'gzip %s\n' % ' '.join(sys.argv)
+                        fd.write(magicStr)
+                    fw = compressor.open(output, 'at')
+                else:
+                    fw = open(output, 'w')
 
-                        fw.seek(0,0)
-                        fw.writelines(SystemManager.magicString + '\n')
-                        fw.writelines(SystemManager.systemInfoBuffer)
-                        fw.writelines(SystemManager.magicString + '\n')
-                        SystemManager.clearInfoBuffer()
-                        fw.write(fr.read())
+                SystemManager.printInfo(\
+                    "wait for writing data to %s" % (fw.name))
+
+                fw.seek(0,0)
+                fw.writelines(SystemManager.magicString + '\n')
+                fw.writelines(SystemManager.systemInfoBuffer)
+                fw.writelines(SystemManager.magicString + '\n')
+                SystemManager.clearInfoBuffer()
+                fw.write(fr.read())
+
+                fr.close()
+                fw.close()
 
                 try:
                     fsize = UtilManager.convertSize2Unit(\
@@ -15743,18 +15778,13 @@ Copyright:
 
 
     @staticmethod
-    def saveAndQuit(lines):
-        # save trace data to file #
-        if not SystemManager.outputFile:
-            return
-
+    def saveTraceData(lines):
         # backup data file already exist #
         try:
             if os.path.isfile(SystemManager.outputFile):
                 backupFile = SystemManager.outputFile + '.old'
 
-                SystemManager.getPkg('shutil', False).move(\
-                    SystemManager.outputFile, backupFile)
+                os.rename(SystemManager.outputFile, backupFile)
                 SystemManager.printInfo(\
                     '%s is renamed to %s' % \
                     (SystemManager.outputFile, backupFile))
@@ -15764,19 +15794,34 @@ Copyright:
                 "Fail to backup %s because %s" % \
                 (SystemManager.outputFile, err))
 
-        # save output to file #
+        # compress by gzip #
+        if SystemManager.compressEnable:
+            compressor = SystemManager.getPkg('gzip', False)
+        else:
+            compressor = None
+
         try:
-            f = open(SystemManager.outputFile, 'w')
+            if compressor:
+                with open(SystemManager.outputFile, 'wt') as fd:
+                    magicStr = 'gzip %s\n' % ' '.join(sys.argv)
+                    fd.write(magicStr)
+                f = compressor.open(SystemManager.outputFile, 'at')
+            else:
+                f = open(SystemManager.outputFile, 'w')
 
             SystemManager.printInfo(\
                 "wait for writing data to %s" % (f.name))
 
+            # write system info #
             if SystemManager.systemInfoBuffer is not '':
                 f.writelines(SystemManager.magicString + '\n')
                 f.writelines(SystemManager.systemInfoBuffer)
                 f.writelines(SystemManager.magicString + '\n')
 
+            # write trace info #
             f.writelines(lines)
+
+            f.close()
 
             try:
                 fsize = UtilManager.convertSize2Unit(\
@@ -15792,8 +15837,6 @@ Copyright:
             SystemManager.printError(\
                 "Fail to write trace data to %s because %s" % \
                 (SystemManager.outputFile, err))
-
-        sys.exit(0)
 
 
 
@@ -16716,8 +16759,7 @@ Copyright:
                 backupFile = '%s.old' % SystemManager.inputFile
 
                 try:
-                    SystemManager.getPkg('shutil', False).move(\
-                        SystemManager.inputFile, backupFile)
+                    os.rename(SystemManager.inputFile, backupFile)
                     SystemManager.printInfo('%s is renamed to %s' % \
                         (SystemManager.inputFile, backupFile))
                 except:
@@ -17833,6 +17875,9 @@ Copyright:
                 if options.rfind('a') > -1:
                     SystemManager.disableAll = True
 
+                if options.rfind('C') > -1:
+                    SystemManager.compressEnable = False
+
             # Ignore options #
             elif SystemManager.isEffectiveOption(option):
                 continue
@@ -18808,8 +18853,7 @@ Copyright:
             backupFile = '%s.old' % reportPath
 
             try:
-                SystemManager.getPkg('shutil', False).move(\
-                    reportPath, backupFile)
+                os.rename(reportPath, backupFile)
                 SystemManager.printInfo('%s is renamed to %s' % \
                     (reportPath, backupFile))
             except:
@@ -29748,15 +29792,13 @@ class ThreadAnalyzer(object):
                 '''
                 self.preemptData.append([False, {}, float(0), 0, float(0)])
 
-        try:
-            with open(file, 'r') as fd:
-                lines = fd.readlines()
-        except IOError:
-            SystemManager.printError("Fail to open %s" % file)
-            sys.exit(0)
+        # read trace data #
+        lines = ThreadAnalyzer.readTraceData(file)
 
-        # save data and quit #
-        SystemManager.saveAndQuit(lines)
+        # save trace data to file #
+        if SystemManager.outputFile:
+            SystemManager.saveTraceData(lines)
+            sys.exit(0)
 
         # get process tree #
         SystemManager.getProcTreeInfo()
@@ -31967,14 +32009,13 @@ class ThreadAnalyzer(object):
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
-                        if usage[minIdx] > 0:
+                        if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin, \
                                 minval, color=color, fontsize=3)
-                        if usage[minIdx] != usage[maxIdx] and \
-                            usage[maxIdx] > 0:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin, \
                                 maxval, color=color, fontsize=3)
-                        if usage[-1] > 0:
+                        if usage[-1]:
                             text(timeline[-1], usage[-1] + margin, \
                                 lastval, color=color, fontsize=3)
 
@@ -32064,11 +32105,10 @@ class ThreadAnalyzer(object):
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
-                        if usage[minIdx] > 0:
+                        if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] - margin, \
                                 minval, color=color, fontsize=3)
-                        if usage[minIdx] != usage[maxIdx] and \
-                            usage[maxIdx] > 0:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin, \
                                 lastval, color=color, fontsize=3)
 
@@ -32121,14 +32161,13 @@ class ThreadAnalyzer(object):
                         color = plot(timeline, usage, '-', \
                             linewidth=1)[0].get_color()
 
-                        if usage[minIdx] > 0:
+                        if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin, \
                                 minval, color=color, fontsize=3)
-                        if usage[minIdx] != usage[maxIdx] and \
-                            usage[maxIdx] > 0:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin, \
                                 maxval, color=color, fontsize=3)
-                        if usage[-1] > 0:
+                        if usage[-1]:
                             text(timeline[-1], usage[-1] + margin, \
                                 lastval, color=color, fontsize=3)
 
@@ -32495,7 +32534,8 @@ class ThreadAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    raise Exception()
+                    err = SystemManager.getErrReason()
+                    raise Exception(err)
 
         # save to file #
         self.saveImage(logFile, 'graph')
@@ -32512,6 +32552,8 @@ class ThreadAnalyzer(object):
 
             # convert output path #
             name, ext = os.path.splitext(outputFile)
+            if name == '.' or name == '':
+                name = 'guider'
             outputFile = '%s_%s.png' % (name, itype)
 
             # backup an exist image file #
@@ -35040,7 +35082,8 @@ class ThreadAnalyzer(object):
             SystemManager.matplotlibVersion = \
                 float('.'.join(matplotlib.__version__.split('.')[:2]))
 
-            matplotlib.use('Agg')
+            # set backend #
+            matplotlib.pyplot.switch_backend('agg')
 
             # get pylab object #
             pylab = SystemManager.getPkg('pylab')
@@ -35538,6 +35581,34 @@ class ThreadAnalyzer(object):
                     pass
         except:
             return (0, 0)
+
+
+
+    @staticmethod
+    def readTraceData(file):
+        try:
+            if not SystemManager.isRecordMode() and \
+                SystemManager.compressEnable:
+                with open(file, 'r') as fd:
+                    buf = fd.readline()
+
+                    if not buf.startswith('gzip'):
+                        raise Exception('it is not gziped')
+
+                    compressor = SystemManager.getPkg('gzip')
+                    fd = compressor.GzipFile(fileobj=fd)
+
+                    lines = fd.readlines()
+            else:
+                with open(file, 'r') as fd:
+                    lines = fd.readlines()
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to open %s because %s" % (file, err))
+            sys.exit(0)
+
+        return lines
 
 
 
@@ -37124,12 +37195,36 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def getInitTime(file):
+        fd = None
         systemInfoBuffer = ''
 
         if SystemManager.isRecordMode():
             nrLine = SystemManager.pageSize
+            compressor = None
         else:
             nrLine = 0
+
+            # check compression #
+            try:
+                fd = open(file, 'r')
+                buf = fd.readline()
+                if buf.startswith('gzip'):
+                    SystemManager.compressEnable = True
+                    compressor = SystemManager.getPkg('gzip', False)
+                    fd = compressor.GzipFile(fileobj=fd)
+                else:
+                    SystemManager.compressEnable = False
+                    compressor = None
+                    fd.close()
+                    fd = None
+            except IOError:
+                compressor = None
+            except:
+                compressor = None
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to open %s to check compression because %s" % \
+                    (file, err))
 
         while 1:
             start = end = -1
@@ -37138,14 +37233,23 @@ class ThreadAnalyzer(object):
             # make delay because some filtered logs are not written immediately #
             time.sleep(0.1)
 
-            try:
-                with open(file, 'r') as fd:
+            if compressor and fd:
+                try:
                     buf = fd.readlines(nrLine)
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printError(\
-                    "Fail to open %s because %s" % (file, err))
-                sys.exit(0)
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printError(\
+                        "Fail to open %s because %s" % (file, err))
+                    sys.exit(0)
+            else:
+                try:
+                    with open(file, 'r') as fd:
+                        buf = fd.readlines(nrLine)
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printError(\
+                        "Fail to open %s because %s" % (file, err))
+                    sys.exit(0)
 
             # verify log buffer #
             for idx, line in enumerate(buf):
@@ -44714,7 +44818,9 @@ def main(args=None):
     #-------------------- REPORT MODE --------------------#
     if SystemManager.isReportMode():
         SystemManager.inputFile = 'guider.dat'
-        SystemManager.printFile = '.'
+        if not SystemManager.printFile:
+            SystemManager.printFile = \
+                '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
 
     # draw graph and chart #
     if SystemManager.isDrawMode():
@@ -44734,7 +44840,9 @@ def main(args=None):
         if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
             SystemManager.intervalEnable = 1
-            SystemManager.printFile = '.'
+            if not SystemManager.printFile:
+                SystemManager.printFile = \
+                    '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
             del sys.argv[2]
         # top mode #
         else:
