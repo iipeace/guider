@@ -26984,8 +26984,8 @@ class EventAnalyzer(object):
             if not SystemManager.isFunctionMode():
                 SystemManager.printPipe("\n\n\n")
 
-            SystemManager.printPipe("[%s] [ Total: %d ]" % \
-                ('Event Info', len(eventData)))
+            SystemManager.printPipe(\
+                "[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
             SystemManager.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
@@ -32729,7 +32729,8 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
                 "{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                format('TYPE', 'TIME', 'SENDER', 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
+                format('TYPE', 'TIME', 'SENDER', \
+                'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SystemManager.printPipe(twoLine)
 
             cnt = 0
@@ -32765,14 +32766,17 @@ class ThreadAnalyzer(object):
                     if stid.startswith('0['):
                         stid = 0
 
-                    SystemManager.printPipe(\
-                        "{0:^6} {1:>10.6f} {2:>16}({3:>5}) {4:^10} {5:>16}({6:>5})".\
-                        format(stype, stime, scomm, stid, signal, rcomm, rtid))
+                    SystemManager.printPipe((\
+                        "{0:^6} {1:>10.6f} {2:>16}({3:>5}) "
+                        "{4:^10} {5:>16}({6:>5})").\
+                        format(stype, stime, scomm, stid, \
+                        signal, rcomm, rtid))
 
                     cnt += 1
                 elif val[0] == 'RECV':
-                    SystemManager.printPipe(\
-                        "{0:^6} {1:>10.6f} {2:>16} {3:>5}  {4:^10} {5:>16}({6:>5})".\
+                    SystemManager.printPipe((\
+                        "{0:^6} {1:>10.6f} {2:>16} {3:>5}  "
+                        "{4:^10} {5:>16}({6:>5})").\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
 
                     cnt += 1
@@ -32787,8 +32791,9 @@ class ThreadAnalyzer(object):
 
             SystemManager.printPipe('\n[Thread IRQ Info]')
             SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} {5:^10} {6:^10} {7:^10}".\
+            SystemManager.printPipe((\
+                "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} "
+                "{5:^10} {6:^10} {7:^10}").\
                 format("IRQ", "Name", "Count", "Usage", "ProcMax", \
                 "ProcMin", "InterMax", "InterMin"))
             SystemManager.printPipe(twoLine)
@@ -32804,7 +32809,8 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint(\
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
-                    format(key, ' | '.join(list(self.irqData[key]['name'].keys())), \
+                    format(key, \
+                    ' | '.join(list(self.irqData[key]['name'].keys())), \
                     self.irqData[key]['count'], self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], \
@@ -32825,7 +32831,8 @@ class ThreadAnalyzer(object):
                     self.irqData[key]['maxPeriod'], \
                     self.irqData[key]['minPeriod']))
 
-            SystemManager.printPipe("%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
+            SystemManager.printPipe(\
+                "%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
                 ('', len(self.irqData), totalUsage, totalCnt))
             SystemManager.printPipe(SystemManager.bufferString)
             SystemManager.printPipe(oneLine)
@@ -32849,7 +32856,8 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
                 "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
-                format('Event', 'Comm', 'Tid', 'Count', 'MaxPeriod', 'MinPeriod'))
+                format('Event', 'Comm', 'Tid', 'Count', \
+                'MaxPeriod', 'MinPeriod'))
             SystemManager.printPipe(twoLine)
 
             newLine = False
@@ -32869,14 +32877,18 @@ class ThreadAnalyzer(object):
                 for key, value in sorted(self.customInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['count'], \
                     reverse=True):
+
                     try:
-                        SystemManager.printPipe(\
-                            "{0:^32} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
-                            format(' ', self.threadData[key]['comm'], key, \
-                            value[idx]['count'], value[idx]['maxPeriod'], \
-                            value[idx]['minPeriod']))
+                        value[idx]
+                        self.threadData[key]['comm']
                     except:
-                        pass
+                        continue
+
+                    SystemManager.printPipe(\
+                        "{0:^32} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                        format(' ', self.threadData[key]['comm'], key, \
+                        value[idx]['count'], value[idx]['maxPeriod'], \
+                        value[idx]['minPeriod']))
             SystemManager.printPipe(oneLine)
 
         # print custom event history #
@@ -32884,7 +32896,8 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.printPipe('\n[Thread CUSTOM Event History]')
             SystemManager.printPipe(twoLine)
-            SystemManager.printPipe("{0:^32} {1:^10} {2:>16}({3:>5}) {4:<1}".\
+            SystemManager.printPipe(\
+                "{0:^32} {1:^10} {2:>16}({3:>5}) {4:<1}".\
                 format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
             SystemManager.printPipe(twoLine)
 
@@ -32914,8 +32927,9 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.printPipe('\n[Thread User Event Info]')
             SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+            SystemManager.printPipe((\
+                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} "
+                "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count', \
                 'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
             SystemManager.printPipe(twoLine)
@@ -32940,15 +32954,18 @@ class ThreadAnalyzer(object):
                     reverse=True):
 
                     try:
-                        SystemManager.printPipe(\
-                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} {5:>10.6f} "
-                            "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                            format(' ', self.threadData[key]['comm'], key, \
-                            value[idx]['usage'], value[idx]['count'], \
-                            value[idx]['max'], value[idx]['min'], \
-                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                        value[idx]
+                        self.threadData[key]['comm']
                     except:
-                        pass
+                        continue
+
+                    SystemManager.printPipe(\
+                        ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
+                        "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                        format(' ', self.threadData[key]['comm'], key, \
+                        value[idx]['usage'], value[idx]['count'], \
+                        value[idx]['max'], value[idx]['min'], \
+                        value[idx]['maxPeriod'], value[idx]['minPeriod']))
             SystemManager.printPipe(oneLine)
 
         # print user event history #
@@ -32987,8 +33004,9 @@ class ThreadAnalyzer(object):
                         pass
 
                 cnt += 1
-                SystemManager.printPipe(\
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>16} {6:>10}".\
+                SystemManager.printPipe((\
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
+                    "{5:>16} {6:>10}").\
                     format(val[1], val[0], val[4], val[2], \
                     val[3], val[5], elapsed))
             if cnt == 0:
@@ -33000,8 +33018,9 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.printPipe('\n[Thread Kernel Event Info]')
             SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10} {6:>10} {7:>10} {8:>10}".\
+            SystemManager.printPipe((\
+                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} "
+                "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count', 'ProcMax', \
                 'ProcMin', 'InterMax', 'InterMin'))
             SystemManager.printPipe(twoLine)
@@ -33027,15 +33046,18 @@ class ThreadAnalyzer(object):
                     reverse=True):
 
                     try:
-                        SystemManager.printPipe(\
-                            ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
-                            "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                            format(' ', self.threadData[key]['comm'], key, \
-                            value[idx]['usage'], value[idx]['count'], \
-                            value[idx]['max'], value[idx]['min'], \
-                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                        value[idx]
+                        self.threadData[key]['comm']
                     except:
-                        pass
+                        continue
+
+                    SystemManager.printPipe(\
+                        ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
+                        "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
+                        format(' ', self.threadData[key]['comm'], key, \
+                        value[idx]['usage'], value[idx]['count'], \
+                        value[idx]['max'], value[idx]['min'], \
+                        value[idx]['maxPeriod'], value[idx]['minPeriod']))
             SystemManager.printPipe(oneLine)
 
         # print kernel event history #
@@ -33043,9 +33065,11 @@ class ThreadAnalyzer(object):
             SystemManager.clearPrint()
             SystemManager.printPipe('\n[Thread Kernel Event History]')
             SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^22} {6:>10} {7:<1}".\
-                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED', 'ARG'))
+            SystemManager.printPipe((\
+                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) "
+                "{5:^22} {6:>10} {7:<1}").\
+                format('EVENT', 'TYPE', 'TIME', 'COMM', \
+                'TID', 'CALLER', 'ELAPSED', 'ARG'))
             SystemManager.printPipe(twoLine)
 
             cnt = 0
@@ -33075,8 +33099,9 @@ class ThreadAnalyzer(object):
 
                 cnt += 1
                 args = (' '.join(val[7].split(' arg'))).replace('=','>')
-                SystemManager.printPipe(\
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) {5:>22} {6:>10} {7:<1}".\
+                SystemManager.printPipe((\
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
+                    "{5:>22} {6:>10} {7:<1}").\
                     format(val[1], val[0], val[5], val[3], \
                     val[4], val[6], elapsed, args))
             if cnt == 0:
