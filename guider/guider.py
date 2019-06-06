@@ -6949,7 +6949,7 @@ class FunctionAnalyzer(object):
             # Save user event #
             elif d['func'].startswith("tracing_mark_write") or \
                 d['func'] == '0:':
-                m = re.match(r'^\s*\S*: EVENT_(?P<event>\S+)', d['etc'])
+                m = re.match(r'^.+EVENT_(?P<event>\S+)', d['etc'])
                 if m:
                     gd = m.groupdict()
 
@@ -37933,7 +37933,7 @@ class ThreadAnalyzer(object):
                 time = d['time']
 
                 if func.find("tracing_mark_write") >= 0:
-                    m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
+                    m = re.match(r'^.+EVENT_(?P<event>\S+)', etc)
                     if m:
                         d = m.groupdict()
 
@@ -39828,7 +39828,7 @@ class ThreadAnalyzer(object):
             self.consoleData.append([d['thread'], core, time, etc])
 
         elif func == "tracing_mark_write" or func == "0":
-            m = re.match(r'^\s*EVENT_(?P<event>\S+)', etc)
+            m = re.match(r'^.+EVENT_(?P<event>\S+)', etc)
             if not m:
                 printEventWarning(func)
                 return
