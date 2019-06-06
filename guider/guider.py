@@ -6970,22 +6970,21 @@ class FunctionAnalyzer(object):
 
         # Parse call stack #
         else:
-            pos = string.find('=>  <')
+            # exist path, offset, pos #
             m = re.match((\
                 r' => (?P<path>.+)\[\+0x(?P<offset>.\S*)\] '\
                 r'\<(?P<pos>.\S+)\>'), string)
-
-            # exist path, offset, pos #
             if m:
                 d = m.groupdict()
                 return (d['pos'], d['path'], hex(int(d['offset'], 16)))
 
             # exist only pos #
-            elif pos > -1:
+            pos = string.find('=>  <')
+            if pos > -1:
                 return (string[pos+5:len(string)-2], None, None)
 
             # no user stack tracing supported #
-            elif string.find('??') > -1:
+            if string.find('??') > -1:
                 if SystemManager.userEnable and SystemManager.userEnableWarn:
                     SystemManager.printWarning((\
                         "enable CONFIG_USER_STACKTRACE_SUPPORT kernel option "
@@ -6993,17 +6992,14 @@ class FunctionAnalyzer(object):
                     SystemManager.userEnableWarn = False
                 return ('0', None, None)
 
-            else:
-                m = re.match(r' => (?P<symbol>.+) \<(?P<pos>.\S+)\>', string)
+            # exist symbol, pos #
+            m = re.match(r' => (?P<symbol>.+) \<(?P<pos>.\S+)\>', string)
+            if m:
+                d = m.groupdict()
+                return (d['pos'], d['symbol'], None)
 
-                # exist symbol, pos #
-                if m:
-                    d = m.groupdict()
-                    return (d['pos'], d['symbol'], None)
-
-                # garbage log #
-                else:
-                    return False
+            # garbage log #
+            return False
 
 
 
@@ -15729,44 +15725,24 @@ Copyright:
             else:
                 compressor = None
 
-            # save trace data #
+            # read trace data #
             try:
                 rpath = os.path.join(SystemManager.mountPath, '../trace')
-                fr = open(rpath, 'r')
-
-                if compressor:
-                    with open(output, 'wt') as fd:
-                        magicStr = 'gzip %s\n' % ' '.join(sys.argv)
-                        fd.write(magicStr)
-                    fw = compressor.open(output, 'at')
-                else:
-                    fw = open(output, 'w')
-
-                SystemManager.printInfo(\
-                    "wait for writing data to %s" % (fw.name))
-
-                fw.seek(0,0)
-                fw.writelines(SystemManager.magicString + '\n')
-                fw.writelines(SystemManager.systemInfoBuffer)
-                fw.writelines(SystemManager.magicString + '\n')
-                SystemManager.clearInfoBuffer()
-                fw.write(fr.read())
-
-                fr.close()
-                fw.close()
-
-                try:
-                    fsize = UtilManager.convertSize2Unit(\
-                        int(os.path.getsize(output)))
-                except:
-                    fsize = '?'
-
-                SystemManager.printInfo(\
-                    'finish saving trace data into '
-                    '%s [%s] successfully' % (output, fsize))
+                with open(rpath, 'r') as fr:
+                    lines = fr.readlines()
             except:
-                SystemManager.printWarning(\
-                    'Fail to save trace data to %s' % output)
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    'Fail to open %s to save trace data because %s' % \
+                    (rpath, err))
+                sys.exit(0)
+
+            # write trace data #
+            try:
+                SystemManager.saveTraceData(lines, output)
+                SystemManager.clearInfoBuffer()
+            except:
+                sys.exit(0)
         else:
             SystemManager.printError(\
                 'Fail to save trace data because output file is not set')
@@ -15778,21 +15754,22 @@ Copyright:
 
 
     @staticmethod
-    def saveTraceData(lines):
+    def saveTraceData(lines, outputFile=None):
+        if not outputFile:
+            outputFile = SystemManager.outputFile
+
         # backup data file already exist #
         try:
-            if os.path.isfile(SystemManager.outputFile):
-                backupFile = SystemManager.outputFile + '.old'
+            if os.path.isfile(outputFile):
+                backupFile = outputFile + '.old'
 
-                os.rename(SystemManager.outputFile, backupFile)
+                os.rename(outputFile, backupFile)
                 SystemManager.printInfo(\
-                    '%s is renamed to %s' % \
-                    (SystemManager.outputFile, backupFile))
+                    '%s is renamed to %s' % (outputFile, backupFile))
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
-                "Fail to backup %s because %s" % \
-                (SystemManager.outputFile, err))
+                "Fail to backup %s because %s" % (outputFile, err))
 
         # compress by gzip #
         if SystemManager.compressEnable:
@@ -15801,42 +15778,55 @@ Copyright:
             compressor = None
 
         try:
-            if compressor:
-                with open(SystemManager.outputFile, 'wt') as fd:
-                    magicStr = 'gzip %s\n' % ' '.join(sys.argv)
-                    fd.write(magicStr)
-                f = compressor.open(SystemManager.outputFile, 'at')
-            else:
-                f = open(SystemManager.outputFile, 'w')
-
             SystemManager.printInfo(\
-                "wait for writing data to %s" % (f.name))
+                "wait for writing data to %s" % outputFile)
 
-            # write system info #
-            if SystemManager.systemInfoBuffer is not '':
-                f.writelines(SystemManager.magicString + '\n')
-                f.writelines(SystemManager.systemInfoBuffer)
-                f.writelines(SystemManager.magicString + '\n')
+            if compressor:
+                fd = open(outputFile, 'wb')
+                magicStr = 'gzip %s\n' % ' '.join(sys.argv)
+                fd.write(magicStr.encode())
 
-            # write trace info #
-            f.writelines(lines)
+                f = compressor.GzipFile(fileobj=fd)
+
+                # write system info #
+                if SystemManager.systemInfoBuffer is not '':
+                    totalStr = '%s\n%s\n%s\n' % \
+                        (SystemManager.magicString, \
+                        SystemManager.systemInfoBuffer, \
+                        SystemManager.magicString)
+                    f.write(totalStr.encode())
+
+                # write trace info #
+                f.write('\n'.join(lines).encode())
+            else:
+                f = open(outputFile, 'w')
+
+                # write system info #
+                if SystemManager.systemInfoBuffer is not '':
+                    magicStr = '%s\n' % SystemManager.magicString
+                    f.writelines(magicStr)
+                    f.writelines(SystemManager.systemInfoBuffer)
+                    f.writelines(magicStr)
+
+                # write trace info #
+                f.writelines(lines)
 
             f.close()
 
             try:
                 fsize = UtilManager.convertSize2Unit(\
-                    long(os.path.getsize(SystemManager.outputFile)))
+                    long(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
 
             SystemManager.printInfo(\
                 'finish saving trace data into %s [%s] successfully' % \
-                (SystemManager.outputFile, fsize))
+                (outputFile, fsize))
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to write trace data to %s because %s" % \
-                (SystemManager.outputFile, err))
+                (outputFile, err))
 
 
 
@@ -35589,16 +35579,26 @@ class ThreadAnalyzer(object):
         try:
             if not SystemManager.isRecordMode() and \
                 SystemManager.compressEnable:
-                with open(file, 'r') as fd:
-                    buf = fd.readline()
+                with open(file, 'rb') as fd:
+                    buf = b''
+                    while 1:
+                        char = fd.read(1)
+                        if char == b'\n':
+                            break
+                        buf += char
 
-                    if not buf.startswith('gzip'):
+                    if len(buf) < 4 or buf[:4] != b'gzip':
                         raise Exception('it is not gziped')
 
                     compressor = SystemManager.getPkg('gzip')
                     fd = compressor.GzipFile(fileobj=fd)
 
-                    lines = fd.readlines()
+                    lines = list()
+                    tlines = fd.read().decode().split('\n')
+                    for item in tlines:
+                        if len(item) == 0:
+                            continue
+                        lines.append('%s\n' % item)
             else:
                 with open(file, 'r') as fd:
                     lines = fd.readlines()
@@ -37206,9 +37206,9 @@ class ThreadAnalyzer(object):
 
             # check compression #
             try:
-                fd = open(file, 'r')
+                fd = open(file, 'rb')
                 buf = fd.readline()
-                if buf.startswith('gzip'):
+                if buf.decode().startswith('gzip'):
                     SystemManager.compressEnable = True
                     compressor = SystemManager.getPkg('gzip', False)
                     fd = compressor.GzipFile(fileobj=fd)
@@ -37231,11 +37231,19 @@ class ThreadAnalyzer(object):
             buf = None
 
             # make delay because some filtered logs are not written immediately #
-            time.sleep(0.1)
+            try:
+                time.sleep(0.1)
+            except:
+                return 0
 
             if compressor and fd:
                 try:
-                    buf = fd.readlines(nrLine)
+                    buf = list()
+                    tbuf = fd.read().decode().split('\n')
+                    for item in tbuf:
+                        if len(item) == 0:
+                            continue
+                        buf.append('%s\n' % item)
                 except:
                     err = SystemManager.getErrReason()
                     SystemManager.printError(\
@@ -37255,7 +37263,7 @@ class ThreadAnalyzer(object):
             for idx, line in enumerate(buf):
                 # check system info #
                 if not SystemManager.recordStatus:
-                    if line[0:-1] == SystemManager.magicString:
+                    if line.startswith(SystemManager.magicString):
                         if start == -1:
                             start = idx
                         elif end == -1:
@@ -37272,7 +37280,7 @@ class ThreadAnalyzer(object):
                 if m:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
-                    return d['time']
+                    return float(d['time'])
 
                 # record-tgid option #
                 m = re.match((\
@@ -37282,7 +37290,7 @@ class ThreadAnalyzer(object):
                 if m:
                     d = m.groupdict()
                     SystemManager.startTime = d['time']
-                    return d['time']
+                    return float(d['time'])
 
                 # no tgid option #
                 m = re.match((\
@@ -37293,7 +37301,7 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     SystemManager.tgidEnable = False
                     SystemManager.startTime = d['time']
-                    return d['time']
+                    return float(d['time'])
 
                 # check other mode #
                 if line.startswith('[Top '):
@@ -37941,7 +37949,7 @@ class ThreadAnalyzer(object):
         else:
             func = d['func']
         etc = d['etc']
-        time = d['time']
+        self.finishTime = time = d['time']
 
         SystemManager.logSize += len(string)
 
@@ -37954,7 +37962,6 @@ class ThreadAnalyzer(object):
             SystemManager.repeatCount * SystemManager.intervalEnable <= \
                 float(time) - float(SystemManager.startTime):
             self.stopFlag = True
-            self.finishTime = time
             return
 
         self.lastCore = core
@@ -38024,10 +38031,6 @@ class ThreadAnalyzer(object):
                     self.threadData[tid]['start'] = float(time)
                 except:
                     continue
-
-        # check whether this log is last one or not #
-        if SystemManager.curLine >= SystemManager.totalLine:
-            self.finishTime = time
 
         # calculate usage of threads in interval #
         self.processIntervalData(time)
