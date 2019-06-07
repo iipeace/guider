@@ -4371,6 +4371,7 @@ class FunctionAnalyzer(object):
         self.connObj = None
 
         self.finishTime = '0'
+        self.lastTime = '0'
         self.totalTime = 0
         self.totalTick = 0
         self.prevTime = '0'
@@ -6101,6 +6102,10 @@ class FunctionAnalyzer(object):
 
                 self.savePosData(pos, path, offset)
 
+        # update finish time #
+        if self.finishTime == '0':
+            self.finishTime = self.lastTime
+
         UtilManager.deleteProgress()
 
         # Save stack of last events per core #
@@ -6823,14 +6828,13 @@ class FunctionAnalyzer(object):
         if m:
             d = m.groupdict()
 
+            self.lastTime = d['time']
+
             if SystemManager.countEnable and \
                 SystemManager.repeatCount * SystemManager.intervalEnable <= \
                 float(d['time']) - float(SystemManager.startTime):
                 self.lastCore = None
                 return False
-
-            # Set time #
-            self.finishTime = d['time']
 
             # Make thread entity #
             thread = d['thread']
@@ -6954,6 +6958,9 @@ class FunctionAnalyzer(object):
                     gd = m.groupdict()
 
                     EventAnalyzer.addEvent(d['time'], gd['event'])
+
+                    if gd['event'] == 'STOP':
+                        self.finishTime = float(d['time'])
 
                 # Return False because no stack data with this event #
                 return False
@@ -29812,7 +29819,7 @@ class ThreadAnalyzer(object):
         SystemManager.totalLine = len(lines)
 
         for idx, log in enumerate(lines):
-            self.parse(log)
+            time = self.parse(log)
             UtilManager.printProgress(idx, SystemManager.totalLine)
 
             # save last job per core #
@@ -29823,6 +29830,10 @@ class ThreadAnalyzer(object):
 
             if self.stopFlag:
                 break
+
+        # update finish time #
+        if self.finishTime == '0':
+            self.finishTime = time
 
         UtilManager.deleteProgress()
 
@@ -37987,7 +37998,7 @@ class ThreadAnalyzer(object):
         else:
             func = d['func']
         etc = d['etc']
-        self.finishTime = time = d['time']
+        time = d['time']
 
         SystemManager.logSize += len(string)
 
@@ -37995,12 +38006,12 @@ class ThreadAnalyzer(object):
             int(core) not in SystemManager.perCoreList and \
             (func != "console" and \
             func != "tracing_mark_write"):
-            return
+            return time
         elif SystemManager.countEnable and \
             SystemManager.repeatCount * SystemManager.intervalEnable <= \
                 float(time) - float(SystemManager.startTime):
             self.stopFlag = True
-            return
+            return time
 
         self.lastCore = core
         self.lastEvent = func
@@ -38087,7 +38098,7 @@ class ThreadAnalyzer(object):
                 r'next_prio=(?P<next_prio>\S+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38389,7 +38400,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+name=(?P<name>\S+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38439,7 +38450,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38450,7 +38461,7 @@ class ThreadAnalyzer(object):
                 self.irqData[irqId]
                 self.threadData[thread]['irqList'][irqId]
             except:
-                return
+                return time
 
             if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
@@ -38491,7 +38502,7 @@ class ThreadAnalyzer(object):
                 r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38548,7 +38559,7 @@ class ThreadAnalyzer(object):
                 r'^\s*vec=(?P<vector>[0-9]+)\s+\[action=(?P<action>\S+)\]', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38559,7 +38570,7 @@ class ThreadAnalyzer(object):
                 self.irqData[irqId]
                 self.threadData[thread]['irqList'][irqId]
             except:
-                return
+                return time
 
             if self.threadData[thread]['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
@@ -38602,7 +38613,7 @@ class ThreadAnalyzer(object):
                 r'dest_cpu=(?P<dest_cpu>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38631,7 +38642,7 @@ class ThreadAnalyzer(object):
                 r'migratetype=(?P<mt>[0-9]+)\s+gfp_flags=(?P<flags>\S+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38692,7 +38703,7 @@ class ThreadAnalyzer(object):
                 r'\s+order=(?P<order>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38736,7 +38747,7 @@ class ThreadAnalyzer(object):
                 r'page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38761,7 +38772,7 @@ class ThreadAnalyzer(object):
 
                 self.pageTable[pfn]['type'] = 'CACHE'
             except:
-                return
+                return time
 
         elif func == "kmalloc":
             m = re.match((\
@@ -38771,7 +38782,7 @@ class ThreadAnalyzer(object):
                 r'gfp_flags=(?P<flags>\S+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38801,7 +38812,7 @@ class ThreadAnalyzer(object):
                 r'^\s*call_site=(?P<caller>\S+)\s+ptr=\s*(?P<ptr>\S+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38827,7 +38838,7 @@ class ThreadAnalyzer(object):
                 this allocated object is not logged or \
                 this object is allocated before starting profile
                 '''
-                return
+                return time
 
         elif func == "sched_wakeup" or func == "sched_wakeup_new":
             m = re.match((\
@@ -38835,7 +38846,7 @@ class ThreadAnalyzer(object):
                 r'prio=(?P<prio>[0-9]+)\s+'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38844,7 +38855,7 @@ class ThreadAnalyzer(object):
 
             # skip self-wakeup #
             if thread == pid:
-                return
+                return time
 
             self.threadData.setdefault(pid, dict(self.init_threadData))
             self.threadData[pid]['comm'] = target_comm
@@ -38854,7 +38865,7 @@ class ThreadAnalyzer(object):
                 self.wakeupData['time'] = \
                     float(time) - float(SystemManager.startTime)
             elif thread[0] == '0' or pid == '0':
-                return
+                return time
             elif self.wakeupData['valid'] > 0 and \
                 (self.wakeupData['from'] != self.wakeupData['tid'] or \
                 self.wakeupData['to'] != pid):
@@ -38886,7 +38897,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -38896,7 +38907,7 @@ class ThreadAnalyzer(object):
 
             # apply thread filter #
             if SystemManager.isExceptTarget(thread, self.threadData):
-                return
+                return time
 
             # update futex lock stat #
             if nr == ConfigManager.sysList.index("sys_futex"):
@@ -39014,7 +39025,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39024,7 +39035,7 @@ class ThreadAnalyzer(object):
 
             # apply filter #
             if SystemManager.isExceptTarget(thread, self.threadData):
-                return
+                return time
 
             # handle wrong syscall number #
             if nr < 0 and td['lastNrSyscall'] >= 0:
@@ -39195,7 +39206,7 @@ class ThreadAnalyzer(object):
                 r'pid=(?P<pid>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39228,7 +39239,7 @@ class ThreadAnalyzer(object):
                 elif sig == str(signal.SIGSEGV):
                     self.threadData[pid]['die'] = 'F'
             except:
-                return
+                return time
 
         elif func == "signal_deliver":
             m = re.match((\
@@ -39237,7 +39248,7 @@ class ThreadAnalyzer(object):
                 r'sa_flags=(?P<flags>.*)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39262,7 +39273,7 @@ class ThreadAnalyzer(object):
                 r'(?P<size>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39275,7 +39286,7 @@ class ThreadAnalyzer(object):
 
             # skip redundant operation #
             if func == "block_bio_queue" and bio in self.ioData:
-                return
+                return time
 
             self.ioData[bio] = {'thread': thread, 'time': float(time), \
                 'major': d['major'], 'minor': d['minor'], \
@@ -39311,7 +39322,7 @@ class ThreadAnalyzer(object):
                 r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39453,7 +39464,7 @@ class ThreadAnalyzer(object):
                 r'ino=(?P<ino>\S+)\s+index=(?P<index>\S+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39475,7 +39486,7 @@ class ThreadAnalyzer(object):
                 r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39521,7 +39532,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*nr_reclaimed=(?P<nr>[0-9]+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39537,7 +39548,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39567,7 +39578,7 @@ class ThreadAnalyzer(object):
                 r'child_pid=(?P<child_pid>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39597,7 +39608,7 @@ class ThreadAnalyzer(object):
                 r'newcomm=(?P<newcomm>.*)\s+oom_score_adj'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39619,7 +39630,7 @@ class ThreadAnalyzer(object):
                 r'\s+type=(?P<type>.+)\s+ctx=(?P<ctx>.+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39685,7 +39696,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39705,7 +39716,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39741,7 +39752,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39754,7 +39765,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^\s*(?P<module>.*)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39768,7 +39779,7 @@ class ThreadAnalyzer(object):
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39783,7 +39794,7 @@ class ThreadAnalyzer(object):
                 r'refcnt=(?P<refcnt>[0-9]+)'), etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39797,7 +39808,7 @@ class ThreadAnalyzer(object):
                 r'^\s*state=(?P<state>[0-9]+)\s+cpu_id=(?P<cpu_id>[0-9]+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39806,7 +39817,7 @@ class ThreadAnalyzer(object):
             tid = '0[' + d['cpu_id']+ ']'
 
             if self.threadData[tid]['lastIdleStatus'] == int(d['state']):
-                return
+                return time
             else:
                 self.threadData[tid]['lastIdleStatus'] = int(d['state'])
 
@@ -39828,7 +39839,7 @@ class ThreadAnalyzer(object):
         elif func == "cpu_frequency":
             # toDo: calculate power consumption for DVFS system #
             SystemManager.powerEnable = True
-            return
+            return time
 
         elif func == "console":
             m = re.match(\
@@ -39838,7 +39849,7 @@ class ThreadAnalyzer(object):
 
                 self.handleUserEvent(d['event'], time)
 
-                return
+                return time
 
             # process CPU shutdown event #
             m = re.match((\
@@ -39869,7 +39880,7 @@ class ThreadAnalyzer(object):
             m = re.match(r'^.+EVENT_(?P<event>\S+)', etc)
             if not m:
                 printEventWarning(func)
-                return
+                return time
 
             d = m.groupdict()
 
@@ -39925,7 +39936,7 @@ class ThreadAnalyzer(object):
 
         # check special event flag #
         if not handleSpecialEvents:
-            return
+            return time
 
         # user event #
         for name in SystemManager.userEventList:
