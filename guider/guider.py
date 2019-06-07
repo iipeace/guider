@@ -18605,7 +18605,6 @@ Copyright:
 
         # EVENT MODE #
         elif SystemManager.isEventMode():
-            # handle events #
             SystemManager.handleEventInput()
         else:
             return
@@ -18954,11 +18953,32 @@ Copyright:
 
 
     @staticmethod
+    def mountDebugfs(mp=None):
+        if not mp:
+            mp = SystemManager.debugfsPath
+
+        # mount debugfs #
+        SystemManager.mountCmd =\
+            "mount -t debugfs nodev %s" % mp
+        os.system(SystemManager.mountCmd)
+
+        SystemManager.mountPath = SystemManager.getMountPath()
+        if not SystemManager.mountPath:
+            SystemManager.printError(\
+                "Fail to mount debugfs to trace events")
+            sys.exit(0)
+
+
+
+    @staticmethod
     def handleEventInput():
         pids = []
 
         # mount debug fs #
-        SystemManager.getMountPath()
+        SystemManager.mountPath = SystemManager.getMountPath()
+        if not SystemManager.mountPath:
+            SystemManager.printWarning(\
+                "Fail to get debugfs mount point", True)
 
         while 1:
             SystemManager.printStatus(\
@@ -22064,14 +22084,16 @@ Copyright:
 
     @staticmethod
     def getMountPath():
-        if SystemManager.mountPath:
-            SystemManager.mountPath = \
-                "%s/tracing/events/" % SystemManager.mountPath
-            return SystemManager.mountPath
+        try:
+            with open('%s/mounts' % SystemManager.procPath, 'r') as f:
+                lines = f.readlines()
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printError(\
+                "Fail to get mount path because %s" % err)
+            return None
 
-        f = open('%s/mounts' % SystemManager.procPath, 'r')
-        lines = f.readlines()
-
+        ret = None
         for l in lines:
             m = re.match(r'(?P<dev>\S+)\s+(?P<dir>\S+)\s+(?P<fs>\S+)', l)
             if not m:
@@ -22079,13 +22101,9 @@ Copyright:
 
             d = m.groupdict()
             if d['fs'] == 'debugfs':
-                f.close()
-                SystemManager.mountPath = d['dir']
-                SystemManager.mountPath = \
-                    "%s/tracing/events/" % SystemManager.mountPath
-                return SystemManager.mountPath
+                ret = "%s/tracing/events/" % d['dir']
 
-        f.close()
+        return ret
 
 
 
@@ -22323,14 +22341,10 @@ Copyright:
         # run user command before recording #
         SystemManager.writeRecordCmd('BEFORE')
 
-        SystemManager.mountPath = self.getMountPath()
+        # mount debugfs #
+        SystemManager.mountPath = SystemManager.getMountPath()
         if not SystemManager.mountPath:
-            SystemManager.mountPath = "%s" % SystemManager.debugfsPath
-            SystemManager.mountCmd =\
-                "mount -t debugfs nodev %s" % SystemManager.mountPath
-            os.system(SystemManager.mountCmd)
-            SystemManager.mountPath = \
-                "%s/tracing/events/" % SystemManager.mountPath
+            SystemManager.mountDebugfs()
 
         # check permission #
         if os.path.isdir(SystemManager.mountPath) == False:
