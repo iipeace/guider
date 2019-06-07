@@ -15593,8 +15593,8 @@ Copyright:
             os._exit(0)
 
         else:
-            signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.writeEvent("EVENT_STOP", False)
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
             SystemManager.stopRecording()
 
         # update record status #
@@ -16412,8 +16412,7 @@ Copyright:
                 event = message[message.find('_')+1:]
                 if show:
                     SystemManager.printInfo('wrote %s event' % event)
-                SystemManager.eventLogFD.close()
-                SystemManager.eventLogFD = None
+                SystemManager.eventLogFD.flush()
                 return True
             except:
                 SystemManager.printWarning(\
@@ -22307,6 +22306,9 @@ Copyright:
         # write command to start tracing #
         SystemManager.writeCmd('../tracing_on', '1')
 
+        # write start event #
+        #SystemManager.writeEvent("EVENT_START", False)
+
 
 
     def startRecording(self):
@@ -22393,9 +22395,6 @@ Copyright:
 
         # start tracing #
         self.startTracing()
-
-        # write start event #
-        SystemManager.writeEvent("EVENT_START", False)
 
         #-------------------- FUNCTION MODE --------------------#
         if SystemManager.isFunctionMode():
@@ -34638,7 +34637,7 @@ class ThreadAnalyzer(object):
                         timeLine += '%4s' % (newFlag + cnt + dieFlag)
 
                     if (idx not in value or value[idx]['count'] == 0) and \
-                        SystemManager.showAll == False:
+                        not SystemManager.showAll:
                         break
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -34711,7 +34710,7 @@ class ThreadAnalyzer(object):
                         timeLine += '%4s' % (newFlag + res + dieFlag)
 
                     if (idx not in value or value[idx]['count'] == 0) and \
-                        SystemManager.showAll == False:
+                        not SystemManager.showAll:
                         break
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -34784,7 +34783,7 @@ class ThreadAnalyzer(object):
                         timeLine += '%4s' % (newFlag + res + dieFlag)
 
                     if (idx not in value or value[idx]['count'] == 0) and \
-                        SystemManager.showAll == False:
+                        not SystemManager.showAll:
                         break
 
                     SystemManager.addPrint("%16s(%5s/%5s): " % \
@@ -35376,8 +35375,8 @@ class ThreadAnalyzer(object):
                 self.threadData.items(), key=lambda e: e[1]['nrPages'], \
                 reverse=True):
 
-                if (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1 and \
-                    SystemManager.showAll == False:
+                if not SystemManager.showAll and \
+                    (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1:
                     break
                 elif key[0:2] == '0[':
                     continue
@@ -35442,7 +35441,7 @@ class ThreadAnalyzer(object):
             for key, value in sorted(\
                 self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
 
-                if value['readBlock'] < 1 and SystemManager.showAll == False:
+                if value['readBlock'] < 1 and not SystemManager.showAll:
                     break
                 elif key[0:2] == '0[':
                     continue
@@ -35508,7 +35507,7 @@ class ThreadAnalyzer(object):
                 reverse=True):
 
                 if value['reqWrBlock'] + (value['awriteBlock'] << 3) < 1 and \
-                    SystemManager.showAll == False:
+                    not SystemManager.showAll:
                     break
                 elif key[0:2] == '0[':
                     continue
@@ -37451,7 +37450,7 @@ class ThreadAnalyzer(object):
         intervalCnt = float(SystemManager.intervalNow + intervalEnable)
         elapsed = float(time) - float(SystemManager.startTime)
 
-        if not elapsed > intervalCnt and not self.finishTime != '0':
+        if not elapsed > intervalCnt and self.finishTime == '0':
             return
 
         SystemManager.intervalNow += intervalEnable
@@ -37465,7 +37464,7 @@ class ThreadAnalyzer(object):
             try:
                 self.intData[index]
             except:
-                self.intData.append({})
+                self.intData.append(dict())
 
             try:
                 self.intData[index]['toTal']
