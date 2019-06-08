@@ -36174,7 +36174,7 @@ class ThreadAnalyzer(object):
         if SystemManager.freeMemEnable:
             memTitle = 'Free/User/Cache'
         else:
-            memTitle = 'Avail/User/Cache'
+            memTitle = 'Avl/User/Cache'
 
         SystemManager.printPipe((\
             "{0:^5} | {1:^27} | {2:^3} | {3:^18} | {4:^7} | {5:^3} | "
@@ -37088,8 +37088,8 @@ class ThreadAnalyzer(object):
             "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
-            'VIRT', 'RSS', 'PSS', 'SWAP', 'HUGE', 'LOCK(KB)', \
-            'PDRT(KB)', 'SDRT(KB)', 'NOPM(KB)', twoLine, cl=cl, pd=pd))
+            'VSS/M', 'RSS/M', 'PSS/M', 'SWAP/M', 'HUGE/M', 'LOCK/K', \
+            'PDRT/K', 'SDRT/K', 'NOPM/K', twoLine, cl=cl, pd=pd))
 
         cnt = 1
         limitProcCnt = 6
@@ -41495,7 +41495,8 @@ class ThreadAnalyzer(object):
 
         # kernel memory #
         try:
-            totalKernelMem = totalMem - (totalAnonMem + totalCacheMem + freeMem)
+            totalKernelMem = \
+                totalMem - (totalAnonMem + totalCacheMem + freeMem)
         except:
             totalKernelMem =  0
 
@@ -41661,9 +41662,9 @@ class ThreadAnalyzer(object):
 
         # check available memory type #
         if SystemManager.freeMemEnable:
-            memTitle = ' MemF'
+            memTitle = ' Free'
         else:
-            memTitle = ' MemA'
+            memTitle = '  Avl'
 
         # get iowait time #
         #iowait = SystemManager.getIowaitTime()
@@ -41671,9 +41672,9 @@ class ThreadAnalyzer(object):
         # print system status menu #
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
-            (("{0:^7}|{1:^5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:^5}({7:^4}/{8:>5}/{9:>5}/{10:>4})|"\
-            "{11:^6}({12:^4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
+            (("{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
+            "{6:^5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
+            "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
             "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
             memTitle, "Diff", "User", "Cache", "Kern", \
@@ -43277,7 +43278,7 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.addPrint((\
-            "{24:1}\n{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
+            "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
             "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
             "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
             "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
@@ -43583,6 +43584,10 @@ class ThreadAnalyzer(object):
                 jsonData[idx]['fd'] = value['fdsize']
                 jsonData[idx]['life'] = lifeTime.strip()
 
+            # remove unshown field in lifetime #
+            if len(lifeTime.split(':')) > 3:
+                lifeTime = lifeTime[:lifeTime.rfind(':')]
+
             # print stats of a process #
             SystemManager.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
@@ -43776,6 +43781,8 @@ class ThreadAnalyzer(object):
 
             runtime = value['runtime'] + SystemManager.uptimeDiff
             lifeTime = UtilManager.convertTime(runtime)
+            if len(lifeTime.split(':')) > 3:
+                lifeTime = lifeTime[:lifeTime.rfind(':')]
 
             try:
                 swapSize = \
