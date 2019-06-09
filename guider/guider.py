@@ -2927,7 +2927,7 @@ class UtilManager(object):
 
         # decompress by gzip #
         if SystemManager.compressEnable:
-            decompressor = SystemManager.getPkg('gzip', False)
+            decompressor = SystemManager.getPkg('gzip')
         else:
             decompressor = None
 
@@ -25680,7 +25680,8 @@ class Debugger(object):
 
 
     def checkSymbol(self, sym, newline=False):
-        if not SystemManager.customCmd:
+        if not SystemManager.customCmd or \
+            SystemManager.printFile:
             return
 
         if sym in SystemManager.customCmd:
@@ -25697,7 +25698,7 @@ class Debugger(object):
                     pass
 
             SystemManager.waitUserInput(wait=0, \
-                msg="%s is detected! Press enter to continue..." % sym)
+                msg="%s() is detected! Press enter to continue..." % sym)
 
 
 
@@ -35626,38 +35627,41 @@ class ThreadAnalyzer(object):
     @staticmethod
     def readTraceData(file):
         try:
-            if not SystemManager.isRecordMode() and \
-                SystemManager.compressEnable:
-                with open(file, 'rb') as fd:
-                    buf = b''
-                    while 1:
-                        char = fd.read(1)
-                        if char == b'\n':
-                            break
-                        buf += char
-
-                    if len(buf) < 4 or buf[:4] != b'gzip':
-                        raise Exception('it is not gziped')
-
-                    compressor = SystemManager.getPkg('gzip')
-                    fd = compressor.GzipFile(fileobj=fd)
-
-                    lines = list()
-                    tlines = fd.read().decode().split('\n')
-                    for item in tlines:
-                        if len(item) == 0:
-                            continue
-                        lines.append('%s\n' % item)
-            else:
+            if SystemManager.isRecordMode() or \
+                not SystemManager.compressEnable:
                 with open(file, 'r') as fd:
-                    lines = fd.readlines()
+                    return fd.readlines()
+
+            with open(file, 'rb') as fd:
+                # find magic number and command #
+                buf = b''
+                while 1:
+                    char = fd.read(1)
+                    if char == b'\n':
+                        break
+                    buf += char
+
+                if len(buf) < 4 or buf[:4] != b'gzip':
+                    raise Exception('it is not gziped')
+
+                compressor = SystemManager.getPkg('gzip')
+                fd = compressor.GzipFile(fileobj=fd)
+
+                lines = list()
+                tlines = fd.read().decode().split('\n')
+                for item in tlines:
+                    if len(item) == 0:
+                        continue
+                    lines.append('%s\n' % item)
+
+                return lines
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
                 "Fail to open %s because %s" % (file, err))
             sys.exit(0)
-
-        return lines
 
 
 
@@ -37259,15 +37263,15 @@ class ThreadAnalyzer(object):
                 buf = fd.readline()
                 if buf.decode().startswith('gzip'):
                     SystemManager.compressEnable = True
-                    compressor = SystemManager.getPkg('gzip', False)
+                    compressor = SystemManager.getPkg('gzip')
                     fd = compressor.GzipFile(fileobj=fd)
                 else:
                     SystemManager.compressEnable = False
                     compressor = None
                     fd.close()
                     fd = None
-            except IOError:
-                compressor = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 compressor = None
                 err = SystemManager.getErrReason()
@@ -37279,7 +37283,7 @@ class ThreadAnalyzer(object):
             start = end = -1
             buf = None
 
-            # make delay because some filtered logs are not written immediately #
+            # make delay for some logs not written immediately #
             try:
                 time.sleep(0.1)
             except:
