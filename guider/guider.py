@@ -30166,6 +30166,29 @@ class ThreadAnalyzer(object):
 
 
 
+    def checkFilter(self, comm, pid):
+        found = False
+
+        for idx in SystemManager.filterGroup:
+            # check exclusion condition #
+            if idx.startswith('^'):
+                cond = idx[1:]
+                if comm.find(cond) > -1 or pid == cond:
+                    found=False
+                    break
+                else:
+                    found=True
+                    continue
+
+            # check inclusion condition #
+            if comm.find(idx) > -1 or pid == idx:
+                found = True
+                break
+
+        return found
+
+
+
     def getDrawStats(self, logFile):
         logBuf = None
 
@@ -30383,23 +30406,7 @@ class ThreadAnalyzer(object):
                     comm = d['comm'].strip()
 
                     if SystemManager.filterGroup != []:
-                        found = False
-                        for idx in SystemManager.filterGroup:
-                            # check exclusion condition #
-                            if idx.startswith('^'):
-                                cond = idx[1:]
-                                if comm.find(cond) > -1 or d['pid'] == cond:
-                                    found=False
-                                    break
-                                else:
-                                    found=True
-                                    continue
-
-                            # check inclusion condition #
-                            if comm.find(idx) > -1 or d['pid'] == idx:
-                                found = True
-                                break
-                        if not found:
+                        if not self.checkFilter(comm, d['pid']):
                             intervalList = None
                         else:
                             pid = d['pid']
@@ -30421,6 +30428,34 @@ class ThreadAnalyzer(object):
 
                     cpuProcUsage[pname]['usage'] = intervalList
                     cpuList = list(map(int, intervalList.split()))
+                    intervalList = None
+
+                    # calculate total usage of tasks filtered #
+                    if self.checkFilter(comm, pid):
+                        if not "[ TOTAL ]" in cpuProcUsage:
+                            cpuProcUsage["[ TOTAL ]"] = dict()
+
+                            filterTotal = list(map(int, \
+                                cpuProcUsage[pname]['usage'].split()))
+
+                            cpuProcUsage["[ TOTAL ]"]['usage'] = \
+                                ' '.join(list(map(str,filterTotal)))
+                        else:
+                            filterTotal = list(map(int, \
+                                cpuProcUsage["[ TOTAL ]"]['usage'].split()))
+
+                            for idx in xrange(0, len(filterTotal)):
+                                filterTotal[idx] += cpuList[idx]
+
+                            cpuProcUsage["[ TOTAL ]"]['usage'] = \
+                                ' '.join(list(map(str,filterTotal)))
+
+                        cpuProcUsage["[ TOTAL ]"]['minimum'] = \
+                            min(filterTotal)
+                        cpuProcUsage["[ TOTAL ]"]['average'] = \
+                            sum(filterTotal) / len(filterTotal)
+                        cpuProcUsage["[ TOTAL ]"]['maximum'] = \
+                            max(filterTotal)
 
                     if len(cpuList) == 0:
                         cpuProcUsage[pname]['minimum'] = 0
@@ -30443,6 +30478,7 @@ class ThreadAnalyzer(object):
                 elif intervalList and gname != 'GPU':
                     # save previous info #
                     gpuUsage[gname] = intervalList
+                    intervalList = None
 
                     '''
                     gpuUsage[gname] = {}
@@ -30478,23 +30514,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    found = False
-                    for idx in SystemManager.filterGroup:
-                        # check exclusion condition #
-                        if idx.startswith('^'):
-                            cond = idx[1:]
-                            if comm.find(cond) > -1 or d['pid'] == cond:
-                                found=False
-                                break
-                            else:
-                                found=True
-                                continue
-
-                        # check inclusion condition #
-                        if comm.find(idx) > -1 or d['pid'] == idx:
-                            found = True
-                            break
-                    if not found:
+                    if not self.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -30514,6 +30534,7 @@ class ThreadAnalyzer(object):
 
                     memProcUsage[pname]['maxVss'] = maxVss
                     memProcUsage[pname]['vssUsage'] = intervalList
+                    intervalList = None
 
             # RSS #
             elif context == 'RSS':
@@ -30532,23 +30553,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    found = False
-                    for idx in SystemManager.filterGroup:
-                        # check exclusion condition #
-                        if idx.startswith('^'):
-                            cond = idx[1:]
-                            if comm.find(cond) > -1 or d['pid'] == cond:
-                                found=False
-                                break
-                            else:
-                                found=True
-                                continue
-
-                        # check inclusion condition #
-                        if comm.find(idx) > -1 or d['pid'] == idx:
-                            found = True
-                            break
-                    if not found:
+                    if not self.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -30568,6 +30573,7 @@ class ThreadAnalyzer(object):
 
                     memProcUsage[pname]['maxRss'] = maxRss
                     memProcUsage[pname]['rssUsage'] = intervalList
+                    intervalList = None
 
             # Block #
             elif context == 'Block':
@@ -30591,23 +30597,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    found = False
-                    for idx in SystemManager.filterGroup:
-                        # check exclusion condition #
-                        if idx.startswith('^'):
-                            cond = idx[1:]
-                            if comm.find(cond) > -1 or d['pid'] == cond:
-                                found=False
-                                break
-                            else:
-                                found=True
-                                continue
-
-                        # check inclusion condition #
-                        if comm.find(idx) > -1 or d['pid'] == idx:
-                            found = True
-                            break
-                    if not found:
+                    if not self.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -30628,6 +30618,7 @@ class ThreadAnalyzer(object):
                     blkProcUsage[pname]['pid'] = pid
                     blkProcUsage[pname]['total'] = total
                     blkProcUsage[pname]['usage'] = intervalList
+                    intervalList = None
 
             # Storage #
             elif context == 'Storage':
@@ -30661,6 +30652,7 @@ class ThreadAnalyzer(object):
                     storageUsage[sname]['read'] = readList
                     storageUsage[sname]['write'] = writeList
                     storageUsage[sname]['free'] = freeList
+                    intervalList = None
 
             # Network #
             elif context == 'Network':
@@ -30687,6 +30679,7 @@ class ThreadAnalyzer(object):
                     # save previous info #
                     networkUsage[sname]['recv'] = recvList
                     networkUsage[sname]['tran'] = tranList
+                    intervalList = None
 
             # Meory Details #
             elif context == 'Memory':
@@ -31246,6 +31239,40 @@ class ThreadAnalyzer(object):
                         break
 
                 #-------------------- Process CPU usage --------------------#
+                # total CPU usage of processes filtered #
+                if "[ TOTAL ]" in cpuProcUsage:
+                    totalUsage = cpuProcUsage["[ TOTAL ]"]['usage'].split()
+                    totalUsage = list(map(int, totalUsage))[:lent]
+
+                    # draw total graph #
+                    plot(timeline, totalUsage, '-', c='green', linestyle='-',\
+                        linewidth=1, marker='d', markersize=1, \
+                        solid_capstyle='round')
+
+                    labelList.append('%s[ TOTAL ]' % prefix)
+
+                    try:
+                        avgUsage = round(sum(totalUsage) / len(totalUsage), 1)
+                    except:
+                        avgUsage = 0
+
+                    maxUsage = max(totalUsage)
+                    maxIdx = totalUsage.index(maxUsage)
+
+                    for idx in [idx for idx, usage in enumerate(totalUsage) \
+                        if usage == maxUsage]:
+                        if idx != 0 and totalUsage[idx] == totalUsage[idx-1]:
+                            continue
+                        text(timeline[idx], totalUsage[maxIdx], \
+                            '%s max: %d%% / avg: %.1f%%' % \
+                                (prefix, maxUsage, avgUsage),\
+                            fontsize=5, color='green', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
+                            alpha=0.3), horizontalalignment='center')
+                        break
+
+                    cpuProcUsage.pop("[ TOTAL ]", None)
+
                 # CPU usage of processes #
                 for idx, item in sorted(\
                     cpuProcUsage.items(), \
