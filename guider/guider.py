@@ -30376,39 +30376,41 @@ class ThreadAnalyzer(object):
             elif context == 'CPU':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m:
-                        d = m.groupdict()
-                        comm = d['comm'].strip()
+                    if not m:
+                        continue
 
-                        if SystemManager.filterGroup != []:
-                            found = False
-                            for idx in SystemManager.filterGroup:
-                                # check exclusion condition #
-                                if idx.startswith('^'):
-                                    cond = idx[1:]
-                                    if comm.find(cond) > -1 or d['pid'] == cond:
-                                        found=False
-                                        break
-                                    else:
-                                        found=True
-                                        continue
+                    d = m.groupdict()
+                    comm = d['comm'].strip()
 
-                                # check inclusion condition #
-                                if comm.find(idx) > -1 or d['pid'] == idx:
-                                    found = True
+                    if SystemManager.filterGroup != []:
+                        found = False
+                        for idx in SystemManager.filterGroup:
+                            # check exclusion condition #
+                            if idx.startswith('^'):
+                                cond = idx[1:]
+                                if comm.find(cond) > -1 or d['pid'] == cond:
+                                    found=False
                                     break
-                            if not found:
-                                intervalList = None
-                            else:
-                                pid = d['pid']
-                                pname = '%s(%s)' % (comm, pid)
+                                else:
+                                    found=True
+                                    continue
 
-                                intervalList = sline[2]
+                            # check inclusion condition #
+                            if comm.find(idx) > -1 or d['pid'] == idx:
+                                found = True
+                                break
+                        if not found:
+                            intervalList = None
                         else:
                             pid = d['pid']
                             pname = '%s(%s)' % (comm, pid)
 
                             intervalList = sline[2]
+                    else:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+
+                        intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -30463,39 +30465,42 @@ class ThreadAnalyzer(object):
             elif context == 'VSS':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m:
-                        d = m.groupdict()
-                        comm = d['comm'].strip().replace('^', '')
+                    if not m:
+                        continue
 
-                        if SystemManager.filterGroup != []:
-                            found = False
-                            for idx in SystemManager.filterGroup:
-                                # check exclusion condition #
-                                if idx.startswith('^'):
-                                    cond = idx[1:]
-                                    if comm.find(cond) > -1 or d['pid'] == cond:
-                                        found=False
-                                        break
-                                    else:
-                                        found=True
-                                        continue
+                    d = m.groupdict()
+                    comm = d['comm'].strip().replace('^', '')
 
-                                # check inclusion condition #
-                                if comm.find(idx) > -1 or d['pid'] == idx:
-                                    found = True
-                                    break
-                            if not found:
-                                intervalList = None
+                    if SystemManager.filterGroup == []:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+                        maxVss = int(sline[1])
+                        intervalList = sline[2]
+                        continue
+
+                    found = False
+                    for idx in SystemManager.filterGroup:
+                        # check exclusion condition #
+                        if idx.startswith('^'):
+                            cond = idx[1:]
+                            if comm.find(cond) > -1 or d['pid'] == cond:
+                                found=False
+                                break
                             else:
-                                pid = d['pid']
-                                pname = '%s(%s)' % (comm, pid)
-                                maxVss = int(sline[1])
-                                intervalList = sline[2]
-                        else:
-                            pid = d['pid']
-                            pname = '%s(%s)' % (comm, pid)
-                            maxVss = int(sline[1])
-                            intervalList = sline[2]
+                                found=True
+                                continue
+
+                        # check inclusion condition #
+                        if comm.find(idx) > -1 or d['pid'] == idx:
+                            found = True
+                            break
+                    if not found:
+                        intervalList = None
+                    else:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+                        maxVss = int(sline[1])
+                        intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -30514,39 +30519,42 @@ class ThreadAnalyzer(object):
             elif context == 'RSS':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m:
-                        d = m.groupdict()
-                        comm = d['comm'].strip().replace('^', '')
+                    if not m:
+                        continue
 
-                        if SystemManager.filterGroup != []:
-                            found = False
-                            for idx in SystemManager.filterGroup:
-                                # check exclusion condition #
-                                if idx.startswith('^'):
-                                    cond = idx[1:]
-                                    if comm.find(cond) > -1 or d['pid'] == cond:
-                                        found=False
-                                        break
-                                    else:
-                                        found=True
-                                        continue
+                    d = m.groupdict()
+                    comm = d['comm'].strip().replace('^', '')
 
-                                # check inclusion condition #
-                                if comm.find(idx) > -1 or d['pid'] == idx:
-                                    found = True
-                                    break
-                            if not found:
-                                intervalList = None
+                    if SystemManager.filterGroup == []:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+                        maxRss = int(sline[1])
+                        intervalList = sline[2]
+                        continue
+
+                    found = False
+                    for idx in SystemManager.filterGroup:
+                        # check exclusion condition #
+                        if idx.startswith('^'):
+                            cond = idx[1:]
+                            if comm.find(cond) > -1 or d['pid'] == cond:
+                                found=False
+                                break
                             else:
-                                pid = d['pid']
-                                pname = '%s(%s)' % (comm, pid)
-                                maxRss = int(sline[1])
-                                intervalList = sline[2]
-                        else:
-                            pid = d['pid']
-                            pname = '%s(%s)' % (comm, pid)
-                            maxRss = int(sline[1])
-                            intervalList = sline[2]
+                                found=True
+                                continue
+
+                        # check inclusion condition #
+                        if comm.find(idx) > -1 or d['pid'] == idx:
+                            found = True
+                            break
+                    if not found:
+                        intervalList = None
+                    else:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+                        maxRss = int(sline[1])
+                        intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -30565,49 +30573,52 @@ class ThreadAnalyzer(object):
             elif context == 'Block':
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
-                    if m:
-                        d = m.groupdict()
-                        comm = d['comm'].strip()
+                    if not m:
+                        continue
 
-                        if SystemManager.filterGroup != []:
-                            found = False
-                            for idx in SystemManager.filterGroup:
-                                # check exclusion condition #
-                                if idx.startswith('^'):
-                                    cond = idx[1:]
-                                    if comm.find(cond) > -1 or d['pid'] == cond:
-                                        found=False
-                                        break
-                                    else:
-                                        found=True
-                                        continue
+                    d = m.groupdict()
+                    comm = d['comm'].strip()
 
-                                # check inclusion condition #
-                                if comm.find(idx) > -1 or d['pid'] == idx:
-                                    found = True
-                                    break
-                            if not found:
-                                intervalList = None
+                    if SystemManager.filterGroup == []:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+
+                        try:
+                            total = int(sline[1])
+                        except:
+                            total = sline[1]
+
+                        intervalList = sline[2]
+                        continue
+
+                    found = False
+                    for idx in SystemManager.filterGroup:
+                        # check exclusion condition #
+                        if idx.startswith('^'):
+                            cond = idx[1:]
+                            if comm.find(cond) > -1 or d['pid'] == cond:
+                                found=False
+                                break
                             else:
-                                pid = d['pid']
-                                pname = '%s(%s)' % (comm, pid)
+                                found=True
+                                continue
 
-                                try:
-                                    total = int(sline[1])
-                                except:
-                                    total = sline[1]
+                        # check inclusion condition #
+                        if comm.find(idx) > -1 or d['pid'] == idx:
+                            found = True
+                            break
+                    if not found:
+                        intervalList = None
+                    else:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
 
-                                intervalList = sline[2]
-                        else:
-                            pid = d['pid']
-                            pname = '%s(%s)' % (comm, pid)
+                        try:
+                            total = int(sline[1])
+                        except:
+                            total = sline[1]
 
-                            try:
-                                total = int(sline[1])
-                            except:
-                                total = sline[1]
-
-                            intervalList = sline[2]
+                        intervalList = sline[2]
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
@@ -31110,9 +31121,8 @@ class ThreadAnalyzer(object):
                 nrCore = graphStats['%snrCore' % fname]
 
                 # set visible total usage flag #
-                if len(SystemManager.filterGroup) == 0:
-                    isVisibleTotal = True
-                elif SystemManager.showAll:
+                if SystemManager.showAll or \
+                    len(SystemManager.filterGroup) == 0:
                     isVisibleTotal = True
                 else:
                     isVisibleTotal = False
