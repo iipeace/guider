@@ -37257,9 +37257,16 @@ class ThreadAnalyzer(object):
         else:
             nrLine = 0
 
-            # check compression #
             try:
                 fd = open(file, 'rb')
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to open %s because %s" % (file, err))
+                sys.exit(0)
+
+            # check compression #
+            try:
                 buf = fd.readline()
                 if buf.decode().startswith('gzip'):
                     SystemManager.compressEnable = True
@@ -37276,7 +37283,7 @@ class ThreadAnalyzer(object):
                 compressor = None
                 err = SystemManager.getErrReason()
                 SystemManager.printError(\
-                    "Fail to open %s to check compression because %s" % \
+                    "Fail to check compression for %s because %s" % \
                     (file, err))
 
         while 1:
