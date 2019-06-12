@@ -31259,6 +31259,10 @@ class ThreadAnalyzer(object):
                     maxUsage = max(totalUsage)
                     maxIdx = totalUsage.index(maxUsage)
 
+                    # set the max value of yticks #
+                    if ymax < maxUsage:
+                        ymax = maxUsage
+
                     for idx in [idx for idx, usage in enumerate(totalUsage) \
                         if usage == maxUsage]:
                         if idx != 0 and totalUsage[idx] == totalUsage[idx-1]:
