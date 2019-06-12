@@ -30536,8 +30536,19 @@ class ThreadAnalyzer(object):
                     memProcUsage[pname]['vssUsage'] = intervalList
                     intervalList = None
 
-            # RSS #
-            elif context == 'RSS':
+            # RSS / PSS / USS #
+            elif context == 'RSS' or \
+                context == 'PSS' or \
+                context == 'USS':
+
+                # check memory type #
+                if context == 'RSS':
+                    SystemManager.rssEnable = True
+                elif context == 'PSS':
+                    SystemManager.pssEnable = True
+                elif context == 'USS':
+                    SystemManager.ussEnable = True
+
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
@@ -32171,7 +32182,9 @@ class ThreadAnalyzer(object):
                         labelList.append('%s [LEAK]' % key)
 
                 # Process RSS #
-                elif SystemManager.rssEnable:
+                elif SystemManager.rssEnable or \
+                    SystemManager.pssEnable or \
+                    SystemManager.ussEnable:
                     # get margin #
                     ytick = yticks()[0]
                     if len(ytick) > 1:
@@ -32227,7 +32240,15 @@ class ThreadAnalyzer(object):
                             text(timeline[-1], usage[-1] + margin, \
                                 lastval, color=color, fontsize=3)
 
-                        labelList.append('%s [RSS]' % key)
+                        # set memory type #
+                        if SystemManager.pssEnable:
+                            mem = 'PSS'
+                        elif SystemManager.ussEnable:
+                            mem = 'USS'
+                        else:
+                            mem = 'RSS'
+
+                        labelList.append('%s [%s]' % (key, mem))
 
                 # System #
                 else:
@@ -36487,8 +36508,17 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
+        # check memory type #
+        if SystemManager.pssEnable:
+            mtype = 'PSS'
+        elif SystemManager.ussEnable:
+            mtype = 'USS'
+        else:
+            mtype = 'RSS'
+
         # Print title #
-        SystemManager.printPipe('\n[Top RSS Info] (Unit: MB)\n')
+        SystemManager.printPipe(\
+            '\n[Top %s Info] (Unit: MB)\n' % mtype)
         SystemManager.printPipe("%s\n" % twoLine)
 
         # Print menu #
@@ -43241,6 +43271,7 @@ class ThreadAnalyzer(object):
             else:
                 etc = 'Parent'
 
+            # set memory type #
             if SystemManager.pssEnable:
                 mem = 'PSS'
             elif SystemManager.ussEnable:
