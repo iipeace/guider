@@ -19651,7 +19651,7 @@ Copyright:
         # redirect stdout and stderr to null #
         if mute:
             try:
-                SystemManager.closeStdFds()
+                SystemManager.closeStdFds(stderr=False)
             except:
                 pass
 
@@ -20473,7 +20473,11 @@ Copyright:
                 "Fail to get root permission to trace %s" % mode)
             sys.exit(0)
         elif len(pids) == 0:
-            if not SystemManager.sourceFile:
+            if SystemManager.filterGroup:
+                SystemManager.printError(\
+                    "No Thread related to %s" % \
+                    ', '.join(SystemManager.filterGroup))
+            elif not SystemManager.sourceFile:
                 SystemManager.printError(\
                     "No TID with -g option or command with -I")
             else:
@@ -25283,6 +25287,25 @@ class Debugger(object):
             if SystemManager.repeatCount <= SystemManager.progressCnt:
                 sys.exit(0)
 
+        def finishPrint():
+            # realtime mode #
+            if not SystemManager.printFile:
+                if not SystemManager.printStreamEnable:
+                    SystemManager.clearScreen()
+
+                SystemManager.printPipe(SystemManager.bufferString)
+            # buffered mode #
+            else:
+                SystemManager.addProcBuffer(SystemManager.bufferString)
+
+            # check and update repeat count #
+            checkInterval()
+
+            # reset data #
+            self.totalCall = 0
+            self.callTable = dict()
+            SystemManager.clearPrint()
+
         # update terminal size #
         if not SystemManager.printFile:
             SystemManager.updateTty()
@@ -25321,11 +25344,11 @@ class Debugger(object):
             '[NrSymbols: %s] [CPU: %.1f%%]%s \n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
                 convert(self.totalCall), len(self.callTable), \
-                cpuUsage, sampleStr, twoLine))
+                cpuUsage, sampleStr, twoLine), newline=2)
 
         SystemManager.addPrint(\
             '{0:^7} | {1:^64} | {2:^76}\n{3:<1}\n'.format(\
-                'Usage', 'Function', addInfo, twoLine))
+                'Usage', 'Function', addInfo, twoLine), newline=2)
 
         cnt = 0
         for sym, value in sorted(\
@@ -25353,6 +25376,7 @@ class Debugger(object):
 
             cnt += 1
 
+            quitLoop = False
             if len(value['backtrace']) > 0:
                 for bt, cnt in sorted(\
                     value['backtrace'].items(), \
@@ -25369,35 +25393,24 @@ class Debugger(object):
                     # cut by rows of terminal #
                     if SystemManager.checkCutCond():
                         SystemManager.addPrint('---more---')
+                        quitLoop = True
                         break
 
             # cut by rows of terminal #
-            if SystemManager.checkCutCond():
+            if quitLoop:
+                finishPrint()
+                return
+            elif SystemManager.checkCutCond():
                 SystemManager.addPrint('---more---')
-                break
+                finishPrint()
+                return
 
         if cnt == 0:
             SystemManager.addPrint('\tNone\n')
 
         SystemManager.addPrint('%s\n' % oneLine)
 
-        # realtime mode #
-        if not SystemManager.printFile:
-            if not SystemManager.printStreamEnable:
-                SystemManager.clearScreen()
-
-            SystemManager.printPipe(SystemManager.bufferString)
-        # buffered mode #
-        else:
-            SystemManager.addProcBuffer(SystemManager.bufferString)
-
-        # check and update repeat count #
-        checkInterval()
-
-        # reset data #
-        self.totalCall = 0
-        self.callTable = dict()
-        SystemManager.clearPrint()
+        finishPrint()
 
 
 
@@ -33927,38 +33940,40 @@ class ThreadAnalyzer(object):
 
 
     def getConf(self):
-        if SystemManager.sourceFile:
-            confBuf = None
-            confDict = None
+        if not SystemManager.sourceFile:
+            return
 
-            try:
-                with open(SystemManager.sourceFile, 'r') as fd:
-                    confBuf = fd.read()
-            except:
-                SystemManager.printError(\
-                    "Fail to open %s to set configuration" % \
-                    SystemManager.sourceFile)
-                sys.exit(0)
+        confBuf = None
+        confDict = None
 
-            if not confBuf:
-                SystemManager.printError(\
-                    "Fail to read %s to set configuration" % \
-                    SystemManager.sourceFile)
-                sys.exit(0)
+        try:
+            with open(SystemManager.sourceFile, 'r') as fd:
+                confBuf = fd.read()
+        except:
+            SystemManager.printError(\
+                "Fail to open %s to set configuration" % \
+                SystemManager.sourceFile)
+            sys.exit(0)
 
-            try:
-                confBuf = confBuf.replace("'", '"')
-                confDict = SystemManager.getPkg('json').loads(confBuf)
+        if not confBuf:
+            SystemManager.printError(\
+                "Fail to read %s to set configuration" % \
+                SystemManager.sourceFile)
+            sys.exit(0)
 
-                if 'bound' in confDict:
-                    ThreadAnalyzer.reportBoundary = confDict['bound']
-                else:
-                    raise Exception()
-            except:
-                SystemManager.printError(\
-                    "Fail to load configuration from %s" % \
-                    SystemManager.sourceFile)
-                sys.exit(0)
+        try:
+            confBuf = confBuf.replace("'", '"')
+            confDict = SystemManager.getPkg('json').loads(confBuf)
+
+            if 'bound' in confDict:
+                ThreadAnalyzer.reportBoundary = confDict['bound']
+            else:
+                raise Exception()
+        except:
+            SystemManager.printError(\
+                "Fail to load configuration from %s" % \
+                SystemManager.sourceFile)
+            sys.exit(0)
 
 
 
