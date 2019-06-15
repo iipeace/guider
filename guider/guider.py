@@ -16785,8 +16785,9 @@ Copyright:
                 else:
                     SystemManager.fileForPrint.write(line + retstr)
             except:
+                err = SystemManager.getErrReason()
                 SystemManager.printError(\
-                    "Fail to write to file because %s" % sys.exc_info()[1])
+                    "Fail to write to file because %s" % err)
         # console output #
         else:
             ttyCols = SystemManager.ttyCols
@@ -25347,7 +25348,7 @@ class Debugger(object):
                 cpuUsage, sampleStr, twoLine), newline=2)
 
         SystemManager.addPrint(\
-            '{0:^7} | {1:^64} | {2:^76}\n{3:<1}\n'.format(\
+            '{0:^7} | {1:^72} | {2:^68}\n{3:<1}\n'.format(\
                 'Usage', 'Function', addInfo, twoLine), newline=2)
 
         cnt = 0
@@ -25371,7 +25372,7 @@ class Debugger(object):
                 addVal = value['path']
 
             SystemManager.addPrint(\
-                '{0:>7} | {1:^64} | {2:<76}\n'.format(\
+                '{0:>7} | {1:^72} | {2:<1}\n'.format(\
                     '%.1f%%' % per, sym, addVal))
 
             cnt += 1
@@ -25683,7 +25684,9 @@ class Debugger(object):
                     sys.exit(0)
                 except:
                     self.callTable[sym]['backtrace'][btString] = 1
-            return
+
+            if not SystemManager.printFile:
+                return
 
         if not current:
             current = time.time()
@@ -26517,26 +26520,11 @@ class Debugger(object):
             SystemManager.sysInstance.saveResourceSnapshot()
             SystemManager.printInfoBuffer()
 
-        instance.last = time.time()
-
         # check realtime mode #
-        if instance.isRealtime and SystemManager.printFile:
-            # print System Info #
-            printSystemStat()
-
-            # print detailed statistics #
-            msg = ' Detailed Statistics '
-            stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
-            SystemManager.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, msg, stars))
-            if SystemManager.procBuffer == []:
-                SystemManager.printPipe("\n\tNone")
-            else:
-                SystemManager.printPipe(SystemManager.procBuffer)
-
-        # check call sample #
-        if len(instance.callList) == 0:
-            Debugger.printCallHistory(instance)
+        if instance.isRealtime and not SystemManager.printFile:
             return
+
+        instance.last = time.time()
 
         callTable = dict()
         fileTable = dict()
@@ -26592,6 +26580,13 @@ class Debugger(object):
             ctype = 'Usercall'
             addInfo = 'Path'
 
+        if instance.isRealtime:
+            mtype = 'Top'
+            suffix = '\n'
+        else:
+            mtype = 'Trace'
+            suffix = ''
+
         # print call table #
         nrTotal = float(len(instance.callList))
         elapsed = instance.callList[-1][1] - instance.start
@@ -26612,17 +26607,17 @@ class Debugger(object):
             sampleRateStr = ''
 
         SystemManager.printPipe((\
-            '\n[Trace %s Info] [Time: %f] %s '
-            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]') % \
-                (ctype, elapsed, samplingStr, \
+            '\n[%s %s Info] [Time: %f] %s '
+            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]%s') % \
+                (mtype, ctype, elapsed, samplingStr, \
                 convert(long(nrTotal)), sampleRateStr, \
-                convert(len(callTable)), instance.sampleTime))
+                convert(len(callTable)), instance.sampleTime, suffix))
 
-        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe('%s%s' % (twoLine, suffix))
         SystemManager.printPipe(\
-            '{0:^7} | {1:^64} | {2:^76}'.format(\
-                'Usage', 'Function', addInfo))
-        SystemManager.printPipe(twoLine)
+            '{0:^7} | {1:^72} | {2:^68}{3:1}'.format(\
+                'Usage', 'Function', addInfo, suffix))
+        SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = 0
         for sym, value in sorted(\
@@ -26641,15 +26636,15 @@ class Debugger(object):
                 addVal = value['path']
 
             SystemManager.printPipe(\
-                '{0:>7} | {1:^64} | {2:<76}'.format(\
-                    '%.1f%%' % per, sym, addVal))
+                '{0:>7} | {1:^72} | {2:<1}{3:1}'.format(\
+                    '%.1f%%' % per, sym, addVal, suffix))
 
             cnt += 1
 
         if cnt == 0:
-            SystemManager.printPipe('\tNone')
+            SystemManager.printPipe('\tNone%s' % suffix)
 
-        SystemManager.printPipe(oneLine)
+        SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         if len(fileTable) == 0:
             instance.printCallHistory(instance)
@@ -26657,14 +26652,14 @@ class Debugger(object):
 
         # print file table #
         SystemManager.printPipe((\
-            '\n[Trace File Info] [Time: %f] %s '
-            '[NrSamples: %s(%s%%)] [NrFiles: %s]') % \
-                (elapsed, samplingStr, convert(long(nrTotal)), \
-                perSample, convert(len(fileTable))))
-        SystemManager.printPipe(twoLine)
+            '\n[%s File Info] [Time: %f] %s '
+            '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
+                (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
+                perSample, convert(len(fileTable)), suffix))
+        SystemManager.printPipe('%s%s' % (twoLine, suffix))
         SystemManager.printPipe(\
-            '{0:^7} | {1:^143}'.format('Usage', 'Path'))
-        SystemManager.printPipe(twoLine)
+            '{0:^7} | {1:^143}{2:1}'.format('Usage', 'Path', suffix))
+        SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = 0
         for filename, value in sorted(\
@@ -26675,16 +26670,31 @@ class Debugger(object):
                 break
 
             SystemManager.printPipe(\
-                '{0:>7} | {1:<143}'.format('%.1f%%' % per, filename))
+                '{0:>7} | {1:<143}{2:1}'.format(\
+                '%.1f%%' % per, filename, suffix))
 
             cnt += 1
 
         if cnt == 0:
-            SystemManager.printPipe('\tNone')
+            SystemManager.printPipe('\tNone%s' % suffix)
 
-        SystemManager.printPipe(oneLine)
+        SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         instance.printCallHistory(instance)
+
+        # check realtime mode #
+        if not instance.isRealtime:
+            return
+
+        # print detailed statistics #
+        msg = ' Detailed Statistics '
+        stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
+        SystemManager.printPipe(\
+            '\n\n%s%s%s\n\n' % (stars, msg, stars))
+        if SystemManager.procBuffer == []:
+            SystemManager.printPipe("\n\tNone%s" % suffix)
+        else:
+            SystemManager.printPipe(SystemManager.procBuffer)
 
 
 
