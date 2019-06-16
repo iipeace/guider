@@ -19870,7 +19870,8 @@ Copyright:
             # convert guider path #
             if value.startswith('GUIDER '):
                 cmd = ' '.join(value.split()[1:])
-                path = os.path.abspath(__file__)
+                path = '%s %s' % \
+                    (UtilManager.which('python')[0], os.path.abspath(__file__))
                 value = '%s %s' % (path, cmd)
 
             # run command #
