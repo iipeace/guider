@@ -25350,7 +25350,7 @@ class Debugger(object):
 
         SystemManager.addPrint(\
             '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
-                'Usage', 'Function [ %s ]' % addInfo, twoLine), newline=2)
+                'Usage', 'Function [%s]' % addInfo, twoLine), newline=2)
 
         cnt = 0
         for sym, value in sorted(\
@@ -25374,7 +25374,7 @@ class Debugger(object):
 
             SystemManager.addPrint(\
                 '{0:>7} | {1:<144}\n'.format(\
-                    '%.1f%%' % per, '%s [ %s ]' % (sym, addVal)))
+                    '%.1f%%' % per, '%s [%s]' % (sym, addVal)))
 
             cnt += 1
 
@@ -26488,7 +26488,11 @@ class Debugger(object):
 
     @staticmethod
     def destroyDebugger(instance):
-        # this will not effective because the instance exists in exitFuncList #
+        '''
+        this code will not be effective because
+        the instance also exists in exitFuncList
+        '''
+
         try:
             instance.__del__()
         except:
@@ -26619,7 +26623,7 @@ class Debugger(object):
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
         SystemManager.printPipe(\
             '{0:^7} | {1:^144}{2:1}'.format(\
-                'Usage', 'Function [ %s ]' % addInfo, suffix))
+                'Usage', 'Function [%s]' % addInfo, suffix))
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = 0
@@ -26640,7 +26644,7 @@ class Debugger(object):
 
             SystemManager.printPipe(\
                 '{0:>7} | {1:<144}{2:1}'.format(\
-                    '%.1f%%' % per, '%s [ %s ]' % (sym, addVal), suffix))
+                    '%.1f%%' % per, '%s [%s]' % (sym, addVal), suffix))
 
             cnt += 1
 
