@@ -3570,6 +3570,25 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def getDataType(data):
+        if not data or len(data) == 0:
+            return 'None'
+
+        data = data.lstrip()
+
+        if data.startswith('{'):
+            return 'JSON'
+        elif '[Info' in data[:10] or \
+            '[Error' in data[:10] or \
+            '[Warning' in data[:10] or \
+            '[Step' in data[:10]:
+            return 'LOG'
+        else:
+            return 'CONSOLE'
+
+
+
+    @staticmethod
     def requestCmd(connObj, cmd):
         # send request to server #
         connObj.send(cmd)
