@@ -25349,8 +25349,8 @@ class Debugger(object):
                 cpuUsage, sampleStr, twoLine), newline=2)
 
         SystemManager.addPrint(\
-            '{0:^7} | {1:^72} | {2:^68}\n{3:<1}\n'.format(\
-                'Usage', 'Function', addInfo, twoLine), newline=2)
+            '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
+                'Usage', 'Function [ %s ]' % addInfo, twoLine), newline=2)
 
         cnt = 0
         for sym, value in sorted(\
@@ -25373,8 +25373,8 @@ class Debugger(object):
                 addVal = value['path']
 
             SystemManager.addPrint(\
-                '{0:>7} | {1:^72} | {2:<1}\n'.format(\
-                    '%.1f%%' % per, sym, addVal))
+                '{0:>7} | {1:<144}\n'.format(\
+                    '%.1f%%' % per, '%s [ %s ]' % (sym, addVal)))
 
             cnt += 1
 
@@ -26043,6 +26043,8 @@ class Debugger(object):
             if self.isRealtime:
                 if SystemManager.funcDepth > 0:
                     backtrace = self.getBacktrace(SystemManager.funcDepth)
+                else:
+                    backtrace = None
                 self.addSample(\
                     name, '??', current, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
@@ -26522,7 +26524,7 @@ class Debugger(object):
             SystemManager.printInfoBuffer()
 
         # check realtime mode #
-        if instance.isRealtime and not SystemManager.printFile:
+        if not SystemManager.printFile:
             return
 
         instance.last = time.time()
@@ -26616,8 +26618,8 @@ class Debugger(object):
 
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
         SystemManager.printPipe(\
-            '{0:^7} | {1:^72} | {2:^68}{3:1}'.format(\
-                'Usage', 'Function', addInfo, suffix))
+            '{0:^7} | {1:^144}{2:1}'.format(\
+                'Usage', 'Function [ %s ]' % addInfo, suffix))
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = 0
@@ -26637,8 +26639,8 @@ class Debugger(object):
                 addVal = value['path']
 
             SystemManager.printPipe(\
-                '{0:>7} | {1:^72} | {2:<1}{3:1}'.format(\
-                    '%.1f%%' % per, sym, addVal, suffix))
+                '{0:>7} | {1:<144}{2:1}'.format(\
+                    '%.1f%%' % per, '%s [ %s ]' % (sym, addVal), suffix))
 
             cnt += 1
 
@@ -26659,7 +26661,7 @@ class Debugger(object):
                 perSample, convert(len(fileTable)), suffix))
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
         SystemManager.printPipe(\
-            '{0:^7} | {1:^143}{2:1}'.format('Usage', 'Path', suffix))
+            '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
         SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = 0
@@ -26671,7 +26673,7 @@ class Debugger(object):
                 break
 
             SystemManager.printPipe(\
-                '{0:>7} | {1:<143}{2:1}'.format(\
+                '{0:>7} | {1:<144}{2:1}'.format(\
                 '%.1f%%' % per, filename, suffix))
 
             cnt += 1
