@@ -25672,6 +25672,30 @@ class Debugger(object):
         if realtime:
             self.totalCall += 1
 
+            if not SystemManager.showAll and bt:
+                # remove anonymous symbol #
+                while 1:
+                    if len(bt) == 0:
+                        break
+                    elif sym == '??' and bt[0][1] == '??':
+                        bt.pop(0)
+                        continue
+                    else:
+                        sym = bt[0][1]
+                        filename = bt[0][2]
+                        bt.pop(0)
+                        break
+
+                # remove anonymous symbol #
+                while 1:
+                    if len(bt) == 0:
+                        break
+                    elif sym == bt[0][1] and filename == bt[0][2]:
+                        bt.pop(0)
+                        continue
+                    break
+
+            # check wait status #
             if self.mode != 'syscall' and \
                 not self.runStatus:
                 sym = 'WAIT(%s)' % sym
@@ -25695,7 +25719,19 @@ class Debugger(object):
             # add backtrace #
             if bt:
                 btString = ''
+                prevSym = None
+                prevFile = None
+
                 for item in bt:
+                    # remove redundant symbols #
+                    if not SystemManager.showAll:
+                        if prevSym == item[1] and prevFile == item[2]:
+                            continue
+                        else:
+                            prevSym = item[1]
+                            prevFile = item[2]
+
+                    # add a symbol to backtrace #
                     btString = '%s <- %s[%s]' % (btString, item[1], item[2])
 
                 try:
