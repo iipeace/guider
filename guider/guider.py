@@ -11754,6 +11754,8 @@ class SystemManager(object):
         elif value == 'o':
             SystemManager.printInfo("sorted by OOMScore")
             ThreadAnalyzer.setLastField('oom')
+        elif value == 'P':
+            SystemManager.printInfo("sorted by PRIORITY")
         elif value == 'f':
             SystemManager.printInfo("sorted by FILE")
             SystemManager.fileTopEnable = True
@@ -11887,6 +11889,7 @@ Usage:
         -S  <c:cpu/m:memory/p:pid/  sort by key
              b:block/w:wfc/n:new/
              r:runtime/f:file/
+             P:priority/
              o:oomScore>
         -P                          group threads in same process
         -I  <DIR|FILE>              set input path
@@ -43228,6 +43231,10 @@ class ThreadAnalyzer(object):
         elif SystemManager.sort == 'o':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['oomScore'], reverse=True)
+        # priority #
+        elif SystemManager.sort == 'P':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: int(e[1]['stat'][self.prioIdx]), reverse=False)
         # CPU #
         else:
             # set cpu usage as default #
