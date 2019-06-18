@@ -15803,10 +15803,10 @@ Copyright:
         else:
             compressor = None
 
-        try:
-            SystemManager.printInfo(\
-                "wait for writing data to %s" % outputFile)
+        SystemManager.printInfo(\
+            "wait for writing data to %s" % outputFile)
 
+        try:
             if compressor:
                 fd = open(outputFile, 'wb')
                 magicStr = 'gzip %s\n' % ' '.join(sys.argv)
@@ -15822,8 +15822,16 @@ Copyright:
                         SystemManager.magicString)
                     f.write(totalStr.encode())
 
-                # write trace info #
-                f.write('\n'.join(lines).encode())
+                # convert data #
+                lstring = '\n'.join(lines)
+                try:
+                    lstring = lstring.encode()
+                except:
+                    SystemManager.printError(\
+                        "Fail to encoding data")
+                    sys.exit(0)
+
+                f.write(lstring)
             else:
                 f = open(outputFile, 'w')
 
@@ -15848,6 +15856,8 @@ Copyright:
             SystemManager.printInfo(\
                 'finish saving trace data into %s [%s] successfully' % \
                 (outputFile, fsize))
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printError(\
@@ -25506,7 +25516,9 @@ class Debugger(object):
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
 
         for mfile in self.pmap.keys():
-            ElfAnalyzer.getObject(mfile)
+            eobj = ElfAnalyzer.getObject(mfile)
+            if eobj:
+                eobj.mergeSymTable()
 
 
 
@@ -25675,9 +25687,11 @@ class Debugger(object):
             if not SystemManager.showAll and bt:
                 # remove anonymous symbol #
                 while 1:
-                    if len(bt) == 0:
+                    if sym != '??':
                         break
-                    elif sym == '??' and bt[0][1] == '??':
+                    elif len(bt) == 0:
+                        break
+                    elif bt[0][1] == '??':
                         bt.pop(0)
                         continue
                     else:
@@ -25686,7 +25700,7 @@ class Debugger(object):
                         bt.pop(0)
                         break
 
-                # remove anonymous symbol #
+                # remove contiguous symbol #
                 while 1:
                     if len(bt) == 0:
                         break
@@ -26339,23 +26353,27 @@ class Debugger(object):
                     'Fail to trace thread %s because %s' % (pid, ereason))
             sys.exit(0)
 
-        # set start time #
-        self.start = self.last = time.time()
+        # load user symbols #
+        if mode != 'syscall':
+            try:
+                self.loadSymbols()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to load symbols because %s" % err)
+                sys.exit(0)
 
         SystemManager.printInfo(\
             "Start profiling thread %d" % pid)
 
+        # set start time #
+        self.start = self.last = time.time()
+
         # prepare environment for profiling #
         if self.isRunning:
             self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-
-            # load user symbols #
-            if mode != 'syscall' or \
-                SystemManager.funcDepth > 0:
-                try:
-                    self.loadSymbols()
-                except:
-                    return
 
             # handle current user symbol #
             if mode != 'syscall' and \
