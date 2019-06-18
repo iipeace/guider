@@ -7121,10 +7121,11 @@ class FunctionAnalyzer(object):
 
         # Print thread list #
         SystemManager.printPipe(\
-            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %d KB ]" % \
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %s ]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7), \
             'Start', round(float(SystemManager.startTime), 7), \
-             len(self.threadData), SystemManager.logSize >> 10))
+             len(self.threadData), \
+             UtilManager.convertSize2Unit(SystemManager.logSize)))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
@@ -8611,14 +8612,16 @@ class FunctionAnalyzer(object):
         title = 'Function Expand-Heap'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
+        convertFunc = UtilManager.convertSize2Unit
 
         # Print heap usage in user space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[%s Info] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-            (title, (self.heapExpSize - self.heapRedSize) >> 10, \
-            self.heapExpSize >> 10, self.heapExpEventCnt, \
-            self.heapRedSize >> 10, self.heapRedEventCnt))
+            '[%s Info] [Total: %s] [Alloc: %s(%d)] [Free: %s(%d)] (USER)' % \
+            (title, \
+            convertFunc(self.heapExpSize - self.heapRedSize), \
+            convertFunc(self.heapExpSize), self.heapExpEventCnt, \
+            convertFunc(self.heapRedSize), self.heapRedEventCnt))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -8686,8 +8689,8 @@ class FunctionAnalyzer(object):
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
-                "{0:_^32}|{1:_^12}|{2:_^12}|{3:_^12}|{4:_^17}({5:_^7})|{6:_^8}|{7:_^17}|".\
-                format("VAddr", "Size", "Size(KB)", "Size(MB)", "COMM", "TID", "CORE", "TIME"))
+                "{0:_^32}|{1:_^12}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
+                format("VAddr", "Size", "COMM", "TID", "CORE", "TIME"))
             SystemManager.printPipe(twoLine)
 
             # sort by time #
@@ -8706,8 +8709,8 @@ class FunctionAnalyzer(object):
                 kernelstack = segment[1]['ksubStackAddr']
 
                 title = \
-                    "{0:^32}| {1:>10} | {2:>10} | {3:>10} | {4:>16}({5:>7})| {6:>6} | {7:>15} |".\
-                    format(addr, size, size >> 10, size >> 20, \
+                    "{0:^32}| {1:>10} | {2:>16}({3:>7})| {4:>6} | {5:>15} |".\
+                    format(addr, convertFunc(size), \
                     self.threadData[tid]['comm'], tid, int(core), time)
                 SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
 
@@ -10110,7 +10113,7 @@ class FileAnalyzer(object):
             convert(self.profPageCnt * 4 << 10)))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
-            format("RAM(KB)", "File(KB)", "%", "Library & Process"))
+            format("RAM", "File", "%", "Library & Process"))
         SystemManager.printPipe(twoLine)
 
         for fileName, val in sorted(\
