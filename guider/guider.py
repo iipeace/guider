@@ -7050,9 +7050,12 @@ class FunctionAnalyzer(object):
         if self.syscallCnt == 0:
             return
 
+        convertNum = UtilManager.convertNumber
+
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[Function Syscall Info] [Cnt: %d]' % self.syscallCnt)
+            '[Function Syscall Info] [Cnt: %s]' % \
+            convertNum(self.syscallCnt))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             '{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}'.format(\
@@ -7087,7 +7090,7 @@ class FunctionAnalyzer(object):
                 syscallInfo = \
                     ('{0:1} {1:>30}({2:>3}) {3:>12}\n').format(\
                     '%s%s' % (syscallInfo, ' ' * len(threadInfo)), \
-                    syscall, sysId, val)
+                    syscall, sysId, convertNum(val))
 
             if syscallInfo != '':
                 outputCnt += 1
@@ -7105,6 +7108,9 @@ class FunctionAnalyzer(object):
         targetCnt = 0
         self.totalTime = \
             float(self.finishTime) - float(SystemManager.startTime)
+
+        convertFunc = UtilManager.convertSize2Unit
+        convertNum = UtilManager.convertNumber
 
         SystemManager.printLogo(big=True)
 
@@ -7124,8 +7130,7 @@ class FunctionAnalyzer(object):
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ Threads: %d ] [ LogSize: %s ]" % \
             ('Function Thread Info', 'Elapsed', round(self.totalTime, 7), \
             'Start', round(float(SystemManager.startTime), 7), \
-             len(self.threadData), \
-             UtilManager.convertSize2Unit(SystemManager.logSize)))
+             len(self.threadData), convertFunc(SystemManager.logSize)))
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe(\
             "{0:_^46}|{1:_^7}|{2:_^54}|{3:_^8}|{4:_^18}|{5:_^6}|{6:_^8}|".\
@@ -7221,19 +7226,21 @@ class FunctionAnalyzer(object):
                 cpuPer = '-'
 
             if self.sysEnabled:
-                cval = '%d' % value['nrSyscall']
+                cval = '%s' % convertNum(value['nrSyscall'])
             elif self.heapEnabled:
-                cval = '%dK' % (value['heapSize'] >> 10)
+                cval = '%s' % convertFunc(value['heapSize'])
             else:
                 cval = '-'
 
             if self.memEnabled:
-                allocMem = '%dK' % (value['nrPages'] * 4)
-                userMem = '%dK' % (value['userPages'] * 4)
-                cacheMem = '%dK' % (value['cachePages'] * 4)
-                kernelMem = '%dK' % (value['kernelPages'] * 4)
-                knownFreeMem = '%dK' % (value['nrKnownFreePages'] * 4)
-                unknownFreeMem = '%dK' % (value['nrUnknownFreePages'] * 4)
+                allocMem = '%s' % convertFunc(value['nrPages'] << 12)
+                userMem = '%s' % convertFunc(value['userPages'] << 12)
+                cacheMem = '%s' % convertFunc(value['cachePages'] << 12)
+                kernelMem = '%s' % convertFunc(value['kernelPages'] << 12)
+                knownFreeMem = '%s' % \
+                    convertFunc(value['nrKnownFreePages'] << 12)
+                unknownFreeMem = '%s' % \
+                    convertFunc(value['nrUnknownFreePages'] << 12)
             else:
                 allocMem = '-'
                 userMem = '-'
@@ -7243,22 +7250,22 @@ class FunctionAnalyzer(object):
                 unknownFreeMem = '-'
 
             if self.breadEnabled:
-                readBlock = '%dK' % int(value['nrRdBlocks'] * 0.5)
+                readBlock = '%s' % convertFunc(value['nrRdBlocks'] << 9)
             else:
                 readBlock = '-'
 
             if self.bwriteEnabled:
-                writeBlock = '%dK' % int(value['nrWrBlocks'] * 0.5)
+                writeBlock = '%s' % convertFunc(value['nrWrBlocks'] << 9)
             else:
                 writeBlock = '-'
 
             if self.lockEnabled:
-                nrLock = value['nrLockTry']
+                nrLock = convertNum(value['nrLockTry'])
             else:
                 nrLock = '-'
 
             if self.customTotal > 0:
-                nrCustom = value['customTotal']
+                nrCustom = convertNum(value['customTotal'])
             else:
                 nrCustom = '-'
 
@@ -7385,6 +7392,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('SYSCALL')
+        convertNum = UtilManager.convertNumber
 
         # Make syscall event list #
         sysList = ConfigManager.sysList
@@ -7392,7 +7400,8 @@ class FunctionAnalyzer(object):
         # Print syscall event #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[Function Syscall Info] [Cnt: %d] (USER)' % self.syscallCnt)
+            '[Function Syscall Info] [Cnt: %s] (USER)' % \
+            convertNum(self.syscallCnt))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -7407,8 +7416,8 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.printPipe(\
-                "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
-                value['syscallCnt'], idx, \
+                "{0:>7}  |{1:^47}| {2:48}| {3:37}".format(\
+                convertNum(value['syscallCnt']), idx, \
                 self.posData[value['pos']]['origBin'], \
                 self.posData[value['pos']]['src']))
 
@@ -7439,7 +7448,8 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeUserSymList(subStack, indentLen)
 
                 SystemManager.printPipe(\
-                    "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                    "\t\t +{0:>7} |{1:32}".format(\
+                    convertNum(eventCnt), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -7447,7 +7457,8 @@ class FunctionAnalyzer(object):
 
         # Print syscall file #
         SystemManager.printPipe(\
-            '[Function Syscall File Info] [Cnt: %d] (USER)' % self.syscallCnt)
+            '[Function Syscall File Info] [Cnt: %s] (USER)' % \
+            convertNum(self.syscallCnt))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".\
@@ -7462,7 +7473,8 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.printPipe(\
-                "{0:8} | {1:<142}".format(value['syscallCnt'], idx))
+                "{0:>8} | {1:<142}".format(\
+                convertNum(value['syscallCnt']), idx))
 
             SystemManager.printPipe(oneLine)
 
@@ -7475,7 +7487,8 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.sysCallData) > 0:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[Function Syscall History] [Cnt: %d]' % self.syscallCnt)
+                '[Function Syscall History] [Cnt: %s]' % \
+                convertNum(self.syscallCnt))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
@@ -7546,6 +7559,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('CUSTOM')
+        convertNum = UtilManager.convertNumber
 
         # Make custom event list #
         customList = ', '.join(list(self.customEventTable.keys()))
@@ -7554,8 +7568,9 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[Function %s Info] [Cnt: %d] [Total: %d] (USER)' % \
-                (customList, self.customTotal, self.customCnt))
+                '[Function %s Info] [Cnt: %s] [Total: %s] (USER)' % \
+                (customList, convertNum(self.customTotal), \
+                convertNum(self.customCnt)))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -7570,8 +7585,8 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.printPipe(\
-                    "{0:7}  |{1:^47}| {2:48}| {3:37}".format(\
-                    value['customCnt'], idx, \
+                    "{0:>7}  |{1:^47}| {2:48}| {3:37}".format(\
+                    convertNum(value['customCnt']), idx, \
                     self.posData[value['pos']]['origBin'], \
                     self.posData[value['pos']]['src']))
 
@@ -7602,7 +7617,8 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.printPipe(\
-                        "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                        "\t\t +{0:>7} |{1:32}".format(\
+                        convertNum(eventCnt), symbolStack))
 
                 SystemManager.printPipe(oneLine)
 
@@ -7610,8 +7626,9 @@ class FunctionAnalyzer(object):
 
             # Print custom event file in user space #
             SystemManager.printPipe(\
-                '[Function %s File Info] [Cnt: %d] [Total: %d] (USER)' % \
-                (customList, self.customTotal, self.customCnt))
+                '[Function %s File Info] [Cnt: %s] [Total: %s] (USER)' % \
+                (customList, convertNum(self.customTotal), \
+                convertNum(self.customCnt)))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^144}".\
@@ -7626,7 +7643,8 @@ class FunctionAnalyzer(object):
                     break
 
                 SystemManager.printPipe(\
-                    "{0:8} | {1:<142}".format(value['customCnt'], idx))
+                    "{0:>8} | {1:<142}".format(\
+                    convertNum(value['customCnt']), idx))
 
                 SystemManager.printPipe(oneLine)
 
@@ -7638,8 +7656,9 @@ class FunctionAnalyzer(object):
         # Print custom event in kernel space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[Function %s Info] [Cnt: %d] [Total: %d] (KERNEL)' % \
-            (customList, self.customTotal, self.customCnt))
+            '[Function %s Info] [Cnt: %s] [Total: %s] (KERNEL)' % \
+            (customList, convertNum(self.customTotal), \
+            convertNum(self.customCnt)))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -7654,7 +7673,8 @@ class FunctionAnalyzer(object):
                 break
 
             SystemManager.printPipe(\
-                "{0:7}  |{1:^134}".format(value['customCnt'], idx))
+                "{0:>7}  |{1:^134}".format(\
+                convertNum(value['customCnt']), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -7680,7 +7700,8 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.printPipe(\
-                    "\t\t +{0:7} |{1:32}".format(eventCnt, symbolStack))
+                    "\t\t +{0:>7} |{1:32}".format(\
+                    convertNum(eventCnt), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -7690,8 +7711,9 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.customCallData) > 0:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[Function %s History] [Cnt: %d] [Total: %d]' % \
-                (customList, self.customTotal, self.customCnt))
+                '[Function %s History] [Cnt: %s] [Total: %s]' % \
+                (customList, convertNum(self.customTotal), \
+                convertNum(self.customCnt)))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
@@ -7791,6 +7813,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         cpuTickIndex = FunctionAnalyzer.symStackIdxTable.index('CPU_TICK')
+        tCnt = UtilManager.convertNumber(self.periodicEventCnt)
 
         # average tick interval #
         if self.periodicContEventCnt > 0:
@@ -7800,8 +7823,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[Function CPU-Tick Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-                (self.periodicEventCnt, self.periodicEventInterval * 1000))
+                '[Function CPU-Tick Info] [Cnt: %s] [Interval: %dms] (USER)' % \
+                (tCnt, self.periodicEventInterval * 1000))
 
             # Print call stack #
             SystemManager.printPipe(twoLine)
@@ -7874,8 +7897,8 @@ class FunctionAnalyzer(object):
 
             # Print per-symbol #
             SystemManager.printPipe(\
-                '[Function CPU-Tick Symbol Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-                (self.periodicEventCnt, self.periodicEventInterval * 1000))
+                '[Function CPU-Tick Symbol Info] [Cnt: %s] [Interval: %dms] (USER)' % \
+                (tCnt, self.periodicEventInterval * 1000))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^96}".\
@@ -7908,8 +7931,8 @@ class FunctionAnalyzer(object):
 
             # Print tick per-file #
             SystemManager.printPipe(\
-                '[Function CPU-Tick File Info] [Cnt: %d] [Interval: %dms] (USER)' % \
-                (self.periodicEventCnt, self.periodicEventInterval * 1000))
+                '[Function CPU-Tick File Info] [Cnt: %s] [Interval: %dms] (USER)' % \
+                (tCnt, self.periodicEventInterval * 1000))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^144}".\
@@ -7942,8 +7965,8 @@ class FunctionAnalyzer(object):
         # Print cpu usage in kernel space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[Function CPU-Tick-Stack Info] [Cnt: %d] [Interval: %dms] (KERNEL)' % \
-            (self.periodicEventCnt, self.periodicEventInterval * 1000))
+            '[Function CPU-Tick-Stack Info] [Cnt: %s] [Interval: %dms] (KERNEL)' % \
+            (tCnt, self.periodicEventInterval * 1000))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -8054,13 +8077,13 @@ class FunctionAnalyzer(object):
         title = 'Function Free-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
+        convertFunc = UtilManager.convertSize2Unit
+        size = convertFunc(self.pageUnknownFreeCnt << 12)
 
         if SystemManager.userEnable:
             # Print memory reduce by page free in user space #
             SystemManager.clearPrint()
-            SystemManager.printPipe(\
-                '[%s] [Size: %dKB] (USER)' % \
-                (title, self.pageUnknownFreeCnt * 4))
+            SystemManager.printPipe('[%s] [Size: %s] (USER)' % (title, size))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -8073,9 +8096,9 @@ class FunctionAnalyzer(object):
                 if value['unknownPageFreeCnt'] == 0:
                     break
 
-                SystemManager.printPipe("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['unknownPageFreeCnt'] * 4), idx, \
-                    self.posData[value['pos']]['origBin'], \
+                SystemManager.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
+                    format(convertFunc(value['unknownPageFreeCnt'] << 12), \
+                    idx, self.posData[value['pos']]['origBin'], \
                     self.posData[value['pos']]['src']))
 
                 # Set target stack #
@@ -8104,8 +8127,8 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                        format(int(pageFreeCnt * 4), symbolStack))
+                    SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                        format(convertFunc(pageFreeCnt << 12), symbolStack))
 
                 SystemManager.printPipe(oneLine)
 
@@ -8116,9 +8139,7 @@ class FunctionAnalyzer(object):
 
         # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
-        SystemManager.printPipe(\
-            '[%s] [Size: %dKB] (KERNEL)' % \
-            (title, self.pageUnknownFreeCnt * 4))
+        SystemManager.printPipe('[%s] [Size: %s] (KERNEL)' % (title, size))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".format("FREE", "Function"))
@@ -8142,8 +8163,8 @@ class FunctionAnalyzer(object):
             if value['unknownPageFreeCnt'] == 0:
                 break
 
-            SystemManager.printPipe("{0:7}K |{1:^144}".\
-                format(int(value['unknownPageFreeCnt'] * 4), idx))
+            SystemManager.printPipe("{0:>8} |{1:^144}".\
+                format(convertFunc(value['unknownPageFreeCnt'] << 12), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -8164,8 +8185,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                    format(int(pageFreeCnt * 4), symbolStack))
+                SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                    format(convertFunc(pageFreeCnt << 12), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -8177,13 +8198,14 @@ class FunctionAnalyzer(object):
     def printKnownMemFreeInfo(self):
         title = 'Function Alloc-Free-Page Info'
         lineLength = SystemManager.lineLength
+        diff = self.pageAllocCnt - self.pageUsageCnt
+        convertFunc = UtilManager.convertSize2Unit
+        size = convertFunc(diff << 12)
 
         # Print page alloc-free pair in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
-            SystemManager.printPipe(\
-                '[%s] [Total: %dKB] (USER)' % \
-                (title, self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+            SystemManager.printPipe('[%s] [Total: %s] (USER)' % (title, size))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
@@ -8217,9 +8239,11 @@ class FunctionAnalyzer(object):
                     (avrTime, value['pagePairMin'], value['pagePairMax'])
 
                 SystemManager.printPipe(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
-                    format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
-                    typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, \
+                    "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}".\
+                    format(convertFunc(value['pagePairCnt'] << 12), \
+                    convertFunc(typeList['USER'] << 12), \
+                    convertFunc(typeList['CACHE'] << 12), \
+                    convertFunc(typeList['KERNEL'] << 12), idx, \
                     lifeTime, self.posData[value['pos']]['origBin']))
 
                 for pairId, item in sorted(\
@@ -8241,9 +8265,11 @@ class FunctionAnalyzer(object):
                     # get user alloc and free call #
                     allocCall, freeCall = pairId.split('#')
 
-                    printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
-                        format(' ', item['size'] * 4, userPages * 4, \
-                        cachePages * 4, kernelPages * 4)
+                    printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".\
+                        format(' ', convertFunc(item['size'] << 12), \
+                        convertFunc(userPages << 12), \
+                        convertFunc(cachePages << 12), \
+                        convertFunc(kernelPages <<12))
 
                     indentLen = len(printBuf)
                     appliedIndentLen = indentLen
@@ -8289,12 +8315,11 @@ class FunctionAnalyzer(object):
 
         # Print page alloc-free pair in kernel space #
         SystemManager.clearPrint()
-        SystemManager.printPipe(\
-            '[%s] [Total: %dKB] (KERNEL)' % \
-            (title, self.pageAllocCnt * 4 - self.pageUsageCnt * 4))
+        SystemManager.printPipe('[%s] [Total: %s] (KERNEL)' % (title, size))
 
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+        SystemManager.printPipe(\
+            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.printPipe(twoLine)
 
@@ -8335,9 +8360,11 @@ class FunctionAnalyzer(object):
                 (avrTime, value['pagePairMin'], value['pagePairMax'])
 
             SystemManager.printPipe(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^75}".\
-                format(value['pagePairCnt'] * 4, typeList['USER'] * 4, \
-                typeList['CACHE'] * 4, typeList['KERNEL'] * 4, idx, lifeTime))
+                "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^75}".\
+                format(convertFunc(value['pagePairCnt'] << 12), \
+                convertFunc(typeList['USER'] << 12), \
+                convertFunc(typeList['CACHE'] << 12), \
+                convertFunc(typeList['KERNEL'] << 12), idx, lifeTime))
 
             for pairId, item in sorted(\
                 value['pagePair'].items(), \
@@ -8358,9 +8385,11 @@ class FunctionAnalyzer(object):
                 # get kernel alloc and free call #
                 allocCall, freeCall = pairId.split('#')
 
-                printBuf = "{0:4}+ {1:6}K({2:6}/{3:6}/{4:6})| ".\
-                    format(' ', item['size'] * 4, userPages * 4, \
-                    cachePages * 4, kernelPages * 4)
+                printBuf = "{0:4}+ {1:>7}({2:>6}/{3:>6}/{4:>6})| ".\
+                    format(' ', convertFunc(item['size'] << 12), \
+                    convertFunc(userPages << 12), \
+                    convertFunc(cachePages << 12), \
+                    convertFunc(kernelPages << 12))
 
                 indentLen = len(printBuf)
                 appliedIndentLen = indentLen
@@ -8416,6 +8445,13 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
+        convertFunc = UtilManager.convertSize2Unit
+        userSize = convertFunc(self.pageUsageCnt << 12)
+        allocSize = convertFunc(self.pageAllocCnt << 12)
+        freeSize = convertFunc(self.pageFreeCnt << 12)
+        allocCnt = UtilManager.convertNumber(self.pageAllocEventCnt)
+        freeCnt = UtilManager.convertNumber(self.pageFreeEventCnt)
+
         # Calculate page lifetime #
         for pfn, item in self.pageTable.items():
             if not item:
@@ -8443,10 +8479,8 @@ class FunctionAnalyzer(object):
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[%s] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (USER)' % \
-                (title, self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
-                self.pageAllocEventCnt, self.pageFreeCnt * 4, \
-                self.pageFreeEventCnt))
+                '[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)' % \
+                (title, userSize, allocSize, allocCnt, freeSize, freeCnt))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
@@ -8462,7 +8496,8 @@ class FunctionAnalyzer(object):
                     break
 
                 try:
-                    avrTime = float(value['pageRemainTotal'] / value['pageCnt'])
+                    avrTime = \
+                        float(value['pageRemainTotal'] / value['pageCnt'])
                 except:
                     avrTime = 0
 
@@ -8470,9 +8505,11 @@ class FunctionAnalyzer(object):
                     (avrTime, value['pageRemainMin'], value['pageRemainMax'])
 
                 SystemManager.printPipe(\
-                    "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:40}| {6:1}".\
-                    format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
-                    value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, idx, \
+                    "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:40}| {6:1}".\
+                    format(convertFunc(value['pageCnt'] << 12), \
+                    convertFunc(value['userPageCnt'] << 12), \
+                    convertFunc(value['cachePageCnt'] << 12), \
+                    convertFunc(value['kernelPageCnt'] << 12), idx, \
                     lifeTime, self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
@@ -8505,9 +8542,12 @@ class FunctionAnalyzer(object):
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
                     SystemManager.printPipe(\
-                        "\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".\
-                        format(pageCnt * 4, userPageCnt * 4, \
-                        cachePageCnt * 4, kernelPageCnt * 4, symbolStack))
+                        "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".\
+                        format(convertFunc(pageCnt << 12), \
+                        convertFunc(userPageCnt << 12), \
+                        convertFunc(cachePageCnt << 12), \
+                        convertFunc(kernelPageCnt << 12), \
+                        symbolStack))
 
                 SystemManager.printPipe(oneLine)
 
@@ -8519,13 +8559,12 @@ class FunctionAnalyzer(object):
         # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[%s] [Total: %dKB] [Alloc: %dKB(%d)] [Free: %dKB(%d)] (KERNEL)' % \
-            (title, self.pageUsageCnt * 4, self.pageAllocCnt * 4, \
-            self.pageAllocEventCnt, self.pageFreeCnt * 4, \
-            self.pageFreeEventCnt))
+            '[%s] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (KERNEL)' % \
+            (title, userSize, allocSize, allocCnt, freeSize, freeCnt))
 
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
+        SystemManager.printPipe(\
+            "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SystemManager.printPipe(twoLine)
 
@@ -8557,9 +8596,11 @@ class FunctionAnalyzer(object):
                 (avrTime, value['pageRemainMin'], value['pageRemainMax'])
 
             SystemManager.printPipe(\
-                "{0:6}K({1:6}/{2:6}/{3:6})|{4:^47}|{5:^76}".\
-                format(value['pageCnt'] * 4, value['userPageCnt'] * 4, \
-                value['cachePageCnt'] * 4, value['kernelPageCnt'] * 4, \
+                "{0:>7}({1:>6}/{2:>6}/{3:>6})|{4:^47}|{5:^76}".\
+                format(convertFunc(value['pageCnt'] << 12), \
+                convertFunc(value['userPageCnt'] << 12), \
+                convertFunc(value['cachePageCnt'] << 12), \
+                convertFunc(value['kernelPageCnt'] << 12), \
                 idx, lifeTime))
 
             # Sort stacks by usage #
@@ -8584,9 +8625,11 @@ class FunctionAnalyzer(object):
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
                 SystemManager.printPipe(\
-                    "\t+ {0:6}K({1:6}/{2:6}/{3:6})|{4:32}".format(\
-                    pageCnt * 4, userPageCnt * 4, cachePageCnt * 4,\
-                    kernelPageCnt * 4, symbolStack))
+                    "\t+ {0:>7}({1:>6}/{2:>6}/{3:>6})|{4:32}".format(\
+                    convertFunc(pageCnt << 12), \
+                    convertFunc(userPageCnt << 12), \
+                    convertFunc(cachePageCnt << 12), \
+                    convertFunc(kernelPageCnt << 12), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -8617,11 +8660,13 @@ class FunctionAnalyzer(object):
         # Print heap usage in user space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[%s Info] [Total: %s] [Alloc: %s(%d)] [Free: %s(%d)] (USER)' % \
+            '[%s Info] [Total: %s] [Alloc: %s(%s)] [Free: %s(%s)] (USER)' % \
             (title, \
             convertFunc(self.heapExpSize - self.heapRedSize), \
-            convertFunc(self.heapExpSize), self.heapExpEventCnt, \
-            convertFunc(self.heapRedSize), self.heapRedEventCnt))
+            convertFunc(self.heapExpSize), \
+            UtilManager.convertNumber(self.heapExpEventCnt), \
+            convertFunc(self.heapRedSize), \
+            UtilManager.convertNumber(self.heapRedEventCnt)))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -8637,8 +8682,8 @@ class FunctionAnalyzer(object):
 
             binary = self.posData[value['pos']]['origBin']
             source = self.posData[value['pos']]['src']
-            SystemManager.printPipe("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                format(int(value['heapSize'] >> 10), idx, binary, source))
+            SystemManager.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
+                format(convertFunc(value['heapSize']), idx, binary, source))
 
             if idx == value['pos']:
                 SystemManager.printPipe(oneLine)
@@ -8670,8 +8715,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                    format(int(heapSize >> 10), symbolStack))
+                SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                    format(convertFunc(heapSize), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -8684,8 +8729,8 @@ class FunctionAnalyzer(object):
         if SystemManager.showAll and len(self.heapTable) > 0:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[%s History] [Cnt: %d]' % \
-                (title, len(self.heapTable)))
+                '[%s History] [Cnt: %s]' % \
+                (title, UtilManager.convertNumber(len(self.heapTable))))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe(\
@@ -9052,13 +9097,16 @@ class FunctionAnalyzer(object):
         title = 'Function Write-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
+        convertFunc = UtilManager.convertSize2Unit
+        convertNum = UtilManager.convertNumber
+        size = convertFunc(self.blockWrUsageCnt << 9)
 
         # Print block write in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[%s] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (title, self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
+                '[%s] [Size: %s] [Cnt: %s] (USER)' % \
+                (title, size, convertNum(self.blockWrEventCnt)))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -9074,8 +9122,9 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.printPipe("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['blockWrCnt'] * 0.5), idx, binary, source))
+                SystemManager.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
+                    format(convertFunc(value['blockWrCnt'] << 9), \
+                    idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -9103,8 +9152,8 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                        format(int(blockWrCnt * 0.5), symbolStack))
+                    SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                        format(convertFunc(blockWrCnt << 9), symbolStack))
 
                 SystemManager.printPipe(oneLine)
 
@@ -9116,8 +9165,8 @@ class FunctionAnalyzer(object):
         # Print block write in kernel space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[%s] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (title, self.blockWrUsageCnt * 0.5, self.blockWrEventCnt))
+            '[%s] [Size: %s] [Cnt: %s] (KERNEL)' % \
+            (title, size, convertNum(self.blockWrEventCnt)))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -9142,8 +9191,8 @@ class FunctionAnalyzer(object):
             if value['blockWrCnt'] == 0:
                 break
 
-            SystemManager.printPipe("{0:7}K |{1:^134}".\
-                format(int(value['blockWrCnt'] * 0.5), idx))
+            SystemManager.printPipe("{0:>8} |{1:^134}".\
+                format(convertFunc(value['blockWrCnt'] << 9), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -9164,8 +9213,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                    format(int(blockWrCnt * 0.5), symbolStack))
+                SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                    format(convertFunc(blockWrCnt << 9), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -9184,13 +9233,16 @@ class FunctionAnalyzer(object):
         title = 'Function Read-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
+        convertFunc = UtilManager.convertSize2Unit
+        convertNum = UtilManager.convertNumber
+        size = convertFunc(self.blockRdUsageCnt << 9)
 
         # Print block read in user space #
         if SystemManager.userEnable:
             SystemManager.clearPrint()
             SystemManager.printPipe(\
-                '[%s] [Size: %dKB] [Cnt: %d] (USER)' % \
-                (title, self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+                '[%s] [Size: %s] [Cnt: %s] (USER)' % \
+                (title, size, convertNum(self.blockRdEventCnt)))
 
             SystemManager.printPipe(twoLine)
             SystemManager.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -9206,8 +9258,9 @@ class FunctionAnalyzer(object):
 
                 binary = self.posData[value['pos']]['origBin']
                 source = self.posData[value['pos']]['src']
-                SystemManager.printPipe("{0:7}K |{1:^47}| {2:48}| {3:37}".\
-                    format(int(value['blockRdCnt'] * 0.5), idx, binary, source))
+                SystemManager.printPipe("{0:>8} |{1:^47}| {2:48}| {3:37}".\
+                    format(convertFunc(value['blockRdCnt'] << 9), \
+                    idx, binary, source))
 
                 # Set target stack #
                 targetStack = []
@@ -9235,8 +9288,8 @@ class FunctionAnalyzer(object):
                         indentLen = len("\t" * 4 * 4)
                         symbolStack = self.makeUserSymList(subStack, indentLen)
 
-                    SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                        format(int(blockRdCnt * 0.5), symbolStack))
+                    SystemManager.printPipe("\t+ {0:8} |{1:32}".\
+                        format(convertFunc(blockRdCnt << 9), symbolStack))
 
                 SystemManager.printPipe(oneLine)
 
@@ -9245,8 +9298,8 @@ class FunctionAnalyzer(object):
         # Print block read in kernel space #
         SystemManager.clearPrint()
         SystemManager.printPipe(\
-            '[%s] [Size: %dKB] [Cnt: %d] (KERNEL)' % \
-            (title, self.blockRdUsageCnt * 0.5, self.blockRdEventCnt))
+            '[%s] [Size: %s] [Cnt: %s] (KERNEL)' % \
+            (title, size, convertNum(self.blockRdEventCnt)))
 
         SystemManager.printPipe(twoLine)
         SystemManager.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
@@ -9271,8 +9324,8 @@ class FunctionAnalyzer(object):
             if value['blockRdCnt'] == 0:
                 break
 
-            SystemManager.printPipe("{0:7}K |{1:^144}".\
-                format(int(value['blockRdCnt'] * 0.5), idx))
+            SystemManager.printPipe("{0:>8} |{1:^144}".\
+                format(convertFunc(value['blockRdCnt'] << 9), idx))
 
             # Sort stacks by usage #
             value['stack'] = \
@@ -9293,8 +9346,8 @@ class FunctionAnalyzer(object):
                     indentLen = len("\t" * 4 * 4)
                     symbolStack = self.makeKernelSymList(subStack, indentLen)
 
-                SystemManager.printPipe("\t+ {0:7}K |{1:32}".\
-                    format(int(blockRdCnt * 0.5), symbolStack))
+                SystemManager.printPipe("\t+ {0:>8} |{1:32}".\
+                    format(convertFunc(blockRdCnt << 9), symbolStack))
 
             SystemManager.printPipe(oneLine)
 
@@ -21797,6 +21850,8 @@ Copyright:
 
 
     def saveResourceSnapshot(self, initialized=True):
+        self.updateUptime()
+
         # update resource usage #
         self.updateMemInfo()
         self.updateStorageInfo(isGeneral=True)
@@ -33356,11 +33411,13 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.printPipe((\
-            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %d ] " + \
-            "[ ContextSwitch: %d ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
+            "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %s ] " + \
+            "[ ContextSwitch: %s ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
             (title, 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
-            self.getRunTaskNum(), self.cxtSwitch, SystemManager.logSize >> 10))
+            UtilManager.convertNumber(self.getRunTaskNum()), \
+            UtilManager.convertNumber(self.cxtSwitch), \
+            SystemManager.logSize >> 10))
         SystemManager.printPipe(twoLine)
 
         SystemManager.printPipe(\
@@ -37484,6 +37541,7 @@ class ThreadAnalyzer(object):
                     tbuf = fd.read().decode().split('\n')
                     for item in tbuf:
                         if len(item) == 0:
+                            buf[-1] = '%s\n' % buf[-1]
                             continue
                         buf.append('%s\n' % item)
                 except:
