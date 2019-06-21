@@ -3031,13 +3031,15 @@ class NetworkManager(object):
         self.ignore = 0
         self.fileno = -1
         self.time = None
+        self.sendSize = 32767
+        self.recvSize = 32767
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM, \
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF
         except:
             return None
 
@@ -3058,6 +3060,10 @@ class NetworkManager(object):
                 self.socket = socket(AF_INET, SOCK_DGRAM)
 
             self.fileno = self.socket.fileno()
+
+            # get buffer size #
+            self.sendSize = self.socket.getsockopt(SOL_SOCKET, SO_SNDBUF)
+            self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
             #self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
@@ -3185,7 +3191,7 @@ class NetworkManager(object):
 
                 # receive file size #
                 while 1:
-                    size = receiver.recv(SystemManager.packetSize)
+                    size = receiver.recv(receiver.recvSize)
                     if not size:
                         continue
                     else:
@@ -3198,7 +3204,7 @@ class NetworkManager(object):
                     while 1:
                         selectObj.select([receiver.socket], [], [], 3)
 
-                        buf = receiver.recv(SystemManager.packetSize)
+                        buf = receiver.recv(receiver.recvSize)
                         if buf:
                             curSize += len(buf)
                             fd.write(buf)
@@ -3266,7 +3272,7 @@ class NetworkManager(object):
                 curSize = 0
                 totalSize = long(st_size)
                 with open(origPath,'rb') as fd:
-                    buf = fd.read(SystemManager.packetSize)
+                    buf = fd.read(sender.sendSize)
                     while buf:
                         # print progress #
                         UtilManager.printProgress(curSize, totalSize)
@@ -3277,7 +3283,7 @@ class NetworkManager(object):
                         else:
                             curSize = len(buf)
 
-                        buf = fd.read(SystemManager.packetSize)
+                        buf = fd.read(sender.sendSize)
 
                 UtilManager.deleteProgress()
 
@@ -3484,7 +3490,7 @@ class NetworkManager(object):
 
         # set recv size #
         if size == 0:
-            size = SystemManager.packetSize
+            size = self.recvSize
 
         try:
             return self.socket.recv(size)
@@ -3512,8 +3518,8 @@ class NetworkManager(object):
                 # get only data #
                 output = output[0]
 
-                data = data[:-1] + output
-                if len(output) < SystemManager.packetSize:
+                data = data + output
+                if len(output) < self.recvSize:
                     break
         except SystemExit:
             sys.exit(0)
@@ -3547,7 +3553,7 @@ class NetworkManager(object):
 
         # set recv size #
         if size == 0:
-            size = SystemManager.packetSize
+            size = self.recvSize
 
         while 1:
             try:
@@ -10637,7 +10643,7 @@ class SystemManager(object):
     maxPid = 32768
     pidDigit = 5
     stderr = sys.stderr
-    packetSize = 65535
+    packetSize = 32767
     defaultPort = 5555
 
     HZ = 250 # 4ms tick #
@@ -18111,7 +18117,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'server':
+        if sys.argv[1] == 'server' or \
+            sys.argv[1] == 'serv':
             return True
         else:
             return False
@@ -18134,7 +18141,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'client':
+        if sys.argv[1] == 'client' or \
+            sys.argv[1] == 'cli':
             return True
         else:
             return False
@@ -19863,10 +19871,10 @@ Copyright:
 
                 # send file #
                 with open(targetPath,'rb') as fd:
-                    buf = fd.read(SystemManager.packetSize)
+                    buf = fd.read(sender.sendSize)
                     while (buf):
                         sender.send(buf)
-                        buf = fd.read(SystemManager.packetSize)
+                        buf = fd.read(sender.sendSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
@@ -19908,7 +19916,7 @@ Copyright:
 
                 # receive file size #
                 while 1:
-                    size = receiver.recv(SystemManager.packetSize)
+                    size = receiver.recv(receiver.recvSize)
                     if not size:
                         continue
                     else:
@@ -19921,7 +19929,7 @@ Copyright:
                     while 1:
                         selectObj.select([receiver], [], [], 3)
 
-                        buf = receiver.recv(SystemManager.packetSize)
+                        buf = receiver.recv(receiver.recvSize)
                         if buf:
                             fd.write(buf)
                             curSize += len(buf)
