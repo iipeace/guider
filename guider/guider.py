@@ -4523,7 +4523,7 @@ class FunctionAnalyzer(object):
         # read trace data #
         lines = ThreadAnalyzer.readTraceData(logFile)
 
-        # save trace data to file #
+        # save trace data and stop analysis #
         if SystemManager.outputFile:
             SystemManager.saveTraceData(lines)
             sys.exit(0)
@@ -12036,6 +12036,9 @@ Examples:
     - report function analysis result of all threads to ./guider.out
         # {0:1} guider.dat -o .
 
+    - convert function event data compressed to original one
+        # {0:1} guider.dat -s .
+
     - report all function analysis result with maximum 3-depth of a specific thread having TID 1234 to ./guider.out
         # {0:1} guider.dat -o . -g 1234 -H 3
 
@@ -12278,6 +12281,9 @@ Examples:
 
     - report analysis result of all threads to ./guider.out
         # {0:1} guider.dat -o .
+
+    - convert event data compressed to original one
+        # {0:1} guider.dat -s .
 
     - report all analysis results of a specific thread having TID 1234 to ./guider.out
         # {0:1} guider.dat -o . -g 1234 -a
@@ -15789,7 +15795,7 @@ Copyright:
                 "Fail to backup %s because %s" % (outputFile, err))
 
         # compress by gzip #
-        if SystemManager.compressEnable:
+        if SystemManager.isRecordMode() and SystemManager.compressEnable:
             compressor = SystemManager.getPkg('gzip', False)
         else:
             compressor = None
@@ -17108,6 +17114,45 @@ Copyright:
 
 
     @staticmethod
+    def applySaveOption(value=None):
+        # apply default path #
+        if value == '':
+            value = '.'
+
+        # change output path #
+        try:
+            if SystemManager.isWritable(value):
+                if os.path.isdir(value):
+                    SystemManager.outputFile = \
+                        '%s/guider.dat' % value
+                else:
+                    SystemManager.outputFile = value
+            else:
+                raise Exception()
+        except:
+            SystemManager.printError(\
+                "wrong option value %s with -s option" % value)
+            sys.exit(0)
+
+        # remove double slashs #
+        SystemManager.outputFile = \
+            os.path.normpath(SystemManager.outputFile)
+
+        # support no-report record mode #
+        if SystemManager.isFileRecordMode() or \
+            SystemManager.findOption('F') or \
+            SystemManager.isSystemRecordMode() or \
+            SystemManager.findOption('y'):
+                if SystemManager.outputFile.endswith('.dat'):
+                    SystemManager.printFile = '%s.out' % \
+                        os.path.splitext(SystemManager.outputFile)[0]
+                else:
+                    SystemManager.printFile = \
+                        SystemManager.outputFile
+
+
+
+    @staticmethod
     def parseAnalOption(option=None):
         # check call history #
         if not option and SystemManager.parsedAnalOption:
@@ -17283,6 +17328,9 @@ Copyright:
                 SystemManager.errorFile = value
                 SystemManager.printInfo(\
                     "error log is wrote to %s" % SystemManager.errorFile)
+
+            elif option == 's':
+                SystemManager.applySaveOption(value)
 
             elif option == 'e':
                 options = value
@@ -17697,45 +17745,7 @@ Copyright:
                     ', '.join(SystemManager.filterGroup))
 
             elif option == 's':
-                if not SystemManager.isRecordMode():
-                    SystemManager.printError(\
-                        "Fail to save data because it is not in record mode")
-                    sys.exit(0)
-
-                # apply default path #
-                if value == '':
-                    value = '.'
-
-                # change output path #
-                try:
-                    if SystemManager.isWritable(value):
-                        if os.path.isdir(value):
-                            SystemManager.outputFile = \
-                                '%s/guider.dat' % value
-                        else:
-                            SystemManager.outputFile = value
-                    else:
-                        raise Exception()
-                except:
-                    SystemManager.printError(\
-                        "wrong option value %s with -s option" % value)
-                    sys.exit(0)
-
-                # remove double slashs #
-                SystemManager.outputFile = \
-                    os.path.normpath(SystemManager.outputFile)
-
-                # support no-report record mode #
-                if SystemManager.isFileRecordMode() or \
-                    SystemManager.findOption('F') or \
-                    SystemManager.isSystemRecordMode() or \
-                    SystemManager.findOption('y'):
-                        if SystemManager.outputFile.endswith('.dat'):
-                            SystemManager.printFile = '%s.out' % \
-                                os.path.splitext(SystemManager.outputFile)[0]
-                        else:
-                            SystemManager.printFile = \
-                                SystemManager.outputFile
+                SystemManager.applySaveOption(value)
 
             elif option == 'D':
                 SystemManager.depEnable = True
@@ -29904,7 +29914,7 @@ class ThreadAnalyzer(object):
         # read trace data #
         lines = ThreadAnalyzer.readTraceData(file)
 
-        # save trace data to file #
+        # save trace data and stop analysis #
         if SystemManager.outputFile:
             SystemManager.saveTraceData(lines)
             sys.exit(0)
