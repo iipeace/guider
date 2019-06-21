@@ -7088,7 +7088,8 @@ class FunctionAnalyzer(object):
                 continue
 
             for sysId, val in sorted(\
-                value['syscallTable'].items(), key=lambda e: e[1], reverse=True):
+                value['syscallTable'].items(), \
+                key=lambda e: e[1], reverse=True):
                 if val == 0:
                     continue
 
@@ -7149,8 +7150,8 @@ class FunctionAnalyzer(object):
             " ", " ", " ", " ", " ", " ", " "))
         SystemManager.printPipe(\
             (("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^6}|{4:_^6}|"
-            "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|{11:_^7}|{12:_^8}|"
-            "{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
+            "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|"
+            "{11:_^7}|{12:_^8}|{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
             format("Name", "Tid", "Pid", "PICK", "LIFE", \
             "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", cmenu2, \
             "READ", "WRITE", "TRY", "EVENTS"))
@@ -7428,16 +7429,7 @@ class FunctionAnalyzer(object):
                 self.posData[value['pos']]['src']))
 
             # Set target stack #
-            targetStack = []
-            if self.sort == 'sym':
-                targetStack = value['symStack']
-            elif self.sort == 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = \
-                sorted(targetStack, \
-                key=lambda x: x[eventIndex], reverse=True)
+            targetStack = self.getTargetStack(value, eventIndex)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -7490,69 +7482,72 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe('')
 
         # Print syscall history #
-        if SystemManager.showAll and len(self.sysCallData) > 0:
-            SystemManager.clearPrint()
+        if not SystemManager.showAll or len(self.sysCallData) == 0:
+            SystemManager.printPipe('\n\n')
+            return
+
+        SystemManager.clearPrint()
+        SystemManager.printPipe(\
+            '[Function Syscall History] [Cnt: %s]' % \
+            convertNum(self.syscallCnt))
+
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
+            format("Event", "COMM", "TID", "CORE", "TIME"))
+        SystemManager.printPipe(twoLine)
+
+        # sort by time #
+        for call in self.sysCallData:
+            event = ConfigManager.sysList[call[0]][4:]
+            args = call[1][0]
+            time = call[1][1]
+            core = call[1][2]
+            tid = call[1][3]
+            userstack = call[2]
+            kernelstack = call[3]
+
+            title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
+                format(event, self.threadData[tid]['comm'], tid, core, time)
+            SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
+
+            # Make argument info #
+            argsInfo = ' %s' % args
+
+            # Make user call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                last = call[2][0]
+                stack = call[2][1]
+                userCall = ' %s[%s]' % \
+                    (self.posData[last]['symbol'], \
+                    self.posData[last]['binary'])
+                nowLen += len(userCall)
+                for subcall in stack:
+                    try:
+                        symbol = self.posData[subcall]['symbol']
+                        binary = self.posData[subcall]['binary']
+                        nextCall = ' <- %s[%s]' % (symbol, binary)
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            userCall = '%s%s' % (userCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            userCall = '%s\n%s %s' % \
+                                (userCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             SystemManager.printPipe(\
-                '[Function Syscall History] [Cnt: %s]' % \
-                convertNum(self.syscallCnt))
-
-            SystemManager.printPipe(twoLine)
+                "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
             SystemManager.printPipe(\
-                "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
-                format("Event", "COMM", "TID", "CORE", "TIME"))
-            SystemManager.printPipe(twoLine)
-
-            # sort by time #
-            for call in self.sysCallData:
-                event = ConfigManager.sysList[call[0]][4:]
-                args = call[1][0]
-                time = call[1][1]
-                core = call[1][2]
-                tid = call[1][3]
-                userstack = call[2]
-                kernelstack = call[3]
-
-                title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
-                    format(event, self.threadData[tid]['comm'], tid, core, time)
-                SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
-
-                # Make argument info #
-                argsInfo = ' %s' % args
-
-                # Make user call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = call[2][0]
-                    stack = call[2][1]
-                    userCall = ' %s[%s]' % \
-                        (self.posData[last]['symbol'], \
-                        self.posData[last]['binary'])
-                    nowLen += len(userCall)
-                    for subcall in stack:
-                        try:
-                            symbol = self.posData[subcall]['symbol']
-                            binary = self.posData[subcall]['binary']
-                            nextCall = ' <- %s[%s]' % (symbol, binary)
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                userCall = '%s%s' % (userCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                userCall = '%s\n%s %s' % \
-                                    (userCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-                SystemManager.printPipe(\
-                    "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
-                SystemManager.printPipe(\
-                    "{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.printPipe(oneLine)
+                "{0:>32}|{1:<121}".format('[User] ', userCall))
+            SystemManager.printPipe(oneLine)
 
         SystemManager.printPipe('\n\n')
 
@@ -7597,16 +7592,7 @@ class FunctionAnalyzer(object):
                     self.posData[value['pos']]['src']))
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[eventIndex], reverse=True)
+                targetStack = self.getTargetStack(value, eventIndex)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -7667,7 +7653,8 @@ class FunctionAnalyzer(object):
             convertNum(self.customCnt)))
 
         SystemManager.printPipe(twoLine)
-        SystemManager.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
+        SystemManager.printPipe(\
+            "{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SystemManager.printPipe(twoLine)
 
         # Print custom usage of stacks #
@@ -7714,99 +7701,102 @@ class FunctionAnalyzer(object):
             SystemManager.printPipe('')
 
         # Print custom call history #
-        if SystemManager.showAll and len(self.customCallData) > 0:
-            SystemManager.clearPrint()
+        if not SystemManager.showAll or len(self.customCallData) == 0:
+            SystemManager.printPipe('\n\n')
+            return
+
+        SystemManager.clearPrint()
+        SystemManager.printPipe(\
+            '[Function %s History] [Cnt: %s] [Total: %s]' % \
+            (customList, convertNum(self.customTotal), \
+            convertNum(self.customCnt)))
+
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
+            format("Event", "COMM", "TID", "CORE", "TIME"))
+        SystemManager.printPipe(twoLine)
+
+        # sort by time #
+        for call in sorted(self.customCallData, key=lambda e: e[1][1]):
+            event = call[0]
+            args = call[1][0]
+            time = call[1][1]
+            core = call[1][2]
+            tid = call[1][3]
+            userstack = call[2]
+            kernelstack = call[3]
+
+            title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
+                format(event, self.threadData[tid]['comm'], tid, core, time)
+            SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
+
+            # Make argument info #
+            argsInfo = ' %s' % args
+
+            # Make user call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                last = call[2][0]
+                stack = call[2][1]
+                userCall = ' %s[%s]' % \
+                    (self.posData[last]['symbol'], \
+                    self.posData[last]['binary'])
+                nowLen += len(userCall)
+                for subcall in stack:
+                    try:
+                        symbol = self.posData[subcall]['symbol']
+                        binary = self.posData[subcall]['binary']
+                        nextCall = ' <- %s[%s]' % (symbol, binary)
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            userCall = '%s%s' % (userCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            userCall = '%s\n%s %s' % \
+                                (userCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # Make kernel call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                last = call[3][0]
+                stack = call[3][1]
+                kernelCall = ' %s' % (self.posData[last]['symbol'])
+                nowLen += len(kernelCall)
+                for subcall in stack:
+                    try:
+                        nextCall = \
+                            ' <- %s' % (self.posData[subcall]['symbol'])
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            kernelCall = '%s%s' % (kernelCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            kernelCall = \
+                                '%s\n%s %s' % \
+                                (kernelCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             SystemManager.printPipe(\
-                '[Function %s History] [Cnt: %s] [Total: %s]' % \
-                (customList, convertNum(self.customTotal), \
-                convertNum(self.customCnt)))
-
-            SystemManager.printPipe(twoLine)
+                "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
             SystemManager.printPipe(\
-                "{0:_^32}|{1:_^17}({2:_^7})|{3:_^8}|{4:_^17}|".\
-                format("Event", "COMM", "TID", "CORE", "TIME"))
-            SystemManager.printPipe(twoLine)
-
-            # sort by time #
-            for call in sorted(self.customCallData, key=lambda e: e[1][1]):
-                event = call[0]
-                args = call[1][0]
-                time = call[1][1]
-                core = call[1][2]
-                tid = call[1][3]
-                userstack = call[2]
-                kernelstack = call[3]
-
-                title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
-                    format(event, self.threadData[tid]['comm'], tid, core, time)
-                SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
-
-                # Make argument info #
-                argsInfo = ' %s' % args
-
-                # Make user call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = call[2][0]
-                    stack = call[2][1]
-                    userCall = ' %s[%s]' % \
-                        (self.posData[last]['symbol'], \
-                        self.posData[last]['binary'])
-                    nowLen += len(userCall)
-                    for subcall in stack:
-                        try:
-                            symbol = self.posData[subcall]['symbol']
-                            binary = self.posData[subcall]['binary']
-                            nextCall = ' <- %s[%s]' % (symbol, binary)
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                userCall = '%s%s' % (userCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                userCall = '%s\n%s %s' % \
-                                    (userCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-                # Make kernel call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = call[3][0]
-                    stack = call[3][1]
-                    kernelCall = ' %s' % (self.posData[last]['symbol'])
-                    nowLen += len(kernelCall)
-                    for subcall in stack:
-                        try:
-                            nextCall = \
-                                ' <- %s' % (self.posData[subcall]['symbol'])
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                kernelCall = '%s%s' % (kernelCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                kernelCall = \
-                                    '%s\n%s %s' % \
-                                    (kernelCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-                SystemManager.printPipe(\
-                    "{0:>32}| {1:<121}".format('[Args] ', argsInfo.strip()))
-                SystemManager.printPipe(\
-                    "{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.printPipe(\
-                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
-                SystemManager.printPipe(oneLine)
+                "{0:>32}|{1:<121}".format('[User] ', userCall))
+            SystemManager.printPipe(\
+                "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+            SystemManager.printPipe(oneLine)
 
         SystemManager.printPipe('\n\n')
 
@@ -7859,14 +7849,7 @@ class FunctionAnalyzer(object):
                 value['totalTickCnt'] += value['tickCnt']
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack.sort(reverse=True)
+                targetStack = self.getTargetStack(value)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -7999,8 +7982,10 @@ class FunctionAnalyzer(object):
             '''
             disable to print last symbol because it is only one
 
-            cpuPer = \
-                round(float(value['tickCnt']) / float(self.periodicEventCnt) * 100, 1)
+            tickCnt = float(value['tickCnt'])
+            eventCnt = float(self.periodicEventCnt)
+            cpuPer = round(tickCnt / eventCnt * 100, 1)
+
             if cpuPer < 1 and not SystemManager.showAll:
                 break
 
@@ -8108,16 +8093,7 @@ class FunctionAnalyzer(object):
                     self.posData[value['pos']]['src']))
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[pageFreeIndex], reverse=True)
+                targetStack = self.getTargetStack(value, pageFreeIndex)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -8152,15 +8128,7 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
+        exceptList = self.getExceptionList()
 
         for idx, value in sorted(\
             self.kernelSymData.items(), \
@@ -8330,15 +8298,7 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
+        exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
         for idx, value in sorted(\
@@ -8519,16 +8479,7 @@ class FunctionAnalyzer(object):
                     lifeTime, self.posData[value['pos']]['origBin']))
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[pageAllocIndex], reverse=True)
+                targetStack = self.getTargetStack(value, pageAllocIndex)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -8575,15 +8526,7 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
+        exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
         for idx, value in sorted(\
@@ -8696,16 +8639,7 @@ class FunctionAnalyzer(object):
                 continue
 
             # Set target stack #
-            targetStack = []
-            if self.sort == 'sym':
-                targetStack = value['symStack']
-            elif self.sort == 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = \
-                sorted(targetStack, \
-                key=lambda x: x[heapExpIndex], reverse=True)
+            targetStack = self.getTargetStack(value, heapExpIndex)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -8732,118 +8666,121 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe('')
 
         # Print remaining heap history #
-        if SystemManager.showAll and len(self.heapTable) > 0:
-            SystemManager.clearPrint()
-            SystemManager.printPipe(\
-                '[%s History] [Cnt: %s]' % \
-                (title, UtilManager.convertNumber(len(self.heapTable))))
+        if not SystemManager.showAll or len(self.heapTable) == 0:
+            SystemManager.printPipe('\n\n')
+            return
 
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:_^32}|{1:_^12}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
-                format("VAddr", "Size", "COMM", "TID", "CORE", "TIME"))
-            SystemManager.printPipe(twoLine)
+        SystemManager.clearPrint()
+        SystemManager.printPipe(\
+            '[%s History] [Cnt: %s]' % \
+            (title, UtilManager.convertNumber(len(self.heapTable))))
 
-            # sort by time #
-            for segment in sorted(self.heapTable.items(), \
-                key=lambda e: e[1]['time']):
-                addr = segment[0]
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:_^32}|{1:_^12}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
+            format("VAddr", "Size", "COMM", "TID", "CORE", "TIME"))
+        SystemManager.printPipe(twoLine)
 
-                size = segment[1]['size']
-                time = segment[1]['time']
-                core = segment[1]['core']
-                tid = segment[1]['tid']
+        # sort by time #
+        for segment in sorted(self.heapTable.items(), \
+            key=lambda e: e[1]['time']):
+            addr = segment[0]
 
-                usersym = segment[1]['sym']
-                kernelsym = segment[1]['ksym']
-                userstack = segment[1]['subStackAddr']
-                kernelstack = segment[1]['ksubStackAddr']
+            size = segment[1]['size']
+            time = segment[1]['time']
+            core = segment[1]['core']
+            tid = segment[1]['tid']
 
-                title = \
-                    "{0:^32}| {1:>10} | {2:>16}({3:>7})| {4:>6} | {5:>15} |".\
-                    format(addr, convertFunc(size), \
-                    self.threadData[tid]['comm'], tid, int(core), time)
-                SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
+            usersym = segment[1]['sym']
+            kernelsym = segment[1]['ksym']
+            userstack = segment[1]['subStackAddr']
+            kernelstack = segment[1]['ksubStackAddr']
 
-                # Make user call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    userCall = ' %s[%s]' % \
-                        (usersym, self.userSymData[usersym]['origBin'])
-                    nowLen += len(userCall)
+            title = \
+                "{0:^32}| {1:>10} | {2:>16}({3:>7})| {4:>6} | {5:>15} |".\
+                format(addr, convertFunc(size), \
+                self.threadData[tid]['comm'], tid, int(core), time)
+            SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
 
-                    # Set user stack list #
-                    if self.sort == 'sym':
-                        targetStack = self.userSymData[usersym]['symStack']
-                    elif self.sort == 'pos':
-                        targetStack = self.userSymData[usersym]['stack']
+            # Make user call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                userCall = ' %s[%s]' % \
+                    (usersym, self.userSymData[usersym]['origBin'])
+                nowLen += len(userCall)
 
-                    # Find user stack by addr #
-                    stack = []
-                    for val in targetStack:
-                        if id(val[subStackIndex]) == userstack:
-                            stack = val[subStackIndex]
-                            break
+                # Set user stack list #
+                if self.sort == 'sym':
+                    targetStack = self.userSymData[usersym]['symStack']
+                elif self.sort == 'pos':
+                    targetStack = self.userSymData[usersym]['stack']
 
-                    for subcall in stack:
-                        try:
-                            nextCall = ' <- %s[%s]' % \
-                                (subcall, self.userSymData[subcall]['origBin'])
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                userCall = '%s%s' % (userCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                userCall = '%s\n%s %s' % \
-                                    (userCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except:
-                    pass
+                # Find user stack by addr #
+                stack = []
+                for val in targetStack:
+                    if id(val[subStackIndex]) == userstack:
+                        stack = val[subStackIndex]
+                        break
 
-                # Make kernel call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    kernelCall = ' %s' % (kernelsym)
-                    nowLen += len(kernelCall)
+                for subcall in stack:
+                    try:
+                        nextCall = ' <- %s[%s]' % \
+                            (subcall, self.userSymData[subcall]['origBin'])
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            userCall = '%s%s' % (userCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            userCall = '%s\n%s %s' % \
+                                (userCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except:
+                pass
 
-                    # Set kernel stack list #
-                    if self.sort == 'sym':
-                        targetStack = self.kernelSymData[kernelsym]['symStack']
-                    elif self.sort == 'pos':
-                        targetStack = self.kernelSymData[kernelsym]['stack']
+            # Make kernel call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                kernelCall = ' %s' % (kernelsym)
+                nowLen += len(kernelCall)
 
-                    # Find kernel stack by addr #
-                    stack = []
-                    for val in targetStack:
-                        if id(val[subStackIndex]) == kernelstack:
-                            stack = val[subStackIndex]
-                            break
+                # Set kernel stack list #
+                if self.sort == 'sym':
+                    targetStack = self.kernelSymData[kernelsym]['symStack']
+                elif self.sort == 'pos':
+                    targetStack = self.kernelSymData[kernelsym]['stack']
 
-                    for subcall in stack:
-                        try:
-                            nextCall = ' <- %s' % (subcall)
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                kernelCall = '%s%s' % (kernelCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                kernelCall = '%s\n%s %s' % \
-                                    (kernelCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except:
-                    pass
+                # Find kernel stack by addr #
+                stack = []
+                for val in targetStack:
+                    if id(val[subStackIndex]) == kernelstack:
+                        stack = val[subStackIndex]
+                        break
 
-                if userCall != ' 0':
-                    SystemManager.printPipe(\
-                        "{0:>32}|{1:<121}".format('[User] ', userCall))
-                if kernelCall != ' 0':
-                    SystemManager.printPipe(\
-                        "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
-                SystemManager.printPipe(oneLine)
+                for subcall in stack:
+                    try:
+                        nextCall = ' <- %s' % (subcall)
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            kernelCall = '%s%s' % (kernelCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            kernelCall = '%s\n%s %s' % \
+                                (kernelCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except:
+                pass
+
+            if userCall != ' 0':
+                SystemManager.printPipe(\
+                    "{0:>32}|{1:<121}".format('[User] ', userCall))
+            if kernelCall != ' 0':
+                SystemManager.printPipe(\
+                    "{0:>32}|{1:<121}".format('[Kernel] ', kernelCall))
+            SystemManager.printPipe(oneLine)
 
         SystemManager.printPipe('\n\n')
 
@@ -8883,15 +8820,7 @@ class FunctionAnalyzer(object):
                 format(value['lockTryCnt'], idx, binary, source))
 
             # Set target stack #
-            targetStack = []
-            if self.sort == 'sym':
-                targetStack = value['symStack']
-            elif self.sort == 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = \
-                sorted(targetStack, key=lambda x: x[lockIndex], reverse=True)
+            targetStack = self.getTargetStack(value, lockIndex)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -8968,16 +8897,7 @@ class FunctionAnalyzer(object):
                 format(value['unlockCnt'], idx, binary, source))
 
             # Set target stack #
-            targetStack = []
-            if self.sort == 'sym':
-                targetStack = value['symStack']
-            elif self.sort == 'pos':
-                targetStack = value['stack']
-
-            # Sort by usage #
-            targetStack = \
-                sorted(targetStack, \
-                key=lambda x: x[unlockIndex], reverse=True)
+            targetStack = self.getTargetStack(value, unlockIndex)
 
             # Merge and Print symbols in stack #
             for stack in targetStack:
@@ -9031,65 +8951,68 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe('')
 
         # Print lock history #
-        if SystemManager.showAll and len(self.lockCallData) > 0:
-            SystemManager.clearPrint()
+        if not SystemManager.showAll or len(self.lockCallData) == 0:
+            SystemManager.printPipe('\n\n')
+            return
+
+        SystemManager.clearPrint()
+        SystemManager.printPipe(\
+            '[Function Lock History] [Lock: %d] [Unlock: %d]' % \
+            (self.lockTryEventCnt, self.unlockEventCnt))
+
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
+            format("Event", "TARGET", "COMM", "TID", "CORE", "TIME"))
+        SystemManager.printPipe(twoLine)
+
+        # sort by time #
+        for call in self.lockCallData:
+            event = call[0]
+            target = call[1][0]
+            time = call[1][1]
+            core = call[1][2]
+            tid = call[1][3]
+            userstack = call[2]
+            kernelstack = call[3]
+
+            comm = self.threadData[tid]['comm']
+            title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
+                format(event, target, comm, tid, core, time)
+            SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
+
+            # Make user call info #
+            indentLen = 32
+            nowLen = indentLen
+            try:
+                last = userstack[0]
+                stack = userstack[1]
+                symbol = self.posData[last]['symbol']
+                binary = self.posData[last]['binary']
+                userCall = ' %s[%s]' % (symbol, binary)
+                nowLen += len(userCall)
+                for subcall in stack:
+                    try:
+                        symbol = self.posData[subcall]['symbol']
+                        binary = self.posData[subcall]['binary']
+                        nextCall = ' <- %s[%s]' % (symbol, binary)
+                        if SystemManager.lineLength > nowLen + len(nextCall):
+                            userCall = '%s%s' % (userCall, nextCall)
+                            nowLen += len(nextCall)
+                        else:
+                            userCall = '%s\n%s %s' % \
+                                (userCall, ' ' * indentLen, nextCall)
+                            nowLen = indentLen + len(nextCall)
+                    except:
+                        pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             SystemManager.printPipe(\
-                '[Function Lock History] [Lock: %d] [Unlock: %d]' % \
-                (self.lockTryEventCnt, self.unlockEventCnt))
-
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:_^32}|{1:_^16}|{2:_^17}({3:_^7})|{4:_^8}|{5:_^17}|".\
-                format("Event", "TARGET", "COMM", "TID", "CORE", "TIME"))
-            SystemManager.printPipe(twoLine)
-
-            # sort by time #
-            for call in self.lockCallData:
-                event = call[0]
-                target = call[1][0]
-                time = call[1][1]
-                core = call[1][2]
-                tid = call[1][3]
-                userstack = call[2]
-                kernelstack = call[3]
-
-                comm = self.threadData[tid]['comm']
-                title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
-                    format(event, target, comm, tid, core, time)
-                SystemManager.printPipe('%s\n%s' % (title, len(title) * '-'))
-
-                # Make user call info #
-                indentLen = 32
-                nowLen = indentLen
-                try:
-                    last = userstack[0]
-                    stack = userstack[1]
-                    symbol = self.posData[last]['symbol']
-                    binary = self.posData[last]['binary']
-                    userCall = ' %s[%s]' % (symbol, binary)
-                    nowLen += len(userCall)
-                    for subcall in stack:
-                        try:
-                            symbol = self.posData[subcall]['symbol']
-                            binary = self.posData[subcall]['binary']
-                            nextCall = ' <- %s[%s]' % (symbol, binary)
-                            if SystemManager.lineLength > nowLen + len(nextCall):
-                                userCall = '%s%s' % (userCall, nextCall)
-                                nowLen += len(nextCall)
-                            else:
-                                userCall = '%s\n%s %s' % \
-                                    (userCall, ' ' * indentLen, nextCall)
-                                nowLen = indentLen + len(nextCall)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-                SystemManager.printPipe(\
-                    "{0:>32}|{1:<121}".format('[User] ', userCall))
-                SystemManager.printPipe(oneLine)
+                "{0:>32}|{1:<121}".format('[User] ', userCall))
+            SystemManager.printPipe(oneLine)
 
         SystemManager.printPipe('\n\n')
 
@@ -9133,16 +9056,7 @@ class FunctionAnalyzer(object):
                     idx, binary, source))
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[blkWrIndex], reverse=True)
+                targetStack = self.getTargetStack(value, blkWrIndex)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -9179,15 +9093,7 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
+        exceptList = self.getExceptionList()
 
         # Print block write usage of stacks #
         for idx, value in sorted(\
@@ -9231,6 +9137,41 @@ class FunctionAnalyzer(object):
 
 
 
+    def getExceptionList(self):
+        exceptList = {}
+
+        # do not use this function now #
+        return exceptList
+
+        for pos, value in self.posData.items():
+            if value['symbol'] == 'None':
+                try:
+                    exceptList[pos]
+                except:
+                    exceptList[pos] = dict()
+
+        return exceptList
+
+
+
+    def getTargetStack(self, value, index=None):
+        targetStack = []
+        if self.sort == 'sym':
+            targetStack = value['symStack']
+        elif self.sort == 'pos':
+            targetStack = value['stack']
+
+        # Sort by usage #
+        if index:
+            targetStack = \
+                sorted(targetStack, key=lambda x: x[index], reverse=True)
+        else:
+            targetStack.sort(reverse=True)
+
+        return targetStack
+
+
+
     def printBlockRdUsage(self):
         # no block read event #
         if not self.breadEnabled:
@@ -9269,16 +9210,7 @@ class FunctionAnalyzer(object):
                     idx, binary, source))
 
                 # Set target stack #
-                targetStack = []
-                if self.sort == 'sym':
-                    targetStack = value['symStack']
-                elif self.sort == 'pos':
-                    targetStack = value['stack']
-
-                # Sort by usage #
-                targetStack = \
-                    sorted(targetStack, \
-                    key=lambda x: x[blkRdIndex], reverse=True)
+                targetStack = self.getTargetStack(value, blkRdIndex)
 
                 # Merge and Print symbols in stack #
                 for stack in targetStack:
@@ -9312,15 +9244,7 @@ class FunctionAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # Make exception list to remove a redundant part of stack #
-        '''
-        exceptList = {}
-        for pos, value in self.posData.items():
-            if value['symbol'] == 'None':
-                try:
-                    exceptList[pos]
-                except:
-                    exceptList[pos] = dict()
-        '''
+        exceptList = self.getExceptionList()
 
         # Print block read usage of stacks #
         for idx, value in sorted(\
@@ -9504,32 +9428,34 @@ class LeakAnalyzer(object):
             SystemManager.printPipe('\tNone')
         SystemManager.printPipe(oneLine)
 
-        if SystemManager.showAll and len(self.callData) > 0:
-            # leakage history #
-            title = 'Leakage History'
+        if not SystemManager.showAll or len(self.callData) == 0:
+            return
+
+        # leakage history #
+        title = 'Leakage History'
+        SystemManager.printPipe(\
+            '\n[%s] [Total: %s] [CallCount: %s]' % \
+                (title, convertFunc(self.totalLeakSize, True), \
+                convertFunc(len(self.callData), True)))
+
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:^16} | {1:^6} |{2:^50}| {3:^73} |".\
+            format("Time", "Size", "Data", "Stack"))
+        SystemManager.printPipe(oneLine)
+
+        for time, items in sorted(self.callData.items(), \
+            key=lambda e: e[0], reverse=False):
+
+            stack = list(items['symstack'])
+
             SystemManager.printPipe(\
-                '\n[%s] [Total: %s] [CallCount: %s]' % \
-                    (title, convertFunc(self.totalLeakSize, True), \
-                    convertFunc(len(self.callData), True)))
-
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:^16} | {1:^6} |{2:^50}| {3:^73} |".\
-                format("Time", "Size", "Data", "Stack"))
-            SystemManager.printPipe(oneLine)
-
-            for time, items in sorted(self.callData.items(), \
-                key=lambda e: e[0], reverse=False):
-
-                stack = list(items['symstack'])
-
-                SystemManager.printPipe(\
-                    "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
-                        format(time, \
-                        convertFunc(int(items['size'])), \
-                        items['data'][:-1], ' <- '.join(stack)))
-                count += 1
-            SystemManager.printPipe(oneLine)
+                "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
+                    format(time, \
+                    convertFunc(int(items['size'])), \
+                    items['data'][:-1], ' <- '.join(stack)))
+            count += 1
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -33320,52 +33246,54 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(oneLine)
 
         # print kernel event history #
-        if SystemManager.showAll and len(self.kernelEventData) > 0:
-            SystemManager.clearPrint()
-            SystemManager.printPipe('\n[Thread Kernel Event History]')
-            SystemManager.printPipe(twoLine)
+        if not SystemManager.showAll or len(self.kernelEventData) == 0:
+            return
+
+        SystemManager.clearPrint()
+        SystemManager.printPipe('\n[Thread Kernel Event History]')
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe((\
+            "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) "
+            "{5:^22} {6:>10} {7:<1}").\
+            format('EVENT', 'TYPE', 'TIME', 'COMM', \
+            'TID', 'CALLER', 'ELAPSED', 'ARG'))
+        SystemManager.printPipe(twoLine)
+
+        cnt = 0
+        callTable = {}
+        for val in self.kernelEventData:
+            elapsed = '-'
+
+            skipFlag = False
+            for fval in SystemManager.filterGroup:
+                if SystemManager.isEffectiveTid(val[4], fval) or \
+                    val[3].find(fval) >= 0:
+                    skipFlag = False
+                    break
+                skipFlag = True
+
+            if skipFlag:
+                continue
+            elif val[0] == 'ENTER':
+                cid = '%s%s' % (val[1], val[4])
+                callTable[cid] = val[5]
+            elif val[0] == 'EXIT':
+                cid = '%s%s' % (val[1], val[4])
+                try:
+                    elapsed = '%.6f' % (val[5] - callTable[cid])
+                except:
+                    pass
+
+            cnt += 1
+            args = (' '.join(val[7].split(' arg'))).replace('=','>')
             SystemManager.printPipe((\
-                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) "
-                "{5:^22} {6:>10} {7:<1}").\
-                format('EVENT', 'TYPE', 'TIME', 'COMM', \
-                'TID', 'CALLER', 'ELAPSED', 'ARG'))
-            SystemManager.printPipe(twoLine)
-
-            cnt = 0
-            callTable = {}
-            for val in self.kernelEventData:
-                elapsed = '-'
-
-                skipFlag = False
-                for fval in SystemManager.filterGroup:
-                    if SystemManager.isEffectiveTid(val[4], fval) or \
-                        val[3].find(fval) >= 0:
-                        skipFlag = False
-                        break
-                    skipFlag = True
-
-                if skipFlag:
-                    continue
-                elif val[0] == 'ENTER':
-                    cid = '%s%s' % (val[1], val[4])
-                    callTable[cid] = val[5]
-                elif val[0] == 'EXIT':
-                    cid = '%s%s' % (val[1], val[4])
-                    try:
-                        elapsed = '%.6f' % (val[5] - callTable[cid])
-                    except:
-                        pass
-
-                cnt += 1
-                args = (' '.join(val[7].split(' arg'))).replace('=','>')
-                SystemManager.printPipe((\
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
-                    "{5:>22} {6:>10} {7:<1}").\
-                    format(val[1], val[0], val[5], val[3], \
-                    val[4], val[6], elapsed, args))
-            if cnt == 0:
-                SystemManager.printPipe("\tNone")
-            SystemManager.printPipe(oneLine)
+                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
+                "{5:>22} {6:>10} {7:<1}").\
+                format(val[1], val[0], val[5], val[3], \
+                val[4], val[6], elapsed, args))
+        if cnt == 0:
+            SystemManager.printPipe("\tNone")
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -34356,76 +34284,78 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        if SystemManager.showAll:
-            SystemManager.printPipe(\
-                '\n[Thread Futex Lock History] (Unit: Sec/NR)')
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe((\
-                "{0:>12} {1:>16}{2:>13} {3:>4} {4:^24} " + \
-                "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",\
-                 "Type", "Elapsed", "Target", "Value", "Timer"))
-            SystemManager.printPipe(twoLine)
+        if not SystemManager.showAll:
+            return
 
-            cnt = 0
-            for icount in xrange(0, len(self.futexData)):
+        SystemManager.printPipe(\
+            '\n[Thread Futex Lock History] (Unit: Sec/NR)')
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe((\
+            "{0:>12} {1:>16}{2:>13} {3:>4} {4:^24} " + \
+            "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
+            format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",\
+             "Type", "Elapsed", "Target", "Value", "Timer"))
+        SystemManager.printPipe(twoLine)
+
+        cnt = 0
+        for icount in xrange(0, len(self.futexData)):
+            try:
+                value = self.futexData[icount]
+
+                if value[1] == -1:
+                    continue
+
+                atime = float(value[1])
+                time = '%.6f' % (atime - float(SystemManager.startTime))
+
+                comm = self.threadData[value[0]]['comm']
+                tid = '(%5s/%5s)' % \
+                    (value[0], self.threadData[value[0]]['tgid'])
+                core = value[2]
+
                 try:
-                    value = self.futexData[icount]
+                    if icount == 0:
+                        raise Exception()
 
-                    if value[1] == -1:
-                        continue
+                    if self.futexData[icount-1][2] == value[2]:
+                        core = ''
 
-                    atime = float(value[1])
-                    time = '%.6f' % (atime - float(SystemManager.startTime))
+                    if self.futexData[icount-1][0] == value[0]:
+                        tid = comm = ''
+                except:
+                    pass
 
-                    comm = self.threadData[value[0]]['comm']
-                    tid = '(%5s/%5s)' % \
-                        (value[0], self.threadData[value[0]]['tgid'])
-                    core = value[2]
+                if icount + 1 <= len(self.futexData) and \
+                    self.futexData[icount+1][0] == value[0] and \
+                    self.futexData[icount][4].startswith('ENT') and \
+                    self.futexData[icount+1][4].endswith('RET'):
+                    otype = '{0:^10}'.format('ALL')
+                    elapsed = self.futexData[icount+1][5]
+                    self.futexData[icount+1][1] = -1
+                else:
+                    otype = value[4]
+                    elapsed = value[5]
 
+                # convert error code #
+                ret = int(value[7])
+                if ret < 0:
                     try:
-                        if icount == 0:
-                            raise Exception()
-
-                        if self.futexData[icount-1][2] == value[2]:
-                            core = ''
-
-                        if self.futexData[icount-1][0] == value[0]:
-                            tid = comm = ''
+                        ret = '%s' % ConfigManager.ERR_TYPE[abs(ret+1)]
                     except:
                         pass
 
-                    if icount + 1 <= len(self.futexData) and \
-                        self.futexData[icount+1][0] == value[0] and \
-                        self.futexData[icount][4].startswith('ENT') and \
-                        self.futexData[icount+1][4].endswith('RET'):
-                        otype = '{0:^10}'.format('ALL')
-                        elapsed = self.futexData[icount+1][5]
-                        self.futexData[icount+1][1] = -1
-                    else:
-                        otype = value[4]
-                        elapsed = value[5]
+                SystemManager.printPipe((\
+                    "{0:>12} {1:>16}{2:>13} {3:>4} {4:<24} " + \
+                    "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
+                    format(time, comm, tid, core, value[3],\
+                    otype, elapsed, value[6], ret, value[8]))
 
-                    # convert error code #
-                    ret = int(value[7])
-                    if ret < 0:
-                        try:
-                            ret = '%s' % ConfigManager.ERR_TYPE[abs(ret+1)]
-                        except:
-                            pass
-
-                    SystemManager.printPipe((\
-                        "{0:>12} {1:>16}{2:>13} {3:>4} {4:<24} " + \
-                        "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                        format(time, comm, tid, core, value[3],\
-                        otype, elapsed, value[6], ret, value[8]))
-
-                    cnt += 1
-                except:
-                    pass
-            if cnt == 0:
-                SystemManager.printPipe("\tNone")
-            SystemManager.printPipe(oneLine)
+                cnt += 1
+            except:
+                pass
+        if cnt == 0:
+            SystemManager.printPipe("\tNone")
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -34464,43 +34394,45 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        if SystemManager.showAll:
-            SystemManager.printPipe(\
-                '\n[Thread File Lock History] (Unit: Sec/NR)')
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe(\
-                "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
-                .format("Name", "Tid", "Time", "Core",\
-                "Type", "Device", "Inode", "Context"))
-            SystemManager.printPipe(twoLine)
+        if not SystemManager.showAll:
+            return
 
-            cnt = 0
-            for icount in xrange(0, len(self.flockData)):
-                try:
-                    pos = self.flockData[icount][4].rfind('0x')
-                    dev = self.flockData[icount][4][:pos]
-                    inode = self.flockData[icount][4][pos:]
-                    atime = float(self.flockData[icount][1])
-                    time = '%.3f' % (atime - float(SystemManager.startTime))
+        SystemManager.printPipe(\
+            '\n[Thread File Lock History] (Unit: Sec/NR)')
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe(\
+            "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
+            .format("Name", "Tid", "Time", "Core",\
+            "Type", "Device", "Inode", "Context"))
+        SystemManager.printPipe(twoLine)
 
-                    if icount > 0 and \
-                        self.flockData[icount-1][0] == self.flockData[icount][0]:
-                        tid = comm = ''
-                    else:
-                        comm = self.threadData[self.flockData[icount][0]]['comm']
-                        tid = '(%5s)' % self.flockData[icount][0]
+        cnt = 0
+        for icount in xrange(0, len(self.flockData)):
+            try:
+                pos = self.flockData[icount][4].rfind('0x')
+                dev = self.flockData[icount][4][:pos]
+                inode = self.flockData[icount][4][pos:]
+                atime = float(self.flockData[icount][1])
+                time = '%.3f' % (atime - float(SystemManager.startTime))
 
-                    SystemManager.printPipe(\
-                        "{0:>16}{1:>7} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
-                        format(comm, tid, time,\
-                        self.flockData[icount][2], self.flockData[icount][3],\
-                        dev, inode, self.flockData[icount][5]))
-                    cnt += 1
-                except:
-                    continue
-            if cnt == 0:
-                SystemManager.printPipe("\tNone")
-            SystemManager.printPipe(oneLine)
+                if icount > 0 and \
+                    self.flockData[icount-1][0] == self.flockData[icount][0]:
+                    tid = comm = ''
+                else:
+                    comm = self.threadData[self.flockData[icount][0]]['comm']
+                    tid = '(%5s)' % self.flockData[icount][0]
+
+                SystemManager.printPipe(\
+                    "{0:>16}{1:>7} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
+                    format(comm, tid, time,\
+                    self.flockData[icount][2], self.flockData[icount][3],\
+                    dev, inode, self.flockData[icount][5]))
+                cnt += 1
+            except:
+                continue
+        if cnt == 0:
+            SystemManager.printPipe("\tNone")
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -34568,118 +34500,121 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        if SystemManager.showAll:
-            SystemManager.printPipe('\n[Thread Syscall History] (Unit: Sec/NR)')
-            SystemManager.printPipe(twoLine)
-            SystemManager.printPipe((\
-                "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} "
-                "{6:>5} {7:>10} {8:>16} {9:<1}").format(\
-                "Time", "Name", "Tid", "Core", "Syscall", \
-                "Sid", "Type", "Elapsed", "Return", "Arguments"))
-            SystemManager.printPipe(twoLine)
+        if not SystemManager.showAll:
+            return
 
-            # remove calls of unavailable threads #
-            for icount in xrange(0, len(self.syscallData)):
+        SystemManager.printPipe('\n[Thread Syscall History] (Unit: Sec/NR)')
+        SystemManager.printPipe(twoLine)
+        SystemManager.printPipe((\
+            "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} "
+            "{6:>5} {7:>10} {8:>16} {9:<1}").format(\
+            "Time", "Name", "Tid", "Core", "Syscall", \
+            "Sid", "Type", "Elapsed", "Return", "Arguments"))
+        SystemManager.printPipe(twoLine)
+
+        # remove calls of unavailable threads #
+        for icount in xrange(0, len(self.syscallData)):
+            try:
+                self.threadData[self.syscallData[icount][2]]
+            except:
                 try:
-                    self.threadData[self.syscallData[icount][2]]
+                    del self.syscallData[icount]
                 except:
-                    try:
-                        del self.syscallData[icount]
-                    except:
-                        break
+                    break
 
-            cnt = 0
-            proto = ConfigManager.SYSCALL_PROTOTYPES
-            startTime = float(SystemManager.startTime)
-            for icount in xrange(0, len(self.syscallData)):
-                try:
-                    prevData = self.syscallData[icount-1]
-                    nowData = self.syscallData[icount]
+        cnt = 0
+        proto = ConfigManager.SYSCALL_PROTOTYPES
+        startTime = float(SystemManager.startTime)
+        for icount in xrange(0, len(self.syscallData)):
+            try:
+                prevData = self.syscallData[icount-1]
+                nowData = self.syscallData[icount]
 
-                    if nowData[1] == -1:
-                        continue
+                if nowData[1] == -1:
+                    continue
 
-                    if len(self.syscallData) > icount + 1:
-                        nextData = self.syscallData[icount+1]
-                    else:
-                        nextData = None
+                if len(self.syscallData) > icount + 1:
+                    nextData = self.syscallData[icount+1]
+                else:
+                    nextData = None
 
-                    syscall = ConfigManager.sysList[int(nowData[4])]
+                syscall = ConfigManager.sysList[int(nowData[4])]
 
-                    if nowData[0] == 'ENT':
-                        # all #
-                        if nextData and \
-                            nextData[0] == 'RET' and \
-                            nowData[2] == nextData[2] and \
-                            nowData[4] == nextData[4]:
-                            eventType = '{0:^5}'.format('ALL')
-                            eventTime = float(nowData[1]) - startTime
-                            elapsed = \
-                                '%6.6f' % (float(nextData[1]) - float(nowData[1]))
-                            param = nowData[5]
-                            ret = nextData[5]
-                            nextData[1] = -1
-                        else:
-                            eventType = '{0:<5}'.format(nowData[0])
-                            eventTime = \
-                                float(nowData[1]) - startTime
-                            elapsed = ' ' * 8
-                            param = nowData[5]
-                            ret = ' '
-
-                        # trim real arguments #
-                        try:
-                            call = syscall[4:]
-                            nrArgs = len(proto[call][1])
-                            if nrArgs > 0:
-                                param = '(%s)' % ','.join(param[1:-1].split(',')[:nrArgs])
-                            else:
-                                param = ' '
-                        except:
-                            pass
-                    elif nowData[0] == 'RET':
-                        eventType = nowData[0]
+                if nowData[0] == 'ENT':
+                    # all #
+                    if nextData and \
+                        nextData[0] == 'RET' and \
+                        nowData[2] == nextData[2] and \
+                        nowData[4] == nextData[4]:
+                        eventType = '{0:^5}'.format('ALL')
                         eventTime = float(nowData[1]) - startTime
-                        param = ' '
-                        ret = nowData[5]
+                        elapsed = \
+                            '%6.6f' % (float(nextData[1]) - float(nowData[1]))
+                        param = nowData[5]
+                        ret = nextData[5]
+                        nextData[1] = -1
+                    else:
+                        eventType = '{0:<5}'.format(nowData[0])
+                        eventTime = \
+                            float(nowData[1]) - startTime
+                        elapsed = ' ' * 8
+                        param = nowData[5]
+                        ret = ' '
 
-                        try:
-                            elapsed = '%6.6f' % nowData[6]
-                        except:
-                            elapsed = ' ' * 8
-
+                    # trim real arguments #
                     try:
-                        # convert error code #
-                        nrRet = int(ret)
-                        if nrRet < 0:
-                            ret = ConfigManager.ERR_TYPE[abs(nrRet) - 1]
+                        call = syscall[4:]
+                        nrArgs = len(proto[call][1])
+                        if nrArgs > 0:
+                            param = '(%s)' % ','.join(\
+                                param[1:-1].split(',')[:nrArgs])
+                        else:
+                            param = ' '
                     except:
                         pass
+                elif nowData[0] == 'RET':
+                    eventType = nowData[0]
+                    eventTime = float(nowData[1]) - startTime
+                    param = ' '
+                    ret = nowData[5]
 
-                    if icount > 0 and prevData[2] == nowData[2]:
-                        tid = comm = ''
-                    else:
-                        comm = self.threadData[nowData[2]]['comm']
-                        tid = '(%5s)' % nowData[2]
+                    try:
+                        elapsed = '%6.6f' % nowData[6]
+                    except:
+                        elapsed = ' ' * 8
 
-                    if icount > 0 and prevData[3] == nowData[3]:
-                        core = ''
-                    else:
-                        core = nowData[3]
-
-                    SystemManager.printPipe(\
-                        ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
-                        "{6:>5} {7:>10} {8:>16} {9:<1}").\
-                        format('%.6f' % eventTime, comm, tid,\
-                        core, syscall[4:], nowData[4],\
-                        eventType, elapsed, ret, param))
-
-                    cnt += 1
+                try:
+                    # convert error code #
+                    nrRet = int(ret)
+                    if nrRet < 0:
+                        ret = ConfigManager.ERR_TYPE[abs(nrRet) - 1]
                 except:
-                    continue
-            if cnt == 0:
-                SystemManager.printPipe("\tNone")
-            SystemManager.printPipe(oneLine)
+                    pass
+
+                if icount > 0 and prevData[2] == nowData[2]:
+                    tid = comm = ''
+                else:
+                    comm = self.threadData[nowData[2]]['comm']
+                    tid = '(%5s)' % nowData[2]
+
+                if icount > 0 and prevData[3] == nowData[3]:
+                    core = ''
+                else:
+                    core = nowData[3]
+
+                SystemManager.printPipe(\
+                    ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
+                    "{6:>5} {7:>10} {8:>16} {9:<1}").\
+                    format('%.6f' % eventTime, comm, tid,\
+                    core, syscall[4:], nowData[4],\
+                    eventType, elapsed, ret, param))
+
+                cnt += 1
+            except:
+                continue
+        if cnt == 0:
+            SystemManager.printPipe("\tNone")
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -34976,10 +34911,11 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if len(SystemManager.kernelEventList) > 0:
             for idx, val in sorted(\
-                self.kernelEventInfo.items(), key=lambda e: e[1]['count'], \
-                reverse=True):
+                self.kernelEventInfo.items(), \
+                key=lambda e: e[1]['count'], reverse=True):
 
-                for key, value in sorted(self.kernelInfo.items(), \
+                for key, value in sorted(\
+                    self.kernelInfo.items(), \
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
                     reverse=True):
                     timeLine = ''
@@ -35553,7 +35489,8 @@ class ThreadAnalyzer(object):
         # preempted units on timeline #
         SystemManager.clearPrint()
         for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['cpuWait'], reverse=True):
+            self.threadData.items(), \
+            key=lambda e: e[1]['cpuWait'], reverse=True):
 
             if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
                 not SystemManager.showAll:
@@ -35622,8 +35559,8 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.memEnable:
             for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['nrPages'], \
-                reverse=True):
+                self.threadData.items(), \
+                key=lambda e: e[1]['nrPages'], reverse=True):
 
                 if not SystemManager.showAll and \
                     (value['nrPages'] >> 8) + (value['remainKmem'] >> 20) < 1:
@@ -35689,7 +35626,8 @@ class ThreadAnalyzer(object):
         SystemManager.clearPrint()
         if SystemManager.blockEnable:
             for key, value in sorted(\
-                self.threadData.items(), key=lambda e: e[1]['reqRdBlock'], reverse=True):
+                self.threadData.items(), \
+                key=lambda e: e[1]['reqRdBlock'], reverse=True):
 
                 if value['readBlock'] < 1 and not SystemManager.showAll:
                     break
