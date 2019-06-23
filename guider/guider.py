@@ -2812,25 +2812,25 @@ class UtilManager(object):
 
         try:
             if value.endswith('K'):
-                return long(float(value[:-1])) * sizeKB
+                return long(float(value[:-1]) * sizeKB)
             if value.endswith('KB'):
-                return long(float(value[:-2])) * sizeKB
+                return long(float(value[:-2]) * sizeKB)
             if value.endswith('M'):
-                return long(float(value[:-1])) * sizeMB
+                return long(float(value[:-1]) * sizeMB)
             if value.endswith('MB'):
-                return long(float(value[:-2])) * sizeMB
+                return long(float(value[:-2]) * sizeMB)
             if value.endswith('G'):
-                return long(float(value[:-1])) * sizeGB
+                return long(float(value[:-1]) * sizeGB)
             if value.endswith('GB'):
-                return long(float(value[:-2])) * sizeGB
+                return long(float(value[:-2]) * sizeGB)
             if value.endswith('T'):
-                return long(float(value[:-1])) * sizeTB
+                return long(float(value[:-1]) * sizeTB)
             if value.endswith('TB'):
-                return long(float(value[:-2])) * sizeTB
+                return long(float(value[:-2]) * sizeTB)
             if value.endswith('P'):
-                return long(float(value[:-1])) * sizePB
+                return long(float(value[:-1]) * sizePB)
             if value.endswith('PB'):
-                return long(float(value[:-2])) * sizePB
+                return long(float(value[:-2]) * sizePB)
 
             SystemManager.printError(\
                 "Fail to convert %s to size" % value)
@@ -30388,14 +30388,14 @@ class ThreadAnalyzer(object):
                 if len(contextlist) > 5:
                     strPos = line.find('[RAM')
                     sline = line[strPos:].split()
+
                     try:
-                        totalRam = UtilManager.convertUnit2Size(\
-                            sline[1][:-1])
+                        totalRam = UtilManager.convertUnit2Size(sline[1][:-1])
                     except:
                         totalRam = None
+
                     try:
-                        totalSwap = UtilManager.convertUnit2Size(\
-                            sline[3][:-1])
+                        totalSwap = UtilManager.convertUnit2Size(sline[3][:-1])
                     except:
                         totalSwap = None
 
@@ -30670,9 +30670,12 @@ class ThreadAnalyzer(object):
                     intervalList = None
 
             # RSS / PSS / USS #
-            elif context == 'RSS' or \
-                context == 'PSS' or \
-                context == 'USS':
+            elif (SystemManager.rssEnable or \
+                    SystemManager.pssEnable or \
+                    SystemManager.ussEnable) and \
+                (context == 'RSS' or \
+                    context == 'PSS' or \
+                    context == 'USS'):
 
                 # check memory type #
                 if context == 'RSS':
@@ -32159,13 +32162,13 @@ class ThreadAnalyzer(object):
                     fname = ''
                     prefix = ''
 
+                totalRam = graphStats['%stotalRam' % fname]
                 memFree = graphStats['%smemFree' % fname][:lent]
                 memAnon = graphStats['%smemAnon' % fname][:lent]
                 memCache = graphStats['%smemCache' % fname][:lent]
                 memProcUsage = graphStats['%smemProcUsage' % fname]
-                totalRam = graphStats['%stotalRam' % fname][:lent]
+                totalSwap = graphStats['%stotalSwap' % fname]
                 swapUsage = graphStats['%sswapUsage' % fname][:lent]
-                totalSwap = graphStats['%stotalSwap' % fname][:lent]
 
                 # Process VSS #
                 if SystemManager.vssEnable:
@@ -32418,7 +32421,7 @@ class ThreadAnalyzer(object):
 
                     if totalRam:
                         label = '%sRAM Total [%s]\nRAM Available' % \
-                            (prefix, convertSize2Unit(long(totalRam) << 20))
+                            (prefix, convertSize2Unit(totalRam))
                         labelList.append(label)
                     else:
                         labelList.append('%sRAM Available' % prefix)
@@ -32531,7 +32534,7 @@ class ThreadAnalyzer(object):
 
                         if totalSwap:
                             label = '%sSwap Total [%s]\nSwap Usage' % \
-                                (prefix, convertSize2Unit(long(totalSwap) << 20))
+                                (prefix, convertSize2Unit(totalSwap))
                             labelList.append(label)
                         else:
                             labelList.append('%sSwap Usage' % prefix)
