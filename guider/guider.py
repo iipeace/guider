@@ -30389,11 +30389,13 @@ class ThreadAnalyzer(object):
                     strPos = line.find('[RAM')
                     sline = line[strPos:].split()
                     try:
-                        totalRam = sline[1][:-1]
+                        totalRam = UtilManager.convertUnit2Size(\
+                            sline[1][:-1])
                     except:
                         totalRam = None
                     try:
-                        totalSwap = sline[3][:-1]
+                        totalSwap = UtilManager.convertUnit2Size(\
+                            sline[3][:-1])
                     except:
                         totalSwap = None
 
@@ -42939,12 +42941,14 @@ class ThreadAnalyzer(object):
             nrIrq = 0
 
         try:
-            memTotal = self.memData['MemTotal'] >> 10
+            memTotal = UtilManager.convertSize2Unit(\
+                self.memData['MemTotal'] << 10)
         except:
             memTotal = 0
 
         try:
-            swapTotal = self.memData['SwapTotal'] >> 10
+            swapTotal = UtilManager.convertSize2Unit(\
+                self.memData['SwapTotal'] << 10)
         except:
             swapTotal = 0
 
@@ -42967,7 +42971,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(\
             ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d] %s [IRQ: %d] [Core: %d] [Task: %d/%d] "
-            "[Load: %s] [RAM: %d] [Swap: %d]\n") % \
+            "[Load: %s] [RAM: %s] [Swap: %s]\n") % \
             (title, SystemManager.uptime, SystemManager.uptimeDiff, \
             nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq, \
             SystemManager.nrCore, self.nrProcess, self.nrThread, loadavg, \
@@ -45119,8 +45123,7 @@ def main(args=None):
     # draw graph and chart #
     if SystemManager.isDrawMode():
         if len(sys.argv) <= 2:
-            SystemManager.printError("No input file to draw graph and chart")
-            sys.exit(0)
+            sys.argv.append('guider.out')
 
         SystemManager.graphEnable = True
 
