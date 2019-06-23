@@ -26109,7 +26109,7 @@ class Debugger(object):
                             text = arg[2]
 
                         # define start index by encoding type #
-                        if UtilManager.isString(arg[2]):
+                        if type(text) is bytes:
                             start = 2
                         else:
                             start = 1
