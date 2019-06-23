@@ -34478,6 +34478,8 @@ class ThreadAnalyzer(object):
         if len(self.syscallData) == 0:
             return
 
+        convertNum = UtilManager.convertNumber
+
         outputCnt = 0
         SystemManager.printPipe('\n[Thread Syscall Info] (Unit: Sec/NR)')
         SystemManager.printPipe(twoLine)
@@ -34487,6 +34489,8 @@ class ThreadAnalyzer(object):
             "Name", "Tid", "Syscall", "ID", "Elapsed", "Count",\
             "Error", "Min", "Max", "Avg"))
         SystemManager.printPipe(twoLine)
+
+        totalInfo = dict()
 
         for key, value in sorted(\
             self.threadData.items(), key=lambda e: e[1]['comm']):
@@ -34524,19 +34528,53 @@ class ThreadAnalyzer(object):
                     syscallInfo = \
                         ('{0:1} {1:>30}({2:>3}) {3:>12} '
                         '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(\
-                        '%s%s' % (syscallInfo, ' ' * len(threadInfo)), syscall, \
-                        sysId, '%.6f' % val['usage'], val['count'], val['err'], \
+                        '%s%s' % (syscallInfo, ' ' * len(threadInfo)), \
+                        syscall, sysId, '%.6f' % val['usage'], \
+                        convertNum(val['count']), convertNum(val['err']), \
                         '%.6f' % val['min'], '%.6f' % val['max'], val['average'])
+                except:
+                    pass
+
+                # add total info #
+                try:
+                    if not sysId in totalInfo:
+                        totalInfo[sysId] = dict()
+                        totalInfo[sysId]['usage'] = 0
+                        totalInfo[sysId]['count'] = 0
+                        totalInfo[sysId]['err'] = 0
+
+                    totalInfo[sysId]['usage'] += val['usage']
+                    totalInfo[sysId]['count'] += val['count']
+                    totalInfo[sysId]['err'] += val['err']
                 except:
                     pass
 
             if syscallInfo != '':
                 outputCnt += 1
-                SystemManager.printPipe(threadInfo)
-                SystemManager.printPipe('%s\n%s' % (syscallInfo, oneLine))
+                SystemManager.addPrint('%s\n' % threadInfo)
+                SystemManager.addPrint('%s\n%s\n' % (syscallInfo, oneLine))
 
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
+        else:
+            totalStrInfo = "%16s(%5s)" % ('[TOTAL]', '-')
+            SystemManager.printPipe(totalStrInfo)
+
+            # total info #
+            syscallInfo = ''
+            for sysId, val in sorted(\
+                totalInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
+                syscall = ConfigManager.sysList[int(sysId)][4:]
+                syscallInfo = \
+                    ('{0:1} {1:>30}({2:>3}) {3:>12} {4:>12} {5:>12}'.format(\
+                    ' ' * len(totalStrInfo), syscall, sysId, \
+                    '%.6f' % val['usage'], convertNum(val['count']), \
+                    convertNum(val['err'])))
+                SystemManager.printPipe(syscallInfo)
+            SystemManager.printPipe('\n%s' % oneLine)
+
+            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.clearPrint()
 
         if not SystemManager.showAll:
             return
