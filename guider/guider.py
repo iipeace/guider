@@ -34531,7 +34531,8 @@ class ThreadAnalyzer(object):
                         '%s%s' % (syscallInfo, ' ' * len(threadInfo)), \
                         syscall, sysId, '%.6f' % val['usage'], \
                         convertNum(val['count']), convertNum(val['err']), \
-                        '%.6f' % val['min'], '%.6f' % val['max'], val['average'])
+                        '%.6f' % val['min'], '%.6f' % val['max'], \
+                        val['average'])
                 except:
                     pass
 
@@ -34542,10 +34543,24 @@ class ThreadAnalyzer(object):
                         totalInfo[sysId]['usage'] = 0
                         totalInfo[sysId]['count'] = 0
                         totalInfo[sysId]['err'] = 0
+                        totalInfo[sysId]['min'] = 0
+                        totalInfo[sysId]['max'] = 0
+                        totalInfo[sysId]['average'] = 0
 
                     totalInfo[sysId]['usage'] += val['usage']
                     totalInfo[sysId]['count'] += val['count']
                     totalInfo[sysId]['err'] += val['err']
+
+                    if totalInfo[sysId]['min'] == 0 or \
+                        totalInfo[sysId]['min'] > val['min']:
+                        totalInfo[sysId]['min'] = val['min']
+
+                    if totalInfo[sysId]['max'] == 0 or \
+                        totalInfo[sysId]['max'] < val['max']:
+                        totalInfo[sysId]['max'] = val['max']
+
+                    totalInfo[sysId]['average'] = \
+                        totalInfo[sysId]['usage'] / totalInfo[sysId]['count']
                 except:
                     pass
 
@@ -34565,11 +34580,15 @@ class ThreadAnalyzer(object):
             for sysId, val in sorted(\
                 totalInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
                 syscall = ConfigManager.sysList[int(sysId)][4:]
+
                 syscallInfo = \
-                    ('{0:1} {1:>30}({2:>3}) {3:>12} {4:>12} {5:>12}'.format(\
+                    ('{0:1} {1:>30}({2:>3}) {3:>12} '
+                    '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(\
                     ' ' * len(totalStrInfo), syscall, sysId, \
                     '%.6f' % val['usage'], convertNum(val['count']), \
-                    convertNum(val['err'])))
+                    convertNum(val['err']), '%.6f' % val['min'], \
+                    '%.6f' % val['max'], '%.6f' % val['average'])
+
                 SystemManager.printPipe(syscallInfo)
             SystemManager.printPipe('\n%s' % oneLine)
 
