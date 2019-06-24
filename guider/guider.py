@@ -33377,6 +33377,8 @@ class ThreadAnalyzer(object):
         # print system information #
         SystemManager.printInfoBuffer()
 
+        convertFunc = UtilManager.convertSize2Unit
+
         # check trace event #
         if not (SystemManager.cpuEnable or \
             SystemManager.memEnable or \
@@ -33486,10 +33488,10 @@ class ThreadAnalyzer(object):
                 cpuTime = '%5.2f' % (self.totalTime - value['usage'])
                 cpuPer = '%5.1f' % usagePercent
                 schedLatency = '%5.2f' % value['schedLatency']
-                yieldCnt = '%5d' % value['yield']
-                preemptedCnt = '%5d' % value['preempted']
-                preemptionCnt = '%5d' % value['preemption']
-                migrateCnt = '%4d' % value['migrate']
+                yieldCnt = '%5s' % convertFunc(value['yield'])
+                preemptedCnt = '%5s' % convertFunc(value['preempted'])
+                preemptionCnt = '%5s' % convertFunc(value['preemption'])
+                migrateCnt = '%4s' % convertFunc(value['migrate'])
             else:
                 cpuTime = '-'
                 cpuPer = '-'
@@ -33640,16 +33642,16 @@ class ThreadAnalyzer(object):
 
                 pri = value['pri']
 
-                yieldCnt = '%5d' % value['yield']
+                yieldCnt = '%5s' % convertFunc(value['yield'])
                 totalYieldCnt += value['yield']
 
-                preemptedCnt = '%5d' % value['preempted']
+                preemptedCnt = '%5s' % convertFunc(value['preempted'])
                 totalPreemptedCnt += value['preempted']
 
-                preemptionCnt = '%5d' % value['preemption']
+                preemptionCnt = '%5s' % convertFunc(value['preemption'])
                 totalPreemptionCnt += value['preemption']
 
-                migrateCnt = '%4d' % value['migrate']
+                migrateCnt = '%4s' % convertFunc(value['migrate'])
                 totalMigrateCnt += value['migrate']
             else:
                 cpuTime = '-'
@@ -33776,10 +33778,10 @@ class ThreadAnalyzer(object):
             totalCpuTime = '%5.2f' % totalCpuTime
             totalPrtTime = '%5.2f' % totalPrtTime
             totalSchedLatency = '%5.2f' % totalSchedLatency
-            totalYieldCnt = '%5d' % totalYieldCnt
-            totalPreemptedCnt = '%5d' % totalPreemptedCnt
-            totalPreemptionCnt = '%5d' % totalPreemptionCnt
-            totalMigrateCnt = '%4d' % totalMigrateCnt
+            totalYieldCnt = '%5s' % convertFunc(totalYieldCnt)
+            totalPreemptedCnt = '%5s' % convertFunc(totalPreemptedCnt)
+            totalPreemptionCnt = '%5s' % convertFunc(totalPreemptionCnt)
+            totalMigrateCnt = '%4s' % convertFunc(totalMigrateCnt)
         except:
             pass
 
@@ -33809,11 +33811,12 @@ class ThreadAnalyzer(object):
         except:
             pass
 
+        # print TOTAL information #
         SystemManager.printPipe(\
             ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-            "%3s|%3s|%4s(%2s)|\n") % \
-            ('{0:^29}'.format('[ TOTAL ]'), ' ', ' ', \
+            "%3s|%3s|%4s(%2s)|") % \
+            ('{0:>29}'.format('[ TOTAL ]'), ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
             totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
             totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
@@ -34259,6 +34262,8 @@ class ThreadAnalyzer(object):
         if len(self.futexData) == 0:
             return
 
+        convertNum = UtilManager.convertNumber
+
         outputCnt = 0
         SystemManager.printPipe(\
             '\n[Thread Futex Lock Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
@@ -34271,6 +34276,11 @@ class ThreadAnalyzer(object):
             'NrBlock', 'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait', \
             'LBlock', 'NrLBlock', 'LastStat'))
         SystemManager.printPipe(twoLine)
+
+        totalInfo = {'ftxTotal': 0, 'ftxMax': 0, 'ftxLock': 0, \
+            'ftxLockMax': 0, 'ftxLockCnt': 0, 'ftxWaitCnt': 0, \
+            'ftxProcess': 0, 'ftxBlockTotal': 0, 'ftxLBlockTotal': 0, \
+            'ftxBlockCnt': 0, 'ftxLSwitch': 0}
 
         # print futex info of threads #
         for key, value in sorted(self.threadData.items(), \
@@ -34288,39 +34298,95 @@ class ThreadAnalyzer(object):
 
             pid = value['tgid']
 
+            # set thread info #
             ftxTotal = '%.3f' % float(value['ftxTotal'])
             ftxMax = '%.3f' % float(value['ftxMax'])
             ftxLock = '%.3f' % float(value['ftxLock'])
             ftxLockMax = '%.3f' % float(value['ftxLockMax'])
-            ftxLockCall = UtilManager.convertNumber(value['ftxLockCnt'])
-            ftxWaitCall = UtilManager.convertNumber(value['ftxWaitCnt'])
+            ftxLockCall = convertNum(value['ftxLockCnt'])
+            ftxWaitCall = convertNum(value['ftxWaitCnt'])
+
+            # set total info #
+            totalInfo['ftxTotal'] += value['ftxTotal']
+            totalInfo['ftxLock'] += value['ftxLock']
+            totalInfo['ftxLockCnt'] += value['ftxLockCnt']
+            totalInfo['ftxWaitCnt'] += value['ftxWaitCnt']
+            if totalInfo['ftxMax'] == 0 or \
+                totalInfo['ftxMax'] < value['ftxMax']:
+                totalInfo['ftxMax'] = value['ftxMax']
+            if totalInfo['ftxLockMax'] == 0 or \
+                totalInfo['ftxLockMax'] < value['ftxLockMax']:
+                totalInfo['ftxLockMax'] = value['ftxLockMax']
 
             if SystemManager.cpuEnable:
                 ftxProcess = '%.3f' % float(value['ftxProcess'])
                 ftxBlock = '%.3f' % float(value['ftxBlockTotal'])
                 ftxLBlock = '%.3f' % float(value['ftxLBlockTotal'])
-                ftxBlockCall = UtilManager.convertNumber(value['ftxBlockCnt'])
+                ftxBlockCall = convertNum(value['ftxBlockCnt'])
                 ftxLSwitch = value['ftxLSwitch']
+
+                totalInfo['ftxProcess'] += value['ftxProcess']
+                totalInfo['ftxBlockTotal'] += value['ftxBlockTotal']
+                totalInfo['ftxLBlockTotal'] += value['ftxLBlockTotal']
+                totalInfo['ftxBlockCnt'] += value['ftxBlockCnt']
+                totalInfo['ftxLSwitch'] += value['ftxLSwitch']
             else:
-                ftxProcess = '-'
-                ftxBlock = '-'
-                ftxLBlock = '-'
-                ftxBlockCall = '-'
-                ftxLSwitch = '-'
+                ftxProcess = totalInfo['ftxProcess'] = '-'
+                ftxBlock = totalInfo['ftxBlockTotal'] = '-'
+                ftxLBlock = totalInfo['ftxLBlockTotal'] = '-'
+                ftxBlockCall = totalInfo['ftxBlockCnt'] = '-'
+                ftxLSwitch = totalInfo['ftxLSwitch'] = '-'
 
             futexInfo = \
                 ('{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} ' + \
                 '{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} ' + \
                 '{11:>8} {12:>10} {13:>8} {14:>10}').\
-                format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock,\
-                ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall,\
+                format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock, \
+                ftxBlockCall, ftxMax, ftxLock, ftxLockMax, ftxLockCall, \
                 ftxWaitCall, ftxLBlock, ftxLSwitch, status)
 
-            SystemManager.printPipe('%s\n%s' % (futexInfo, oneLine))
+            SystemManager.addPrint('%s\n%s\n' % (futexInfo, oneLine))
             outputCnt += 1
 
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
+        else:
+            # print total info #
+            totalInfo['ftxTotal'] = '%.3f' % totalInfo['ftxTotal']
+            totalInfo['ftxMax'] = '%.3f' % totalInfo['ftxMax']
+            totalInfo['ftxLock'] = '%.3f' % totalInfo['ftxLock']
+            totalInfo['ftxLockMax'] = '%.3f' % totalInfo['ftxLockMax']
+            totalInfo['ftxLockCnt'] = convertNum(totalInfo['ftxLockCnt'])
+            totalInfo['ftxWaitCnt'] = convertNum(totalInfo['ftxWaitCnt'])
+
+            if totalInfo['ftxProcess'] != '-':
+                totalInfo['ftxProcess'] = '%.3f' % totalInfo['ftxProcess']
+            if totalInfo['ftxBlockTotal'] != '-':
+                totalInfo['ftxBlockTotal'] = '%.3f' % totalInfo['ftxBlockTotal']
+            if totalInfo['ftxLBlockTotal'] != '-':
+                totalInfo['ftxLBlockTotal'] = '%.3f' % totalInfo['ftxLBlockTotal']
+            if totalInfo['ftxBlockCnt'] != '-':
+                totalInfo['ftxBlockCnt'] = convertNum(totalInfo['ftxBlockCnt'])
+            if totalInfo['ftxLSwitch'] != '-':
+                totalInfo['ftxLSwitch'] = convertNum(totalInfo['ftxLSwitch'])
+
+            totalFutexInfo = \
+                ('{0:>29} {1:>10} {2:>10} {3:>10} ' \
+                '{4:>8} {5:>10} {6:>10} {7:>10} {8:>8} ' \
+                '{9:>8} {10:>10} {11:>8} {12:>10}').\
+                format('[ TOTAL ]', \
+                totalInfo['ftxTotal'], totalInfo['ftxProcess'], \
+                totalInfo['ftxBlockTotal'], totalInfo['ftxBlockCnt'], \
+                totalInfo['ftxMax'], totalInfo['ftxLock'], \
+                totalInfo['ftxLockMax'], totalInfo['ftxLockCnt'], \
+                totalInfo['ftxWaitCnt'], totalInfo['ftxLBlockTotal'], \
+                totalInfo['ftxLSwitch'], '-')
+
+            SystemManager.printPipe('%s\n%s' % (totalFutexInfo, oneLine))
+
+            # print thread info #
+            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.clearPrint()
 
         if not SystemManager.showAll:
             return
@@ -34572,10 +34638,10 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
         else:
-            totalStrInfo = "%16s(%5s)" % ('[TOTAL]', '-')
+            totalStrInfo = "{0:>23}".format('[ TOTAL ]')
             SystemManager.printPipe(totalStrInfo)
 
-            # total info #
+            # print total info #
             syscallInfo = ''
             for sysId, val in sorted(\
                 totalInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
@@ -34583,7 +34649,7 @@ class ThreadAnalyzer(object):
 
                 syscallInfo = \
                     ('{0:1} {1:>30}({2:>3}) {3:>12} '
-                    '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}\n').format(\
+                    '{4:>12} {5:>12} {6:>12} {7:>12} {8:>12}').format(\
                     ' ' * len(totalStrInfo), syscall, sysId, \
                     '%.6f' % val['usage'], convertNum(val['count']), \
                     convertNum(val['err']), '%.6f' % val['min'], \
@@ -34592,6 +34658,7 @@ class ThreadAnalyzer(object):
                 SystemManager.printPipe(syscallInfo)
             SystemManager.printPipe('\n%s' % oneLine)
 
+            # print thread info #
             SystemManager.printPipe(SystemManager.bufferString)
             SystemManager.clearPrint()
 
