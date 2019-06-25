@@ -11010,7 +11010,10 @@ class SystemManager(object):
                 tids = value[0]
 
                 for tid in list(map(int, tids.split(','))):
-                    os.kill(int(tid), signal.SIGKILL)
+                    try:
+                        os.kill(int(tid), signal.SIGKILL)
+                    except:
+                        SystemManager.printSigError(tid, 'SIGKILL')
             elif len(value) == 2 and value[1] == 'CONT':
                 tids = value[0]
 
@@ -14814,6 +14817,20 @@ Copyright:
 
         SystemManager.writeCmd('raw_syscalls/filter', scmd)
         SystemManager.writeCmd(cmd, '1')
+
+
+
+    @staticmethod
+    def printSigError(tid, signal, level='error'):
+        err = SystemManager.getErrReason()
+        if level == 'error':
+            SystemManager.printError(
+                "Fail to send %s to %s because %s" % \
+                (signal, tid, err))
+        elif level == 'warning':
+            SystemManager.printWarning(
+                "Fail to send %s to %s because %s" % \
+                (signal, tid, err))
 
 
 
@@ -19995,6 +20012,7 @@ Copyright:
             finally:
                 try:
                     pipeObj.close()
+
                     os.killpg(procObj.pid, signal.SIGKILL)
                 except:
                     pass
@@ -21075,25 +21093,17 @@ Copyright:
                                 try:
                                     os.kill(tid, signal.SIGSTOP)
                                 except:
-                                    err = map(str, sys.exc_info()[1].args)
-                                    SystemManager.printError((
-                                        "Fail to send signal SIGSTOP to %s "
-                                        "because %s") % \
-                                        (tid, ' '.join(list(err))))
+                                    SystemManager.printSigError(tid, 'SIGSTOP')
                             val['running'] = False
                     # continue #
                     else:
                         if not val['running']:
+                            val['running'] = True
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, signal.SIGCONT)
                                 except:
-                                    err = map(str, sys.exc_info()[1].args)
-                                    SystemManager.printError((
-                                        "Fail to send signal SIGCONT to %s "
-                                        "because %s") % \
-                                        (tid, ' '.join(list(err))))
-                            val['running'] = True
+                                    SystemManager.printSigError(tid, 'SIGCONT')
 
                 time.sleep(SLEEP_SEC)
         except:
@@ -21104,10 +21114,7 @@ Copyright:
                     try:
                         os.kill(tid, signal.SIGCONT)
                     except:
-                        err = map(str, sys.exc_info()[1].args)
-                        SystemManager.printError(
-                            "Fail to send signal SIGCONT to %s because %s" % \
-                            (tid, ' '.join(list(err))))
+                        SystemManager.printSigError(tid, 'SIGCONT')
 
 
 
@@ -21117,7 +21124,7 @@ Copyright:
             try:
                 os.kill(pid, signal.SIGKILL)
             except:
-                pass
+                SystemManager.printSigError(pid, 'SIGKILL', 'warning')
 
 
 
@@ -21202,10 +21209,7 @@ Copyright:
                         "sent signal %s to %s process" % \
                         (SIG_LIST[nrSig], pid))
                 except:
-                    SystemManager.printError(\
-                        "Fail to send signal %s to %s because %s" % \
-                        (SIG_LIST[nrSig], pid,\
-                        ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                    SystemManager.printSigError(pid, SIG_LIST[nrSig])
             return
 
         commLocation = sys.argv[0].rfind('/')
@@ -21254,10 +21258,7 @@ Copyright:
                         SystemManager.printInfo(\
                             "started %s process to profile" % pid)
                     except:
-                        SystemManager.printError(\
-                            "Fail to send signal %s to %s because %s" % \
-                            (SIG_LIST[nrSig], pid, \
-                            ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                        SystemManager.printSigError(pid, SIG_LIST[nrSig])
                 elif SystemManager.isStopMode():
                     try:
                         os.kill(int(pid), nrSig)
@@ -21265,10 +21266,7 @@ Copyright:
                             "sent signal %s to %s process" % \
                             (SIG_LIST[nrSig], pid))
                     except:
-                        SystemManager.printError(\
-                            "Fail to send signal %s to %s because %s" % \
-                            (SIG_LIST[nrSig], pid, \
-                            ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                        SystemManager.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
                     os.kill(int(pid), nrSig)
@@ -21276,10 +21274,7 @@ Copyright:
                         "sent signal %s to %s process" % \
                         (SIG_LIST[nrSig], pid))
                 except:
-                    SystemManager.printError(\
-                        "Fail to send signal %s to %s because %s" % \
-                        (SIG_LIST[nrSig], pid, \
-                        ' '.join(list(map(str, sys.exc_info()[1].args)))))
+                    SystemManager.printSigError(pid, SIG_LIST[nrSig])
 
             nrProc += 1
 
@@ -24899,6 +24894,7 @@ class Debugger(object):
         try:
             os.kill(self.pid, signal.SIGCONT)
         except:
+            SystemManager.printSigError(self.pid, 'SIGCONT', 'warning')
             return
 
 
@@ -25024,9 +25020,7 @@ class Debugger(object):
         try:
             os.kill(pid, signal.SIGSTOP)
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printWarning(\
-                'Fail to stop thread %s because %s' % (pid, err))
+            SystemManager.printSigError(pid, 'SIGSTOP', 'warning')
             return -1
 
         return 0
@@ -25051,9 +25045,7 @@ class Debugger(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printWarning(\
-                'Fail to continue thread %s because it does not exist')
+            SystemManager.printSigError(pid, '0', 'warning')
             return -1
 
         # check target status #
@@ -25091,7 +25083,8 @@ class Debugger(object):
                 try:
                     os.kill(self.pid, signal.SIGKILL)
                 except:
-                    pass
+                    SystemManager.printSigError(pid, 'SIGKILL', 'warning')
+
                 return 0
 
         # check the process is running #
@@ -26561,7 +26554,6 @@ class Debugger(object):
                     SystemManager.printWarning(\
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
-                    raise Exception()
 
             except SystemExit:
                 return
@@ -26892,7 +26884,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 'Fail to pause thread %s because %s' % (lastTid, err))
         finally:
             for pid in dlist:
-                os.kill(pid, signal.SIGINT)
+                try:
+                    os.kill(pid, signal.SIGINT)
+                except:
+                    SystemManager.printSigError(pid, 'SIGINT')
 
 
 
@@ -30179,7 +30174,11 @@ class ThreadAnalyzer(object):
             if SystemManager.countEnable:
                 SystemManager.progressCnt += 1
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    os.kill(SystemManager.pid, signal.SIGINT)
+                    try:
+                        os.kill(SystemManager.pid, signal.SIGINT)
+                    except:
+                        SystemManager.printSigError(\
+                            SystemManager.pid, 'SIGINT', 'warning')
 
             # reset system status #
             del self.prevProcData
@@ -30255,7 +30254,11 @@ class ThreadAnalyzer(object):
             if SystemManager.countEnable:
                 if SystemManager.progressCnt >= SystemManager.repeatCount:
                     UtilManager.deleteProgress()
-                    os.kill(SystemManager.pid, signal.SIGINT)
+                    try:
+                        os.kill(SystemManager.pid, signal.SIGINT)
+                    except:
+                        SystemManager.printSigError(\
+                            SystemManager.pid, 'SIGINT', 'warning')
 
                 UtilManager.printProgress(\
                     SystemManager.progressCnt, SystemManager.repeatCount)
@@ -41603,8 +41606,9 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['stat'][self.commIdx].find(item) >= 0:
                 try:
                     os.kill(int(tid), signal.SIGKILL)
+
                     SystemManager.printInfo(\
-                        "sent KILL signal to %s process" %  tid)
+                        "sent KILL signal to %s task" %  tid)
                 except:
                     pass
 
@@ -43909,12 +43913,8 @@ class ThreadAnalyzer(object):
             if SystemManager.jsonPrintEnable:
                 jsonData[idx] = dict()
                 jsonData[idx]['comm'] = comm
-                jsonData[idx][pidType] = pid
-
-                if SystemManager.processEnable:
-                    jsonData[idx][ppidType] = stat[self.ppidIdx]
-                else:
-                    jsonData[idx][ppidType] = value['mainID']
+                jsonData[idx][pidType] = idx
+                jsonData[idx][ppidType] = pid
 
                 jsonData[idx]['nrThreads'] = stat[self.nrthreadIdx]
                 jsonData[idx]['sched'] = sched.replace(' ', '')
