@@ -25359,6 +25359,10 @@ class Debugger(object):
             self.callTable = dict()
             SystemManager.clearPrint()
 
+        # check user input #
+        SystemManager.waitUserInput(\
+            wait=0.000001, msg="Press enter key...")
+
         # update terminal size #
         if not SystemManager.printFile:
             SystemManager.updateTty()
