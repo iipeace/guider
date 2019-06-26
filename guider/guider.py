@@ -17168,7 +17168,7 @@ Copyright:
                 raise Exception()
         except:
             SystemManager.printError(\
-                "wrong option value %s with -s option" % value)
+                "wrong path %s with -s option because of permission" % value)
             sys.exit(0)
 
         # remove double slashs #
@@ -17253,7 +17253,7 @@ Copyright:
                 # check writable access #
                 if not SystemManager.isWritable(value):
                     SystemManager.printError(\
-                        "wrong path %s with -o option" % value)
+                        "wrong path %s with -o option because of permission" % value)
                     sys.exit(0)
 
                 SystemManager.printFile = os.path.normpath(value)
