@@ -10685,6 +10685,7 @@ class SystemManager(object):
     reportFileEnable = False
     graphEnable = False
     procBuffer = []
+    topInstance = None
     procInstance = None
     fileInstance = None
     sysInstance = None
@@ -29819,7 +29820,7 @@ class ThreadAnalyzer(object):
             self.nrthreadIdx = ConfigManager.STAT_ATTR.index("NRTHREAD")
             self.prioIdx = ConfigManager.STAT_ATTR.index("PRIORITY")
             self.policyIdx = ConfigManager.STAT_ATTR.index("POLICY")
-            self.vsizeIdx = ConfigManager.STAT_ATTR.index("VSIZE")
+            self.vssIdx = ConfigManager.STAT_ATTR.index("VSIZE")
             self.rssIdx = ConfigManager.STAT_ATTR.index("RSS")
             self.scodeIdx = ConfigManager.STAT_ATTR.index("STARTCODE")
             self.ecodeIdx = ConfigManager.STAT_ATTR.index("ENDCODE")
@@ -37332,10 +37333,72 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
         ThreadAnalyzer.printProcTree()
 
+        # print Leak hint #
+        msg = ' Leak Hint '
+        stars = '*' * int((int(SystemManager.lineLength) - len(msg)) / 2)
+        SystemManager.printPipe('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        ThreadAnalyzer.printLeakHint()
+
         # initialize parse buffer #
         ThreadAnalyzer.lifecycleData = {}
         ThreadAnalyzer.procTotData = {}
         ThreadAnalyzer.procIntData = []
+
+
+
+    @staticmethod
+    def printLeakHint():
+        if not SystemManager.isTopMode() or \
+            not SystemManager.topInstance:
+            SystemManager.printPipe("\n\tNone")
+            return
+
+        convertNum = UtilManager.convertNumber
+        convertFunc = UtilManager.convertSize2Unit
+
+        for pid in tuple(SystemManager.procInstance.keys()):
+            path = '%s/%s' % (SystemManager.procPath, pid)
+            SystemManager.topInstance.updateOOMScore(path, pid)
+            SystemManager.topInstance.saveProcStatusData(path, pid)
+
+        SystemManager.printPipe((\
+            "\n{0:1}\n{1:>16}({2:>5}/{3:>5}) "
+            "{4:>8} {5:>8} {6:>8} {7:>12} {8:>20}\n{9:^1}\n").format(\
+                twoLine, 'Name', 'PID', 'PPID', 'VSS', 'RSS', 'SHM', \
+                'OOM_SCORE', 'LifeTime', oneLine))
+
+        cnt = 0
+        commIdx = SystemManager.topInstance.commIdx
+        ppidIdx = SystemManager.topInstance.ppidIdx
+        vssIdx = SystemManager.topInstance.vssIdx
+        rssIdx = SystemManager.topInstance.rssIdx
+        shrIdx = SystemManager.topInstance.shrIdx
+
+        for pid, val in sorted(SystemManager.procInstance.items(), \
+            key=lambda x: long(x[1]['oomScore']), reverse=True):
+            if val['oomScore'] == 0:
+                break
+
+            stat = val['stat']
+            statm = val['statm']
+            comm = stat[commIdx][1:-1]
+
+            SystemManager.printPipe((\
+                "{0:>16}({1:>5}/{2:>5}) "
+                "{3:>8} {4:>8} {5:>8} {6:>12} {7:>20}\n").format(\
+                    comm, pid, stat[ppidIdx], \
+                    convertFunc(long(stat[vssIdx])), \
+                    convertFunc(long(stat[rssIdx]) << 12), \
+                    convertFunc(long(statm[shrIdx]) << 12), \
+                    convertNum(val['oomScore']), \
+                    UtilManager.convertTime(val['runtime'])))
+
+            cnt += 1
+
+        if cnt == 0:
+            SystemManager.printPipe("\n\tNone")
+
+        SystemManager.printPipe(oneLine)
 
 
 
@@ -40705,6 +40768,7 @@ class ThreadAnalyzer(object):
 
     def saveFileStat(self):
         # save proc and file instance #
+        SystemManager.topInstance = self
         SystemManager.procInstance = self.procData
         SystemManager.fileInstance = self.fileData
 
@@ -41046,6 +41110,7 @@ class ThreadAnalyzer(object):
         del self.prevProcData
         self.prevProcData = self.procData
         self.procData = {}
+        SystemManager.topInstance = self
         SystemManager.procInstance = self.procData
 
         # get thread list #
@@ -41654,45 +41719,49 @@ class ThreadAnalyzer(object):
 
         # save oom_score #
         if SystemManager.oomEnable:
-            # check main thread to remove redundant operation #
-            if SystemManager.isThreadTopMode():
-                mainID = self.procData[tid]['mainID']
-                if mainID in self.procData:
-                    if 'oomScore' in self.procData[mainID]:
-                        self.procData[tid]['oomScore'] = \
-                            self.procData[mainID]['oomScore']
-                        self.procData[tid]['oomFd'] = \
-                            self.procData[mainID]['oomFd']
-                        return
+            self.updateOOMScore(path, tid)
 
-            try:
-                self.prevProcData[tid]['oomFd'].seek(0)
-                self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
-                self.procData[tid]['oomScore'] = \
-                    long(self.procData[tid]['oomFd'].readline())
-            except:
-                try:
-                    oomPath = "%s/%s" % (path, 'oom_score')
-                    oomFd = self.procData[tid]['oomFd'] = open(oomPath, 'r')
+
+
+    def updateOOMScore(self, path, tid):
+        # check main thread to remove redundant operation #
+        if SystemManager.isThreadTopMode():
+            mainID = self.procData[tid]['mainID']
+            if mainID in self.procData:
+                if 'oomScore' in self.procData[mainID]:
                     self.procData[tid]['oomScore'] = \
-                        long(self.procData[tid]['oomFd'].readline())
-
-                    # fd resource is about to run out #
-                    if SystemManager.maxFd-16 < oomFd.fileno():
-                        oomFd.close()
-                        self.procData[tid]['oomFd'] = None
-                        self.reclaimFds()
-                    elif SystemManager.isThreadTopMode():
-                        if mainID in self.procData:
-                            self.procData[mainID]['oomScore'] = \
-                                self.procData[tid]['oomScore']
-                            self.procData[mainID]['oomFd'] = \
-                                self.procData[tid]['oomFd']
-                except:
-                    SystemManager.printWarning('Fail to open %s' % oomPath)
-                    self.procData.pop(tid, None)
+                        self.procData[mainID]['oomScore']
+                    self.procData[tid]['oomFd'] = \
+                        self.procData[mainID]['oomFd']
                     return
 
+        try:
+            self.prevProcData[tid]['oomFd'].seek(0)
+            self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
+            self.procData[tid]['oomScore'] = \
+                long(self.procData[tid]['oomFd'].readline())
+        except:
+            try:
+                oomPath = "%s/%s" % (path, 'oom_score')
+                oomFd = self.procData[tid]['oomFd'] = open(oomPath, 'r')
+                self.procData[tid]['oomScore'] = \
+                    long(self.procData[tid]['oomFd'].readline())
+
+                # fd resource is about to run out #
+                if SystemManager.maxFd-16 < oomFd.fileno():
+                    oomFd.close()
+                    self.procData[tid]['oomFd'] = None
+                    self.reclaimFds()
+                elif SystemManager.isThreadTopMode():
+                    if mainID in self.procData:
+                        self.procData[mainID]['oomScore'] = \
+                            self.procData[tid]['oomScore']
+                        self.procData[mainID]['oomFd'] = \
+                            self.procData[tid]['oomFd']
+            except:
+                SystemManager.printWarning('Fail to open %s' % oomPath)
+                self.procData.pop(tid, None)
+                return
 
 
 
@@ -42069,7 +42138,8 @@ class ThreadAnalyzer(object):
         coreStats = dict()
 
         for idx, value in sorted(self.cpuData.items(),\
-            key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, reverse=False):
+            key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0, \
+            reverse=False):
             try:
                 nowData = self.cpuData[int(idx)]
 
@@ -43902,7 +43972,7 @@ class ThreadAnalyzer(object):
                 sched = '?'
 
             try:
-                vss = long(stat[self.vsizeIdx]) >> 20
+                vss = long(stat[self.vssIdx]) >> 20
             except:
                 vss = 0
 
@@ -43927,7 +43997,7 @@ class ThreadAnalyzer(object):
                 except:
                     jsonData[idx]['dtime'] = 0
 
-                jsonData[idx]['vss'] = long(stat[self.vsizeIdx]) >> 20
+                jsonData[idx]['vss'] = long(stat[self.vssIdx]) >> 20
                 jsonData[idx]['mem'] = mems >> 8
                 jsonData[idx]['code'] = codeSize
                 jsonData[idx]['shared'] = shr
@@ -44179,7 +44249,7 @@ class ThreadAnalyzer(object):
                 str(schedValue), \
                 int(value['ttime']), int(value['utime']), \
                 int(value['stime']), '-', \
-                long(stat[self.vsizeIdx]) >> 20, \
+                long(stat[self.vssIdx]) >> 20, \
                 long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
                 int(value['btime']), readSize, writeSize, value['majflt'],\
                 '-', '-', '-', lifeTime[:9], '-', cl=cl, pd=pd))
