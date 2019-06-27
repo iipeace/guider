@@ -11764,13 +11764,21 @@ class SystemManager(object):
         elif value == 'r':
             SystemManager.printInfo("sorted by RUNTIME")
         elif value == 'o':
-            SystemManager.printInfo("sorted by OOMScore")
+            SystemManager.printInfo("sorted by OOMSCORE")
             ThreadAnalyzer.setLastField('oom')
         elif value == 'P':
             SystemManager.printInfo("sorted by PRIORITY")
         elif value == 'f':
             SystemManager.printInfo("sorted by FILE")
             SystemManager.fileTopEnable = True
+        elif value == 'C':
+            if not SystemManager.isThreadTopMode():
+                SystemManager.printError(\
+                   "Fail to sort by CONTEXTSWITCH because "
+                    "it is supported on thread mode")
+                sys.exit(0)
+            SystemManager.printInfo("sorted by CONTEXTSWITCH")
+            SystemManager.showAll = True
         else:
             SystemManager.printError(\
                 "wrong option value '%s' for sort" % value)
@@ -11902,7 +11910,8 @@ Usage:
              b:block/w:wfc/n:new/
              r:runtime/f:file/
              P:priority/
-             o:oomScore>
+             o:oomScore/
+             C:contextswitch>
         -P                          group threads in same process
         -I  <DIR|FILE>              set input path
         -m  <ROWS:COLS>             set terminal size
@@ -17253,8 +17262,9 @@ Copyright:
 
                 # check writable access #
                 if not SystemManager.isWritable(value):
-                    SystemManager.printError(\
-                        "wrong path %s with -o option because of permission" % value)
+                    SystemManager.printError((\
+                        "wrong path %s with -o option "
+                        "because of permission") % value)
                     sys.exit(0)
 
                 SystemManager.printFile = os.path.normpath(value)
@@ -43492,6 +43502,22 @@ class ThreadAnalyzer(object):
         elif SystemManager.sort == 'P':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: int(e[1]['stat'][self.prioIdx]), reverse=False)
+        # contextswitch #
+        elif SystemManager.sort == 'C':
+            try:
+                now = self.procData
+                prev = self.prevProcData
+                yld = 'voluntary_ctxt_switches'
+                prmpt = 'nonvoluntary_ctxt_switches'
+                sortedProcData = \
+                    sorted(now.items(), key=lambda k: \
+                        (long(now[k[0]]['status'][yld]) - \
+                            long(prev[k[0]]['status'][yld])) + \
+                        (long(now[k[0]]['status'][prmpt]) - \
+                            long(prev[k[0]]['status'][prmpt])), \
+                        reverse=True)
+            except:
+                sortedProcData = self.procData.items()
         # CPU #
         else:
             # set cpu usage as default #
@@ -43741,6 +43767,11 @@ class ThreadAnalyzer(object):
                     "Blk", "RD", "WR", "NrFlt",\
                     sidType, pgrpType, "FD", "LifeTime", etc, \
                     oneLine, twoLine, cl=cl, pd=pd), newline = 3)
+
+        # check sort option by context switch #
+        if SystemManager.sort == 'C':
+            for idx, value in self.procData.items():
+                self.saveProcStatusData(value['taskPath'], idx)
 
         # set sort value #
         sortedProcData = self.getSortedProcData()
