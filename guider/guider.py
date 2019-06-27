@@ -25389,19 +25389,25 @@ class Debugger(object):
 
         # get cpu Usage #
         cpuUsage = self.getCpuUsage()
-        cpuUsage = cpuUsage / diff
+        ttime = cpuUsage[0] / diff
+        utime = cpuUsage[1] / diff
+        stime = cpuUsage[2] / diff
 
         if not SystemManager.showAll and SystemManager.cpuEnable:
-            floatUsage = cpuUsage / 100
+            floatTotalUsage = ttime / 100
+            floatUserUsage = utime / 100
+            floatSysUsage = stime / 100
         else:
-            floatUsage = 1
+            floatTotalUsage = 1
+            floatUserUsage = 1
+            floatSysUsage = 1
 
         SystemManager.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[NrSymbols: %s] [CPU: %.1f%%]%s \n%s\n') % \
+            '[NrSymbols: %s] [CPU: %.1f%%(Usr:%.1f%%/Sys:%.1f%%)]%s \n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
                 convert(self.totalCall), len(self.callTable), \
-                cpuUsage, sampleStr, twoLine), newline=2)
+                ttime, utime, stime, sampleStr, twoLine), newline=2)
 
         SystemManager.addPrint(\
             '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
@@ -25414,7 +25420,7 @@ class Debugger(object):
                 sym = '??'
 
             try:
-                per = value['cnt'] / nrTotal * 100 * floatUsage
+                per = value['cnt'] / nrTotal * 100 * floatTotalUsage
             except:
                 break
 
@@ -26273,16 +26279,18 @@ class Debugger(object):
         # get total cpu time #
         utime = long(statList[self.utimeIdx-2])
         stime = long(statList[self.stimeIdx-2])
-        usage = utime + stime
+        ttime = utime + stime
 
         prevUsage = self.prevCpuStat
 
         if self.prevCpuStat == None:
-            ret = 0
+            ret = [0, 0, 0]
         else:
-            ret = usage - prevUsage
+            ret = [ttime - prevUsage[0],
+                utime - prevUsage[1],
+                stime - prevUsage[2]]
 
-        self.prevCpuStat = usage
+        self.prevCpuStat = [ttime, utime, stime]
 
         return ret
 
