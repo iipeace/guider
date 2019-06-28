@@ -20716,7 +20716,7 @@ Copyright:
                 pass
 
         # parse options #
-        if len(sys.argv) != 3:
+        if len(sys.argv) < 3:
             SystemManager.printError(\
                 ("wrong option value to test cpu load, "
                 "input {THREAD:}LOAD in format"))
@@ -20784,7 +20784,7 @@ Copyright:
             taskstr = 'a process'
 
         SystemManager.printInfo(\
-            "created %s and limited cpu usage to %d%% each other" % \
+            "created %s and limited them to use cpu %d%% totally" % \
                 (taskstr, load))
 
         # limit CPU usage of tasks #
@@ -20817,13 +20817,6 @@ Copyright:
 
             SystemManager.waitEvent()
 
-            sys.exit(0)
-
-        # parse options #
-        if len(sys.argv) != 3:
-            SystemManager.printError(\
-                ("wrong option value to test memory allocation, "
-                "input SIZE{:INTERVAL:COUNT} in format"))
             sys.exit(0)
 
         # parse option #
