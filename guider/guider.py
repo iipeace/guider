@@ -89,6 +89,11 @@ class ConfigManager(object):
         'x64'
     }
 
+    # Define cgroup entity #
+    CGROUP_VALUE = [
+        'cpu.shares', 'cpuset.cpus'
+    ]
+
     # Define state of process #
     PROC_STAT_TYPE = {
         'R': 'running',
@@ -23905,11 +23910,24 @@ Copyright:
 
 
     def getCgroupTree(self):
+        def updateValue(dirpath, subfiles, item):
+            for target in ConfigManager.CGROUP_VALUE:
+                if not target in subfiles:
+                    continue
+
+                path = '%s/%s' % (dirpath, target)
+                try:
+                    with open(path, 'r') as fd:
+                        item[target] = fd.readline()[:-1]
+                except:
+                    pass
+
         def getSubDirs(root, path):
             for dirpath, subdirs, subfiles in path:
                 for item in subdirs:
                     subdir = os.path.join(dirpath, item)
-                    root[subdir] = None
+                    root[subdir] = dict()
+                    updateValue(dirpath, subfiles, root[subdir])
 
         cgroupPath = self.getCgroupPath()
         if not cgroupPath:
@@ -23921,10 +23939,14 @@ Copyright:
 
         # split a path to multiple tokens #
         dirDict = {}
-        for item in dirList:
+        for item, val in dirList.items():
             p = dirDict
-            for x in item[len(cgroupPath):].split('/')[1:]:
+            tokList = item[len(cgroupPath):].split('/')[1:]
+            for x in tokList:
                 p = p.setdefault(x, {})
+
+            # merge with a value #
+            p.update(val)
 
         return dirDict
 
@@ -23932,7 +23954,23 @@ Copyright:
 
     def printCgroupInfo(self):
         def printDirTree(root, depth):
-            for curdir, subdir in sorted(root.items()):
+            if type(root) is not dict:
+                return
+
+            tempRoot = copy.deepcopy(root)
+
+            for curdir, subdir in sorted(tempRoot.items()):
+                cval = None
+                cstr = ''
+                for val in subdir.keys():
+                    if not val in ConfigManager.CGROUP_VALUE:
+                        continue
+
+                    cval = subdir[val]
+                    cstr = '(%s)' % cval
+                    subdir.pop(val, None)
+                    break
+
                 indent = ''
                 if depth == 0:
                     indent = '\n'
@@ -23943,10 +23981,10 @@ Copyright:
                 nrChild = len(subdir)
                 if nrChild > 0:
                     SystemManager.infoBufferPrint(\
-                        '%s- %s[%s]' % (indent, curdir, nrChild))
+                        '%s- %s[%s] %s' % (indent, curdir, nrChild, cstr))
                 else:
                     SystemManager.infoBufferPrint(\
-                        '%s- %s' % (indent, curdir))
+                        '%s- %s %s' % (indent, curdir, cstr))
 
                 printDirTree(subdir, depth + 1)
 
