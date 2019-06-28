@@ -875,14 +875,18 @@ Usage:
 COMMAND:
     [monitor]   top         <process>
                 threadtop   <thread>
+                systemtop   <system>
                 bgtop       <background>
                 stacktop    <stack>
                 perftop     <PMU>
                 memtop      <memory>
                 disktop     <storage>
+                nettop      <network>
                 wsstop      <memory>
                 reptop      <JSON>
                 filetop     <file>
+                systop      <syscall>
+                usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
 
@@ -891,6 +895,7 @@ COMMAND:
                 filerecord  <file>
                 syscrecord  <syscall>
                 sysrecord   <system>
+                report      <report>
                 mem         <page>
 
     [visual]    draw        <image>
@@ -909,18 +914,22 @@ COMMAND:
                 setsched    <priority>
                 getaffinity <affinity>
                 setaffinity <affinity>
+                pstree      <tree>
                 printenv    <env>
+                printsystem <system>
                 readelf     <file>
                 addr2line   <symbol>
+                leaktrace   <leak>
 
-    [run]       list        <list>
+    [control]   list        <list>
                 start       <signal>
                 send        <signal>
                 event       <event>
                 server      <server>
                 client      <client>
 
-    [test]      alloctest   <mem>
+    [test]      cputest     <cpu>
+                alloctest   <mem>
 
 FILE:
     Profile file (e.g. guider.dat)
