@@ -17086,6 +17086,7 @@ Copyright:
     @staticmethod
     def parseRuntimeOption(value):
         SystemManager.countEnable = True
+        convertNum = UtilManager.convertNumber
 
         # split params #
         repeatParams = value.split(':')
@@ -17108,13 +17109,13 @@ Copyright:
                     SystemManager.isTerm = False
                     SystemManager.printInfo(\
                         "run every %s sec %s time" % \
-                        (SystemManager.intervalEnable, \
-                        SystemManager.repeatCount))
+                        (convertNum(SystemManager.intervalEnable), \
+                        convertNum(SystemManager.repeatCount)))
                 else:
                     SystemManager.printInfo(\
                         "run only %s sec %s time" % \
-                        (SystemManager.intervalEnable, \
-                        SystemManager.repeatCount))
+                        (convertNum(SystemManager.intervalEnable), \
+                        convertNum(SystemManager.repeatCount)))
             except:
                 SystemManager.printError(\
                     "wrong option value with -R, input integer values")
@@ -17139,8 +17140,8 @@ Copyright:
 
                 SystemManager.printInfo(\
                     "run only %s sec %s time" % \
-                    (SystemManager.intervalEnable, \
-                    SystemManager.repeatCount))
+                    (convertNum(SystemManager.intervalEnable), \
+                    convertNum(SystemManager.repeatCount)))
             except:
                 SystemManager.printError(\
                     "wrong option value with -R, input a integer value")
@@ -25162,6 +25163,8 @@ class Debugger(object):
                 return ret
             else:
                 data = UtilManager.word2bstring(data)
+                if not data:
+                    return -1
 
                 # converting integer-type data #
                 if 0 <= size <= 1:
@@ -25439,7 +25442,8 @@ class Debugger(object):
                 break
 
             if self.mode == 'syscall':
-                addVal = convert(value['cnt'])
+                addVal = "Cnt: %s, Err: %s" % (
+                    convert(value['cnt']), convert(value['err']))
             else:
                 addVal = value['path']
 
@@ -25722,7 +25726,17 @@ class Debugger(object):
 
 
 
-    def addSample(self, sym, filename, current=None, realtime=False, bt=None):
+    def addSample(\
+        self, sym, filename, current=None, realtime=False, bt=None, err=None):
+        if err:
+            # increase err count #
+            try:
+                self.callTable[sym]['err'] += 1
+            except:
+                pass
+
+            return
+
         if realtime:
             self.totalCall += 1
 
@@ -25763,6 +25777,7 @@ class Debugger(object):
                 self.callTable[sym] = dict()
                 self.callTable[sym]['cnt'] = 1
                 self.callTable[sym]['path'] = filename
+                self.callTable[sym]['err'] = 0
                 self.callTable[sym]['backtrace'] = dict()
 
             # add file table #
@@ -26197,6 +26212,8 @@ class Debugger(object):
                 err = '%s (%s)' % \
                     (ConfigManager.ERR_TYPE[abs(retval+1)], \
                     os.strerror(abs(retval)))
+
+                self.addSample(name, '??', err=retval)
             else:
                 err = ''
 
