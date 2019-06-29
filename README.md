@@ -5,13 +5,12 @@
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 <pre><code>
-                _      _
-   __ _  _   _ (_)  __| |   
-  / _` || | | || | / _` | / _ \| '__|   
- | (_| || |_| || || (_| ||  __/| |   
-  \__, | \__,_||_| \__,_| \___||_|   
-   |___/   
-
+   _____       _     _
+  / ____|     (_)   | |
+ | |  __ _   _ _  __| | ___ _ __
+ | | |_ | | | | |/ _` |/ _ \ '__|
+ | |__| | |_| | | (_| |  __/ |
+  \_____|\__,_|_|\__,_|\___|_|
 </code></pre>
 
 
