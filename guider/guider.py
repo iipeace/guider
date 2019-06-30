@@ -91,7 +91,10 @@ class ConfigManager(object):
 
     # Define cgroup entity #
     CGROUP_VALUE = [
-        'cpu.shares', 'cpuset.cpus'
+        'tasks',
+        'cpu.shares', 'cpuset.cpus',
+        'memory.limit_in_bytes',
+        'memory.memsw.limit_in_bytes',
     ]
 
     # Define state of process #
@@ -23910,24 +23913,42 @@ Copyright:
 
 
     def getCgroupTree(self):
-        def updateValue(dirpath, subfiles, item):
-            for target in ConfigManager.CGROUP_VALUE:
-                if not target in subfiles:
+        def updateValues(dirpath, subfiles, item):
+            for target in subfiles:
+                if not target in ConfigManager.CGROUP_VALUE:
                     continue
 
-                path = '%s/%s' % (dirpath, target)
                 try:
+                    path = '%s/%s' % (dirpath, target)
                     with open(path, 'r') as fd:
-                        item[target] = fd.readline()[:-1]
+                        if target == 'tasks':
+                            item[target] = \
+                                UtilManager.convertNumber(len(fd.readlines()))
+                        else:
+                            cval = fd.readline()[:-1]
+                            if cval.isdigit():
+                                cval = UtilManager.convertNumber(long(cval))
+                            item[target] = cval
                 except:
                     pass
 
-        def getSubDirs(root, path):
+        def getPaths(root, path):
             for dirpath, subdirs, subfiles in path:
+                # update subdir #
                 for item in subdirs:
                     subdir = os.path.join(dirpath, item)
                     root[subdir] = dict()
-                    updateValue(dirpath, subfiles, root[subdir])
+
+                # update subfiles #
+                for item in subfiles:
+                    subfile = os.path.join(dirpath, item)
+
+                    # check value file #
+                    if not item in ConfigManager.CGROUP_VALUE:
+                        continue
+
+                    root.setdefault(dirpath, {})
+                    updateValues(dirpath, subfiles, root[dirpath])
 
         cgroupPath = self.getCgroupPath()
         if not cgroupPath:
@@ -23935,7 +23956,7 @@ Copyright:
 
         # get full path list #
         dirList = dict()
-        getSubDirs(dirList, os.walk(cgroupPath))
+        getPaths(dirList, os.walk(cgroupPath))
 
         # split a path to multiple tokens #
         dirDict = {}
@@ -23960,16 +23981,21 @@ Copyright:
             tempRoot = copy.deepcopy(root)
 
             for curdir, subdir in sorted(tempRoot.items()):
-                cval = None
                 cstr = ''
+                nrTasks = 0
+
+                tempSubdir = copy.deepcopy(subdir)
                 for val in subdir.keys():
                     if not val in ConfigManager.CGROUP_VALUE:
                         continue
+                    elif val == 'tasks':
+                        nrTasks = subdir[val]
+                        tempSubdir.pop(val, None)
+                        continue
 
-                    cval = subdir[val]
-                    cstr = '(%s)' % cval
-                    subdir.pop(val, None)
-                    break
+                    cname = '.'.join(val.split('.')[1:])
+                    cstr = '%s%s:%s, ' % (cstr, cname, subdir[val])
+                    tempSubdir.pop(val, None)
 
                 indent = ''
                 if depth == 0:
@@ -23978,15 +24004,21 @@ Copyright:
                 for idx in xrange(0, depth):
                     indent = '%s%s|' % (indent, '     ')
 
-                nrChild = len(subdir)
-                if nrChild > 0:
+                if len(cstr) > 0:
+                    cstr = '<%s>' % cstr[:-2]
+
+                nrTasks = '(task:%s)' % nrTasks
+                if len(tempSubdir) > 0:
+                    nrChild = '[sub:%s]' % len(tempSubdir)
                     SystemManager.infoBufferPrint(\
-                        '%s- %s[%s] %s' % (indent, curdir, nrChild, cstr))
+                        '%s- %s%s%s%s' % \
+                        (indent, curdir, nrChild, nrTasks, cstr))
                 else:
                     SystemManager.infoBufferPrint(\
-                        '%s- %s %s' % (indent, curdir, cstr))
+                        '%s- %s%s%s' % \
+                        (indent, curdir, nrTasks, cstr))
 
-                printDirTree(subdir, depth + 1)
+                printDirTree(tempSubdir, depth + 1)
 
             if depth == 0:
                 SystemManager.infoBufferPrint(' ')
