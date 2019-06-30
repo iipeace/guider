@@ -440,7 +440,7 @@ Output
 
 >>>
            
-    # ./guider.py kill -stop 12345
+    # ./guider.py kill -stop 10594
 
 
                     _      _
@@ -771,6 +771,7 @@ Output
 
 ![guider-graph-image](https://cloud.githubusercontent.com/assets/15862689/23285445/a03e0bf0-fa74-11e6-9f5a-872a3f10fe48.png)    
 ![guider-chart-image](https://cloud.githubusercontent.com/assets/15862689/24597375/67f31f22-1880-11e7-8290-64554ed2859c.png)
+![guider-web-image](https://user-images.githubusercontent.com/15862689/60395898-24a85000-9b75-11e9-857b-991bcae731bc.png)
 
 How to use
 =======
