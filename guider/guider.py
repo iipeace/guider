@@ -37487,6 +37487,9 @@ class ThreadAnalyzer(object):
             stat = val['stat']
             statm = val['statm']
             comm = stat[commIdx][1:-1]
+            runtime = \
+                SystemManager.uptime - \
+                long(val['stat'][ConfigManager.STAT_ATTR.index("STARTTIME")])
 
             SystemManager.printPipe((\
                 "{0:>16}({1:>5}/{2:>5}) "
@@ -37496,7 +37499,7 @@ class ThreadAnalyzer(object):
                     convertFunc(long(stat[rssIdx]) << 12), \
                     convertFunc(long(statm[shrIdx]) << 12), \
                     convertNum(val['oomScore']), \
-                    UtilManager.convertTime(val['runtime'])))
+                    UtilManager.convertTime(runtime)))
 
             cnt += 1
 
