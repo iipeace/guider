@@ -95,6 +95,7 @@ class ConfigManager(object):
         'cpu.shares', 'cpuset.cpus',
         'memory.limit_in_bytes',
         'memory.memsw.limit_in_bytes',
+        'blkio.weight', 'blkio.weight_device',
     ]
 
     # Define state of process #
@@ -23928,6 +23929,8 @@ Copyright:
                             cval = fd.readline()[:-1]
                             if cval.isdigit():
                                 cval = UtilManager.convertNumber(long(cval))
+                            elif cval == '':
+                                cval = 'none'
                             item[target] = cval
                 except:
                     pass
