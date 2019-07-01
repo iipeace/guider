@@ -10623,6 +10623,7 @@ class SystemManager(object):
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
     addr2linePath = None
+    boundaryLine = None
     objdumpPath = None
     demangleEnable = True
     compressEnable = True
@@ -11958,6 +11959,7 @@ OPTIONS:
         -o  <DIR>                   save output data
         -a                          show all stats and events
         -L  <RES:PER>               set graph Layout
+        -l  <BOUNDARY>              set boundary lines
         -E  <FILE>                  set error log path
         -v                          verbose
                     '''
@@ -12865,6 +12867,9 @@ Examples:
 
     - Draw graphs of cpu usage excluding chrome process and memory chart
         # {0:1} {1:1} guider.out -g ^chrome
+
+    - Draw graphs of cpu usage with some boundary lines
+        # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
     - Draw graphs of cpu usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
@@ -17521,11 +17526,17 @@ Copyright:
                 SystemManager.functionEnable = True
 
             elif option == 'l':
-                SystemManager.addr2linePath = value.split(',')
+                if SystemManager.isDrawMode():
+                    SystemManager.boundaryLine = value.split(',')
+                    SystemManager.printInfo(\
+                        "set %s as boundary line" % \
+                        ', '.join(SystemManager.boundaryLine))
+                else:
+                    SystemManager.addr2linePath = value.split(',')
 
-                SystemManager.printInfo(\
-                    "use %s as addr2line path" % \
-                    ', '.join(SystemManager.addr2linePath))
+                    SystemManager.printInfo(\
+                        "use %s as addr2line path" % \
+                        ', '.join(SystemManager.addr2linePath))
 
             elif option == 'r':
                 SystemManager.rootPath = value
@@ -17670,6 +17681,7 @@ Copyright:
                         SystemManager.funcDepth = sys.maxsize
                     else:
                         SystemManager.funcDepth = int(value)
+
                     if SystemManager.funcDepth < 0:
                         raise Exception()
                 except:
@@ -31328,6 +31340,41 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
+        def drawBoundary(ymax, labelList, gtype='cpu'):
+            if not SystemManager.boundaryLine:
+                return ymax
+
+            try:
+                boundaryList = \
+                    list(map(UtilManager.convertUnit2Size, \
+                        SystemManager.boundaryLine))
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printError(\
+                    "Fail to set boundary line because %s" % err)
+                sys.exit(0)
+
+            # draw boundary graph #
+            for boundary in boundaryList:
+                if gtype == 'io':
+                    bl = [boundary >> 10] * len(timeline)
+                elif gtype == 'mem':
+                    bl = [boundary >> 20] * len(timeline)
+                else:
+                    bl = [boundary] * len(timeline)
+
+                # update the maximum ytick #
+                if ymax < boundary:
+                    ymax = boundary
+
+                plot(timeline, bl, '-', linestyle='-',\
+                    linewidth=2, solid_capstyle='round')
+
+                labelList.append(\
+                    '[ Boundary %s ]' % UtilManager.convertSize2Unit(boundary))
+
+            return ymax
+
         def drawCpu(graphStats, xtype, pos, size):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -31376,6 +31423,9 @@ class ThreadAnalyzer(object):
                 else:
                     isVisibleTotal = False
 
+                # add boundary line #
+                ymax = drawBoundary(ymax, labelList)
+
                 #-------------------- Total GPU usage --------------------#
                 if isVisibleTotal:
                     for gpu, stat in gpuUsage.items():
@@ -31422,7 +31472,7 @@ class ThreadAnalyzer(object):
                         for idx, item in enumerate(blkWait):
                             blkWait[idx] += cpuUsage[idx]
 
-                            # set the max value of yticks #
+                            # update the maximum ytick #
                             if ymax < blkWait[idx]:
                                 ymax = blkWait[idx]
 
@@ -31478,7 +31528,7 @@ class ThreadAnalyzer(object):
                     maxUsage = max(cpuUsage)
                     maxIdx = cpuUsage.index(maxUsage)
 
-                    # set the max value of yticks #
+                    # update the maximum ytick #
                     if ymax < maxUsage:
                         ymax = maxUsage
 
@@ -31515,7 +31565,7 @@ class ThreadAnalyzer(object):
                     maxUsage = max(totalUsage)
                     maxIdx = totalUsage.index(maxUsage)
 
-                    # set the max value of yticks #
+                    # update the maximum ytick #
                     if ymax < maxUsage:
                         ymax = maxUsage
 
@@ -31565,7 +31615,7 @@ class ThreadAnalyzer(object):
                         if cnt > 0:
                             effectProcList[seq] += 1
 
-                    # set the max value of yticks #
+                    # update the maximum ytick #
                     maxusage = max(usage)
                     if ymax < maxusage:
                         ymax = maxusage
@@ -31660,6 +31710,9 @@ class ThreadAnalyzer(object):
                 elif len(timeline) > len(val):
                     timeline = val
             lent = len(timeline)
+
+            # add boundary line #
+            ymax = drawBoundary(0, labelList, 'io')
 
             # start loop #
             for key, val in graphStats.items():
@@ -32256,6 +32309,9 @@ class ThreadAnalyzer(object):
                 elif len(timeline) > len(val):
                     timeline = val
             lent = len(timeline)
+
+            # add boundary line #
+            ymax = drawBoundary(0, labelList, 'mem')
 
             # start loop #
             for key, val in graphStats.items():
@@ -45507,7 +45563,8 @@ def main(args=None):
                     SystemManager.sourceFile += ilist
 
             # remove redundant files #
-            SystemManager.sourceFile = list(set(SystemManager.sourceFile))
+            SystemManager.sourceFile = \
+                list(set(SystemManager.sourceFile))
 
     # parse analysis option #
     SystemManager.parseAnalOption()
