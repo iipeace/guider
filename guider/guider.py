@@ -12230,8 +12230,8 @@ Examples:
         # {0:1} {1:1} -g 1234 -a
                     '''.format(cmd, mode)
 
-                # system record #
-                elif SystemManager.isSystemRecordMode():
+                # general record #
+                elif SystemManager.isGeneralRecordMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -13485,11 +13485,11 @@ COMMAND:
                 strace      <syscall>
                 utrace      <usercall>
 
-    [profile]   record      <thread>
-                funcrecord  <function>
-                filerecord  <file>
-                syscrecord  <syscall>
-                sysrecord   <system>
+    [profile]   rec         <thread>
+                funcrec     <function>
+                filerec     <file>
+                sysrec      <syscall>
+                genrec      <system>
                 report      <report>
                 mem         <page>
 
@@ -13507,8 +13507,8 @@ COMMAND:
                 limitcpu    <cpu>
                 setcpu      <clock>
                 setsched    <priority>
-                getaffinity <affinity>
-                setaffinity <affinity>
+                getaff      <affinity>
+                setaff      <affinity>
                 pstree      <tree>
                 printenv    <env>
                 printsystem <system>
@@ -17203,7 +17203,7 @@ Copyright:
         # support no-report record mode #
         if SystemManager.isFileRecordMode() or \
             SystemManager.findOption('F') or \
-            SystemManager.isSystemRecordMode() or \
+            SystemManager.isGeneralRecordMode() or \
             SystemManager.findOption('y'):
             if SystemManager.outputFile.endswith('.dat'):
                 SystemManager.printFile = '%s.out' % \
@@ -18040,7 +18040,7 @@ Copyright:
             SystemManager.isFuncRecordMode() or \
             SystemManager.isFileRecordMode() or \
             SystemManager.isSyscallRecordMode() or \
-            SystemManager.isSystemRecordMode():
+            SystemManager.isGeneralRecordMode():
             return True
         else:
             return False
@@ -18052,7 +18052,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'record':
+        if sys.argv[1] == 'record' or \
+            sys.argv[1] == 'rec':
             return True
         else:
             return False
@@ -18064,7 +18065,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'funcrecord':
+        if sys.argv[1] == 'funcrecord' or \
+            sys.argv[1] == 'funcrec':
             return True
         else:
             return False
@@ -18076,7 +18078,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'filerecord':
+        if sys.argv[1] == 'filerecord' or \
+            sys.argv[1] == 'filerec':
             return True
         else:
             return False
@@ -18088,7 +18091,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'syscrecord':
+        if sys.argv[1] == 'sysrecord' or \
+            sys.argv[1] == 'sysrec':
             return True
         else:
             return False
@@ -18096,11 +18100,12 @@ Copyright:
 
 
     @staticmethod
-    def isSystemRecordMode():
+    def isGeneralRecordMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'sysrecord':
+        if sys.argv[1] == 'genrecord' or \
+            sys.argv[1] == 'genrec':
             return True
         else:
             return False
@@ -18291,7 +18296,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'setaffinity':
+        if sys.argv[1] == 'setaff':
             return True
         else:
             return False
@@ -18303,7 +18308,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'getaffinity':
+        if sys.argv[1] == 'getaff':
             return True
         else:
             return False
@@ -33553,12 +33558,12 @@ class ThreadAnalyzer(object):
         # print menu #
         SystemManager.printPipe((\
             "[%s] [ %s: %0.3f ] [ %s: %0.3f ] [ ActiveThread: %s ] " + \
-            "[ ContextSwitch: %s ] [ LogSize: %d KB ] (Unit: Sec/MB/NR)") % \
+            "[ ContextSwitch: %s ] [ LogSize: %s ] (Unit: Sec/MB/NR)") % \
             (title, 'Elapsed', round(float(self.totalTime), 7), \
             'Start', round(float(SystemManager.startTime), 7), \
             UtilManager.convertNumber(self.getRunTaskNum()), \
             UtilManager.convertNumber(self.cxtSwitch), \
-            SystemManager.logSize >> 10))
+            UtilManager.convertSize2Unit(SystemManager.logSize)))
         SystemManager.printPipe(twoLine)
 
         SystemManager.printPipe(\
@@ -40753,11 +40758,13 @@ class ThreadAnalyzer(object):
         # update uptime #
         SystemManager.updateUptime()
 
+        convertNum = UtilManager.convertNumber
+
         SystemManager.addPrint((\
-            "[Top File Info] [Time: %7.3f] [Proc: %d] "
-            "[FD: %d] [File: %d] (Unit: %%/MB/NR)\n") % \
-            (SystemManager.uptime, self.nrProcess, \
-            self.nrFd, len(self.fileData)))
+            "[Top File Info] [Time: %7.3f] [Proc: %s] "
+            "[FD: %s] [File: %s] (Unit: %%/MB/NR)\n") % \
+            (SystemManager.uptime, convertNum(self.nrProcess), \
+            convertNum(self.nrFd), convertNum(len(self.fileData))))
 
         SystemManager.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
@@ -45324,8 +45331,8 @@ def main(args=None):
             SystemManager.sysEnable = True
             SystemManager.cpuEnable = False
 
-        # system #
-        elif SystemManager.isSystemRecordMode():
+        # general #
+        elif SystemManager.isGeneralRecordMode():
             SystemManager.systemEnable = True
 
         # update record status #
