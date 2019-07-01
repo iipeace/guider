@@ -37478,6 +37478,7 @@ class ThreadAnalyzer(object):
         vssIdx = SystemManager.topInstance.vssIdx
         rssIdx = SystemManager.topInstance.rssIdx
         shrIdx = SystemManager.topInstance.shrIdx
+        starttimeIdx = SystemManager.topInstance.starttimeIdx
 
         for pid, val in sorted(SystemManager.procInstance.items(), \
             key=lambda x: long(x[1]['oomScore']), reverse=True):
@@ -37488,8 +37489,7 @@ class ThreadAnalyzer(object):
             statm = val['statm']
             comm = stat[commIdx][1:-1]
             runtime = \
-                SystemManager.uptime - \
-                long(val['stat'][ConfigManager.STAT_ATTR.index("STARTTIME")])
+                SystemManager.uptime - (float(val['stat'][starttimeIdx]) / 100)
 
             SystemManager.printPipe((\
                 "{0:>16}({1:>5}/{2:>5}) "
