@@ -22479,6 +22479,10 @@ Copyright:
         if SystemManager.disableAll:
             SystemManager.sysInstance.disableAllEvents()
 
+        # set comm cache size #
+        SystemManager.writeCmd(\
+            '../saved_cmdlines_size', '%s' % SystemManager.maxPid)
+
         # set log format #
         SystemManager.writeCmd('../trace_options', 'noirq-info')
         SystemManager.writeCmd('../trace_options', 'noannotate')
