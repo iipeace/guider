@@ -21166,6 +21166,9 @@ Copyright:
         if not procList and not exceptMe:
             procList = [__module__]
 
+        if not procList:
+            return
+
         # get pids from comm #
         for pid in procList:
             if not pid.isdigit():
@@ -25313,7 +25316,7 @@ class Debugger(object):
 
 
 
-    def readMem(self, addr, size=0):
+    def readMem(self, addr, size=0, retWord=False):
         wordSize = ConfigManager.wordSize
 
         # check size #
@@ -25337,6 +25340,9 @@ class Debugger(object):
                 SystemManager.printError(\
                     "Fail to read memory %x of thread %s" % (addr, self.pid))
                 return
+
+            if retWord:
+                return word
 
             # convert a word to a byte string #
             word = UtilManager.word2bstring(word)
@@ -25381,10 +25387,12 @@ class Debugger(object):
             if argname in ("argv", "envp"):
                 # toDo: handle double pointer values #
                 return value
+
         if argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
             # toDo: add more argnames #
             return self.readCString(self.values[seq])
+
         if syscall == "socketcall":
             if argname == "call":
                 try:
@@ -25394,6 +25402,7 @@ class Debugger(object):
             elif argname == "args":
                 # toDo: handle socket call args #
                 return value
+
         if syscall == "write" and argname == "buf":
             # check std fds for dereferencing the pointer #
             fd = self.values[0]
@@ -25409,6 +25418,27 @@ class Debugger(object):
                     value = ret
 
             return value
+
+        if syscall == "recvmsg" and argname == "msg":
+            return value
+
+            '''
+struct iovec {
+    ptr_t iov_base; /* Starting address */
+    size_t iov_len; /* Length in bytes */
+};
+
+struct msghdr {
+    void            *msg_name;  /* ptr to socket address structure */
+    int             msg_namelen;    /* size of socket address structure */
+    struct iov_iter msg_iter;   /* data */
+    void            *msg_control;   /* ancillary data */
+    __kernel_size_t msg_controllen; /* ancillary data buffer length */
+    unsigned int    msg_flags;  /* flags on received message */
+    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
+};
+            '''
+
         if argname == "signum":
             # toDo: handle signal number #
             return value
