@@ -17469,6 +17469,11 @@ Copyright:
                 if options.rfind('f') > -1:
                     SystemManager.floatEnable = True
 
+                    # set default interval to 3 for accuracy #
+                    if not SystemManager.findOption('i') and \
+                        not SystemManager.findOption('R'):
+                        SystemManager.intervalEnable = 3
+
                 if options.rfind('F') > -1:
                     SystemManager.fileTopEnable = True
 
@@ -20810,7 +20815,7 @@ Copyright:
             taskstr = 'a process'
 
         SystemManager.printInfo(\
-            "created %s and limited them to use cpu %d%% totally" % \
+            "created %s and limited them to use cpu %d%% each other" % \
                 (taskstr, load))
 
         # limit CPU usage of tasks #
@@ -20969,7 +20974,7 @@ Copyright:
     @staticmethod
     def doLimitCpu(limitInfo, isProcess=False, verbose=True):
         CLK_PRECISION = 1000000
-        MAX_BUCKET = CLK_PRECISION / 10000
+        MAX_BUCKET = CLK_PRECISION / 1000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
         COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
         UTIME_IDX = ConfigManager.STAT_ATTR.index("UTIME")
@@ -21270,8 +21275,11 @@ Copyright:
             except:
                 continue
 
-            comm = fd.readline()[0:-1]
-            if comm[0:compLen] != __module__:
+            try:
+                comm = fd.readline()[0:-1]
+                if comm[0:compLen] != __module__:
+                    continue
+            except:
                 continue
 
             if nrSig == signal.SIGINT:
@@ -43045,7 +43053,7 @@ class ThreadAnalyzer(object):
                 prevData = self.prevProcData[pid]['stat']
 
                 value['runtime'] = \
-                    int(SystemManager.uptime - \
+                    long(SystemManager.uptime - \
                     (float(nowData[self.starttimeIdx]) / 100))
 
                 if value['io']:
@@ -43064,42 +43072,47 @@ class ThreadAnalyzer(object):
                     nowData[self.majfltIdx] - prevData[self.majfltIdx]
 
                 utick = nowData[self.utimeIdx] - prevData[self.utimeIdx]
-                value['utime'] = int(utick / interval)
+                value['utime'] = long(utick / interval)
                 if value['utime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
 
                 stick = nowData[self.stimeIdx] - prevData[self.stimeIdx]
-                value['stime'] = int(stick / interval)
+                value['stime'] = long(stick / interval)
                 if value['stime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
 
+                # total time #
                 value['ttime'] = utick + stick
                 if SystemManager.floatEnable:
                     value['ttime'] = round(value['ttime'] / interval, 1)
                 else:
-                    value['ttime'] = int(value['ttime'] / interval)
+                    value['ttime'] = long(value['ttime'] / interval)
                 if value['ttime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
                 elif value['ttime'] == 0:
                     value['ttime'] = 0
 
+                # child user time #
                 cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
                 if SystemManager.floatEnable:
                     cutime = round(cutick / interval, 1)
                 else:
-                    cutime = int(cutick / interval)
+                    cutime = long(cutick / interval)
 
+                # child system time #
                 cstick = nowData[self.cstimeIdx] - prevData[self.cstimeIdx]
                 if SystemManager.floatEnable:
                     cstime = round(cstick / interval, 1)
                 else:
-                    cstime = int(cstick / interval)
+                    cstime = long(cstick / interval)
 
+                # child total time #
                 value['cttime'] = cutime + cstime
 
+                # block time #
                 btick = nowData[self.btimeIdx] - prevData[self.btimeIdx]
                 if SystemManager.floatEnable:
                     value['btime'] = round(btick / interval, 1)
@@ -43115,42 +43128,51 @@ class ThreadAnalyzer(object):
                 value['new'] = True
 
                 value['runtime'] = \
-                    int(SystemManager.uptime - \
+                    long(SystemManager.uptime - \
                     (float(nowData[self.starttimeIdx]) / 100))
 
                 value['majflt'] = nowData[self.majfltIdx]
 
-                if SystemManager.floatEnable:
-                    value['utime'] = round(nowData[self.utimeIdx] / interval, 1)
-                else:
-                    value['utime'] = int(nowData[self.utimeIdx] / interval)
+                # user time #
+                value['utime'] = long(nowData[self.utimeIdx] / interval)
                 if value['utime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
-
                 if SystemManager.floatEnable:
-                    value['stime'] = round(nowData[self.stimeIdx] / interval, 1)
+                    utick = round(nowData[self.utimeIdx] / interval, 1)
                 else:
-                    value['stime'] = int(nowData[self.stimeIdx] / interval)
+                    utick = value['utime']
+
+                # system time #
+                value['stime'] = long(nowData[self.stimeIdx] / interval)
                 if value['stime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
+                if SystemManager.floatEnable:
+                    stick = round(nowData[self.stimeIdx] / interval, 1)
+                else:
+                    stick = value['stime']
 
-                value['ttime'] = value['utime'] + value['stime']
+                # total time #
+                value['ttime'] = utick + stick
                 if value['ttime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
 
+                # child time #
                 if SystemManager.floatEnable:
                     cutime = round(nowData[self.cutimeIdx] / interval, 1)
                     cstime = round(nowData[self.cstimeIdx] / interval, 1)
                 else:
-                    cutime = int(nowData[self.cutimeIdx] / interval)
-                    cstime = int(nowData[self.cstimeIdx] / interval)
-
+                    cutime = long(nowData[self.cutimeIdx] / interval)
+                    cstime = long(nowData[self.cstimeIdx] / interval)
                 value['cttime'] = cutime + cstime
 
-                value['btime'] = long(nowData[self.btimeIdx] / interval)
+                # block time #
+                if SystemManager.floatEnable:
+                    value['btime'] = round(nowData[self.btimeIdx] / interval, 1)
+                else:
+                    value['btime'] = long(nowData[self.btimeIdx] / interval)
                 if value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
@@ -43697,7 +43719,8 @@ class ThreadAnalyzer(object):
                         (long(now[k[0]]['status'][yld]) - \
                             long(prev[k[0]]['status'][yld])) + \
                         (long(now[k[0]]['status'][prmpt]) - \
-                            long(prev[k[0]]['status'][prmpt])), \
+                            long(prev[k[0]]['status'][prmpt])) \
+                                if k[0] in prev else 0, \
                         reverse=True)
             except:
                 sortedProcData = self.procData.items()
@@ -43830,10 +43853,10 @@ class ThreadAnalyzer(object):
                 sidType = 'Yld'
                 pgrpType = 'Prmt'
 
-            if not SystemManager.wfcEnable:
-                dprop = 'Dly'
-            else:
+            if SystemManager.wfcEnable:
                 dprop = 'WFC'
+            else:
+                dprop = 'Dly'
 
             # check last field #
             if SystemManager.wchanEnable:
@@ -43939,10 +43962,10 @@ class ThreadAnalyzer(object):
 
         # print menu #
         SystemManager.addPrint((\
-            "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-            "{5:^3}({6:^3}/{7:^3}/{8:^3})| "
-            "{9:>4}({10:^3}/{11:^3}/{12:^3}/{13:^3})| "
-            "{14:^3}({15:>4}/{16:>4}/{17:>5})|"
+            "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+            "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
+            "{9:>5}({10:^3}/{11:^3}/{12:^3}/{13:^3})|"
+            "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
             "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
                 format(mode, pidType, ppidType, "Nr", "Pri", \
                     "CPU", "Usr", "Ker", dprop, \
@@ -44252,10 +44275,10 @@ class ThreadAnalyzer(object):
 
             # print stats of a process #
             SystemManager.addPrint(\
-                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+                "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
+                "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})|"
+                "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 sched, value['ttime'], value['utime'], value['stime'], \
@@ -44465,19 +44488,17 @@ class ThreadAnalyzer(object):
 
             # print thread information #
             SystemManager.addPrint(\
-                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| "
-                "{5:>3}({6:>3}/{7:>3}/{8:>3})| "
-                "{9:>4}({10:>3}/{11:>3}/{12:>3}/{13:>3})| "
-                "{14:>3}({15:>4}/{16:>4}/{17:>5})|"
+                ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+                "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
+                "{9:>5}({10:>3}/{11:>3}/{12:>3}/{13:>3})|"
+                "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 ConfigManager.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                str(schedValue), \
-                int(value['ttime']), int(value['utime']), \
-                int(value['stime']), '-', \
-                long(stat[self.vssIdx]) >> 20, \
+                str(schedValue), value['ttime'], value['utime'], \
+                value['stime'], '-', long(stat[self.vssIdx]) >> 20, \
                 long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
-                int(value['btime']), readSize, writeSize, value['majflt'],\
+                value['btime'], readSize, writeSize, value['majflt'],\
                 '-', '-', '-', lifeTime[:9], '-', cl=cl, pd=pd))
             procCnt += 1
 
