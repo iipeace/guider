@@ -43754,7 +43754,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.filterGroup) == 0 and \
                 not SystemManager.showAll and \
-                (focusVal == 0 or focusVal == False):
+                not focusVal:
                 return True
             else:
                 return False
