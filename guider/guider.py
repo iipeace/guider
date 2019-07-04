@@ -30361,7 +30361,7 @@ class ThreadAnalyzer(object):
             # get delayed time #
             delayTime = time.time() - prevTime
             if delayTime > SystemManager.intervalEnable:
-                waitTime = 0
+                waitTime = 0.000001
             else:
                 waitTime = SystemManager.intervalEnable - delayTime
 
