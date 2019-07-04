@@ -43170,7 +43170,8 @@ class ThreadAnalyzer(object):
 
                 # block time #
                 if SystemManager.floatEnable:
-                    value['btime'] = round(nowData[self.btimeIdx] / interval, 1)
+                    value['btime'] = \
+                        round(nowData[self.btimeIdx] / interval, 1)
                 else:
                     value['btime'] = long(nowData[self.btimeIdx] / interval)
                 if value['ttime'] + value['btime'] > 100 and \
@@ -43985,6 +43986,14 @@ class ThreadAnalyzer(object):
         # make parent list #
         plist = getParentList()
 
+        # define convert function #
+        convertNum = UtilManager.convertNumber
+        convertFunc = UtilManager.convertSize2Unit
+
+        totalStats = {\
+            'read': long(0), 'write': long(0), \
+            'yld': long(0), 'prtd': long(0)}
+
         # print resource usage of processes / threads #
         procCnt = 0
         needLine = False
@@ -44227,6 +44236,7 @@ class ThreadAnalyzer(object):
 
             # get memory details #
             memBuf, mems = self.getMemDetails(idx, value['maps'], mems)
+            mems = mems >> 8
 
             # add JSON stats #
             if SystemManager.jsonPrintEnable:
@@ -44247,7 +44257,7 @@ class ThreadAnalyzer(object):
                     jsonData[idx]['dtime'] = 0
 
                 jsonData[idx]['vss'] = long(stat[self.vssIdx]) >> 20
-                jsonData[idx]['mem'] = mems >> 8
+                jsonData[idx]['mem'] = mems
                 jsonData[idx]['code'] = codeSize
                 jsonData[idx]['shared'] = shr
 
@@ -44282,10 +44292,49 @@ class ThreadAnalyzer(object):
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 sched, value['ttime'], value['utime'], value['stime'], \
-                dtime, vss, mems >> 8, codeSize, shr, swapSize, \
+                dtime, vss, mems, codeSize, shr, swapSize, \
                 value['btime'], readSize, writeSize, value['majflt'], \
                 yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], \
                 cl=cl, pd=pd))
+
+            # sum stats #
+            try:
+                totalStats['ttime'] += value['ttime']
+                totalStats['utime'] += value['utime']
+                totalStats['stime'] += value['stime']
+                totalStats['rss'] += mems
+                totalStats['swap'] += swapSize
+                totalStats['btime'] += value['btime']
+                totalStats['majflt'] += value['majflt']
+            except:
+                totalStats['ttime'] = value['ttime']
+                totalStats['utime'] = value['utime']
+                totalStats['stime'] = value['stime']
+                totalStats['rss'] = mems
+                totalStats['swap'] = swapSize
+                totalStats['btime'] = value['btime']
+                totalStats['majflt'] = value['majflt']
+
+            if not SystemManager.processEnable:
+                try:
+                    totalStats['yld'] += yld
+                    totalStats['prtd'] += prtd
+                except:
+                    pass
+            else:
+                totalStats['yld'] = '-'
+                totalStats['prtd'] = '-'
+
+            if SystemManager.blockEnable:
+                try:
+                    totalStats['read'] += value['read']
+                    totalStats['write'] += value['write']
+                except:
+                    totalStats['read'] = value['read']
+                    totalStats['write'] = value['write']
+            else:
+                totalStats['read'] = '-'
+                totalStats['write'] = '-'
 
             # print PMU stats #
             if SystemManager.perfGroupEnable:
@@ -44388,6 +44437,28 @@ class ThreadAnalyzer(object):
             if SystemManager.memEnable or needLine:
                 needLine = True
                 SystemManager.addPrint("%s\n" % oneLine)
+
+        if procCnt > 0:
+            if SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                return
+
+            # print total stats #
+            SystemManager.addPrint(\
+                ("{0:>{td}}|"
+                "{1:>6}({2:>4}/{3:>4})|"
+                "{5:>5}({6:>5}/{7:>1}/{8:>1}/{9:>5})|"
+                "{10:>4}({11:>4}/{12:>4}/{13:>5})|"
+                "{14:>12}|{15:>14}|{16:>21}|\n").\
+                format('[ TOTAL ]', round(totalStats['ttime'], 1), \
+                totalStats['utime'], totalStats['stime'], '-', '-', \
+                convertFunc(totalStats['rss'] << 20, True), \
+                '-', '-', convertFunc(totalStats['swap'], True), \
+                round(totalStats['btime'], 1), totalStats['read'], \
+                totalStats['write'], totalStats['majflt'], \
+                convertNum(totalStats['yld']), \
+                convertNum(totalStats['prtd']), \
+                '-', td=cl+(pd*2)+14))
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
