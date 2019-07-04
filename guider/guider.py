@@ -2709,7 +2709,10 @@ class UtilManager(object):
 
     @staticmethod
     def convertNumber(number):
-        return '{:,}'.format(number)
+        try:
+            return format(long(number),",")
+        except:
+            return number
 
 
 
@@ -30447,14 +30450,14 @@ class ThreadAnalyzer(object):
             # get delayed time #
             delayTime = time.time() - prevTime
             if delayTime > SystemManager.intervalEnable:
-                waitTime = 0
+                waitTime = 0.000001
             else:
                 waitTime = SystemManager.intervalEnable - delayTime
 
             if SystemManager.stackEnable and self.stackTable != {}:
                 # get stack of threads #
                 self.sampleStack(waitTime)
-                SystemManager.waitUserInput(0.001)
+                SystemManager.waitUserInput(0.000001)
             else:
                 # wait for next interval #
                 if not SystemManager.waitUserInput(waitTime):
@@ -44302,7 +44305,7 @@ class ThreadAnalyzer(object):
                 totalStats['ttime'] += value['ttime']
                 totalStats['utime'] += value['utime']
                 totalStats['stime'] += value['stime']
-                totalStats['rss'] += mems
+                totalStats['mem'] += mems
                 totalStats['swap'] += swapSize
                 totalStats['btime'] += value['btime']
                 totalStats['majflt'] += value['majflt']
@@ -44310,7 +44313,7 @@ class ThreadAnalyzer(object):
                 totalStats['ttime'] = value['ttime']
                 totalStats['utime'] = value['utime']
                 totalStats['stime'] = value['stime']
-                totalStats['rss'] = mems
+                totalStats['mem'] = mems
                 totalStats['swap'] = swapSize
                 totalStats['btime'] = value['btime']
                 totalStats['majflt'] = value['majflt']
@@ -44447,17 +44450,17 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint(\
                 ("{0:>{td}}|"
                 "{1:>6}({2:>4}/{3:>4})|"
-                "{5:>5}({6:>5}/{7:>1}/{8:>1}/{9:>5})|"
-                "{10:>4}({11:>4}/{12:>4}/{13:>5})|"
-                "{14:>12}|{15:>14}|{16:>21}|\n").\
+                "{4:>3}:{5:>5} / {6:>3}:{7:>5})|"
+                "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
+                "{12:>3}:{13:>8}|{14:>4}:{15:>9}|{16:>21}|\n").\
                 format('[ TOTAL ]', round(totalStats['ttime'], 1), \
-                totalStats['utime'], totalStats['stime'], '-', '-', \
-                convertFunc(totalStats['rss'] << 20, True), \
-                '-', '-', convertFunc(totalStats['swap'], True), \
+                totalStats['utime'], totalStats['stime'], mem, \
+                convertFunc(totalStats['mem'] << 20, True), \
+                'Swp', convertFunc(totalStats['swap'], True), \
                 round(totalStats['btime'], 1), totalStats['read'], \
                 totalStats['write'], totalStats['majflt'], \
-                convertNum(totalStats['yld']), \
-                convertNum(totalStats['prtd']), \
+                'Yld', convertNum(totalStats['yld']), \
+                'Prmt', convertNum(totalStats['prtd']), \
                 '-', td=cl+(pd*2)+14))
 
         if procCnt == 0:
