@@ -37587,7 +37587,8 @@ class ThreadAnalyzer(object):
         starttimeIdx = SystemManager.topInstance.starttimeIdx
 
         for pid, val in sorted(SystemManager.procInstance.items(), \
-            key=lambda x: long(x[1]['oomScore']), reverse=True):
+            key=lambda x: long(x[1]['oomScore'] if 'oomScore' in x[1] else 0), \
+            reverse=True):
             if val['oomScore'] == 0:
                 break
 
