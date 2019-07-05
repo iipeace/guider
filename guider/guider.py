@@ -44554,8 +44554,11 @@ class ThreadAnalyzer(object):
                 shr = '-'
 
             if SystemManager.blockEnable:
-                readSize = value['read'] >> 20
-                writeSize = value['write'] >> 20
+                try:
+                    readSize = value['read'] >> 20
+                    writeSize = value['write'] >> 20
+                except:
+                    readSize = writeSize = 0
             else:
                 readSize = '-'
                 writeSize = '-'
