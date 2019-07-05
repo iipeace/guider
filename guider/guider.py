@@ -43996,7 +43996,7 @@ class ThreadAnalyzer(object):
 
         totalStats = {\
             'read': long(0), 'write': long(0), \
-            'yld': long(0), 'prtd': long(0)}
+            'yld': long(0), 'prtd': long(0), 'task': long(0)}
 
         # print resource usage of processes / threads #
         procCnt = 0
@@ -44310,6 +44310,7 @@ class ThreadAnalyzer(object):
                 totalStats['swap'] += swapSize
                 totalStats['btime'] += value['btime']
                 totalStats['majflt'] += value['majflt']
+                totalStats['task'] += 1
             except:
                 totalStats['ttime'] = value['ttime']
                 totalStats['utime'] = value['utime']
@@ -44318,6 +44319,7 @@ class ThreadAnalyzer(object):
                 totalStats['swap'] = swapSize
                 totalStats['btime'] = value['btime']
                 totalStats['majflt'] = value['majflt']
+                totalStats['task'] = 1
 
             if not SystemManager.processEnable:
                 try:
@@ -44453,16 +44455,17 @@ class ThreadAnalyzer(object):
                 "{1:>6}({2:>4}/{3:>4})|"
                 "{4:>3}:{5:>5} / {6:>3}:{7:>5})|"
                 "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
-                "{12:>3}:{13:>8}|{14:>4}:{15:>9}|{16:>21}|\n").\
+                "{12:>12}|{13:>14}|{14:>21}|\n").\
                 format('[ TOTAL ]', round(totalStats['ttime'], 1), \
                 totalStats['utime'], totalStats['stime'], mem, \
                 convertFunc(totalStats['mem'] << 20, True), \
                 'Swp', convertFunc(totalStats['swap'], True), \
                 round(totalStats['btime'], 1), totalStats['read'], \
                 totalStats['write'], totalStats['majflt'], \
-                'Yld', convertNum(totalStats['yld']), \
-                'Prmt', convertNum(totalStats['prtd']), \
-                '-', td=cl+(pd*2)+14))
+                'Yld: %s' % convertNum(totalStats['yld']), \
+                'Prmt: %s' % convertNum(totalStats['prtd']), \
+                'Task: %s' % convertNum(totalStats['task']), \
+                td=cl+(pd*2)+14))
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
