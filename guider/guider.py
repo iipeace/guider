@@ -20590,7 +20590,7 @@ Copyright:
             SystemManager.printError(\
                 "Fail to get root permission to trace %s" % mode)
             sys.exit(0)
-        elif len(pids) == 0:
+        elif not pids or len(pids) == 0:
             if SystemManager.filterGroup:
                 SystemManager.printError(\
                     "No thread related to %s" % \
