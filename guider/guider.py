@@ -43764,7 +43764,7 @@ class ThreadAnalyzer(object):
             else:
                 return False
 
-        def isExceptTask(sortedProcData):
+        def isExceptTask(idx):
             exceptFlag = False
 
             for item in SystemManager.filterGroup:
@@ -44006,7 +44006,7 @@ class ThreadAnalyzer(object):
             stat = value['stat']
 
             # check exception flag #
-            if isExceptTask(sortedProcData):
+            if isExceptTask(idx):
                 continue
 
             # set priority of this task #
@@ -44307,7 +44307,8 @@ class ThreadAnalyzer(object):
                 totalStats['utime'] += value['utime']
                 totalStats['stime'] += value['stime']
                 totalStats['mem'] += mems
-                totalStats['swap'] += swapSize
+                if swapSize != '-':
+                    totalStats['swap'] += swapSize
                 totalStats['btime'] += value['btime']
                 totalStats['majflt'] += value['majflt']
                 totalStats['task'] += 1
