@@ -25203,7 +25203,7 @@ class Debugger(object):
 
 
 
-    def cont(self, pid=None, check=False):
+    def cont(self, pid=None, check=False, sig=0):
         if not self.attached:
             return
 
@@ -25233,7 +25233,7 @@ class Debugger(object):
                 return 0
 
         # continue target thread #
-        ret = self.ptrace(self.contCmd, 0, 0)
+        ret = self.ptrace(self.contCmd, 0, sig)
         if ret != 0:
             err = SystemManager.getErrReason()
             SystemManager.printWarning(\
@@ -26280,8 +26280,12 @@ struct msghdr {
         pbufsize = self.pbufsize
         regs = self.regs.getdict()
         nrSyscall = regs[sysreg]
-        self.syscall = name = ConfigManager.sysList[nrSyscall][4:]
         proto = ConfigManager.SYSCALL_PROTOTYPES
+
+        try:
+            self.syscall = name = ConfigManager.sysList[nrSyscall][4:]
+        except:
+            return
 
         # enter #
         if status == 'enter':
@@ -26786,6 +26790,9 @@ struct msghdr {
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]), True)
 
+                    # continue target from signal stop #
+                    self.cont(sig=stat)
+
             except SystemExit:
                 return
             except:
@@ -27082,7 +27089,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             return
 
         # check thread list #
-        if len(tlist) == 0:
+        if not tlist or len(tlist) == 0:
             SystemManager.printError(\
                 "Fail to recognize tids, use -g option")
             return
