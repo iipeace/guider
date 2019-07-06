@@ -24303,6 +24303,10 @@ Copyright:
         convertFunc = UtilManager.convertSize2Unit
 
         cnt = 1
+        totalStat = \
+            {'rdiff': [0] * 5, 'tdiff': [0] * 5, \
+                'rtotal': [0] * 5, 'ttotal': [0] * 5}
+
         for dev, val in sorted(self.networkInfo.items(), key=lambda e:e[0]):
             try:
                 '''
@@ -24321,6 +24325,18 @@ Copyright:
                 for idx, stat in enumerate(val['tran']):
                     tdiff.append(stat - val['inittran'][idx])
 
+                # sum diff stats #
+                totalStat['rdiff'][0] += rdiff[0]
+                totalStat['rdiff'][1] += rdiff[1]
+                totalStat['rdiff'][2] += rdiff[2]
+                totalStat['rdiff'][3] += rdiff[3]
+                totalStat['rdiff'][4] += rdiff[-1]
+                totalStat['tdiff'][0] += tdiff[0]
+                totalStat['tdiff'][1] += tdiff[1]
+                totalStat['tdiff'][2] += tdiff[2]
+                totalStat['tdiff'][3] += tdiff[3]
+                totalStat['tdiff'][4] += tdiff[-1]
+
                 SystemManager.infoBufferPrint((\
                     "{0:>16} {1:^21}   "
                     "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
@@ -24333,9 +24349,21 @@ Copyright:
                         convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
                         convertFunc(tdiff[-1])))
 
-                # total stats #
+                # per-device total stats #
                 rlist = val['recv']
                 tlist = val['tran']
+
+                # sum total stats #
+                totalStat['rtotal'][0] += rlist[0]
+                totalStat['rtotal'][1] += rlist[1]
+                totalStat['rtotal'][2] += rlist[2]
+                totalStat['rtotal'][3] += rlist[3]
+                totalStat['rtotal'][4] += rlist[-1]
+                totalStat['ttotal'][0] += tlist[0]
+                totalStat['ttotal'][1] += tlist[1]
+                totalStat['ttotal'][2] += tlist[2]
+                totalStat['ttotal'][3] += tlist[3]
+                totalStat['ttotal'][4] += tlist[-1]
 
                 SystemManager.infoBufferPrint((\
                     "{0:>16} {1:^21}   "
@@ -24379,6 +24407,37 @@ Copyright:
                     jsonData[dev]['trans']['multicast'] = convertFunc(tlist[7])
             except:
                 pass
+
+        if cnt == 1:
+            SystemManager.infoBufferPrint("\tNone")
+        else:
+            rdiff = totalStat['rdiff']
+            tdiff = totalStat['tdiff']
+            rtotal = totalStat['rtotal']
+            ttotal = totalStat['ttotal']
+
+            SystemManager.infoBufferPrint((\
+                "{12:1}\n{0:>16} {1:^21}   "
+                "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
+                    '[ TOTAL ]', 'DIFF',\
+                    convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
+                    convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
+                    convertFunc(rdiff[-1]), \
+                    convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
+                    convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
+                    convertFunc(tdiff[-1]), oneLine))
+            SystemManager.infoBufferPrint((\
+                "{0:>16} {1:^21}   "
+                "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
+                "{7:>8} {8:>8} {9:>8} {10:>8} {11:>9}").format(\
+                    ' ', 'TOTAL',\
+                    convertFunc(rtotal[0]), convertFunc(rtotal[1]), \
+                    convertFunc(rtotal[2]), convertFunc(rtotal[3]), \
+                    convertFunc(rtotal[-1]), \
+                    convertFunc(ttotal[0]), convertFunc(ttotal[1]), \
+                    convertFunc(ttotal[2]), convertFunc(ttotal[3]), \
+                    convertFunc(ttotal[-1])))
 
         SystemManager.infoBufferPrint("%s" % twoLine)
 
@@ -37387,6 +37446,9 @@ class ThreadAnalyzer(object):
 
         # Print storage usage #
         for dev, val in TA.procTotData['total']['storage'].items():
+            if dev == '[ TOTAL ]':
+                continue
+
             try:
                 total = '%s/%s/%s/%s' % \
                    ('%.1f' % (val['busy'] / len(TA.procIntData)),\
@@ -37462,6 +37524,9 @@ class ThreadAnalyzer(object):
 
         # Print network usage #
         for dev, val in TA.procTotData['total']['netdev'].items():
+            if dev == '[ TOTAL ]':
+                continue
+
             try:
                 total = '%s/%s' % \
                    (convertSize2Unit(val['recv'], True),\
@@ -43513,6 +43578,9 @@ class ThreadAnalyzer(object):
             if not 'net' in SystemManager.jsonData:
                 SystemManager.jsonData['net'] = dict()
 
+        cnt = 0
+        totalStat = {'rdiff': [0] * 5, 'tdiff': [0] * 5}
+
         for dev, val in sorted(\
             SystemManager.sysInstance.networkInfo.items(), key=lambda e:e[0]):
             '''
@@ -43525,6 +43593,18 @@ class ThreadAnalyzer(object):
                 rdiff = val['rdiff']
                 tdiff = val['tdiff']
 
+                # sum total stats #
+                totalStat['rdiff'][0] += rdiff[0]
+                totalStat['rdiff'][1] += rdiff[1]
+                totalStat['rdiff'][2] += rdiff[2]
+                totalStat['rdiff'][3] += rdiff[3]
+                totalStat['rdiff'][4] += rdiff[-1]
+                totalStat['tdiff'][0] += tdiff[0]
+                totalStat['tdiff'][1] += tdiff[1]
+                totalStat['tdiff'][2] += tdiff[2]
+                totalStat['tdiff'][3] += tdiff[3]
+                totalStat['tdiff'][4] += tdiff[-1]
+
                 SystemManager.addPrint((\
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
@@ -43536,8 +43616,26 @@ class ThreadAnalyzer(object):
                         convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
                         convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
                         convertFunc(tdiff[-1])))
+                cnt += 1
             except:
                 pass
+
+        if cnt == 0:
+            SystemManager.addPrint('\tNone\n')
+        else:
+            rdiff = totalStat['rdiff']
+            tdiff = totalStat['tdiff']
+            SystemManager.addPrint((\
+                "{0:>16} | {1:>21} | "
+                "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
+                "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
+                    '[ TOTAL ]', ' ',\
+                    convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
+                    convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
+                    convertFunc(rdiff[-1]), \
+                    convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
+                    convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
+                    convertFunc(tdiff[-1])))
 
 
 
