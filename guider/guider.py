@@ -11671,7 +11671,8 @@ class SystemManager(object):
             option == 'T' or option == 't' or option == 'u' or \
             option == 'U' or option == 'v' or option == 'w' or \
             option == 'W' or option == 'x' or option == 'X' or \
-            option == 'Y' or option == 'y' or option == 'Z':
+            option == 'Y' or option == 'y' or option == 'Z' or \
+            option.isdigit():
             return True
         else:
             return False
@@ -13036,7 +13037,10 @@ Examples:
         # {0:1} {1:1}
 
     - Send SIGSTOP signal to a specific process
-        # {0:1} {1:1} -sigstop 1234
+        # {0:1} {1:1} -stop 1234
+
+    - Send SIGKILL signal to a specific process
+        # {0:1} {1:1} -9 1234
                     '''.format(cmd, mode)
 
                 # pause #
