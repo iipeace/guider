@@ -29892,7 +29892,8 @@ class ThreadAnalyzer(object):
                 'writeBlockCnt': int(0), 'writeStart': float(0), \
                 'ioWrWait': float(0), 'awriteBlock': int(0), \
                 'awriteBlockCnt': int(0), 'schedLatency': float(0), \
-                'schedReady': float(0), 'lastNrSyscall': int(-1)}
+                'schedReady': float(0), 'lastNrSyscall': int(-1), \
+                'nrSyscall': long(0)}
 
             self.init_irqData = \
                 {'name': None, 'usage': float(0), 'start': float(0), \
@@ -34774,7 +34775,8 @@ class ThreadAnalyzer(object):
         totalInfo = dict()
 
         for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['comm']):
+            self.threadData.items(), key=lambda e: e[1]['nrSyscall'], \
+            reverse=True):
             threadInfo = ''
             syscallInfo = ''
 
@@ -39635,7 +39637,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[thread]['syscallInfo']
             except:
-                self.threadData[thread]['syscallInfo'] = {}
+                self.threadData[thread]['syscallInfo'] = dict()
             try:
                 self.threadData[thread]['syscallInfo'][str(nr)]
             except:
@@ -39643,10 +39645,11 @@ class ThreadAnalyzer(object):
                     dict(self.init_syscallInfo)
 
             # save syscall info #
+            nrstr = str(nr)
+            self.threadData[thread]['nrSyscall'] += 1
             self.threadData[thread]['lastNrSyscall'] = nr
-            self.threadData[thread]['syscallInfo'][str(nr)]['count'] += 1
-            self.threadData[thread]['syscallInfo'][str(nr)]['last'] = \
-                float(time)
+            self.threadData[thread]['syscallInfo'][nrstr]['count'] += 1
+            self.threadData[thread]['syscallInfo'][nrstr]['last'] = float(time)
 
             # save syscall history #
             if len(SystemManager.syscallList) > 0:
