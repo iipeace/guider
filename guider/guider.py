@@ -25227,7 +25227,7 @@ class Debugger(object):
         # check target status #
         if check:
             while 1:
-                ret = self.ptrace(self.contCmd, 0, 0)
+                ret = self.ptrace(self.contCmd, 0, sig)
                 if ret != 0:
                     continue
                 return 0
@@ -26788,10 +26788,10 @@ struct msghdr {
                 else:
                     SystemManager.printWarning(\
                         'Detected thread %s with %s' % \
-                        (pid, ConfigManager.SIG_LIST[stat]), True)
+                        (pid, ConfigManager.SIG_LIST[stat]))
 
                     # continue target from signal stop #
-                    self.cont(sig=stat)
+                    #self.cont(check=True, sig=stat)
 
             except SystemExit:
                 return
