@@ -9693,26 +9693,26 @@ class FileAnalyzer(object):
                 if not SystemManager.libcObj:
                     SystemManager.libcObj = \
                         cdll.LoadLibrary(SystemManager.libcPath)
-
-                # define mmap types #
-                SystemManager.libcObj.mmap.argtypes = \
-                    [POINTER(None), c_size_t, c_int, c_int, c_int, c_long]
-                SystemManager.libcObj.mmap.restype = POINTER(None)
-
-                # define munmap types #
-                SystemManager.libcObj.munmap.argtypes = \
-                    [POINTER(None), c_size_t]
-                SystemManager.libcObj.munmap.restype = c_int
-
-                # define mincore types #
-                SystemManager.libcObj.mincore.argtypes = \
-                    [POINTER(None), c_size_t, POINTER(c_ubyte)]
-                SystemManager.libcObj.mincore.restype = c_int
             except:
                 SystemManager.libcObj = None
                 SystemManager.printError(\
-                    'Fail to find libc to call systemcall')
+                    'Fail to find %s to call syscall' % SystemManager.libcPath)
                 sys.exit(0)
+
+            # define mmap types #
+            SystemManager.libcObj.mmap.argtypes = \
+                [POINTER(None), c_size_t, c_int, c_int, c_int, c_long]
+            SystemManager.libcObj.mmap.restype = POINTER(None)
+
+            # define munmap types #
+            SystemManager.libcObj.munmap.argtypes = \
+                [POINTER(None), c_size_t]
+            SystemManager.libcObj.munmap.restype = c_int
+
+            # define mincore types #
+            SystemManager.libcObj.mincore.argtypes = \
+                [POINTER(None), c_size_t, POINTER(c_ubyte)]
+            SystemManager.libcObj.mincore.restype = c_int
 
         # set system maximum fd number #
         SystemManager.setMaxFd()
@@ -10656,9 +10656,11 @@ class SystemManager(object):
     impPkg = {}
     skipImpPkg = {}
     exitFuncList = []
-    guiderObj = None
+    dltObj = None
     libcObj = None
+    guiderObj = None
     libcppObj = None
+    dltPath = 'libdlt.so'
     libcPath = 'libc.so.6'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
@@ -10756,6 +10758,8 @@ class SystemManager(object):
     heapEnable = False
     floatEnable = False
     fileTopEnable = False
+    dltTopEnable = False
+    dbusTopEnable = False
     ueventEnable = False
     keventEnable = False
     networkEnable = False
@@ -10916,7 +10920,8 @@ class SystemManager(object):
             ret = SystemManager.libcObj.malloc_trim(0)
         except:
             SystemManager.printWarning(\
-                "Fail to shrink heap area because of malloc_trim fail")
+                "Fail to shrink heap area because %s" % \
+                    SystemManager.getErrReason())
 
 
 
@@ -10984,8 +10989,8 @@ class SystemManager(object):
             SystemManager.maxFd = rlim.rlim_cur
         except:
             SystemManager.printWarning(\
-                "Fail to get the number of maximum file descriptor "
-                "because of getrlimit fail")
+                "Fail to get the maximum file descriptor because %s" % \
+                    SystemManager.getErrReason())
 
 
 
@@ -12688,6 +12693,46 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
+                # dlt top #
+                elif SystemManager.isDltTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor dlt logs
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor dlt logs
+        # {0:1} {1:1}
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
+                # dbus top #
+                elif SystemManager.isDbusTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor dbus messages
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor dbus messages
+        # {0:1} {1:1}
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
                 # network top #
                 elif SystemManager.isNetTopMode():
                     helpStr = '''
@@ -13491,6 +13536,8 @@ COMMAND:
                 usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
+                dlttop      <dlt>
+                dbustop     <dbus>
 
     [profile]   rec         <thread>
                 funcrec     <function>
@@ -13747,10 +13794,10 @@ Copyright:
                 SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
-            SystemManager.printWarning(\
-                'Fail to find libc to call systemcall')
             SystemManager.perfEnable = False
             SystemManager.perfGroupEnable = False
+            SystemManager.printWarning(\
+                'Fail to find %s to call systemcall' % SystemManager.libcPath)
             return
 
         # define struct perf_event_attr #
@@ -14123,7 +14170,7 @@ Copyright:
         except:
             SystemManager.libcObj = None
             SystemManager.printWarning(\
-                'Fail to find libc to call systemcall')
+                'Fail to find %s to call systemcall' % SystemManager.libcPath)
             return
 
         # define struct read_group_format #
@@ -16737,6 +16784,51 @@ Copyright:
 
 
     @staticmethod
+    def printDlt(appid, context, msg):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, Structure, \
+            c_char, c_int32, c_int8, c_uint8, byref
+
+        class DltContext(Structure):
+            _fields_ = [ ('contextID', c_char * 4),
+                 ('log_level_pos', c_int32),
+                 ('log_level_ptr', POINTER(c_int8)),
+                 ('trace_status_ptr', POINTER(c_int8)),
+                 ('mcnt', c_uint8)
+                ]
+
+        # define log level #
+        LEVEL_INFO = 0x04
+        LEVEL_ERROR = 0x02
+
+        # load dlt library #
+        try:
+            if not SystemManager.dltObj:
+                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
+            dltObj = SystemManager.dltObj
+        except:
+            SystemManager.dltObj = None
+            SystemManager.printWarning(\
+                'Fail to find %s to log' % SystemManager.dltPath, True)
+            sys.exit(0)
+
+        # register #
+        ctx = DltContext()
+        dltObj.dlt_register_app(appid, 'Guider')
+        dltObj.dlt_register_context(byref(ctx), context, 'Guider Context')
+
+        # log #
+        dltObj.dlt_log_string(byref(ctx), LEVEL_INFO, msg)
+
+        # unregister #
+        dltObj.dlt_unregister_context(byref(ctx))
+        dltObj.dlt_unregister_app()
+
+
+
+    @staticmethod
     def printPipe(line, newline=True, flush=False):
         if not SystemManager.printEnable:
             return
@@ -18436,6 +18528,30 @@ Copyright:
 
 
     @staticmethod
+    def isDltTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'dlttop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDbusTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'dbustop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isUserTopMode():
         if len(sys.argv) == 1:
             return False
@@ -18573,6 +18689,8 @@ Copyright:
             SystemManager.isNetTopMode() or \
             SystemManager.isUserTopMode() or \
             SystemManager.isSysTopMode() or \
+            SystemManager.isDltTopMode() or \
+            SystemManager.isDbusTopMode() or \
             SystemManager.isDiskTopMode():
             return True
         else:
@@ -21500,7 +21618,8 @@ Copyright:
         except:
             SystemManager.libcObj = None
             SystemManager.printWarning(\
-                'Fail to find libc to call systemcall', True)
+                'Fail to find %s to call systemcall' % \
+                    SystemManager.libcPath, True)
             sys.exit(0)
 
         # define struct sched_attr #
@@ -24417,9 +24536,6 @@ Copyright:
         else:
             rdiff = totalStat['rdiff']
             tdiff = totalStat['tdiff']
-            rtotal = totalStat['rtotal']
-            ttotal = totalStat['ttotal']
-
             SystemManager.infoBufferPrint((\
                 "{12:1}\n{0:>16} {1:^21}   "
                 "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
@@ -24431,6 +24547,9 @@ Copyright:
                     convertFunc(tdiff[0]), convertFunc(tdiff[1]), \
                     convertFunc(tdiff[2]), convertFunc(tdiff[3]), \
                     convertFunc(tdiff[-1]), oneLine))
+
+            rtotal = totalStat['rtotal']
+            ttotal = totalStat['ttotal']
             SystemManager.infoBufferPrint((\
                 "{0:>16} {1:^21}   "
                 "{2:>8} {3:>8} {4:>8} {5:>8} {6:>9}   "
@@ -25980,21 +26099,7 @@ struct msghdr {
 
             # add backtrace #
             if bt:
-                btString = ''
-                prevSym = None
-                prevFile = None
-
-                for item in bt:
-                    # remove redundant symbols #
-                    if not SystemManager.showAll:
-                        if prevSym == item[1] and prevFile == item[2]:
-                            continue
-                        else:
-                            prevSym = item[1]
-                            prevFile = item[2]
-
-                    # add a symbol to backtrace #
-                    btString = '%s <- %s[%s]' % (btString, item[1], item[2])
+                btString = self.getBacktraceString(bt)
 
                 try:
                     self.callTable[sym]['backtrace'][btString] += 1
@@ -26013,7 +26118,7 @@ struct msghdr {
 
 
 
-    def checkSymbol(self, sym, newline=False):
+    def checkSymbol(self, sym, newline=False, bt=None):
         if not SystemManager.customCmd or \
             SystemManager.printFile:
             return
@@ -26027,12 +26132,37 @@ struct msghdr {
 
                 # print backtrace #
                 try:
-                    bt = self.getBacktrace()
+                    if not bt:
+                        bt = self.getBacktrace()
                 except:
                     pass
 
             SystemManager.waitUserInput(wait=0, \
                 msg="%s() is detected! Press enter to continue..." % sym)
+
+
+
+    def getBacktraceString(self, bt):
+        btString = ''
+        prevSym = None
+        prevFile = None
+
+        for item in bt:
+            # remove redundant symbols #
+            if not SystemManager.showAll:
+                if prevSym == item[1] and prevFile == item[2]:
+                    continue
+                else:
+                    prevSym = item[1]
+                    prevFile = item[2]
+
+            # add a symbol to backtrace #
+            btString = '%s <- %s[%s]' % (btString, item[1], item[2])
+
+        if btString == '':
+            return '??'
+
+        return btString
 
 
 
@@ -26357,19 +26487,23 @@ struct msghdr {
             current = time.time()
             diff = current - self.start
 
+            # get backtrace #
+            if SystemManager.funcDepth > 0:
+                backtrace = self.getBacktrace(SystemManager.funcDepth)
+                bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+            else:
+                backtrace = None
+                bts = ''
+
             # build call string #
-            callString = '%3.6f %s(%s) ' % (diff, name, argText)
+            callString = '%3.6f %s(%s) %s' % (diff, name, argText, bts)
 
             # print call info #
             if self.isRealtime:
-                if SystemManager.funcDepth > 0:
-                    backtrace = self.getBacktrace(SystemManager.funcDepth)
-                else:
-                    backtrace = None
                 self.addSample(\
                     name, '??', current, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
-                self.addSample(name, '??', current)
+                self.addSample(name, '??', current, bt=backtrace)
 
                 if SystemManager.showAll:
                     self.callPrint.append(callString)
@@ -26379,7 +26513,7 @@ struct msghdr {
 
             # check symbol #
             if SystemManager.customCmd:
-                self.checkSymbol(name, newline=True)
+                self.checkSymbol(name, newline=True, bt=backtrace)
 
         # exit #
         elif status == 'exit':
@@ -26873,6 +27007,9 @@ struct msghdr {
         SystemManager.printInfo(\
             "Start analyze call samples...")
 
+        if len(instance.callList) == 0:
+            return
+
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
             try:
@@ -27264,7 +27401,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printWarning('Fail to call waitpid in libc')
+            SystemManager.printWarning(\
+                'Fail to call waitpid because %s' % \
+                    SystemManager.getErrReason())
 
 
 
@@ -30143,6 +30282,11 @@ class ThreadAnalyzer(object):
             # file top mode #
             if SystemManager.fileTopEnable:
                 self.runFileTop()
+            # dlt top mode #
+            elif SystemManager.dltTopEnable:
+                self.runDltTop()
+            elif SystemManager.dbusTopEnable:
+                self.runDbusTop()
 
             # request service to remote server #
             self.requestService()
@@ -30336,6 +30480,106 @@ class ThreadAnalyzer(object):
 
 
 
+    def checkProgress(self):
+        if not SystemManager.countEnable:
+            return
+
+        if SystemManager.progressCnt >= SystemManager.repeatCount:
+            UtilManager.deleteProgress()
+            try:
+                os.kill(SystemManager.pid, signal.SIGINT)
+            except:
+                SystemManager.printSigError(\
+                    SystemManager.pid, 'SIGINT', 'warning')
+
+        UtilManager.printProgress(\
+            SystemManager.progressCnt, SystemManager.repeatCount)
+
+        SystemManager.progressCnt += 1
+
+
+
+    def runDbusTop(self):
+        pass
+
+
+
+    def runDltTop(self):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, Structure, \
+            c_char, c_int32, c_int8, c_uint8, byref
+
+        class DltContext(Structure):
+            _fields_ = [ ('contextID', c_char * 4),
+                 ('log_level_pos', c_int32),
+                 ('log_level_ptr', POINTER(c_int8)),
+                 ('trace_status_ptr', POINTER(c_int8)),
+                 ('mcnt', c_uint8)
+            ]
+
+        # load dlt library #
+        try:
+            if not SystemManager.dltObj:
+                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
+            dltObj = SystemManager.dltObj
+        except:
+            SystemManager.dltObj = None
+            SystemManager.printWarning(\
+                'Fail to find %s to trace dlt log' % \
+                    SystemManager.dltPath, True)
+            sys.exit(0)
+
+        # get socket object #
+        socket = SystemManager.getPkg('socket')
+
+        try:
+            from socket import socket, AF_INET, SOCK_DGRAM, \
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
+                create_connection
+        except:
+            return None
+
+        # set connection info #
+        servIp = '127.0.0.1'
+        servPort = 3490
+        receiver = 0
+
+        # connect to server #
+        connSock = create_connection(\
+            (ctypes.string_at(servIp), servPort), timeout=10)
+        if not connSock:
+            SystemManager.printError(\
+                "Fail to connect to dlt-daemon with %s:%s" % (servIp, servPort))
+            sys.exit(0)
+
+        # initialize connection #
+        nrConnSock = connSock.fileno()
+        RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
+        SystemManager.dltObj.dlt_receiver_init(\
+            byref(receiver), nrConnSock, RECVBUFSIZE)
+
+        while 1:
+            # save timestamp #
+            prevTime = time.time()
+
+            # check repeat count #
+            self.checkProgress()
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SystemManager.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SystemManager.intervalEnable - delayTime
+
+            # wait for next interval #
+            if not SystemManager.waitUserInput(waitTime):
+                time.sleep(waitTime)
+
+
+
     def runFileTop(self):
         def getFilter():
             procFilter = []
@@ -30410,14 +30654,7 @@ class ThreadAnalyzer(object):
                 SystemManager.tcpListCache = None
 
             # check repeat count #
-            if SystemManager.countEnable:
-                SystemManager.progressCnt += 1
-                if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    try:
-                        os.kill(SystemManager.pid, signal.SIGINT)
-                    except:
-                        SystemManager.printSigError(\
-                            SystemManager.pid, 'SIGINT', 'warning')
+            self.checkProgress()
 
             # reset system status #
             del self.prevProcData
@@ -30490,19 +30727,7 @@ class ThreadAnalyzer(object):
                     self.reportSystemStat()
 
             # check repeat count #
-            if SystemManager.countEnable:
-                if SystemManager.progressCnt >= SystemManager.repeatCount:
-                    UtilManager.deleteProgress()
-                    try:
-                        os.kill(SystemManager.pid, signal.SIGINT)
-                    except:
-                        SystemManager.printSigError(\
-                            SystemManager.pid, 'SIGINT', 'warning')
-
-                UtilManager.printProgress(\
-                    SystemManager.progressCnt, SystemManager.repeatCount)
-
-                SystemManager.progressCnt += 1
+            self.checkProgress()
 
             # reset system status #
             del self.prevCpuData
@@ -44562,6 +44787,11 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint('---more---')
                 return
 
+            if SystemManager.floatEnable:
+                totalTime = round(totalStats['ttime'], 1)
+            else:
+                totalTime = totalStats['ttime']
+
             # print total stats #
             SystemManager.addPrint(\
                 ("{0:>{td}}|"
@@ -44569,7 +44799,7 @@ class ThreadAnalyzer(object):
                 "{4:>3}:{5:>5} / {6:>3}:{7:>5})|"
                 "{8:>4}({9:>4}/{10:>4}/{11:>5})|"
                 "{12:>12}|{13:>14}|{14:>21}|\n").\
-                format('[ TOTAL ]', round(totalStats['ttime'], 1), \
+                format('[ TOTAL ]', totalTime, \
                 totalStats['utime'], totalStats['stime'], mem, \
                 convertFunc(totalStats['mem'] << 20, True), \
                 'Swp', convertFunc(totalStats['swap'], True), \
@@ -45890,6 +46120,14 @@ def main(args=None):
                 SystemManager.sort = 'b'
             else:
                 sys.exit(0)
+
+        # dlt #
+        elif SystemManager.isDltTopMode():
+            SystemManager.dltTopEnable = True
+
+        # dbus #
+        elif SystemManager.isDbusTopMode():
+            SystemManager.dbusTopEnable = True
 
         # usercall #
         elif SystemManager.isUserTopMode():
