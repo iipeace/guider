@@ -30509,15 +30509,199 @@ class ThreadAnalyzer(object):
         ctypes = SystemManager.getPkg('ctypes')
 
         from ctypes import cdll, POINTER, Structure, \
-            c_char, c_int32, c_int8, c_uint8, byref
+            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, \
+            c_uint32, c_ushort, sizeof, BigEndianStructure
+
+        DLT_ID_SIZE = 4
 
         class DltContext(Structure):
-            _fields_ = [ ('contextID', c_char * 4),
-                 ('log_level_pos', c_int32),
-                 ('log_level_ptr', POINTER(c_int8)),
-                 ('trace_status_ptr', POINTER(c_int8)),
-                 ('mcnt', c_uint8)
+            _fields_ = [
+                ('contextID', c_char * 4),
+                ('log_level_pos', c_int32),
+                ('log_level_ptr', POINTER(c_int8)),
+                ('trace_status_ptr', POINTER(c_int8)),
+                ('mcnt', c_uint8)
             ]
+
+        class DltReceiver(Structure):
+            '''
+            typedef struct
+             {
+                 int32_t lastBytesRcvd;    /**< bytes received in last receive call */
+                 int32_t bytesRcvd;        /**< received bytes */
+                 int32_t totalBytesRcvd;   /**< total number of received bytes */
+                 char *buffer;             /**< pointer to receiver buffer */
+                 char *buf;                /**< pointer to position within receiver buffer */
+                 int fd;                   /**< connection handle */
+                 int32_t buffersize;       /**< size of receiver buffer */
+             } DltReceiver;
+             '''
+
+            _fields_ = [
+                ("lastBytesRcvd", c_int32),
+                ("bytesRcvd", c_int32),
+                ("totalBytesRcvd", c_int32),
+                ("buffer", POINTER(c_char)),
+                ("buf", POINTER(c_char)),
+                ("fd", c_int),
+                ("buffersize", c_int32)
+            ]
+
+        class DltClient(Structure):
+            '''
+            typedef struct
+            {
+                DltReceiver receiver;  /**< receiver pointer to dlt receiver structure */
+                int sock;              /**< sock Connection handle/socket */
+                char *servIP;          /**< servIP IP adress/Hostname of TCP/IP interface */
+                char *serialDevice;    /**< serialDevice Devicename of serial device */
+                char *socketPath;      /**< socketPath Unix socket path */
+                speed_t baudrate;      /**< baudrate Baudrate of serial interface, as speed_t */
+                DltClientMode mode;    /**< mode DltClientMode */
+            } DltClient;
+            '''
+
+            _fields_ = [
+                    ("receiver", DltReceiver),
+                    ("sock", c_int),
+                    ("servIP", c_char_p),
+                    ("serialDevice", c_char_p),
+                    ("socketPath", c_char_p),
+                    ("baudrate", c_int),
+                    ("mode", c_int)
+            ]
+
+            def __init__(self, receiver):
+                super(DltClient, self).__init__(receiver)
+
+        class DltStorageHeader(Structure):
+            '''
+            typedef struct
+            {
+                char pattern[DLT_ID_SIZE];        /**< This pattern should be DLT0x01 */
+                uint32_t seconds;                    /**< seconds since 1.1.1970 */
+                int32_t microseconds;            /**< Microseconds */
+                char ecu[DLT_ID_SIZE];            /**< The ECU id is added, if it is not already in the DLT message itself */
+            } PACKED DltStorageHeader;
+            '''
+
+            _fields_ = [
+                ("pattern", c_char * DLT_ID_SIZE),
+                ("seconds", c_uint32),
+                ("microseconds", c_int32),
+                ("ecu", c_char * DLT_ID_SIZE)
+            ]
+
+            def __reduce__(self):
+                return (DltStorageHeader, \
+                    (self.pattern, self.seconds, self.microseconds, self.ecu))
+
+        class DltStandardHeader(BigEndianStructure):
+            '''
+            typedef struct
+            {
+                uint8_t htyp;           /**< This parameter contains several informations, see definitions below */
+                uint8_t mcnt;           /**< The message counter is increased with each sent DLT message */
+                uint16_t len;           /**< Length of the complete message, without storage header */
+            } PACKED DltStandardHeader;
+            '''
+
+            _fields_ = [
+                ("htyp", c_uint8),
+                ("mcnt", c_uint8),
+                ("len", c_ushort)
+            ]
+
+            def __reduce__(self):
+                return (DltStandardHeader, (self.htyp, self.mcnt, self.len))
+
+        class DltExtendedHeader(Structure):
+            '''
+            typedef struct
+            {
+                uint8_t msin;          /**< messsage info */
+                uint8_t noar;          /**< number of arguments */
+                char apid[DLT_ID_SIZE];          /**< application id */
+                char ctid[DLT_ID_SIZE];          /**< context id */
+            } PACKED DltExtendedHeader;
+            '''
+
+            _fields_ = [
+                ("msin", c_uint8),
+                ("noar", c_uint8),
+                ("apid", c_char * DLT_ID_SIZE),
+                ("ctid", c_char * DLT_ID_SIZE)
+            ]
+
+            def __reduce__(self):
+                return (cDltExtendedHeader, \
+                    (self.msin, self.noar, self.apid, self.ctid))
+
+        class DltStandardHeaderExtra(Structure):
+            '''
+            typedef struct
+            {
+                char ecu[DLT_ID_SIZE];       /**< ECU id */
+                uint32_t seid;     /**< Session number */
+                uint32_t tmsp;     /**< Timestamp since system start in 0.1 milliseconds */
+            } PACKED DltStandardHeaderExtra;
+            '''
+
+            _fields_ = [
+                ("ecu", c_char * DLT_ID_SIZE),
+                ("seid", c_uint32),
+                ("tmsp", c_uint32)
+            ]
+
+            def __reduce__(self):
+                return (DltStandardHeaderExtra, (self.ecu, self.seid, self.tmsp))
+
+        class DLTMessage(Structure):
+            '''
+            typedef struct sDltMessage
+            {
+                /* flags */
+                int8_t found_serialheader;
+
+                /* offsets */
+                int32_t resync_offset;
+
+                /* size parameters */
+                int32_t headersize;    /**< size of complete header including storage header */
+                int32_t datasize;      /**< size of complete payload */
+
+                /* buffer for current loaded message */
+                uint8_t headerbuffer[sizeof(DltStorageHeader)+
+                     sizeof(DltStandardHeader)+sizeof(DltStandardHeaderExtra)+sizeof(DltExtendedHeader)];
+                     /**< buffer for loading complete header */
+                uint8_t *databuffer;         /**< buffer for loading payload */
+                int32_t databuffersize;
+
+                /* header values of current loaded message */
+                DltStorageHeader       *storageheader;  /**< pointer to storage header of current loaded header */
+                DltStandardHeader      *standardheader; /**< pointer to standard header of current loaded header */
+                DltStandardHeaderExtra headerextra;     /**< extra parameters of current loaded header */
+                DltExtendedHeader      *extendedheader; /**< pointer to extended of current loaded header */
+            } DltMessage;
+            '''
+
+            _fields_ = [
+                ("found_serialheader", c_int8),
+                ("resync_offset", c_int32),
+                ("headersize", c_int32),
+                ("datasize", c_int32),
+                ("headerbuffer", c_uint8 * (sizeof(DltStorageHeader) +
+                    sizeof(DltStandardHeader) + sizeof(DltStandardHeaderExtra) +
+                    sizeof(DltExtendedHeader))),
+                ("databuffer", POINTER(c_uint8)),
+                ("databuffersize", c_uint32),
+                ("p_storageheader", POINTER(DltStorageHeader)),
+                ("p_standardheader", POINTER(DltStandardHeader)),
+                ("headerextra", DltStandardHeaderExtra),
+                ("p_extendedheader", POINTER(DltExtendedHeader))
+            ]
+
+
 
         # load dlt library #
         try:
@@ -30531,34 +30715,66 @@ class ThreadAnalyzer(object):
                     SystemManager.dltPath, True)
             sys.exit(0)
 
+        if SystemManager.warningEnable:
+            verbose = 1
+        else:
+            verbose = 0
+
+        # initialize dlt client #
+        dltReceiver = DltReceiver()
+        dltClient = DltClient(dltReceiver)
+        #SystemManager.dltObj.dlt_client_init(byref(dltClient), verbose)
+        #SystemManager.dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+
         # get socket object #
         socket = SystemManager.getPkg('socket')
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM, \
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
-                create_connection
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
+                create_connection, string_at
         except:
-            return None
+            SystemManager.printError(\
+                "Fail to ready socket because %s" % \
+                    SystemManager.getErrReason())
+            sys.exit(0)
 
         # set connection info #
-        servIp = '127.0.0.1'
-        servPort = 3490
-        receiver = 0
+        try:
+            if not SystemManager.remoteServObj:
+                servIp = '127.0.0.1'
+                servPort = 3490
+            else:
+                servIp = SystemManager.remoteServObj.ip
+                servPort = long(SystemManager.remoteServObj.port)
+        except:
+            SystemManager.printError(\
+                "Fail to get the address of dlt-daemon")
+            sys.exit(0)
 
         # connect to server #
-        connSock = create_connection(\
-            (ctypes.string_at(servIp), servPort), timeout=10)
-        if not connSock:
+        try:
+            connSock = create_connection(\
+                (string_at(servIp), servPort), timeout=10)
+            if not connSock:
+                raise Exception()
+        except:
             SystemManager.printError(\
-                "Fail to connect to dlt-daemon with %s:%s" % (servIp, servPort))
+                "Fail to connect to dlt-daemon with %s:%s because %s" % \
+                    (servIp, servPort, SystemManager.getErrReason()))
             sys.exit(0)
 
         # initialize connection #
         nrConnSock = connSock.fileno()
         RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
         SystemManager.dltObj.dlt_receiver_init(\
-            byref(receiver), nrConnSock, RECVBUFSIZE)
+            byref(dltClient), nrConnSock, RECVBUFSIZE)
+
+        #res = SystemManager.dltObj.dlt_message_read(
+
+        while 1:
+            data = connSock.recvfrom(RECVBUFSIZE)
+            print(data)
 
         while 1:
             # save timestamp #
