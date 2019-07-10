@@ -16792,12 +16792,13 @@ Copyright:
             c_char, c_int32, c_int8, c_uint8, byref
 
         class DltContext(Structure):
-            _fields_ = [ ('contextID', c_char * 4),
-                 ('log_level_pos', c_int32),
-                 ('log_level_ptr', POINTER(c_int8)),
-                 ('trace_status_ptr', POINTER(c_int8)),
-                 ('mcnt', c_uint8)
-                ]
+            _fields_ = [
+                ('contextID', c_char * 4),
+                ('log_level_pos', c_int32),
+                ('log_level_ptr', POINTER(c_int8)),
+                ('trace_status_ptr', POINTER(c_int8)),
+                ('mcnt', c_uint8)
+            ]
 
         # define log level #
         LEVEL_INFO = 0x04
@@ -30500,7 +30501,9 @@ class ThreadAnalyzer(object):
 
 
     def runDbusTop(self):
-        pass
+        SystemManager.printError(\
+            "Not implemented yet")
+        sys.exit(0)
 
 
 
@@ -30508,11 +30511,13 @@ class ThreadAnalyzer(object):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
-        from ctypes import cdll, POINTER, Structure, \
-            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, \
-            c_uint32, c_ushort, sizeof, BigEndianStructure
+        from ctypes import cdll, POINTER, Structure, Union, \
+            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
+            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast
 
-        DLT_ID_SIZE = 4
+        # define constant #
+        DLT_HTYP_WEID = 0x04
+        DLT_SIZE_WEID = DLT_ID_SIZE = 4
 
         class DltContext(Structure):
             _fields_ = [
@@ -30695,10 +30700,10 @@ class ThreadAnalyzer(object):
                     sizeof(DltExtendedHeader))),
                 ("databuffer", POINTER(c_uint8)),
                 ("databuffersize", c_uint32),
-                ("p_storageheader", POINTER(DltStorageHeader)),
-                ("p_standardheader", POINTER(DltStandardHeader)),
+                ("storageheader", POINTER(DltStorageHeader)),
+                ("standardheader", POINTER(DltStandardHeader)),
                 ("headerextra", DltStandardHeaderExtra),
-                ("p_extendedheader", POINTER(DltExtendedHeader))
+                ("extendedheader", POINTER(DltExtendedHeader))
             ]
 
 
@@ -30715,6 +30720,7 @@ class ThreadAnalyzer(object):
                     SystemManager.dltPath, True)
             sys.exit(0)
 
+        # define verbose #
         if SystemManager.warningEnable:
             verbose = 1
         else:
@@ -30723,8 +30729,8 @@ class ThreadAnalyzer(object):
         # initialize dlt client #
         dltReceiver = DltReceiver()
         dltClient = DltClient(dltReceiver)
-        #SystemManager.dltObj.dlt_client_init(byref(dltClient), verbose)
-        #SystemManager.dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+        #dltObj.dlt_client_init(byref(dltClient), verbose)
+        #dltObj.dlt_client_cleanup(byref(dltClient), verbose)
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
@@ -30732,7 +30738,7 @@ class ThreadAnalyzer(object):
         try:
             from socket import socket, AF_INET, SOCK_DGRAM, \
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
-                create_connection, string_at
+                create_connection
         except:
             SystemManager.printError(\
                 "Fail to ready socket because %s" % \
@@ -30767,14 +30773,22 @@ class ThreadAnalyzer(object):
         # initialize connection #
         nrConnSock = connSock.fileno()
         RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
-        SystemManager.dltObj.dlt_receiver_init(\
-            byref(dltClient), nrConnSock, RECVBUFSIZE)
+        ret = dltObj.dlt_receiver_init(\
+            byref(dltReceiver), nrConnSock, RECVBUFSIZE)
+        if ret < 0:
+            SystemManager.printError(\
+                "Fail to initialize DLT receiver")
+            sys.exit(0)
 
-        #res = SystemManager.dltObj.dlt_message_read(
+        # initialize message #
+        msg = DLTMessage()
+        ret = dltObj.dlt_message_init(byref(msg), verbose)
+        if ret < 0:
+            SystemManager.printError(\
+                "Fail to initialize DLT message")
+            sys.exit(0)
 
-        while 1:
-            data = connSock.recvfrom(RECVBUFSIZE)
-            print(data)
+        delayTime = 0
 
         while 1:
             # save timestamp #
@@ -30783,16 +30797,51 @@ class ThreadAnalyzer(object):
             # check repeat count #
             self.checkProgress()
 
-            # get delayed time #
-            delayTime = time.time() - prevTime
-            if delayTime > SystemManager.intervalEnable:
-                waitTime = 0.000001
-            else:
-                waitTime = SystemManager.intervalEnable - delayTime
+            while 1:
+                # get delayed time #
+                delayTime = time.time() - prevTime
+                if delayTime >= SystemManager.intervalEnable:
+                    SystemManager.waitUserInput(0.000001)
+                    break
 
-            # wait for next interval #
-            if not SystemManager.waitUserInput(waitTime):
-                time.sleep(waitTime)
+                # check DLT data to be read #
+                ret = dltObj.dlt_receiver_receive_socket(byref(dltReceiver))
+                if ret < 0:
+                    time.sleep(0.001)
+                    continue
+
+                # check DLT data to be read #
+                res = dltObj.dlt_message_read(\
+                    byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),\
+                    c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
+
+                # set storage info #
+                if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
+                    dltObj.dlt_set_storageheader(\
+                        msg.storageheader, msg.headerextra.ecu)
+                else:
+                    dltObj.dlt_set_storageheader(\
+                        msg.storageheader, c_char_p(''))
+
+                # pick storage info #
+                try:
+                    apId = msg.extendedheader.contents.apid
+                    ctxId = msg.extendedheader.contents.ctid
+                    ecuId = msg.storageheader.contents.ecu
+                    timeSec = msg.storageheader.contents.seconds
+                    timeUs = msg.storageheader.contents.microseconds
+                except:
+                    continue
+
+                # convert log #
+                string = ''.join(\
+                    [chr(i) for i in msg.databuffer[:msg.datasize]]).\
+                        rstrip('\x00')
+
+                print(apId, ctxId, ecuId, timeSec, timeUs)
+
+        # free message #
+        dltObj.dlt_message_free(msg, verbose)
 
 
 
