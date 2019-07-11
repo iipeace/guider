@@ -10569,7 +10569,7 @@ class LogManager(object):
 
 
 class SystemManager(object):
-    """ Manager for system setting """
+    """ Manager for system """
 
     try:
         pageSize = os.sysconf("SC_PAGE_SIZE")
@@ -11867,6 +11867,26 @@ class SystemManager(object):
 
 
     @staticmethod
+    def checkProgress():
+        if not SystemManager.countEnable:
+            return
+
+        if SystemManager.progressCnt >= SystemManager.repeatCount:
+            UtilManager.deleteProgress()
+            try:
+                os.kill(SystemManager.pid, signal.SIGINT)
+            except:
+                SystemManager.printSigError(\
+                    SystemManager.pid, 'SIGINT', 'warning')
+
+        UtilManager.printProgress(\
+            SystemManager.progressCnt, SystemManager.repeatCount)
+
+        SystemManager.progressCnt += 1
+
+
+
+    @staticmethod
     def printDiffTime(msg=None):
         prev = SystemManager.timestamp
         SystemManager.timestamp = time.time()
@@ -12700,12 +12720,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor dlt logs
+    Monitor DLT logs
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor dlt logs
+    - Monitor DLT logs
         # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
@@ -13129,6 +13149,45 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes
                     '''.format(cmd, mode)
 
+                # logdlt #
+                elif SystemManager.isLogDltMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Log DLT message
+
+OPTIONS:
+        -v                          verbose
+        -I  <LOG>                   set log message
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Log DLT message
+        # {0:1} {1:1} -I "Hello World!"
+                    '''.format(cmd, mode)
+
+                # printdlt #
+                elif SystemManager.isPrintDltMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Print DLT messages in real-time
+
+OPTIONS:
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print DLT messages in real-time
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
                 # addr2line #
                 elif SystemManager.isAddr2lineMode():
                     helpStr = '''
@@ -13536,8 +13595,8 @@ COMMAND:
                 usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
-                dlttop      <dlt>
-                dbustop     <dbus>
+                dlttop      <DLT>
+                dbustop     <D-Bus>
 
     [profile]   rec         <thread>
                 funcrec     <function>
@@ -13569,6 +13628,8 @@ COMMAND:
                 readelf     <file>
                 addr2line   <symbol>
                 leaktrace   <leak>
+                printdlt    <DLT>
+                logdlt      <DLT>
 
     [control]   list        <list>
                 start       <signal>
@@ -15886,7 +15947,7 @@ Copyright:
                 'Fail to save trace data because output file is not set')
             sys.exit(0)
 
-        # enable alarm handler #
+        # set alarm again #
         signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
 
 
@@ -16780,52 +16841,6 @@ Copyright:
             return True
         else:
             return False
-
-
-
-    @staticmethod
-    def printDlt(appid, context, msg):
-        # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
-
-        from ctypes import cdll, POINTER, Structure, \
-            c_char, c_int32, c_int8, c_uint8, byref
-
-        class DltContext(Structure):
-            _fields_ = [
-                ('contextID', c_char * 4),
-                ('log_level_pos', c_int32),
-                ('log_level_ptr', POINTER(c_int8)),
-                ('trace_status_ptr', POINTER(c_int8)),
-                ('mcnt', c_uint8)
-            ]
-
-        # define log level #
-        LEVEL_INFO = 0x04
-        LEVEL_ERROR = 0x02
-
-        # load dlt library #
-        try:
-            if not SystemManager.dltObj:
-                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
-            dltObj = SystemManager.dltObj
-        except:
-            SystemManager.dltObj = None
-            SystemManager.printWarning(\
-                'Fail to find %s to log' % SystemManager.dltPath, True)
-            sys.exit(0)
-
-        # register #
-        ctx = DltContext()
-        dltObj.dlt_register_app(appid, 'Guider')
-        dltObj.dlt_register_context(byref(ctx), context, 'Guider Context')
-
-        # log #
-        dltObj.dlt_log_string(byref(ctx), LEVEL_INFO, msg)
-
-        # unregister #
-        dltObj.dlt_unregister_context(byref(ctx))
-        dltObj.dlt_unregister_app()
 
 
 
@@ -18780,6 +18795,22 @@ Copyright:
         elif SystemManager.isAddr2lineMode():
             SystemManager.doAddr2line()
 
+        # LOGDLT MODE #
+        elif SystemManager.isLogDltMode():
+            # print title #
+            SystemManager.printLogo(big=True, onlyFile=True)
+
+            SystemManager.printError(\
+                "Not implemented yet")
+
+        # PRINTDLT MODE #
+        elif SystemManager.isPrintDltMode():
+            # print title #
+            SystemManager.printLogo(big=True, onlyFile=True)
+
+            SystemManager.printError(\
+                "Not implemented yet")
+
         # PAGE MODE #
         elif SystemManager.isMemMode():
             # print title #
@@ -18978,6 +19009,24 @@ Copyright:
     @staticmethod
     def isAddr2lineMode():
         if sys.argv[1] == 'addr2line':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintDltMode():
+        if sys.argv[1] == 'printdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLogDltMode():
+        if sys.argv[1] == 'logdlt':
             return True
         else:
             return False
@@ -24965,6 +25014,460 @@ Copyright:
 
 
 
+class DltManager(object):
+    """ Manager for DLT """
+
+    @staticmethod
+    def doLogDlt(appid, context, msg):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, Structure, \
+            c_char, c_int32, c_int8, c_uint8, byref
+
+        class DltContext(Structure):
+            _fields_ = [
+                ('contextID', c_char * 4),
+                ('log_level_pos', c_int32),
+                ('log_level_ptr', POINTER(c_int8)),
+                ('trace_status_ptr', POINTER(c_int8)),
+                ('mcnt', c_uint8)
+            ]
+
+        # define log level #
+        LEVEL_INFO = 0x04
+        LEVEL_ERROR = 0x02
+
+        # load dlt library #
+        try:
+            if not SystemManager.dltObj:
+                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
+            dltObj = SystemManager.dltObj
+        except:
+            SystemManager.dltObj = None
+            SystemManager.printWarning(\
+                'Fail to find %s to log DLT' % SystemManager.dltPath, True)
+            sys.exit(0)
+
+        # register #
+        ctx = DltContext()
+        dltObj.dlt_register_app(appid, 'Guider')
+        dltObj.dlt_register_context(byref(ctx), context, 'Guider')
+
+        # log #
+        dltObj.dlt_log_string(byref(ctx), LEVEL_INFO, msg)
+
+        # unregister #
+        dltObj.dlt_unregister_context(byref(ctx))
+        dltObj.dlt_unregister_app()
+
+
+
+    def runDltReceiver(mode='top'):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, Structure, Union, \
+            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
+            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast
+
+        # define constant #
+        DLT_HTYP_WEID = 0x04
+        DLT_SIZE_WEID = DLT_ID_SIZE = 4
+
+        # define log level #
+        LOG_EMERG     = 0
+        LOG_ALERT     = 1
+        LOG_CRIT      = 2
+        LOG_ERR       = 3
+        LOG_WARNING   = 4
+        LOG_NOTICE    = 5
+        LOG_INFO      = 6
+        LOG_DEBUG     = 7
+
+        class DltContext(Structure):
+            _fields_ = [
+                ('contextID', c_char * 4),
+                ('log_level_pos', c_int32),
+                ('log_level_ptr', POINTER(c_int8)),
+                ('trace_status_ptr', POINTER(c_int8)),
+                ('mcnt', c_uint8)
+            ]
+
+        class DltReceiver(Structure):
+            '''
+            typedef struct
+             {
+                 int32_t lastBytesRcvd;    /**< bytes received in last receive call */
+                 int32_t bytesRcvd;        /**< received bytes */
+                 int32_t totalBytesRcvd;   /**< total number of received bytes */
+                 char *buffer;             /**< pointer to receiver buffer */
+                 char *buf;                /**< pointer to position within receiver buffer */
+                 int fd;                   /**< connection handle */
+                 int32_t buffersize;       /**< size of receiver buffer */
+             } DltReceiver;
+             '''
+
+            _fields_ = [
+                ("lastBytesRcvd", c_int32),
+                ("bytesRcvd", c_int32),
+                ("totalBytesRcvd", c_int32),
+                ("buffer", POINTER(c_char)),
+                ("buf", POINTER(c_char)),
+                ("fd", c_int),
+                ("buffersize", c_int32)
+            ]
+
+        class DltClient(Structure):
+            '''
+            typedef struct
+            {
+                DltReceiver receiver;  /**< receiver pointer to dlt receiver structure */
+                int sock;              /**< sock Connection handle/socket */
+                char *servIP;          /**< servIP IP adress/Hostname of TCP/IP interface */
+                char *serialDevice;    /**< serialDevice Devicename of serial device */
+                char *socketPath;      /**< socketPath Unix socket path */
+                speed_t baudrate;      /**< baudrate Baudrate of serial interface, as speed_t */
+                DltClientMode mode;    /**< mode DltClientMode */
+            } DltClient;
+            '''
+
+            _fields_ = [
+                    ("receiver", DltReceiver),
+                    ("sock", c_int),
+                    ("servIP", c_char_p),
+                    ("serialDevice", c_char_p),
+                    ("socketPath", c_char_p),
+                    ("baudrate", c_int),
+                    ("mode", c_int)
+            ]
+
+        class DltStorageHeader(Structure):
+            '''
+            typedef struct
+            {
+                char pattern[DLT_ID_SIZE];        /**< This pattern should be DLT0x01 */
+                uint32_t seconds;                    /**< seconds since 1.1.1970 */
+                int32_t microseconds;            /**< Microseconds */
+                char ecu[DLT_ID_SIZE];            /**< The ECU id is added, if it is not already in the DLT message itself */
+            } PACKED DltStorageHeader;
+            '''
+
+            _fields_ = [
+                ("pattern", c_char * DLT_ID_SIZE),
+                ("seconds", c_uint32),
+                ("microseconds", c_int32),
+                ("ecu", c_char * DLT_ID_SIZE)
+            ]
+
+            def __reduce__(self):
+                return (DltStorageHeader, \
+                    (self.pattern, self.seconds, self.microseconds, self.ecu))
+
+        class DltStandardHeader(BigEndianStructure):
+            '''
+            typedef struct
+            {
+                uint8_t htyp;           /**< This parameter contains several informations, see definitions below */
+                uint8_t mcnt;           /**< The message counter is increased with each sent DLT message */
+                uint16_t len;           /**< Length of the complete message, without storage header */
+            } PACKED DltStandardHeader;
+            '''
+
+            _fields_ = [
+                ("htyp", c_uint8),
+                ("mcnt", c_uint8),
+                ("len", c_ushort)
+            ]
+
+            def __reduce__(self):
+                return (DltStandardHeader, (self.htyp, self.mcnt, self.len))
+
+        class DltExtendedHeader(Structure):
+            '''
+            typedef struct
+            {
+                uint8_t msin;          /**< messsage info */
+                uint8_t noar;          /**< number of arguments */
+                char apid[DLT_ID_SIZE];          /**< application id */
+                char ctid[DLT_ID_SIZE];          /**< context id */
+            } PACKED DltExtendedHeader;
+            '''
+
+            _fields_ = [
+                ("msin", c_uint8),
+                ("noar", c_uint8),
+                ("apid", c_char * DLT_ID_SIZE),
+                ("ctid", c_char * DLT_ID_SIZE)
+            ]
+
+            def __reduce__(self):
+                return (cDltExtendedHeader, \
+                    (self.msin, self.noar, self.apid, self.ctid))
+
+        class DltStandardHeaderExtra(Structure):
+            '''
+            typedef struct
+            {
+                char ecu[DLT_ID_SIZE];       /**< ECU id */
+                uint32_t seid;     /**< Session number */
+                uint32_t tmsp;     /**< Timestamp since system start in 0.1 milliseconds */
+            } PACKED DltStandardHeaderExtra;
+            '''
+
+            _fields_ = [
+                ("ecu", c_char * DLT_ID_SIZE),
+                ("seid", c_uint32),
+                ("tmsp", c_uint32)
+            ]
+
+            def __reduce__(self):
+                return (DltStandardHeaderExtra, (self.ecu, self.seid, self.tmsp))
+
+        class DLTMessage(Structure):
+            '''
+            typedef struct sDltMessage
+            {
+                /* flags */
+                int8_t found_serialheader;
+
+                /* offsets */
+                int32_t resync_offset;
+
+                /* size parameters */
+                int32_t headersize;    /**< size of complete header including storage header */
+                int32_t datasize;      /**< size of complete payload */
+
+                /* buffer for current loaded message */
+                uint8_t headerbuffer[sizeof(DltStorageHeader)+
+                     sizeof(DltStandardHeader)+sizeof(DltStandardHeaderExtra)+sizeof(DltExtendedHeader)];
+                     /**< buffer for loading complete header */
+                uint8_t *databuffer;         /**< buffer for loading payload */
+                int32_t databuffersize;
+
+                /* header values of current loaded message */
+                DltStorageHeader       *storageheader;  /**< pointer to storage header of current loaded header */
+                DltStandardHeader      *standardheader; /**< pointer to standard header of current loaded header */
+                DltStandardHeaderExtra headerextra;     /**< extra parameters of current loaded header */
+                DltExtendedHeader      *extendedheader; /**< pointer to extended of current loaded header */
+            } DltMessage;
+            '''
+
+            _fields_ = [
+                ("found_serialheader", c_int8),
+                ("resync_offset", c_int32),
+                ("headersize", c_int32),
+                ("datasize", c_int32),
+                ("headerbuffer", \
+                    c_uint8 * (sizeof(DltStorageHeader) +
+                    sizeof(DltStandardHeader) + \
+                    sizeof(DltStandardHeaderExtra) +
+                    sizeof(DltExtendedHeader))),
+                ("databuffer", POINTER(c_uint8)),
+                ("databuffersize", c_uint32),
+                ("storageheader", POINTER(DltStorageHeader)),
+                ("standardheader", POINTER(DltStandardHeader)),
+                ("headerextra", DltStandardHeaderExtra),
+                ("extendedheader", POINTER(DltExtendedHeader))
+            ]
+
+
+
+        # load DLT library #
+        try:
+            if not SystemManager.dltObj:
+                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
+            dltObj = SystemManager.dltObj
+        except:
+            SystemManager.dltObj = None
+            SystemManager.printWarning(\
+                'Fail to find %s to get DLT log' % \
+                    SystemManager.dltPath, True)
+            sys.exit(0)
+
+        # define verbose #
+        if SystemManager.warningEnable:
+            # set log level to DEBUG #
+            dltObj.dlt_log_set_level(LOG_DEBUG)
+
+            verbose = 1
+        else:
+            verbose = 0
+
+        # get socket object #
+        socket = SystemManager.getPkg('socket')
+
+        try:
+            from socket import socket, AF_INET, SOCK_DGRAM, \
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
+                create_connection, MSG_PEEK, MSG_DONTWAIT
+        except:
+            SystemManager.printError(\
+                "Fail to ready socket because %s" % \
+                    SystemManager.getErrReason())
+            sys.exit(0)
+
+        # set connection info #
+        try:
+            if SystemManager.remoteServObj:
+                servIp = SystemManager.remoteServObj.ip
+                servPort = long(SystemManager.remoteServObj.port)
+            else:
+                servIp = '127.0.0.1'
+                servPort = 3490
+        except:
+            SystemManager.printError(\
+                "Fail to get the address of dlt-daemon because %s" % \
+                    SysemManager.getErrReason())
+            sys.exit(0)
+
+        # connect to server #
+        try:
+            connSock = create_connection(\
+                (string_at(servIp), servPort), timeout=1)
+
+            # set blocking #
+            connSock.setblocking(1)
+
+            if not connSock:
+                raise Exception()
+        except:
+            # check dlt-daemon #
+            if SystemManager.getProcPids('dlt-daemon') == []:
+                SystemManager.printError(\
+                    "Fail to find running dlt-daemon process")
+            else:
+                SystemManager.printError(\
+                    "Fail to connect to dlt-daemon with %s:%s because %s" % \
+                        (servIp, servPort, SystemManager.getErrReason()))
+            sys.exit(0)
+
+        '''
+        # initialize client #
+        dltClient = DltClient()
+        dltObj.dlt_client_init(byref(dltClient), verbose)
+        dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+        '''
+
+        # initialize receiver #
+        dltReceiver = DltReceiver()
+
+        # initialize connection #
+        try:
+            nrConnSock = connSock.fileno()
+            RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
+            ret = dltObj.dlt_receiver_init(\
+                byref(dltReceiver), nrConnSock, RECVBUFSIZE)
+            if ret < 0:
+                SystemManager.printError(\
+                    "Fail to initialize DLT receiver")
+                sys.exit(0)
+        except:
+            SystemManager.printError(\
+                "Fail to initialize connection because %s" % \
+                SystemManager.getErrReason())
+            sys.exit(0)
+
+        # initialize message #
+        msg = DLTMessage()
+        ret = dltObj.dlt_message_init(byref(msg), verbose)
+        if ret < 0:
+            SystemManager.printError(\
+                "Fail to initialize DLT message")
+            sys.exit(0)
+
+        # save timestamp #
+        prevTime = time.time()
+
+        while 1:
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime >= SystemManager.intervalEnable:
+                # check repeat count #
+                SystemManager.checkProgress()
+
+                # check user input #
+                SystemManager.waitUserInput(0.000001)
+
+                # save timestamp #
+                prevTime = time.time()
+
+            try:
+                # check DLT data to be read #
+                ret = dltObj.dlt_receiver_receive_socket(byref(dltReceiver))
+                if ret <= 0:
+                    continue
+
+                # check DLT data to be read #
+                res = dltObj.dlt_message_read(\
+                    byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),\
+                    c_uint(dltReceiver.bytesRcvd), c_int(0), verbose)
+                if res != 0:
+                    continue
+
+                # get data size to be removed #
+                size = msg.headersize + msg.datasize - \
+                    sizeof(DltStorageHeader)
+                if msg.found_serialheader:
+                    size += DLT_ID_SIZE
+
+                # remove message from buffer #
+                if dltObj.dlt_receiver_remove(\
+                    byref(dltReceiver), size) < 0:
+                    SystemMangaer.printError(\
+                        "Fail to remove data from buffer")
+                    sys.exit(0)
+
+                # print dlt message #
+                if verbose:
+                    dltObj.dlt_message_print_ascii(\
+                        byref(msg), "", msg.headersize, 0)
+
+                # set storage info #
+                if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
+                    dltObj.dlt_set_storageheader(\
+                        msg.storageheader, msg.headerextra.ecu)
+                else:
+                    dltObj.dlt_set_storageheader(\
+                        msg.storageheader, c_char_p(''))
+
+                # move receiver buffer pointer to start of the buffer #
+                ret = dltObj.dlt_receiver_move_to_begin(byref(dltReceiver))
+                if ret < 0:
+                    SystemManager.printError(\
+                        "Fail to move the pointer to receiver buffer")
+                    sys.exit(0)
+
+                # pick storage info #
+                apId = msg.extendedheader.contents.apid
+                ctxId = msg.extendedheader.contents.ctid
+                ecuId = msg.storageheader.contents.ecu
+                timeSec = msg.storageheader.contents.seconds
+                timeUs = msg.storageheader.contents.microseconds
+                uptime = msg.headerextra.tmsp / float(10000)
+            except:
+                SystemManager.printWarning(\
+                    "Fail to process DLT message because %s" % \
+                        SystemManager.getErrReason())
+                continue
+
+            if mode == 'top':
+                pass
+            elif mode == 'printdlt':
+                # convert log #
+                string = ''.join(\
+                    [chr(i) for i in msg.databuffer[:msg.datasize]]).\
+                        rstrip('\x00')
+
+                print(apId, ctxId, ecuId, uptime, timeUs, msg.datasize, string)
+
+        # free message #
+        dltObj.dlt_message_free(msg, verbose)
+
+
+
+
+
 class Debugger(object):
     """ Debugger for ptrace """
 
@@ -30285,7 +30788,7 @@ class ThreadAnalyzer(object):
                 self.runFileTop()
             # dlt top mode #
             elif SystemManager.dltTopEnable:
-                self.runDltTop()
+                DltManager.runDltReceiver(mode='top')
             elif SystemManager.dbusTopEnable:
                 self.runDbusTop()
 
@@ -30481,367 +30984,10 @@ class ThreadAnalyzer(object):
 
 
 
-    def checkProgress(self):
-        if not SystemManager.countEnable:
-            return
-
-        if SystemManager.progressCnt >= SystemManager.repeatCount:
-            UtilManager.deleteProgress()
-            try:
-                os.kill(SystemManager.pid, signal.SIGINT)
-            except:
-                SystemManager.printSigError(\
-                    SystemManager.pid, 'SIGINT', 'warning')
-
-        UtilManager.printProgress(\
-            SystemManager.progressCnt, SystemManager.repeatCount)
-
-        SystemManager.progressCnt += 1
-
-
-
     def runDbusTop(self):
         SystemManager.printError(\
             "Not implemented yet")
         sys.exit(0)
-
-
-
-    def runDltTop(self):
-        # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
-
-        from ctypes import cdll, POINTER, Structure, Union, \
-            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
-            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast
-
-        # define constant #
-        DLT_HTYP_WEID = 0x04
-        DLT_SIZE_WEID = DLT_ID_SIZE = 4
-
-        class DltContext(Structure):
-            _fields_ = [
-                ('contextID', c_char * 4),
-                ('log_level_pos', c_int32),
-                ('log_level_ptr', POINTER(c_int8)),
-                ('trace_status_ptr', POINTER(c_int8)),
-                ('mcnt', c_uint8)
-            ]
-
-        class DltReceiver(Structure):
-            '''
-            typedef struct
-             {
-                 int32_t lastBytesRcvd;    /**< bytes received in last receive call */
-                 int32_t bytesRcvd;        /**< received bytes */
-                 int32_t totalBytesRcvd;   /**< total number of received bytes */
-                 char *buffer;             /**< pointer to receiver buffer */
-                 char *buf;                /**< pointer to position within receiver buffer */
-                 int fd;                   /**< connection handle */
-                 int32_t buffersize;       /**< size of receiver buffer */
-             } DltReceiver;
-             '''
-
-            _fields_ = [
-                ("lastBytesRcvd", c_int32),
-                ("bytesRcvd", c_int32),
-                ("totalBytesRcvd", c_int32),
-                ("buffer", POINTER(c_char)),
-                ("buf", POINTER(c_char)),
-                ("fd", c_int),
-                ("buffersize", c_int32)
-            ]
-
-        class DltClient(Structure):
-            '''
-            typedef struct
-            {
-                DltReceiver receiver;  /**< receiver pointer to dlt receiver structure */
-                int sock;              /**< sock Connection handle/socket */
-                char *servIP;          /**< servIP IP adress/Hostname of TCP/IP interface */
-                char *serialDevice;    /**< serialDevice Devicename of serial device */
-                char *socketPath;      /**< socketPath Unix socket path */
-                speed_t baudrate;      /**< baudrate Baudrate of serial interface, as speed_t */
-                DltClientMode mode;    /**< mode DltClientMode */
-            } DltClient;
-            '''
-
-            _fields_ = [
-                    ("receiver", DltReceiver),
-                    ("sock", c_int),
-                    ("servIP", c_char_p),
-                    ("serialDevice", c_char_p),
-                    ("socketPath", c_char_p),
-                    ("baudrate", c_int),
-                    ("mode", c_int)
-            ]
-
-            def __init__(self, receiver):
-                super(DltClient, self).__init__(receiver)
-
-        class DltStorageHeader(Structure):
-            '''
-            typedef struct
-            {
-                char pattern[DLT_ID_SIZE];        /**< This pattern should be DLT0x01 */
-                uint32_t seconds;                    /**< seconds since 1.1.1970 */
-                int32_t microseconds;            /**< Microseconds */
-                char ecu[DLT_ID_SIZE];            /**< The ECU id is added, if it is not already in the DLT message itself */
-            } PACKED DltStorageHeader;
-            '''
-
-            _fields_ = [
-                ("pattern", c_char * DLT_ID_SIZE),
-                ("seconds", c_uint32),
-                ("microseconds", c_int32),
-                ("ecu", c_char * DLT_ID_SIZE)
-            ]
-
-            def __reduce__(self):
-                return (DltStorageHeader, \
-                    (self.pattern, self.seconds, self.microseconds, self.ecu))
-
-        class DltStandardHeader(BigEndianStructure):
-            '''
-            typedef struct
-            {
-                uint8_t htyp;           /**< This parameter contains several informations, see definitions below */
-                uint8_t mcnt;           /**< The message counter is increased with each sent DLT message */
-                uint16_t len;           /**< Length of the complete message, without storage header */
-            } PACKED DltStandardHeader;
-            '''
-
-            _fields_ = [
-                ("htyp", c_uint8),
-                ("mcnt", c_uint8),
-                ("len", c_ushort)
-            ]
-
-            def __reduce__(self):
-                return (DltStandardHeader, (self.htyp, self.mcnt, self.len))
-
-        class DltExtendedHeader(Structure):
-            '''
-            typedef struct
-            {
-                uint8_t msin;          /**< messsage info */
-                uint8_t noar;          /**< number of arguments */
-                char apid[DLT_ID_SIZE];          /**< application id */
-                char ctid[DLT_ID_SIZE];          /**< context id */
-            } PACKED DltExtendedHeader;
-            '''
-
-            _fields_ = [
-                ("msin", c_uint8),
-                ("noar", c_uint8),
-                ("apid", c_char * DLT_ID_SIZE),
-                ("ctid", c_char * DLT_ID_SIZE)
-            ]
-
-            def __reduce__(self):
-                return (cDltExtendedHeader, \
-                    (self.msin, self.noar, self.apid, self.ctid))
-
-        class DltStandardHeaderExtra(Structure):
-            '''
-            typedef struct
-            {
-                char ecu[DLT_ID_SIZE];       /**< ECU id */
-                uint32_t seid;     /**< Session number */
-                uint32_t tmsp;     /**< Timestamp since system start in 0.1 milliseconds */
-            } PACKED DltStandardHeaderExtra;
-            '''
-
-            _fields_ = [
-                ("ecu", c_char * DLT_ID_SIZE),
-                ("seid", c_uint32),
-                ("tmsp", c_uint32)
-            ]
-
-            def __reduce__(self):
-                return (DltStandardHeaderExtra, (self.ecu, self.seid, self.tmsp))
-
-        class DLTMessage(Structure):
-            '''
-            typedef struct sDltMessage
-            {
-                /* flags */
-                int8_t found_serialheader;
-
-                /* offsets */
-                int32_t resync_offset;
-
-                /* size parameters */
-                int32_t headersize;    /**< size of complete header including storage header */
-                int32_t datasize;      /**< size of complete payload */
-
-                /* buffer for current loaded message */
-                uint8_t headerbuffer[sizeof(DltStorageHeader)+
-                     sizeof(DltStandardHeader)+sizeof(DltStandardHeaderExtra)+sizeof(DltExtendedHeader)];
-                     /**< buffer for loading complete header */
-                uint8_t *databuffer;         /**< buffer for loading payload */
-                int32_t databuffersize;
-
-                /* header values of current loaded message */
-                DltStorageHeader       *storageheader;  /**< pointer to storage header of current loaded header */
-                DltStandardHeader      *standardheader; /**< pointer to standard header of current loaded header */
-                DltStandardHeaderExtra headerextra;     /**< extra parameters of current loaded header */
-                DltExtendedHeader      *extendedheader; /**< pointer to extended of current loaded header */
-            } DltMessage;
-            '''
-
-            _fields_ = [
-                ("found_serialheader", c_int8),
-                ("resync_offset", c_int32),
-                ("headersize", c_int32),
-                ("datasize", c_int32),
-                ("headerbuffer", c_uint8 * (sizeof(DltStorageHeader) +
-                    sizeof(DltStandardHeader) + sizeof(DltStandardHeaderExtra) +
-                    sizeof(DltExtendedHeader))),
-                ("databuffer", POINTER(c_uint8)),
-                ("databuffersize", c_uint32),
-                ("storageheader", POINTER(DltStorageHeader)),
-                ("standardheader", POINTER(DltStandardHeader)),
-                ("headerextra", DltStandardHeaderExtra),
-                ("extendedheader", POINTER(DltExtendedHeader))
-            ]
-
-
-
-        # load dlt library #
-        try:
-            if not SystemManager.dltObj:
-                SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
-            dltObj = SystemManager.dltObj
-        except:
-            SystemManager.dltObj = None
-            SystemManager.printWarning(\
-                'Fail to find %s to trace dlt log' % \
-                    SystemManager.dltPath, True)
-            sys.exit(0)
-
-        # define verbose #
-        if SystemManager.warningEnable:
-            verbose = 1
-        else:
-            verbose = 0
-
-        # initialize dlt client #
-        dltReceiver = DltReceiver()
-        dltClient = DltClient(dltReceiver)
-        #dltObj.dlt_client_init(byref(dltClient), verbose)
-        #dltObj.dlt_client_cleanup(byref(dltClient), verbose)
-
-        # get socket object #
-        socket = SystemManager.getPkg('socket')
-
-        try:
-            from socket import socket, AF_INET, SOCK_DGRAM, \
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
-                create_connection
-        except:
-            SystemManager.printError(\
-                "Fail to ready socket because %s" % \
-                    SystemManager.getErrReason())
-            sys.exit(0)
-
-        # set connection info #
-        try:
-            if not SystemManager.remoteServObj:
-                servIp = '127.0.0.1'
-                servPort = 3490
-            else:
-                servIp = SystemManager.remoteServObj.ip
-                servPort = long(SystemManager.remoteServObj.port)
-        except:
-            SystemManager.printError(\
-                "Fail to get the address of dlt-daemon")
-            sys.exit(0)
-
-        # connect to server #
-        try:
-            connSock = create_connection(\
-                (string_at(servIp), servPort), timeout=10)
-            if not connSock:
-                raise Exception()
-        except:
-            SystemManager.printError(\
-                "Fail to connect to dlt-daemon with %s:%s because %s" % \
-                    (servIp, servPort, SystemManager.getErrReason()))
-            sys.exit(0)
-
-        # initialize connection #
-        nrConnSock = connSock.fileno()
-        RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
-        ret = dltObj.dlt_receiver_init(\
-            byref(dltReceiver), nrConnSock, RECVBUFSIZE)
-        if ret < 0:
-            SystemManager.printError(\
-                "Fail to initialize DLT receiver")
-            sys.exit(0)
-
-        # initialize message #
-        msg = DLTMessage()
-        ret = dltObj.dlt_message_init(byref(msg), verbose)
-        if ret < 0:
-            SystemManager.printError(\
-                "Fail to initialize DLT message")
-            sys.exit(0)
-
-        delayTime = 0
-
-        while 1:
-            # save timestamp #
-            prevTime = time.time()
-
-            # check repeat count #
-            self.checkProgress()
-
-            while 1:
-                # get delayed time #
-                delayTime = time.time() - prevTime
-                if delayTime >= SystemManager.intervalEnable:
-                    SystemManager.waitUserInput(0.000001)
-                    break
-
-                # check DLT data to be read #
-                ret = dltObj.dlt_receiver_receive_socket(byref(dltReceiver))
-                if ret < 0:
-                    time.sleep(0.001)
-                    continue
-
-                # check DLT data to be read #
-                res = dltObj.dlt_message_read(\
-                    byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),\
-                    c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
-
-                # set storage info #
-                if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, msg.headerextra.ecu)
-                else:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, c_char_p(''))
-
-                # pick storage info #
-                try:
-                    apId = msg.extendedheader.contents.apid
-                    ctxId = msg.extendedheader.contents.ctid
-                    ecuId = msg.storageheader.contents.ecu
-                    timeSec = msg.storageheader.contents.seconds
-                    timeUs = msg.storageheader.contents.microseconds
-                except:
-                    continue
-
-                # convert log #
-                string = ''.join(\
-                    [chr(i) for i in msg.databuffer[:msg.datasize]]).\
-                        rstrip('\x00')
-
-                print(apId, ctxId, ecuId, timeSec, timeUs)
-
-        # free message #
-        dltObj.dlt_message_free(msg, verbose)
 
 
 
@@ -30919,7 +31065,7 @@ class ThreadAnalyzer(object):
                 SystemManager.tcpListCache = None
 
             # check repeat count #
-            self.checkProgress()
+            SystemManager.checkProgress()
 
             # reset system status #
             del self.prevProcData
@@ -30992,7 +31138,7 @@ class ThreadAnalyzer(object):
                     self.reportSystemStat()
 
             # check repeat count #
-            self.checkProgress()
+            SystemManager.checkProgress()
 
             # reset system status #
             del self.prevCpuData
@@ -45341,7 +45487,7 @@ class ThreadAnalyzer(object):
             return
 
         try:
-            # set non-block socket #
+            # set block socket #
             SystemManager.localServObj.socket.setblocking(1)
 
             if SystemManager.remoteServObj != 'NONE':
