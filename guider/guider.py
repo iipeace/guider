@@ -11654,7 +11654,7 @@ class SystemManager(object):
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
             options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
             options.rfind('d') >= 0 or options.rfind('o') >= 0 or \
-            options.rfind('E') >= 0:
+            options.rfind('C') >= 0 or options.rfind('E') >= 0:
             return True
         else:
             return False
@@ -11972,12 +11972,12 @@ Usage:
                 topSubStr = '''
 OPTIONS:
         -e  <CHARACTER>             enable options
-                m:memory | b:block | p:pipe | e:encode
-                t:thread | C:wfc | s:stack | w:wss | d:disk
+                c:cpu | m:memory | b:block | p:pipe | e:encode
+                t:thread | F:wfc | s:stack | w:wss | d:disk
                 P:Perf | i:irq | S:pss | u:uss | f:float
                 a:affinity | r:report | W:wchan | h:handler
                 f:float | R:freport | n:net | o:oomScore
-                c:cgroup | L:cmdline | E:Elasticsearch
+                C:cgroup | L:cmdline | E:Elasticsearch
         -d  <CHARACTER>             disable options
                 c:cpu | e:encode | p:print
                 t:truncate | G:gpu | a:memAvailable
@@ -17566,9 +17566,6 @@ Copyright:
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
 
-                if options.rfind('C') > -1:
-                    SystemManager.wfcEnable = True
-
                 if options.rfind('L') > -1:
                     SystemManager.cmdlineEnable = True
 
@@ -17591,7 +17588,7 @@ Copyright:
                         SystemManager.intervalEnable = 3
 
                 if options.rfind('F') > -1:
-                    SystemManager.fileTopEnable = True
+                    SystemManager.wfcEnable = True
 
                 if options.rfind('R') > -1:
                     SystemManager.reportEnable = True
@@ -17635,7 +17632,7 @@ Copyright:
                     SystemManager.reportEnable = True
                     SystemManager.elasticEnable = True
 
-                if options.rfind('c') > -1:
+                if options.rfind('C') > -1:
                     SystemManager.cgroupEnable = True
 
                 if not SystemManager.isEffectiveEnableOption(options):
@@ -42331,25 +42328,7 @@ class ThreadAnalyzer(object):
 
 
     def saveProcWchanData(self, path, tid):
-        # save wait channel info #
-        try:
-            self.prevProcData[tid]['wchanFd'].seek(0)
-            self.procData[tid]['wchanFd'] = self.prevProcData[tid]['wchanFd']
-            wchanBuf = self.procData[tid]['wchanFd'].readlines()
-        except:
-            try:
-                wchanPath = "%s/wchan" % path
-                wchanFd = self.procData[tid]['wchanFd'] = open(wchanPath, 'r')
-                wchanBuf = wchanFd.readlines()
-
-                # fd resource is about to run out #
-                if SystemManager.maxFd-16 < wchanFd.fileno():
-                    wchanFd.close()
-                    self.procData[tid]['wchanFd'] = None
-                    self.reclaimFds()
-            except:
-                SystemManager.printWarning('Fail to open %s' % wchanPath)
-                return
+        wchanBuf = self.saveTaskData(path, tid, 'wchan')
 
         try:
             if wchanBuf[0] == '0':
@@ -42430,25 +42409,7 @@ class ThreadAnalyzer(object):
 
 
     def saveProcSchedData(self, path, tid):
-        # save sched info #
-        try:
-            self.prevProcData[tid]['schedFd'].seek(0)
-            self.procData[tid]['schedFd'] = self.prevProcData[tid]['schedFd']
-            schedBuf = self.procData[tid]['schedFd'].readlines()
-        except:
-            try:
-                schedPath = "%s/%s" % (path, 'schedstat')
-                schedFd = self.procData[tid]['schedFd'] = open(schedPath, 'r')
-                schedBuf = schedFd.readlines()
-
-                # fd resource is about to run out #
-                if SystemManager.maxFd-16 < schedFd.fileno():
-                    schedFd.close()
-                    self.procData[tid]['schedFd'] = None
-                    self.reclaimFds()
-            except:
-                SystemManager.printWarning('Fail to open %s' % schedPath)
-                return
+        schedBuf = self.saveTaskData(path, tid, 'schedstat')
 
         try:
             SCHED_POLICY = schedBuf[0].split()
@@ -42504,28 +42465,51 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcStatusData(self, path, tid):
-        # save status info #
+    def saveTaskData(self, path, tid, name):
         try:
-            self.prevProcData[tid]['statusFd'].seek(0)
-            self.procData[tid]['statusFd'] = \
-                self.prevProcData[tid]['statusFd']
-            statusBuf = self.procData[tid]['statusFd'].readlines()
+            fd = '%sFd' % name
+            self.prevProcData[tid][fd].seek(0)
+            self.procData[tid][fd] = self.prevProcData[tid][fd]
+            buf = self.procData[tid][fd].readlines()
         except:
             try:
-                statusPath = "%s/status" % path
-                statusFd = self.procData[tid]['statusFd'] = \
-                    open(statusPath, 'r')
-                statusBuf = statusFd.readlines()
+                newPath = "%s/%s" % (path, name)
+                newFd = self.procData[tid][fd] = open(newPath, 'r')
+                buf = newFd.readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd-16 < statusFd.fileno():
-                    statusFd.close()
-                    self.procData[tid]['statusFd'] = None
+                if SystemManager.maxFd-16 < newFd.fileno():
+                    newFd.close()
+                    self.procData[tid][fd] = None
                     self.reclaimFds()
             except:
-                SystemManager.printWarning('Fail to open %s' % statusPath)
-                return
+                SystemManager.printWarning('Fail to open %s' % newPath)
+                return []
+
+        return buf
+
+
+
+    def saveCgroupData(self, path, tid):
+        if not SystemManager.cgroupEnable:
+            return
+
+        cgroupBuf = self.saveTaskData(path, tid, 'cgroup')
+
+        cstr = ''
+        for item in cgroupBuf:
+            clist = item[:-1].split(':')
+            if len(clist) != 3 or clist[-1] == '/':
+                continue
+            cstr = '%s%s:%s, ' % (cstr, clist[1], clist[2])
+
+        if len(cstr) > 0:
+            self.procData[tid]['cgroup'] = cstr[:-2]
+
+
+
+    def saveProcStatusData(self, path, tid):
+        statusBuf = self.saveTaskData(path, tid, 'status')
 
         if not self.procData[tid]['status']:
             self.procData[tid]['status'] = {}
@@ -42542,28 +42526,7 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['status'][statusList[0]] = \
                     statusList[1].strip()
 
-        # save statm info #
-        try:
-            statmBuf = None
-            self.prevProcData[tid]['statmFd'].seek(0)
-            self.procData[tid]['statmFd'] = self.prevProcData[tid]['statmFd']
-            statmBuf = self.procData[tid]['statmFd'].readlines()
-        except:
-            try:
-                statmPath = "%s/%s" % (path, 'statm')
-                self.procData[tid]['statmFd'] = open(statmPath, 'r')
-                statmBuf = self.procData[tid]['statmFd'].readlines()
-
-                # fd resource is about to run out #
-                if SystemManager.maxFd-16 < \
-                    self.procData[tid]['statmFd'].fileno():
-                    self.procData[tid]['statmFd'].close()
-                    self.procData[tid]['statmFd'] = None
-                    self.reclaimFds()
-            except:
-                SystemManager.printWarning('Fail to open %s' % statmPath)
-                return
-
+        statmBuf = self.saveTaskData(path, tid, 'statm')
         if statmBuf:
             self.procData[tid]['statm'] = statmBuf[0].split()
 
@@ -42670,35 +42633,7 @@ class ThreadAnalyzer(object):
 
         # save io data #
         if SystemManager.blockEnable:
-            try:
-                self.prevProcData[tid]['ioFd'].seek(0)
-                self.procData[tid]['ioFd'] = self.prevProcData[tid]['ioFd']
-                ioBuf = self.procData[tid]['ioFd'].readlines()
-            except:
-                try:
-                    ioPath = "%s/%s" % (path, 'io')
-                    ioFd = self.procData[tid]['ioFd'] = open(ioPath, 'r')
-                    ioBuf = ioFd.readlines()
-
-                    # fd resource is about to run out #
-                    if SystemManager.maxFd-16 < ioFd.fileno():
-                        ioFd.close()
-                        self.procData[tid]['ioFd'] = None
-                        self.reclaimFds()
-                except:
-                    SystemManager.printWarning('Fail to open %s' % ioPath)
-                    self.procData.pop(tid, None)
-                    return
-
-            # parse io usage #
-            for line in ioBuf:
-                line = line.split()
-                if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
-                    try:
-                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
-                    except:
-                        self.procData[tid]['io'] = {}
-                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+            ioBuf = self.saveTaskData(path, idx, 'io')
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
@@ -42760,8 +42695,8 @@ class ThreadAnalyzer(object):
         nrRclm = 0
         for pid, val in sorted(self.procData.items(), key=lambda x:int(x[0])):
             try:
-                val['schedFd'].close()
-                val['schedFd'] = None
+                val['schedstatFd'].close()
+                val['schedstatFd'] = None
                 nrRclm += 1
             except:
                 pass
@@ -42790,6 +42725,13 @@ class ThreadAnalyzer(object):
             try:
                 val['statusFd'].close()
                 val['statusFd'] = None
+                nrRclm += 1
+            except:
+                pass
+
+            try:
+                val['cgroupFd'].close()
+                val['cgroupFd'] = None
                 nrRclm += 1
             except:
                 pass
@@ -44063,7 +44005,8 @@ class ThreadAnalyzer(object):
                 '''
 
                 mtype = '(%s)[%s]' % (item['count'], key)
-                memBuf.append([key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+                memBuf.append(\
+                    [key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
 
                 if SystemManager.wssEnable:
                     # get current WSS size #
@@ -44075,7 +44018,8 @@ class ThreadAnalyzer(object):
 
                     # get previous WSS history #
                     try:
-                        self.procData[idx]['wss'] = self.prevProcData[idx]['wss']
+                        self.procData[idx]['wss'] = \
+                            self.prevProcData[idx]['wss']
                     except:
                         self.procData[idx].setdefault('wss', dict())
 
@@ -44887,6 +44831,9 @@ class ThreadAnalyzer(object):
             # save cmdline info #
             self.saveCmdlineData(value['taskPath'], idx)
 
+            # save cgroup info #
+            self.saveCgroupData(value['taskPath'], idx)
+
             # save sched info to get delayed time  #
             if not SystemManager.wfcEnable:
                 self.saveProcSchedData(value['taskPath'], idx)
@@ -45229,6 +45176,16 @@ class ThreadAnalyzer(object):
 
                 SystemManager.addPrint(\
                     "{0:>39} | CMD: {1:1}\n".format(' ', value['cmdline']))
+
+            # print cgroup #
+            if 'cgroup' in value:
+                # cut by rows of terminal #
+                if SystemManager.checkCutCond():
+                    SystemManager.addPrint('---more---')
+                    return
+
+                SystemManager.addPrint(\
+                    "{0:>39} | CGR: {1:1}\n".format(' ', value['cgroup']))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
