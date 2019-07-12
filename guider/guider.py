@@ -23707,7 +23707,7 @@ Copyright:
                         if mp['major'] == major and mp['minor'] == minor:
                             raise MountException
 
-                if dev not in self.diskInfo['prev']:
+                if not dev in self.diskInfo['prev']:
                     # check nodes by device id #
                     for node, attr in self.diskInfo['prev'].items():
                         if attr['major'] == major and attr['minor'] == minor:
@@ -42633,7 +42633,7 @@ class ThreadAnalyzer(object):
 
         # save io data #
         if SystemManager.blockEnable:
-            ioBuf = self.saveTaskData(path, idx, 'io')
+            ioBuf = self.saveTaskData(path, tid, 'io')
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
