@@ -10657,6 +10657,7 @@ class SystemManager(object):
     skipImpPkg = {}
     exitFuncList = []
     dltObj = None
+    dltCtx = None
     libcObj = None
     guiderObj = None
     libcppObj = None
@@ -18800,16 +18801,30 @@ Copyright:
             # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            SystemManager.printError(\
-                "Not implemented yet")
+            if not SystemManager.findOption('I'):
+                SystemManager.printError(\
+                    "wrong option value with -I option, "
+                    "input DLT message")
+                sys.exit(0)
+
+            ret = DltManager.doLogDlt(msg=SystemManager.sourceFile)
+            if ret == 0:
+                SystemManager.printInfo(\
+                    "Logged DLT message successfully")
+            else:
+                SystemManager.printError(\
+                    "Fail to log DLT message")
 
         # PRINTDLT MODE #
         elif SystemManager.isPrintDltMode():
+            # set console info #
+            SystemManager.ttyCols = 0
+            SystemManager.printStreamEnable = True
+
             # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            SystemManager.printError(\
-                "Not implemented yet")
+            DltManager.runDltReceiver(mode='print')
 
         # PAGE MODE #
         elif SystemManager.isMemMode():
@@ -25018,7 +25033,7 @@ class DltManager(object):
     """ Manager for DLT """
 
     @staticmethod
-    def doLogDlt(appid, context, msg):
+    def doLogDlt(appid='Guider', context='Guider', msg=None):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
@@ -25050,30 +25065,49 @@ class DltManager(object):
             sys.exit(0)
 
         # register #
-        ctx = DltContext()
-        dltObj.dlt_register_app(appid, 'Guider')
-        dltObj.dlt_register_context(byref(ctx), context, 'Guider')
+        if not SystemManager.dltCtx:
+            ctx = DltContext()
+            ret = dltObj.dlt_register_app(appid, 'Guider')
+            if ret < 0:
+                SystemManager.printError(\
+                    "Fail to register app '%s'" % appid)
+                sys.exit(0)
+            ret = dltObj.dlt_register_context(byref(ctx), context, 'Guider')
+            if ret < 0:
+                SystemManager.printError(\
+                    "Fail to register context '%s'" % context)
+                sys.exit(0)
+            SystemManager.dltCtx = ctx
 
         # log #
-        dltObj.dlt_log_string(byref(ctx), LEVEL_INFO, msg)
+        return dltObj.dlt_log_string(\
+            byref(SystemManager.dltCtx), LEVEL_INFO, msg)
 
+        '''
         # unregister #
         dltObj.dlt_unregister_context(byref(ctx))
         dltObj.dlt_unregister_app()
+        '''
 
 
 
+    @staticmethod
     def runDltReceiver(mode='top'):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
         from ctypes import cdll, POINTER, Structure, Union, \
             c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
-            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast
+            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
+            create_string_buffer
 
         # define constant #
         DLT_HTYP_WEID = 0x04
         DLT_SIZE_WEID = DLT_ID_SIZE = 4
+        DLT_MSIN_MSTP = 0x0e # message type #
+        DLT_MSIN_MTIN = 0xf0 # message type info #
+        DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
+        DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
 
         # define log level #
         LOG_EMERG     = 0
@@ -25084,6 +25118,12 @@ class DltManager(object):
         LOG_NOTICE    = 5
         LOG_INFO      = 6
         LOG_DEBUG     = 7
+
+        # define message type #
+        MSGTYPE = \
+            ["log", "app_trace", "nw_trace", "control"]
+        LOGINFO = \
+            ["", "fatal", "error", "warn", "info", "debug", "verb"]
 
         class DltContext(Structure):
             _fields_ = [
@@ -25331,6 +25371,8 @@ class DltManager(object):
 
             if not connSock:
                 raise Exception()
+        except SystemExit:
+            sys.exit(0)
         except:
             # check dlt-daemon #
             if SystemManager.getProcPids('dlt-daemon') == []:
@@ -25442,9 +25484,8 @@ class DltManager(object):
                 apId = msg.extendedheader.contents.apid
                 ctxId = msg.extendedheader.contents.ctid
                 ecuId = msg.storageheader.contents.ecu
-                timeSec = msg.storageheader.contents.seconds
-                timeUs = msg.storageheader.contents.microseconds
-                uptime = msg.headerextra.tmsp / float(10000)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarning(\
                     "Fail to process DLT message because %s" % \
@@ -25453,13 +25494,31 @@ class DltManager(object):
 
             if mode == 'top':
                 pass
-            elif mode == 'printdlt':
-                # convert log #
-                string = ''.join(\
-                    [chr(i) for i in msg.databuffer[:msg.datasize]]).\
-                        rstrip('\x00')
+            elif mode == 'print':
+                # get message info #
+                timeSec = msg.storageheader.contents.seconds
+                timeUs = msg.storageheader.contents.microseconds
+                uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
+                subtype = \
+                    (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
+                        >> DLT_MSIN_MTIN_SHIFT
+                try:
+                    info = LOGINFO[subtype]
+                except:
+                    info = ''
 
-                print(apId, ctxId, ecuId, uptime, timeUs, msg.datasize, string)
+                # get payload #
+                buf = ctypes.create_string_buffer(b'\000' * 10024)
+                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
+                string = buf.value.decode("utf8")
+
+                # get date time #
+                ntime = time.strftime(\
+                    '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
+
+                SystemManager.printPipe(\
+                    "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
+                    ntime, timeUs, uptime, ecuId, apId, ctxId, info, string))
 
         # free message #
         dltObj.dlt_message_free(msg, verbose)
