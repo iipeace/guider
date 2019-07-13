@@ -45279,6 +45279,11 @@ class ThreadAnalyzer(object):
             else:
                 totalTime = totalStats['ttime']
 
+            if totalStats['read'] != '-':
+                totalStats['read'] = totalStats['read'] >> 20
+            if totalStats['write'] != '-':
+                totalStats['write'] = totalStats['write'] >> 20
+
             # print total stats #
             SystemManager.addPrint(\
                 ("{0:>{td}}|"
@@ -45290,8 +45295,8 @@ class ThreadAnalyzer(object):
                 totalStats['utime'], totalStats['stime'], mem, \
                 convertFunc(totalStats['mem'] << 20, True), \
                 'Swp', convertFunc(totalStats['swap'], True), \
-                round(totalStats['btime'], 1), totalStats['read'] >> 20, \
-                totalStats['write'] >> 20, totalStats['majflt'], \
+                round(totalStats['btime'], 1), totalStats['read'], \
+                totalStats['write'], totalStats['majflt'], \
                 'Yld: %s' % convertNum(totalStats['yld']), \
                 'Prmt: %s' % convertNum(totalStats['prtd']), \
                 'Task: %s' % convertNum(totalStats['task']), \
