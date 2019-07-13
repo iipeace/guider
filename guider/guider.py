@@ -91,7 +91,7 @@ class ConfigManager(object):
 
     # Define cgroup entity #
     CGROUP_VALUE = [
-        'tasks',
+        'tasks', 'cgroup.procs',
         'cpu.shares', 'cpuset.cpus',
         'memory.limit_in_bytes',
         'memory.memsw.limit_in_bytes',
@@ -24183,7 +24183,7 @@ Copyright:
                 try:
                     path = '%s/%s' % (dirpath, target)
                     with open(path, 'r') as fd:
-                        if target == 'tasks':
+                        if target == 'tasks' or target == 'cgroup.procs':
                             item[target] = \
                                 UtilManager.convertNumber(len(fd.readlines()))
                         else:
@@ -24256,6 +24256,10 @@ Copyright:
                         nrTasks = subdir[val]
                         tempSubdir.pop(val, None)
                         continue
+                    elif val == 'cgroup.procs':
+                        nrProcs = subdir[val]
+                        tempSubdir.pop(val, None)
+                        continue
 
                     cname = '.'.join(val.split('.')[1:])
                     cstr = '%s%s:%s, ' % (cstr, cname, subdir[val])
@@ -24272,15 +24276,16 @@ Copyright:
                     cstr = '<%s>' % cstr[:-2]
 
                 nrTasks = '(task:%s)' % nrTasks
+                nrProcs = '(proc:%s)' % nrProcs
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
                     SystemManager.infoBufferPrint(\
-                        '%s- %s%s%s%s' % \
-                        (indent, curdir, nrChild, nrTasks, cstr))
+                        '%s- %s%s%s%s%s' % \
+                        (indent, curdir, nrChild, nrProcs, nrTasks, cstr))
                 else:
                     SystemManager.infoBufferPrint(\
-                        '%s- %s%s%s' % \
-                        (indent, curdir, nrTasks, cstr))
+                        '%s- %s%s%s%s' % \
+                        (indent, curdir, nrProcs, nrTasks, cstr))
 
                 printDirTree(tempSubdir, depth + 1)
 
