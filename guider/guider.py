@@ -24246,6 +24246,7 @@ Copyright:
 
             for curdir, subdir in sorted(tempRoot.items()):
                 cstr = ''
+                nrProcs = 0
                 nrTasks = 0
 
                 tempSubdir = copy.deepcopy(subdir)
@@ -24275,17 +24276,16 @@ Copyright:
                 if len(cstr) > 0:
                     cstr = '<%s>' % cstr[:-2]
 
-                nrTasks = '(task:%s)' % nrTasks
-                nrProcs = '(proc:%s)' % nrProcs
+                nrWorker = '(proc:%s,task:%s)' % (nrProcs, nrTasks)
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
                     SystemManager.infoBufferPrint(\
-                        '%s- %s%s%s%s%s' % \
-                        (indent, curdir, nrChild, nrProcs, nrTasks, cstr))
+                        '%s- %s%s%s%s' % \
+                        (indent, curdir, nrChild, nrWorker, cstr))
                 else:
                     SystemManager.infoBufferPrint(\
-                        '%s- %s%s%s%s' % \
-                        (indent, curdir, nrProcs, nrTasks, cstr))
+                        '%s- %s%s%s' % \
+                        (indent, curdir, nrWorker, cstr))
 
                 printDirTree(tempSubdir, depth + 1)
 
