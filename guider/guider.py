@@ -13210,6 +13210,25 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
                     '''.format(cmd, mode)
 
+                # printcgroup #
+                elif SystemManager.isPrintcgroupMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show system cgroup tree
+
+OPTIONS:
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print system cgroup tree
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
                 # leaktracer #
                 elif SystemManager.isLeaktraceMode():
                     helpStr = '''
@@ -13629,6 +13648,7 @@ COMMAND:
                 readelf     <file>
                 addr2line   <symbol>
                 leaktrace   <leak>
+                printcgroup <cgroup>
                 printdlt    <DLT>
                 logdlt      <DLT>
 
@@ -18796,6 +18816,12 @@ Copyright:
         elif SystemManager.isAddr2lineMode():
             SystemManager.doAddr2line()
 
+        # PRINTCGROUP MODE #
+        elif SystemManager.isPrintcgroupMode():
+            SystemManager.cgroupEnable = True
+            SystemManager().printCgroupInfo(printTitle=False)
+            SystemManager.printInfoBuffer()
+
         # LOGDLT MODE #
         elif SystemManager.isLogDltMode():
             # print title #
@@ -19024,6 +19050,15 @@ Copyright:
     @staticmethod
     def isAddr2lineMode():
         if sys.argv[1] == 'addr2line':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintcgroupMode():
+        if sys.argv[1] == 'printcgroup':
             return True
         else:
             return False
@@ -24202,7 +24237,7 @@ Copyright:
 
 
 
-    def printCgroupInfo(self):
+    def printCgroupInfo(self, printTitle=True):
         def printDirTree(root, depth):
             if type(root) is not dict:
                 return
@@ -24264,10 +24299,14 @@ Copyright:
             return
 
         # print cgroup info #
-        SystemManager.infoBufferPrint('\n[System Cgroup Info]')
-        SystemManager.infoBufferPrint(twoLine)
+        if printTitle:
+            SystemManager.infoBufferPrint('\n[System Cgroup Info]')
+            SystemManager.infoBufferPrint(twoLine)
+
         printDirTree(cgroupTree, 0)
-        SystemManager.infoBufferPrint(twoLine)
+
+        if printTitle:
+            SystemManager.infoBufferPrint(twoLine)
 
         # add JSON stats #
         if SystemManager.jsonPrintEnable:
