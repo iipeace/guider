@@ -23698,6 +23698,9 @@ Copyright:
 
             # check skip condition #
             try:
+                if fs == 'tmpfs':
+                    raise MountException
+
                 rpath = os.path.realpath(dev)
                 dev = os.path.basename(rpath)
 
@@ -24655,13 +24658,13 @@ Copyright:
         # make block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             # check device node path #
-            try:
-                if key[0] == '/':
-                    devInfo[key] = {}
-                    outputCnt += 1
-                else:
-                    continue
-            except:
+            if val['fs'] == 'tmpfs':
+                key = val['path']
+
+            if key[0] == '/':
+                devInfo[key] = {}
+                outputCnt += 1
+            else:
                 continue
 
             # calculate read & write size of devices #
@@ -37173,7 +37176,7 @@ class ThreadAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        if len(tokenList) == 11 and tokenList[0][0] == '/':
+        if len(tokenList) == 12 and tokenList[0][0] == '/':
             convertUnit2Size = UtilManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
@@ -42634,6 +42637,14 @@ class ThreadAnalyzer(object):
         # save io data #
         if SystemManager.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
+        for line in ioBuf:
+            line = line.split()
+            if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
+                try:
+                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+                except:
+                    self.procData[tid]['io'] = {}
+                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
@@ -44325,37 +44336,41 @@ class ThreadAnalyzer(object):
             if dev == 'total':
                 continue
 
+            origDev = dev
+            if 'mount' in value and value['mount']['fs'] == 'tmpfs':
+                dev = value['mount']['path']
+
             # get readtime #
             try:
                 readtime = value['readtime'] - \
-                    prevStorageData[dev]['readtime']
+                    prevStorageData[origDev]['readtime']
             except:
                 readtime = 0
 
             # get writetime #
             try:
                 writetime = value['writetime'] - \
-                    prevStorageData[dev]['writetime']
+                    prevStorageData[origDev]['writetime']
             except:
                 writetime = 0
 
             # get busytime #
             try:
                 iotime = value['iotime'] - \
-                    prevStorageData[dev]['iotime']
+                    prevStorageData[origDev]['iotime']
 
                 busytime = '%s%%' % \
                     int(iotime / 10 / SystemManager.uptimeDiff)
 
                 iowtime = value['iowtime'] - \
-                    prevStorageData[dev]['iowtime']
+                    prevStorageData[origDev]['iowtime']
             except:
                 busytime = '0%'
 
             # get avq #
             try:
                 iowtime = value['iowtime'] - \
-                    prevStorageData[dev]['iowtime']
+                    prevStorageData[origDev]['iowtime']
 
                 avq = '%.1f' % (iowtime / iotime)
             except:
@@ -44364,7 +44379,7 @@ class ThreadAnalyzer(object):
             # get read size on this interval #
             try:
                 readSize = value['read'] - \
-                    prevStorageData[dev]['read']
+                    prevStorageData[origDev]['read']
 
                 readSize = convertSize2Unit(readSize << 20)
             except:
@@ -44373,7 +44388,7 @@ class ThreadAnalyzer(object):
             # get write size on this interval #
             try:
                 writeSize = value['write'] - \
-                    prevStorageData[dev]['write']
+                    prevStorageData[origDev]['write']
 
                 writeSize = convertSize2Unit(writeSize << 20)
             except:
@@ -44386,7 +44401,7 @@ class ThreadAnalyzer(object):
             # get free space change on this interval #
             try:
                 freeDiff = value['free'] - \
-                    prevStorageData[dev]['free']
+                    prevStorageData[origDev]['free']
 
                 if freeDiff < 0:
                     op = '-'
@@ -44929,10 +44944,10 @@ class ThreadAnalyzer(object):
                 dtime = '-'
 
             # get io size #
-            if SystemManager.blockEnable:
+            try:
                 readSize = value['read'] >> 20
                 writeSize = value['write'] >> 20
-            else:
+            except:
                 readSize = '-'
                 writeSize = '-'
 
@@ -45091,8 +45106,12 @@ class ThreadAnalyzer(object):
                     totalStats['read'] += value['read']
                     totalStats['write'] += value['write']
                 except:
-                    totalStats['read'] = value['read']
-                    totalStats['write'] = value['write']
+                    try:
+                        totalStats['read'] = value['read']
+                        totalStats['write'] = value['write']
+                    except:
+                        totalStats['read'] = '-'
+                        totalStats['write'] = '-'
             else:
                 totalStats['read'] = '-'
                 totalStats['write'] = '-'
@@ -45230,8 +45249,8 @@ class ThreadAnalyzer(object):
                 totalStats['utime'], totalStats['stime'], mem, \
                 convertFunc(totalStats['mem'] << 20, True), \
                 'Swp', convertFunc(totalStats['swap'], True), \
-                round(totalStats['btime'], 1), totalStats['read'], \
-                totalStats['write'], totalStats['majflt'], \
+                round(totalStats['btime'], 1), totalStats['read'] >> 20, \
+                totalStats['write'] >> 20, totalStats['majflt'], \
                 'Yld: %s' % convertNum(totalStats['yld']), \
                 'Prmt: %s' % convertNum(totalStats['prtd']), \
                 'Task: %s' % convertNum(totalStats['task']), \
