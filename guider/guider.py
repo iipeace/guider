@@ -10673,7 +10673,7 @@ class SystemManager(object):
     jsonObject = None
 
     tgidEnable = True
-    binEnable = False
+    taskEnable = True
     processEnable = True
     groupProcEnable = False
 
@@ -11979,7 +11979,7 @@ OPTIONS:
                 f:float | R:freport | n:net | o:oomScore
                 C:cgroup | L:cmdline | E:Elasticsearch
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | p:print
+                c:cpu | e:encode | p:print | T:task
                 t:truncate | G:gpu | a:memAvailable
                     '''
 
@@ -17490,6 +17490,9 @@ Copyright:
 
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = False
+
+                if options.rfind('T') > -1:
+                    SystemManager.taskEnable = False
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
@@ -24482,9 +24485,8 @@ Copyright:
         SystemManager.infoBufferPrint((\
             "{0:^16} {1:^21} | "
             "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9} | "
-            "{7:^8} {8:^8} {9:^8} {10:^8} {11:^9}").format(\
+            "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9}").format(\
                 "Dev", "TYPE",
-                "Size", "Packet", "Error", "Drop", "Multicast", \
                 "Size", "Packet", "Error", "Drop", "Multicast"))
         SystemManager.infoBufferPrint(twoLine)
 
@@ -42086,7 +42088,8 @@ class ThreadAnalyzer(object):
             self.saveGpuData()
 
         # check systemtop mode #
-        if SystemManager.isSystemTopMode():
+        if SystemManager.isSystemTopMode() or \
+            not SystemManager.taskEnable:
             return
 
         # get process list #
@@ -42637,14 +42640,14 @@ class ThreadAnalyzer(object):
         # save io data #
         if SystemManager.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
-        for line in ioBuf:
-            line = line.split()
-            if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
-                try:
-                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
-                except:
-                    self.procData[tid]['io'] = {}
-                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+            for line in ioBuf:
+                line = line.split()
+                if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
+                    try:
+                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+                    except:
+                        self.procData[tid]['io'] = {}
+                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
         # save perf fds #
         if SystemManager.perfGroupEnable:
@@ -44226,9 +44229,8 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint((\
             "{0:^16} | {1:^21} | "
             "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} | "
-            "{7:^8} | {8:^8} | {9:^8} | {10:^8} | {11:^9} |\n").format(\
+            "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} |\n").format(\
                 "Dev", "IP", \
-                "Size", "Packet", "Error", "Drop", "Multicast",\
                 "Size", "Packet", "Error", "Drop", "Multicast"))
 
         SystemManager.addPrint('%s\n' % twoLine)
@@ -44287,10 +44289,10 @@ class ThreadAnalyzer(object):
             rdiff = totalStat['rdiff']
             tdiff = totalStat['tdiff']
             SystemManager.addPrint((\
-                "{0:>16} | {1:>21} | "
+                "{0:>16} | {1:^21} | "
                 "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                 "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
-                    '[ TOTAL ]', ' ',\
+                    '[ TOTAL ]', '-',\
                     convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
                     convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
                     convertFunc(rdiff[-1]), \
