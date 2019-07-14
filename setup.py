@@ -40,7 +40,7 @@ except:
 # search package path #
 for path in site.getsitepackages():
     # check path #
-    if os.path.isdir('%s/guider' % path) is False:
+    if not os.path.isdir('%s/guider' % path):
         continue
 
     # set pyc source path #
@@ -51,15 +51,15 @@ for path in site.getsitepackages():
         pycTmpDir = '%s/guider/__pycache__/' % path
         if os.path.isdir(pycTmpDir):
             for cache in os.listdir(pycTmpDir):
-                if cache.startswith('guider') is False:
+                if not cache.startswith('guider'):
                     continue
 
+                # rename cpython-format name #
                 pycTmpFile = '%s%s' % (pycTmpDir, cache)
                 os.rename(pycTmpFile, pycSrcPath)
-                shutil.copy2(pycTmpFile, '%s/../' % (pycTmpFile))
 
         # check pyc source file #
-        if os.path.isfile(pycSrcPath) is False:
+        if not os.path.isfile(pycSrcPath):
             continue
 
         # remove old pyc file #
@@ -68,8 +68,21 @@ for path in site.getsitepackages():
 
         # create pyc destination path #
         os.symlink(pycSrcPath, pycDesPath)
+
+        print("Wrote %s and linked it to %s successfully" % \
+            (pycSrcPath, pycDesPath))
     except:
-        pass
+        err = sys.exc_info()[1]
+
+        try:
+            if len(err.args) == 0 or err.args[0] == 0:
+                #print(sys.exc_info()[0].__name__)
+                continue
+            errRes = ' '.join(list(map(str, err.args)))
+            print("[ERROR] Fail to write %s and link it to %s" % \
+                (pycSrcPath, pycDesPath))
+        except:
+            pass
 
 '''
 pypi upload command
