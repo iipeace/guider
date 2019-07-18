@@ -25078,6 +25078,14 @@ Copyright:
 class DltManager(object):
     """ Manager for DLT """
 
+    # define list #
+    dltData = {'cnt': 0}
+
+    @staticmethod
+    def printSummary():
+        # initialize data #
+        dltData = {'cnt': 0}
+
     @staticmethod
     def doLogDlt(appid='Guider', context='Guider', msg=None):
         # get ctypes object #
@@ -25477,6 +25485,9 @@ class DltManager(object):
                 # check user input #
                 SystemManager.waitUserInput(0.000001)
 
+                # print summary #
+                DltManager.printSummary()
+
                 # save timestamp #
                 prevTime = time.time()
 
@@ -25527,9 +25538,9 @@ class DltManager(object):
                     sys.exit(0)
 
                 # pick storage info #
+                ecuId = msg.storageheader.contents.ecu
                 apId = msg.extendedheader.contents.apid
                 ctxId = msg.extendedheader.contents.ctid
-                ecuId = msg.storageheader.contents.ecu
             except SystemExit:
                 sys.exit(0)
             except:
@@ -25539,7 +25550,22 @@ class DltManager(object):
                 continue
 
             if mode == 'top':
-                pass
+                DltManager.dltData['cnt'] += 1
+
+                # add ecuId #
+                if not ecuId in DltManager.dltData:
+                    DltManager.dltData[ecuId] = {'apList': dict(), 'cnt': 0}
+                DltManager.dltData[ecuId]['cnt'] += 1
+
+                # add apId #
+                if not apId in DltManager.dltData[ecuId]:
+                    DltManager.dltData[ecuId][apId] = {'ctxList': dict(), 'cnt': 0}
+                DltManager.dltData[ecuId][apId]['cnt'] += 1
+
+                # add ctxId #
+                if not ctxId in DltManager.dltData[ecuId][apId]:
+                    DltManager.dltData[ecuId][apId][ctxId] = {'cnt': 0}
+                DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
             elif mode == 'print':
                 # get message info #
                 timeSec = msg.storageheader.contents.seconds
