@@ -11317,10 +11317,32 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getCmdline(pid):
+        cmdlinePath = \
+            '%s/%s/cmdline' % (SystemManager.procPath, pid)
+        with open(cmdlinePath, 'r') as fd:
+            return fd.readline().replace("\x00", " ")
+
+
+
+    @staticmethod
+    def getComm(pid):
+        commPath = \
+            '%s/%s/comm' % (SystemManager.procPath, pid)
+        try:
+            with open(commPath, 'r') as fd:
+                return fd.readline()[:-1]
+        except:
+            return None
+
+
+
+    @staticmethod
     def setComm(comm):
         if not sys.platform.startswith('linux'):
             return
 
+        # try to set comm using native lib #
         try:
             SystemManager.guiderObj.prctl(15, comm, 0, 0, 0)
             return
@@ -19659,32 +19681,32 @@ Copyright:
         # update uptime #
         SystemManager.updateUptime()
 
+        # get my comm #
+        myComm = SystemManager.getComm(SystemManager.pid)
+
+        # get my comm #
+        myCmdline = SystemManager.getCmdline(SystemManager.pid).split()
+
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
-            if myPid == pid:
+            if myPid == pid or not pid.isdigit():
                 continue
 
-            try:
-                int(pid)
-            except:
+            # check comm #
+            comm = SystemManager.getComm(pid)
+            if not comm or not comm.startswith(myComm):
                 continue
 
-            # make comm path of pid #
-            procPath = "%s/%s" % (SystemManager.procPath, pid)
-
-            try:
-                with open('%s/comm' % procPath, 'r') as fd:
-                    comm = fd.readline()[0:-1]
-            except:
-                continue
-
-            if not comm.startswith(__module__):
-                continue
+            # check cmdline again #
+            if myComm != __module__:
+                cmdlineList = SystemManager.getCmdline(pid).split()
+                if len(cmdlineList) > 2 and myCmdline[:2] != cmdlineList[:2]:
+                    continue
 
             runtime = '?'
 
             try:
-                statPath = "%s/%s" % (procPath, 'stat')
+                statPath = "%s/%s/stat" % (SystemManager.procPath, pid)
                 with open(statPath, 'r') as fd:
                     statList = fd.readlines()[0].split()
 
@@ -19726,8 +19748,7 @@ Copyright:
                 network = ''
 
             try:
-                with open('%s/cmdline' % procPath, 'r') as fd:
-                    cmdline = fd.readline().replace("\x00", " ")
+                cmdline = SystemManager.getCmdline(pid)
             except:
                 cmdline = '?'
 
@@ -20041,6 +20062,7 @@ Copyright:
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
 
 
@@ -21110,7 +21132,7 @@ Copyright:
                 "input number in integer format"))
             sys.exit(0)
 
-        # convert meory size #
+        # convert memory size #
         size = UtilManager.convertUnit2Size(size)
         if not size:
             SystemManager.printError(\
@@ -21200,7 +21222,7 @@ Copyright:
 
     @staticmethod
     def doLimitCpu(limitInfo, isProcess=False, verbose=True):
-        CLK_PRECISION = 1000000
+        CLK_PRECISION = 100000
         MAX_BUCKET = CLK_PRECISION / 1000
         SLEEP_SEC = 1 / float(MAX_BUCKET)
         COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
@@ -21219,7 +21241,7 @@ Copyright:
             try:
                 return list(map(int, os.listdir(taskPath)))
             except:
-                pass
+                return None
 
         def openStatFd(tid, isProcess):
             if isProcess:
@@ -21455,7 +21477,6 @@ Copyright:
     def sendSignalProcs(nrSig, pidList):
         nrProc = 0
         myPid = str(SystemManager.pid)
-        compLen = len(__module__)
         SIG_LIST = ConfigManager.SIG_LIST
 
         if type(pidList) is list and len(pidList) > 0:
@@ -21478,43 +21499,45 @@ Copyright:
                     SystemManager.printSigError(pid, SIG_LIST[nrSig])
             return
 
-        commLocation = sys.argv[0].rfind('/')
-        if commLocation >= 0:
-            targetComm = sys.argv[0][commLocation + 1:]
+        # get my comm #
+        myComm = SystemManager.getComm(SystemManager.pid)
+        if not myComm:
+            SystemManager.printError(\
+                "Fail to get my comm because %s" % \
+                SystemManager.getErrReason())
+            sys.exit(0)
+
+        # get my comm #
+        myCmdline = SystemManager.getCmdline(SystemManager.pid)
+        if myCmdline:
+            myCmdline = myCmdline.split()
         else:
-            targetComm = sys.argv[0]
+            SystemManager.printError(\
+                "Fail to get my cmdline because %s" % \
+                SystemManager.getErrReason())
+            sys.exit(0)
 
-        pids = os.listdir(SystemManager.procPath)
-        for pid in pids:
-            if myPid == pid:
+        # handle Guider processes #
+        for pid in os.listdir(SystemManager.procPath):
+            if myPid == pid or not pid.isdigit():
                 continue
 
-            try:
-                int(pid)
-            except:
+            # check comm #
+            comm = SystemManager.getComm(pid)
+            if not comm or not comm.startswith(myComm):
                 continue
 
-            # make comm path of pid #
-            procPath = "%s/%s" % (SystemManager.procPath, pid)
-
-            try:
-                fd = open(procPath + '/comm', 'r')
-            except:
-                continue
-
-            try:
-                comm = fd.readline()[0:-1]
-                if comm[0:compLen] != __module__:
+            # check cmdline again #
+            if myComm != __module__:
+                cmdlineList = SystemManager.getCmdline(pid).split()
+                if len(cmdlineList) > 2 and myCmdline[:2] != cmdlineList[:2]:
                     continue
-            except:
-                continue
 
             if nrSig == signal.SIGINT:
                 waitStatus = False
 
                 try:
-                    cmdFd = open(procPath + '/cmdline', 'r')
-                    cmdList = cmdFd.readline().split('\x00')
+                    cmdList = SystemManager.getCmdline(pid).split(' ')
                     for val in cmdList:
                         if val == '-c':
                             waitStatus = True
@@ -21554,8 +21577,7 @@ Copyright:
 
     @staticmethod
     def getThreadList(tid):
-        procPath = "%s/%s" % (SystemManager.procPath, tid)
-        taskPath = "%s/task" % procPath
+        taskPath = "%s/%s/task" % (SystemManager.procPath, tid)
 
         try:
             return list(map(int, os.listdir(taskPath)))
@@ -22011,17 +22033,15 @@ Copyright:
 
         try:
             cmdlineFile = '%s/cmdline' % SystemManager.procPath
-            f = open(cmdlineFile, 'r')
-            self.cmdlineData = f.readline()[0:-1]
-            f.close()
+            with open(cmdlineFile, 'r') as fd:
+                self.cmdlineData = fd.readline()[0:-1]
         except:
             SystemManager.printWarning("Fail to open %s" % cmdlineFile)
 
         try:
             loadFile = '%s/loadavg' % SystemManager.procPath
-            f = open(loadFile, 'r')
-            self.loadData = f.readline()
-            f.close()
+            with open(loadFile, 'r') as fd:
+                self.loadData = fd.readline()
         except:
             SystemManager.printWarning("Fail to open %s" % loadFile)
 
@@ -22037,32 +22057,29 @@ Copyright:
         try:
             kernelVersionFile = \
                 '%s/sys/kernel/osrelease' % SystemManager.procPath
-            f = open(kernelVersionFile, 'r')
-            self.systemInfo['kernelVer'] = f.readline().strip('\n')
-            f.close()
+            with open(kernelVersionFile, 'r') as fd:
+                self.systemInfo['kernelVer'] = fd.readline().strip('\n')
         except:
             SystemManager.printWarning("Fail to open %s" % kernelVersionFile)
 
         try:
             osVersionFile = '%s/sys/kernel/version' % SystemManager.procPath
-            f = open(osVersionFile, 'r')
-            self.systemInfo['osVer'] = f.readline().strip('\n')
-            f.close()
+            with open(osVersionFile, 'r') as fd:
+                self.systemInfo['osVer'] = fd.readline().strip('\n')
         except:
             SystemManager.printWarning("Fail to open %s" % osVersionFile)
 
         try:
             osTypeFile = '%s/sys/kernel/ostype' % SystemManager.procPath
-            f = open(osTypeFile, 'r')
-            self.systemInfo['osType'] = f.readline().strip('\n')
-            f.close()
+            with open(osTypeFile, 'r') as fd:
+                self.systemInfo['osType'] = fd.readline().strip('\n')
         except:
             SystemManager.printWarning("Fail to open %s" % osTypeFile)
 
         try:
             timeFile = '%s/driver/rtc' % SystemManager.procPath
-            f = open(timeFile, 'r')
-            timeInfo = f.readlines()
+            with open(timeFile, 'r') as fd:
+                timeInfo = fd.readlines()
 
             for val in timeInfo:
                 timeEntity = val.split()
@@ -22071,8 +22088,6 @@ Copyright:
                     self.systemInfo['time'] = timeEntity[2]
                 elif timeEntity[0] == 'rtc_date':
                     self.systemInfo['date'] = timeEntity[2]
-
-            f.close()
         except:
             SystemManager.printWarning("Fail to open %s" % timeFile)
 
@@ -22168,12 +22183,9 @@ Copyright:
 
 
     def saveCpuInfo(self):
-        cpuFile = '%s/cpuinfo' % SystemManager.procPath
-
         try:
-            f = open(cpuFile, 'r')
-            self.cpuData = f.readlines()
-            f.close()
+            with open('%s/cpuinfo' % SystemManager.procPath, 'r') as fd:
+                self.cpuData = fd.readlines()
         except:
             SystemManager.printWarning("Fail to open %s" % cpuFile)
 
@@ -22229,29 +22241,30 @@ Copyright:
         devFile = '%s/devices' % SystemManager.procPath
 
         try:
+            target = None
             with open(devFile, 'r') as df:
-                target = None
                 devData = df.readlines()
-                for line in devData:
-                    if line.startswith('Character'):
-                        target = self.devInfo['char'] = {}
-                    elif line.startswith('Block'):
-                        target = self.devInfo['block'] = {}
 
-                    item = line.split()
+            for line in devData:
+                if line.startswith('Character'):
+                    target = self.devInfo['char'] = {}
+                elif line.startswith('Block'):
+                    target = self.devInfo['block'] = {}
 
-                    if len(item) != 2:
-                        continue
+                item = line.split()
 
-                    try:
-                        num = int(item[0])
-                    except:
-                        continue
+                if len(item) != 2:
+                    continue
 
-                    try:
-                        target[num].append(item[1])
-                    except:
-                        target[num] = [item[1]]
+                try:
+                    num = int(item[0])
+                except:
+                    continue
+
+                try:
+                    target[num].append(item[1])
+                except:
+                    target[num] = [item[1]]
         except:
             SystemManager.printWarning("Fail to open %s" % devFile)
 
@@ -24331,36 +24344,6 @@ Copyright:
 
 
     def printShmInfo(self):
-        def getComm(pid):
-            COMM_IDX = ConfigManager.STAT_ATTR.index("COMM")
-
-            try:
-                statPath = "%s/%s/stat" % \
-                    (SystemManager.procPath, pid)
-
-                fd = open(statPath, 'r')
-
-                statBuf = fd.readlines()[0]
-            except:
-                return None
-
-            # convert string to list #
-            statList = statBuf.split()
-
-            # merge comm parts that splited by space #
-            if statList[COMM_IDX][-1] != ')':
-                idx = COMM_IDX + 1
-                while 1:
-                    tmpStr = str(statList[idx])
-                    statList[COMM_IDX] = \
-                        "%s %s" % (statList[COMM_IDX], tmpStr)
-                    statList.pop(idx)
-                    if tmpStr.rfind(')') > -1:
-                        break
-
-            comm = statList[COMM_IDX][1:-1]
-            return comm
-
         # check shm data #
         if not 'shm' in self.ipcData:
             return
@@ -24416,8 +24399,8 @@ Copyright:
                 if pid != prevOwner:
                     prevOwner = pid
 
-                    comm = getComm(pid)
-                    if comm is None:
+                    comm = SystemManager.getComm(pid)
+                    if not comm:
                         raise Exception()
 
                     owner = '%s(%s)' % (comm, pid)
@@ -24457,9 +24440,8 @@ Copyright:
 
             try:
                 pid = stats['lpid']
-                comm = getComm(pid)
-
-                if comm is None:
+                comm = SystemManager.getComm(pid)
+                if not comm:
                     raise Exception()
 
                 access = '%s (%s)' % (comm, pid)
@@ -35178,7 +35160,8 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint('%s\n' % twoLine)
         SystemManager.addPrint(\
             "{3:>16} ({4:^5})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
-            format("Type", "Time", "Module", "Comm", "Tid", "Elapsed", "RefCnt"))
+                format("Type", "Time", "Module", "Comm", "Tid", \
+                    "Elapsed", "RefCnt"))
         SystemManager.addPrint('%s\n' % twoLine)
 
         printCnt = 0
@@ -42599,6 +42582,9 @@ class ThreadAnalyzer(object):
 
 
     def saveProcStatusData(self, path, tid):
+        if not tid in self.procData:
+            return
+
         statusBuf = self.saveTaskData(path, tid, 'status')
 
         if not self.procData[tid]['status']:
