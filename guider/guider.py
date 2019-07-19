@@ -20988,6 +20988,7 @@ Copyright:
         elif len(value) == 2:
             try:
                 nrTask, load = list(map(int, value))
+                totalLoad = nrTask * load
                 if nrTask == 0:
                     nrTask = 1
             except:
@@ -20997,7 +20998,7 @@ Copyright:
                 sys.exit(0)
         else:
             try:
-                load = int(value[0])
+                totalLoad = load = int(value[0])
                 if load > 100:
                     nrTask = int(load / 100) + 1
                     load = int(load / nrTask)
@@ -21039,9 +21040,10 @@ Copyright:
         else:
             taskstr = 'a process'
 
-        SystemManager.printInfo(\
-            "created %s and limited them to use cpu %d%% each other" % \
-                (taskstr, load))
+        SystemManager.printInfo((\
+            "created %s and limited them to use cpu a total of %d%% " \
+            "and %d%% respectively") % \
+                (taskstr, totalLoad, load))
 
         # limit CPU usage of tasks #
         SystemManager.doLimitCpu(limitInfo, verbose=False)
