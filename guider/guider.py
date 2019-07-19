@@ -38417,10 +38417,17 @@ class ThreadAnalyzer(object):
             SystemManager.topInstance.updateOOMScore(path, pid)
             SystemManager.topInstance.saveProcStatusData(path, pid)
 
+        if SystemManager.processEnable:
+            pidType = 'PID'
+            ppidType = 'PPID'
+        else:
+            pidType = 'TID'
+            ppidType = 'PID'
+
         SystemManager.printPipe((\
             "\n{0:1}\n{1:>16}({2:>5}/{3:>5}) "
             "{4:>8} {5:>8} {6:>8} {7:>12} {8:>20}\n{9:^1}\n").format(\
-                twoLine, 'Name', 'PID', 'PPID', 'VSS', 'RSS', 'SHM', \
+                twoLine, 'Name', pidType, ppidType, 'VSS', 'RSS', 'SHM', \
                 'OOM_SCORE', 'LifeTime', oneLine))
 
         cnt = 0
@@ -38443,10 +38450,15 @@ class ThreadAnalyzer(object):
             runtime = \
                 SystemManager.uptime - (float(val['stat'][starttimeIdx]) / 100)
 
+            if SystemManager.processEnable:
+                ppid = stat[ppidIdx]
+            else:
+                ppid = val['mainID']
+
             SystemManager.printPipe((\
                 "{0:>16}({1:>5}/{2:>5}) "
                 "{3:>8} {4:>8} {5:>8} {6:>12} {7:>20}\n").format(\
-                    comm, pid, stat[ppidIdx], \
+                    comm, pid, ppid, \
                     convertFunc(long(stat[vssIdx])), \
                     convertFunc(long(stat[rssIdx]) << 12), \
                     convertFunc(long(statm[shrIdx]) << 12), \
