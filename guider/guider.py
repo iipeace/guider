@@ -4569,7 +4569,7 @@ class FunctionAnalyzer(object):
         # start parsing logs #
         SystemManager.totalLine = len(lines)
         SystemManager.printStat(\
-            'start analyzing data... [ STOP(ctrl + c) ]')
+            'start analyzing data... [ STOP(Ctrl+c) ]')
 
         self.parseLogs(lines, SystemManager.filterGroup)
 
@@ -4597,12 +4597,12 @@ class FunctionAnalyzer(object):
 
         # Get symbols from call address #
         SystemManager.printStat(\
-            'start resolving symbols... [ STOP(ctrl + c) ]')
+            'start resolving symbols... [ STOP(Ctrl+c) ]')
         self.getSymbols()
 
         # Merge callstacks by symbol and address #
         SystemManager.printStat(\
-            'start summarizing functions... [ STOP(ctrl + c) ]')
+            'start summarizing functions... [ STOP(Ctrl+c) ]')
         self.mergeStacks()
 
 
@@ -15059,7 +15059,7 @@ Copyright:
         args = [objdumpPath, "-C", "-F", "-d", binPath]
 
         SystemManager.printStat(\
-            "start finding %s... [ STOP(ctrl + c) ]" % (symbol))
+            "start finding %s... [ STOP(Ctrl+c) ]" % (symbol))
 
         # start objdump process #
         try:
@@ -15798,7 +15798,6 @@ Copyright:
                     SystemManager.fileForPrint.seek(0, 0)
                     SystemManager.fileForPrint.truncate()
 
-                # print title #
                 SystemManager.printLogo(absolute=True, big=True)
 
                 # save system info #
@@ -15843,7 +15842,7 @@ Copyright:
         SystemManager.repeatCount = 0
 
         SystemManager.printStat(\
-            'ready to save and analyze... [ STOP(ctrl + c) ]')
+            'ready to save and analyze... [ STOP(Ctrl+c) ]')
 
         raise Exception()
 
@@ -15873,7 +15872,6 @@ Copyright:
                 SystemManager.fileForPrint.seek(0, 0)
                 SystemManager.fileForPrint.truncate()
 
-            # print title #
             SystemManager.printLogo(absolute=True, big=True)
 
             # save system info #
@@ -16151,7 +16149,7 @@ Copyright:
                         'mount -t debugfs nodev %s 2>/dev/null\n' % \
                         SystemManager.debugfsPath)
                     SystemManager.cmdFd.write(\
-                        'echo "\nstart recording... [ STOP(ctrl + c) ]\n"\n')
+                        'echo "\nstart recording... [ STOP(Ctrl+c) ]\n"\n')
                 except:
                     err = SystemManager.getErrReason()
                     SystemManager.printErr(\
@@ -18830,7 +18828,6 @@ Copyright:
 
         # READELF MODE #
         elif SystemManager.isReadelfMode():
-            # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
             if not SystemManager.sourceFile:
@@ -18860,7 +18857,6 @@ Copyright:
 
         # LOGDLT MODE #
         elif SystemManager.isLogDltMode():
-            # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
             if not SystemManager.findOption('I'):
@@ -18883,14 +18879,12 @@ Copyright:
             SystemManager.ttyCols = 0
             SystemManager.printStreamEnable = True
 
-            # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
             DltManager.runDltReceiver(mode='print')
 
         # PAGE MODE #
         elif SystemManager.isMemMode():
-            # print title #
             SystemManager.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(\
@@ -19362,7 +19356,7 @@ Copyright:
 
         while 1:
             SystemManager.printStat(\
-                "input event name... [ STOP(Ctrl + c) ]")
+                "input event name... [ STOP(Ctrl+c) ]")
 
             if len(sys.argv) <= 2:
                 try:
@@ -20762,7 +20756,6 @@ Copyright:
 
     @staticmethod
     def doPrintEnv():
-        # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
         # check tid #
@@ -20798,7 +20791,6 @@ Copyright:
 
     @staticmethod
     def doPrintSystem():
-        # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
         SystemManager()
@@ -20821,7 +20813,6 @@ Copyright:
 
     @staticmethod
     def doTrace(mode):
-        # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
         # no use pager #
@@ -20898,7 +20889,6 @@ Copyright:
 
     @staticmethod
     def doAddr2line():
-        # print title #
         SystemManager.printLogo(big=True, onlyFile=True)
 
         if not SystemManager.sourceFile:
@@ -30915,7 +30905,7 @@ class ThreadAnalyzer(object):
 
             if SystemManager.printFile:
                 SystemManager.printStat(\
-                    r"start profiling... [ STOP(Ctrl + c), SAVE(Ctrl + \) ]")
+                    r"start profiling... [ STOP(Ctrl+c), SAVE(Ctrl+\) ]")
 
             # file top mode #
             if SystemManager.fileTopEnable:
@@ -30963,7 +30953,7 @@ class ThreadAnalyzer(object):
 
         # start parsing logs #
         SystemManager.printStat(\
-            'start analyzing... [ STOP(ctrl + c) ]')
+            'start analyzing... [ STOP(Ctrl+c) ]')
         SystemManager.totalLine = len(lines)
 
         for idx, log in enumerate(lines):
@@ -37638,7 +37628,6 @@ class ThreadAnalyzer(object):
         if len(ThreadAnalyzer.procEventData) == 0:
             return
 
-        # Print title #
         SystemManager.printPipe('\n[Top Event Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
         SystemManager.printPipe(("{0:^12} | {1:^12} | {2:^12} | {3:1}\n").\
@@ -37668,7 +37657,6 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
-        # Print title #
         SystemManager.printPipe('\n[Top CPU Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -37776,7 +37764,6 @@ class ThreadAnalyzer(object):
         if 'gpu' not in ThreadAnalyzer.procTotData['total']:
             return
 
-        # Print title #
         SystemManager.printPipe('\n[Top GPU Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -37850,7 +37837,6 @@ class ThreadAnalyzer(object):
         else:
             mtype = 'RSS'
 
-        # Print title #
         SystemManager.printPipe(\
             '\n[Top %s Info] (Unit: MB)\n' % mtype)
         SystemManager.printPipe("%s\n" % twoLine)
@@ -37982,7 +37968,6 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
-        # Print title #
         SystemManager.printPipe('\n[Top VSS Info] (Unit: MB)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -38113,7 +38098,6 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
-        # Print title #
         SystemManager.printPipe('\n[Top Block Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -38197,7 +38181,6 @@ class ThreadAnalyzer(object):
 
         convertSize2Unit = UtilManager.convertSize2Unit
 
-        # Print title #
         SystemManager.printPipe('\n[Top Storage Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -38276,7 +38259,6 @@ class ThreadAnalyzer(object):
 
         convertSize2Unit = UtilManager.convertSize2Unit
 
-        # Print title #
         SystemManager.printPipe('\n[Top Network Info] (Unit: %)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
@@ -38572,12 +38554,12 @@ class ThreadAnalyzer(object):
         pd = SystemManager.pidDigit
         cl = 26-(SystemManager.pidDigit*2)
 
-        # Print title #
         SystemManager.printPipe('\n[Top Memory Details] (Unit: MB/KB/NR)\n')
         SystemManager.printPipe("%s\n" % twoLine)
 
         # Print menu #
-        SystemManager.printPipe(("{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
+        SystemManager.printPipe((\
+            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
             "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
             format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
@@ -46372,7 +46354,7 @@ def main(args=None):
         # wait for signal #
         if SystemManager.waitEnable:
             SystemManager.printStat(\
-                "wait for user input... [ START(ctrl + c) ]")
+                "wait for user input... [ START(Ctrl+c) ]")
 
             SystemManager.waitEvent()
 
@@ -46380,7 +46362,7 @@ def main(args=None):
         SystemManager.setNormalSignal()
 
         SystemManager.printStat(\
-            r'start recording... [ STOP(ctrl + c), MARK(ctrl + \) ]')
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
         #-------------------- SYSTEM MODE --------------------#
         if SystemManager.isSystemMode():
