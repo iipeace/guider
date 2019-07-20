@@ -9683,8 +9683,6 @@ class FileAnalyzer(object):
         if not SystemManager.guiderObj:
             # get ctypes object #
             ctypes = SystemManager.getPkg('ctypes')
-            if not ctypes:
-                sys.exit(0)
 
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, cdll
 
@@ -11391,7 +11389,7 @@ class SystemManager(object):
             pass
 
         # check blacklist #
-        if name in SystemManager.skipImpPkg:
+        if not isExit and name in SystemManager.skipImpPkg:
             return None
 
         # import package #
@@ -22018,12 +22016,17 @@ Copyright:
             pass
 
         try:
-            pd = os.popen('stty size 2> /dev/null', 'r')
+            if not UtilManager.which('stty'):
+                raise Exception("No stty")
+
+            subprocess = SystemManager.getPkg('subprocess', False)
+            pd = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
             SystemManager.ttyRows, SystemManager.ttyCols = \
-                list(map(int, pd.read().split()))
-            pd.close()
+                list(map(int, pd.stdout.readline().split()))
         except:
-            SystemManager.printWarning("Fail to get terminal info")
+            SystemManager.printWarning(\
+                "Fail to get terminal info because %s" % \
+                SystemManager.getErrReason())
 
 
 
@@ -45930,7 +45933,8 @@ class ThreadAnalyzer(object):
             filePath = os.path.dirname(SystemManager.inputFile) + '/guider'
             for event in list(self.reportData['event'].keys()):
                 filePath = '%s_%s' % (filePath, event)
-            filePath = '%s_%s.out' % (filePath, str(long(SystemManager.uptime)))
+            filePath = '%s_%s.out' % \
+                (filePath, str(long(SystemManager.uptime)))
 
             try:
                 # rename output file #
