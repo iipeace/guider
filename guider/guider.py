@@ -27553,7 +27553,8 @@ struct msghdr {
                         (pid, ConfigManager.SIG_LIST[stat]))
 
                     # continue target from signal stop #
-                    #self.cont(check=True, sig=stat)
+                    if mode != 'syscall':
+                        self.cont(check=True, sig=stat)
 
             except SystemExit:
                 return
