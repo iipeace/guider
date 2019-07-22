@@ -10630,6 +10630,7 @@ class SystemManager(object):
     compressEnable = True
     rootPath = ''
     fontPath = None
+    nrTop = None
     pipeForPrint = None
     fileForPrint = None
     inputFile = None
@@ -12008,6 +12009,7 @@ OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -o  <DIR>                   save output data
         -a                          show all stats and events
+        -T  <NUM>                   set top number
         -L  <RES:PER>               set graph Layout
         -l  <BOUNDARY>              set boundary lines
         -E  <FILE>                  set error log path
@@ -17717,7 +17719,16 @@ Copyright:
                 SystemManager.rootPath = value
 
             elif option == 'T':
-                SystemManager.fontPath = value
+                if SystemManager.isConvertMode():
+                    SystemManager.fontPath = value
+                else:
+                    try:
+                        SystemManager.nrTop = int(value)
+                    except:
+                        SystemManager.printErr(\
+                            "wrong option value with -T option, "
+                            "input number in integer format")
+                        sys.exit(0)
 
             elif option == 'O':
                 SystemManager.perCoreList = value.split(',')
@@ -32465,6 +32476,10 @@ class ThreadAnalyzer(object):
 
                     cpuProcUsage.pop("[ TOTAL ]", None)
 
+                # define top variable #
+                if SystemManager.nrTop:
+                    tcnt = 0
+
                 # CPU usage of processes #
                 for idx, item in sorted(\
                     cpuProcUsage.items(), \
@@ -32472,6 +32487,13 @@ class ThreadAnalyzer(object):
 
                     if not SystemManager.cpuEnable:
                         break
+
+                    # check top number #
+                    if SystemManager.nrTop:
+                        if tcnt >= SystemManager.nrTop:
+                            break
+                        else:
+                            tcnt += 1
 
                     usage = item['usage'].split()
                     usage = list(map(int, usage))[:lent]
@@ -33195,6 +33217,10 @@ class ThreadAnalyzer(object):
             # add boundary line #
             ymax = drawBoundary(0, labelList, 'mem')
 
+            # define top variable #
+            if SystemManager.nrTop:
+                tcnt = 0
+
             # start loop #
             for key, val in graphStats.items():
                 if not key.endswith('timeline'):
@@ -33230,6 +33256,13 @@ class ThreadAnalyzer(object):
                         key=lambda e: 0 \
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
+
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
 
                         try:
@@ -33286,6 +33319,7 @@ class ThreadAnalyzer(object):
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
+
                         # get maximum value #
                         try:
                             maxVss = max(usage)
@@ -33319,6 +33353,13 @@ class ThreadAnalyzer(object):
                     for key, item in sorted(\
                         memProcUsage.items(), \
                         key=lambda e: e[1]['vssDiff'], reverse=True):
+
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
 
                         if item['vssDiff'] == 0:
                             break
@@ -33379,6 +33420,14 @@ class ThreadAnalyzer(object):
                         key=lambda e: 0 \
                         if not 'maxRss' in e[1] else e[1]['maxRss'], \
                         reverse=True):
+
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
+
                         try:
                             usage = \
                                 list(map(int, item['rssUsage'].split()))[:lent]
@@ -33813,7 +33862,7 @@ class ThreadAnalyzer(object):
             # convert output path #
             name, ext = os.path.splitext(outputFile)
             if name == '.' or name == '':
-                name = 'guider'
+                name = os.path.basename(logFile)
             outputFile = '%s_%s.png' % (name, itype)
 
             # backup an exist image file #
@@ -46587,13 +46636,11 @@ def main(args=None):
         SystemManager.graphEnable:
         ThreadAnalyzer(SystemManager.inputFile)
 
-    # set tty setting automatically #
-    if SystemManager.isTopMode() and \
-        not SystemManager.ttyEnable:
-        SystemManager.setTtyAuto(True, False)
-
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
+        # set tty setting automatically #
+        if not SystemManager.ttyEnable:
+            SystemManager.setTtyAuto(True, False)
 
         # thread #
         if SystemManager.isThreadTopMode():
