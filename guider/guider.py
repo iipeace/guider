@@ -22114,7 +22114,7 @@ Copyright:
 
 
     def saveSysStat(self, initialized=True):
-        self.updateUptime()
+        SystemManager.updateUptime()
 
         # update resource usage #
         self.updateMemInfo()
@@ -25085,8 +25085,35 @@ class DltManager(object):
 
     @staticmethod
     def printSummary():
+        convertFunc = UtilManager.convertNumber
+
+        # update uptime #
+        SystemManager.updateUptime()
+
+        if not SystemManager.printFile:
+            if not SystemManager.printStreamEnable:
+                SystemManager.clearScreen()
+
+        # print title #
+        SystemManager.addPrint(\
+            ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                ('DLT Info', SystemManager.uptime, \
+                SystemManager.uptimeDiff, \
+                convertFunc(DltManager.dltData['cnt'])))
+
+        for ecuId, ecuItem in DltManager.dltData.items():
+            SystemManager.printPipe(\
+                "{0:4}".format(ecuId))
+            for apId, apItem in ecuItem.items():
+                for ctxId, ctxItem in apItem.items():
+                    pass
+
+        SystemManager.printTopStats()
+
         # initialize data #
-        dltData = {'cnt': 0}
+        DltManager.dltData = {'cnt': 0}
+
+
 
     @staticmethod
     def doLogDlt(appid='Guider', context='Guider', msg=None):
@@ -25476,6 +25503,7 @@ class DltManager(object):
 
         # save timestamp #
         prevTime = time.time()
+        SystemManager.updateUptime()
 
         while 1:
             # get delayed time #
@@ -32308,6 +32336,11 @@ class ThreadAnalyzer(object):
                 blkProcUsage = graphStats['%sblkProcUsage' % fname]
                 gpuUsage = graphStats['%sgpuUsage' % fname]
                 nrCore = graphStats['%snrCore' % fname]
+                maxCore = max(nrCore)
+
+                # convert total cpu usage by core number #
+                if False:
+                    cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
                 if SystemManager.showAll or \
@@ -33860,9 +33893,13 @@ class ThreadAnalyzer(object):
                 outputFile = os.path.normpath(logFile)
 
             # convert output path #
-            name, ext = os.path.splitext(outputFile)
-            if name == '.' or name == '':
-                name = os.path.basename(logFile)
+            if os.path.isdir(outputFile):
+                filename = os.path.basename(logFile)
+                filename = os.path.splitext(filename)[0]
+                name = '%s/%s' % (outputFile, filename)
+            else:
+                name = os.path.splitext(outputFile)[0]
+
             outputFile = '%s_%s.png' % (name, itype)
 
             # backup an exist image file #
