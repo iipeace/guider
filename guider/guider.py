@@ -25101,12 +25101,27 @@ class DltManager(object):
                 SystemManager.uptimeDiff, \
                 convertFunc(DltManager.dltData['cnt'])))
 
-        for ecuId, ecuItem in DltManager.dltData.items():
+        # traverse DLT table #
+        for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
+            key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+            reverse=True):
+            if ecuId == 'cnt':
+                continue
+
             SystemManager.printPipe(\
                 "{0:4}".format(ecuId))
-            for apId, apItem in ecuItem.items():
-                for ctxId, ctxItem in apItem.items():
-                    pass
+
+            for apId, apItem in sorted(ecuItem.items(), \
+                key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+                reverse=True):
+                if apId == 'cnt':
+                    continue
+
+                for ctxId, ctxItem in sorted(apItem.items(), \
+                    key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+                    reverse=True):
+                    if ctxId == 'cnt':
+                        continue
 
         SystemManager.printTopStats()
 
