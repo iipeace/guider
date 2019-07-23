@@ -12963,6 +12963,9 @@ Examples:
     - Draw graphs of cpu usage with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
+    - Draw graphs of cpu usage of top 5 processes
+        # {0:1} {1:1} guider.out worstcase.out -T 5
+
     - Draw graphs of cpu usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
                     '''.format(cmd, mode)
@@ -13008,6 +13011,9 @@ Examples:
     - Draw graphs of memory(VSS) usage excluding chrome process and memory chart
         # {0:1} {1:1} guider.out -g ^chrome
 
+    - Draw graphs of memory(VSS) usage of top 5 processes
+        # {0:1} {1:1} guider.out -T 5
+
     - Draw graphs of memory(VSS) usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
                     '''.format(cmd, mode)
@@ -13028,6 +13034,9 @@ Description:
 Examples:
     - Draw graphs of memory(RSS) usage and memory chart
         # {0:1} {1:1} guider.out
+
+    - Draw graphs of memory(RSS) usage of top 5 processes
+        # {0:1} {1:1} guider.out -T 5
 
     - Draw graphs of memory(RSS) usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
@@ -13243,12 +13252,16 @@ Description:
 
 OPTIONS:
         -v                          verbose
+        -a                          show name of all processes
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
     - Print system cgroup tree
         # {0:1} {1:1}
+
+    - Print system cgroup tree with the name of processes
+        # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
                 # leaktracer #
