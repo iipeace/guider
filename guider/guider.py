@@ -24217,8 +24217,12 @@ Copyright:
                     path = '%s/%s' % (dirpath, target)
                     with open(path, 'r') as fd:
                         if target == 'tasks' or target == 'cgroup.procs':
+                            taskList = fd.read().splitlines()
                             item[target] = \
-                                UtilManager.convertNumber(len(fd.readlines()))
+                                UtilManager.convertNumber(len(taskList))
+                            if SystemManager.showAll and \
+                                len(taskList) > 0 and target == 'cgroup.procs':
+                                item['PROCS'] = dict.fromkeys(taskList, {})
                         else:
                             cval = fd.readline()[:-1]
                             if cval.isdigit():
@@ -24258,6 +24262,10 @@ Copyright:
         # split a path to multiple tokens #
         dirDict = {}
         for item, val in dirList.items():
+            # skip symbolic link #
+            if os.path.islink(item):
+                continue
+
             p = dirDict
             tokList = item[len(cgroupPath):].split('/')[1:]
             for x in tokList:
@@ -24271,13 +24279,17 @@ Copyright:
 
 
     def printCgroupInfo(self, printTitle=True):
+        commList = {}
+
         def printDirTree(root, depth):
             if type(root) is not dict:
                 return
 
             tempRoot = copy.deepcopy(root)
 
-            for curdir, subdir in sorted(tempRoot.items()):
+            for curdir, subdir in sorted(\
+                tempRoot.items(), \
+                key=lambda e: int(e[0]) if e[0].isdigit() else e[0]):
                 cstr = ''
                 nrProcs = 0
                 nrTasks = 0
@@ -24312,9 +24324,23 @@ Copyright:
                 nrWorker = '(proc:%s,task:%s)' % (nrProcs, nrTasks)
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
+
+                    if curdir == 'PROCS':
+                        nrWorker = ''
+
                     SystemManager.infoBufferPrint(\
                         '%s- %s%s%s%s' % \
                         (indent, curdir, nrChild, nrWorker, cstr))
+                elif depth > 0 and nrProcs == nrTasks == 0:
+                    if curdir in commList:
+                        comm = commList[curdir]
+                    else:
+                        comm = commList[curdir] = \
+                            SystemManager.getComm(curdir)
+
+                    SystemManager.infoBufferPrint(\
+                        '%s- %s(%s)' % \
+                        (indent, comm, curdir))
                 else:
                     SystemManager.infoBufferPrint(\
                         '%s- %s%s%s' % \
@@ -25085,14 +25111,11 @@ class DltManager(object):
 
     @staticmethod
     def printSummary():
+        quitLoop = False
         convertFunc = UtilManager.convertNumber
 
         # update uptime #
         SystemManager.updateUptime()
-
-        if not SystemManager.printFile:
-            if not SystemManager.printStreamEnable:
-                SystemManager.clearScreen()
 
         # print title #
         SystemManager.addPrint(\
@@ -25101,27 +25124,71 @@ class DltManager(object):
                 SystemManager.uptimeDiff, \
                 convertFunc(DltManager.dltData['cnt'])))
 
+        SystemManager.addPrint(\
+                "{0:1}\n{1:^20} | {2:^19} | {3:^19} |\n{4:1}\n".format(\
+                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=2)
+
         # traverse DLT table #
         for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
-            key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+            key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
             reverse=True):
             if ecuId == 'cnt':
                 continue
 
-            SystemManager.printPipe(\
-                "{0:4}".format(ecuId))
+            if quitLoop:
+                break
+            elif SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                break
+
+            ecuCnt = ecuItem['cnt']
+            ecuPer = ecuCnt / float(DltManager.dltData['cnt'])
+            ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
+                ecuId, convertFunc(ecuCnt), ecuPer)
+            SystemManager.addPrint(ecuStr)
 
             for apId, apItem in sorted(ecuItem.items(), \
-                key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+                key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
                 reverse=True):
                 if apId == 'cnt':
                     continue
 
+                if quitLoop:
+                    break
+                elif SystemManager.checkCutCond():
+                    SystemManager.addPrint('---more---')
+                    quitLoop = True
+                    break
+
+                depth = len(ecuStr) * ' '
+                apCnt = apItem['cnt']
+                apPer = apCnt / float(ecuCnt)
+                apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
+                    depth, apId, convertFunc(apCnt), apPer)
+                SystemManager.addPrint(apStr)
+
                 for ctxId, ctxItem in sorted(apItem.items(), \
-                    key=lambda x:0 if 'cnt' == x[0] else x[1]['cnt'], \
+                    key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
                     reverse=True):
                     if ctxId == 'cnt':
                         continue
+
+                    if quitLoop:
+                        break
+                    elif SystemManager.checkCutCond():
+                        SystemManager.addPrint('---more---')
+                        quitLoop = True
+                        break
+
+                    depth = len(apStr) * ' '
+                    ctxCnt = ctxItem['cnt']
+                    ctxPer = ctxCnt / float(apCnt)
+                    ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
+                        depth, ctxId, convertFunc(ctxCnt), ctxPer)
+                    SystemManager.addPrint(ctxStr)
+
+        if not quitLoop:
+            SystemManager.addPrint('%s\n' % oneLine)
 
         SystemManager.printTopStats()
 
@@ -25521,20 +25588,22 @@ class DltManager(object):
         SystemManager.updateUptime()
 
         while 1:
-            # get delayed time #
-            delayTime = time.time() - prevTime
-            if delayTime >= SystemManager.intervalEnable:
-                # check repeat count #
-                SystemManager.checkProgress()
+            # summarizing #
+            if mode == 'top':
+                # get delayed time #
+                delayTime = time.time() - prevTime
+                if delayTime >= SystemManager.intervalEnable:
+                    # check repeat count #
+                    SystemManager.checkProgress()
 
-                # check user input #
-                SystemManager.waitUserInput(0.000001)
+                    # check user input #
+                    SystemManager.waitUserInput(0.000001)
 
-                # print summary #
-                DltManager.printSummary()
+                    # print summary #
+                    DltManager.printSummary()
 
-                # save timestamp #
-                prevTime = time.time()
+                    # save timestamp #
+                    prevTime = time.time()
 
             try:
                 # check DLT data to be read #
@@ -25600,12 +25669,12 @@ class DltManager(object):
 
                 # add ecuId #
                 if not ecuId in DltManager.dltData:
-                    DltManager.dltData[ecuId] = {'apList': dict(), 'cnt': 0}
+                    DltManager.dltData[ecuId] = {'cnt': 0}
                 DltManager.dltData[ecuId]['cnt'] += 1
 
                 # add apId #
                 if not apId in DltManager.dltData[ecuId]:
-                    DltManager.dltData[ecuId][apId] = {'ctxList': dict(), 'cnt': 0}
+                    DltManager.dltData[ecuId][apId] = {'cnt': 0}
                 DltManager.dltData[ecuId][apId]['cnt'] += 1
 
                 # add ctxId #
