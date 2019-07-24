@@ -10694,6 +10694,7 @@ class SystemManager(object):
 
     printStreamEnable = False
     dltEnable = False
+    cpuAvrEnable = True
     reportEnable = False
     truncEnable = True
     countEnable = False
@@ -12003,9 +12004,10 @@ OPTIONS:
                 s:stack | S:pss | t:thread | u:uss
                 w:wss | W:wchan
         -d  <CHARACTER>             disable options
-                a:memAvailable | c:cpu | e:encode | G:gpu
-                p:print | t:truncate | T:task
-                    '''
+                a:memAvailable | A:cpuAverage
+                c:cpu | e:encode | G:gpu | p:print
+                t:truncate | T:task
+                                    '''
 
                 drawSubStr = '''
 OPTIONS:
@@ -17566,6 +17568,9 @@ Copyright:
 
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = False
+
+                if options.rfind('A') > -1:
+                    SystemManager.cpuAvrEnable = False
 
                 if options.rfind('T') > -1:
                     SystemManager.taskEnable = False
@@ -43306,9 +43311,9 @@ class ThreadAnalyzer(object):
 
         # check available memory type #
         if SystemManager.freeMemEnable:
-            memTitle = ' Free'
+            memTitle = 'Free'
         else:
-            memTitle = '  Avl'
+            memTitle = 'Avl'
 
         # get iowait time #
         #iowait = SystemManager.getIowaitTime()
@@ -43317,7 +43322,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
             (("{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:^5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
+            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
             "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
             "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
@@ -43341,9 +43346,15 @@ class ThreadAnalyzer(object):
             self.prevCpuData['softirq']['softirq']
 
         # get total cpu usage #
-        nrCore = SystemManager.nrCore
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
+
+        if SystemManager.cpuAvrEnable:
+            nrCore = SystemManager.nrCore
+            maxUsage = 100
+        else:
+            nrCore = 1
+            maxUsage = 100 * SystemManager.nrCore
 
         # initialize accumulated cpu values #
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = 0
@@ -43412,8 +43423,8 @@ class ThreadAnalyzer(object):
         idleUsage = long(idleUsage / nrCore)
 
         # get total usage #
-        if idleUsage < 100:
-            totalUsage = 100 - idleUsage - ioUsage
+        if idleUsage < maxUsage:
+            totalUsage = maxUsage - idleUsage - ioUsage
         else:
             totalUsage = 0
 
@@ -43634,7 +43645,7 @@ class ThreadAnalyzer(object):
                     except:
                         curFreq = None
 
-                # get min cpu frequency #
+                # get cpu min frequency #
                 try:
                     self.prevCpuData[idx]['minFd'].seek(0)
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
@@ -43657,7 +43668,7 @@ class ThreadAnalyzer(object):
                     except:
                         minFreq = None
 
-                # get max cpu frequency #
+                # get cpu max frequency #
                 try:
                     self.prevCpuData[idx]['maxFd'].seek(0)
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
@@ -43877,7 +43888,7 @@ class ThreadAnalyzer(object):
             self.reportData['cpu']['kernel'] = kerUsage
             self.reportData['cpu']['irq'] = irqUsage
             self.reportData['cpu']['iowait'] = ioUsage
-            self.reportData['cpu']['nrCore'] = nrCore
+            self.reportData['cpu']['nrCore'] = SystemManager.nrCore
             try:
                 self.reportData['cpu']['percore'] = percoreStats
             except:
