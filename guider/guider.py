@@ -25154,7 +25154,7 @@ class DltManager(object):
 
         SystemManager.addPrint(\
                 "{0:1}\n{1:^20} | {2:^19} | {3:^19} |\n{4:1}\n".format(\
-                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=2)
+                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=3)
 
         # traverse DLT table #
         for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
@@ -25170,7 +25170,7 @@ class DltManager(object):
                 break
 
             ecuCnt = ecuItem['cnt']
-            ecuPer = ecuCnt / float(DltManager.dltData['cnt'])
+            ecuPer = ecuCnt / float(DltManager.dltData['cnt']) * 100
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
                 ecuId, convertFunc(ecuCnt), ecuPer)
             SystemManager.addPrint(ecuStr)
@@ -25190,7 +25190,7 @@ class DltManager(object):
 
                 depth = len(ecuStr) * ' '
                 apCnt = apItem['cnt']
-                apPer = apCnt / float(ecuCnt)
+                apPer = apCnt / float(ecuCnt) * 100
                 apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
                     depth, apId, convertFunc(apCnt), apPer)
                 SystemManager.addPrint(apStr)
@@ -25210,7 +25210,7 @@ class DltManager(object):
 
                     depth = len(apStr) * ' '
                     ctxCnt = ctxItem['cnt']
-                    ctxPer = ctxCnt / float(apCnt)
+                    ctxPer = ctxCnt / float(apCnt) * 100
                     ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
                         depth, ctxId, convertFunc(ctxCnt), ctxPer)
                     SystemManager.addPrint(ctxStr)
@@ -27283,12 +27283,13 @@ struct msghdr {
                     name, '??', current, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
                 self.addSample(name, '??', current, bt=backtrace)
-
-                if SystemManager.showAll:
-                    self.callPrint.append(callString)
             else:
                 SystemManager.printPipe(\
                     '\n%s' % callString, newline=False, flush=True)
+
+            # print call history #
+            if SystemManager.printFile:
+                self.callPrint.append(callString)
 
             # check symbol #
             if SystemManager.customCmd:
@@ -27523,7 +27524,7 @@ struct msghdr {
             sys.exit(0)
 
         # load user symbols #
-        if mode != 'syscall':
+        if mode != 'syscall' or SystemManager.funcDepth > 0:
             try:
                 self.loadSymbols()
             except SystemExit:
@@ -27747,8 +27748,7 @@ struct msghdr {
 
     @staticmethod
     def printCallHistory(instance):
-        if len(instance.callPrint) == 0 or \
-            not SystemManager.showAll:
+        if len(instance.callPrint) == 0:
             return
 
         try:
@@ -27757,11 +27757,10 @@ struct msghdr {
             elapsed = instance.last - instance.start
 
         SystemManager.printPipe(\
-            '\n[Trace History] [Time: %f] [Line: %s]' %
-                (elapsed, UtilManager.convertNumber(len(instance.callPrint))))
-        SystemManager.printPipe(twoLine)
-        SystemManager.printPipe('\n'.join(instance.callPrint))
-        SystemManager.printPipe(oneLine)
+            '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
+                (elapsed, \
+                    UtilManager.convertNumber(len(instance.callPrint)), \
+                    twoLine, '\n'.join(instance.callPrint), oneLine))
 
 
 
@@ -27902,43 +27901,40 @@ struct msghdr {
         SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         if len(fileTable) == 0:
-            instance.printCallHistory(instance)
-            return
-
-        # print file table #
-        SystemManager.printPipe((\
-            '\n[%s File Info] [Time: %f] %s '
-            '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
-                (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
-                perSample, convert(len(fileTable)), suffix))
-        SystemManager.printPipe('%s%s' % (twoLine, suffix))
-        SystemManager.printPipe(\
-            '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
-        SystemManager.printPipe('%s%s' % (twoLine, suffix))
-
-        cnt = 0
-        for filename, value in sorted(\
-            fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
-            try:
-                per = value['cnt'] / nrTotal * 100
-            except:
-                break
-
+            # print file table #
+            SystemManager.printPipe((\
+                '\n[%s File Info] [Time: %f] %s '
+                '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
+                    (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
+                    perSample, convert(len(fileTable)), suffix))
+            SystemManager.printPipe('%s%s' % (twoLine, suffix))
             SystemManager.printPipe(\
-                '{0:>7} | {1:<144}{2:1}'.format(\
-                '%.1f%%' % per, filename, suffix))
+                '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
+            SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
-            cnt += 1
+            cnt = 0
+            for filename, value in sorted(\
+                fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+                try:
+                    per = value['cnt'] / nrTotal * 100
+                except:
+                    break
 
-        if cnt == 0:
-            SystemManager.printPipe('\tNone%s' % suffix)
+                SystemManager.printPipe(\
+                    '{0:>7} | {1:<144}{2:1}'.format(\
+                    '%.1f%%' % per, filename, suffix))
 
-        SystemManager.printPipe('%s%s' % (oneLine, suffix))
+                cnt += 1
+
+            if cnt == 0:
+                SystemManager.printPipe('\tNone%s' % suffix)
+
+            SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         instance.printCallHistory(instance)
 
         # check realtime mode #
-        if not instance.isRealtime:
+        if SystemManager.procBuffer == []:
             return
 
         # print detailed statistics #
