@@ -10693,6 +10693,7 @@ class SystemManager(object):
     netInIndex = -1
 
     printStreamEnable = False
+    dltEnable = False
     reportEnable = False
     truncEnable = True
     countEnable = False
@@ -11675,7 +11676,8 @@ class SystemManager(object):
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
             options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
             options.rfind('d') >= 0 or options.rfind('o') >= 0 or \
-            options.rfind('C') >= 0 or options.rfind('E') >= 0:
+            options.rfind('C') >= 0 or options.rfind('E') or \
+            options.rfind('D') >= 0:
             return True
         else:
             return False
@@ -11993,15 +11995,16 @@ Usage:
                 topSubStr = '''
 OPTIONS:
         -e  <CHARACTER>             enable options
-                c:cpu | m:memory | b:block | p:pipe | e:encode
-                t:thread | F:wfc | s:stack | w:wss | d:disk
-                P:Perf | i:irq | S:pss | u:uss | f:float
-                a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport | n:net | o:oomScore
-                C:cgroup | L:cmdline | E:Elasticsearch
+                a:affinity | b:block | c:cpu | C:cgroup
+                d:disk | D:DLT | e:encode | E:Elastic
+                f:float | F:wfc | h:sigHandler | i:irq
+                L:cmdline | m:memory | n:net | o:oomScore
+                p:pipe | P:perf | r:report | R:fileReport
+                s:stack | S:pss | t:thread | u:uss
+                w:wss | W:wchan
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | p:print | T:task
-                t:truncate | G:gpu | a:memAvailable
+                a:memAvailable | c:cpu | e:encode | G:gpu
+                p:print | t:truncate | T:task
                     '''
 
                 drawSubStr = '''
@@ -12328,10 +12331,11 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-                m:memory | b:block | p:pipe | i:irq | L:lock
-                e:encode | n:net | P:power | r:reset | g:graph
+                b:block | e:encode | g:graph | i:irq
+                L:lock | m:memory | n:net | p:pipe
+                r:reset | P:power
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | a:all | C:compress
+                a:all | c:cpu | C:compress | e:encode
         -s  <DIR|FILE>              save trace data
         -u                          run in the background
         -W                          wait for signal
@@ -16916,6 +16920,9 @@ Copyright:
 
     @staticmethod
     def printPipe(line, newline=True, flush=False):
+        if SystemManager.dltEnable:
+            DltManager.doLogDlt(msg=line)
+
         if not SystemManager.printEnable:
             return
 
@@ -17668,6 +17675,9 @@ Copyright:
 
                 if options.rfind('e') > -1:
                     SystemManager.encodeEnable = True
+
+                if options.rfind('D') > -1:
+                    SystemManager.dltEnable = True
 
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
