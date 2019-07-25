@@ -21518,10 +21518,10 @@ Copyright:
 
     @staticmethod
     def sendSignalProcs(nrSig, pidList):
-        nrProc = 0
         myPid = str(SystemManager.pid)
         SIG_LIST = ConfigManager.SIG_LIST
 
+        nrProc = 0
         if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
                 # check pid type #
@@ -21532,14 +21532,23 @@ Copyright:
                         "Fail to recognize PID %s to send signal" % pid)
                     return
 
+                # skip myself #
+                if pid == SystemManager.pid:
+                    continue
+
                 # send signal to a process #
                 try:
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % \
                         (SIG_LIST[nrSig], pid))
+                    nrProc += 1
                 except:
                     SystemManager.printSigError(pid, SIG_LIST[nrSig])
+
+            if nrProc == 0:
+                SystemManager.printInfo("No running process in the background")
+
             return
 
         # get my comm #
@@ -21550,7 +21559,7 @@ Copyright:
                 SystemManager.getErrReason())
             sys.exit(0)
 
-        # get my comm #
+        # get my cmdline #
         myCmdline = SystemManager.getCmdline(SystemManager.pid)
         if myCmdline:
             myCmdline = myCmdline.split()
@@ -21561,6 +21570,7 @@ Copyright:
             sys.exit(0)
 
         # handle Guider processes #
+        nrProc = 0
         for pid in os.listdir(SystemManager.procPath):
             if myPid == pid or not pid.isdigit():
                 continue
