@@ -25226,7 +25226,7 @@ class DltManager(object):
 
 
     @staticmethod
-    def doLogDlt(appid='Guider', context='Guider', msg=None):
+    def doLogDlt(appid='GUID', context='GUID', msg=None):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
@@ -25245,6 +25245,8 @@ class DltManager(object):
         # define log level #
         LEVEL_INFO = 0x04
         LEVEL_ERROR = 0x02
+
+        DLT_USER_BUF_MAX_SIZE = 1380
 
         # load dlt library #
         try:
@@ -25273,8 +25275,20 @@ class DltManager(object):
             SystemManager.dltCtx = ctx
 
         # log #
-        return dltObj.dlt_log_string(\
-            byref(SystemManager.dltCtx), LEVEL_INFO, msg)
+        pos = 0
+        while 1:
+            if len(msg[pos:]) >= DLT_USER_BUF_MAX_SIZE:
+                end = DLT_USER_BUF_MAX_SIZE + pos
+            else:
+                end = len(msg)
+
+            ret = dltObj.dlt_log_string(\
+                byref(SystemManager.dltCtx), LEVEL_INFO, msg[pos:end])
+
+            if end == len(msg):
+                return
+
+            pos = end
 
         '''
         # unregister #
@@ -25591,6 +25605,7 @@ class DltManager(object):
         try:
             nrConnSock = connSock.fileno()
             RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
+
             ret = dltObj.dlt_receiver_init(\
                 byref(dltReceiver), nrConnSock, RECVBUFSIZE)
             if ret < 0:
@@ -25602,6 +25617,19 @@ class DltManager(object):
                 "Fail to initialize connection because %s" % \
                 SystemManager.getErrReason())
             sys.exit(0)
+
+        # define receiver symbol #
+        try:
+            getattr(dltObj, 'dlt_receiver_receive_socket')
+            dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
+        except:
+            try:
+                getattr(dltObj, 'dlt_receiver_receive')
+                dlt_receiver_receive = dltObj.dlt_receiver_receive
+            except:
+                SystemManager.printErr(\
+                    "Fail to get dlt_receiver_receive symbol")
+                sys.exit(0)
 
         # initialize message #
         msg = DLTMessage()
@@ -25635,7 +25663,7 @@ class DltManager(object):
 
             try:
                 # check DLT data to be read #
-                ret = dltObj.dlt_receiver_receive_socket(byref(dltReceiver))
+                ret = dlt_receiver_receive(byref(dltReceiver))
                 if ret <= 0:
                     continue
 
