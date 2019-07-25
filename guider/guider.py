@@ -17,16 +17,16 @@ __repository__ = "https://github.com/iipeace/guider"
 
 # import essential packages #
 try:
-    import re
-    import sys
-    import signal
-    import time
     import os
+    import re
     import gc
+    import sys
+    import time
+    import copy
+    import errno
+    import signal
     import atexit
     import struct
-    import errno
-    import copy
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -10537,20 +10537,41 @@ class LogManager(object):
         if self.error:
             return
 
+        # check cache dir #
+        if not os.path.exists(SystemManager.cacheDirPath):
+            try:
+                os.mkdir(SystemManager.cacheDirPath)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printWarn((\
+                    'Fail to make %s directory because %s '
+                    'so that use /tmp dir') % \
+                        (SystemManager.cacheDirPath, err), True)
+                SystemManager.cacheDirPath = '/tmp'
+
+        # set file path for error log #
+        errorFile = '%s/guider.err' % SystemManager.cacheDirPath
+        if not SystemManager.isWritable(errorFile):
+            SystemManager.printWarn((\
+                'Fail to get write permission for %s '
+                'so that use /tmp/guider.err') % errorFile, True)
+            SystemManager.cacheDirPath = '/tmp'
+            errorFile = '%s/guider.err' % SystemManager.cacheDirPath
+
         try:
             if not self.notified:
                 SystemManager.printErr((\
                     'Please report %s file to '
                     'https://github.com/iipeace/guider/issues') % \
-                    SystemManager.errorFile)
+                        errorFile)
                 self.notified = True
 
-            with open(SystemManager.errorFile, 'a') as fd:
+            with open(errorFile, 'a') as fd:
                 fd.write(message)
         except:
             self.error = True
             SystemManager.printErr(\
-                'Fail to open %s to log error' % SystemManager.errorFile)
+                'Fail to open %s to log error' % errorFile)
 
 
 
@@ -10619,7 +10640,7 @@ class SystemManager(object):
     mountPath = None
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
-    elfCachePath = '/var/log/guider'
+    cacheDirPath = '/var/log/guider'
     pythonPath = sys.executable
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
@@ -10635,7 +10656,6 @@ class SystemManager(object):
     fileForPrint = None
     inputFile = None
     outputFile = None
-    errorFile = '/tmp/guider.err'
     sourceFile = None
     printFile = None
     parsedAnalOption = False
@@ -11984,7 +12004,7 @@ Usage:
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
@@ -12017,7 +12037,7 @@ OPTIONS:
         -T  <NUM>                   set top number
         -L  <RES:PER>               set graph Layout
         -l  <BOUNDARY>              set boundary lines
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12120,7 +12140,7 @@ OPTIONS:
         -Q                          print all rows in a stream
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
@@ -12202,7 +12222,7 @@ OPTIONS:
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12241,7 +12261,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12274,7 +12294,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12309,7 +12329,7 @@ OPTIONS:
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12368,7 +12388,7 @@ OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched priority list
@@ -12460,7 +12480,7 @@ OPTIONS:
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched priority list
@@ -12838,7 +12858,7 @@ OPTIONS:
         -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12888,7 +12908,7 @@ OPTIONS:
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12936,7 +12956,7 @@ OPTIONS:
         -o  <DIR|FILE>              save output data
         -I  <ADDR>                  set address area
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -13130,7 +13150,7 @@ Description:
     Send specific signal to specific processes or all running guider processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13351,7 +13371,7 @@ Description:
     Print the tree of processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13373,7 +13393,7 @@ Description:
 OPTIONS:
         -g  <TID>                   set filter
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13394,7 +13414,7 @@ Description:
 
 OPTIONS:
         -g  <CORE:CLOCK:GOVERNOR>   set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13420,7 +13440,7 @@ Description:
     Convert a text file to a image file
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13449,7 +13469,7 @@ Description:
 
 OPTIONS:
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13475,7 +13495,7 @@ Description:
     Get cpu affinity of threads
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13496,7 +13516,7 @@ Description:
 
 OPTIONS:
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13516,7 +13536,7 @@ Description:
     Create tasks using cpu
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13539,7 +13559,7 @@ Description:
     Allocate physical memory
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13565,7 +13585,7 @@ Description:
     Show running {2:1} processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode, __module__)
 
@@ -13579,7 +13599,7 @@ Description:
     Send signal to all running guider processes to run
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13593,7 +13613,7 @@ Description:
     Send the event signal to all running guider processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13615,7 +13635,7 @@ Description:
 OPTIONS:
         -x  <IP:PORT>               set local address
         -u                          run in the background
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13631,7 +13651,7 @@ Description:
 OPTIONS:
         -x  <IP:PORT>               set local address
         -X  <IP:PORT>               set request address
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -17588,9 +17608,9 @@ Copyright:
                 SystemManager.setArch(value)
 
             elif option == 'E':
-                SystemManager.errorFile = value
+                SystemManager.cacheDirPath = value
                 SystemManager.printInfo(\
-                    "error log is wrote to %s" % SystemManager.errorFile)
+                    "use %s as cache directory" % value)
 
             elif option == 's':
                 SystemManager.applySaveOption(value)
@@ -17972,9 +17992,9 @@ Copyright:
                 SystemManager.setArch(value)
 
             elif option == 'E':
-                SystemManager.errorFile = value
+                SystemManager.cacheDirPath = value
                 SystemManager.printInfo(\
-                    "error log is wrote to %s" % SystemManager.errorFile)
+                    "use %s as cache directory" % value)
 
             elif option == 'e':
                 options = value
@@ -21542,6 +21562,7 @@ Copyright:
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % \
                         (SIG_LIST[nrSig], pid))
+
                     nrProc += 1
                 except:
                     SystemManager.printSigError(pid, SIG_LIST[nrSig])
@@ -29250,18 +29271,18 @@ class ElfAnalyzer(object):
     @staticmethod
     def saveObject(obj, path):
         # check cache dir #
-        if not os.path.isdir(SystemManager.elfCachePath):
+        if not os.path.isdir(SystemManager.cacheDirPath):
             try:
-                os.mkdir(SystemManager.elfCachePath)
+                os.mkdir(SystemManager.cacheDirPath)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarn(\
                     'Fail to make %s directory because %s' % \
-                        (SystemManager.elfCachePath, err))
+                        (SystemManager.cacheDirPath, err))
 
         # build cache path #
         cpath = '%s/%s' % \
-            (SystemManager.elfCachePath, path.replace('/', '_'))
+            (SystemManager.cacheDirPath, path.replace('/', '_'))
 
         return UtilManager.saveObjectToFile(obj, cpath)
 
@@ -29271,7 +29292,7 @@ class ElfAnalyzer(object):
     def loadObject(path):
         # build cache path #
         cpath = '%s/%s' % \
-            (SystemManager.elfCachePath, path.replace('/', '_'))
+            (SystemManager.cacheDirPath, path.replace('/', '_'))
 
         # load object from file #
         obj = UtilManager.loadObjectFromFile(cpath)
