@@ -10815,6 +10815,7 @@ class SystemManager(object):
     cmdlineEnable = False
     intervalEnable = 0
 
+    forceEnable = False
     functionEnable = False
     systemEnable = False
     fileEnable = False
@@ -16553,7 +16554,7 @@ Copyright:
                 (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
-        if SystemManager.launchBuffer.find(' -f') > -1 or \
+        if SystemManager.launchBuffer.find(' funcrec') > -1 or \
             SystemManager.launchBuffer.find(' funcrecord') > -1:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
@@ -17747,7 +17748,7 @@ Copyright:
                         "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
-            elif option == 'f' and SystemManager.isFunctionMode():
+            elif SystemManager.isFunctionMode():
                 SystemManager.functionEnable = True
 
             elif option == 'l':
@@ -17978,7 +17979,7 @@ Copyright:
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'f':
-                SystemManager.functionEnable = True
+                SystemManager.forceEnable = True
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
@@ -18918,7 +18919,7 @@ Copyright:
         elif SystemManager.isLogDltMode():
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            if not SystemManager.findOption('I'):
+            if not SystemManager.sourceFile:
                 SystemManager.printErr(\
                     "wrong option value with -I option, "
                     "input DLT message")
@@ -22703,7 +22704,7 @@ Copyright:
             if SystemManager.getBgProcCount() <= 1:
                 res = SystemManager.readCmdVal('enable')
                 # default status #
-                if res == '0':
+                if res == '0' or SystemManager.forceEnable:
                     pass
                 # tracing status #
                 else:
@@ -25188,6 +25189,7 @@ class DltManager(object):
                 twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=3)
 
         # traverse DLT table #
+        dltCnt = 0
         for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
             key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
             reverse=True):
@@ -25205,6 +25207,7 @@ class DltManager(object):
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
                 ecuId, convertFunc(ecuCnt), ecuPer)
             SystemManager.addPrint(ecuStr)
+            dltCnt += 1
 
             for apId, apItem in sorted(ecuItem.items(), \
                 key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
@@ -25246,6 +25249,9 @@ class DltManager(object):
                         depth, ctxId, convertFunc(ctxCnt), ctxPer)
                     SystemManager.addPrint(ctxStr)
 
+        if dltCnt == 0:
+            SystemManager.addPrint('\tNone\n')
+
         if not quitLoop:
             SystemManager.addPrint('%s\n' % oneLine)
 
@@ -25253,6 +25259,20 @@ class DltManager(object):
 
         # initialize data #
         DltManager.dltData = {'cnt': 0}
+
+
+
+    @staticmethod
+    def onAlarm(signum, frame):
+        SystemManager.printWarn(\
+            "No DLT message received", True)
+        DltManager.updateTimer()
+
+
+
+    @staticmethod
+    def updateTimer():
+        signal.alarm(SystemManager.intervalEnable * 2)
 
 
 
@@ -25317,7 +25337,7 @@ class DltManager(object):
                 byref(SystemManager.dltCtx), LEVEL_INFO, msg[pos:end])
 
             if end == len(msg):
-                return
+                return ret
 
             pos = end
 
@@ -25480,7 +25500,7 @@ class DltManager(object):
             ]
 
             def __reduce__(self):
-                return (cDltExtendedHeader, \
+                return (DltExtendedHeader, \
                     (self.msin, self.noar, self.apid, self.ctid))
 
         class DltStandardHeaderExtra(Structure):
@@ -25596,7 +25616,7 @@ class DltManager(object):
         except:
             SystemManager.printErr(\
                 "Fail to get the address of dlt-daemon because %s" % \
-                    SysemManager.getErrReason())
+                    SystemManager.getErrReason())
             sys.exit(0)
 
         # connect to server #
@@ -25674,6 +25694,10 @@ class DltManager(object):
         prevTime = time.time()
         SystemManager.updateUptime()
 
+        # set timer #
+        signal.signal(signal.SIGALRM, DltManager.onAlarm)
+        DltManager.updateTimer()
+
         while 1:
             # summarizing #
             if mode == 'top':
@@ -25691,6 +25715,9 @@ class DltManager(object):
 
                     # save timestamp #
                     prevTime = time.time()
+
+                    # update timer #
+                    DltManager.updateTimer()
 
             try:
                 # check DLT data to be read #
@@ -29327,7 +29354,11 @@ class ElfAnalyzer(object):
 
             # create a new object #
             try:
-                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+                elfObj = ElfAnalyzer(path)
+                if not elfObj or not elfObj.ret:
+                    raise Exception()
+
+                ElfAnalyzer.cachedFiles[path] = elfObj
                 SystemManager.printInfo("[Done]", prefix=False, notitle=True)
             except SystemExit:
                 sys.exit(0)
@@ -29501,7 +29532,7 @@ class ElfAnalyzer(object):
 
         # add PLT symbol #
         if not ElfAnalyzer.isRelocFile(self.path):
-            pltinfo = self.getHeader('.plt')
+            pltinfo = self.getSectionHeader('.plt')
             if pltinfo:
                 tempSymTable['PLT'] = {
                         'vis': 'DEFAULT', 'bind': 'GLOBAL', \
@@ -29712,7 +29743,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getHeader(self, name):
+    def getSectionHeader(self, name):
         try:
             return self.attr['sectionHeader'][name]
         except:
@@ -29991,6 +30022,7 @@ class ElfAnalyzer(object):
         '''
 
         # define attributes #
+        self.ret = True
         self.path = path
         self.attr = {}
         self.is32Bit = True
@@ -30049,6 +30081,7 @@ class ElfAnalyzer(object):
             SystemManager.printWarn((\
                 "Fail to recognize '%s', "
                 "check it is elf-format object") % path, True)
+            self.ret = None
             return None
 
         # check 32/64-bit type #
@@ -30056,6 +30089,7 @@ class ElfAnalyzer(object):
             SystemManager.printErr((\
                 "Fail to recognize elf-format object '%s'"
                 "because it is invalid class") % path)
+            self.ret = None
             return None
         elif ei_class == 1:
             self.is32Bit = True
@@ -30069,6 +30103,7 @@ class ElfAnalyzer(object):
             SystemManager.printErr((\
                 "Fail to recognize elf-format object '%s'"
                 "because it is invalid for data encoding") % path)
+            self.ret = None
             return None
         elif ei_data == 1:
             e_data = 'ELFDATA2LSB'
@@ -30163,7 +30198,7 @@ class ElfAnalyzer(object):
 
         # check onlyHeader flag #
         if onlyHeader:
-            return
+            return None
 
         # print header info #
         if debug:
@@ -30776,7 +30811,7 @@ Section header string table index: %d
 
         # check dynamic section #
         if e_shdynamic < 0:
-            return
+            return None
 
         # parse dynamic section #
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
@@ -37462,7 +37497,7 @@ class ThreadAnalyzer(object):
             return
 
         # Get GPU resource usage #
-        if len(tokenList) == 5:
+        elif len(tokenList) == 5:
             m = re.match(\
                 r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m:
@@ -37496,7 +37531,7 @@ class ThreadAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        if len(tokenList) == 12 and tokenList[0][0] == '/':
+        elif len(tokenList) == 12 and tokenList[0][0] == '/':
             convertUnit2Size = UtilManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
@@ -37565,7 +37600,8 @@ class ThreadAnalyzer(object):
             return
 
         # Get Network resource usage #
-        if len(tokenList) == 13:
+        elif len(tokenList) == 13 and \
+            not tokenList[0].startswith('Total'):
             if tokenList[0].strip() == 'ID' or \
                 tokenList[0].strip() == 'Dev':
                 return
