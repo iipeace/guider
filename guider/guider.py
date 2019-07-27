@@ -20560,13 +20560,20 @@ Copyright:
             return
 
         # run mainloop #
+        prevCmd = None
         while 1:
             try:
                 uinput = getUserInput()
+                if uinput == '!!' and prevCmd:
+                    uinput = prevCmd
+
                 if len(uinput) == 0:
                     continue
                 elif uinput.upper() == 'EXIT':
                     break
+
+                # backup command #
+                prevCmd = uinput
 
                 NetworkManager.requestCmd(connObj, uinput)
             except SystemExit:
