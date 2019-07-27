@@ -3051,7 +3051,8 @@ class NetworkManager(object):
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM, \
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
+                SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO
         except:
             return None
 
@@ -3077,7 +3078,23 @@ class NetworkManager(object):
             self.sendSize = self.socket.getsockopt(SOL_SOCKET, SO_SNDBUF)
             self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
-            #self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+            # set REUSEADDR #
+            '''
+            self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+            '''
+
+            # set SENDTIMEOUT #
+            '''
+            sec = 1
+            usec = 0
+            timeval = struct.pack('ll', sec, usec)
+            self.socket.setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeval)
+            '''
+
+            # set NODELAY #
+            '''
+            self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
+            '''
 
             if mode == 'server':
                 if not port:
@@ -3531,7 +3548,10 @@ class NetworkManager(object):
                 output = output[0]
 
                 data = data + output
-                if len(output) < self.recvSize:
+                if len(output) == 0:
+                    break
+                elif len(output) < self.recvSize and \
+                    output[-1] == '\n':
                     break
         except SystemExit:
             sys.exit(0)
@@ -13148,7 +13168,7 @@ Usage:
     # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Send specific signal to specific processes or all running guider processes
+    Send specific signal to specific processes or all running Guider processes
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
@@ -13157,7 +13177,7 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Send the notification signal to all running guider processes
+    - Send the notification signal to all running Guider processes
         # {0:1} {1:1}
 
     - Send SIGSTOP signal to a specific process
@@ -13597,7 +13617,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Send signal to all running guider processes to run
+    Send signal to all running Guider processes to run
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
@@ -13611,7 +13631,7 @@ Usage:
     # {0:1} {1:1} [<EVENT>] [OPTIONS] [--help]
 
 Description:
-    Send the event signal to all running guider processes
+    Send the event signal to all running Guider processes
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
@@ -13620,7 +13640,7 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Send scene1 event to running guider processes
+    - Send scene1 event to running Guider processes
         # {0:1} {1:1} scene1
                     '''.format(cmd, mode)
 
@@ -19607,7 +19627,7 @@ Copyright:
             event = 'EVENT_%s' % event
 
         if len(pids) == 0:
-            # get pid list of guider processes #
+            # get pid list of Guider processes #
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 0:
                 if SystemManager.isEventMode():
@@ -19621,9 +19641,9 @@ Copyright:
         # update uptime #
         SystemManager.updateUptime()
 
-        # get socket inode address list of guider processes #
+        # get socket inode address list of Guider processes #
         for pid in pids:
-            # get udp port list of guider processes #
+            # get udp port list of Guider processes #
             objs = SystemManager.getProcSocketObjs(pid)
             addrs = SystemManager.getSocketAddrList(objs)
 
@@ -20294,11 +20314,12 @@ Copyright:
             # get connection info #
             sock, addr = conn
 
-            # convert guider path #
+            # convert Guider path #
             if value.startswith('GUIDER '):
                 cmd = ' '.join(value.split()[1:])
                 path = '%s %s' % \
-                    (UtilManager.which('python')[0], os.path.abspath(__file__))
+                    (UtilManager.which('python')[0], \
+                        os.path.abspath(__file__))
                 value = '%s %s' % (path, cmd)
 
             # run command #
@@ -22700,7 +22721,7 @@ Copyright:
         if not stat:
             sys.exit(0)
         elif stat == '1':
-            # no running guider process except for myself #
+            # no running Guider process except for myself #
             if SystemManager.getBgProcCount() <= 1:
                 res = SystemManager.readCmdVal('enable')
                 # default status #
