@@ -12128,11 +12128,12 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-              m:memory | b:block | p:pipe | e:encode
-              h:heap | L:lock | g:graph | c:cgroup
+              b:block | c:cgroup | e:encode | g:graph
+              h:heap | L:lock | m:memory | p:pipe
         -d  <CHARACTER>             disable options
-              c:cpu | e:encode | a:all | u:user | C:compress
+              a:all | c:cpu | C:compress | e:encode | u:user
         -s  <DIR|FILE>              save trace data
+        -f                          force execution
         -u                          run in the background
         -b  <SIZE:KB>               set buffer size
         -t  <SYSCALL>               trace syscall
@@ -12380,6 +12381,7 @@ OPTIONS:
         -d  <CHARACTER>             disable options
                 a:all | c:cpu | C:compress | e:encode
         -s  <DIR|FILE>              save trace data
+        -f                          force execution
         -u                          run in the background
         -W                          wait for signal
         -b  <SIZE:KB>               set buffer size
@@ -18121,10 +18123,7 @@ Copyright:
             elif option == 'C':
                 # get output path #
                 if len(value) == 0:
-                    SystemManager.printErr((\
-                        "wrong option with -C, "
-                        "input path to make command script"))
-                    sys.exit(0)
+                    value = 'guider.cmd'
 
                 # change output path #
                 try:
@@ -46685,9 +46684,6 @@ def main(args=None):
         # set normal signal #
         SystemManager.setNormalSignal()
 
-        SystemManager.printStat(\
-            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
-
         #-------------------- SYSTEM MODE --------------------#
         if SystemManager.isSystemMode():
             # parse all options and make output file path #
@@ -46695,6 +46691,9 @@ def main(args=None):
 
             # wait for user input #
             SystemManager.waitEvent()
+
+            SystemManager.printStat(\
+                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
             # save system info #
             SystemManager.sysInstance.saveSysStat()
@@ -46720,6 +46719,9 @@ def main(args=None):
             # parse analysis option #
             SystemManager.parseAnalOption()
 
+            SystemManager.printStat(\
+                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
             # start analyzing files #
             pi = FileAnalyzer()
 
@@ -46744,6 +46746,9 @@ def main(args=None):
 
         # start recording #
         SystemManager.sysInstance.startRecording()
+
+        SystemManager.printStat(\
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
