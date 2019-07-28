@@ -20366,7 +20366,9 @@ Copyright:
                             # handle data arrived #
                             while 1:
                                 output = robj.readline()
-                                if output and len(output) > 0:
+                                if output == '\n':
+                                    continue
+                                elif output and len(output) > 0:
                                     ret = pipeObj.write(output)
                                     if not ret:
                                         raise Exception()
@@ -20537,9 +20539,14 @@ Copyright:
                 '- DOWNLOAD:RemotePath,LocalPath\n'
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
+                '- HISTORY\n'
                 '- EXIT\n'
                 '\n'
             )
+
+        def printHistory(hlist):
+            for idx, cmd in enumerate(hlist):
+                print('[%0d] %s' % (idx, cmd))
 
         def getUserInput():
             printMenu()
@@ -20559,20 +20566,26 @@ Copyright:
             return
 
         # run mainloop #
-        prevCmd = None
+        hlist = list()
         while 1:
             try:
                 uinput = getUserInput()
-                if uinput == '!!' and prevCmd:
-                    uinput = prevCmd
+                if uinput.startswith('!') and \
+                    len(uinput) > 1 and \
+                    uinput[1:].isdigit() and \
+                    long(uinput[1:]) < len(hlist):
+                    uinput = hlist[long(uinput[1:])]
 
                 if len(uinput) == 0:
+                    continue
+                elif uinput == '!' or uinput.upper() == 'HISTORY':
+                    printHistory(hlist)
                     continue
                 elif uinput.upper() == 'EXIT':
                     break
 
                 # backup command #
-                prevCmd = uinput
+                hlist.append(uinput)
 
                 NetworkManager.requestCmd(connObj, uinput)
             except SystemExit:
