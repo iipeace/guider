@@ -17,16 +17,16 @@ __repository__ = "https://github.com/iipeace/guider"
 
 # import essential packages #
 try:
-    import re
-    import sys
-    import signal
-    import time
     import os
+    import re
     import gc
+    import sys
+    import time
+    import copy
+    import errno
+    import signal
     import atexit
     import struct
-    import errno
-    import copy
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -3051,7 +3051,8 @@ class NetworkManager(object):
 
         try:
             from socket import socket, AF_INET, SOCK_DGRAM, \
-                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF
+                SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
+                SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO
         except:
             return None
 
@@ -3077,7 +3078,23 @@ class NetworkManager(object):
             self.sendSize = self.socket.getsockopt(SOL_SOCKET, SO_SNDBUF)
             self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
-            #self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+            # set REUSEADDR #
+            '''
+            self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+            '''
+
+            # set SENDTIMEOUT #
+            '''
+            sec = 1
+            usec = 0
+            timeval = struct.pack('ll', sec, usec)
+            self.socket.setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeval)
+            '''
+
+            # set NODELAY #
+            '''
+            self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
+            '''
 
             if mode == 'server':
                 if not port:
@@ -3531,7 +3548,10 @@ class NetworkManager(object):
                 output = output[0]
 
                 data = data + output
-                if len(output) < self.recvSize:
+                if len(output) == 0:
+                    break
+                elif len(output) < self.recvSize and \
+                    output[-1] == '\n':
                     break
         except SystemExit:
             sys.exit(0)
@@ -10537,20 +10557,41 @@ class LogManager(object):
         if self.error:
             return
 
+        # check cache dir #
+        if not os.path.exists(SystemManager.cacheDirPath):
+            try:
+                os.mkdir(SystemManager.cacheDirPath)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printWarn((\
+                    'Fail to make %s directory because %s '
+                    'so that use /tmp dir') % \
+                        (SystemManager.cacheDirPath, err), True)
+                SystemManager.cacheDirPath = '/tmp'
+
+        # set file path for error log #
+        errorFile = '%s/guider.err' % SystemManager.cacheDirPath
+        if not SystemManager.isWritable(errorFile):
+            SystemManager.printWarn((\
+                'Fail to get write permission for %s '
+                'so that use /tmp/guider.err') % errorFile, True)
+            SystemManager.cacheDirPath = '/tmp'
+            errorFile = '%s/guider.err' % SystemManager.cacheDirPath
+
         try:
             if not self.notified:
                 SystemManager.printErr((\
                     'Please report %s file to '
                     'https://github.com/iipeace/guider/issues') % \
-                    SystemManager.errorFile)
+                        errorFile)
                 self.notified = True
 
-            with open(SystemManager.errorFile, 'a') as fd:
+            with open(errorFile, 'a') as fd:
                 fd.write(message)
         except:
             self.error = True
             SystemManager.printErr(\
-                'Fail to open %s to log error' % SystemManager.errorFile)
+                'Fail to open %s to log error' % errorFile)
 
 
 
@@ -10619,7 +10660,7 @@ class SystemManager(object):
     mountPath = None
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
-    elfCachePath = '/var/log/guider'
+    cacheDirPath = '/var/log/guider'
     pythonPath = sys.executable
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
@@ -10630,11 +10671,11 @@ class SystemManager(object):
     compressEnable = True
     rootPath = ''
     fontPath = None
+    nrTop = None
     pipeForPrint = None
     fileForPrint = None
     inputFile = None
     outputFile = None
-    errorFile = '/tmp/guider.err'
     sourceFile = None
     printFile = None
     parsedAnalOption = False
@@ -10692,6 +10733,8 @@ class SystemManager(object):
     netInIndex = -1
 
     printStreamEnable = False
+    dltEnable = False
+    cpuAvrEnable = True
     reportEnable = False
     truncEnable = True
     countEnable = False
@@ -10792,6 +10835,7 @@ class SystemManager(object):
     cmdlineEnable = False
     intervalEnable = 0
 
+    forceEnable = False
     functionEnable = False
     systemEnable = False
     fileEnable = False
@@ -11674,7 +11718,8 @@ class SystemManager(object):
             options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
             options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
             options.rfind('d') >= 0 or options.rfind('o') >= 0 or \
-            options.rfind('C') >= 0 or options.rfind('E') >= 0:
+            options.rfind('C') >= 0 or options.rfind('E') or \
+            options.rfind('D') >= 0:
             return True
         else:
             return False
@@ -11980,7 +12025,7 @@ Usage:
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
@@ -11992,25 +12037,28 @@ Usage:
                 topSubStr = '''
 OPTIONS:
         -e  <CHARACTER>             enable options
-                c:cpu | m:memory | b:block | p:pipe | e:encode
-                t:thread | F:wfc | s:stack | w:wss | d:disk
-                P:Perf | i:irq | S:pss | u:uss | f:float
-                a:affinity | r:report | W:wchan | h:handler
-                f:float | R:freport | n:net | o:oomScore
-                C:cgroup | L:cmdline | E:Elasticsearch
+                a:affinity | b:block | c:cpu | C:cgroup
+                d:disk | D:DLT | e:encode | E:Elastic
+                f:float | F:wfc | h:sigHandler | i:irq
+                L:cmdline | m:memory | n:net | o:oomScore
+                p:pipe | P:perf | r:report | R:fileReport
+                s:stack | S:pss | t:thread | u:uss
+                w:wss | W:wchan
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | p:print | T:task
-                t:truncate | G:gpu | a:memAvailable
-                    '''
+                a:memAvailable | A:cpuAverage
+                c:cpu | e:encode | G:gpu | p:print
+                t:truncate | T:task
+                                    '''
 
                 drawSubStr = '''
 OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -o  <DIR>                   save output data
         -a                          show all stats and events
+        -T  <NUM>                   set top number
         -L  <RES:PER>               set graph Layout
         -l  <BOUNDARY>              set boundary lines
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12080,11 +12128,12 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-              m:memory | b:block | p:pipe | e:encode
-              h:heap | L:lock | g:graph | c:cgroup
+              b:block | c:cgroup | e:encode | g:graph
+              h:heap | L:lock | m:memory | p:pipe
         -d  <CHARACTER>             disable options
-              c:cpu | e:encode | a:all | u:user | C:compress
+              a:all | c:cpu | C:compress | e:encode | u:user
         -s  <DIR|FILE>              save trace data
+        -f                          force execution
         -u                          run in the background
         -b  <SIZE:KB>               set buffer size
         -t  <SYSCALL>               trace syscall
@@ -12113,7 +12162,7 @@ OPTIONS:
         -Q                          print all rows in a stream
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
@@ -12195,7 +12244,7 @@ OPTIONS:
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12234,7 +12283,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12267,7 +12316,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12302,7 +12351,7 @@ OPTIONS:
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12326,11 +12375,13 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-                m:memory | b:block | p:pipe | i:irq | L:lock
-                e:encode | n:net | P:power | r:reset | g:graph
+                b:block | e:encode | g:graph | i:irq
+                L:lock | m:memory | n:net | p:pipe
+                r:reset | P:power
         -d  <CHARACTER>             disable options
-                c:cpu | e:encode | a:all | C:compress
+                a:all | c:cpu | C:compress | e:encode
         -s  <DIR|FILE>              save trace data
+        -f                          force execution
         -u                          run in the background
         -W                          wait for signal
         -b  <SIZE:KB>               set buffer size
@@ -12360,7 +12411,7 @@ OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched priority list
@@ -12452,7 +12503,7 @@ OPTIONS:
         -i  <SEC>                   set interval
         -R  <INTERVAL:COUNT:TERM>   set repeat count
         -Q                          print all rows in a stream
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched priority list
@@ -12749,6 +12800,9 @@ Examples:
     - Monitor DLT logs
         # {0:1} {1:1}
 
+    - Monitor DLT logs including specific strings
+        # {0:1} {1:1} -g test
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -12830,7 +12884,7 @@ OPTIONS:
         -c  <EVENT>                 set breakpoint
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12880,7 +12934,7 @@ OPTIONS:
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12928,7 +12982,7 @@ OPTIONS:
         -o  <DIR|FILE>              save output data
         -I  <ADDR>                  set address area
         -m  <ROWS:COLS>             set terminal size
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
 
@@ -12960,6 +13014,9 @@ Examples:
 
     - Draw graphs of cpu usage with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
+
+    - Draw graphs of cpu usage of top 5 processes
+        # {0:1} {1:1} guider.out worstcase.out -T 5
 
     - Draw graphs of cpu usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
@@ -13006,6 +13063,9 @@ Examples:
     - Draw graphs of memory(VSS) usage excluding chrome process and memory chart
         # {0:1} {1:1} guider.out -g ^chrome
 
+    - Draw graphs of memory(VSS) usage of top 5 processes
+        # {0:1} {1:1} guider.out -T 5
+
     - Draw graphs of memory(VSS) usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
                     '''.format(cmd, mode)
@@ -13026,6 +13086,9 @@ Description:
 Examples:
     - Draw graphs of memory(RSS) usage and memory chart
         # {0:1} {1:1} guider.out
+
+    - Draw graphs of memory(RSS) usage of top 5 processes
+        # {0:1} {1:1} guider.out -T 5
 
     - Draw graphs of memory(RSS) usage with multiple files for comparison
         # {0:1} {1:1} guider.out guider.out2 guider.out3
@@ -13110,16 +13173,16 @@ Usage:
     # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Send specific signal to specific processes or all running guider processes
+    Send specific signal to specific processes or all running Guider processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Send the notification signal to all running guider processes
+    - Send the notification signal to all running Guider processes
         # {0:1} {1:1}
 
     - Send SIGSTOP signal to a specific process
@@ -13200,6 +13263,7 @@ Description:
     Print DLT messages in real-time
 
 OPTIONS:
+        -g  <STRING>                set filter
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13207,6 +13271,9 @@ OPTIONS:
 Examples:
     - Print DLT messages in real-time
         # {0:1} {1:1}
+
+    - Print DLT messages including specific strings
+        # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
                 # addr2line #
@@ -13241,12 +13308,16 @@ Description:
 
 OPTIONS:
         -v                          verbose
+        -a                          show name of all processes
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
     - Print system cgroup tree
         # {0:1} {1:1}
+
+    - Print system cgroup tree with the name of processes
+        # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
                 # leaktracer #
@@ -13330,7 +13401,7 @@ Description:
     Print the tree of processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13352,7 +13423,7 @@ Description:
 OPTIONS:
         -g  <TID>                   set filter
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13373,7 +13444,7 @@ Description:
 
 OPTIONS:
         -g  <CORE:CLOCK:GOVERNOR>   set filter
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13399,7 +13470,7 @@ Description:
     Convert a text file to a image file
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13428,7 +13499,7 @@ Description:
 
 OPTIONS:
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13454,7 +13525,7 @@ Description:
     Get cpu affinity of threads
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13475,7 +13546,7 @@ Description:
 
 OPTIONS:
         -P                          group threads in same process
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13495,7 +13566,7 @@ Description:
     Create tasks using cpu
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13518,7 +13589,7 @@ Description:
     Allocate physical memory
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13544,7 +13615,7 @@ Description:
     Show running {2:1} processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode, __module__)
 
@@ -13555,10 +13626,10 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Send signal to all running guider processes to run
+    Send signal to all running Guider processes to run
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13569,16 +13640,16 @@ Usage:
     # {0:1} {1:1} [<EVENT>] [OPTIONS] [--help]
 
 Description:
-    Send the event signal to all running guider processes
+    Send the event signal to all running Guider processes
 
 OPTIONS:
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Send scene1 event to running guider processes
+    - Send scene1 event to running Guider processes
         # {0:1} {1:1} scene1
                     '''.format(cmd, mode)
 
@@ -13594,7 +13665,7 @@ Description:
 OPTIONS:
         -x  <IP:PORT>               set local address
         -u                          run in the background
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13610,7 +13681,7 @@ Description:
 OPTIONS:
         -x  <IP:PORT>               set local address
         -X  <IP:PORT>               set request address
-        -E  <FILE>                  set error log path
+        -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16512,7 +16583,7 @@ Copyright:
                 (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
-        if SystemManager.launchBuffer.find(' -f') > -1 or \
+        if SystemManager.launchBuffer.find(' funcrec') > -1 or \
             SystemManager.launchBuffer.find(' funcrecord') > -1:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
@@ -16901,6 +16972,9 @@ Copyright:
 
     @staticmethod
     def printPipe(line, newline=True, flush=False):
+        if SystemManager.dltEnable:
+            DltManager.doLogDlt(msg=line)
+
         if not SystemManager.printEnable:
             return
 
@@ -17545,6 +17619,9 @@ Copyright:
                 if options.rfind('G') > -1:
                     SystemManager.gpuEnable = False
 
+                if options.rfind('A') > -1:
+                    SystemManager.cpuAvrEnable = False
+
                 if options.rfind('T') > -1:
                     SystemManager.taskEnable = False
 
@@ -17561,9 +17638,9 @@ Copyright:
                 SystemManager.setArch(value)
 
             elif option == 'E':
-                SystemManager.errorFile = value
+                SystemManager.cacheDirPath = value
                 SystemManager.printInfo(\
-                    "error log is wrote to %s" % SystemManager.errorFile)
+                    "use %s as cache directory" % value)
 
             elif option == 's':
                 SystemManager.applySaveOption(value)
@@ -17654,6 +17731,9 @@ Copyright:
                 if options.rfind('e') > -1:
                     SystemManager.encodeEnable = True
 
+                if options.rfind('D') > -1:
+                    SystemManager.dltEnable = True
+
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
                         SystemManager.memEnable = True
@@ -17697,7 +17777,7 @@ Copyright:
                         "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
-            elif option == 'f' and SystemManager.isFunctionMode():
+            elif SystemManager.isFunctionMode():
                 SystemManager.functionEnable = True
 
             elif option == 'l':
@@ -17717,7 +17797,16 @@ Copyright:
                 SystemManager.rootPath = value
 
             elif option == 'T':
-                SystemManager.fontPath = value
+                if SystemManager.isConvertMode():
+                    SystemManager.fontPath = value
+                else:
+                    try:
+                        SystemManager.nrTop = int(value)
+                    except:
+                        SystemManager.printErr(\
+                            "wrong option value with -T option, "
+                            "input number in integer format")
+                        sys.exit(0)
 
             elif option == 'O':
                 SystemManager.perCoreList = value.split(',')
@@ -17919,7 +18008,7 @@ Copyright:
                 SystemManager.parseAffinityOption(value)
 
             elif option == 'f':
-                SystemManager.functionEnable = True
+                SystemManager.forceEnable = True
 
             elif option == 'u':
                 SystemManager.backgroundEnable = True
@@ -17933,9 +18022,9 @@ Copyright:
                 SystemManager.setArch(value)
 
             elif option == 'E':
-                SystemManager.errorFile = value
+                SystemManager.cacheDirPath = value
                 SystemManager.printInfo(\
-                    "error log is wrote to %s" % SystemManager.errorFile)
+                    "use %s as cache directory" % value)
 
             elif option == 'e':
                 options = value
@@ -18041,10 +18130,7 @@ Copyright:
             elif option == 'C':
                 # get output path #
                 if len(value) == 0:
-                    SystemManager.printErr((\
-                        "wrong option with -C, "
-                        "input path to make command script"))
-                    sys.exit(0)
+                    value = 'guider.cmd'
 
                 # change output path #
                 try:
@@ -18859,7 +18945,7 @@ Copyright:
         elif SystemManager.isLogDltMode():
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            if not SystemManager.findOption('I'):
+            if not SystemManager.sourceFile:
                 SystemManager.printErr(\
                     "wrong option value with -I option, "
                     "input DLT message")
@@ -19547,7 +19633,7 @@ Copyright:
             event = 'EVENT_%s' % event
 
         if len(pids) == 0:
-            # get pid list of guider processes #
+            # get pid list of Guider processes #
             pids = SystemManager.getProcPids(__module__)
             if len(pids) == 0:
                 if SystemManager.isEventMode():
@@ -19561,9 +19647,9 @@ Copyright:
         # update uptime #
         SystemManager.updateUptime()
 
-        # get socket inode address list of guider processes #
+        # get socket inode address list of Guider processes #
         for pid in pids:
-            # get udp port list of guider processes #
+            # get udp port list of Guider processes #
             objs = SystemManager.getProcSocketObjs(pid)
             addrs = SystemManager.getSocketAddrList(objs)
 
@@ -20234,11 +20320,12 @@ Copyright:
             # get connection info #
             sock, addr = conn
 
-            # convert guider path #
+            # convert Guider path #
             if value.startswith('GUIDER '):
                 cmd = ' '.join(value.split()[1:])
                 path = '%s %s' % \
-                    (UtilManager.which('python')[0], os.path.abspath(__file__))
+                    (UtilManager.which('python')[0], \
+                        os.path.abspath(__file__))
                 value = '%s %s' % (path, cmd)
 
             # run command #
@@ -20286,7 +20373,9 @@ Copyright:
                             # handle data arrived #
                             while 1:
                                 output = robj.readline()
-                                if output and len(output) > 0:
+                                if output == '\n':
+                                    continue
+                                elif output and len(output) > 0:
                                     ret = pipeObj.write(output)
                                     if not ret:
                                         raise Exception()
@@ -20457,9 +20546,14 @@ Copyright:
                 '- DOWNLOAD:RemotePath,LocalPath\n'
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
+                '- HISTORY\n'
                 '- EXIT\n'
                 '\n'
             )
+
+        def printHistory(hlist):
+            for idx, cmd in enumerate(hlist):
+                print('[%0d] %s' % (idx, cmd))
 
         def getUserInput():
             printMenu()
@@ -20479,13 +20573,26 @@ Copyright:
             return
 
         # run mainloop #
+        hlist = list()
         while 1:
             try:
                 uinput = getUserInput()
+                if uinput.startswith('!') and \
+                    len(uinput) > 1 and \
+                    uinput[1:].isdigit() and \
+                    long(uinput[1:]) < len(hlist):
+                    uinput = hlist[long(uinput[1:])]
+
                 if len(uinput) == 0:
+                    continue
+                elif uinput == '!' or uinput.upper() == 'HISTORY':
+                    printHistory(hlist)
                     continue
                 elif uinput.upper() == 'EXIT':
                     break
+
+                # backup command #
+                hlist.append(uinput)
 
                 NetworkManager.requestCmd(connObj, uinput)
             except SystemExit:
@@ -21479,10 +21586,10 @@ Copyright:
 
     @staticmethod
     def sendSignalProcs(nrSig, pidList):
-        nrProc = 0
         myPid = str(SystemManager.pid)
         SIG_LIST = ConfigManager.SIG_LIST
 
+        nrProc = 0
         if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
                 # check pid type #
@@ -21493,14 +21600,24 @@ Copyright:
                         "Fail to recognize PID %s to send signal" % pid)
                     return
 
+                # skip myself #
+                if pid == SystemManager.pid:
+                    continue
+
                 # send signal to a process #
                 try:
                     os.kill(int(pid), nrSig)
                     SystemManager.printInfo(\
                         "sent signal %s to %s process" % \
                         (SIG_LIST[nrSig], pid))
+
+                    nrProc += 1
                 except:
                     SystemManager.printSigError(pid, SIG_LIST[nrSig])
+
+            if nrProc == 0:
+                SystemManager.printInfo("No running process in the background")
+
             return
 
         # get my comm #
@@ -21511,7 +21628,7 @@ Copyright:
                 SystemManager.getErrReason())
             sys.exit(0)
 
-        # get my comm #
+        # get my cmdline #
         myCmdline = SystemManager.getCmdline(SystemManager.pid)
         if myCmdline:
             myCmdline = myCmdline.split()
@@ -21522,6 +21639,7 @@ Copyright:
             sys.exit(0)
 
         # handle Guider processes #
+        nrProc = 0
         for pid in os.listdir(SystemManager.procPath):
             if myPid == pid or not pid.isdigit():
                 continue
@@ -22103,7 +22221,7 @@ Copyright:
 
 
     def saveSysStat(self, initialized=True):
-        self.updateUptime()
+        SystemManager.updateUptime()
 
         # update resource usage #
         self.updateMemInfo()
@@ -22629,11 +22747,11 @@ Copyright:
         if not stat:
             sys.exit(0)
         elif stat == '1':
-            # no running guider process except for myself #
+            # no running Guider process except for myself #
             if SystemManager.getBgProcCount() <= 1:
                 res = SystemManager.readCmdVal('enable')
                 # default status #
-                if res == '0':
+                if res == '0' or SystemManager.forceEnable:
                     pass
                 # tracing status #
                 else:
@@ -24206,8 +24324,12 @@ Copyright:
                     path = '%s/%s' % (dirpath, target)
                     with open(path, 'r') as fd:
                         if target == 'tasks' or target == 'cgroup.procs':
+                            taskList = fd.read().splitlines()
                             item[target] = \
-                                UtilManager.convertNumber(len(fd.readlines()))
+                                UtilManager.convertNumber(len(taskList))
+                            if SystemManager.showAll and \
+                                len(taskList) > 0 and target == 'cgroup.procs':
+                                item['PROCS'] = dict.fromkeys(taskList, {})
                         else:
                             cval = fd.readline()[:-1]
                             if cval.isdigit():
@@ -24247,6 +24369,10 @@ Copyright:
         # split a path to multiple tokens #
         dirDict = {}
         for item, val in dirList.items():
+            # skip symbolic link #
+            if os.path.islink(item):
+                continue
+
             p = dirDict
             tokList = item[len(cgroupPath):].split('/')[1:]
             for x in tokList:
@@ -24260,13 +24386,17 @@ Copyright:
 
 
     def printCgroupInfo(self, printTitle=True):
+        commList = {}
+
         def printDirTree(root, depth):
             if type(root) is not dict:
                 return
 
             tempRoot = copy.deepcopy(root)
 
-            for curdir, subdir in sorted(tempRoot.items()):
+            for curdir, subdir in sorted(\
+                tempRoot.items(), \
+                key=lambda e: int(e[0]) if e[0].isdigit() else e[0]):
                 cstr = ''
                 nrProcs = 0
                 nrTasks = 0
@@ -24301,9 +24431,23 @@ Copyright:
                 nrWorker = '(proc:%s,task:%s)' % (nrProcs, nrTasks)
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
+
+                    if curdir == 'PROCS':
+                        nrWorker = ''
+
                     SystemManager.infoBufferPrint(\
                         '%s- %s%s%s%s' % \
                         (indent, curdir, nrChild, nrWorker, cstr))
+                elif depth > 0 and nrProcs == nrTasks == 0:
+                    if curdir in commList:
+                        comm = commList[curdir]
+                    else:
+                        comm = commList[curdir] = \
+                            SystemManager.getComm(curdir)
+
+                    SystemManager.infoBufferPrint(\
+                        '%s- %s(%s)' % \
+                        (indent, comm, curdir))
                 else:
                     SystemManager.infoBufferPrint(\
                         '%s- %s%s%s' % \
@@ -25074,11 +25218,114 @@ class DltManager(object):
 
     @staticmethod
     def printSummary():
+        quitLoop = False
+        convertFunc = UtilManager.convertNumber
+
+        # update uptime #
+        SystemManager.updateUptime()
+
+        # print title #
+        SystemManager.addPrint(\
+            ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                ('DLT Info', SystemManager.uptime, \
+                SystemManager.uptimeDiff, \
+                convertFunc(DltManager.dltData['cnt'])))
+
+        SystemManager.addPrint(\
+                "{0:1}\n{1:^20} | {2:^19} | {3:^19} |\n{4:1}\n".format(\
+                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=3)
+
+        # traverse DLT table #
+        dltCnt = 0
+        for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
+            key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
+            reverse=True):
+            if ecuId == 'cnt':
+                continue
+
+            if quitLoop:
+                break
+            elif SystemManager.checkCutCond():
+                SystemManager.addPrint('---more---')
+                break
+
+            ecuCnt = ecuItem['cnt']
+            ecuPer = ecuCnt / float(DltManager.dltData['cnt']) * 100
+            ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
+                ecuId, convertFunc(ecuCnt), ecuPer)
+            SystemManager.addPrint(ecuStr)
+            dltCnt += 1
+
+            for apId, apItem in sorted(ecuItem.items(), \
+                key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
+                reverse=True):
+                if apId == 'cnt':
+                    continue
+
+                if quitLoop:
+                    break
+                elif SystemManager.checkCutCond():
+                    SystemManager.addPrint('---more---')
+                    quitLoop = True
+                    break
+
+                depth = len(ecuStr) * ' '
+                apCnt = apItem['cnt']
+                apPer = apCnt / float(ecuCnt) * 100
+                apStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
+                    depth, apId, convertFunc(apCnt), apPer)
+                SystemManager.addPrint(apStr)
+
+                for ctxId, ctxItem in sorted(apItem.items(), \
+                    key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
+                    reverse=True):
+                    if ctxId == 'cnt':
+                        continue
+
+                    if quitLoop:
+                        break
+                    elif SystemManager.checkCutCond():
+                        SystemManager.addPrint('---more---')
+                        quitLoop = True
+                        break
+
+                    depth = len(apStr) * ' '
+                    ctxCnt = ctxItem['cnt']
+                    ctxPer = ctxCnt / float(apCnt) * 100
+                    ctxStr = "{0:1}{1:4} {2:>8}({3:5.1f}%)\n".format(\
+                        depth, ctxId, convertFunc(ctxCnt), ctxPer)
+                    SystemManager.addPrint(ctxStr)
+
+        if dltCnt == 0:
+            SystemManager.addPrint('\tNone\n')
+
+        if not quitLoop:
+            SystemManager.addPrint('%s\n' % oneLine)
+
+        SystemManager.printTopStats()
+
         # initialize data #
-        dltData = {'cnt': 0}
+        DltManager.dltData = {'cnt': 0}
+
+
 
     @staticmethod
-    def doLogDlt(appid='Guider', context='Guider', msg=None):
+    def onAlarm(signum, frame):
+        if DltManager.dltData['cnt'] == 0:
+            SystemManager.printWarn(\
+                "No DLT message received", True)
+        DltManager.updateTimer()
+
+
+
+    @staticmethod
+    def updateTimer():
+        signal.alarm(SystemManager.intervalEnable)
+
+
+
+    @staticmethod
+    def doLogDlt(appid='GUID', context='GUID', msg=None):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
@@ -25097,6 +25344,8 @@ class DltManager(object):
         # define log level #
         LEVEL_INFO = 0x04
         LEVEL_ERROR = 0x02
+
+        DLT_USER_BUF_MAX_SIZE = 1380
 
         # load dlt library #
         try:
@@ -25125,8 +25374,20 @@ class DltManager(object):
             SystemManager.dltCtx = ctx
 
         # log #
-        return dltObj.dlt_log_string(\
-            byref(SystemManager.dltCtx), LEVEL_INFO, msg)
+        pos = 0
+        while 1:
+            if len(msg[pos:]) >= DLT_USER_BUF_MAX_SIZE:
+                end = DLT_USER_BUF_MAX_SIZE + pos
+            else:
+                end = len(msg)
+
+            ret = dltObj.dlt_log_string(\
+                byref(SystemManager.dltCtx), LEVEL_INFO, msg[pos:end])
+
+            if end == len(msg):
+                return ret
+
+            pos = end
 
         '''
         # unregister #
@@ -25287,7 +25548,7 @@ class DltManager(object):
             ]
 
             def __reduce__(self):
-                return (cDltExtendedHeader, \
+                return (DltExtendedHeader, \
                     (self.msin, self.noar, self.apid, self.ctid))
 
         class DltStandardHeaderExtra(Structure):
@@ -25363,6 +25624,8 @@ class DltManager(object):
             if not SystemManager.dltObj:
                 SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
             dltObj = SystemManager.dltObj
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.dltObj = None
             SystemManager.printWarn(\
@@ -25386,6 +25649,8 @@ class DltManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM, \
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
                 create_connection, MSG_PEEK, MSG_DONTWAIT
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to ready socket because %s" % \
@@ -25400,10 +25665,12 @@ class DltManager(object):
             else:
                 servIp = '127.0.0.1'
                 servPort = 3490
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to get the address of dlt-daemon because %s" % \
-                    SysemManager.getErrReason())
+                    SystemManager.getErrReason())
             sys.exit(0)
 
         # connect to server #
@@ -25443,17 +25710,33 @@ class DltManager(object):
         try:
             nrConnSock = connSock.fileno()
             RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
+
             ret = dltObj.dlt_receiver_init(\
                 byref(dltReceiver), nrConnSock, RECVBUFSIZE)
             if ret < 0:
                 SystemManager.printErr(\
                     "Fail to initialize DLT receiver")
                 sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to initialize connection because %s" % \
                 SystemManager.getErrReason())
             sys.exit(0)
+
+        # define receiver symbol #
+        try:
+            getattr(dltObj, 'dlt_receiver_receive_socket')
+            dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
+        except:
+            try:
+                getattr(dltObj, 'dlt_receiver_receive')
+                dlt_receiver_receive = dltObj.dlt_receiver_receive
+            except:
+                SystemManager.printErr(\
+                    "Fail to get dlt_receiver_receive symbol")
+                sys.exit(0)
 
         # initialize message #
         msg = DLTMessage()
@@ -25465,28 +25748,48 @@ class DltManager(object):
 
         # save timestamp #
         prevTime = time.time()
+        SystemManager.updateUptime()
+
+        # set timer #
+        signal.signal(signal.SIGALRM, DltManager.onAlarm)
+        DltManager.updateTimer()
+
+        if mode == 'top':
+            SystemManager.printInfo(\
+                "start collecting DLT log... [ STOP(Ctrl+c) ]")
+        elif mode == 'print':
+            SystemManager.printInfo(\
+                "start printing DLT log... [ STOP(Ctrl+c) ]")
 
         while 1:
-            # get delayed time #
-            delayTime = time.time() - prevTime
-            if delayTime >= SystemManager.intervalEnable:
-                # check repeat count #
-                SystemManager.checkProgress()
+            # summarizing #
+            if mode == 'top':
+                # get delayed time #
+                delayTime = time.time() - prevTime
+                if delayTime >= SystemManager.intervalEnable:
+                    # check repeat count #
+                    SystemManager.checkProgress()
 
-                # check user input #
-                SystemManager.waitUserInput(0.000001)
+                    # check user input #
+                    SystemManager.waitUserInput(0.000001)
 
-                # print summary #
-                DltManager.printSummary()
+                    # print summary #
+                    DltManager.printSummary()
 
-                # save timestamp #
-                prevTime = time.time()
+                    # save timestamp #
+                    prevTime = time.time()
+
+                    # update timer #
+                    DltManager.updateTimer()
 
             try:
                 # check DLT data to be read #
-                ret = dltObj.dlt_receiver_receive_socket(byref(dltReceiver))
-                if ret <= 0:
-                    continue
+                try:
+                    ret = dlt_receiver_receive(byref(dltReceiver))
+                    if ret <= 0:
+                        continue
+                except:
+                    sys.exit(0)
 
                 # check DLT data to be read #
                 res = dltObj.dlt_message_read(\
@@ -25542,16 +25845,28 @@ class DltManager(object):
 
             # summarizing #
             if mode == 'top':
+                # check filter #
+                if len(SystemManager.filterGroup) > 0:
+                    skipFlag = True
+                    for cond in SystemManager.filterGroup:
+                        if cond == ecuId or \
+                            cond == apId or \
+                            cond == ctxId:
+                            skipFlag = False
+                            break
+                    if skipFlag:
+                        continue
+
                 DltManager.dltData['cnt'] += 1
 
                 # add ecuId #
                 if not ecuId in DltManager.dltData:
-                    DltManager.dltData[ecuId] = {'apList': dict(), 'cnt': 0}
+                    DltManager.dltData[ecuId] = {'cnt': 0}
                 DltManager.dltData[ecuId]['cnt'] += 1
 
                 # add apId #
                 if not apId in DltManager.dltData[ecuId]:
-                    DltManager.dltData[ecuId][apId] = {'ctxList': dict(), 'cnt': 0}
+                    DltManager.dltData[ecuId][apId] = {'cnt': 0}
                 DltManager.dltData[ecuId][apId]['cnt'] += 1
 
                 # add ctxId #
@@ -25560,6 +25875,24 @@ class DltManager(object):
                 DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
             # printing #
             elif mode == 'print':
+                # get payload #
+                buf = ctypes.create_string_buffer(b'\000' * 10024)
+                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
+                string = buf.value.decode("utf8")
+
+                # check filter #
+                if len(SystemManager.filterGroup) > 0:
+                    skipFlag = True
+                    for cond in SystemManager.filterGroup:
+                        if cond == ecuId or \
+                            cond == apId or \
+                            cond == ctxId or \
+                            cond in string:
+                            skipFlag = False
+                            break
+                    if skipFlag:
+                        continue
+
                 # get message info #
                 timeSec = msg.storageheader.contents.seconds
                 timeUs = msg.storageheader.contents.microseconds
@@ -25571,11 +25904,6 @@ class DltManager(object):
                     info = LOGINFO[subtype]
                 except:
                     info = ''
-
-                # get payload #
-                buf = ctypes.create_string_buffer(b'\000' * 10024)
-                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
-                string = buf.value.decode("utf8")
 
                 # get date time #
                 ntime = time.strftime(\
@@ -27132,12 +27460,13 @@ struct msghdr {
                     name, '??', current, realtime=True, bt=backtrace)
             elif SystemManager.printFile:
                 self.addSample(name, '??', current, bt=backtrace)
-
-                if SystemManager.showAll:
-                    self.callPrint.append(callString)
             else:
                 SystemManager.printPipe(\
                     '\n%s' % callString, newline=False, flush=True)
+
+            # print call history #
+            if SystemManager.printFile:
+                self.callPrint.append(callString)
 
             # check symbol #
             if SystemManager.customCmd:
@@ -27372,7 +27701,7 @@ struct msghdr {
             sys.exit(0)
 
         # load user symbols #
-        if mode != 'syscall':
+        if mode != 'syscall' or SystemManager.funcDepth > 0:
             try:
                 self.loadSymbols()
             except SystemExit:
@@ -27553,7 +27882,8 @@ struct msghdr {
                         (pid, ConfigManager.SIG_LIST[stat]))
 
                     # continue target from signal stop #
-                    #self.cont(check=True, sig=stat)
+                    if mode != 'syscall':
+                        self.cont(check=True, sig=stat)
 
             except SystemExit:
                 return
@@ -27595,8 +27925,7 @@ struct msghdr {
 
     @staticmethod
     def printCallHistory(instance):
-        if len(instance.callPrint) == 0 or \
-            not SystemManager.showAll:
+        if len(instance.callPrint) == 0:
             return
 
         try:
@@ -27605,11 +27934,10 @@ struct msghdr {
             elapsed = instance.last - instance.start
 
         SystemManager.printPipe(\
-            '\n[Trace History] [Time: %f] [Line: %s]' %
-                (elapsed, UtilManager.convertNumber(len(instance.callPrint))))
-        SystemManager.printPipe(twoLine)
-        SystemManager.printPipe('\n'.join(instance.callPrint))
-        SystemManager.printPipe(oneLine)
+            '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
+                (elapsed, \
+                    UtilManager.convertNumber(len(instance.callPrint)), \
+                    twoLine, '\n'.join(instance.callPrint), oneLine))
 
 
 
@@ -27750,43 +28078,40 @@ struct msghdr {
         SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         if len(fileTable) == 0:
-            instance.printCallHistory(instance)
-            return
-
-        # print file table #
-        SystemManager.printPipe((\
-            '\n[%s File Info] [Time: %f] %s '
-            '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
-                (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
-                perSample, convert(len(fileTable)), suffix))
-        SystemManager.printPipe('%s%s' % (twoLine, suffix))
-        SystemManager.printPipe(\
-            '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
-        SystemManager.printPipe('%s%s' % (twoLine, suffix))
-
-        cnt = 0
-        for filename, value in sorted(\
-            fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
-            try:
-                per = value['cnt'] / nrTotal * 100
-            except:
-                break
-
+            # print file table #
+            SystemManager.printPipe((\
+                '\n[%s File Info] [Time: %f] %s '
+                '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
+                    (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
+                    perSample, convert(len(fileTable)), suffix))
+            SystemManager.printPipe('%s%s' % (twoLine, suffix))
             SystemManager.printPipe(\
-                '{0:>7} | {1:<144}{2:1}'.format(\
-                '%.1f%%' % per, filename, suffix))
+                '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
+            SystemManager.printPipe('%s%s' % (twoLine, suffix))
 
-            cnt += 1
+            cnt = 0
+            for filename, value in sorted(\
+                fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+                try:
+                    per = value['cnt'] / nrTotal * 100
+                except:
+                    break
 
-        if cnt == 0:
-            SystemManager.printPipe('\tNone%s' % suffix)
+                SystemManager.printPipe(\
+                    '{0:>7} | {1:<144}{2:1}'.format(\
+                    '%.1f%%' % per, filename, suffix))
 
-        SystemManager.printPipe('%s%s' % (oneLine, suffix))
+                cnt += 1
+
+            if cnt == 0:
+                SystemManager.printPipe('\tNone%s' % suffix)
+
+            SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
         instance.printCallHistory(instance)
 
         # check realtime mode #
-        if not instance.isRealtime:
+        if SystemManager.procBuffer == []:
             return
 
         # print detailed statistics #
@@ -29064,18 +29389,18 @@ class ElfAnalyzer(object):
     @staticmethod
     def saveObject(obj, path):
         # check cache dir #
-        if not os.path.isdir(SystemManager.elfCachePath):
+        if not os.path.isdir(SystemManager.cacheDirPath):
             try:
-                os.mkdir(SystemManager.elfCachePath)
+                os.mkdir(SystemManager.cacheDirPath)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarn(\
                     'Fail to make %s directory because %s' % \
-                        (SystemManager.elfCachePath, err))
+                        (SystemManager.cacheDirPath, err))
 
         # build cache path #
         cpath = '%s/%s' % \
-            (SystemManager.elfCachePath, path.replace('/', '_'))
+            (SystemManager.cacheDirPath, path.replace('/', '_'))
 
         return UtilManager.saveObjectToFile(obj, cpath)
 
@@ -29085,7 +29410,7 @@ class ElfAnalyzer(object):
     def loadObject(path):
         # build cache path #
         cpath = '%s/%s' % \
-            (SystemManager.elfCachePath, path.replace('/', '_'))
+            (SystemManager.cacheDirPath, path.replace('/', '_'))
 
         # load object from file #
         obj = UtilManager.loadObjectFromFile(cpath)
@@ -29120,7 +29445,11 @@ class ElfAnalyzer(object):
 
             # create a new object #
             try:
-                ElfAnalyzer.cachedFiles[path] = ElfAnalyzer(path)
+                elfObj = ElfAnalyzer(path)
+                if not elfObj or not elfObj.ret:
+                    raise Exception()
+
+                ElfAnalyzer.cachedFiles[path] = elfObj
                 SystemManager.printInfo("[Done]", prefix=False, notitle=True)
             except SystemExit:
                 sys.exit(0)
@@ -29294,7 +29623,7 @@ class ElfAnalyzer(object):
 
         # add PLT symbol #
         if not ElfAnalyzer.isRelocFile(self.path):
-            pltinfo = self.getHeader('.plt')
+            pltinfo = self.getSectionHeader('.plt')
             if pltinfo:
                 tempSymTable['PLT'] = {
                         'vis': 'DEFAULT', 'bind': 'GLOBAL', \
@@ -29505,7 +29834,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getHeader(self, name):
+    def getSectionHeader(self, name):
         try:
             return self.attr['sectionHeader'][name]
         except:
@@ -29784,6 +30113,7 @@ class ElfAnalyzer(object):
         '''
 
         # define attributes #
+        self.ret = True
         self.path = path
         self.attr = {}
         self.is32Bit = True
@@ -29842,6 +30172,7 @@ class ElfAnalyzer(object):
             SystemManager.printWarn((\
                 "Fail to recognize '%s', "
                 "check it is elf-format object") % path, True)
+            self.ret = None
             return None
 
         # check 32/64-bit type #
@@ -29849,6 +30180,7 @@ class ElfAnalyzer(object):
             SystemManager.printErr((\
                 "Fail to recognize elf-format object '%s'"
                 "because it is invalid class") % path)
+            self.ret = None
             return None
         elif ei_class == 1:
             self.is32Bit = True
@@ -29862,6 +30194,7 @@ class ElfAnalyzer(object):
             SystemManager.printErr((\
                 "Fail to recognize elf-format object '%s'"
                 "because it is invalid for data encoding") % path)
+            self.ret = None
             return None
         elif ei_data == 1:
             e_data = 'ELFDATA2LSB'
@@ -29956,7 +30289,7 @@ class ElfAnalyzer(object):
 
         # check onlyHeader flag #
         if onlyHeader:
-            return
+            return None
 
         # print header info #
         if debug:
@@ -30569,7 +30902,7 @@ Section header string table index: %d
 
         # check dynamic section #
         if e_shdynamic < 0:
-            return
+            return None
 
         # parse dynamic section #
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, \
@@ -32296,6 +32629,11 @@ class ThreadAnalyzer(object):
                 blkProcUsage = graphStats['%sblkProcUsage' % fname]
                 gpuUsage = graphStats['%sgpuUsage' % fname]
                 nrCore = graphStats['%snrCore' % fname]
+                maxCore = max(nrCore)
+
+                # convert total cpu usage by core number #
+                if False:
+                    cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
                 if SystemManager.showAll or \
@@ -32464,6 +32802,10 @@ class ThreadAnalyzer(object):
 
                     cpuProcUsage.pop("[ TOTAL ]", None)
 
+                # define top variable #
+                if SystemManager.nrTop:
+                    tcnt = 0
+
                 # CPU usage of processes #
                 for idx, item in sorted(\
                     cpuProcUsage.items(), \
@@ -32471,6 +32813,13 @@ class ThreadAnalyzer(object):
 
                     if not SystemManager.cpuEnable:
                         break
+
+                    # check top number #
+                    if SystemManager.nrTop:
+                        if tcnt >= SystemManager.nrTop:
+                            break
+                        else:
+                            tcnt += 1
 
                     usage = item['usage'].split()
                     usage = list(map(int, usage))[:lent]
@@ -33194,6 +33543,10 @@ class ThreadAnalyzer(object):
             # add boundary line #
             ymax = drawBoundary(0, labelList, 'mem')
 
+            # define top variable #
+            if SystemManager.nrTop:
+                tcnt = 0
+
             # start loop #
             for key, val in graphStats.items():
                 if not key.endswith('timeline'):
@@ -33229,6 +33582,13 @@ class ThreadAnalyzer(object):
                         key=lambda e: 0 \
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
+
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
 
                         try:
@@ -33285,6 +33645,7 @@ class ThreadAnalyzer(object):
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
+
                         # get maximum value #
                         try:
                             maxVss = max(usage)
@@ -33318,6 +33679,13 @@ class ThreadAnalyzer(object):
                     for key, item in sorted(\
                         memProcUsage.items(), \
                         key=lambda e: e[1]['vssDiff'], reverse=True):
+
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
 
                         if item['vssDiff'] == 0:
                             break
@@ -33378,6 +33746,14 @@ class ThreadAnalyzer(object):
                         key=lambda e: 0 \
                         if not 'maxRss' in e[1] else e[1]['maxRss'], \
                         reverse=True):
+
+                        # check top number #
+                        if SystemManager.nrTop:
+                            if tcnt >= SystemManager.nrTop:
+                                break
+                            else:
+                                tcnt += 1
+
                         try:
                             usage = \
                                 list(map(int, item['rssUsage'].split()))[:lent]
@@ -33810,9 +34186,13 @@ class ThreadAnalyzer(object):
                 outputFile = os.path.normpath(logFile)
 
             # convert output path #
-            name, ext = os.path.splitext(outputFile)
-            if name == '.' or name == '':
-                name = 'guider'
+            if os.path.isdir(outputFile):
+                filename = os.path.basename(logFile)
+                filename = os.path.splitext(filename)[0]
+                name = '%s/%s' % (outputFile, filename)
+            else:
+                name = os.path.splitext(outputFile)[0]
+
             outputFile = '%s_%s.png' % (name, itype)
 
             # backup an exist image file #
@@ -37208,7 +37588,7 @@ class ThreadAnalyzer(object):
             return
 
         # Get GPU resource usage #
-        if len(tokenList) == 5:
+        elif len(tokenList) == 5:
             m = re.match(\
                 r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m:
@@ -37242,7 +37622,7 @@ class ThreadAnalyzer(object):
                 return
 
         # Get Storage resource usage #
-        if len(tokenList) == 12 and tokenList[0][0] == '/':
+        elif len(tokenList) == 12 and tokenList[0][0] == '/':
             convertUnit2Size = UtilManager.convertUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
@@ -37311,7 +37691,8 @@ class ThreadAnalyzer(object):
             return
 
         # Get Network resource usage #
-        if len(tokenList) == 13:
+        elif len(tokenList) == 13 and \
+            not tokenList[0].startswith('Total'):
             if tokenList[0].strip() == 'ID' or \
                 tokenList[0].strip() == 'Dev':
                 return
@@ -38330,6 +38711,8 @@ class ThreadAnalyzer(object):
     def printIntervalUsage():
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
+        elif SystemManager.dltTopEnable:
+            pass
         else:
             # build summary interval table #
             ThreadAnalyzer.summarizeIntervalUsage()
@@ -43112,9 +43495,9 @@ class ThreadAnalyzer(object):
 
         # check available memory type #
         if SystemManager.freeMemEnable:
-            memTitle = ' Free'
+            memTitle = 'Free'
         else:
-            memTitle = '  Avl'
+            memTitle = 'Avl'
 
         # get iowait time #
         #iowait = SystemManager.getIowaitTime()
@@ -43123,7 +43506,7 @@ class ThreadAnalyzer(object):
         SystemManager.addPrint(
             ("%s\n%s%s\n" % (twoLine,\
             (("{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:^5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
+            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
             "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
             "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
@@ -43147,9 +43530,15 @@ class ThreadAnalyzer(object):
             self.prevCpuData['softirq']['softirq']
 
         # get total cpu usage #
-        nrCore = SystemManager.nrCore
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
+
+        if SystemManager.cpuAvrEnable:
+            nrCore = SystemManager.nrCore
+            maxUsage = 100
+        else:
+            nrCore = 1
+            maxUsage = 100 * SystemManager.nrCore
 
         # initialize accumulated cpu values #
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = 0
@@ -43218,8 +43607,8 @@ class ThreadAnalyzer(object):
         idleUsage = long(idleUsage / nrCore)
 
         # get total usage #
-        if idleUsage < 100:
-            totalUsage = 100 - idleUsage - ioUsage
+        if idleUsage < maxUsage:
+            totalUsage = maxUsage - idleUsage - ioUsage
         else:
             totalUsage = 0
 
@@ -43440,7 +43829,7 @@ class ThreadAnalyzer(object):
                     except:
                         curFreq = None
 
-                # get min cpu frequency #
+                # get cpu min frequency #
                 try:
                     self.prevCpuData[idx]['minFd'].seek(0)
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
@@ -43463,7 +43852,7 @@ class ThreadAnalyzer(object):
                     except:
                         minFreq = None
 
-                # get max cpu frequency #
+                # get cpu max frequency #
                 try:
                     self.prevCpuData[idx]['maxFd'].seek(0)
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
@@ -43683,7 +44072,7 @@ class ThreadAnalyzer(object):
             self.reportData['cpu']['kernel'] = kerUsage
             self.reportData['cpu']['irq'] = irqUsage
             self.reportData['cpu']['iowait'] = ioUsage
-            self.reportData['cpu']['nrCore'] = nrCore
+            self.reportData['cpu']['nrCore'] = SystemManager.nrCore
             try:
                 self.reportData['cpu']['percore'] = percoreStats
             except:
@@ -46361,9 +46750,6 @@ def main(args=None):
         # set normal signal #
         SystemManager.setNormalSignal()
 
-        SystemManager.printStat(\
-            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
-
         #-------------------- SYSTEM MODE --------------------#
         if SystemManager.isSystemMode():
             # parse all options and make output file path #
@@ -46371,6 +46757,9 @@ def main(args=None):
 
             # wait for user input #
             SystemManager.waitEvent()
+
+            SystemManager.printStat(\
+                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
             # save system info #
             SystemManager.sysInstance.saveSysStat()
@@ -46396,6 +46785,9 @@ def main(args=None):
             # parse analysis option #
             SystemManager.parseAnalOption()
 
+            SystemManager.printStat(\
+                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
             # start analyzing files #
             pi = FileAnalyzer()
 
@@ -46420,6 +46812,9 @@ def main(args=None):
 
         # start recording #
         SystemManager.sysInstance.startRecording()
+
+        SystemManager.printStat(\
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
         # run user command after starting recording #
         SystemManager.writeRecordCmd('AFTER')
@@ -46586,13 +46981,11 @@ def main(args=None):
         SystemManager.graphEnable:
         ThreadAnalyzer(SystemManager.inputFile)
 
-    # set tty setting automatically #
-    if SystemManager.isTopMode() and \
-        not SystemManager.ttyEnable:
-        SystemManager.setTtyAuto(True, False)
-
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
+        # set tty setting automatically #
+        if not SystemManager.ttyEnable:
+            SystemManager.setTtyAuto(True, False)
 
         # thread #
         if SystemManager.isThreadTopMode():
