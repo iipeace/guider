@@ -13264,6 +13264,7 @@ Description:
 
 OPTIONS:
         -g  <STRING>                set filter
+        -X  <REQ@IP:PORT>           set request address
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -25214,6 +25215,8 @@ class DltManager(object):
     """ Manager for DLT """
 
     # define list #
+    pids = []
+    procInfo = None
     dltData = {'cnt': 0}
 
     @staticmethod
@@ -25231,9 +25234,17 @@ class DltManager(object):
                 SystemManager.uptimeDiff, \
                 convertFunc(DltManager.dltData['cnt'])))
 
+        # update daemon stat #
+        DltManager.procInfo.saveProcStats()
+        for pid in DltManager.pids:
+            DltManager.procInfo.saveProcData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+        DltManager.procInfo.printProcUsage()
+        DltManager.procInfo.reinitStats()
+
         SystemManager.addPrint(\
-                "{0:1}\n{1:^20} | {2:^19} | {3:^19} |\n{4:1}\n".format(\
-                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=3)
+                "{0:^20} | {1:^19} | {2:^19} |\n{3:1}\n".format(\
+                "ECU", "AP", "CONTEXT", twoLine), newline=2)
 
         # traverse DLT table #
         dltCnt = 0
@@ -25618,6 +25629,12 @@ class DltManager(object):
             ]
 
 
+        # check dlt-daemon #
+        DltManager.pids = SystemManager.getProcPids('dlt-daemon')
+        if len(DltManager.pids) == 0:
+            SystemManager.printErr(\
+                "Fail to find running dlt-daemon process")
+            sys.exit(0)
 
         # load DLT library #
         try:
@@ -25686,14 +25703,9 @@ class DltManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            # check dlt-daemon #
-            if SystemManager.getProcPids('dlt-daemon') == []:
-                SystemManager.printErr(\
-                    "Fail to find running dlt-daemon process")
-            else:
-                SystemManager.printErr(\
-                    "Fail to connect to dlt-daemon with %s:%s because %s" % \
-                        (servIp, servPort, SystemManager.getErrReason()))
+            SystemManager.printErr(\
+                "Fail to connect to dlt-daemon with %s:%s because %s" % \
+                    (servIp, servPort, SystemManager.getErrReason()))
             sys.exit(0)
 
         '''
@@ -25750,6 +25762,16 @@ class DltManager(object):
         prevTime = time.time()
         SystemManager.updateUptime()
 
+        # initialize dlt-daemon info #
+        SystemManager.showAll = True
+        SystemManager.cmdlineEnable = True
+        procInfo = DltManager.procInfo = ThreadAnalyzer(onlyInstance=True)
+        for pid in DltManager.pids:
+            procInfo.saveProcData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+            procInfo.saveCmdlineData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+
         # set timer #
         signal.signal(signal.SIGALRM, DltManager.onAlarm)
         DltManager.updateTimer()
@@ -25760,6 +25782,10 @@ class DltManager(object):
         elif mode == 'print':
             SystemManager.printInfo(\
                 "start printing DLT log... [ STOP(Ctrl+c) ]")
+
+        # save and reset global filter #
+        filterGroup = SystemManager.filterGroup
+        SystemManager.filterGroup = []
 
         while 1:
             # summarizing #
@@ -25846,9 +25872,9 @@ class DltManager(object):
             # summarizing #
             if mode == 'top':
                 # check filter #
-                if len(SystemManager.filterGroup) > 0:
+                if len(filterGroup) > 0:
                     skipFlag = True
-                    for cond in SystemManager.filterGroup:
+                    for cond in filterGroup:
                         if cond == ecuId or \
                             cond == apId or \
                             cond == ctxId:
@@ -25881,9 +25907,9 @@ class DltManager(object):
                 string = buf.value.decode("utf8")
 
                 # check filter #
-                if len(SystemManager.filterGroup) > 0:
+                if len(filterGroup) > 0:
                     skipFlag = True
-                    for cond in SystemManager.filterGroup:
+                    for cond in filterGroup:
                         if cond == ecuId or \
                             cond == apId or \
                             cond == ctxId or \
@@ -31525,14 +31551,7 @@ class ThreadAnalyzer(object):
             SystemManager.checkProgress()
 
             # reset system status #
-            del self.prevProcData
-            self.prevProcData = self.procData
-            self.procData = {}
-            self.fileData = {}
-            self.nrThread = 0
-            self.nrProcess = 0
-            self.nrFd = 0
-            SystemManager.jsonData = {}
+            self.reinitStats()
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -31598,15 +31617,7 @@ class ThreadAnalyzer(object):
             SystemManager.checkProgress()
 
             # reset system status #
-            del self.prevCpuData
-            self.prevCpuData = self.cpuData
-            self.cpuData = {}
-            self.abnormalTaskList = {}
-            self.nrPrevThread = self.nrThread
-            self.nrPrevProcess = self.nrProcess
-            self.nrThread = 0
-            self.nrProcess = 0
-            SystemManager.jsonData = {}
+            self.reinitStats()
 
             # run user custom command #
             SystemManager.writeRecordCmd('AFTER')
@@ -31629,6 +31640,29 @@ class ThreadAnalyzer(object):
 
             # check request from client #
             self.checkServer()
+
+
+
+    def saveProcStats(self):
+        del self.prevProcData
+        self.prevProcData = self.procData
+        self.procData = {}
+        SystemManager.topInstance = self
+        SystemManager.procInstance = self.procData
+
+
+
+    def reinitStats(self):
+        del self.prevCpuData
+        self.prevCpuData = self.cpuData
+        self.cpuData = {}
+        self.fileData = {}
+        self.abnormalTaskList = {}
+        self.nrPrevThread = self.nrThread
+        self.nrPrevProcess = self.nrProcess
+        self.nrThread = 0
+        self.nrProcess = 0
+        SystemManager.jsonData = {}
 
 
 
@@ -42242,12 +42276,6 @@ class ThreadAnalyzer(object):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
             fdlistPath = "%s/%s" % (procPath, 'fd')
 
-            # make process object with constant value #
-            self.procData[pid] = dict(self.init_procData)
-            self.procData[pid]['mainID'] = pid
-            self.procData[pid]['taskPath'] = procPath
-            self.procData[pid]['fdList'] = {}
-
             # save stat of process #
             self.saveProcData(procPath, pid)
 
@@ -42552,11 +42580,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # reset and save proc instance #
-        del self.prevProcData
-        self.prevProcData = self.procData
-        self.procData = {}
-        SystemManager.topInstance = self
-        SystemManager.procInstance = self.procData
+        self.saveProcStats()
 
         # get thread list #
         for pid in pids:
@@ -42572,11 +42596,6 @@ class ThreadAnalyzer(object):
 
             # save info per process #
             if SystemManager.processEnable:
-                # make process object with constant value #
-                self.procData[pid] = dict(self.init_procData)
-                self.procData[pid]['mainID'] = pid
-                self.procData[pid]['taskPath'] = procPath
-
                 # save stat of process #
                 self.saveProcData(procPath, pid)
 
@@ -42603,10 +42622,8 @@ class ThreadAnalyzer(object):
 
                 threadPath = "%s/%s" % (taskPath, tid)
 
-                # make process object with constant value #
-                self.procData[tid] = dict(self.init_procData)
-                self.procData[tid]['mainID'] = pid
-                self.procData[tid]['taskPath'] = threadPath
+                # save stat of thread #
+                self.saveProcData(threadPath, tid, pid)
 
                 # main thread #
                 if pid == tid:
@@ -42620,9 +42637,6 @@ class ThreadAnalyzer(object):
                         self.procData[pid] = dict(self.init_procData)
                         self.procData[pid]['tids'] = []
                         self.procData[pid]['tids'].append(tid)
-
-                # save stat of thread #
-                self.saveProcData(threadPath, tid)
 
 
 
@@ -42992,7 +43006,16 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcData(self, path, tid):
+    def saveProcData(self, path, tid, pid=None):
+        # initialize task #
+        if tid not in self.procData:
+            if not pid:
+                pid = tid
+            self.procData[tid] = dict(self.init_procData)
+            self.procData[tid]['mainID'] = pid
+            self.procData[tid]['taskPath'] = path
+            self.procData[tid]['fdList'] = {}
+
         # save stat data #
         try:
             self.prevProcData[tid]['statFd'].seek(0)
@@ -43015,7 +43038,9 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['statFd'] = None
                     self.reclaimFds()
             except:
-                SystemManager.printWarn('Fail to open %s' % statPath)
+                SystemManager.printWarn(\
+                    'Fail to open %s because %s' % \
+                        (statPath, SystemManager.getErrReason()))
                 self.procData.pop(tid, None)
                 return
 
