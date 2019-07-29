@@ -12800,6 +12800,9 @@ Examples:
     - Monitor DLT logs
         # {0:1} {1:1}
 
+    - Monitor DLT logs including specific strings
+        # {0:1} {1:1} -g test
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -13260,6 +13263,7 @@ Description:
     Print DLT messages in real-time
 
 OPTIONS:
+        -g  <STRING>                set filter
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13267,6 +13271,9 @@ OPTIONS:
 Examples:
     - Print DLT messages in real-time
         # {0:1} {1:1}
+
+    - Print DLT messages including specific strings
+        # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
                 # addr2line #
@@ -25304,15 +25311,16 @@ class DltManager(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        SystemManager.printWarn(\
-            "No DLT message received", True)
+        if DltManager.dltData['cnt'] == 0:
+            SystemManager.printWarn(\
+                "No DLT message received", True)
         DltManager.updateTimer()
 
 
 
     @staticmethod
     def updateTimer():
-        signal.alarm(SystemManager.intervalEnable * 2)
+        signal.alarm(SystemManager.intervalEnable)
 
 
 
@@ -25616,6 +25624,8 @@ class DltManager(object):
             if not SystemManager.dltObj:
                 SystemManager.dltObj = cdll.LoadLibrary(SystemManager.dltPath)
             dltObj = SystemManager.dltObj
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.dltObj = None
             SystemManager.printWarn(\
@@ -25639,6 +25649,8 @@ class DltManager(object):
             from socket import socket, AF_INET, SOCK_DGRAM, \
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_RCVBUF, \
                 create_connection, MSG_PEEK, MSG_DONTWAIT
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to ready socket because %s" % \
@@ -25653,6 +25665,8 @@ class DltManager(object):
             else:
                 servIp = '127.0.0.1'
                 servPort = 3490
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to get the address of dlt-daemon because %s" % \
@@ -25703,6 +25717,8 @@ class DltManager(object):
                 SystemManager.printErr(\
                     "Fail to initialize DLT receiver")
                 sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printErr(\
                 "Fail to initialize connection because %s" % \
@@ -25738,6 +25754,13 @@ class DltManager(object):
         signal.signal(signal.SIGALRM, DltManager.onAlarm)
         DltManager.updateTimer()
 
+        if mode == 'top':
+            SystemManager.printInfo(\
+                "start collecting DLT log... [ STOP(Ctrl+c) ]")
+        elif mode == 'print':
+            SystemManager.printInfo(\
+                "start printing DLT log... [ STOP(Ctrl+c) ]")
+
         while 1:
             # summarizing #
             if mode == 'top':
@@ -25761,9 +25784,12 @@ class DltManager(object):
 
             try:
                 # check DLT data to be read #
-                ret = dlt_receiver_receive(byref(dltReceiver))
-                if ret <= 0:
-                    continue
+                try:
+                    ret = dlt_receiver_receive(byref(dltReceiver))
+                    if ret <= 0:
+                        continue
+                except:
+                    sys.exit(0)
 
                 # check DLT data to be read #
                 res = dltObj.dlt_message_read(\
@@ -25819,6 +25845,18 @@ class DltManager(object):
 
             # summarizing #
             if mode == 'top':
+                # check filter #
+                if len(SystemManager.filterGroup) > 0:
+                    skipFlag = True
+                    for cond in SystemManager.filterGroup:
+                        if cond == ecuId or \
+                            cond == apId or \
+                            cond == ctxId:
+                            skipFlag = False
+                            break
+                    if skipFlag:
+                        continue
+
                 DltManager.dltData['cnt'] += 1
 
                 # add ecuId #
@@ -25837,6 +25875,24 @@ class DltManager(object):
                 DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
             # printing #
             elif mode == 'print':
+                # get payload #
+                buf = ctypes.create_string_buffer(b'\000' * 10024)
+                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
+                string = buf.value.decode("utf8")
+
+                # check filter #
+                if len(SystemManager.filterGroup) > 0:
+                    skipFlag = True
+                    for cond in SystemManager.filterGroup:
+                        if cond == ecuId or \
+                            cond == apId or \
+                            cond == ctxId or \
+                            cond in string:
+                            skipFlag = False
+                            break
+                    if skipFlag:
+                        continue
+
                 # get message info #
                 timeSec = msg.storageheader.contents.seconds
                 timeUs = msg.storageheader.contents.microseconds
@@ -25848,11 +25904,6 @@ class DltManager(object):
                     info = LOGINFO[subtype]
                 except:
                     info = ''
-
-                # get payload #
-                buf = ctypes.create_string_buffer(b'\000' * 10024)
-                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
-                string = buf.value.decode("utf8")
 
                 # get date time #
                 ntime = time.strftime(\
@@ -38660,6 +38711,8 @@ class ThreadAnalyzer(object):
     def printIntervalUsage():
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
+        elif SystemManager.dltTopEnable:
+            pass
         else:
             # build summary interval table #
             ThreadAnalyzer.summarizeIntervalUsage()
