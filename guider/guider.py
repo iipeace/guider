@@ -26589,16 +26589,16 @@ struct msghdr {
 };
         '''
 
-	class iovec(Structure):
-	    _fields_ = (
+        class iovec(Structure):
+            _fields_ = (
                 ('iov_base', c_void_p),
                 ('iov_len', c_size_t)
             )
 
         iovec_ptr = POINTER(iovec)
 
-	class msghdr(Structure):
-	    _fields_ = (
+        class msghdr(Structure):
+            _fields_ = (
                 ('msg_name', c_void_p),
                 ('msg_namelen', c_uint),
                 ('msg_iov', iovec_ptr),
