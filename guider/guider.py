@@ -26566,6 +26566,53 @@ class Debugger(object):
 
 
 
+    def readMsgHdr(self, addr):
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, Structure, c_void_p, \
+            c_uint, c_size_t, c_int, POINTER, sizeof
+
+        '''
+struct iovec {
+    ptr_t iov_base; /* Starting address */
+    size_t iov_len; /* Length in bytes */
+};
+
+struct msghdr {
+    void            *msg_name;  /* ptr to socket address structure */
+    int             msg_namelen;    /* size of socket address structure */
+    struct iov_iter msg_iter;   /* data */
+    void            *msg_control;   /* ancillary data */
+    __kernel_size_t msg_controllen; /* ancillary data buffer length */
+    unsigned int    msg_flags;  /* flags on received message */
+    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
+};
+        '''
+
+	class iovec(Structure):
+	    _fields_ = (
+                ('iov_base', c_void_p),
+                ('iov_len', c_size_t)
+            )
+
+        iovec_ptr = POINTER(iovec)
+
+	class msghdr(Structure):
+	    _fields_ = (
+                ('msg_name', c_void_p),
+                ('msg_namelen', c_uint),
+                ('msg_iov', iovec_ptr),
+                ('msg_iovlen', c_size_t),
+                ('msg_control', c_void_p),
+                ('msg_controllen', c_size_t),
+                ('msg_flag', c_int)
+            )
+
+        ret = self.readMem(addr, sizeof(msghdr), True)
+        return addr
+
+
+
     def convertValue(self, argtype, argname, value, seq=0):
         syscall = self.syscall
 
@@ -26608,25 +26655,9 @@ class Debugger(object):
 
             return value
 
-        if syscall == "recvmsg" and argname == "msg":
-            return value
-
-            '''
-struct iovec {
-    ptr_t iov_base; /* Starting address */
-    size_t iov_len; /* Length in bytes */
-};
-
-struct msghdr {
-    void            *msg_name;  /* ptr to socket address structure */
-    int             msg_namelen;    /* size of socket address structure */
-    struct iov_iter msg_iter;   /* data */
-    void            *msg_control;   /* ancillary data */
-    __kernel_size_t msg_controllen; /* ancillary data buffer length */
-    unsigned int    msg_flags;  /* flags on received message */
-    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
-};
-            '''
+        if (syscall == "recvmsg" or syscall == "sendmsg") and \
+            argname == "msg":
+            return self.readMsgHdr(value)
 
         if argname == "signum":
             # toDo: handle signal number #
