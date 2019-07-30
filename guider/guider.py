@@ -10852,6 +10852,7 @@ class SystemManager(object):
     cmdList = {}
     rcmdList = {}
     savedProcTree = {}
+    savedProcComm = {}
     savedMountTree = {}
     preemptGroup = []
     filterGroup = []
@@ -11814,6 +11815,9 @@ class SystemManager(object):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
             taskPath = "%s/%s" % (procPath, 'task')
 
+            # update comm of main thread #
+            comm = SystemManager.getComm(pid)
+
             try:
                 tids = os.listdir(taskPath)
             except:
@@ -11823,7 +11827,10 @@ class SystemManager(object):
             for tid in tids:
                 try:
                     int(tid)
-                    procTree[tid] = pid
+                    if tid == pid:
+                        procTree[tid] = '%s(%s)' % (pid, comm)
+                    else:
+                        procTree[tid] = pid
                 except:
                     continue
 
@@ -11901,7 +11908,8 @@ class SystemManager(object):
             if 'ANDROID_ROOT' in os.environ:
                 SystemManager.isAndroid = True
                 SystemManager.libcPath = 'libc.so'
-        elif sys.platform.startswith('win'):
+        elif sys.platform.startswith('win') or \
+            sys.platform.startswith('darwin'):
             SystemManager.isLinux = False
             if len(sys.argv) > 1 and \
                 not SystemManager.isClientMode() and \
@@ -16527,9 +16535,18 @@ Copyright:
                 ids = pair.split(':')
                 tid = ids[0]
                 pid = ids[1]
+
+                # get pid and comm #
+                if not pid.isdigit():
+                    group = pid
+                    pidPos = group.find('(')
+                    pid = group[:pidPos]
+                    comm = group[pidPos+1:-1]
+                    SystemManager.savedProcComm[pid] = comm
+
                 SystemManager.savedProcTree[tid] = pid
             except:
-                break
+                continue
 
         # remove process tree info #
         SystemManager.systemInfoBuffer = infoBuf[:treePosStart]
@@ -17655,6 +17672,9 @@ Copyright:
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
 
+                if options.rfind('D') > -1:
+                    SystemManager.dltEnable = True
+
                 # no more options except for top mode #
                 if not SystemManager.isTopMode():
                     continue
@@ -17731,9 +17751,6 @@ Copyright:
 
                 if options.rfind('e') > -1:
                     SystemManager.encodeEnable = True
-
-                if options.rfind('D') > -1:
-                    SystemManager.dltEnable = True
 
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
@@ -22236,10 +22253,7 @@ Copyright:
         # save system info #
         if initialized:
             # process info #
-            if SystemManager.tgidEnable:
-                pass
-            else:
-                self.saveProcTree()
+            self.saveProcTree()
 
             # resource info #
             self.saveSystemInfo()
@@ -22261,7 +22275,7 @@ Copyright:
         if procTree:
             self.procData = '!!!!!'
             for tid, pid in procTree.items():
-                self.procData += tid + ':' + pid + ','
+                self.procData += '%s:%s,' % (tid, pid)
 
 
 
@@ -34856,21 +34870,23 @@ class ThreadAnalyzer(object):
             UtilManager.convertSize2Unit(SystemManager.logSize)))
         SystemManager.printPipe(twoLine)
 
+        lastAField = "{0:_^17}|{1:_^16}".format("Mem Info", "Process")
+        lastBField = "%3s|%3s|%4s(%2s)" % ('Rcl', 'Wst', 'DRcl', 'Nr')
+
         SystemManager.printPipe(\
-            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-                format(title, "CPU Info", "SCHED Info", \
-                    "BLOCK Info", "MEM Info"))
+            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".format(\
+                title, "CPU Info", "SCHED Info", "BLOCK Info", lastAField))
+
         SystemManager.printPipe(\
             "{0:^32}|{0:^35}|{0:^22}|{0:^26}|{0:^34}|".format(""))
 
         SystemManager.printPipe((\
             "%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-            "%3s|%3s|%4s(%2s)|") % \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', \
             'IRQ', 'Yld', ' Lose', 'Steal', 'Mig', \
             'Read', 'MB', 'Cnt', 'Write', 'MB', \
-            'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
+            'Sum', 'Usr', 'Buf', 'Ker', lastBField))
         SystemManager.printPipe(twoLine)
 
         # initialize swapper thread per core #
@@ -35002,16 +35018,18 @@ class ThreadAnalyzer(object):
                 dreclaimedTime = '-'
                 dreclaimedCnt = '-'
 
+            lastField = "%3s|%3s|%4s(%2s)" % \
+                (reclaimedMem, wastedMem, dreclaimedTime, dreclaimedCnt)
+
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], '-'*5, '-'*5, '-', '-', \
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
                     yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
                     ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                    wastedMem, dreclaimedTime, dreclaimedCnt))
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
             count += 1
 
         SystemManager.printPipe("%s# %s: %d\n" % ('', 'CPU', count))
@@ -35059,6 +35077,14 @@ class ThreadAnalyzer(object):
         totalWastedMem = 0
         totalDreclaimedTime = 0
         totalDreclaimedCnt = 0
+
+        # define variables for tasks #
+        normCnt = 0
+        newCnt = 0
+        dieCnt = 0
+        normThreadString = ''
+        newThreadString = ''
+        dieThreadString = ''
 
         # print thread information after sorting by time of cpu usage #
         count = 0
@@ -35216,20 +35242,55 @@ class ThreadAnalyzer(object):
                 totalDreclaimedTime = '-'
                 totalDreclaimedCnt = '-'
 
-            SystemManager.addPrint(\
+            # set last field #
+            if len(SystemManager.savedProcComm) > 0:
+                if key in SystemManager.savedProcComm:
+                    lastField = "{0:>16}".format(\
+                        SystemManager.savedProcComm[key])
+                elif value['tgid'] in SystemManager.savedProcComm:
+                    lastField = "{0:>16}".format(\
+                        SystemManager.savedProcComm[value['tgid']])
+                elif key == value['tgid']:
+                    lastField = "{0:>16}".format(value['comm'])
+                else:
+                    lastField = "{0:>16}".format('?')
+            else:
+                lastField = "%3s|%3s|%4s(%2s)" % \
+                    (reclaimedMem, wastedMem, dreclaimedTime, dreclaimedCnt)
+
+            if value['new'] != ' ':
+                newCnt += 1
+                newThreadString += (\
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                    "%4s(%3s/%3s/%3s)|%s|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
+            if value['die'] != ' ':
+                dieCnt += 1
+                dieThreadString += (\
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                    "%4s(%3s/%3s/%3s)|%s|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
+
+            normCnt += 1
+            normThreadString += (\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                "%4s(%3s/%3s/%3s)|%s|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], \
                 cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
                 yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
                 ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-            count += 1
-
-        SystemManager.printPipe("%s# %s: %d\n" % ('', 'Hot', count))
+                usedMem, userMem, cacheMem, kernelMem, lastField))
 
         # build total usage string #
         try:
@@ -35271,22 +35332,41 @@ class ThreadAnalyzer(object):
         except:
             pass
 
+        lastField = "%3s|%3s|%4s(%2s)" % \
+            (totalReclaimedMem, totalWastedMem, \
+            totalDreclaimedTime, totalDreclaimedCnt)
+
         # print TOTAL information #
         SystemManager.printPipe(\
             ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-            "%3s|%3s|%4s(%2s)|") % \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('{0:>29}'.format('[ TOTAL ]'), ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
             totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
             totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
             totalReadBlock, totalReadBlockCnt, totalIoWrWait, \
             totalWriteBlock, totalUsedMem, totalUserMem, totalCacheMem, \
-            totalKernelMem, totalReclaimedMem, totalWastedMem, \
-            totalDreclaimedTime, totalDreclaimedCnt))
+            totalKernelMem, lastField))
 
-        SystemManager.printPipe(SystemManager.bufferString)
-        SystemManager.printPipe(oneLine)
+        # print normal thread info #
+        if normCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'Hot', normCnt, normThreadString, oneLine))
+        else:
+            SystemManager.printPipe("\tNone\n%s" % oneLine)
+
+        # print new thread info #
+        if newCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'New', newCnt, newThreadString, oneLine))
+
+        # print die thread info #
+        if dieCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'Die', dieCnt, dieThreadString, oneLine))
 
         # print thread preempted information after sorting by time of cpu usage #
         for val in SystemManager.preemptGroup:
@@ -35320,198 +35400,9 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(SystemManager.bufferString)
             SystemManager.printPipe(oneLine)
 
-        # print new thread information after sorting by new thread flags #
-        count = 0
-        SystemManager.clearPrint()
-        for key, value in sorted(\
-            self.threadData.items(), \
-            key=lambda e: e[1]['new'], reverse=True):
-
-            if value['new'] == ' ':
-                break
-
-            count += 1
-
-            usagePercent = \
-                round(float(value['usage']) / float(self.totalTime), 7) * 100
-
-            if not SystemManager.showAll:
-                continue
-
-            if SystemManager.cpuEnable:
-                cpuTime = '%5.2f' % value['usage']
-                cpuPer = '%5.1f' % usagePercent
-                prtTime = '%5.2f' % value['cpuWait']
-                schedLatency = '%5.2f' % value['schedLatency']
-                pri = value['pri']
-                yieldCnt = '%5d' % value['yield']
-                preemptedCnt = '%5d' % value['preempted']
-                preemptionCnt = '%5d' % value['preemption']
-                migrateCnt = '%4d' % value['migrate']
-            else:
-                cpuTime = '-'
-                cpuPer = '-'
-                prtTime = '-'
-                schedLatency = '-'
-                pri = '-'
-                yieldCnt = '-'
-                preemptedCnt = '-'
-                preemptionCnt = '-'
-                migrateCnt = '-'
-
-            if SystemManager.irqEnable:
-                irqTime = '%5.2f' % value['irq']
-            else:
-                irqTime = '-'
-
-            if SystemManager.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
-                readBlock = '%3d' % value['readBlock']
-                readBlockCnt = '%4d' % value['readBlockCnt']
-                ioWrWait = '%5.2f' % value['ioWrWait']
-                writeBlock = '%3d' % \
-                    (value['writeBlock'] + value['awriteBlock'])
-            else:
-                ioRdWait = '-'
-                readBlock = '-'
-                readBlockCnt = '-'
-                ioWrWait = '-'
-                writeBlock = '-'
-
-            if SystemManager.memEnable:
-                usedMem = '%4d' % \
-                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                userMem = '%3d' % (value['userPages'] >> 8)
-                cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
-                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                dreclaimedCnt = '%2d' % value['dReclaimCnt']
-            else:
-                usedMem = '-'
-                userMem = '-'
-                cacheMem = '-'
-                kernelMem = '-'
-                reclaimedMem = '-'
-                wastedMem = '-'
-                dreclaimedTime = '-'
-                dreclaimedCnt = '-'
-
-            SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
-                (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-        if count > 0:
-            SystemManager.printPipe("%s# %s: %d\n" % ('', 'New', count))
-            SystemManager.printPipe(SystemManager.bufferString)
-            SystemManager.printPipe(oneLine)
-
-        # print terminated thread information after sorting by die flags #
-        count = 0
-        SystemManager.clearPrint()
-        for key, value in sorted(\
-            self.threadData.items(), \
-            key=lambda e: e[1]['die'], reverse=True):
-
-            if value['die'] == ' ':
-                break
-
-            count += 1
-
-            usagePercent = \
-                round(float(value['usage']) / float(self.totalTime), 7) * 100
-
-            if not SystemManager.showAll:
-                continue
-
-            if SystemManager.cpuEnable:
-                cpuTime = '%5.2f' % value['usage']
-                cpuPer = '%5.1f' % usagePercent
-                prtTime = '%5.2f' % value['cpuWait']
-                schedLatency = '%5.2f' % value['schedLatency']
-                pri = value['pri']
-                yieldCnt = '%5d' % value['yield']
-                preemptedCnt = '%5d' % value['preempted']
-                preemptionCnt = '%5d' % value['preemption']
-                migrateCnt = '%4d' % value['migrate']
-            else:
-                cpuTime = '-'
-                cpuPer = '-'
-                prtTime = '-'
-                schedLatency = '-'
-                pri = '-'
-                yieldCnt = '-'
-                preemptedCnt = '-'
-                preemptionCnt = '-'
-                migrateCnt = '-'
-
-            if SystemManager.irqEnable:
-                irqTime = '%5.2f' % value['irq']
-            else:
-                irqTime = '-'
-
-            if SystemManager.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
-                readBlock = '%3d' % value['readBlock']
-                readBlockCnt = '%4d' % value['readBlockCnt']
-                ioWrWait = '%5.2f' % value['ioWrWait']
-                writeBlock = '%3d' % \
-                    (value['writeBlock'] + value['awriteBlock'])
-            else:
-                ioRdWait = '-'
-                readBlock = '-'
-                readBlockCnt = '-'
-                ioWrWait = '-'
-                writeBlock = '-'
-
-            if SystemManager.memEnable:
-                usedMem = '%4d' % \
-                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                userMem = '%3d' % (value['userPages'] >> 8)
-                cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
-                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                dreclaimedCnt = '%2d' % value['dReclaimCnt']
-            else:
-                usedMem = '-'
-                userMem = '-'
-                cacheMem = '-'
-                kernelMem = '-'
-                reclaimedMem = '-'
-                wastedMem = '-'
-                dreclaimedTime = '-'
-                dreclaimedCnt = '-'
-
-            SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
-                (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-        if count > 0:
-            SystemManager.printPipe("%s# %s: %d\n" % ('', 'Die', count))
-            SystemManager.printPipe(SystemManager.bufferString)
-            SystemManager.printPipe(oneLine)
-
         # prepare to draw graph #
-        if not SystemManager.isRecordMode() and SystemManager.graphEnable:
+        if not SystemManager.isRecordMode() and \
+            SystemManager.graphEnable:
             # get pylab object #
             pylab = SystemManager.getPkg('pylab')
             from pylab import rc, rcParams
@@ -36311,7 +36202,7 @@ class ThreadAnalyzer(object):
                     SystemManager.printPipe('')
 
                 SystemManager.printPipe(\
-                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:<20}".\
                     format(cid, opt, num, size, seqString, filesystem, dev))
 
                 opt = ''
@@ -36321,7 +36212,7 @@ class ThreadAnalyzer(object):
                     start = UtilManager.convertSize2Unit(optSize)
                     end = UtilManager.convertSize2Unit(optSize << 1)
                     SystemManager.printPipe(\
-                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:^20}".\
+                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:<20}".\
                         format('', '[%7s - %7s]' % (start, end), cnt))
 
                 tcnt += 1
