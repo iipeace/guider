@@ -26570,7 +26570,7 @@ class Debugger(object):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
         from ctypes import cdll, Structure, c_void_p, \
-            c_uint, c_size_t, c_int, POINTER, sizeof
+            c_uint, c_size_t, c_int, POINTER, sizeof, cast
 
         '''
 struct iovec {
@@ -26608,7 +26608,18 @@ struct msghdr {
                 ('msg_flag', c_int)
             )
 
-        ret = self.readMem(addr, sizeof(msghdr), True)
+        # read msghdr structure #
+        ret = self.readMem(addr, sizeof(msghdr))
+        if not ret:
+            return addr
+
+        # cast struct msghdr #
+        header = cast(ret, POINTER(msghdr))
+
+        # get member variables in struct msghdr #
+        msg_namelen = header.contents.msg_namelen
+        msg_name = self.readMem(header.contents.msg_name, msg_namelen)
+
         return addr
 
 
@@ -26657,7 +26668,12 @@ struct msghdr {
 
         if (syscall == "recvmsg" or syscall == "sendmsg") and \
             argname == "msg":
-            return self.readMsgHdr(value)
+            try:
+                return self.readMsgHdr(value)
+            except:
+                SystemManager.printWarn(\
+                    "Fail to get msghdr because %s" % \
+                        SystemManager.getErrReason(), True)
 
         if argname == "signum":
             # toDo: handle signal number #
