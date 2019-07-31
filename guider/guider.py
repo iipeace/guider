@@ -175,6 +175,13 @@ class ConfigManager(object):
         10: "SOCK_PACKET",
     }
 
+    # Define control message type #
+    CMSG_TYPE = {
+        0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
+        0x02: "SCM_CREDENTIALS", # rw: struct ucred
+        0x03: "SCM_SECURITY"
+    }
+
     # Define syscall prototypes #
     SYSCALL_PROTOTYPES = {
         "accept": ("long", (
@@ -22253,7 +22260,8 @@ Copyright:
         # save system info #
         if initialized:
             # process info #
-            self.saveProcTree()
+            if SystemManager.isRecordMode():
+                self.saveProcTree()
 
             # resource info #
             self.saveSystemInfo()
@@ -26572,6 +26580,9 @@ class Debugger(object):
         from ctypes import cdll, Structure, c_void_p, \
             c_uint, c_size_t, c_int, POINTER, sizeof, cast
 
+        # get socket object #
+        socket = SystemManager.getPkg('socket', False)
+
         '''
 struct iovec {
     ptr_t iov_base; /* Starting address */
@@ -26608,19 +26619,81 @@ struct msghdr {
                 ('msg_flag', c_int)
             )
 
+        class cmsghdr(Structure):
+            _fields_ = (
+                ('cmsg_len', c_size_t),
+                ('cmsg_level', c_int),
+                ('cmsg_type', c_int)
+            )
+
         # read msghdr structure #
         ret = self.readMem(addr, sizeof(msghdr))
         if not ret:
             return addr
 
         # cast struct msghdr #
+        msginfo = {}
         header = cast(ret, POINTER(msghdr))
 
-        # get member variables in struct msghdr #
-        msg_namelen = header.contents.msg_namelen
-        msg_name = self.readMem(header.contents.msg_name, msg_namelen)
+        # get msg info #
+        namelen = header.contents.msg_namelen
+        if namelen == 0:
+            name = 'NULL'
+        else:
+            name = self.readMem(header.contents.msg_name, namelen)
+        msginfo['msg_name'] = name
+        msginfo['msg_namelen'] = namelen
 
-        return addr
+        # get iov header info #
+        iovaddr = cast(header.contents.msg_iov, c_void_p).value
+        iovlen = header.contents.msg_iovlen
+        msginfo['msg_iov'] = {}
+
+        # get iov info #
+        for idx in xrange(0, iovlen):
+            offset = idx * sizeof(iovec)
+            msginfo['msg_iov'][offset] = {}
+
+            # get iov object #
+            iovobj = self.readMem(iovaddr+offset, sizeof(iovec))
+            iovobj = cast(iovobj, POINTER(iovec))
+
+            # get iov data #
+            iovobjlen = iovobj.contents.iov_len
+            iovobjbase = iovobj.contents.iov_base
+            iovobjdata = self.readMem(iovobjbase, iovobjlen)
+
+            msginfo['msg_iov'][offset]['len'] = iovobjlen
+            msginfo['msg_iov'][offset]['data'] = iovobjdata
+
+        # get control info #
+        controllen = header.contents.msg_controllen
+        msginfo['msg_control'] = {}
+        msginfo['msg_control']['len'] = controllen
+        if controllen > 0:
+            control = self.readMem(header.contents.msg_control, controllen)
+            controlobj = cast(control, POINTER(cmsghdr))
+
+            cmsglen = controlobj.contents.cmsg_len
+            cmsglevel = controlobj.contents.cmsg_level
+            cmsgtype = controlobj.contents.cmsg_type
+
+            msginfo['msg_control']['cmsglen'] = cmsglen
+            if socket and cmsglevel == socket.SOL_SOCKET:
+                msginfo['msg_control']['cmsglevel'] = "SOL_SOCKET"
+            else:
+                msginfo['msg_control']['cmsglevel'] = cmsglevel
+            try:
+                msginfo['msg_control']['cmsgtype'] = \
+                    ConfigManager.CMSG_TYPE[cmsgtype]
+            except:
+                msginfo['msg_control']['cmsgtype'] = cmsgtype
+
+        # get msg_flag #
+        flag = header.contents.msg_flag
+        msginfo['msg_flag'] = flag
+
+        return str(msginfo)
 
 
 
@@ -27512,7 +27585,8 @@ struct msghdr {
                             start = 1
 
                         # check output length #
-                        if len(text) > pbufsize:
+                        if not SystemManager.printFile and \
+                            len(text) > pbufsize:
                             text = '"%s"...' % \
                                 text[start:pbufsize]
                         else:
@@ -34449,8 +34523,8 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe((\
                 '\n[Thread Creation Info] [Alive: +] [Die: -] '
                 '[CreatedTime: //] [ChildCount: ||] '
-                '[CpuUsage: <>] [WaitTimeForChilds: {}] '
-                '[WaitTimeOfParent: []]'))
+                '[CpuUsage: <>] [WaitForChilds: {}] '
+                '[WaitOfParent: []]'))
             SystemManager.printPipe(twoLine)
 
             cnt = 0
