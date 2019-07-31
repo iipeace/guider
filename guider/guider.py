@@ -19958,6 +19958,9 @@ Copyright:
             SystemManager.printPipe("[Option]   {VAL}")
             SystemManager.printPipe("  exam) o -e bs -g task\n")
 
+            SystemManager.printPipe("[Run]      {COMMAND}")
+            SystemManager.printPipe("  exam) r usertop -g task\n")
+
         ulist = uinput.split()
         if len(ulist) == 0:
             return
@@ -20017,6 +20020,25 @@ Copyright:
             ulist[0] == 'o':
             if len(ulist) > 1:
                 SystemManager.parseAnalOption(uinput[1:].strip())
+            else:
+                printHelp()
+        # run #
+        elif ulist[0].upper() == 'RUN' or \
+            ulist[0] == 'r':
+            if len(ulist) > 1:
+                cmd = [UtilManager.which('python')[0]] + \
+                    [os.path.abspath(__file__)] + \
+                    ulist[1:]
+
+                # launch new command #
+                pid = SystemManager.createProcess(cmd)
+                if pid < 0:
+                    sys.exit(0)
+
+                # ignore signals and wait for child #
+                SystemManager.setIgnoreSignal()
+                os.wait()
+                SystemManager.setNormalSignal()
             else:
                 printHelp()
         # quit #
@@ -20191,6 +20213,18 @@ Copyright:
             return
 
         signal.signal(signal.SIGPIPE, SystemManager.exitHandler)
+
+
+
+    @staticmethod
+    def setIgnoreSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
 
