@@ -175,11 +175,102 @@ class ConfigManager(object):
         10: "SOCK_PACKET",
     }
 
+    # Define MSG type #
+    MSG_TYPE = {
+	0x1: "MSG_OOB",
+	0x2: "MSG_PEEK",
+	0x4: "MSG_DONTROUTE",
+	0x4: "MSG_TRYHARD",
+	0x8: "MSG_CTRUNC",
+	0x10: "MSG_PROBE",
+	0x20: "MSG_TRUNC",
+	0x40: "MSG_DONTWAIT",
+	0x80: "MSG_EOR",
+	0x100: "MSG_WAITALL",
+	0x200: "MSG_FIN",
+	0x400: "MSG_SYN",
+	0x800: "MSG_CONFIRM",
+	0x1000: "MSG_RST",
+	0x2000: "MSG_ERRQUEUE",
+	0x4000: "MSG_NOSIGNAL",
+	0x8000: "MSG_MORE",
+	0x40000000: "MSG_CMSG_CLOEXEC",
+	0x80000000: "MSG_CMSG_COMPAT",
+    }
+
     # Define control message type #
     CMSG_TYPE = {
         0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
         0x02: "SCM_CREDENTIALS", # rw: struct ucred
         0x03: "SCM_SECURITY"
+    }
+
+    # Define mmap prot type #
+    PROT_TYPE = {
+        0x0: "PROT_NONE",  # Page can not be accessed
+        0x1: "PROT_READ",  # Page can be read
+        0x2: "PROT_WRITE", # Page can be written
+        0x4: "PROT_EXEC",  # Page can be executed
+    }
+
+    # Define perm type #
+    PERM_TYPE = {
+        0x0: "F_OK",
+        0x1: "X_OK",
+        0x2: "W_OK",
+        0x4: "R_OK",
+    }
+
+    # Define seek type #
+    SEEK_TYPE = {
+        0x0: "SEEK_SET",
+        0x1: "SEEK_CUR",
+        0x2: "SEEK_END",
+    }
+
+    # Define open flags type #
+    OPEN_TYPE = {
+        0o0: "O_RDONLY",
+        0o1: "O_WRONLY",
+        0o2: "O_RDWR",
+        0o100: "O_CREAT",
+        0o200: "O_EXCL",
+        0o400: "O_NOCTTY",
+        0o1000: "O_TRUNC",
+        0o2000: "O_APPEND",
+        0o4000: "O_NONBLOCK",
+        0o10000: "O_SYNC",
+        0o20000: "O_ASYNC",
+        0o40000: "O_DIRECT",
+        0o100000: "O_LARGEFILE",
+        0o200000: "O_DIRECTORY",
+        0o400000: "O_NOFOLLOW",
+        0o1000000: "O_NOATIME",
+        0o2000000: "O_CLOEXEC",
+        0o10000000: "O_PATH",
+        0o20200000: "O_TMPFILE",
+    }
+
+    # Define madvise type #
+    MADV_TYPE = {
+        0: "MADV_NORMAL",       # No further special treatment
+        1: "MADV_RANDOM",       # Expect random page references
+        2: "MADV_SEQUENTIAL",   # Expect sequential page references
+        3: "MADV_WILLNEED",     # Will need these pages
+        4: "MADV_DONTNEED",     # Don't need these pages
+        8: "MADV_FREE",         # Free pages only if memory pressure
+        9: "MADV_REMOVE",       # Remove these pages and resources
+        10: "MADV_DONTFORK",    # Do not inherit across fork
+        11: "MADV_DOFORK",      # Do inherit across fork
+        12: "MADV_MERGEABLE",   # KSM may merge identical pages
+        13: "MADV_UNMERGEABLE", # KSM may not merge identical pages
+        14: "MADV_HUGEPAGE",    # Worth backing with hugepages
+        15: "MADV_NOHUGEPAGE",  # Not worth backing with hugepages
+        16: "MADV_DONTDUMP",    # Explicity exclude from the core dump,
+        17: "MADV_DODUMP",      # Clear the MADV_DONTDUMP flag
+        18: "MADV_WIPEONFORK",  # Zero memory on fork, child only
+        19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
+        100: "MADV_HWPOISON",   # Poison a page for testing
     }
 
     # Define syscall prototypes #
@@ -2641,6 +2732,39 @@ class UtilManager(object):
             SystemManager.printErr(\
                 "Fail to convert word %s to string" % word)
             return None
+
+
+
+    @staticmethod
+    def decodeArg(value):
+        try:
+            text = repr(value.decode())
+        except:
+            text = value
+
+        # define start index by encoding type #
+        if type(text) is bytes:
+            start = 2
+        else:
+            start = 1
+
+        return text[start:]
+
+
+
+    @staticmethod
+    def getFlagString(value, flist):
+        string = ''
+        numVal = int(value)
+        for bit in flist.keys():
+            if numVal & bit:
+                string = '%s%s|' % (string, flist[bit])
+            elif bit == 1 and 0 in flist:
+                string = '%s%s|' % (string, flist[0])
+        if len(string) > 0:
+            return string[:-1]
+        else:
+            return value
 
 
 
@@ -26670,7 +26794,7 @@ struct msghdr {
         header = cast(ret, POINTER(msghdr))
 
         # get msg info #
-        namelen = header.contents.msg_namelen
+        namelen = int(header.contents.msg_namelen)
         if namelen == 0:
             name = 'NULL'
         else:
@@ -26680,7 +26804,7 @@ struct msghdr {
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
-        iovlen = header.contents.msg_iovlen
+        iovlen = int(header.contents.msg_iovlen)
         msginfo['msg_iov'] = {}
 
         # get iov info #
@@ -26693,7 +26817,7 @@ struct msghdr {
             iovobj = cast(iovobj, POINTER(iovec))
 
             # get iov data #
-            iovobjlen = iovobj.contents.iov_len
+            iovobjlen = int(iovobj.contents.iov_len)
             iovobjbase = iovobj.contents.iov_base
             iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
@@ -26701,14 +26825,14 @@ struct msghdr {
             msginfo['msg_iov'][offset]['data'] = iovobjdata
 
         # get control info #
-        controllen = header.contents.msg_controllen
+        controllen = int(header.contents.msg_controllen)
         msginfo['msg_control'] = {}
         msginfo['msg_control']['len'] = controllen
         if controllen > 0:
             control = self.readMem(header.contents.msg_control, controllen)
             controlobj = cast(control, POINTER(cmsghdr))
 
-            cmsglen = controlobj.contents.cmsg_len
+            cmsglen = int(controlobj.contents.cmsg_len)
             cmsglevel = controlobj.contents.cmsg_level
             cmsgtype = controlobj.contents.cmsg_type
 
@@ -26757,34 +26881,63 @@ struct msghdr {
                 # toDo: handle socket call args #
                 return value
 
-        if syscall == "write" and argname == "buf":
-            # check std fds for dereferencing the pointer #
-            fd = self.values[0]
-            if fd < 3:
-                if self.values[2] > self.pbufsize:
-                    length = self.pbufsize
-                else:
-                    length = self.values[2]
+        if syscall.startswith('mmap') or syscall == 'mprotect':
+            if argname == 'prot':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.PROT_TYPE)
+            elif argname == 'flags':
+                pass
 
-                # read string from address #
-                ret = self.readMem(value, length)
-                if ret:
-                    value = ret
+        if syscall == 'open':
+            if argname == 'flags':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.OPEN_TYPE)
 
-            return value
+        if argname == 'whence':
+            return ConfigManager.SEEK_TYPE[int(value)]
 
-        if (syscall == "recvmsg" or syscall == "sendmsg") and \
-            argname == "msg":
+        if syscall == 'access':
+            if argname == 'mode':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.PERM_TYPE)
+
+        if syscall.startswith('madvise') and \
+            argname == 'behavior':
             try:
-                return self.readMsgHdr(value)
+                return ConfigManager.MADV_TYPE[int(value)]
             except:
-                SystemManager.printWarn(\
-                    "Fail to get msghdr because %s" % \
-                        SystemManager.getErrReason(), True)
+                return value
 
-        if argname == "signum":
-            # toDo: handle signal number #
+        if (syscall == "write"  or syscall == 'read') and \
+            argname == "buf":
+            if self.values[2] > self.pbufsize:
+                length = self.pbufsize
+            else:
+                length = self.values[2]
+
+            # read string from address #
+            ret = self.readMem(value, length)
+            if ret:
+                value = ret
+
             return value
+
+        if (syscall == "recvmsg" or syscall == "sendmsg"):
+            if argname == "msg":
+		try:
+		    return self.readMsgHdr(value)
+		except:
+		    SystemManager.printWarn(\
+			"Fail to get msghdr because %s" % \
+			    SystemManager.getErrReason(), True)
+
+        if syscall.startswith('send') or \
+            syscall.startswith('recv'):
+            if argname == "flags":
+                return ConfigManager.MSG_TYPE[int(value)]
+
+        if argname == "signum" or argname == "sig":
+            return ConfigManager.SIG_LIST[int(value)]
 
         # remove const prefix #
         if argtype.startswith("const "):
@@ -27606,25 +27759,16 @@ struct msghdr {
             for idx, arg in enumerate(self.args):
                 if arg[0].endswith('*'):
                     # convert pointer to values #
-                    if type(arg[2]) is bytes:
-                        try:
-                            text = repr(arg[2].decode())
-                        except:
-                            text = arg[2]
-
-                        # define start index by encoding type #
-                        if type(text) is bytes:
-                            start = 2
-                        else:
-                            start = 1
+                    if UtilManager.isString(arg[2]):
+                        text = UtilManager.decodeArg(arg[2])
 
                         # check output length #
-                        if not SystemManager.printFile and \
+                        if not (SystemManager.printFile or \
+                            SystemManager.showAll) and \
                             len(text) > pbufsize:
-                            text = '"%s"...' % \
-                                text[start:pbufsize]
+                            text = '"%s"...' % text[:pbufsize]
                         else:
-                            text = '"%s"' % text[start:-1]
+                            text = '"%s"' % text[:-1]
 
                         args.append(text)
                     else:
@@ -31640,6 +31784,70 @@ class ThreadAnalyzer(object):
         SystemManager.printErr(\
             "Not implemented yet")
         sys.exit(0)
+
+        # get select object #
+        selectObj = SystemManager.getPkg('select')
+
+        # get ip list of gdbus threads #
+        tList = SystemManager.getPids('gdbus', True)
+        if len(tList) == 0:
+            SystemManager.printError(\
+                "Fail to find gdbus thread")
+            sys.exit(0)
+
+        # set default command #
+        cmd = [UtilManager.which('python')[0], \
+                os.path.abspath(__file__),
+                'strace', '-t%s' % 'recvmsg']
+
+        # create child processes to attach each targets #
+        pList = []
+        for tid in tList:
+            # create pipe #
+            rd, wr = os.pipe()
+
+            pid = SystemManager.createProcess()
+            # parent #
+            if pid > 0:
+                os.close(wr)
+                rdPipe = os.fdopen(rd)
+                pList.append(rdPipe)
+            # child #
+            elif pid == 0:
+                # redirect stdout to pipe #
+                os.dup2(wr,1)
+                os.close(wr)
+                os.close(rd)
+
+                # append tid filter #
+                cmd.append('-g%s' % tid)
+
+                SystemManager.executeProcess(cmd)
+
+        while 1:
+            # check interval #
+                # get cpu usage of targets #
+                # print interval summary #
+
+            # merge dbus data #
+            try:
+                # wait for event #
+                [read, write, error] = \
+                    selectObj.select(pList, [], [], 1)
+
+                # read messages through pipe connected to child processes #
+                for robj in read:
+                    # handle data arrived #
+                    while 1:
+                        output = robj.readline()
+                        if output == '\n':
+                            continue
+                        elif output and len(output) > 0:
+                            print(output)
+                        else:
+                            break
+            except:
+                break
 
 
 
