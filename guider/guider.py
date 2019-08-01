@@ -177,25 +177,25 @@ class ConfigManager(object):
 
     # Define MSG type #
     MSG_TYPE = {
-	0x1: "MSG_OOB",
-	0x2: "MSG_PEEK",
-	0x4: "MSG_DONTROUTE",
-	0x4: "MSG_TRYHARD",
-	0x8: "MSG_CTRUNC",
-	0x10: "MSG_PROBE",
-	0x20: "MSG_TRUNC",
-	0x40: "MSG_DONTWAIT",
-	0x80: "MSG_EOR",
-	0x100: "MSG_WAITALL",
-	0x200: "MSG_FIN",
-	0x400: "MSG_SYN",
-	0x800: "MSG_CONFIRM",
-	0x1000: "MSG_RST",
-	0x2000: "MSG_ERRQUEUE",
-	0x4000: "MSG_NOSIGNAL",
-	0x8000: "MSG_MORE",
-	0x40000000: "MSG_CMSG_CLOEXEC",
-	0x80000000: "MSG_CMSG_COMPAT",
+        0x1: "MSG_OOB",
+        0x2: "MSG_PEEK",
+        0x4: "MSG_DONTROUTE",
+        0x4: "MSG_TRYHARD",
+        0x8: "MSG_CTRUNC",
+        0x10: "MSG_PROBE",
+        0x20: "MSG_TRUNC",
+        0x40: "MSG_DONTWAIT",
+        0x80: "MSG_EOR",
+        0x100: "MSG_WAITALL",
+        0x200: "MSG_FIN",
+        0x400: "MSG_SYN",
+        0x800: "MSG_CONFIRM",
+        0x1000: "MSG_RST",
+        0x2000: "MSG_ERRQUEUE",
+        0x4000: "MSG_NOSIGNAL",
+        0x8000: "MSG_MORE",
+        0x40000000: "MSG_CMSG_CLOEXEC",
+        0x80000000: "MSG_CMSG_COMPAT",
     }
 
     # Define control message type #
@@ -26924,12 +26924,12 @@ struct msghdr {
 
         if (syscall == "recvmsg" or syscall == "sendmsg"):
             if argname == "msg":
-		try:
-		    return self.readMsgHdr(value)
-		except:
-		    SystemManager.printWarn(\
-			"Fail to get msghdr because %s" % \
-			    SystemManager.getErrReason(), True)
+                try:
+                    return self.readMsgHdr(value)
+                except:
+                    SystemManager.printWarn(\
+                        "Fail to get msghdr because %s" % \
+                            SystemManager.getErrReason(), True)
 
         if syscall.startswith('send') or \
             syscall.startswith('recv'):
