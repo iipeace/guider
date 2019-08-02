@@ -11491,11 +11491,33 @@ class SystemManager(object):
 
 
     @staticmethod
-    def getCmdline(pid):
+    def getExeCmd(pid):
+        cmd = SystemManager.getCmdline(pid, retList=True)[:2]
+        if cmd[1][0] != '/':
+            pwd = SystemManager.getCwd(pid)
+            cmd[1] = '%s/%s' % (pwd, cmd[1])
+        return cmd
+
+
+
+    @staticmethod
+    def getCwd(pid):
+        cwdPath = \
+            '%s/%s/cwd' % (SystemManager.procPath, pid)
+        return os.readlink(cwdPath)
+
+
+
+    @staticmethod
+    def getCmdline(pid, retList=False):
         cmdlinePath = \
             '%s/%s/cmdline' % (SystemManager.procPath, pid)
         with open(cmdlinePath, 'r') as fd:
-            return fd.readline().replace("\x00", " ")
+            res = fd.readline()
+            if retList:
+                return res.split("\x00")
+            else:
+                return res.replace("\x00", " ")
 
 
 
@@ -20150,9 +20172,8 @@ Copyright:
         elif ulist[0].upper() == 'RUN' or \
             ulist[0] == 'r':
             if len(ulist) > 1:
-                cmd = [UtilManager.which('python')[0]] + \
-                    [os.path.abspath(__file__)] + \
-                    ulist[1:]
+                cmd = SystemManager.getExeCmd(SystemManager.pid)
+                cmd.extend(ulist[1:])
 
                 # launch new command #
                 pid = SystemManager.createProcess(cmd)
@@ -20204,9 +20225,9 @@ Copyright:
 
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False):
+    def executeProcess(cmd=None, mute=False, closeAll=True):
         try:
-            SystemManager.resetFileTable(mute)
+            SystemManager.resetFileTable(mute, closeAll)
 
             os.execvp(cmd[0], cmd)
         except:
@@ -20506,9 +20527,7 @@ Copyright:
             # convert Guider path #
             if value.startswith('GUIDER '):
                 cmd = ' '.join(value.split()[1:])
-                path = '%s %s' % \
-                    (UtilManager.which('python')[0], \
-                        os.path.abspath(__file__))
+                path = ' '.join(SystemManager.getExeCmd(SystemManager.pid))
                 value = '%s %s' % (path, cmd)
 
             # run command #
@@ -31781,6 +31800,36 @@ class ThreadAnalyzer(object):
 
 
     def runDbusTop(self):
+        def run(totalList, pipeList, taskList, lock):
+            while 1:
+                updateDataFromPipe(totalList, pipeList, taskList, lock)
+
+        def updateDataFromPipe(totalList, pipeList, taskList, lock=None):
+            # merge dbus data #
+            try:
+                # wait for event #
+                [read, write, error] = \
+                    selectObj.select(pipeList, [], [])
+
+                # read messages through pipe connected to child processes #
+                for robj in read:
+                    # get tid of target #
+                    try:
+                        tid = taskList[pipeList.index(robj)]
+                    except:
+                        tid = '?'
+
+                    # handle data arrived #
+                    while 1:
+                        output = robj.readline()
+                        if output == '\n':
+                            continue
+                        elif output and len(output) > 0:
+                            SystemManager.printPipe('[%s] %s' % (tid, output))
+                        break
+            except:
+                return
+
         SystemManager.printErr(\
             "Not implemented yet")
         sys.exit(0)
@@ -31788,21 +31837,32 @@ class ThreadAnalyzer(object):
         # get select object #
         selectObj = SystemManager.getPkg('select')
 
+        # get select object #
+        threadObj = SystemManager.getPkg('threading', False)
+        if threadObj:
+            lock = threadObj.Lock()
+        else:
+            lock = None
+
+        # define total list #
+        totalList = {}
+
         # get ip list of gdbus threads #
-        tList = SystemManager.getPids('gdbus', True)
-        if len(tList) == 0:
+        taskList = SystemManager.getPids('gdbus', True)
+        if len(taskList) == 0:
             SystemManager.printError(\
                 "Fail to find gdbus thread")
             sys.exit(0)
 
         # set default command #
-        cmd = [UtilManager.which('python')[0], \
-                os.path.abspath(__file__),
-                'strace', '-t%s' % 'recvmsg']
+        callFilter = '-t%s' % 'recvmsg'
+        cmd = SystemManager.getExeCmd(SystemManager.pid)
+        cmd.extend(['strace', callFilter, '-a'])
 
         # create child processes to attach each targets #
-        pList = []
-        for tid in tList:
+        pipeList = []
+        threadingList = []
+        for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
 
@@ -31811,7 +31871,13 @@ class ThreadAnalyzer(object):
             if pid > 0:
                 os.close(wr)
                 rdPipe = os.fdopen(rd)
-                pList.append(rdPipe)
+                pipeList.append(rdPipe)
+
+                # run a new worker thread #
+                if threadObj:
+                    tobj = threadObj.Thread(target=run,\
+                        args=(totalList, [rdPipe], [tid], lock))
+                    threadingList.append(tobj)
             # child #
             elif pid == 0:
                 # redirect stdout to pipe #
@@ -31822,32 +31888,31 @@ class ThreadAnalyzer(object):
                 # append tid filter #
                 cmd.append('-g%s' % tid)
 
-                SystemManager.executeProcess(cmd)
+                # execute strace mode #
+                SystemManager.executeProcess(\
+                    cmd, mute=False, closeAll=False)
+                '''
+                sys.argv[1] = 'strace'
+                SystemManager.showAll = True
+                SystemManager.filterGroup = [tid]
+                SystemManager.syscallList = \
+                    [ConfigManager.sysList.index('sys_recvmsg')]
+                SystemManager.doTrace('syscall')
+                '''
+
+        # start worker threads #
+        for tobj in threadingList:
+            tobj.start()
 
         while 1:
             # check interval #
                 # get cpu usage of targets #
                 # print interval summary #
 
-            # merge dbus data #
-            try:
-                # wait for event #
-                [read, write, error] = \
-                    selectObj.select(pList, [], [], 1)
-
-                # read messages through pipe connected to child processes #
-                for robj in read:
-                    # handle data arrived #
-                    while 1:
-                        output = robj.readline()
-                        if output == '\n':
-                            continue
-                        elif output and len(output) > 0:
-                            print(output)
-                        else:
-                            break
-            except:
-                break
+            if not threadObj:
+                updateDataFromPipe(totalList, pipeList, taskList)
+            else:
+                signal.pause()
 
 
 
@@ -43175,10 +43240,8 @@ class ThreadAnalyzer(object):
 
         # save cmdline info #
         try:
-            cmdlinePath = "%s/cmdline" % path
-            with open(cmdlinePath, 'r') as fd:
-                self.procData[tid]['cmdline'] = \
-                    fd.readline().split('\x00')[0]
+            self.procData[tid]['cmdline'] = \
+                SystemManager.getCmdline(tid)
 
             if SystemManager.isThreadTopMode():
                 if mainID in self.procData:
