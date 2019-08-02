@@ -27996,7 +27996,7 @@ struct msghdr {
         self.prevCpuStat = None
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
-        self.contCmd = ConfigManager.PTRACE_TYPE.index('PTRACE_CONT')
+        self.contCmd = plist.index('PTRACE_CONT')
         self.pbufsize = SystemManager.ttyCols >> 1
 
         # sampling variables #
@@ -28204,6 +28204,8 @@ struct msghdr {
                         (pid, ConfigManager.SIG_LIST[stat]))
 
                     # set up trap again #
+                    if mode == 'syscall':
+                        self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
                     self.ptrace(cmd, 0, 0)
 
                     continue
