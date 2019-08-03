@@ -14042,6 +14042,9 @@ Copyright:
 
     @staticmethod
     def syscall(syscall, *args):
+        if not SystemManager.isLinux:
+            return None
+
         # import ctypes #
         ctypes = SystemManager.getPkg('ctypes')
 
@@ -14066,9 +14069,10 @@ Copyright:
             else:
                 raise Exception()
 
-            SystemManager.libcObj.syscall(nrSyscall)
+            return SystemManager.libcObj.syscall(nrSyscall)
         except:
-            SystemManager.printWarn('Fail to call %s syscall' % syscall)
+            SystemManager.printWarn(\
+                'Fail to call %s syscall' % syscall, True)
 
 
 
@@ -31835,11 +31839,42 @@ class ThreadAnalyzer(object):
 
 
     def runDbusTop(self):
-        def run(totalList, pipeList, taskList, lock):
-            while 1:
-                updateDataFromPipe(totalList, pipeList, taskList, lock)
+        def printSummary():
+            pass
+            # get cpu usage of targets #
+            # print interval summary #
 
-        def updateDataFromPipe(totalList, pipeList, taskList, lock=None):
+        def executeLoop(lock=None):
+            tid = SystemManager.syscall('gettid')
+
+            if SystemManager.pid == tid:
+                pass
+                # get cpu usage of targets #
+                # set timer #
+
+            while 1:
+                # multi-threaded loop #
+                if len(threadingList) > 0:
+                    # child thread #
+                    if SystemManager.pid != tid:
+                        updateDataFromPipe()
+                    # main thread #
+                    else:
+                        signal.pause()
+                # single-threaded loop #
+                else:
+                    updateDataFromPipe()
+
+        def updateData(data):
+            if lock:
+                lock.acquire()
+
+            SystemManager.printPipe('[%s] %s' % (data[0], data[1]))
+
+            if lock:
+                lock.release()
+
+        def updateDataFromPipe(lock=None):
             # merge dbus data #
             try:
                 # wait for event #
@@ -31860,7 +31895,8 @@ class ThreadAnalyzer(object):
                         if output == '\n':
                             continue
                         elif output and len(output) > 0:
-                            SystemManager.printPipe('[%s] %s' % (tid, output))
+                            updateData((tid, output))
+
                         break
             except:
                 return
@@ -31879,8 +31915,10 @@ class ThreadAnalyzer(object):
         else:
             lock = None
 
-        # define total list #
+        # define common list #
         totalList = {}
+        pipeList = []
+        threadingList = []
 
         # get pids of gdbus threads #
         taskList = SystemManager.getPids('gdbus', True)
@@ -31894,8 +31932,6 @@ class ThreadAnalyzer(object):
             ConfigManager.sysList.index('sys_recvmsg'))
 
         # create child processes to attach each targets #
-        pipeList = []
-        threadingList = []
         for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
@@ -31909,8 +31945,7 @@ class ThreadAnalyzer(object):
 
                 # run a new worker thread #
                 if threadObj:
-                    tobj = threadObj.Thread(target=run,\
-                        args=(totalList, [rdPipe], [tid], lock))
+                    tobj = threadObj.Thread(target=executeLoop, args=[lock])
                     threadingList.append(tobj)
             # child #
             elif pid == 0:
@@ -31935,15 +31970,8 @@ class ThreadAnalyzer(object):
         for tobj in threadingList:
             tobj.start()
 
-        while 1:
-            # check interval #
-                # get cpu usage of targets #
-                # print interval summary #
-
-            if not threadObj:
-                updateDataFromPipe(totalList, pipeList, taskList)
-            else:
-                signal.pause()
+        # run event loop #
+        executeLoop()
 
 
 
