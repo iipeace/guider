@@ -19881,7 +19881,7 @@ Copyright:
 
 
     @staticmethod
-    def getPids(name, isThread=False):
+    def getPids(name, isThread=False, includeSiblings=False):
         pidList = []
 
         pids = os.listdir(SystemManager.procPath)
@@ -19917,7 +19917,16 @@ Copyright:
                     if comm != name:
                         continue
 
-                    pidList.append(tid)
+                    # including all sibling threads #
+                    if includeSiblings:
+                        for tid in tids:
+                            if tid not in pidList:
+                                pidList.append(tid)
+                        break
+
+                    # include a thread #
+                    if tid not in pidList:
+                        pidList.append(tid)
 
                 continue
 
@@ -19930,7 +19939,8 @@ Copyright:
             if comm != name:
                 continue
 
-            pidList.append(pid)
+            if pid not in pidList:
+                pidList.append(pid)
 
         return pidList
 
@@ -27795,11 +27805,23 @@ struct msghdr {
                 else:
                     args.append(str(arg[2]))
 
-            argText = ', '.join(args)
-
             # get diff time #
             current = time.time()
             diff = current - self.start
+
+            # print call info in JSON format #
+            if SystemManager.jsonPrintEnable:
+                jsonData = {}
+                jsonData['time'] = current
+                jsonData['timediff'] = diff
+                jsonData['name'] = name
+                jsonData['args'] = {}
+                for arg in self.args:
+                    jsonData['args'][arg[1]] = arg[2]
+                SystemManager.printPipe(str(jsonData))
+                return
+
+            argText = ', '.join(args)
 
             # get backtrace #
             if SystemManager.funcDepth > 0:
@@ -27860,6 +27882,17 @@ struct msghdr {
                 self.addSample(name, '??', err=retval)
             else:
                 err = ''
+
+            # print call info in JSON format #
+            if SystemManager.jsonPrintEnable:
+                jsonData = {}
+                jsonData['time'] = time.time()
+                jsonData['name'] = name
+                jsonData['ret'] = retval
+                jsonData['err'] = err
+                SystemManager.printPipe(str(jsonData))
+                self.clearArgs()
+                return
 
             # build call string #
             callString = '= %s %s' % (retval, err)
@@ -31849,17 +31882,16 @@ class ThreadAnalyzer(object):
         # define total list #
         totalList = {}
 
-        # get ip list of gdbus threads #
+        # get pids of gdbus threads #
         taskList = SystemManager.getPids('gdbus', True)
         if len(taskList) == 0:
-            SystemManager.printError(\
+            SystemManager.printErr(\
                 "Fail to find gdbus thread")
             sys.exit(0)
 
-        # set default command #
-        callFilter = '-t%s' % 'recvmsg'
-        cmd = SystemManager.getExeCmd(SystemManager.pid)
-        cmd.extend(['strace', callFilter, '-a'])
+        # set target syscalls #
+        SystemManager.syscallList.append(\
+            ConfigManager.sysList.index('sys_recvmsg'))
 
         # create child processes to attach each targets #
         pipeList = []
@@ -31887,20 +31919,17 @@ class ThreadAnalyzer(object):
                 os.close(wr)
                 os.close(rd)
 
-                # append tid filter #
-                cmd.append('-g%s' % tid)
-
-                # execute strace mode #
-                SystemManager.executeProcess(\
-                    cmd, mute=False, closeAll=False)
-                '''
+                # set options #
                 sys.argv[1] = 'strace'
                 SystemManager.showAll = True
+                SystemManager.intervalEnable = 0
                 SystemManager.filterGroup = [tid]
-                SystemManager.syscallList = \
-                    [ConfigManager.sysList.index('sys_recvmsg')]
+                SystemManager.jsonPrintEnable = True
+
+                # execute strace mode #
                 SystemManager.doTrace('syscall')
-                '''
+
+                sys.exit(0)
 
         # start worker threads #
         for tobj in threadingList:
