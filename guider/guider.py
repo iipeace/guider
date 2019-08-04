@@ -31863,21 +31863,30 @@ class ThreadAnalyzer(object):
 
     def runDbusTop(self):
         def updateTaskInfo():
+            taskManager.saveProcStats()
             for pid in taskList:
                 taskManager.saveProcData(\
                     '%s/%s' % (SystemManager.procPath, pid), pid)
 
         def printSummary(signum, frame):
+            # update uptime #
+            SystemManager.updateUptime()
+
             # reset timer #
             SystemManager.updateTimer()
 
-            # get cpu usage of targets #
+            # update cpu usage of tasks #
             updateTaskInfo()
+
+            # print cpu usage of tasks #
+            taskManager.printProcUsage()
+            taskManager.reinitStats()
+            SystemManager.printTopStats()
 
             # print interval summary #
             if lock:
                 lock.acquire()
-            totalList
+
             if lock and lock.locked():
                 lock.release()
 
@@ -31886,6 +31895,8 @@ class ThreadAnalyzer(object):
 
             # main thread #
             if SystemManager.pid == tid:
+                SystemManager.updateUptime()
+
                 # save initial stat of tasks #
                 updateTaskInfo()
 
@@ -31910,8 +31921,12 @@ class ThreadAnalyzer(object):
             # get json object #
             json = SystemManager.getPkg('json')
 
+            tid = data[0]
+            params = data[1]
+            return
+
             try:
-                jsonData = json.loads(data[1])
+                jsonData = json.loads(params)
 
                 if lock:
                     lock.acquire()
@@ -31920,6 +31935,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printErr(SystemManager.getErrReason())
 
+            # release lock #
             if lock and lock.locked():
                 lock.release()
 
