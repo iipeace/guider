@@ -10840,7 +10840,6 @@ class SystemManager(object):
     remoteServObj = None
     addrListForPrint = {}
     addrListForReport = {}
-    jsonObject = None
 
     tgidEnable = True
     taskEnable = True
@@ -17142,6 +17141,15 @@ Copyright:
             return True
         else:
             return False
+
+
+
+    @staticmethod
+    def updateTimer(interval=None):
+        if interval:
+            signal.alarm(int(interval))
+        else:
+            signal.alarm(SystemManager.intervalEnable)
 
 
 
@@ -25543,12 +25551,6 @@ class DltManager(object):
 
 
     @staticmethod
-    def updateTimer():
-        signal.alarm(SystemManager.intervalEnable)
-
-
-
-    @staticmethod
     def doLogDlt(appid='GUID', context='GUID', msg=None):
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
@@ -25987,7 +25989,7 @@ class DltManager(object):
 
         # set timer #
         signal.signal(signal.SIGALRM, DltManager.onAlarm)
-        DltManager.updateTimer()
+        SystemManager.updateTimer()
 
         if mode == 'top':
             SystemManager.printInfo(\
@@ -26884,7 +26886,15 @@ struct msghdr {
         flag = header.contents.msg_flag
         msginfo['msg_flag'] = flag
 
-        return str(msginfo)
+        # import json package #
+        json = SystemManager.getPkg('json', False)
+
+        try:
+            return json.dumps(msginfo)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return str(msginfo)
 
 
 
@@ -26959,6 +26969,8 @@ struct msghdr {
             if argname == "msg":
                 try:
                     return self.readMsgHdr(value)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printWarn(\
                         "Fail to get msghdr because %s" % \
@@ -26966,7 +26978,7 @@ struct msghdr {
 
         if syscall.startswith('send') or \
             syscall.startswith('recv'):
-            if argname == "flags":
+            if argname == "flags" and value:
                 return ConfigManager.MSG_TYPE[int(value)]
 
         if argname == "signum" or argname == "sig":
@@ -27816,13 +27828,23 @@ struct msghdr {
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
-                jsonData['time'] = current
-                jsonData['timediff'] = diff
-                jsonData['name'] = name
-                jsonData['args'] = {}
+                jsonData["time"] = current
+                jsonData["timediff"] = diff
+                jsonData["name"] = name
+                jsonData["args"] = {}
+
+                # import json package #
+                json = SystemManager.getPkg('json')
+
                 for arg in self.args:
-                    jsonData['args'][arg[1]] = arg[2]
-                SystemManager.printPipe(str(jsonData))
+                    try:
+                        val = json.loads(arg[2])
+                    except:
+                        val = arg[2]
+
+                    jsonData['args'][arg[1]] = val
+
+                SystemManager.printPipe(json.dumps(jsonData))
                 return
 
             argText = ', '.join(args)
@@ -27890,11 +27912,12 @@ struct msghdr {
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
-                jsonData['time'] = time.time()
-                jsonData['name'] = name
-                jsonData['ret'] = retval
-                jsonData['err'] = err
-                SystemManager.printPipe(str(jsonData))
+                jsonData["time"] = time.time()
+                jsonData["name"] = name
+                jsonData["ret"] = retval
+                jsonData["err"] = err
+                SystemManager.printPipe(\
+                    SystemManager.getPkg('json').dumps(jsonData))
                 self.clearArgs()
                 return
 
@@ -31839,18 +31862,36 @@ class ThreadAnalyzer(object):
 
 
     def runDbusTop(self):
-        def printSummary():
-            pass
+        def updateTaskInfo():
+            for pid in taskList:
+                taskManager.saveProcData(\
+                    '%s/%s' % (SystemManager.procPath, pid), pid)
+
+        def printSummary(signum, frame):
+            # reset timer #
+            SystemManager.updateTimer()
+
             # get cpu usage of targets #
+            updateTaskInfo()
+
             # print interval summary #
+            if lock:
+                lock.acquire()
+            totalList
+            if lock and lock.locked():
+                lock.release()
 
         def executeLoop(lock=None):
             tid = SystemManager.syscall('gettid')
 
+            # main thread #
             if SystemManager.pid == tid:
-                pass
-                # get cpu usage of targets #
+                # save initial stat of tasks #
+                updateTaskInfo()
+
                 # set timer #
+                signal.signal(signal.SIGALRM, printSummary)
+                SystemManager.updateTimer()
 
             while 1:
                 # multi-threaded loop #
@@ -31866,12 +31907,20 @@ class ThreadAnalyzer(object):
                     updateDataFromPipe()
 
         def updateData(data):
-            if lock:
-                lock.acquire()
+            # get json object #
+            json = SystemManager.getPkg('json')
 
-            SystemManager.printPipe('[%s] %s' % (data[0], data[1]))
+            try:
+                jsonData = json.loads(data[1])
 
-            if lock:
+                if lock:
+                    lock.acquire()
+
+                SystemManager.printPipe(str(jsonData))
+            except:
+                SystemManager.printErr(SystemManager.getErrReason())
+
+            if lock and lock.locked():
                 lock.release()
 
         def updateDataFromPipe(lock=None):
@@ -31919,9 +31968,11 @@ class ThreadAnalyzer(object):
         totalList = {}
         pipeList = []
         threadingList = []
+        taskManager = ThreadAnalyzer(onlyInstance=True)
 
         # get pids of gdbus threads #
-        taskList = SystemManager.getPids('gdbus', True)
+        #taskList = SystemManager.getPids('gdbus', True)
+        taskList = SystemManager.getPids('recvmsg', True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
@@ -31959,6 +32010,7 @@ class ThreadAnalyzer(object):
                 SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
                 SystemManager.filterGroup = [tid]
+                SystemManager.processEnable = False
                 SystemManager.jsonPrintEnable = True
 
                 # execute strace mode #
