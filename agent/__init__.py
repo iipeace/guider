@@ -56,46 +56,39 @@ curDir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, '%s/../guider' % curDir)
 
 from guider import NetworkManager
-
-NetworkManager.prepareServerConn(None, None)
-
-# get connection with server #
-conn = NetworkManager.getServerConn()
-if not conn:
-    print('\nFail to get connection with server')
-    sys.exit(0)
-
-# request command #
-pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J')
-if not pipe:
-    print('\nFail to get command pipe')
-    sys.exit(0)
-
 @app.route('/')
 def index():
-    return render_template('index_vue.html', server_addr=SERVER_ADDR)
+    return render_template('index.html', server_addr=SERVER_ADDR)
 
 @socketio.on('connect')
 def connected():
-    print("This is default-connect message") # this works naturally
+    print("Connected") 
 
-@socketio.on('disconnect') # Not Custom
+@socketio.on('disconnect')
 def disconnected():
     RequestManager.clear_request()
 
-@socketio.on('custom_connect') # this is custom one
-def custom_connect(msg):
-    emit('server_response', {'data': msg})
-    print("This is custom-connect message")
-
 @socketio.on('request_start')
-def request_start(timestamp, msg):
+def request_start(timestamp, targetAddr):
+     
+    NetworkManager.prepareServerConn(None, targetAddr)
+    # get connection with server #
+    conn = NetworkManager.getServerConn()
+    if not conn:
+        print('\nFail to get connection with server')
+        sys.exit(0)
+
+    # request command #
+    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J')
+    if not pipe:
+        print('\nFail to get command pipe')
+        sys.exit(0)
+
     print('Requested ----- ')
+    msg = {}
     msg['timestamp'] = timestamp
     RequestManager.add_request(timestamp)
     is_connected = RequestManager.get_request(timestamp)
-#fname = "json_log-" + str(timestamp) + ".txt"
-#f=open(fname, "w")
     cntGetData = -1
     while (is_connected==True):
         str_pipe = pipe.getData() # str type with json contents
@@ -108,15 +101,9 @@ def request_start(timestamp, msg):
             length_pipe = len(str_pipe)
             msg['length_pipe'] = str(length_pipe)
             emit('server_response', msg)
-#f.write("[" + str(cntGetData) + "] Correct Json--------------------------------------------------------\n")
         except:
             print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
-#f.write("[" + str(cntGetData) + "] ErrorLog------------------------------------------------------------\n")
-#f.write(str_pipe)
-#f.write("[" + str(cntGetData) + "] finished------------------------------------------------------------\n")
-
         is_connected = RequestManager.get_request(timestamp)
-
         # time.sleep should not be used for its blocking thread or something.
         # (related articles are found over stackoverflow or somewhere else)
 
