@@ -12975,12 +12975,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor dbus messages
+    Monitor D-Bus messages
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor dbus messages
+    - Monitor D-Bus messages
         # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
@@ -27828,6 +27828,7 @@ struct msghdr {
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
+                jsonData["type"] = "enter"
                 jsonData["time"] = current
                 jsonData["timediff"] = diff
                 jsonData["name"] = name
@@ -27912,6 +27913,7 @@ struct msghdr {
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
+                jsonData["type"] = "exit"
                 jsonData["time"] = time.time()
                 jsonData["name"] = name
                 jsonData["ret"] = retval
@@ -31878,6 +31880,12 @@ class ThreadAnalyzer(object):
             # update cpu usage of tasks #
             updateTaskInfo()
 
+            # print title #
+            SystemManager.addPrint(\
+                ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                    ('D-BUS Info', SystemManager.uptime, \
+                    SystemManager.uptimeDiff, '?'))
+
             # print cpu usage of tasks #
             taskManager.printProcUsage()
             taskManager.reinitStats()
@@ -31980,11 +31988,10 @@ class ThreadAnalyzer(object):
         else:
             lock = None
 
-        # define common list #
-        totalList = {}
-        pipeList = []
-        threadingList = []
-        taskManager = ThreadAnalyzer(onlyInstance=True)
+        # check filter #
+        if len(SystemManager.filterGroup) > 0:
+            # toDo: filter thread group
+            pass
 
         # get pids of gdbus threads #
         #taskList = SystemManager.getPids('gdbus', True)
@@ -31994,9 +32001,18 @@ class ThreadAnalyzer(object):
                 "Fail to find gdbus thread")
             sys.exit(0)
 
+        # define common list #
+        totalList = {}
+        pipeList = []
+        threadingList = []
+        SystemManager.filterGroup = taskList
+        taskManager = ThreadAnalyzer(onlyInstance=True)
+
         # set target syscalls #
+        '''
         SystemManager.syscallList.append(\
             ConfigManager.sysList.index('sys_recvmsg'))
+        '''
 
         # create child processes to attach each targets #
         for tid in taskList:
