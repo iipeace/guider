@@ -10754,7 +10754,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 3
+    ttyRowsMargin = 2
     ttyCols = 156
     encoding = None
     encodeEnable = True
@@ -10863,6 +10863,7 @@ class SystemManager(object):
     netInIndex = -1
 
     printStreamEnable = False
+    terminalOver = False
     dltEnable = False
     cpuAvrEnable = True
     reportEnable = False
@@ -16464,17 +16465,25 @@ Copyright:
 
 
     @staticmethod
-    def addPrint(string, newline=1):
+    def addPrint(string, newline=1, force=False):
+        if not force and SystemManager.checkCutCond(newline):
+            return
+
+        # add string to buffer #
         SystemManager.bufferString = \
             "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if not SystemManager.printFile or \
+        if SystemManager.terminalOver or \
+            not SystemManager.printFile or \
             not SystemManager.printStreamEnable:
             return
 
+        # split and cut lines by cols #
         string = '\n'.join(\
             [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+
+        # print on console #
         print(string[:-1])
 
 
@@ -16502,6 +16511,7 @@ Copyright:
         del SystemManager.bufferString
         SystemManager.bufferString = ''
         SystemManager.bufferRows = 0
+        SystemManager.terminalOver = False
 
 
 
@@ -17132,12 +17142,16 @@ Copyright:
 
     @staticmethod
     def checkCutCond(newline=0):
-        if not SystemManager.printFile and \
+        if SystemManager.terminalOver:
+            return True
+        elif not SystemManager.printFile and \
             not SystemManager.jsonPrintEnable and \
             SystemManager.bufferRows + newline >= \
             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
             not SystemManager.printFile and \
             not SystemManager.printStreamEnable:
+            SystemManager.terminalOver = True
+            SystemManager.addPrint('---more---', force=True)
             return True
         else:
             return False
@@ -25475,10 +25489,8 @@ class DltManager(object):
             if ecuId == 'cnt':
                 continue
 
-            if quitLoop:
-                break
-            elif SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
+            if quitLoop or \
+                SystemManager.checkCutCond():
                 break
 
             ecuCnt = ecuItem['cnt']
@@ -25494,10 +25506,8 @@ class DltManager(object):
                 if apId == 'cnt':
                     continue
 
-                if quitLoop:
-                    break
-                elif SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
+                if quitLoop or \
+                    SystemManager.checkCutCond():
                     quitLoop = True
                     break
 
@@ -25514,10 +25524,8 @@ class DltManager(object):
                     if ctxId == 'cnt':
                         continue
 
-                    if quitLoop:
-                        break
-                    elif SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
+                    if quitLoop or \
+                        SystemManager.checkCutCond():
                         quitLoop = True
                         break
 
@@ -27125,18 +27133,12 @@ struct msghdr {
                     SystemManager.addPrint(\
                         '{0:>17} | {1:<1}\n'.format('%.1f%%' % bper, bt))
 
-                    # cut by rows of terminal #
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         quitLoop = True
                         break
 
-            # cut by rows of terminal #
-            if quitLoop:
-                finishPrint()
-                return
-            elif SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
+            if quitLoop or \
+                SystemManager.checkCutCond():
                 finishPrint()
                 return
 
@@ -28880,11 +28882,8 @@ class EventAnalyzer(object):
         eventData = EventAnalyzer.eventData
 
         if len(eventData) > 0:
-            if not SystemManager.isFunctionMode():
-                SystemManager.printPipe("\n\n\n")
-
             SystemManager.printPipe(\
-                "[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
+                "\n[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
             SystemManager.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
@@ -42640,7 +42639,6 @@ class ThreadAnalyzer(object):
             if SystemManager.sort != 'f':
                 for fd, path in sorted(value['fdList'].items(),\
                     key=lambda e: int(e[0]), reverse=True):
-                    # cut by rows of terminal #
                     if SystemManager.checkCutCond():
                         break
 
@@ -42688,9 +42686,7 @@ class ThreadAnalyzer(object):
                 fdCnt += 1
                 procCnt += 1
 
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 break
 
             if fdCnt > 0:
@@ -44252,7 +44248,6 @@ class ThreadAnalyzer(object):
                     percoreStats[int(idx)] = dict()
 
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         return
 
                     # get cpu stats #
@@ -44481,7 +44476,6 @@ class ThreadAnalyzer(object):
             for idx, value in self.gpuData.items():
                 try:
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         return
 
                     totalGpuUsage = value['CUR_LOAD']
@@ -45169,7 +45163,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(\
             "{0:^40} | {1:^53} | {2:^53} |\n{3:1}\n".format(\
-            "Network", "Receive", "Transfer", oneLine))
+            "Network", "Receive", "Transfer", oneLine), newline=2)
 
         SystemManager.addPrint((\
             "{0:^16} | {1:^21} | "
@@ -45759,9 +45753,7 @@ class ThreadAnalyzer(object):
             if isBreakCond(value):
                 break
 
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 return
 
             # get comm #
@@ -46070,11 +46062,6 @@ class ThreadAnalyzer(object):
                         SystemManager.collectProcPerfData(value['perfFds'])
                     perfString = SystemManager.getPerfString(perfData)
                     if len(perfString) > 0:
-                        # cut by rows of terminal #
-                        if SystemManager.checkCutCond():
-                            SystemManager.addPrint('---more---')
-                            return
-
                         SystemManager.addPrint(\
                             "{0:>40}| {1:1}\n".format(' ', perfString))
                         needLine = True
@@ -46090,11 +46077,6 @@ class ThreadAnalyzer(object):
                 mval = memData[1]
 
                 SystemManager.addPrint(mval)
-
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
 
                 if not SystemManager.wssEnable:
                     continue
@@ -46119,15 +46101,11 @@ class ThreadAnalyzer(object):
                         isFirstLined = False
 
                     pstr = '%s' % pstr[slimit:]
+
                 tstr = '%s%s' % (tstr, pstr)
 
                 # count newlines #
                 newline = tstr.count('\n')+1
-
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond(newline):
-                    SystemManager.addPrint('---more---')
-                    return
 
                 SystemManager.addPrint(\
                     "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
@@ -46135,21 +46113,11 @@ class ThreadAnalyzer(object):
             # print cmdline #
             if SystemManager.cmdlineEnable and \
                 len(value['cmdline']) > 0:
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
-
                 SystemManager.addPrint(\
                     "{0:>39} | CMD: {1:1}\n".format(' ', value['cmdline']))
 
             # print cgroup #
             if 'cgroup' in value:
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
-
                 SystemManager.addPrint(\
                     "{0:>39} | CGR: {1:1}\n".format(' ', value['cgroup']))
 
@@ -46176,10 +46144,6 @@ class ThreadAnalyzer(object):
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt > 0:
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return
-
             if SystemManager.floatEnable:
                 totalTime = round(totalStats['ttime'], 1)
             else:
@@ -46245,9 +46209,7 @@ class ThreadAnalyzer(object):
 
         procCnt = 0
         for idx in taskList:
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 return -1
 
             # define stat variables #
