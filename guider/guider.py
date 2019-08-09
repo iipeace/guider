@@ -16465,6 +16465,15 @@ Copyright:
 
 
     @staticmethod
+    def doPrint():
+        if len(SystemManager.bufferString) == 0:
+            return
+
+        SystemManager.printPipe(SystemManager.bufferString)
+
+
+
+    @staticmethod
     def addPrint(string, newline=1, force=False):
         if not force and SystemManager.checkCutCond(newline):
             return
@@ -17127,10 +17136,10 @@ Copyright:
             if not SystemManager.printStreamEnable:
                 SystemManager.clearScreen()
 
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
         # pipe mode #
         elif SystemManager.pipeEnable:
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
         # buffered mode #
         else:
             SystemManager.addProcBuffer(SystemManager.bufferString)
@@ -27025,7 +27034,7 @@ struct msghdr {
                 if not SystemManager.printStreamEnable:
                     SystemManager.clearScreen()
 
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
             # buffered mode #
             else:
                 SystemManager.addProcBuffer(SystemManager.bufferString)
@@ -35101,7 +35110,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(\
                 "%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
                 ('', len(self.irqData), totalUsage, totalCnt))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
 
@@ -35603,7 +35612,7 @@ class ThreadAnalyzer(object):
             count += 1
 
         SystemManager.printPipe("%s# %s: %d\n" % ('', 'CPU', count))
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
 
         # set sort value #
@@ -35967,7 +35976,7 @@ class ThreadAnalyzer(object):
                 "%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
                 ('', 'PRT', tid, self.threadData[tid]['comm'], \
                 self.preemptData[index][4], count))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # prepare to draw graph #
@@ -36153,7 +36162,7 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.printPipe('%s' % oneLine)
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
 
 
 
@@ -36173,7 +36182,7 @@ class ThreadAnalyzer(object):
         for icount in xrange(0, len(self.depData)):
             SystemManager.addPrint(self.depData[icount] + '\n')
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
 
 
@@ -36307,7 +36316,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe('%s\n%s' % (totalFutexInfo, oneLine))
 
             # print thread info #
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.clearPrint()
 
         if not SystemManager.showAll:
@@ -36582,7 +36591,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe('\n%s' % oneLine)
 
             # print thread info #
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.clearPrint()
 
         if not SystemManager.showAll:
@@ -36915,7 +36924,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -36988,7 +36997,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -37062,7 +37071,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -37363,7 +37372,7 @@ class ThreadAnalyzer(object):
 
         # print buffered info #
         SystemManager.printPipe("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
         SystemManager.clearPrint()
 
@@ -37568,7 +37577,7 @@ class ThreadAnalyzer(object):
 
         if SystemManager.cpuEnable:
             SystemManager.printPipe("%s# %s\n" % ('', 'CPU(%)'))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # preempted units on timeline #
@@ -37637,7 +37646,7 @@ class ThreadAnalyzer(object):
 
         if len(SystemManager.bufferString) > 0:
             SystemManager.printPipe("%s# %s\n" % ('', 'Delay(%)'))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # memory usage on timeline #
@@ -37704,7 +37713,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # block read usage on timeline #
@@ -37769,7 +37778,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_RD(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # block write usage on timeline #
@@ -37835,7 +37844,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_WR(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # event usage on timeline #
