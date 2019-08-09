@@ -26013,7 +26013,7 @@ class DltManager(object):
                 "start collecting DLT log... [ STOP(Ctrl+c) ]")
         elif mode == 'print':
             SystemManager.printInfo(\
-                "start printing DLT log... [ STOP(Ctrl+c) ]")
+                "start printing DLT log... [ STOP(Ctrl+c) ]\n")
 
         # save and reset global filter #
         filterGroup = SystemManager.filterGroup
@@ -31894,7 +31894,7 @@ class ThreadAnalyzer(object):
                     ('D-BUS Info', SystemManager.uptime, \
                     SystemManager.uptimeDiff, '?'))
 
-            # print cpu usage of tasks #
+            # print resource usage of tasks #
             taskManager.printProcUsage()
             taskManager.reinitStats()
             SystemManager.printTopStats()
@@ -31939,17 +31939,22 @@ class ThreadAnalyzer(object):
 
             tid = data[0]
             params = data[1]
-            return
 
             try:
                 jsonData = json.loads(params)
+
+                # check syscall #
+                if jsonData["name"] != "recvmsg" or \
+                    jsonData["type"] != "enter":
+                    raise Exception('%s/%s' % \
+                        (jsonData["name"], jsonData["type"]))
 
                 if lock:
                     lock.acquire()
 
                 SystemManager.printPipe(str(jsonData))
             except:
-                SystemManager.printErr(SystemManager.getErrReason())
+                SystemManager.printWarn(SystemManager.getErrReason())
 
             # release lock #
             if lock and lock.locked():
