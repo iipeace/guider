@@ -31403,6 +31403,7 @@ class ThreadAnalyzer(object):
     procTotData = {}
     procIntData = []
     procEventData = []
+    dbusData = {}
 
     # request type #
     requestType = [
@@ -31872,13 +31873,30 @@ class ThreadAnalyzer(object):
 
 
     def runDbusTop(self):
-        def updateTaskInfo():
+        def updateTaskInfo(dbusData):
             taskManager.saveProcStats()
             for pid in taskList:
+                # save resource usage #
                 taskManager.saveProcData(\
                     '%s/%s' % (SystemManager.procPath, pid), pid)
 
+                # build D-Bus usage string #
+                dbusString = '??'
+
+                # add D-Bus usage #
+                taskManager.procData[pid]['dbus'] = dbusString
+
         def printSummary(signum, frame):
+            # get summary list #
+            if lock:
+                lock.acquire()
+
+            prevDbusData = ThreadAnalyzer.dbusData
+            ThreadAnalyzer.dbusData = dict()
+
+            if lock and lock.locked():
+                lock.release()
+
             # update uptime #
             SystemManager.updateUptime()
 
@@ -31886,25 +31904,19 @@ class ThreadAnalyzer(object):
             SystemManager.updateTimer()
 
             # update cpu usage of tasks #
-            updateTaskInfo()
+            updateTaskInfo(prevDbusData)
 
             # print title #
             SystemManager.addPrint(\
                 ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
                     ('D-BUS Info', SystemManager.uptime, \
-                    SystemManager.uptimeDiff, '?'))
+                    SystemManager.uptimeDiff, \
+                    UtilManager.convertNumber(prevDbusData['totalCnt'])))
 
             # print resource usage of tasks #
             taskManager.printProcUsage()
             taskManager.reinitStats()
             SystemManager.printTopStats()
-
-            # print interval summary #
-            if lock:
-                lock.acquire()
-
-            if lock and lock.locked():
-                lock.release()
 
         def executeLoop(lock=None):
             tid = SystemManager.syscall('gettid')
@@ -31914,7 +31926,7 @@ class ThreadAnalyzer(object):
                 SystemManager.updateUptime()
 
                 # save initial stat of tasks #
-                updateTaskInfo()
+                updateTaskInfo(ThreadAnalyzer.dbusData)
 
                 # set timer #
                 signal.signal(signal.SIGALRM, printSummary)
@@ -31953,8 +31965,8 @@ class ThreadAnalyzer(object):
                 if lock:
                     lock.acquire()
 
-                if tid not in summaryList:
-                    summaryList[tid] = dict()
+                if tid not in ThreadAnalyzer.dbusData:
+                    ThreadAnalyzer.dbusData[tid] = dict()
 
                 # get D-Bus interface #
                 msgList = jsonData['args']['msg']['msg_iov']
@@ -31962,14 +31974,17 @@ class ThreadAnalyzer(object):
                     length = msg['len']
                     call = msg['data']
 
+                try:
+                    ThreadAnalyzer.dbusData['totalCnt'] += 1
+                except:
+                    ThreadAnalyzer.dbusData['totalCnt'] = 1
+
                 # merge D-Bus interface #
                 try:
-                    summaryList[tid][length]['cnt'] += 1
+                    ThreadAnalyzer.dbusData[tid][length]['cnt'] += 1
                 except:
-                    summaryList[tid][length] = dict()
-                    summaryList[tid][length]['cnt'] = 1
-
-                print(summaryList[tid][length])
+                    ThreadAnalyzer.dbusData[tid][length] = dict()
+                    ThreadAnalyzer.dbusData[tid][length]['cnt'] = 1
             except:
                 pass
                 #SystemManager.printWarn(SystemManager.getErrReason(), True)
@@ -32034,16 +32049,13 @@ class ThreadAnalyzer(object):
 
         # define common list #
         pipeList = []
-        summaryList = {}
         threadingList = []
         SystemManager.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
 
         # set target syscalls #
-        '''
         SystemManager.syscallList.append(\
             ConfigManager.sysList.index('sys_recvmsg'))
-        '''
 
         # create child processes to attach each targets #
         for tid in taskList:
@@ -45739,7 +45751,6 @@ class ThreadAnalyzer(object):
 
         # print resource usage of processes / threads #
         procCnt = 0
-        needLine = False
         procData = self.procData
         for idx, value in sortedProcData:
             stat = value['stat']
@@ -46095,8 +46106,7 @@ class ThreadAnalyzer(object):
                     perfString = SystemManager.getPerfString(perfData)
                     if len(perfString) > 0:
                         SystemManager.addPrint(\
-                            "{0:>40}| {1:1}\n".format(' ', perfString))
-                        needLine = True
+                            "{0:>40}| {1:1}\n".format('PERF', perfString))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -46146,12 +46156,18 @@ class ThreadAnalyzer(object):
             if SystemManager.cmdlineEnable and \
                 len(value['cmdline']) > 0:
                 SystemManager.addPrint(\
-                    "{0:>39} | CMD: {1:1}\n".format(' ', value['cmdline']))
+                    "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
             # print cgroup #
             if 'cgroup' in value:
                 SystemManager.addPrint(\
-                    "{0:>39} | CGR: {1:1}\n".format(' ', value['cgroup']))
+                    "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
+
+            # print D-Bus #
+            if SystemManager.dbusTopEnable and \
+                len(value['dbus']) > 0:
+                SystemManager.addPrint(\
+                    "{0:>39} | {1:1}\n".format('DBUS', value['dbus']))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -46166,13 +46182,11 @@ class ThreadAnalyzer(object):
 
                 try:
                     self.stackTable[idx]['total'] = 0
-                    needLine = True
                 except:
                     pass
 
             procCnt += 1
-            if SystemManager.memEnable or needLine:
-                needLine = True
+            if SystemManager.memEnable:
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt > 0:
@@ -46204,15 +46218,12 @@ class ThreadAnalyzer(object):
                 'Task: %s' % convertNum(totalStats['task']), \
                 td=cl+(pd*2)+14))
 
-        if procCnt == 0:
+            SystemManager.addPrint("%s\n" % oneLine)
+        else:
             text = "{0:^16}".format('None')
             frame = '%s%s|' % \
                 (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
-        elif needLine:
-            pass
-        else:
-            SystemManager.addPrint("%s\n" % oneLine)
 
         # print special processes #
         if self.printSpecialTask('abnormal') == -1:
