@@ -27838,15 +27838,15 @@ struct msghdr {
 
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
+                # import json package #
+                json = SystemManager.getPkg('json')
+
                 jsonData = {}
                 jsonData["type"] = "enter"
                 jsonData["time"] = current
                 jsonData["timediff"] = diff
                 jsonData["name"] = name
                 jsonData["args"] = {}
-
-                # import json package #
-                json = SystemManager.getPkg('json')
 
                 for arg in self.args:
                     try:
@@ -31949,12 +31949,30 @@ class ThreadAnalyzer(object):
                     raise Exception('%s/%s' % \
                         (jsonData["name"], jsonData["type"]))
 
+                # acquire lock #
                 if lock:
                     lock.acquire()
 
-                SystemManager.printPipe(str(jsonData))
+                if tid not in summaryList:
+                    summaryList[tid] = dict()
+
+                # get D-Bus interface #
+                msgList = jsonData['args']['msg']['msg_iov']
+                for name, msg in msgList.items():
+                    length = msg['len']
+                    call = msg['data']
+
+                # merge D-Bus interface #
+                try:
+                    summaryList[tid][length]['cnt'] += 1
+                except:
+                    summaryList[tid][length] = dict()
+                    summaryList[tid][length]['cnt'] = 1
+
+                print(summaryList[tid][length])
             except:
-                SystemManager.printWarn(SystemManager.getErrReason())
+                pass
+                #SystemManager.printWarn(SystemManager.getErrReason(), True)
 
             # release lock #
             if lock and lock.locked():
@@ -32015,8 +32033,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # define common list #
-        totalList = {}
         pipeList = []
+        summaryList = {}
         threadingList = []
         SystemManager.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
