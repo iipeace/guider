@@ -11,6 +11,10 @@ import re
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, send, emit
 
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 class RequestManager(object):
 
     requests = {}
@@ -28,7 +32,8 @@ class RequestManager(object):
         cls.requests[request_id] = False
 
     @classmethod
-    def get_request(cls, request_id):
+    def get_requestStatus(cls, request_id):
+        print(cls.requests)
         return cls.requests.get(request_id)
 
     @classmethod
@@ -88,29 +93,31 @@ def request_start(timestamp, targetAddr):
     msg = {}
     msg['timestamp'] = timestamp
     RequestManager.add_request(timestamp)
-    is_connected = RequestManager.get_request(timestamp)
+    is_connected = RequestManager.get_requestStatus(timestamp)
     cntGetData = -1
-    while (is_connected==True):
+    while (is_connected != False):
         str_pipe = pipe.getData() # str type with json contents
         cntGetData = cntGetData + 1
-        try: # to catch out json parse error
-            json_pipe = json.loads(str_pipe)
-            msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
-            msg['mem_pipe'] = json.dumps(json_pipe["mem"])
-            msg['proc_pipe'] = json.dumps(json_pipe["process"])
-            length_pipe = len(str_pipe)
-            msg['length_pipe'] = str(length_pipe)
-            emit('server_response', msg)
-        except:
-            print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
-        is_connected = RequestManager.get_request(timestamp)
+        if pipe.getDataType(str_pipe) == 'JSON':
+            try: 
+                json_pipe = json.loads(str_pipe)
+                msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
+                msg['mem_pipe'] = json.dumps(json_pipe["mem"])
+                msg['proc_pipe'] = json.dumps(json_pipe["process"])
+                length_pipe = len(str_pipe)
+                msg['length_pipe'] = str(length_pipe)
+                emit('server_response', msg)
+            except:
+                print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
+        is_connected = RequestManager.get_requestStatus(timestamp)
+        print("is_connected : " + str(is_connected) + " / timestamp : " + timestamp)
         # time.sleep should not be used for its blocking thread or something.
         # (related articles are found over stackoverflow or somewhere else)
 
 
 @socketio.on('request_stop')
 def request_stop(target_timestamp):
-    if RequestManager.get_request(target_timestamp) == True:
+    if RequestManager.get_requestStatus(target_timestamp) == True:
         RequestManager.disable_request(target_timestamp)
         emit('request_stop_result', 'stop success : ' + target_timestamp)
     else:
@@ -122,6 +129,3 @@ if __name__ == '__main__':
     request_manager = RequestManager()
     socketio.run(app, host='0.0.0.0', port=5000)
 
-#@app.route('/')
-#def hello_world():
-#    return pipe.getData()
