@@ -11478,15 +11478,26 @@ class SystemManager(object):
         if not SystemManager.isRoot():
             return
 
-        oomPath = '%s/self/oom_adj' % SystemManager.procPath
+        # set path #
+        oomPath = '%s/self/oom_score_adj' % SystemManager.procPath
+
+        # set deprecated path #
+        oomOldPath = '%s/self/oom_adj' % SystemManager.procPath
 
         try:
             with open(oomPath, 'w') as fd:
                 fd.write(pri)
         except:
-            err = SystemManager.getErrReason()
             SystemManager.printWarn(\
-                "Fail to write oom_adj because %s" % err)
+                "Fail to write %s because %s" % (oomPath, err))
+
+            try:
+                with open(oomOldPath, 'w') as fd:
+                    fd.write(pri)
+            except:
+                err = SystemManager.getErrReason()
+                SystemManager.printWarn(\
+                    "Fail to write %s because %s" % (oomOldPath, err))
 
 
 
