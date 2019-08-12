@@ -13418,7 +13418,7 @@ Examples:
                 elif SystemManager.isPrintDltMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <MESSAGE>
+    # {0:1} {1:1}
 
 Description:
     Print DLT messages in real-time
@@ -13435,6 +13435,29 @@ Examples:
         # {0:1} {1:1}
 
     - Print DLT messages including specific strings
+        # {0:1} {1:1} -g test
+                    '''.format(cmd, mode)
+
+                # printkmsg #
+                elif SystemManager.isPrintKmsgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1}
+
+Description:
+    Print DLT messages in real-time
+
+OPTIONS:
+        -g  <STRING>                set filter
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print kernel logs in real-time
+        # {0:1} {1:1}
+
+    - Print kernel logs including specific strings
         # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
@@ -13534,14 +13557,14 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
-                # printsystem #
-                elif SystemManager.isPrintSystemMode():
+                # printinfo #
+                elif SystemManager.isPrintInfoMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show system info
+    Show system general info
 
 OPTIONS:
         -v                          verbose
@@ -13893,15 +13916,17 @@ COMMAND:
                 limitcpu    <cpu>
                 setcpu      <clock>
                 setsched    <priority>
-                getaff      <affinity>
-                setaff      <affinity>
+                getafnt     <affinity>
+                setafnt     <affinity>
                 pstree      <tree>
                 printenv    <env>
-                printsystem <system>
+                printinfo   <system>
                 readelf     <file>
                 addr2line   <symbol>
                 leaktrace   <leak>
-                printcgroup <cgroup>
+                printcgrp   <cgroup>
+
+    [log]       printkmsg   <KMSG>
                 printdlt    <DLT>
                 logdlt      <DLT>
 
@@ -16564,6 +16589,42 @@ Copyright:
 
 
     @staticmethod
+    def printKmsg():
+        # open kmsg device node #
+        try:
+            kmsgPath = '/dev/kmsg'
+            fd = open(kmsgPath, 'r')
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to open %s because %s" % \
+                    (kmsgPath, err))
+            sys.exit(0)
+
+        # toDo: add lseek option #
+
+        SystemManager.printInfo(\
+            "start printing kernel log... [ STOP(Ctrl+c) ]")
+
+        while 1:
+            log = fd.readline()
+
+            # apply filter #
+            if len(SystemManager.filterGroup) > 0:
+                found = False
+                for string in SystemManager.filterGroup:
+                    if string in log:
+                        found = True
+                        break
+
+                if not found:
+                    continue
+
+            SystemManager.printPipe(log[:-1])
+
+
+
+    @staticmethod
     def printLogo(absolute=False, big=False, onlyFile=False):
         # check print option and remote runner #
         if not SystemManager.printEnable or \
@@ -18747,11 +18808,11 @@ Copyright:
 
 
     @staticmethod
-    def isPrintSystemMode():
+    def isPrintInfoMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'printsystem':
+        if sys.argv[1] == 'printinfo':
             return True
         else:
             return False
@@ -18763,7 +18824,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'setaff':
+        if sys.argv[1] == 'setafnt':
             return True
         else:
             return False
@@ -18775,7 +18836,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'getaff':
+        if sys.argv[1] == 'getafnt':
             return True
         else:
             return False
@@ -19175,6 +19236,16 @@ Copyright:
 
             DltManager.runDltReceiver(mode='print')
 
+        # PRINTKMSG MODE #
+        elif SystemManager.isPrintKmsgMode():
+            # set console info #
+            SystemManager.ttyCols = 0
+            SystemManager.printStreamEnable = True
+
+            SystemManager.printLogo(big=True, onlyFile=True)
+
+            SystemManager.printKmsg()
+
         # PAGE MODE #
         elif SystemManager.isMemMode():
             SystemManager.printLogo(big=True, onlyFile=True)
@@ -19231,9 +19302,9 @@ Copyright:
         elif SystemManager.isPrintEnvMode():
             SystemManager.doPrintEnv()
 
-        # PRINTSYSTEM MODE #
-        elif SystemManager.isPrintSystemMode():
-            SystemManager.doPrintSystem()
+        # PRINTINFO MODE #
+        elif SystemManager.isPrintInfoMode():
+            SystemManager.doPrintInfo()
 
         # AFFINITY MODE #
         elif SystemManager.isSetAffinityMode():
@@ -19380,7 +19451,7 @@ Copyright:
 
     @staticmethod
     def isPrintcgroupMode():
-        if sys.argv[1] == 'printcgroup':
+        if sys.argv[1] == 'printcgrp':
             return True
         else:
             return False
@@ -19390,6 +19461,15 @@ Copyright:
     @staticmethod
     def isPrintDltMode():
         if sys.argv[1] == 'printdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintKmsgMode():
+        if sys.argv[1] == 'printkmsg':
             return True
         else:
             return False
@@ -21144,7 +21224,7 @@ Copyright:
 
 
     @staticmethod
-    def doPrintSystem():
+    def doPrintInfo():
         SystemManager.printLogo(big=True, onlyFile=True)
 
         SystemManager()
