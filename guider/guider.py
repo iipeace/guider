@@ -175,6 +175,18 @@ class ConfigManager(object):
         10: "SOCK_PACKET",
     }
 
+    # Define log level #
+    LOG_LEVEL = {
+        0: "EMERG",
+        1: "ALERT",
+        2: "CRIT",
+        3: "ERR",
+        4: "WARNING",
+        5: "NOTICE",
+        6: "INFO",
+        7: "DEBUG",
+    }
+
     # Define MSG type #
     MSG_TYPE = {
         0x1: "MSG_OOB",
@@ -16619,6 +16631,40 @@ Copyright:
 
         while 1:
             log = fd.readline()
+
+            # parse log #
+            pos = log.find(';')
+
+            meta = log[:pos].split(',')
+            if len(meta) > 2:
+                nrLevel = int(meta[0])
+                try:
+                    level = ConfigManager.LOG_LEVEL[nrLevel]
+                except:
+                    level = nrLevel
+                if not SystemManager.printFile:
+                    level = '%s%s%s' % \
+                        (ConfigManager.BOLD, level, ConfigManager.ENDC)
+
+                # time #
+                time = meta[2]
+                if len(time) < 7:
+                    time = '0.%s' % time
+                else:
+                    time = '%s.%s' % (time[:-6], time[-6:])
+                if not SystemManager.printFile:
+                    time = '%s%s%s' % \
+                        (ConfigManager.OKGREEN, time, ConfigManager.ENDC)
+
+                log = log[pos+1:]
+
+                npos = log.find(':')
+                name = log[:npos]
+                if not SystemManager.printFile:
+                    name = '%s%s%s' % \
+                        (ConfigManager.SPECIAL, name, ConfigManager.ENDC)
+                log = log[npos+1:]
+                log = '[%s] (%s) %s: %s' % (time, level, name, log)
 
             # apply filter #
             if len(SystemManager.filterGroup) > 0:
