@@ -5706,7 +5706,7 @@ class FunctionAnalyzer(object):
                 symbolList = list()
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
-                    raise Exception()
+                    return None
 
                 for offset in offsetList:
                     symbol = binObj.getSymbolByOffset(offset)
@@ -31403,7 +31403,7 @@ class ThreadAnalyzer(object):
     procTotData = {}
     procIntData = []
     procEventData = []
-    dbusData = {}
+    dbusData = {'totalCnt': 0}
 
     # request type #
     requestType = [
@@ -31892,7 +31892,7 @@ class ThreadAnalyzer(object):
                 lock.acquire()
 
             prevDbusData = ThreadAnalyzer.dbusData
-            ThreadAnalyzer.dbusData = dict()
+            dbusData = {'totalCnt': 0}
 
             if lock and lock.locked():
                 lock.release()
@@ -32022,7 +32022,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.printErr(\
             "Not implemented yet")
-        sys.exit(0)
+        #sys.exit(0)
 
         # get select object #
         selectObj = SystemManager.getPkg('select')
@@ -32040,8 +32040,8 @@ class ThreadAnalyzer(object):
             pass
 
         # get pids of gdbus threads #
-        #taskList = SystemManager.getPids('gdbus', True)
-        taskList = SystemManager.getPids('recvmsg', True)
+        taskList = SystemManager.getPids('gdbus', True)
+        #taskList = SystemManager.getPids('recvmsg', True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
