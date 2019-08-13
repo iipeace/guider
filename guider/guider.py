@@ -89,6 +89,38 @@ class ConfigManager(object):
         'x64'
     }
 
+    # Define ANSI color #
+    COLOR_LIST = {
+        'DEFAULT': '\033[0m',
+        'BOLD': '\033[1m',
+        'ITALIC': '\033[3m',
+        'UNDERLINE': '\033[4m',
+        'LIGHT': '\033[5m',
+        'REVERSE': '\033[7m',
+        'SCRATCH': '\033[9m',
+        'BLACK': '\033[30m',
+        'RED': '\033[31m',
+        'GREEN': '\033[32m',
+        'YELLOW': '\033[33m',
+        'BLUE': '\033[34m',
+        'PINK': '\033[35m',
+        'CYAN': '\033[36m',
+        'WHITE': '\033[37m',
+        'DEFCOLOR': '\033[39m',
+        'BGBLACK': '\033[40m',
+        'BGRED': '\033[41m',
+        'BGGREEN': '\033[42m',
+        'BGYELLOW': '\033[43m',
+        'BGBLUE': '\033[44m',
+        'BGPINK': '\033[45m',
+        'BGCYAN': '\033[46m',
+        'BGWHITE': '\033[47m',
+        'WARNING': '\033[95m',
+        'OKBLUE': '\033[94m',
+        'OKGREEN': '\033[92m',
+        'SPECIAL': '\033[93m',
+    }
+
     # Define cgroup entity #
     CGROUP_VALUE = [
         'tasks', 'cgroup.procs',
@@ -2856,6 +2888,13 @@ class UtilManager(object):
             return format(long(number),",")
         except:
             return number
+
+
+
+    @staticmethod
+    def convertColor(string, color='LIGHT'):
+        return '%s%s%s' % \
+            (ConfigManager.COLOR_LIST[color], string, ConfigManager.ENDC)
 
 
 
@@ -16643,8 +16682,7 @@ Copyright:
                 except:
                     level = nrLevel
                 if not SystemManager.printFile:
-                    level = '%s%s%s' % \
-                        (ConfigManager.BOLD, level, ConfigManager.ENDC)
+                    level = UtilManager.convertColor(level, 'BOLD')
 
                 # time #
                 time = meta[2]
@@ -16653,17 +16691,19 @@ Copyright:
                 else:
                     time = '%s.%s' % (time[:-6], time[-6:])
                 if not SystemManager.printFile:
-                    time = '%s%s%s' % \
-                        (ConfigManager.OKGREEN, time, ConfigManager.ENDC)
+                    time = UtilManager.convertColor(time, 'GREEN')
 
+                # name & log #
                 log = log[pos+1:]
-
                 npos = log.find(':')
                 name = log[:npos]
                 if not SystemManager.printFile:
-                    name = '%s%s%s' % \
-                        (ConfigManager.SPECIAL, name, ConfigManager.ENDC)
-                log = log[npos+1:]
+                    name = UtilManager.convertColor(name, 'SPECIAL')
+                if log[-1] == '\n':
+                    log = log[npos+1:-1]
+                else:
+                    log = log[npos+1:]
+
                 log = '[%s] (%s) %s: %s' % (time, level, name, log)
 
             # apply filter #
@@ -20069,7 +20109,11 @@ Copyright:
             if isThread:
                 threadPath = '%s/task' % procPath
 
-                tids = os.listdir(threadPath)
+                try:
+                    tids = os.listdir(threadPath)
+                except:
+                    continue
+
                 for tid in tids:
                     try:
                         int(tid)
@@ -26952,7 +26996,6 @@ struct msghdr {
                 ('iov_base', c_void_p),
                 ('iov_len', c_size_t)
             )
-
         iovec_ptr = POINTER(iovec)
 
         class msghdr(Structure):
@@ -26963,7 +27006,7 @@ struct msghdr {
                 ('msg_iovlen', c_size_t),
                 ('msg_control', c_void_p),
                 ('msg_controllen', c_size_t),
-                ('msg_flag', c_int)
+                ('msg_flags', c_int)
             )
 
         class cmsghdr(Structure):
@@ -27027,7 +27070,7 @@ struct msghdr {
 
             msginfo['msg_control']['cmsglen'] = cmsglen
             if socket and cmsglevel == socket.SOL_SOCKET:
-                msginfo['msg_control']['cmsglevel'] = "SOL_SOCKET"
+                msginfo['msg_control']['cmsglevel'] = 'SOL_SOCKET'
             else:
                 msginfo['msg_control']['cmsglevel'] = cmsglevel
             try:
@@ -27036,9 +27079,9 @@ struct msghdr {
             except:
                 msginfo['msg_control']['cmsgtype'] = cmsgtype
 
-        # get msg_flag #
-        flag = header.contents.msg_flag
-        msginfo['msg_flag'] = flag
+        # get msg_flags #
+        flag = header.contents.msg_flags
+        msginfo['msg_flags'] = flag
 
         # import json package #
         json = SystemManager.getPkg('json', False)
@@ -27048,6 +27091,9 @@ struct msghdr {
         except SystemExit:
             sys.exit(0)
         except:
+            SystemManager.printWarn(\
+                "Fail to convert %s to JSON because %s" % \
+                    (str(msginfo), SystemManager.getErrReason()))
             return str(msginfo)
 
 
@@ -32011,17 +32057,17 @@ class ThreadAnalyzer(object):
 
     def runDbusTop(self):
         def updateTaskInfo(dbusData):
-            taskManager.saveProcStats()
+            taskManager.saveSystemStat()
+
             for pid in taskList:
-                # save resource usage #
-                taskManager.saveProcData(\
-                    '%s/%s' % (SystemManager.procPath, pid), pid)
+                try:
+                    # build D-Bus usage string #
+                    dbusString = str(dbusData[pid])
 
-                # build D-Bus usage string #
-                dbusString = '??'
-
-                # add D-Bus usage #
-                taskManager.procData[pid]['dbus'] = dbusString
+                    # add D-Bus usage #
+                    taskManager.procData[pid]['dbus'] = dbusString
+                except:
+                    pass
 
         def printSummary(signum, frame):
             # get summary list #
@@ -32029,13 +32075,10 @@ class ThreadAnalyzer(object):
                 lock.acquire()
 
             prevDbusData = ThreadAnalyzer.dbusData
-            dbusData = {'totalCnt': 0}
+            ThreadAnalyzer.dbusData = {'totalCnt': 0}
 
             if lock and lock.locked():
                 lock.release()
-
-            # update uptime #
-            SystemManager.updateUptime()
 
             # reset timer #
             SystemManager.updateTimer()
@@ -32051,11 +32094,12 @@ class ThreadAnalyzer(object):
                     UtilManager.convertNumber(prevDbusData['totalCnt'])))
 
             # print resource usage of tasks #
+            taskManager.printSystemUsage()
             taskManager.printProcUsage()
             taskManager.reinitStats()
             SystemManager.printTopStats()
 
-        def executeLoop(lock=None):
+        def executeLoop(rdPipeList):
             tid = SystemManager.syscall('gettid')
 
             # main thread #
@@ -32064,6 +32108,7 @@ class ThreadAnalyzer(object):
 
                 # save initial stat of tasks #
                 updateTaskInfo(ThreadAnalyzer.dbusData)
+                taskManager.reinitStats()
 
                 # set timer #
                 signal.signal(signal.SIGALRM, printSummary)
@@ -32072,15 +32117,15 @@ class ThreadAnalyzer(object):
             while 1:
                 # multi-threaded loop #
                 if len(threadingList) > 0:
-                    # child thread #
+                    # sibling thread #
                     if SystemManager.pid != tid:
-                        updateDataFromPipe()
+                        updateDataFromPipe(rdPipeList)
                     # main thread #
                     else:
                         signal.pause()
                 # single-threaded loop #
                 else:
-                    updateDataFromPipe()
+                    updateDataFromPipe(rdPipeList)
 
         def updateData(data):
             # get json object #
@@ -32095,8 +32140,7 @@ class ThreadAnalyzer(object):
                 # check syscall #
                 if jsonData["name"] != "recvmsg" or \
                     jsonData["type"] != "enter":
-                    raise Exception('%s/%s' % \
-                        (jsonData["name"], jsonData["type"]))
+                    return
 
                 # acquire lock #
                 if lock:
@@ -32118,24 +32162,25 @@ class ThreadAnalyzer(object):
 
                 # merge D-Bus interface #
                 try:
-                    ThreadAnalyzer.dbusData[tid][length]['cnt'] += 1
+                    ThreadAnalyzer.dbusData[tid][call]['cnt'] += 1
                 except:
-                    ThreadAnalyzer.dbusData[tid][length] = dict()
-                    ThreadAnalyzer.dbusData[tid][length]['cnt'] = 1
+                    ThreadAnalyzer.dbusData[tid][call] = dict()
+                    ThreadAnalyzer.dbusData[tid][call]['cnt'] = 1
             except:
-                pass
-                #SystemManager.printWarn(SystemManager.getErrReason(), True)
+                SystemManager.printWarn(\
+                    "Fail to handle %s because %s" % \
+                        ([params], SystemManager.getErrReason()))
+            finally:
+                # release lock #
+                if lock and lock.locked():
+                    lock.release()
 
-            # release lock #
-            if lock and lock.locked():
-                lock.release()
-
-        def updateDataFromPipe(lock=None):
+        def updateDataFromPipe(rdPipeList):
             # merge dbus data #
             try:
                 # wait for event #
                 [read, write, error] = \
-                    selectObj.select(pipeList, [], [])
+                    selectObj.select(rdPipeList, [], [])
 
                 # read messages through pipe connected to child processes #
                 for robj in read:
@@ -32157,9 +32202,11 @@ class ThreadAnalyzer(object):
             except:
                 return
 
-        SystemManager.printErr(\
-            "Not implemented yet")
-        #sys.exit(0)
+        # check root permission #
+        if not SystemManager.isRoot():
+            SystemManager.printErr(\
+                "Fail to get root permission")
+            sys.exit(0)
 
         # get select object #
         selectObj = SystemManager.getPkg('select')
@@ -32171,14 +32218,8 @@ class ThreadAnalyzer(object):
         else:
             lock = None
 
-        # check filter #
-        if len(SystemManager.filterGroup) > 0:
-            # toDo: filter thread group
-            pass
-
         # get pids of gdbus threads #
         taskList = SystemManager.getPids('gdbus', True)
-        #taskList = SystemManager.getPids('recvmsg', True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
@@ -32187,8 +32228,9 @@ class ThreadAnalyzer(object):
         # define common list #
         pipeList = []
         threadingList = []
-        SystemManager.filterGroup = taskList
+        SystemManager.filterGroup = taskList + SystemManager.filterGroup
         taskManager = ThreadAnalyzer(onlyInstance=True)
+        SystemManager.processEnable = False
 
         # set target syscalls #
         SystemManager.syscallList.append(\
@@ -32208,7 +32250,7 @@ class ThreadAnalyzer(object):
 
                 # run a new worker thread #
                 if threadObj:
-                    tobj = threadObj.Thread(target=executeLoop, args=[lock])
+                    tobj = threadObj.Thread(target=executeLoop, args=[[rdPipe]])
                     threadingList.append(tobj)
             # child #
             elif pid == 0:
@@ -32221,8 +32263,8 @@ class ThreadAnalyzer(object):
                 sys.argv[1] = 'strace'
                 SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
+                SystemManager.printFile = None
                 SystemManager.filterGroup = [tid]
-                SystemManager.processEnable = False
                 SystemManager.jsonPrintEnable = True
 
                 # execute strace mode #
@@ -32235,7 +32277,7 @@ class ThreadAnalyzer(object):
             tobj.start()
 
         # run event loop #
-        executeLoop()
+        executeLoop(pipeList)
 
 
 
@@ -38636,8 +38678,10 @@ class ThreadAnalyzer(object):
         for idx, val in list(enumerate(ThreadAnalyzer.procIntData)):
             if idx == 0:
                 before = 'START'
-            else:
+            elif 'time' in ThreadAnalyzer.procIntData[idx - 1]:
                 before = ThreadAnalyzer.procIntData[idx - 1]['time']
+            else:
+                continue
 
             if 'total' not in val:
                 continue
@@ -39486,7 +39530,7 @@ class ThreadAnalyzer(object):
         for pid, val in sorted(SystemManager.procInstance.items(), \
             key=lambda x: long(x[1]['oomScore'] if 'oomScore' in x[1] else 0), \
             reverse=True):
-            if val['oomScore'] == 0:
+            if 'oomScore' not in val or val['oomScore'] == 0:
                 break
 
             stat = val['stat']
@@ -43632,10 +43676,12 @@ class ThreadAnalyzer(object):
                 line.startswith('Uid') or \
                 line.startswith('voluntary_ctxt_switches') or \
                 line.startswith('nonvoluntary_ctxt_switches'):
-
-                statusList = line.split(':')
-                self.procData[tid]['status'][statusList[0]] = \
-                    statusList[1].strip()
+                try:
+                    statusList = line.split(':')
+                    self.procData[tid]['status'][statusList[0]] = \
+                        statusList[1].strip()
+                except:
+                    continue
 
         statmBuf = self.saveTaskData(path, tid, 'statm')
         if statmBuf:
@@ -43684,6 +43730,7 @@ class ThreadAnalyzer(object):
         # check stat change #
         self.procData[tid]['statOrig'] = statBuf
         if tid in self.prevProcData and \
+            'statOrig' in self.prevProcData and \
             self.prevProcData[tid]['statOrig'] == statBuf:
             self.procData[tid]['stat'] = self.prevProcData[tid]['stat']
             del self.prevProcData[tid]['statOrig']
@@ -45760,7 +45807,7 @@ class ThreadAnalyzer(object):
                 etc = 'OOMScore'
             elif SystemManager.sigHandlerEnable:
                 etc = 'SignalHandler'
-            elif SystemManager.isThreadTopMode():
+            elif SystemManager.processEnable:
                 etc = 'Process'
             else:
                 etc = 'Parent'
@@ -46095,7 +46142,8 @@ class ThreadAnalyzer(object):
                     etc = value['status']['SigCgt'].lstrip('0')
                 except:
                     etc = '-'
-            elif SystemManager.isThreadTopMode():
+            elif not SystemManager.processEnable:
+                # process name #
                 try:
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % \
@@ -46103,6 +46151,7 @@ class ThreadAnalyzer(object):
                 except:
                     etc = ''
             else:
+                # parent name #
                 try:
                     pgid = procData[idx]['stat'][self.ppidIdx]
                     etc = '%s(%s)' % \
@@ -46301,7 +46350,7 @@ class ThreadAnalyzer(object):
                     "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
 
             # print D-Bus #
-            if SystemManager.dbusTopEnable and \
+            if 'dbus' in value and \
                 len(value['dbus']) > 0:
                 SystemManager.addPrint(\
                     "{0:>39} | {1:1}\n".format('DBUS', value['dbus']))
