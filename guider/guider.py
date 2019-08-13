@@ -28250,6 +28250,7 @@ struct msghdr {
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
+        self.supportGetregset = True
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.contCmd = plist.index('PTRACE_CONT')
@@ -28876,12 +28877,16 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         wordSize = ConfigManager.wordSize
 
         # get register set #
-        if arch == 'aarch64':
+        try:
+            if not self.supportGetregset:
+                raise Exception()
+
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
             ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
-        else:
+        except:
+            self.supportGetregset = False
             cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
