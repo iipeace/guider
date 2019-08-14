@@ -26375,6 +26375,8 @@ class Debugger(object):
         self.mapFd = None
         self.pmap = None
         self.needRescan = True
+        self.initPtrace = False
+        self.initPvr = False
 
         self.args = []
         self.values = []
@@ -26964,7 +26966,7 @@ struct msghdr {
                 raise SkipException()
 
             # get ctypes object #
-            ctypes = SystemManager.getPkg('ctypes')
+            ctypes = self.ctypes
             from ctypes import cdll, Structure, c_void_p, c_char_p, \
                 c_ulong, c_size_t, c_int, POINTER, cast, c_char, byref
 
@@ -26978,10 +26980,13 @@ struct msghdr {
 
             # prepare process_vm_readv syscall #
             process_vm_readv = SystemManager.libcObj.process_vm_readv
-            process_vm_readv.restype = c_size_t
-            process_vm_readv.argtypes = \
-                [c_int, self.iovec_ptr, c_size_t, \
-                    self.iovec_ptr, c_size_t, c_ulong]
+
+            if not self.initPvr:
+                process_vm_readv.restype = c_size_t
+                process_vm_readv.argtypes = \
+                    [c_int, self.iovec_ptr, c_size_t, \
+                        self.iovec_ptr, c_size_t, c_ulong]
+                self.initPvr = True
 
             # create params #
             pid = self.pid
@@ -27143,7 +27148,7 @@ struct msghdr {
         json = SystemManager.getPkg('json', False)
 
         try:
-            return json.dumps(msginfo)
+            return json.dumps(msginfo, ensure_ascii=False)
         except SystemExit:
             sys.exit(0)
         except:
@@ -29031,8 +29036,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def waitpid(self, pid, options=0):
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, c_int, c_ulong, pointer, POINTER
+        ctypes = self.ctypes
+        from ctypes import cdll, c_int, c_ulong, pointer, POINTER, c_uint
 
         try:
             # load standard libc library #
@@ -29045,7 +29050,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 (c_int, POINTER(None), c_int)
             SystemManager.libcObj.waitpid.restype = c_int
 
-            status = ctypes.c_uint(0)
+            status = c_uint(0)
             ret = SystemManager.libcObj.waitpid(pid, pointer(status), options)
             return ret, status.value
         except SystemExit:
@@ -29071,7 +29076,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         '''
 
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
+        ctypes = self.ctypes
 
         try:
             # load standard libc library #
@@ -29080,10 +29085,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     ctypes.cdll.LoadLibrary(SystemManager.libcPath)
 
             # type converting #
-            SystemManager.libcObj.ptrace.argtypes = \
-                (ctypes.c_ulong, ctypes.c_ulong, \
-                    ctypes.c_ulong, ctypes.c_ulong)
-            SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
+            if not self.initPtrace:
+                SystemManager.libcObj.ptrace.argtypes = \
+                    (ctypes.c_ulong, ctypes.c_ulong, \
+                        ctypes.c_ulong, ctypes.c_ulong)
+                SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
+                self.initPtrace = True
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
@@ -32222,6 +32229,11 @@ class ThreadAnalyzer(object):
                 if jsonData["name"] != "recvmsg" or \
                     jsonData["type"] != "enter":
                     return
+                # check args #
+                elif "args" not in jsonData or \
+                    "msg" not in jsonData["args"] or \
+                    "msg_iov" not in jsonData["args"]["msg"]:
+                    return
 
                 # acquire lock #
                 if lock:
@@ -32231,7 +32243,7 @@ class ThreadAnalyzer(object):
                     ThreadAnalyzer.dbusData[tid] = dict()
 
                 # get D-Bus interface #
-                msgList = jsonData['args']['msg']['msg_iov']
+                msgList = jsonData["args"]["msg"]["msg_iov"]
                 for name, msg in msgList.items():
                     length = msg['len']
                     call = msg['data']
