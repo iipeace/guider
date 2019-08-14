@@ -14217,7 +14217,8 @@ Copyright:
         # load standard libc library #
         try:
             if not SystemManager.libcObj:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
             SystemManager.perfEnable = False
@@ -14517,7 +14518,8 @@ Copyright:
 
         # declare syscalls #
         SystemManager.libcObj.syscall.argtypes = \
-            [c_int, POINTER(struct_perf_event_attr), c_int, c_int, c_int, c_ulong]
+            [c_int, POINTER(struct_perf_event_attr), \
+                c_int, c_int, c_int, c_ulong]
         SystemManager.libcObj.syscall.restype = c_int
         SystemManager.libcObj.ioctl.restype = c_int
         SystemManager.libcObj.ioctl.argtypes = [c_int, c_ulong, c_int]
@@ -26401,14 +26403,63 @@ class Debugger(object):
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
-        # get ctypes object #
-        self.ctypes = ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, Structure, sizeof, addressof,\
-            c_ulong, c_int, c_uint, c_uint32, byref, c_ushort
-
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
             raise Exception()
+
+        # get ctypes object #
+        ctypes = self.ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, Structure, sizeof, c_void_p, \
+            addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
+            c_size_t, c_int, POINTER, sizeof, cast
+
+        # define member classes #
+        '''
+struct iovec {
+    ptr_t iov_base; /* Starting address */
+    size_t iov_len; /* Length in bytes */
+};
+        '''
+        class iovec(Structure):
+            _fields_ = (
+                ('iov_base', c_void_p),
+                ('iov_len', c_size_t)
+            )
+        self.iovec = iovec
+        self.iovec_ptr = iovec_ptr = POINTER(iovec)
+
+        '''
+struct msghdr {
+    void            *msg_name;  /* ptr to socket address structure */
+    int             msg_namelen;    /* size of socket address structure */
+    struct iov_iter msg_iter;   /* data */
+    void            *msg_control;   /* ancillary data */
+    __kernel_size_t msg_controllen; /* ancillary data buffer length */
+    unsigned int    msg_flags;  /* flags on received message */
+    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
+};
+        '''
+        class msghdr(Structure):
+            _fields_ = (
+                ('msg_name', c_void_p),
+                ('msg_namelen', c_uint),
+                ('msg_iov', iovec_ptr),
+                ('msg_iovlen', c_size_t),
+                ('msg_control', c_void_p),
+                ('msg_controllen', c_size_t),
+                ('msg_flags', c_int)
+            )
+        self.msghdr = msghdr
+        self.msghdr_ptr = msghdr_ptr = POINTER(msghdr)
+
+        class cmsghdr(Structure):
+            _fields_ = (
+                ('cmsg_len', c_size_t),
+                ('cmsg_level', c_int),
+                ('cmsg_type', c_int)
+            )
+        self.cmsghdr = cmsghdr
+        self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
 
         class user_regs_struct(Structure):
             def getdict(struct):
@@ -26544,17 +26595,11 @@ class Debugger(object):
 
         # set register variable #
         self.regs = user_regs_struct()
+        self.regsDict = None
 
-        # for ARCH_REGS_FOR_GETREGSET #
-        class iovec(Structure):
-            _fields_ = (
-                ("iov_base", c_ulong),
-                ("iov_len", c_uint32),
-            )
-
-        self.iovec = iovec(\
-            iov_base=ctypes.addressof(self.regs),\
-            iov_len=ctypes.sizeof(self.regs))
+        self.iovecObj = self.iovec(\
+            iov_base=addressof(self.regs),\
+            iov_len=sizeof(self.regs))
 
 
 
@@ -26911,6 +26956,57 @@ class Debugger(object):
         if size == 0:
             size = wordSize
 
+        class SkipException(Exception):
+            pass
+
+        try:
+            if not self.supportProcessVmIO:
+                raise SkipException()
+
+            # get ctypes object #
+            ctypes = SystemManager.getPkg('ctypes')
+            from ctypes import cdll, Structure, c_void_p, c_char_p, \
+                c_ulong, c_size_t, c_int, POINTER, cast, c_char, byref
+
+            try:
+                # load standard libc library #
+                if not SystemManager.libcObj:
+                    SystemManager.libcObj = \
+                        cdll.LoadLibrary(SystemManager.libcPath)
+            except:
+                raise Exception()
+
+            # prepare process_vm_readv syscall #
+            process_vm_readv = SystemManager.libcObj.process_vm_readv
+            process_vm_readv.restype = c_size_t
+            process_vm_readv.argtypes = \
+                [c_int, self.iovec_ptr, c_size_t, \
+                    self.iovec_ptr, c_size_t, c_ulong]
+
+            # create params #
+            pid = self.pid
+
+            lbuf = (c_char*size)()
+            liov = (self.iovec*1)()[0]
+            liov.iov_base = cast(byref(lbuf), c_void_p)
+            liov.iov_len = size
+
+            riov = (self.iovec*1)()[0]
+            riov.iov_base = c_void_p(addr)
+            riov.iov_len = size
+
+            # do syscall #
+            ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
+            if ret > 0:
+                retval = buffer(lbuf)[:]
+                return retval
+        except SkipException:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportProcessVmIO = False
+
         # define return list #
         data = bytes()
 
@@ -26957,6 +27053,8 @@ class Debugger(object):
                 idx = string.index(b'\0')
                 ret += string[:idx]
                 return ret
+            except SystemExit:
+                sys.exit(0)
             except:
                 ret += string
 
@@ -26967,63 +27065,21 @@ class Debugger(object):
 
     def readMsgHdr(self, addr):
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
+        ctypes = self.ctypes
         from ctypes import cdll, Structure, c_void_p, \
             c_uint, c_size_t, c_int, POINTER, sizeof, cast
 
         # get socket object #
         socket = SystemManager.getPkg('socket', False)
 
-        '''
-struct iovec {
-    ptr_t iov_base; /* Starting address */
-    size_t iov_len; /* Length in bytes */
-};
-
-struct msghdr {
-    void            *msg_name;  /* ptr to socket address structure */
-    int             msg_namelen;    /* size of socket address structure */
-    struct iov_iter msg_iter;   /* data */
-    void            *msg_control;   /* ancillary data */
-    __kernel_size_t msg_controllen; /* ancillary data buffer length */
-    unsigned int    msg_flags;  /* flags on received message */
-    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
-};
-        '''
-
-        class iovec(Structure):
-            _fields_ = (
-                ('iov_base', c_void_p),
-                ('iov_len', c_size_t)
-            )
-        iovec_ptr = POINTER(iovec)
-
-        class msghdr(Structure):
-            _fields_ = (
-                ('msg_name', c_void_p),
-                ('msg_namelen', c_uint),
-                ('msg_iov', iovec_ptr),
-                ('msg_iovlen', c_size_t),
-                ('msg_control', c_void_p),
-                ('msg_controllen', c_size_t),
-                ('msg_flags', c_int)
-            )
-
-        class cmsghdr(Structure):
-            _fields_ = (
-                ('cmsg_len', c_size_t),
-                ('cmsg_level', c_int),
-                ('cmsg_type', c_int)
-            )
-
         # read msghdr structure #
-        ret = self.readMem(addr, sizeof(msghdr))
+        ret = self.readMem(addr, sizeof(self.msghdr))
         if not ret:
             return addr
 
         # cast struct msghdr #
         msginfo = {}
-        header = cast(ret, POINTER(msghdr))
+        header = cast(ret, self.msghdr_ptr)
 
         # get msg info #
         namelen = int(header.contents.msg_namelen)
@@ -27041,12 +27097,12 @@ struct msghdr {
 
         # get iov info #
         for idx in xrange(0, iovlen):
-            offset = idx * sizeof(iovec)
+            offset = idx * sizeof(self.iovec)
             msginfo['msg_iov'][offset] = {}
 
             # get iov object #
-            iovobj = self.readMem(iovaddr+offset, sizeof(iovec))
-            iovobj = cast(iovobj, POINTER(iovec))
+            iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
+            iovobj = cast(iovobj, self.iovec_ptr)
 
             # get iov data #
             iovobjlen = int(iovobj.contents.iov_len)
@@ -27062,7 +27118,7 @@ struct msghdr {
         msginfo['msg_control']['len'] = controllen
         if controllen > 0:
             control = self.readMem(header.contents.msg_control, controllen)
-            controlobj = cast(control, POINTER(cmsghdr))
+            controlobj = cast(control, self.cmsghdr_ptr)
 
             cmsglen = int(controlobj.contents.cmsg_len)
             cmsglevel = controlobj.contents.cmsg_level
@@ -27151,7 +27207,7 @@ struct msghdr {
             except:
                 return value
 
-        if (syscall == "write"  or syscall == 'read') and \
+        if (syscall == "write" or syscall == 'read') and \
             argname == "buf":
             if self.values[2] > self.pbufsize:
                 length = self.pbufsize
@@ -27539,7 +27595,7 @@ struct msghdr {
             prefix = ''
 
         SystemManager.printPipe('%s%s' % (prefix, oneLine))
-        for reg, val in sorted(self.regs.getdict().items()):
+        for reg, val in sorted(self.regsDict.items()):
             deref = self.readMem(val)
             try:
                 deref = '"%s"' % deref.decode("utf-8")
@@ -27554,7 +27610,9 @@ struct msghdr {
 
     def getNrSyscall(self):
         try:
-            return self.regs.getdict()[self.sysreg]
+            return self.regsDict[self.sysreg]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -27950,7 +28008,7 @@ struct msghdr {
         retreg = self.retreg
         status = self.status
         pbufsize = self.pbufsize
-        regs = self.regs.getdict()
+        regs = self.regsDict
         nrSyscall = regs[sysreg]
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
@@ -27986,6 +28044,7 @@ struct msghdr {
                     argtype, argname = format
 
                     # convert argument value #
+
                     value = self.convertValue(argtype, argname, value, seq)
 
                     # add argument #
@@ -28184,12 +28243,16 @@ struct msghdr {
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SystemManager.procPath, self.pid, self.pid)
                 self.statFd = open(statPath, 'r')
                 stat = self.statFd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarn('Fail to open %s' % statPath)
                 return
@@ -28231,7 +28294,7 @@ struct msghdr {
         # Wait only on non-SIGCHLD children #
         __WCLONE = 0x80000000
 
-       # default variables #
+        # default variables #
         regs = None
         pid = self.pid
         arch = SystemManager.getArch()
@@ -28250,7 +28313,8 @@ struct msghdr {
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
-        self.supportGetregset = True
+        self.supportGetRegset = True
+        self.supportProcessVmIO = True
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
         self.contCmd = plist.index('PTRACE_CONT')
@@ -28308,6 +28372,8 @@ struct msghdr {
         # check the process is running #
         try:
             os.kill(pid, 0)
+        except SystemExit:
+            sys.exit(0)
         except:
             ereason = SystemManager.getErrReason()
             if ereason != '0':
@@ -28342,6 +28408,8 @@ struct msghdr {
                 not SystemManager.isTopMode():
                 try:
                     self.handleUsercall()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return
         # set trap event type #
@@ -28510,6 +28578,8 @@ struct msghdr {
                     ret = self.waitpid(int(pid), __WALL)
 
                     ereason = SystemManager.getErrReason()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     ereason = 'the thread is terminated'
 
@@ -28878,15 +28948,18 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         # get register set #
         try:
-            if not self.supportGetregset:
+            if not self.supportGetRegset:
                 raise Exception()
 
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
-            ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
+            ret = self.ptrace(\
+                cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+        except SystemExit:
+            sys.exit(0)
         except:
-            self.supportGetregset = False
+            self.supportGetRegset = False
             cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
@@ -28910,6 +28983,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
+
+        # set regsdict #
+        self.regsDict = self.regs.getdict()
 
         # measure the cost for copying register set of the target process #
         if self.getRegsCost == 0:
