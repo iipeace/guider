@@ -2813,11 +2813,34 @@ class UtilManager(object):
 
 
     @staticmethod
+    def encodeBase64(value):
+        base64 = SystemManager.getPkg('base64', False)
+
+        try:
+            return base64.standard_b64encode(value)
+        except:
+            return value
+
+
+
+    @staticmethod
+    def decodeBase64(value):
+        base64 = SystemManager.getPkg('base64', False)
+
+        try:
+            return value.encode()
+        except:
+            return value
+
+
+
+    @staticmethod
     def encodeStr(value):
         try:
             return value.encode()
         except:
             return value
+
 
 
 
@@ -2872,7 +2895,7 @@ class UtilManager(object):
 
 
     @staticmethod
-    def bstring2word(bstring):
+    def convertBstring2Word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
         except:
@@ -3186,26 +3209,37 @@ class UtilManager(object):
 
 
     @staticmethod
-    def makeJsonString(dictObj):
+    def convertDict2Str(dictObj):
         try:
-            jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+            jsonStr = SystemManager.getPkg('json').\
+                dumps(dictObj, indent=2, ensure_ascii=False)
+        except SystemExit:
+            sys.exit(0)
         except:
+            SystemManager.printWarn(\
+                "Fail to convert %s to string because %s" % \
+                    ([dictObj], SystemManager.getErrReason()))
             return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
         if not SystemManager.encodeEnable:
-            jsonString = re.sub("\s", "", jsonString) + "\n"
+            jsonStr = re.sub("\s", "", jsonStr) + "\n"
 
-        return jsonString
+        return jsonStr
 
 
 
     @staticmethod
-    def makeJsonDict(strObj):
+    def convertStr2Dict(strObj):
         try:
             strObj = strObj.replace("'", '"')
             return SystemManager.getPkg('json').loads(strObj)
+        except SystemExit:
+            sys.exit(0)
         except:
+            SystemManager.printWarn(\
+                "Fail to convert %s to dict because %s" % \
+                    ([strObj], SystemManager.getErrReason()))
             return None
 
 
@@ -11011,6 +11045,7 @@ class SystemManager(object):
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
+    logEnable = True
     ttyEnable = False
     selectEnable = True
     cgroupEnable = False
@@ -12269,8 +12304,8 @@ OPTIONS:
                 w:wss | W:wchan
         -d  <CHARACTER>             disable options
                 a:memAvailable | A:cpuAverage
-                c:cpu | e:encode | G:gpu | p:print
-                t:truncate | T:task
+                c:cpu | e:encode | G:gpu | L:log
+                p:print | t:truncate | T:task
                                     '''
 
                 drawSubStr = '''
@@ -12354,7 +12389,8 @@ OPTIONS:
               b:block | c:cgroup | e:encode | g:graph
               h:heap | L:lock | m:memory | p:pipe
         -d  <CHARACTER>             disable options
-              a:all | c:cpu | C:compress | e:encode | u:user
+              a:all | c:cpu | C:compress | e:encode
+              l:latency | L:log | u:user
         -s  <DIR|FILE>              save trace data
         -f                          force execution
         -u                          run in the background
@@ -17285,7 +17321,7 @@ Copyright:
         # JSON mode #
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.convertDict2Str(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -17549,6 +17585,9 @@ Copyright:
 
     @staticmethod
     def printWarn(line, always=False):
+        if not SystemManager.logEnable:
+            return
+
         if not SystemManager.warningEnable and \
             not always:
             return
@@ -17562,6 +17601,9 @@ Copyright:
 
     @staticmethod
     def printErr(line):
+        if not SystemManager.logEnable:
+            return
+
         SystemManager.flushAllForPrint()
 
         msg = ('\n%s%s%s%s\n' % \
@@ -17573,6 +17615,9 @@ Copyright:
 
     @staticmethod
     def printInfo(line, prefix=True, suffix=True, notitle=False):
+        if not SystemManager.logEnable:
+            return
+
         if notitle:
             title = ''
         else:
@@ -17595,6 +17640,9 @@ Copyright:
 
     @staticmethod
     def printGood(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s%s' % \
             (ConfigManager.OKGREEN, '[Info] ', line, ConfigManager.ENDC))
 
@@ -17602,6 +17650,9 @@ Copyright:
 
     @staticmethod
     def printLine(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s' % \
             (ConfigManager.UNDERLINE, line, ConfigManager.ENDC))
 
@@ -17609,6 +17660,9 @@ Copyright:
 
     @staticmethod
     def printStat(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s%s' % \
             (ConfigManager.SPECIAL, '[Step] ', line, ConfigManager.ENDC))
 
@@ -17987,6 +18041,9 @@ Copyright:
 
                 if options.rfind('A') > -1:
                     SystemManager.cpuAvrEnable = False
+
+                if options.rfind('L') > -1:
+                    SystemManager.logEnable = False
 
                 if options.rfind('T') > -1:
                     SystemManager.taskEnable = False
@@ -18595,6 +18652,9 @@ Copyright:
 
                 if options.rfind('l') > -1:
                     SystemManager.latEnable = False
+
+                if options.rfind('L') > -1:
+                    SystemManager.logEnable = False
 
                 if options.rfind('a') > -1:
                     SystemManager.disableAll = True
@@ -21335,7 +21395,7 @@ Copyright:
 
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.convertDict2Str(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -25746,7 +25806,7 @@ class DltManager(object):
         if DltManager.dltData['cnt'] == 0:
             SystemManager.printWarn(\
                 "No DLT message received", True)
-        DltManager.updateTimer()
+        SystemManager.updateTimer()
 
 
 
@@ -26165,13 +26225,8 @@ class DltManager(object):
                     "Fail to get dlt_receiver_receive symbol")
                 sys.exit(0)
 
-        # initialize message #
+        # define message #
         msg = DLTMessage()
-        ret = dltObj.dlt_message_init(byref(msg), verbose)
-        if ret < 0:
-            SystemManager.printErr(\
-                "Fail to initialize DLT message")
-            sys.exit(0)
 
         # save timestamp #
         prevTime = time.time()
@@ -26221,9 +26276,16 @@ class DltManager(object):
                     prevTime = time.time()
 
                     # update timer #
-                    DltManager.updateTimer()
+                    SystemManager.updateTimer()
 
             try:
+                # initialize message #
+                ret = dltObj.dlt_message_init(byref(msg), verbose)
+                if ret < 0:
+                    SystemManager.printErr(\
+                        "Fail to initialize DLT message")
+                    sys.exit(0)
+
                 # check DLT data to be read #
                 try:
                     ret = dlt_receiver_receive(byref(dltReceiver))
@@ -26941,7 +27003,7 @@ struct msghdr {
 
         # convert type from bytes to word #
         for idx in xrange(0, len(fdata), wordSize):
-            data = UtilManager.bstring2word(fdata[idx:idx+wordSize])
+            data = UtilManager.convertBstring2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret < 0:
@@ -27092,7 +27154,7 @@ struct msghdr {
             name = 'NULL'
         else:
             name = self.readMem(header.contents.msg_name, namelen)
-        msginfo['msg_name'] = name
+        msginfo['msg_name'] = name.decode()
         msginfo['msg_namelen'] = namelen
 
         # get iov header info #
@@ -27103,7 +27165,8 @@ struct msghdr {
         # get iov info #
         for idx in xrange(0, iovlen):
             offset = idx * sizeof(self.iovec)
-            msginfo['msg_iov'][offset] = {}
+            offsetStr = str(offset)
+            msginfo['msg_iov'][offsetStr] = {}
 
             # get iov object #
             iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
@@ -27112,10 +27175,10 @@ struct msghdr {
             # get iov data #
             iovobjlen = int(iovobj.contents.iov_len)
             iovobjbase = iovobj.contents.iov_base
-            iovobjdata = self.readMem(iovobjbase, iovobjlen)
+            iovobjdata = self.readMem(iovobjbase, iovobjlen).decode()
 
-            msginfo['msg_iov'][offset]['len'] = iovobjlen
-            msginfo['msg_iov'][offset]['data'] = iovobjdata
+            msginfo['msg_iov'][offsetStr]['len'] = iovobjlen
+            msginfo['msg_iov'][offsetStr]['data'] = iovobjdata
 
         # get control info #
         controllen = int(header.contents.msg_controllen)
@@ -27144,17 +27207,11 @@ struct msghdr {
         flag = header.contents.msg_flags
         msginfo['msg_flags'] = flag
 
-        # import json package #
-        json = SystemManager.getPkg('json', False)
-
         try:
-            return json.dumps(msginfo, ensure_ascii=False)
+            return msginfo
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printWarn(\
-                "Fail to convert %s to JSON because %s" % \
-                    (str(msginfo), SystemManager.getErrReason()))
             return str(msginfo)
 
 
@@ -27606,7 +27663,7 @@ struct msghdr {
                 deref = '"%s"' % deref.decode("utf-8")
                 deref = re.sub('\W+','', deref)
             except:
-                deref = hex(UtilManager.bstring2word(deref))
+                deref = hex(UtilManager.convertBstring2Word(deref))
             SystemManager.printPipe(\
                 '%s: %x [%s]' % (reg, val, deref))
         SystemManager.printPipe(oneLine)
@@ -28009,12 +28066,9 @@ struct msghdr {
 
 
     def handleSyscall(self):
-        sysreg = self.sysreg
-        retreg = self.retreg
-        status = self.status
-        pbufsize = self.pbufsize
         regs = self.regsDict
-        nrSyscall = regs[sysreg]
+        pbufsize = self.pbufsize
+        nrSyscall = regs[self.sysreg]
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
         try:
@@ -28023,7 +28077,7 @@ struct msghdr {
             return
 
         # enter #
-        if status == 'enter':
+        if self.status == 'enter':
             # set next status #
             self.status = 'exit'
 
@@ -28049,7 +28103,6 @@ struct msghdr {
                     argtype, argname = format
 
                     # convert argument value #
-
                     value = self.convertValue(argtype, argname, value, seq)
 
                     # add argument #
@@ -28072,12 +28125,17 @@ struct msghdr {
                             text = '"%s"...' % text[:pbufsize]
                         else:
                             text = '"%s"' % text[:-1]
-
-                        args.append(text)
+                    elif type(arg[2]) is dict:
+                        text = arg[2]
                     else:
-                        args.append(str(hex(arg[2]).upper()).rstrip('L'))
+                        text = str(hex(arg[2]).upper()).rstrip('L')
+                elif arg[0].endswith('int') or arg[0].endswith('long'):
+                    text = int(arg[2])
                 else:
-                    args.append(str(arg[2]))
+                    text = arg[2]
+
+                # append an arg to list #
+                args.append(text)
 
             # get diff time #
             current = time.time()
@@ -28085,9 +28143,6 @@ struct msghdr {
 
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
-                # import json package #
-                json = SystemManager.getPkg('json')
-
                 jsonData = {}
                 jsonData["type"] = "enter"
                 jsonData["time"] = current
@@ -28095,18 +28150,20 @@ struct msghdr {
                 jsonData["name"] = name
                 jsonData["args"] = {}
 
-                for arg in self.args:
-                    try:
-                        val = json.loads(arg[2])
-                    except:
-                        val = arg[2]
+                for idx, arg in enumerate(self.args):
+                    jsonData['args'][arg[1]] = args[idx]
 
-                    jsonData['args'][arg[1]] = val
-
-                SystemManager.printPipe(json.dumps(jsonData))
+                try:
+                    SystemManager.printPipe(\
+                        UtilManager.convertDict2Str(jsonData))
+                except:
+                    SystemManager.printErr(\
+                        "Fail to convert %s to JSON for marshalling because %s" % \
+                            ([jsonData], SystemManager.getErrReason()))
                 return
 
-            argText = ', '.join(args)
+            # convert args to string ##
+            argText = ', '.join(str(arg) for arg in args)
 
             # get backtrace #
             if SystemManager.funcDepth > 0:
@@ -28138,12 +28195,12 @@ struct msghdr {
                 self.checkSymbol(name, newline=True, bt=backtrace)
 
         # exit #
-        elif status == 'exit':
+        elif self.status == 'exit':
             # set next status #
             self.status = 'enter'
 
             # set return value from register #
-            retval = regs[retreg]
+            retval = regs[self.retreg]
 
             # convert unsigned long to long #
             retval = (retval & 0xffffffffffffffff)
@@ -28174,11 +28231,13 @@ struct msghdr {
                 jsonData["type"] = "exit"
                 jsonData["time"] = time.time()
                 jsonData["name"] = name
-                jsonData["ret"] = retval
+                jsonData["ret"] = int(retval)
                 jsonData["err"] = err
-                SystemManager.printPipe(\
-                    SystemManager.getPkg('json').dumps(jsonData))
+
+                SystemManager.printPipe(str(jsonData))
+
                 self.clearArgs()
+
                 return
 
             # build call string #
@@ -32216,15 +32275,18 @@ class ThreadAnalyzer(object):
                     updateDataFromPipe(rdPipeList)
 
         def updateData(data):
-            # get json object #
-            json = SystemManager.getPkg('json')
-
             tid = data[0]
             params = data[1]
 
+            # convert string to dict #
             try:
-                jsonData = json.loads(params)
+                jsonData = UtilManager.convertStr2Dict(params)
+                if not jsonData:
+                    return
+            except:
+                return
 
+            try:
                 # check syscall #
                 if jsonData["name"] != "recvmsg" or \
                     jsonData["type"] != "enter":
@@ -32262,7 +32324,7 @@ class ThreadAnalyzer(object):
             except:
                 SystemManager.printWarn(\
                     "Fail to handle %s because %s" % \
-                        ([params], SystemManager.getErrReason()))
+                        ([jsonData], SystemManager.getErrReason()))
             finally:
                 # release lock #
                 if lock and lock.locked():
@@ -32357,6 +32419,7 @@ class ThreadAnalyzer(object):
                 SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
                 SystemManager.printFile = None
+                SystemManager.logEnable = False
                 SystemManager.filterGroup = [tid]
                 SystemManager.jsonPrintEnable = True
 
@@ -46711,7 +46774,7 @@ class ThreadAnalyzer(object):
         # REPORT service #
         if data[0] == '{':
             # convert report data to dictionary type #
-            reportStat = UtilManager.makeJsonDict(data)
+            reportStat = UtilManager.convertStr2Dict(data)
 
             # check converting result #
             if not reportStat:
@@ -47114,7 +47177,7 @@ class ThreadAnalyzer(object):
                     SystemManager.inputFile, filePath)
 
         # convert dict data to JSON-type string #
-        jsonObj = UtilManager.makeJsonString(self.reportData)
+        jsonObj = UtilManager.convertDict2Str(self.reportData)
         if not jsonObj:
             SystemManager.printWarn(\
                 "Fail to convert report data to JSON type")
@@ -47185,7 +47248,7 @@ class ThreadAnalyzer(object):
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
 
-        jstr = UtilManager.makeJsonString(reportCpuData)
+        jstr = UtilManager.convertDict2Str(reportCpuData)
         if jstr:
             reportElasticData += jstr
 
@@ -47218,7 +47281,7 @@ class ThreadAnalyzer(object):
         reportMemoryData.update(beatFields)
         reportMemoryData.update(systemMemoryFields)
 
-        jstr = UtilManager.makeJsonString(reportMemoryData)
+        jstr = UtilManager.convertDict2Str(reportMemoryData)
         if jstr:
             reportElasticData += jstr
 
@@ -47242,7 +47305,7 @@ class ThreadAnalyzer(object):
         reportNetworkData.update(beatFields)
         reportNetworkData.update(systemNetworkFields)
 
-        jstr = UtilManager.makeJsonString(reportNetworkData)
+        jstr = UtilManager.convertDict2Str(reportNetworkData)
         if jstr:
             reportElasticData += jstr
 
@@ -47275,7 +47338,7 @@ class ThreadAnalyzer(object):
             reportDiskioData.update(beatFields)
             reportDiskioData.update(systemDiskioFields)
 
-            jstr = UtilManager.makeJsonString(reportDiskioData)
+            jstr = UtilManager.convertDict2Str(reportDiskioData)
             if jstr:
                 reportElasticData += jstr
 
@@ -47335,7 +47398,7 @@ class ThreadAnalyzer(object):
             reportProcessData.update(beatFields)
             reportProcessData.update(systemProcessFields)
 
-            jstr = UtilManager.makeJsonString(reportProcessData)
+            jstr = UtilManager.convertDict2Str(reportProcessData)
             if jstr:
                 reportElasticData += jstr
 
@@ -47815,6 +47878,12 @@ def main(args=None):
         # dbus #
         elif SystemManager.isDbusTopMode():
             SystemManager.dbusTopEnable = True
+            SystemManager.floatEnable = True
+
+            # set default interval to 3 for accuracy #
+            if not SystemManager.findOption('i') and \
+                not SystemManager.findOption('R'):
+                SystemManager.intervalEnable = 3
 
         # usercall #
         elif SystemManager.isUserTopMode():
