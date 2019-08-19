@@ -11039,6 +11039,7 @@ class SystemManager(object):
     depEnable = False
     sysEnable = False
     waitEnable = False
+    inWaitStatus = False
     cmdEnable = False
     perfEnable = False
     perfGroupEnable = False
@@ -20336,6 +20337,8 @@ Copyright:
 
         # wait for user input #
         try:
+            SystemManager.inWaitStatus = True
+
             if newline:
                 suffix = '\n'
             else:
@@ -20365,6 +20368,8 @@ Copyright:
             sys.exit(0)
         except:
             pass
+        finally:
+            SystemManager.inWaitStatus = False
 
         return True
 
@@ -25720,6 +25725,9 @@ class DbusManager(object):
                     pass
 
         def printSummary(signum, frame):
+            # check user input #
+            SystemManager.waitUserInput(0.000001)
+
             # get summary list #
             if lock:
                 lock.acquire()
@@ -26051,9 +26059,11 @@ class DltManager(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if DltManager.dltData['cnt'] == 0:
+        if DltManager.dltData['cnt'] == 0 and \
+            not SystemManager.inWaitStatus:
             SystemManager.printWarn(\
                 "No DLT message received", True)
+
         SystemManager.updateTimer()
 
 
