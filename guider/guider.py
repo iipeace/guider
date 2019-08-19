@@ -11609,6 +11609,7 @@ class SystemManager(object):
     def getCmdline(pid, retList=False):
         cmdlinePath = \
             '%s/%s/cmdline' % (SystemManager.procPath, pid)
+
         with open(cmdlinePath, 'r') as fd:
             res = fd.readline()
             if retList:
@@ -25698,6 +25699,253 @@ Copyright:
 
 
 
+class DbusManager(object):
+    """ Manager for D-Bus """
+
+    @staticmethod
+    def runDbusSnooper():
+        def updateTaskInfo(dbusData):
+            taskManager.saveSystemStat()
+
+            for pid in taskList:
+                try:
+                    # build D-Bus usage string #
+                    dbusString = str(dbusData[pid])
+                    dbusCnt = dbusData[pid]['totalCnt']
+
+                    # add D-Bus usage #
+                    taskManager.procData[pid]['dbus'] = dbusString
+                    taskManager.procData[pid]['dbusCnt'] = dbusCnt
+                except:
+                    pass
+
+        def printSummary(signum, frame):
+            # get summary list #
+            if lock:
+                lock.acquire()
+
+            prevDbusData = ThreadAnalyzer.dbusData
+            ThreadAnalyzer.dbusData = {'totalCnt': 0}
+
+            if lock and lock.locked():
+                lock.release()
+
+            # reset timer #
+            SystemManager.updateTimer()
+
+            # update cpu usage of tasks #
+            updateTaskInfo(prevDbusData)
+
+            # print title #
+            SystemManager.addPrint(\
+                ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                    ('D-BUS Info', SystemManager.uptime, \
+                    SystemManager.uptimeDiff, \
+                    UtilManager.convertNumber(prevDbusData['totalCnt'])))
+
+            # print resource usage of tasks #
+            taskManager.printSystemUsage()
+            taskManager.printProcUsage()
+            taskManager.reinitStats()
+            SystemManager.printTopStats()
+
+        def executeLoop(rdPipeList):
+            tid = SystemManager.syscall('gettid')
+
+            # main thread #
+            if SystemManager.pid == tid:
+                SystemManager.updateUptime()
+
+                # save initial stat of tasks #
+                updateTaskInfo(ThreadAnalyzer.dbusData)
+                taskManager.reinitStats()
+
+                # set timer #
+                signal.signal(signal.SIGALRM, printSummary)
+                SystemManager.updateTimer()
+
+            while 1:
+                # multi-threaded loop #
+                if len(threadingList) > 0:
+                    # sibling thread #
+                    if SystemManager.pid != tid:
+                        updateDataFromPipe(rdPipeList)
+                    # main thread #
+                    else:
+                        signal.pause()
+                # single-threaded loop #
+                else:
+                    updateDataFromPipe(rdPipeList)
+
+        def updateData(data):
+            tid = data[0]
+            params = data[1]
+
+            # convert string to dict #
+            try:
+                jsonData = UtilManager.convertStr2Dict(params)
+                if not jsonData:
+                    return
+            except:
+                return
+
+            try:
+                # check syscall #
+                if jsonData["name"] != "recvmsg" or \
+                    jsonData["type"] != "enter":
+                    return
+                # check args #
+                elif "args" not in jsonData or \
+                    "msg" not in jsonData["args"] or \
+                    "msg_iov" not in jsonData["args"]["msg"]:
+                    return
+
+                # acquire lock #
+                if lock:
+                    lock.acquire()
+
+                if tid not in ThreadAnalyzer.dbusData:
+                    ThreadAnalyzer.dbusData[tid] = dict()
+                    ThreadAnalyzer.dbusData[tid]['totalCnt'] = 1
+                else:
+                    ThreadAnalyzer.dbusData[tid]['totalCnt'] += 1
+
+                # get D-Bus interface #
+                msgList = jsonData["args"]["msg"]["msg_iov"]
+                for name, msg in msgList.items():
+                    length = msg['len']
+                    call = msg['data']
+
+                try:
+                    ThreadAnalyzer.dbusData['totalCnt'] += 1
+                except:
+                    ThreadAnalyzer.dbusData['totalCnt'] = 1
+
+                # merge D-Bus interface #
+                try:
+                    ThreadAnalyzer.dbusData[tid][call]['cnt'] += 1
+                except:
+                    ThreadAnalyzer.dbusData[tid][call] = dict()
+                    ThreadAnalyzer.dbusData[tid][call]['cnt'] = 1
+            except:
+                SystemManager.printWarn(\
+                    "Fail to handle %s because %s" % \
+                        ([jsonData], SystemManager.getErrReason()))
+            finally:
+                # release lock #
+                if lock and lock.locked():
+                    lock.release()
+
+        def updateDataFromPipe(rdPipeList):
+            # merge dbus data #
+            try:
+                # wait for event #
+                [read, write, error] = \
+                    selectObj.select(rdPipeList, [], [])
+
+                # read messages through pipe connected to child processes #
+                for robj in read:
+                    # get tid of target #
+                    try:
+                        tid = taskList[pipeList.index(robj)]
+                    except:
+                        tid = '?'
+
+                    # handle data arrived #
+                    while 1:
+                        output = robj.readline()
+                        if output == '\n':
+                            continue
+                        elif output and len(output) > 0:
+                            updateData((tid, output))
+
+                        break
+            except:
+                return
+
+        # check root permission #
+        if not SystemManager.isRoot():
+            SystemManager.printErr(\
+                "Fail to get root permission")
+            sys.exit(0)
+
+        # get select object #
+        selectObj = SystemManager.getPkg('select')
+
+        # get select object #
+        threadObj = SystemManager.getPkg('threading', False)
+        if threadObj:
+            lock = threadObj.Lock()
+        else:
+            lock = None
+
+        # get pids of gdbus threads #
+        taskList = SystemManager.getPids('gdbus', True)
+        if len(taskList) == 0:
+            SystemManager.printErr(\
+                "Fail to find gdbus thread")
+            sys.exit(0)
+
+        # define common list #
+        pipeList = []
+        threadingList = []
+        SystemManager.filterGroup = taskList + SystemManager.filterGroup
+        taskManager = ThreadAnalyzer(onlyInstance=True)
+        SystemManager.processEnable = False
+        SystemManager.sort = 'd'
+
+        # set target syscalls #
+        SystemManager.syscallList.append(\
+            ConfigManager.sysList.index('sys_recvmsg'))
+
+        # create child processes to attach each targets #
+        for tid in taskList:
+            # create pipe #
+            rd, wr = os.pipe()
+
+            pid = SystemManager.createProcess()
+            # parent #
+            if pid > 0:
+                os.close(wr)
+                rdPipe = os.fdopen(rd)
+                pipeList.append(rdPipe)
+
+                # run a new worker thread #
+                if threadObj:
+                    tobj = threadObj.Thread(target=executeLoop, args=[[rdPipe]])
+                    threadingList.append(tobj)
+            # child #
+            elif pid == 0:
+                # redirect stdout to pipe #
+                os.dup2(wr,1)
+                os.close(wr)
+                os.close(rd)
+
+                # set options #
+                sys.argv[1] = 'strace'
+                SystemManager.showAll = True
+                SystemManager.intervalEnable = 0
+                SystemManager.printFile = None
+                SystemManager.logEnable = False
+                SystemManager.filterGroup = [tid]
+                SystemManager.jsonPrintEnable = True
+
+                # execute strace mode #
+                SystemManager.doTrace('syscall')
+
+                sys.exit(0)
+
+        # start worker threads #
+        for tobj in threadingList:
+            tobj.start()
+
+        # run event loop #
+        executeLoop(pipeList)
+
+
+
+
+
 class DltManager(object):
     """ Manager for DLT """
 
@@ -27150,12 +27398,13 @@ struct msghdr {
 
         # get msg info #
         namelen = int(header.contents.msg_namelen)
-        if namelen == 0:
-            name = 'NULL'
-        else:
-            name = self.readMem(header.contents.msg_name, namelen)
-        msginfo['msg_name'] = name.decode()
         msginfo['msg_namelen'] = namelen
+        if namelen == 0:
+            msginfo['msg_name'] = 'NULL'
+        else:
+            msginfo['msg_name'] = \
+                self.readMem(header.contents.msg_name, namelen).\
+                    decode('utf16', 'igore')
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
@@ -27175,10 +27424,20 @@ struct msghdr {
             # get iov data #
             iovobjlen = int(iovobj.contents.iov_len)
             iovobjbase = iovobj.contents.iov_base
-            iovobjdata = self.readMem(iovobjbase, iovobjlen).decode()
+            iovobjdata = \
+                self.readMem(iovobjbase, iovobjlen).\
+                    decode('utf16', 'ignore')
 
             msginfo['msg_iov'][offsetStr]['len'] = iovobjlen
-            msginfo['msg_iov'][offsetStr]['data'] = iovobjdata
+
+            # convert ' and " to "" for JSON converting #
+            try:
+                msginfo['msg_iov'][offsetStr]['data'] = \
+                    iovobjdata.replace('"', '""')
+                msginfo['msg_iov'][offsetStr]['data'] = \
+                    iovobjdata.replace("'", '""')
+            except:
+                msginfo['msg_iov'][offsetStr]['data'] = iovobjdata
 
         # get control info #
         controllen = int(header.contents.msg_controllen)
@@ -27207,12 +27466,7 @@ struct msghdr {
         flag = header.contents.msg_flags
         msginfo['msg_flags'] = flag
 
-        try:
-            return msginfo
-        except SystemExit:
-            sys.exit(0)
-        except:
-            return str(msginfo)
+        return msginfo
 
 
 
@@ -32008,7 +32262,7 @@ class ThreadAnalyzer(object):
             elif SystemManager.dltTopEnable:
                 DltManager.runDltReceiver(mode='top')
             elif SystemManager.dbusTopEnable:
-                self.runDbusTop()
+                DbusManager.runDbusSnooper()
 
             # request service to remote server #
             self.requestService()
@@ -32199,241 +32453,6 @@ class ThreadAnalyzer(object):
 
     def __del__(self):
         pass
-
-
-
-    def runDbusTop(self):
-        def updateTaskInfo(dbusData):
-            taskManager.saveSystemStat()
-
-            for pid in taskList:
-                try:
-                    # build D-Bus usage string #
-                    dbusString = str(dbusData[pid])
-
-                    # add D-Bus usage #
-                    taskManager.procData[pid]['dbus'] = dbusString
-                except:
-                    pass
-
-        def printSummary(signum, frame):
-            # get summary list #
-            if lock:
-                lock.acquire()
-
-            prevDbusData = ThreadAnalyzer.dbusData
-            ThreadAnalyzer.dbusData = {'totalCnt': 0}
-
-            if lock and lock.locked():
-                lock.release()
-
-            # reset timer #
-            SystemManager.updateTimer()
-
-            # update cpu usage of tasks #
-            updateTaskInfo(prevDbusData)
-
-            # print title #
-            SystemManager.addPrint(\
-                ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
-                    ('D-BUS Info', SystemManager.uptime, \
-                    SystemManager.uptimeDiff, \
-                    UtilManager.convertNumber(prevDbusData['totalCnt'])))
-
-            # print resource usage of tasks #
-            taskManager.printSystemUsage()
-            taskManager.printProcUsage()
-            taskManager.reinitStats()
-            SystemManager.printTopStats()
-
-        def executeLoop(rdPipeList):
-            tid = SystemManager.syscall('gettid')
-
-            # main thread #
-            if SystemManager.pid == tid:
-                SystemManager.updateUptime()
-
-                # save initial stat of tasks #
-                updateTaskInfo(ThreadAnalyzer.dbusData)
-                taskManager.reinitStats()
-
-                # set timer #
-                signal.signal(signal.SIGALRM, printSummary)
-                SystemManager.updateTimer()
-
-            while 1:
-                # multi-threaded loop #
-                if len(threadingList) > 0:
-                    # sibling thread #
-                    if SystemManager.pid != tid:
-                        updateDataFromPipe(rdPipeList)
-                    # main thread #
-                    else:
-                        signal.pause()
-                # single-threaded loop #
-                else:
-                    updateDataFromPipe(rdPipeList)
-
-        def updateData(data):
-            tid = data[0]
-            params = data[1]
-
-            # convert string to dict #
-            try:
-                jsonData = UtilManager.convertStr2Dict(params)
-                if not jsonData:
-                    return
-            except:
-                return
-
-            try:
-                # check syscall #
-                if jsonData["name"] != "recvmsg" or \
-                    jsonData["type"] != "enter":
-                    return
-                # check args #
-                elif "args" not in jsonData or \
-                    "msg" not in jsonData["args"] or \
-                    "msg_iov" not in jsonData["args"]["msg"]:
-                    return
-
-                # acquire lock #
-                if lock:
-                    lock.acquire()
-
-                if tid not in ThreadAnalyzer.dbusData:
-                    ThreadAnalyzer.dbusData[tid] = dict()
-
-                # get D-Bus interface #
-                msgList = jsonData["args"]["msg"]["msg_iov"]
-                for name, msg in msgList.items():
-                    length = msg['len']
-                    call = msg['data']
-
-                try:
-                    ThreadAnalyzer.dbusData['totalCnt'] += 1
-                except:
-                    ThreadAnalyzer.dbusData['totalCnt'] = 1
-
-                # merge D-Bus interface #
-                try:
-                    ThreadAnalyzer.dbusData[tid][call]['cnt'] += 1
-                except:
-                    ThreadAnalyzer.dbusData[tid][call] = dict()
-                    ThreadAnalyzer.dbusData[tid][call]['cnt'] = 1
-            except:
-                SystemManager.printWarn(\
-                    "Fail to handle %s because %s" % \
-                        ([jsonData], SystemManager.getErrReason()))
-            finally:
-                # release lock #
-                if lock and lock.locked():
-                    lock.release()
-
-        def updateDataFromPipe(rdPipeList):
-            # merge dbus data #
-            try:
-                # wait for event #
-                [read, write, error] = \
-                    selectObj.select(rdPipeList, [], [])
-
-                # read messages through pipe connected to child processes #
-                for robj in read:
-                    # get tid of target #
-                    try:
-                        tid = taskList[pipeList.index(robj)]
-                    except:
-                        tid = '?'
-
-                    # handle data arrived #
-                    while 1:
-                        output = robj.readline()
-                        if output == '\n':
-                            continue
-                        elif output and len(output) > 0:
-                            updateData((tid, output))
-
-                        break
-            except:
-                return
-
-        # check root permission #
-        if not SystemManager.isRoot():
-            SystemManager.printErr(\
-                "Fail to get root permission")
-            sys.exit(0)
-
-        # get select object #
-        selectObj = SystemManager.getPkg('select')
-
-        # get select object #
-        threadObj = SystemManager.getPkg('threading', False)
-        if threadObj:
-            lock = threadObj.Lock()
-        else:
-            lock = None
-
-        # get pids of gdbus threads #
-        taskList = SystemManager.getPids('gdbus', True)
-        if len(taskList) == 0:
-            SystemManager.printErr(\
-                "Fail to find gdbus thread")
-            sys.exit(0)
-
-        # define common list #
-        pipeList = []
-        threadingList = []
-        SystemManager.filterGroup = taskList + SystemManager.filterGroup
-        taskManager = ThreadAnalyzer(onlyInstance=True)
-        SystemManager.processEnable = False
-
-        # set target syscalls #
-        SystemManager.syscallList.append(\
-            ConfigManager.sysList.index('sys_recvmsg'))
-
-        # create child processes to attach each targets #
-        for tid in taskList:
-            # create pipe #
-            rd, wr = os.pipe()
-
-            pid = SystemManager.createProcess()
-            # parent #
-            if pid > 0:
-                os.close(wr)
-                rdPipe = os.fdopen(rd)
-                pipeList.append(rdPipe)
-
-                # run a new worker thread #
-                if threadObj:
-                    tobj = threadObj.Thread(target=executeLoop, args=[[rdPipe]])
-                    threadingList.append(tobj)
-            # child #
-            elif pid == 0:
-                # redirect stdout to pipe #
-                os.dup2(wr,1)
-                os.close(wr)
-                os.close(rd)
-
-                # set options #
-                sys.argv[1] = 'strace'
-                SystemManager.showAll = True
-                SystemManager.intervalEnable = 0
-                SystemManager.printFile = None
-                SystemManager.logEnable = False
-                SystemManager.filterGroup = [tid]
-                SystemManager.jsonPrintEnable = True
-
-                # execute strace mode #
-                SystemManager.doTrace('syscall')
-
-                sys.exit(0)
-
-        # start worker threads #
-        for tobj in threadingList:
-            tobj.start()
-
-        # run event loop #
-        executeLoop(pipeList)
 
 
 
@@ -43768,7 +43787,8 @@ class ThreadAnalyzer(object):
                     self.procData[mainID]['cmdline'] = \
                         self.procData[tid]['cmdline']
         except:
-            SystemManager.printWarn('Fail to open %s' % cmdlinePath)
+            SystemManager.printWarn(\
+                'Fail to open %s because' % SystemManager.getErrReason())
             return
 
 
@@ -45820,6 +45840,12 @@ class ThreadAnalyzer(object):
                         reverse=True)
             except:
                 sortedProcData = self.procData.items()
+        # dbus #
+        elif SystemManager.sort == 'd':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: \
+                    int(e[1]['dbusCnt']) \
+                        if 'dbusCnt' in e[1] else 0, reverse=True)
         # CPU #
         else:
             # set cpu usage as default #
