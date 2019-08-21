@@ -28397,11 +28397,17 @@ struct msghdr {
             if self.wait:
                 return
 
-            # get argument values from register #
-            regstr = self.readArgValues()
+            # check prototype #
+            if name not in proto:
+                SystemManager.printWarn(\
+                    "Fail to get args info of %s" % name, True)
+                return
 
-            # parse arguments #
-            if name in proto:
+            args = []
+            if not self.isRealtime:
+                # get argument values from register #
+                regstr = self.readArgValues()
+
                 # get data types #
                 self.rettype, formats = proto[name]
 
@@ -28422,35 +28428,34 @@ struct msghdr {
 
                     seq += 1
 
-            # pick values from argument list #
-            args = []
-            for idx, arg in enumerate(self.args):
-                if arg[0].endswith('*'):
-                    # convert pointer to values #
-                    if UtilManager.isString(arg[2]):
-                        text = UtilManager.decodeArg(arg[2])
+                # pick values from argument list #
+                for idx, arg in enumerate(self.args):
+                    if arg[0].endswith('*'):
+                        # convert pointer to values #
+                        if UtilManager.isString(arg[2]):
+                            text = UtilManager.decodeArg(arg[2])
 
-                        # check output length #
-                        if not (SystemManager.printFile or \
-                            SystemManager.showAll) and \
-                            len(text) > pbufsize:
-                            text = '"%s"...' % text[:pbufsize]
+                            # check output length #
+                            if not (SystemManager.printFile or \
+                                SystemManager.showAll) and \
+                                len(text) > pbufsize:
+                                text = '"%s"...' % text[:pbufsize]
+                            else:
+                                text = '"%s"' % text[:-1]
+                        elif type(arg[2]) is dict:
+                            text = arg[2]
                         else:
-                            text = '"%s"' % text[:-1]
-                    elif type(arg[2]) is dict:
-                        text = arg[2]
+                            text = str(hex(arg[2]).upper()).rstrip('L')
+                    elif arg[0].endswith('int') or arg[0].endswith('long'):
+                        try:
+                            text = int(arg[2])
+                        except:
+                            text = arg[2]
                     else:
-                        text = str(hex(arg[2]).upper()).rstrip('L')
-                elif arg[0].endswith('int') or arg[0].endswith('long'):
-                    try:
-                        text = int(arg[2])
-                    except:
                         text = arg[2]
-                else:
-                    text = arg[2]
 
-                # append an arg to list #
-                args.append(text)
+                    # append an arg to list #
+                    args.append(text)
 
             # get diff time #
             current = time.time()
