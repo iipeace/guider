@@ -2357,11 +2357,15 @@ class ConfigManager(object):
 
     # Define signal #
     SIG_LIST = [
-        'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
-        'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', 'SIGCHLD', 'SIGCONT', #18#
-        'SIGSTOP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', 'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', #27#
-        'SIGWINCH', 'SIGIO', 'SIGPWR', 'SIGSYS' #31#
-        ] + [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
+        'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
+        'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
+        'SIGKILL','SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
+        'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', #16#
+        'SIGCHLD', 'SIGCONT', 'SIGSTOP', 'SIGTSTP', #20#
+        'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', #24#
+        'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
+        'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
+            [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
 
     # stat list from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
@@ -16347,7 +16351,7 @@ Copyright:
                 sys.exit(0)
         else:
             SystemManager.printErr(\
-                'Fail to save trace data because output file is not set')
+                'Fail to save data because file path is not set')
             sys.exit(0)
 
         # set alarm again #
@@ -16601,6 +16605,17 @@ Copyright:
 
 
     @staticmethod
+    def printConsole(string):
+        # split and cut lines by cols #
+        string = '\n'.join(\
+            [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+
+        # print on console #
+        print(string[:-1])
+
+
+
+    @staticmethod
     def addPrint(string, newline=1, force=False):
         if not force and SystemManager.checkCutCond(newline):
             return
@@ -16615,12 +16630,7 @@ Copyright:
             not SystemManager.printStreamEnable:
             return
 
-        # split and cut lines by cols #
-        string = '\n'.join(\
-            [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
-
-        # print on console #
-        print(string[:-1])
+        SystemManager.printConsole(string)
 
 
 
@@ -17519,6 +17529,9 @@ Copyright:
                     SystemManager.fileForPrint.writelines(line)
                 else:
                     SystemManager.fileForPrint.write(line + retstr)
+
+                if flush:
+                    SystemManager.fileForPrint.flush()
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
@@ -17543,9 +17556,6 @@ Copyright:
                     sys.stdout.write(nline + '\n')
                 else:
                     sys.stdout.write(nline)
-
-                if flush or SystemManager.remoteRun:
-                    sys.stdout.flush()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -17556,6 +17566,9 @@ Copyright:
                         sys.stdout.write(line + '\n')
                     else:
                         sys.stdout.write(line)
+
+            if flush or SystemManager.remoteRun:
+                sys.stdout.flush()
 
 
 
@@ -25957,6 +25970,13 @@ class DbusManager(object):
 class DltManager(object):
     """ Manager for DLT """
 
+    # define constant #
+    DLT_HTYP_WEID = 0x04
+    DLT_SIZE_WEID = DLT_ID_SIZE = 4
+    DLT_MSIN_MSTP = 0x0e # message type #
+    DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
+    DLT_DAEMON_TEXTSIZE = 10024
+
     # define list #
     pids = []
     procInfo = None
@@ -26059,12 +26079,112 @@ class DltManager(object):
 
     @staticmethod
     def onAlarm(signum, frame):
+        if SystemManager.isPrintDltMode():
+            SystemManager.progressCnt += 1
+            if SystemManager.repeatCount <= SystemManager.progressCnt:
+                sys.exit(0)
+
         if DltManager.dltData['cnt'] == 0 and \
             not SystemManager.inWaitStatus:
             SystemManager.printWarn(\
                 "No DLT message received", True)
 
         SystemManager.updateTimer()
+
+
+
+    @staticmethod
+    def handleMessage(dltObj, msg, buf, mode, verbose):
+        ctypes = SystemManager.getPkg('ctypes')
+
+        DLT_MSIN_MTIN = 0xf0 # message type info #
+        DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
+
+        # save and reset global filter #
+        filterGroup = SystemManager.filterGroup
+
+        # pick storage info #
+        if msg.storageheader:
+            ecuId = msg.storageheader.contents.ecu
+        else:
+            return
+        if msg.extendedheader:
+            apId = msg.extendedheader.contents.apid
+            ctxId = msg.extendedheader.contents.ctid
+        else:
+            return
+
+        # summarizing #
+        if mode == 'top':
+            # check filter #
+            if len(filterGroup) > 0:
+                skipFlag = True
+                for cond in filterGroup:
+                    if cond == ecuId or \
+                        cond == apId or \
+                        cond == ctxId:
+                        skipFlag = False
+                        break
+                if skipFlag:
+                    return
+
+            DltManager.dltData['cnt'] += 1
+
+            # add ecuId #
+            if not ecuId in DltManager.dltData:
+                DltManager.dltData[ecuId] = {'cnt': 0}
+            DltManager.dltData[ecuId]['cnt'] += 1
+
+            # add apId #
+            if not apId in DltManager.dltData[ecuId]:
+                DltManager.dltData[ecuId][apId] = {'cnt': 0}
+            DltManager.dltData[ecuId][apId]['cnt'] += 1
+
+            # add ctxId #
+            if not ctxId in DltManager.dltData[ecuId][apId]:
+                DltManager.dltData[ecuId][apId][ctxId] = {'cnt': 0}
+            DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
+        # printing #
+        elif mode == 'print':
+            # get payload #
+            dltObj.dlt_message_payload(\
+                ctypes.byref(msg), buf, DltManager.DLT_DAEMON_TEXTSIZE, 2, verbose)
+            #string = buf.value.decode("utf8")
+            string = buf.value
+
+            # check filter #
+            if len(filterGroup) > 0:
+                skipFlag = True
+                for cond in filterGroup:
+                    if cond == ecuId or \
+                        cond == apId or \
+                        cond == ctxId or \
+                        cond in string:
+                        skipFlag = False
+                        break
+                if skipFlag:
+                    return
+
+            # get message info #
+            timeSec = msg.storageheader.contents.seconds
+            timeUs = msg.storageheader.contents.microseconds
+            uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
+            subtype = \
+                (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
+                    >> DLT_MSIN_MTIN_SHIFT
+            try:
+                info = LOGINFO[subtype]
+            except:
+                info = ''
+
+            # get date time #
+            ntime = time.strftime(\
+                '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
+
+            output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
+                ntime, timeUs, uptime, ecuId, apId, ctxId, info, string)
+
+            SystemManager.printPipe(output, flush=True)
 
 
 
@@ -26152,12 +26272,8 @@ class DltManager(object):
             create_string_buffer
 
         # define constant #
-        DLT_HTYP_WEID = 0x04
-        DLT_SIZE_WEID = DLT_ID_SIZE = 4
-        DLT_MSIN_MSTP = 0x0e # message type #
-        DLT_MSIN_MTIN = 0xf0 # message type info #
-        DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
-        DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
+        DLT_HTYP_WEID = DltManager.DLT_HTYP_WEID
+        DLT_ID_SIZE = DltManager.DLT_ID_SIZE
 
         # define log level #
         LOG_EMERG     = 0
@@ -26193,6 +26309,7 @@ class DltManager(object):
                  int32_t totalBytesRcvd;   /**< total number of received bytes */
                  char *buffer;             /**< pointer to receiver buffer */
                  char *buf;                /**< pointer to position within receiver buffer */
+                 char *backup_buf;     /** pointer to the buffer with partial messages if any **/
                  int fd;                   /**< connection handle */
                  int32_t buffersize;       /**< size of receiver buffer */
              } DltReceiver;
@@ -26204,6 +26321,7 @@ class DltManager(object):
                 ("totalBytesRcvd", c_int32),
                 ("buffer", POINTER(c_char)),
                 ("buf", POINTER(c_char)),
+                ("backup_buf", POINTER(c_char)),
                 ("fd", c_int),
                 ("buffersize", c_int32)
             ]
@@ -26243,6 +26361,7 @@ class DltManager(object):
             } PACKED DltStorageHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("pattern", c_char * DLT_ID_SIZE),
                 ("seconds", c_uint32),
@@ -26264,6 +26383,7 @@ class DltManager(object):
             } PACKED DltStandardHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("htyp", c_uint8),
                 ("mcnt", c_uint8),
@@ -26284,6 +26404,7 @@ class DltManager(object):
             } PACKED DltExtendedHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("msin", c_uint8),
                 ("noar", c_uint8),
@@ -26305,6 +26426,7 @@ class DltManager(object):
             } PACKED DltStandardHeaderExtra;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("ecu", c_char * DLT_ID_SIZE),
                 ("seid", c_uint32),
@@ -26350,11 +26472,11 @@ class DltManager(object):
                 ("datasize", c_int32),
                 ("headerbuffer", \
                     c_uint8 * (sizeof(DltStorageHeader) +
-                    sizeof(DltStandardHeader) + \
-                    sizeof(DltStandardHeaderExtra) +
-                    sizeof(DltExtendedHeader))),
+                        sizeof(DltStandardHeader) + \
+                        sizeof(DltStandardHeaderExtra) +
+                        sizeof(DltExtendedHeader))),
                 ("databuffer", POINTER(c_uint8)),
-                ("databuffersize", c_uint32),
+                ("databuffersize", c_int32),
                 ("storageheader", POINTER(DltStorageHeader)),
                 ("standardheader", POINTER(DltStandardHeader)),
                 ("headerextra", DltStandardHeaderExtra),
@@ -26457,7 +26579,7 @@ class DltManager(object):
             RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
             ret = dltObj.dlt_receiver_init(\
-                byref(dltReceiver), nrConnSock, RECVBUFSIZE)
+                byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE))
             if ret < 0:
                 SystemManager.printErr(\
                     "Fail to initialize DLT receiver")
@@ -26485,6 +26607,8 @@ class DltManager(object):
 
         # define message #
         msg = DLTMessage()
+        buf = create_string_buffer(\
+            b'\000' * DltManager.DLT_DAEMON_TEXTSIZE)
 
         # save timestamp #
         prevTime = time.time()
@@ -26510,10 +26634,6 @@ class DltManager(object):
         elif mode == 'print':
             SystemManager.printInfo(\
                 "start printing DLT log... [ STOP(Ctrl+c) ]\n")
-
-        # save and reset global filter #
-        filterGroup = SystemManager.filterGroup
-        SystemManager.filterGroup = []
 
         while 1:
             # summarizing #
@@ -26546,133 +26666,61 @@ class DltManager(object):
 
                 # check DLT data to be read #
                 try:
-                    ret = dlt_receiver_receive(byref(dltReceiver))
+                    ret = dlt_receiver_receive(byref(dltReceiver), 0)
                     if ret <= 0:
                         continue
                 except:
                     sys.exit(0)
 
                 # check DLT data to be read #
-                res = dltObj.dlt_message_read(\
-                    byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),\
-                    c_uint(dltReceiver.bytesRcvd), c_int(0), verbose)
-                if res != 0:
-                    continue
+                while 1:
+                    ret = dltObj.dlt_message_read(\
+                        byref(msg), cast(dltReceiver.buf, POINTER(c_char_p)),\
+                        c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
+                    if ret != 0:
+                        # move receiver buffer pointer to start of the buffer #
+                        ret = dltObj.dlt_receiver_move_to_begin(byref(dltReceiver))
+                        if ret < 0:
+                            SystemManager.printErr(\
+                                "Fail to move the pointer to receiver buffer")
+                            sys.exit(0)
 
-                # get data size to be removed #
-                size = msg.headersize + msg.datasize - \
-                    sizeof(DltStorageHeader)
-                if msg.found_serialheader:
-                    size += DLT_ID_SIZE
+                        break
 
-                # remove message from buffer #
-                if dltObj.dlt_receiver_remove(\
-                    byref(dltReceiver), size) < 0:
-                    SystemMangaer.printErr(\
-                        "Fail to remove data from buffer")
-                    sys.exit(0)
+                    # get data size to be removed #
+                    size = msg.headersize + msg.datasize - \
+                        sizeof(DltStorageHeader)
+                    if msg.found_serialheader:
+                        size += DLT_ID_SIZE
 
-                # print dlt message #
-                if verbose:
-                    dltObj.dlt_message_print_ascii(\
-                        byref(msg), "", msg.headersize, 0)
+                    # remove message from buffer #
+                    if dltObj.dlt_receiver_remove(\
+                        byref(dltReceiver), size) < 0:
+                        SystemManager.printErr(\
+                            "Fail to remove data from buffer")
+                        sys.exit(0)
 
-                # set storage info #
-                if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, msg.headerextra.ecu)
-                else:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, c_char_p(''))
+                    # print dlt message #
+                    if verbose:
+                        dltObj.dlt_message_print_ascii(\
+                            byref(msg), byref(buf), c_uint32(msg.headersize), c_int(verbose))
 
-                # move receiver buffer pointer to start of the buffer #
-                ret = dltObj.dlt_receiver_move_to_begin(byref(dltReceiver))
-                if ret < 0:
-                    SystemManager.printErr(\
-                        "Fail to move the pointer to receiver buffer")
-                    sys.exit(0)
+                    # set storage info #
+                    if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
+                        dltObj.dlt_set_storageheader(\
+                            msg.storageheader, msg.headerextra.ecu)
+                    else:
+                        dltObj.dlt_set_storageheader(\
+                            msg.storageheader, c_char_p(''))
 
-                # pick storage info #
-                ecuId = msg.storageheader.contents.ecu
-                apId = msg.extendedheader.contents.apid
-                ctxId = msg.extendedheader.contents.ctid
+                    DltManager.handleMessage(dltObj, msg, buf, mode, verbose)
             except SystemExit:
                 sys.exit(0)
             except:
                 SystemManager.printWarn(\
                     "Fail to process DLT message because %s" % \
-                        SystemManager.getErrReason())
+                        SystemManager.getErrReason(), True)
                 continue
-
-            # summarizing #
-            if mode == 'top':
-                # check filter #
-                if len(filterGroup) > 0:
-                    skipFlag = True
-                    for cond in filterGroup:
-                        if cond == ecuId or \
-                            cond == apId or \
-                            cond == ctxId:
-                            skipFlag = False
-                            break
-                    if skipFlag:
-                        continue
-
-                DltManager.dltData['cnt'] += 1
-
-                # add ecuId #
-                if not ecuId in DltManager.dltData:
-                    DltManager.dltData[ecuId] = {'cnt': 0}
-                DltManager.dltData[ecuId]['cnt'] += 1
-
-                # add apId #
-                if not apId in DltManager.dltData[ecuId]:
-                    DltManager.dltData[ecuId][apId] = {'cnt': 0}
-                DltManager.dltData[ecuId][apId]['cnt'] += 1
-
-                # add ctxId #
-                if not ctxId in DltManager.dltData[ecuId][apId]:
-                    DltManager.dltData[ecuId][apId][ctxId] = {'cnt': 0}
-                DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
-            # printing #
-            elif mode == 'print':
-                # get payload #
-                buf = ctypes.create_string_buffer(b'\000' * 10024)
-                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
-                string = buf.value.decode("utf8")
-
-                # check filter #
-                if len(filterGroup) > 0:
-                    skipFlag = True
-                    for cond in filterGroup:
-                        if cond == ecuId or \
-                            cond == apId or \
-                            cond == ctxId or \
-                            cond in string:
-                            skipFlag = False
-                            break
-                    if skipFlag:
-                        continue
-
-                # get message info #
-                timeSec = msg.storageheader.contents.seconds
-                timeUs = msg.storageheader.contents.microseconds
-                uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
-                subtype = \
-                    (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
-                        >> DLT_MSIN_MTIN_SHIFT
-                try:
-                    info = LOGINFO[subtype]
-                except:
-                    info = ''
-
-                # get date time #
-                ntime = time.strftime(\
-                    '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
-
-                SystemManager.printPipe(\
-                    "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
-                    ntime, timeUs, uptime, ecuId, apId, ctxId, info, string))
 
         # free message #
         dltObj.dlt_message_free(msg, verbose)
@@ -27526,15 +27574,15 @@ struct msghdr {
                 return UtilManager.getFlagString(\
                     value, ConfigManager.PERM_TYPE)
 
-        if syscall.startswith('madvise') and \
-            argname == 'behavior':
+        if argname == 'behavior' and \
+            syscall.startswith('madvise'):
             try:
                 return ConfigManager.MADV_TYPE[int(value)]
             except:
                 return value
 
-        if (syscall == "write" or syscall == 'read') and \
-            argname == "buf":
+        if argname == "buf" and \
+            (syscall == "write" or syscall == 'read'):
             if self.values[2] > self.pbufsize:
                 length = self.pbufsize
             else:
@@ -27547,8 +27595,8 @@ struct msghdr {
 
             return value
 
-        if (syscall == "recvmsg" or syscall == "sendmsg"):
-            if argname == "msg":
+        if argname == "msg":
+            if (syscall == "recvmsg" or syscall == "sendmsg"):
                 try:
                     return self.readMsgHdr(value)
                 except SystemExit:
@@ -27558,9 +27606,9 @@ struct msghdr {
                         "Fail to get msghdr because %s" % \
                             SystemManager.getErrReason(), True)
 
-        if syscall.startswith('send') or \
-            syscall.startswith('recv'):
-            if argname == "flags" and value:
+        if argname == "flags" and value:
+            if syscall.startswith('send') or \
+                syscall.startswith('recv'):
                 return ConfigManager.MSG_TYPE[int(value)]
 
         if argname == "signum" or argname == "sig":
@@ -28394,7 +28442,10 @@ struct msghdr {
                     else:
                         text = str(hex(arg[2]).upper()).rstrip('L')
                 elif arg[0].endswith('int') or arg[0].endswith('long'):
-                    text = int(arg[2])
+                    try:
+                        text = int(arg[2])
+                    except:
+                        text = arg[2]
                 else:
                     text = arg[2]
 
