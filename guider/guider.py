@@ -43911,23 +43911,32 @@ class ThreadAnalyzer(object):
         if not self.procData[tid]['status']:
             self.procData[tid]['status'] = {}
 
-        for line in statusBuf:
-            if line.startswith('VmSwap') or \
-                line.startswith('FDSize') or \
-                line.startswith('SigCgt') or \
-                line.startswith('Uid') or \
-                line.startswith('voluntary_ctxt_switches') or \
-                line.startswith('nonvoluntary_ctxt_switches'):
+        # check status change #
+        self.procData[tid]['statusOrig'] = statusBuf
+        if tid in self.prevProcData and \
+            'statusOrig' in self.prevProcData[tid] and \
+            self.prevProcData[tid]['statusOrig'] == statusBuf:
+            self.procData[tid]['status'] = self.prevProcData[tid]['status']
+            del self.prevProcData[tid]['statusOrig']
+        else:
+            for line in statusBuf:
                 try:
                     statusList = line.split(':')
                     self.procData[tid]['status'][statusList[0]] = \
                         statusList[1].strip()
                 except:
-                    continue
+                    pass
 
-        statmBuf = self.saveTaskData(path, tid, 'statm')
-        if statmBuf:
-            self.procData[tid]['statm'] = statmBuf[0].split()
+        stat = 'statm'
+        mainID = self.procData[tid]['mainID']
+        if mainID in self.procData:
+            if 'statm' in self.procData[mainID]:
+                self.procData[tid][stat] = \
+                    self.procData[mainID][stat]
+        else:
+            statmBuf = self.saveTaskData(path, tid, stat)
+            if statmBuf:
+                self.procData[tid][stat] = statmBuf[0].split()
 
 
 
@@ -43972,7 +43981,7 @@ class ThreadAnalyzer(object):
         # check stat change #
         self.procData[tid]['statOrig'] = statBuf
         if tid in self.prevProcData and \
-            'statOrig' in self.prevProcData and \
+            'statOrig' in self.prevProcData[tid] and \
             self.prevProcData[tid]['statOrig'] == statBuf:
             self.procData[tid]['stat'] = self.prevProcData[tid]['stat']
             del self.prevProcData[tid]['statOrig']
