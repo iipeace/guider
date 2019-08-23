@@ -12178,6 +12178,7 @@ class SystemManager(object):
                 not SystemManager.isConvertMode() and \
                 not SystemManager.isReadelfMode() and \
                 not SystemManager.isAddr2lineMode() and \
+                not SystemManager.isSym2lineMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -13591,6 +13592,30 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
                     '''.format(cmd, mode)
 
+                # sym2line #
+                elif SystemManager.isSym2lineMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
+
+Description:
+    Show file and offset of specific symbols in a file or a process
+
+OPTIONS:
+        -I  <FILE|COMM|PID>         set input path or process
+        -g  <OFFSET>                set offset
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print infomation of specific symbols in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g testFunc
+
+    - Print infomation of specific symbols in a process
+        # {0:1} {1:1} -I yes -g testFunc
+                    '''.format(cmd, mode)
+
                 # printcgroup #
                 elif SystemManager.isPrintcgroupMode():
                     helpStr = '''
@@ -14032,6 +14057,7 @@ COMMAND:
                 printinfo   <system>
                 readelf     <file>
                 addr2line   <symbol>
+                sym2line    <addr>
                 leaktrace   <leak>
                 printcgrp   <cgroup>
 
@@ -15246,7 +15272,7 @@ Copyright:
                 # symbol input with no objdump path #
                 if not SystemManager.objdumpPath:
                     # get address of symbol in binary #
-                    addr = SystemManager.getSymOffset(\
+                    addr = ElfAnalyzer.getSymOffset(\
                         cmdFormat[1], cmdFormat[2])
 
                     # use external objdump #
@@ -15274,7 +15300,7 @@ Copyright:
                     sys.exit(0)
 
                 # get address of symbol in binary #
-                addr = SystemManager.getSymOffset(\
+                addr = ElfAnalyzer.getSymOffset(\
                     cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
                 if not addr:
                     SystemManager.printErr("Fail to find '%s' in %s" % \
@@ -15398,94 +15424,6 @@ Copyright:
             return 'N/A'
 
         return ' '.join(list(map(str, err.args)))
-
-
-
-    @staticmethod
-    def getSymOffset(symbol, binPath, objdumpPath=None):
-        if not objdumpPath:
-            offset = None
-
-            try:
-                binObj = ElfAnalyzer.getObject(binPath)
-                if not binObj:
-                    raise Exception()
-
-                offset = binObj.getOffsetBySymbol(symbol)
-            except:
-                pass
-
-            # check similar list #
-            if type(offset) is list and len(offset) > 0:
-                SystemManager.printErr((\
-                    "Fail to find %s in %s, "
-                    "\n\tbut similar symbols [ %s ] are exist") % \
-                    (symbol, binPath, ', '.join(offset)))
-                sys.exit(0)
-
-            return offset
-
-        # get subprocess object #
-        subprocess = SystemManager.getPkg('subprocess')
-
-        syms = []
-        args = [objdumpPath, "-C", "-F", "-d", binPath]
-
-        SystemManager.printStat(\
-            "start finding %s... [ STOP(Ctrl+c) ]" % (symbol))
-
-        # start objdump process #
-        try:
-            proc = subprocess.Popen(\
-                args, stdout=subprocess.PIPE, \
-                stderr=subprocess.PIPE, bufsize=-1)
-        except:
-            SystemManager.printErr(\
-                "Fail to execute %s to get address from binary" % objdumpPath)
-            sys.exit(0)
-
-        while 1:
-            try:
-                # read a line from objdump process #
-                line = proc.stdout.readline()
-            except:
-                SystemManager.printErr(\
-                    "Fail to read output from objdump because %s" % \
-                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
-
-            # handle error #
-            if not line:
-                err = proc.stderr.read()
-                if len(err) > 0:
-                    proc.terminate()
-                    SystemManager.printErr(err[err.find(':') + 2:])
-                    sys.exit(0)
-                break
-
-            # parse line to find offset of symbol #
-            line = str(line)
-            m = re.match((\
-                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
-                r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
-            if not m:
-                continue
-
-            d = m.groupdict()
-            if d['symbol'] == symbol:
-                proc.terminate()
-                return d['offset']
-            elif d['symbol'].find(symbol) >= 0:
-                syms.append('%s {%s}' % (d['symbol'], d['offset']))
-
-        # check similar list #
-        if len(syms) == 0:
-            return None
-        else:
-            SystemManager.printErr((\
-                "Fail to find %s in %s, "
-                "\n\tbut similar symbols [ %s ] are exist") % \
-                (symbol, binPath, ', '.join(syms)))
-            sys.exit(0)
 
 
 
@@ -19381,6 +19319,10 @@ Copyright:
         elif SystemManager.isAddr2lineMode():
             SystemManager.doAddr2line()
 
+        # SYM2LINE MODE #
+        elif SystemManager.isSym2lineMode():
+            SystemManager.doSym2line()
+
         # PRINTCGROUP MODE #
         elif SystemManager.isPrintcgroupMode():
             SystemManager.cgroupEnable = True
@@ -19622,6 +19564,15 @@ Copyright:
     @staticmethod
     def isAddr2lineMode():
         if sys.argv[1] == 'addr2line':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isSym2lineMode():
+        if sys.argv[1] == 'sym2line':
             return True
         else:
             return False
@@ -21516,6 +21467,8 @@ Copyright:
     def doAddr2line():
         SystemManager.printLogo(big=True, onlyFile=True)
 
+        SystemManager.warningEnable = True
+
         if not SystemManager.sourceFile:
             SystemManager.printErr(\
                 "No PATH with -I")
@@ -21538,7 +21491,7 @@ Copyright:
                 "Fail to load elf object because %s" % err)
             sys.exit(0)
 
-        SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
+        SystemManager.printPipe("\n[Address Info]\n%s" % twoLine)
 
         SystemManager.printPipe(\
             "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
@@ -21563,6 +21516,84 @@ Copyright:
 
             SystemManager.printPipe(\
                 "{0:<18} {1:<1}".format(offset, symbol))
+
+        SystemManager.printPipe(oneLine + '\n')
+
+
+
+    @staticmethod
+    def doSym2line():
+        SystemManager.printLogo(big=True, onlyFile=True)
+
+        SystemManager.warningEnable = True
+
+        if not SystemManager.sourceFile:
+            SystemManager.printErr(\
+                "No PATH or COMM or PID with -I")
+            sys.exit(0)
+
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printErr(\
+                "No symbol with -g")
+            sys.exit(0)
+
+        resInfo = {}
+        inputArg = SystemManager.sourceFile
+
+        # check file #
+        if os.path.isfile(inputArg):
+            filePath = inputArg
+            for sym in SystemManager.filterGroup:
+                # create elf object #
+                try:
+                    resInfo[sym] = \
+                        (ElfAnalyzer.getSymOffset(sym, inputArg), filePath)
+                except:
+                    sys.exit(0)
+        # check process #
+        else:
+            pids = SystemManager.getPids(inputArg)
+            if len(pids) == 0:
+                SystemManager.printErr(\
+                    "Fail to recognize %s as a file or a process" % inputArg)
+                sys.exit(0)
+            elif len(pids) > 1:
+                SystemManager.printErr((\
+                    "Fail to find a unique process because "
+                    "multiple processes [%s] are found") % ', '.join(pids))
+                sys.exit(0)
+
+            # get file list on memorymap #
+            fileList = FileAnalyzer.getProcMapInfo(pids[0]).keys()
+
+            for filePath in fileList:
+                for sym in SystemManager.filterGroup:
+                    # create elf object #
+                    try:
+                        res = ElfAnalyzer.getSymOffset(sym, filePath)
+                        if res:
+                            resInfo[sym] = (res, filePath)
+                    except:
+                        sys.exit(0)
+
+        SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
+
+        SystemManager.printPipe(\
+            "{0:<64} {1:<32} {2:<18}\n{3:1}".format(\
+                'Symbol', 'PATH', 'Address', twoLine))
+
+        # print symbols from offset list #
+        for sym, val in resInfo.items():
+            addr, filePath = val
+
+            if addr is None:
+                addr = 'N/A'
+
+            SystemManager.printPipe(\
+                "{0:<64} {1:<32} {2:<18}".format(sym, filePath, addr))
+
+        if len(resInfo) == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine + '\n')
 
@@ -30677,6 +30708,94 @@ class ElfAnalyzer(object):
                     (symbol, err), True)
             SystemManager.demangleEnable = False
             return origSym
+
+
+
+    @staticmethod
+    def getSymOffset(symbol, binPath, objdumpPath=None):
+        if not objdumpPath:
+            offset = None
+
+            try:
+                binObj = ElfAnalyzer.getObject(binPath)
+                if not binObj:
+                    raise Exception()
+
+                offset = binObj.getOffsetBySymbol(symbol)
+            except:
+                pass
+
+            # check similar list #
+            if type(offset) is list and len(offset) > 0:
+                SystemManager.printErr((\
+                    "Fail to find %s in %s, "
+                    "\n\tbut similar symbols [ %s ] are exist") % \
+                    (symbol, binPath, ', '.join(offset)))
+                sys.exit(0)
+
+            return offset
+
+        # get subprocess object #
+        subprocess = SystemManager.getPkg('subprocess')
+
+        syms = []
+        args = [objdumpPath, "-C", "-F", "-d", binPath]
+
+        SystemManager.printStat(\
+            "start finding %s... [ STOP(Ctrl+c) ]" % (symbol))
+
+        # start objdump process #
+        try:
+            proc = subprocess.Popen(\
+                args, stdout=subprocess.PIPE, \
+                stderr=subprocess.PIPE, bufsize=-1)
+        except:
+            SystemManager.printErr(\
+                "Fail to execute %s to get address from binary" % objdumpPath)
+            sys.exit(0)
+
+        while 1:
+            try:
+                # read a line from objdump process #
+                line = proc.stdout.readline()
+            except:
+                SystemManager.printErr(\
+                    "Fail to read output from objdump because %s" % \
+                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
+
+            # handle error #
+            if not line:
+                err = proc.stderr.read()
+                if len(err) > 0:
+                    proc.terminate()
+                    SystemManager.printErr(err[err.find(':') + 2:])
+                    sys.exit(0)
+                break
+
+            # parse line to find offset of symbol #
+            line = str(line)
+            m = re.match((\
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
+                r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
+            if not m:
+                continue
+
+            d = m.groupdict()
+            if d['symbol'] == symbol:
+                proc.terminate()
+                return d['offset']
+            elif d['symbol'].find(symbol) >= 0:
+                syms.append('%s {%s}' % (d['symbol'], d['offset']))
+
+        # check similar list #
+        if len(syms) == 0:
+            return None
+        else:
+            SystemManager.printErr((\
+                "Fail to find %s in %s, "
+                "\n\tbut similar symbols [ %s ] are exist") % \
+                (symbol, binPath, ', '.join(syms)))
+            sys.exit(0)
 
 
 
