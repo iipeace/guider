@@ -12267,9 +12267,6 @@ Usage:
                 # get command #
                 mode = sys.argv[1]
 
-                # print small logo #
-                SystemManager.printLogo()
-
                 topCommonStr = '''
         -o  <DIR|FILE>              save output data
         -u                          run in the background
@@ -14088,6 +14085,9 @@ OPTIONS:
                     SystemManager.printErr(\
                         'wrong command %s' % mode)
                     sys.exit(0)
+
+                # print small logo #
+                SystemManager.printLogo()
 
                 printPipe(helpStr)
 
