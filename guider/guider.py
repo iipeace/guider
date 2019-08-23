@@ -2805,10 +2805,15 @@ class UtilManager(object):
         string = ''
         numVal = int(value)
         for bit in flist.keys():
-            if numVal & bit:
-                string = '%s%s|' % (string, flist[bit])
-            elif bit == 1 and 0 in flist:
-                string = '%s%s|' % (string, flist[0])
+            try:
+                if numVal & bit:
+                    string = '%s%s|' % (string, flist[bit])
+                elif bit == 1 and 0 in flist:
+                    string = '%s%s|' % (string, flist[0])
+            except:
+                SystemManager.printErr(\
+                    "Fail to get flag info for %s because %s" % \
+                    (value, SystemManager.getErrReason()))
         if len(string) > 0:
             return string[:-1]
         else:
@@ -20170,7 +20175,7 @@ Copyright:
 
 
     @staticmethod
-    def getPids(name, isThread=False, includeSiblings=False):
+    def getPids(name, isThread=False, withSibling=False, withMain=False):
         pidList = []
 
         pids = os.listdir(SystemManager.procPath)
@@ -20211,7 +20216,7 @@ Copyright:
                         continue
 
                     # including all sibling threads #
-                    if includeSiblings:
+                    if withSibling:
                         for tid in tids:
                             if tid not in pidList:
                                 pidList.append(tid)
@@ -20220,6 +20225,10 @@ Copyright:
                     # include a thread #
                     if tid not in pidList:
                         pidList.append(tid)
+
+                    # include main thread #
+                    if pid not in pidList:
+                        pidList.append(pid)
 
                 continue
 
@@ -25728,11 +25737,12 @@ class DbusManager(object):
             for pid in taskList:
                 try:
                     # build D-Bus usage string #
-                    dbusString = str(dbusData[pid])
                     dbusCnt = dbusData[pid]['totalCnt']
+                    dbusString = 'TOTAL: %s' % \
+                        (UtilManager.convertNumber(dbusCnt))
 
                     # add D-Bus usage #
-                    taskManager.procData[pid]['dbus'] = dbusString
+                    taskManager.procData[pid]['dbusStr'] = dbusString
                     taskManager.procData[pid]['dbusCnt'] = dbusCnt
                 except:
                     pass
@@ -25901,7 +25911,8 @@ class DbusManager(object):
             lock = None
 
         # get pids of gdbus threads #
-        taskList = SystemManager.getPids('gdbus', True)
+        taskList = SystemManager.getPids(\
+            'gdbus', isThread=True, withMain=True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
@@ -25944,7 +25955,7 @@ class DbusManager(object):
 
                 # set options #
                 sys.argv[1] = 'strace'
-                SystemManager.showAll = True
+                #SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
                 SystemManager.printFile = None
                 SystemManager.logEnable = False
@@ -27462,46 +27473,53 @@ struct msghdr {
         else:
             msginfo['msg_name'] = \
                 self.readMem(header.contents.msg_name, namelen).\
-                    decode('utf16', 'igore')
+                    decode('utf8', 'ignore').encode('utf8')
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
         iovlen = int(header.contents.msg_iovlen)
-        msginfo['msg_iov'] = {}
 
-        # get iov info #
-        for idx in xrange(0, iovlen):
-            offset = idx * sizeof(self.iovec)
-            offsetStr = str(offset)
-            msginfo['msg_iov'][offsetStr] = {}
+        if not SystemManager.showAll:
+            msginfo['msg_iov'] = iovaddr
+        else:
+            msginfo['msg_iov'] = {}
 
-            # get iov object #
-            iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
-            iovobj = cast(iovobj, self.iovec_ptr)
+            # get iov info #
+            for idx in xrange(0, iovlen):
+                offset = idx * sizeof(self.iovec)
+                msginfo['msg_iov'][idx] = {}
 
-            # get iov data #
-            iovobjlen = int(iovobj.contents.iov_len)
-            iovobjbase = iovobj.contents.iov_base
-            iovobjdata = \
-                self.readMem(iovobjbase, iovobjlen).\
-                    decode('utf16', 'ignore')
+                # get iov object #
+                iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
+                iovobj = cast(iovobj, self.iovec_ptr)
 
-            msginfo['msg_iov'][offsetStr]['len'] = iovobjlen
+                # get iov data #
+                iovobjlen = int(iovobj.contents.iov_len)
+                iovobjbase = iovobj.contents.iov_base
+                iovobjdata = \
+                    self.readMem(iovobjbase, iovobjlen).\
+                        decode('utf8', 'ignore').encode('utf8')
 
-            # convert ' and " to "" for JSON converting #
-            try:
-                msginfo['msg_iov'][offsetStr]['data'] = \
-                    iovobjdata.replace('"', '""')
-                msginfo['msg_iov'][offsetStr]['data'] = \
-                    iovobjdata.replace("'", '""')
-            except:
-                msginfo['msg_iov'][offsetStr]['data'] = iovobjdata
+                msginfo['msg_iov'][idx]['len'] = iovobjlen
+
+                # convert ' and " to "" for JSON converting #
+                try:
+                    msginfo['msg_iov'][idx]['data'] = \
+                        iovobjdata.replace('"', '""')
+                    msginfo['msg_iov'][idx]['data'] = \
+                        iovobjdata.replace("'", '""')
+                except:
+                    msginfo['msg_iov'][idx]['data'] = iovobjdata
 
         # get control info #
+        control = header.contents.msg_control
         controllen = int(header.contents.msg_controllen)
         msginfo['msg_control'] = {}
         msginfo['msg_control']['len'] = controllen
-        if controllen > 0:
+
+        if not SystemManager.showAll:
+            msginfo['msg_control']['addr'] = control
+        elif controllen >= ctypes.sizeof(self.cmsghdr):
             control = self.readMem(header.contents.msg_control, controllen)
             controlobj = cast(control, self.cmsghdr_ptr)
 
@@ -27609,7 +27627,8 @@ struct msghdr {
         if argname == "flags" and value:
             if syscall.startswith('send') or \
                 syscall.startswith('recv'):
-                return ConfigManager.MSG_TYPE[int(value)]
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.MSG_TYPE)
 
         if argname == "signum" or argname == "sig":
             return ConfigManager.SIG_LIST[int(value)]
@@ -28643,7 +28662,7 @@ struct msghdr {
 
         # check stat change #
         if self.prevStat == stat:
-            return 0
+            return [0, 0, 0]
 
         self.prevStat = stat
 
@@ -45946,6 +45965,11 @@ class ThreadAnalyzer(object):
                 focusVal = value['new']
             elif SystemManager.sort == 'o':
                 focusVal = value['oomScore']
+            elif SystemManager.sort == 'd':
+                if 'dbusCnt' in value:
+                    return False
+                else:
+                    return True
             else:
                 focusVal = 1
 
@@ -46065,9 +46089,9 @@ class ThreadAnalyzer(object):
             elif SystemManager.sigHandlerEnable:
                 etc = 'SignalHandler'
             elif SystemManager.processEnable:
-                etc = 'Process'
-            else:
                 etc = 'Parent'
+            else:
+                etc = 'Process'
 
             # set memory type #
             if SystemManager.pssEnable:
@@ -46607,10 +46631,10 @@ class ThreadAnalyzer(object):
                     "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
 
             # print D-Bus #
-            if 'dbus' in value and \
-                len(value['dbus']) > 0:
+            if 'dbusStr' in value and \
+                len(value['dbusStr']) > 0:
                 SystemManager.addPrint(\
-                    "{0:>39} | {1:1}\n".format('DBUS', value['dbus']))
+                    "{0:>39} | {1:1}\n".format('DBUS', value['dbusStr']))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
