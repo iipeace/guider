@@ -28713,6 +28713,28 @@ struct msghdr {
 
 
 
+    def getAddrBySymbol(self, symbol, binary=None):
+        if not self.pmap:
+            self.loadSymbols()
+
+        if binary:
+            fcache = ElfAnalyzer.getObject(binary)
+            if fcache:
+                offset = fcache.getOffsetBySymbol(symbol)
+                if offset:
+                    offset = int(offset, 16)
+                    return self.pmap[binary]['vstart'] + offset
+
+        for mfile in self.pmap.keys():
+            fcache = ElfAnalyzer.getObject(mfile)
+            if fcache:
+                offset = fcache.getOffsetBySymbol(symbol)
+                if offset:
+                    offset = int(offset, 16)
+                    return self.pmap[mfile]['vstart'] + offset
+
+
+
     def trace(self, mode='syscall', wait=None):
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
@@ -30990,7 +31012,8 @@ class ElfAnalyzer(object):
         # get offset or symbol list #
         try:
             for idx, val in enumerate(self.sortedSymTable):
-                if symbol == val[0]:
+                if symbol == val[0] or \
+                    symbol == val[0].split('@')[0]:
                     return str(hex(self.sortedAddrTable[idx]))
                 elif symbol in val[0]:
                     clist.append('%s {%s}' % \
