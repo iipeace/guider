@@ -11567,7 +11567,7 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setOOMAdj(pri='-17'):
+    def setOOMAdj(pid='self', pri='-17'):
         if not sys.platform.startswith('linux'):
             return
 
@@ -11575,25 +11575,18 @@ class SystemManager(object):
             return
 
         # set path #
-        oomPath = '%s/self/oom_score_adj' % SystemManager.procPath
-
-        # set deprecated path #
-        oomOldPath = '%s/self/oom_adj' % SystemManager.procPath
+        oomPath = '%s/%s/oom_score_adj' % (SystemManager.procPath, pid)
+        if not os.path.isfile(oomPath):
+            # use deprecated path #
+            oomPath = '%s/%s/oom_adj' % (SystemManager.procPath, pid)
 
         try:
             with open(oomPath, 'w') as fd:
                 fd.write(pri)
         except:
             SystemManager.printWarn(\
-                "Fail to write %s because %s" % (oomPath, err))
-
-            try:
-                with open(oomOldPath, 'w') as fd:
-                    fd.write(pri)
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printWarn(\
-                    "Fail to write %s because %s" % (oomOldPath, err))
+                "Fail to write %s because %s" % \
+                    (oomPath, SystemManager.getErrReason()))
 
 
 
@@ -11854,9 +11847,9 @@ class SystemManager(object):
     def getMemStat(pid):
         try:
             statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
-            fd = open(statmPath, 'r')
-            STATM_TYPE = fd.readlines()[0].split()
-            return STATM_TYPE
+            with open(statmPath, 'r') as fd:
+                STATM_TYPE = fd.readlines()[0].split()
+                return STATM_TYPE
         except:
             SystemManager.printWarn('Fail to open %s' % statmPath)
             return
@@ -21804,7 +21797,7 @@ Copyright:
         mlist = SystemManager.getMemStat('self')
         if not mlist:
             SystemManager.printErr(\
-                "Fail to get memory size of guider")
+                "Fail to get memory size of Guider")
             sys.exit(0)
 
         # get memory size #
@@ -23310,7 +23303,7 @@ Copyright:
             else:
                 SystemManager.printErr(\
                     "Fail to start tracing because "
-                    "another guider is already running")
+                    "another Guider is already running")
                 os._exit(0)
 
         # clean up ring buffer for tracing #
@@ -44067,14 +44060,17 @@ class ThreadAnalyzer(object):
 
         stat = 'statm'
         mainID = self.procData[tid]['mainID']
-        if mainID in self.procData:
-            if 'statm' in self.procData[mainID]:
-                self.procData[tid][stat] = \
-                    self.procData[mainID][stat]
+        if mainID in self.procData and \
+            stat in self.procData[mainID] and  \
+            self.procData[mainID][stat]:
+            self.procData[tid][stat] = \
+                self.procData[mainID][stat]
         else:
             statmBuf = self.saveTaskData(path, tid, stat)
             if statmBuf:
                 self.procData[tid][stat] = statmBuf[0].split()
+                if mainID in self.procData:
+                    self.procData[mainID][stat] = self.procData[tid][stat]
 
 
 
@@ -47756,7 +47752,7 @@ def main(args=None):
     # set error logger #
     SystemManager.setErrorLogger()
 
-    # import guider native module #
+    # import Guider native module #
     SystemManager.importNative()
 
     # set comm #
