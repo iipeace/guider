@@ -26714,7 +26714,8 @@ class DltManager(object):
                         c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
                     if ret != 0:
                         # move receiver buffer pointer to start of the buffer #
-                        ret = dltObj.dlt_receiver_move_to_begin(byref(dltReceiver))
+                        ret = dltObj.dlt_receiver_move_to_begin(\
+                            byref(dltReceiver))
                         if ret < 0:
                             SystemManager.printErr(\
                                 "Fail to move the pointer to receiver buffer")
@@ -26738,7 +26739,8 @@ class DltManager(object):
                     # print dlt message #
                     if verbose:
                         dltObj.dlt_message_print_ascii(\
-                            byref(msg), byref(buf), c_uint32(msg.headersize), c_int(verbose))
+                            byref(msg), byref(buf), \
+                            c_uint32(msg.headersize), c_int(verbose))
 
                     # set storage info #
                     if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
@@ -26790,6 +26792,7 @@ class Debugger(object):
         self.callTable = {}
         self.fileTable = {}
         self.breakList = {}
+        self.breakBackupList = {}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -27111,8 +27114,15 @@ struct msghdr {
 
 
 
-    def setBreakpoint(self, addr):
-        origWord = self.readMem(addr)
+    def addBreakpoint(self, addr):
+        if addr in self.breakBackupList:
+            origWord = self.breakBackupList[addr]['word']
+        else:
+            origWord = self.readMem(addr)
+
+            # backup data #
+            self.breakBackupList[addr] = dict()
+            self.breakBackupList[addr]['word'] = origWord
 
         ret = self.writeMem(addr, b'\xCC' * ConfigManager.wordSize)
         if ret < 0:
@@ -28763,9 +28773,13 @@ struct msghdr {
         self.prevStat = None
         self.prevCpuStat = None
         self.supportGetRegset = True
+        self.supportSetRegset = True
         self.supportProcessVmIO = True
         self.sysreg = ConfigManager.REG_LIST[arch]
         self.retreg = ConfigManager.RET_LIST[arch]
+        self.contCmd = plist.index('PTRACE_CONT')
+        self.getregsCmd = plist.index('PTRACE_GETREGS')
+        self.setregsCmd = plist.index('PTRACE_SETREGS')
         self.contCmd = plist.index('PTRACE_CONT')
         self.pbufsize = SystemManager.ttyCols >> 1
 
@@ -29386,6 +29400,49 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
+    def setPC(self, val):
+        if arch == 'arm':
+            self.regs.r15 = val
+        elif arch == 'aarch64':
+            self.regs.r32 = val
+        elif arch == 'x86':
+            self.regs.eip = val
+        elif arch == 'x64':
+            self.regs.rip = val
+
+
+
+    def setRegs(self):
+        pid = self.pid
+        ctypes = self.ctypes
+        arch = SystemManager.getArch()
+        wordSize = ConfigManager.wordSize
+
+        # get register set #
+        try:
+            if not self.supportSetRegset:
+                raise Exception()
+
+            cmd = PTRACE_SETREGSET = 0x4205
+            NT_PRSTATUS = 1
+            nrWords = ctypes.sizeof(self.regs) * wordSize
+            ret = self.ptrace(\
+                cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportSetRegset = False
+            cmd = self.setregsCmd
+            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+        # check ret value #
+        if ret >= 0:
+            return True
+        else:
+            return False
+
+
+
     def getRegs(self):
         if self.getRegsCost == 0:
             start = time.time()
@@ -29409,7 +29466,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
         except:
             self.supportGetRegset = False
-            cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
+            cmd = self.getregsCmd
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
         # set registers #
