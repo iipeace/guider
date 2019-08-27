@@ -16086,6 +16086,7 @@ Copyright:
 
         elif SystemManager.isTopMode() or \
             SystemManager.isStraceMode() or \
+            SystemManager.isBtraceMode() or \
             SystemManager.isUtraceMode():
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
@@ -18906,6 +18907,18 @@ Copyright:
 
 
     @staticmethod
+    def isBtraceMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'btrace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintEnvMode():
         if len(sys.argv) == 1:
             return False
@@ -19098,6 +19111,18 @@ Copyright:
 
 
     @staticmethod
+    def isBrkTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'brktop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSysTopMode():
         if len(sys.argv) == 1:
             return False
@@ -19222,6 +19247,7 @@ Copyright:
             SystemManager.isSystemTopMode() or \
             SystemManager.isNetTopMode() or \
             SystemManager.isUserTopMode() or \
+            SystemManager.isBrkTopMode() or \
             SystemManager.isSysTopMode() or \
             SystemManager.isDltTopMode() or \
             SystemManager.isDbusTopMode() or \
@@ -19237,6 +19263,7 @@ Copyright:
         if SystemManager.isRecordMode() or \
             SystemManager.isTopMode() or \
             SystemManager.isStraceMode() or \
+            SystemManager.isBtraceMode() or \
             SystemManager.isUtraceMode():
             return True
         return False
@@ -19411,6 +19438,10 @@ Copyright:
         # UTRACE MODE #
         elif SystemManager.isUtraceMode():
             SystemManager.doTrace('usercall')
+
+        # BTRACE MODE #
+        elif SystemManager.isBtraceMode():
+            SystemManager.doTrace('breakcall')
 
         # PRINTENV MODE #
         elif SystemManager.isPrintEnvMode():
@@ -21443,6 +21474,9 @@ Copyright:
                 else:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait)
+            elif mode == 'breakcall':
+                Debugger(pid=pid, execCmd=execCmd).\
+                    trace(mode='break', wait=wait)
             else:
                 pass
         except SystemExit:
@@ -27106,7 +27140,7 @@ struct msghdr {
                 'No breakpoint registered with addr %s' % addr, True)
             return False
 
-        self.writeMem(addr, self.breakList[addr]['word'])
+        self.writeMem(addr, self.breakList[addr]['data'])
 
         self.breakList.pop(addr, None)
 
@@ -27114,24 +27148,26 @@ struct msghdr {
 
 
 
-    def addBreakpoint(self, addr):
+    def addBreakpoint(self, addr, sym=None):
         if addr in self.breakBackupList:
-            origWord = self.breakBackupList[addr]['word']
+            origWord = self.breakBackupList[addr]['data']
         else:
             origWord = self.readMem(addr)
 
             # backup data #
             self.breakBackupList[addr] = dict()
-            self.breakBackupList[addr]['word'] = origWord
+            self.breakBackupList[addr]['data'] = origWord
+            self.breakBackupList[addr]['symbol'] = sym
 
         ret = self.writeMem(addr, b'\xCC' * ConfigManager.wordSize)
         if ret < 0:
             SystemManager.printWarn(\
-                'Fail to set breakpoint wigh addr %s' % addr, True)
+                'Fail to add breakpoint with addr %s' % addr, True)
             return False
 
         self.breakList[addr] = dict()
-        self.breakList[addr]['word'] = origWord
+        self.breakList[addr]['data'] = origWord
+        self.breakList[addr]['symbol'] = sym
 
         return True
 
@@ -28193,7 +28229,7 @@ struct msghdr {
 
 
 
-    def doSampling(self):
+    def checkInterval(self):
         # continue target thread #
         self.cont(check=True)
 
@@ -28289,6 +28325,28 @@ struct msghdr {
                 clist.append([addr, '??', '??'])
 
         return clist
+
+
+
+    def handleBreakcall(self):
+        # get register set of target #
+        if not self.getRegs():
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        args = self.readArgValues()
+
+
+
+    def doHandleUsercall(self, mode):
+        previous = self.status
+        self.status = mode
+
+        # interprete user function call #
+        self.handleUsercall()
+
+        self.status = previous
 
 
 
@@ -28741,7 +28799,10 @@ struct msghdr {
                 offset = fcache.getOffsetBySymbol(symbol)
                 if offset:
                     offset = int(offset, 16)
-                    return self.pmap[mfile]['vstart'] + offset
+                    if ElfAnalyzer.isRelocFile(mfile):
+                        return self.pmap[mfile]['vstart'] + offset
+                    else:
+                        return offset
 
 
 
@@ -28883,8 +28944,19 @@ struct msghdr {
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
-        elif mode == 'inst' or mode == 'sample':
+        elif mode == 'inst':
             cmd = plist.index('PTRACE_SINGLESTEP')
+        elif mode == 'sample':
+            pass
+        elif mode == 'break':
+            for value in SystemManager.customCmd:
+                addr = self.getAddrBySymbol(value)
+                if not addr:
+                    SystemManager.printErr(\
+                        "Fail to find adress of %s" % value)
+                    sys.exit(0)
+
+                self.addBreakpoint(addr, value)
         else:
             SystemManager.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -28922,9 +28994,11 @@ struct msghdr {
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst):
                         ret = self.ptrace(cmd, 0, 0)
-                # wait to sample calls #
+                # wait for sample calls #
                 elif mode == 'sample':
-                    self.doSampling()
+                    self.checkInterval()
+                elif mode == 'break':
+                    self.cont(check=True)
                 # setup trap #
                 else:
                     # check realtime report interval #
@@ -28945,25 +29019,27 @@ struct msghdr {
                     raise Exception()
 
                 # trap #
-                if stat == signal.SIGTRAP or \
-                    (mode == 'sample' and stat == signal.SIGSTOP):
+                if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
                         ret = self.ptrace(cmd, 0, 0)
                         self.status = 'enter'
                         continue
-                    # inst #
-                    elif mode == 'inst' or mode == 'sample':
+
+                    # usercall #
+                    elif mode == 'inst':
+                        self.doHandleUsercall(mode)
+
+                    # breakcall #
+                    elif mode == 'break':
                         previous = self.status
                         self.status = mode
 
-                        # interprete user function call #
-                        self.handleUsercall()
+                        # interprete function call #
+                        self.handleBreakcall()
 
                         self.status = previous
-                    else:
-                        continue
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
@@ -28986,6 +29062,10 @@ struct msghdr {
 
                 # stop signal #
                 elif stat == signal.SIGSTOP:
+                    if mode == 'sample':
+                        self.doHandleUsercall(mode)
+                        continue
+
                     self.status = 'stop'
                     SystemManager.printWarn(\
                         'Blocked thread %s because of %s' % \
@@ -29029,6 +29109,9 @@ struct msghdr {
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
 
+                    if mode == 'sample':
+                        self.doHandleUsercall(mode)
+
                     # continue target from signal stop #
                     if mode != 'syscall':
                         self.cont(check=True, sig=stat)
@@ -29055,14 +29138,20 @@ struct msghdr {
                 SystemManager.printErr(\
                     "Terminated tracing thread %s %s" % \
                     (pid, ereason))
+
                 break
 
 
 
     @staticmethod
     def destroyDebugger(instance):
+        # remove breakpoints #
+        for brk in instance.breakList.keys():
+            instance.stop()
+            instance.removeBreakpoint(brk)
+
         '''
-        this code will not be effective because
+        below code will not be effective because
         the instance also exists in exitFuncList
         '''
 
@@ -48208,6 +48297,16 @@ def main(args=None):
         # usercall #
         elif SystemManager.isUserTopMode():
             SystemManager.doTrace('usercall')
+
+        # breakcall #
+        elif SystemManager.isBrkTopMode():
+            if not SystemManager.customCmd or \
+                len(SystemManager.customCmd) == 0:
+                SystemManager.printErr(\
+                    "Input value for breakpoint with -c option")
+                sys.exit(0)
+
+            SystemManager.doTrace('breakcall')
 
         # syscall #
         elif SystemManager.isSysTopMode():
