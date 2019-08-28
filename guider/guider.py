@@ -11060,6 +11060,7 @@ class SystemManager(object):
     selectEnable = True
     cgroupEnable = False
     cmdlineEnable = False
+    schedstatEnable = True
     intervalEnable = 0
 
     forceEnable = False
@@ -14201,7 +14202,7 @@ Copyright:
         # import ctypes #
         ctypes = SystemManager.getPkg('ctypes')
 
-        from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
+        from ctypes import cdll, POINTER
 
         try:
             # load standard libc library #
@@ -14218,14 +14219,52 @@ Copyright:
                     nmSyscall = val
                 else:
                     nmSyscall = 'sys_%s' % val
+
                 nrSyscall = ConfigManager.sysList.index(nmSyscall)
             else:
                 raise Exception()
 
-            return SystemManager.libcObj.syscall(nrSyscall)
+            try:
+                nrParams = \
+                    len(ConfigManager.SYSCALL_PROTOTYPES[nmSyscall[4:]][1])
+            except:
+                SystemManager.printErr(\
+                    "Fail to get the number of arguments for %s" % nmSyscall)
+                raise Exception()
+
+            # check arguments #
+            if len(args) != nrParams:
+                SystemManager.printErr((\
+                    "Fail to get arguments for %s "
+                    "because of wrong parameters") % nmSyscall)
+                raise Exception()
+
+            if nrParams == 0:
+                return SystemManager.libcObj.syscall(nrSyscall)
+            elif nrParams == 1:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0])
+            elif nrParams == 2:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1])
+            elif nrParams == 3:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2])
+            elif nrParams == 4:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3])
+            elif nrParams == 5:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3], \
+                        args[4])
+            elif nrParams == 6:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3], \
+                        args[4], args[5])
         except:
             SystemManager.printWarn(\
-                'Fail to call %s syscall' % syscall, True)
+                'Fail to call %s syscall because %s' % \
+                    (syscall, SystemManager.getErrReason()), True)
 
 
 
@@ -27206,13 +27245,20 @@ struct msghdr {
             SystemManager.printWarn('Fail to stop wrong thread %s' % pid)
             return -1
 
+        # send signal to a thread #
+        try:
+            SystemManager.syscall('tkill', pid, signal.SIGSTOP)
+            return 0
+        except:
+            pass
+
+        # send signal to a process #
         try:
             os.kill(pid, signal.SIGSTOP)
+            return 0
         except:
             SystemManager.printSigError(pid, 'SIGSTOP', 'warning')
             return -1
-
-        return 0
 
 
 
@@ -40884,7 +40930,7 @@ class ThreadAnalyzer(object):
                         float(time) - float(SystemManager.startTime)
                 # normal intervals #
                 elif ftime > 0:
-                    self.thisInterval = float(time) -ftime
+                    self.thisInterval = float(time) - ftime
                 # long time running intervals #
                 else:
                     for idx in xrange(index - 1, -1, -1):
@@ -44122,9 +44168,15 @@ class ThreadAnalyzer(object):
 
 
     def saveProcSchedData(self, path, tid):
-        schedBuf = self.saveTaskData(path, tid, 'schedstat')
-
         try:
+            if not SystemManager.schedstatEnable:
+                raise Exception()
+
+            schedBuf = self.saveTaskData(path, tid, 'schedstat')
+            if len(schedBuf) == 0:
+                SystemManager.schedstatEnable = False
+                raise Exception()
+
             SCHED_POLICY = schedBuf[0].split()
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
