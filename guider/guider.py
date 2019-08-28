@@ -27237,7 +27237,7 @@ struct msghdr {
 
 
 
-    def stop(self, pid=None):
+    def stop(self, pid=None, thread=True):
         if not pid:
             pid = self.pid
 
@@ -27247,6 +27247,9 @@ struct msghdr {
 
         # send signal to a thread #
         try:
+            if not thread:
+                raise Exception()
+
             SystemManager.syscall('tkill', pid, signal.SIGSTOP)
             return 0
         except:
