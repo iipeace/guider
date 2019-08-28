@@ -10274,7 +10274,7 @@ class FileAnalyzer(object):
     def mergeMapLine(string, procMap, onlyExec=False):
         m = re.match((\
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) '
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+).\s*'
             r'(?P<binName>.+)'), string)
         if not m:
             return
@@ -10286,6 +10286,8 @@ class FileAnalyzer(object):
             return
 
         fileName = d['binName']
+        if fileName.startswith('['):
+            fileName = fileName[1:-1]
         startAddr = int(d['startAddr'], 16)
         endAddr = int(d['endAddr'], 16)
 
@@ -14261,6 +14263,8 @@ Copyright:
                 return SystemManager.libcObj.syscall(\
                     nrSyscall, args[0], args[1], args[2], args[3], \
                         args[4], args[5])
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printWarn(\
                 'Fail to call %s syscall because %s' % \
