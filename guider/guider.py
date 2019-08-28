@@ -2804,7 +2804,7 @@ class UtilManager(object):
     def getFlagString(value, flist):
         string = ''
         numVal = int(value)
-        for bit in flist.keys():
+        for bit in list(flist.keys()):
             try:
                 if numVal & bit:
                     string = '%s%s|' % (string, flist[bit])
@@ -8281,7 +8281,7 @@ class FunctionAnalyzer(object):
                 else:
                     # Find index of the backmost exception value #
                     maxIdx = -1
-                    for pos in exceptList.keys():
+                    for pos in list(exceptList.keys()):
                         try:
                             ridx = subStack.index(pos)
                             if ridx >= 0 and ridx > maxIdx:
@@ -9761,7 +9761,7 @@ class LeakAnalyzer(object):
                 self.symData[sym]['substack'] = dict()
 
             if val['callList']:
-                for time in val['callList'].keys():
+                for time in list(val['callList'].keys()):
                     callinfo = self.callData[time]
                     substack = ' <- '.join(callinfo['symstack'][1:])
 
@@ -15421,7 +15421,7 @@ Copyright:
 
 
     def disableAllEvents(self):
-        for event in self.cmdList.keys():
+        for event in list(self.cmdList.keys()):
             self.cmdList[event] = False
 
 
@@ -21591,7 +21591,7 @@ Copyright:
                 sys.exit(0)
 
             # get file list on memorymap #
-            fileList = FileAnalyzer.getProcMapInfo(pids[0]).keys()
+            fileList = list(FileAnalyzer.getProcMapInfo(pids[0]).keys())
 
             for filePath in fileList:
                 for sym in SystemManager.filterGroup:
@@ -21607,7 +21607,7 @@ Copyright:
 
         SystemManager.printPipe(\
             "{0:<64} {1:<32} {2:<18}\n{3:1}".format(\
-                'Symbol', 'PATH', 'Address', twoLine))
+                'Symbol', 'PATH', 'Offset', twoLine))
 
         # print symbols from offset list #
         for sym, val in resInfo.items():
@@ -21758,7 +21758,7 @@ Copyright:
         SystemManager.doLimitCpu(limitInfo, verbose=False)
 
         # terminate tasks #
-        SystemManager.terminateTasks(limitInfo.keys())
+        SystemManager.terminateTasks(list(limitInfo.keys()))
 
 
 
@@ -23151,7 +23151,7 @@ Copyright:
 
     @staticmethod
     def killChilds():
-        SystemManager.terminateTasks(SystemManager.childList.keys())
+        SystemManager.terminateTasks(list(SystemManager.childList.keys()))
 
 
 
@@ -24976,7 +24976,7 @@ Copyright:
                 nrTasks = 0
 
                 tempSubdir = copy.deepcopy(subdir)
-                for val in subdir.keys():
+                for val in list(subdir.keys()):
                     if not val in ConfigManager.CGROUP_VALUE:
                         continue
                     elif val == 'tasks':
@@ -27149,6 +27149,9 @@ struct msghdr {
 
 
     def addBreakpoint(self, addr, sym=None):
+        # convert addr to aligned value #
+        addr -= addr % ConfigManager.wordSize
+
         if addr in self.breakBackupList:
             origWord = self.breakBackupList[addr]['data']
         else:
@@ -27932,7 +27935,7 @@ struct msghdr {
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
 
-        for mfile in self.pmap.keys():
+        for mfile in list(self.pmap.keys()):
             eobj = ElfAnalyzer.getObject(mfile)
             if eobj:
                 eobj.mergeSymTable()
@@ -28335,7 +28338,24 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             return
 
+        # read args #
         args = self.readArgValues()
+
+        # get aligned address #
+        addr = self.pc - (self.pc % ConfigManager.wordSize)
+
+        # get breakpoint addr #
+        if addr not in self.breakList:
+            SystemManager.printErr(\
+                "Fail to get address %s in breakpoint list" % addr)
+            sys.exit(0)
+
+        # remove breakpoint #
+        self.removeBreakpoint(addr)
+
+        # apply new register set #
+        self.setPC(addr)
+        self.setRegs()
 
 
 
@@ -28489,6 +28509,16 @@ struct msghdr {
 
 
     def handleSyscall(self):
+        # get register set #
+        if not self.getRegs():
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        if len(SystemManager.syscallList) > 0 and \
+            self.getNrSyscall() not in SystemManager.syscallList:
+            return
+
         regs = self.regsDict
         pbufsize = self.pbufsize
         nrSyscall = regs[self.sysreg]
@@ -28793,7 +28823,7 @@ struct msghdr {
                     offset = int(offset, 16)
                     return self.pmap[binary]['vstart'] + offset
 
-        for mfile in self.pmap.keys():
+        for mfile in list(self.pmap.keys()):
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
                 offset = fcache.getOffsetBySymbol(symbol)
@@ -28817,7 +28847,6 @@ struct msghdr {
         # default variables #
         regs = None
         pid = self.pid
-        arch = SystemManager.getArch()
         plist = ConfigManager.PTRACE_TYPE
         self.commIdx = ConfigManager.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigManager.STAT_ATTR.index("UTIME")
@@ -28836,8 +28865,9 @@ struct msghdr {
         self.supportGetRegset = True
         self.supportSetRegset = True
         self.supportProcessVmIO = True
-        self.sysreg = ConfigManager.REG_LIST[arch]
-        self.retreg = ConfigManager.RET_LIST[arch]
+        self.arch = SystemManager.getArch()
+        self.sysreg = ConfigManager.REG_LIST[self.arch]
+        self.retreg = ConfigManager.RET_LIST[self.arch]
         self.contCmd = plist.index('PTRACE_CONT')
         self.getregsCmd = plist.index('PTRACE_GETREGS')
         self.setregsCmd = plist.index('PTRACE_SETREGS')
@@ -29047,16 +29077,6 @@ struct msghdr {
                     if mode != 'syscall':
                         continue
 
-                    # get register set #
-                    if not self.getRegs():
-                        SystemManager.printErr(\
-                            "Fail to get register values of thread %d" % pid)
-                        return
-
-                    if len(SystemManager.syscallList) > 0 and \
-                        self.getNrSyscall() not in SystemManager.syscallList:
-                        continue
-
                     # interprete syscall context #
                     self.handleSyscall()
 
@@ -29146,7 +29166,7 @@ struct msghdr {
     @staticmethod
     def destroyDebugger(instance):
         # remove breakpoints #
-        for brk in instance.breakList.keys():
+        for brk in list(instance.breakList.keys()):
             instance.stop()
             instance.removeBreakpoint(brk)
 
@@ -29490,13 +29510,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def setPC(self, val):
-        if arch == 'arm':
+        if self.arch == 'arm':
             self.regs.r15 = val
-        elif arch == 'aarch64':
+        elif self.arch == 'aarch64':
             self.regs.r32 = val
-        elif arch == 'x86':
+        elif self.arch == 'x86':
             self.regs.eip = val
-        elif arch == 'x64':
+        elif self.arch == 'x64':
             self.regs.rip = val
 
 
@@ -29504,7 +29524,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
     def setRegs(self):
         pid = self.pid
         ctypes = self.ctypes
-        arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
         # get register set #
@@ -29538,7 +29557,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         pid = self.pid
         ctypes = self.ctypes
-        arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
         # get register set #
@@ -29559,21 +29577,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
         # set registers #
-        if arch == 'arm':
+        if self.arch == 'arm':
             self.fp = self.regs.r11
             self.sp = self.regs.r13
             self.lr = self.regs.r14
             self.pc = self.regs.r15
-        elif arch == 'aarch64':
+        elif self.arch == 'aarch64':
             self.fp = self.regs.r29
             self.lr = self.regs.r30
             self.sp = self.regs.r31
             self.pc = self.regs.r32
-        elif arch == 'x86':
+        elif self.arch == 'x86':
             self.fp = self.regs.ebp
             self.sp = self.regs.esp
             self.pc = self.regs.eip
-        elif arch == 'x64':
+        elif self.arch == 'x64':
             # no use rbp as frame pointer #
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
