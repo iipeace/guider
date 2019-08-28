@@ -13441,6 +13441,7 @@ Description:
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
+        -l                          print signal list
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -18204,6 +18205,8 @@ Copyright:
                     SystemManager.printInfo(\
                         "set %s as boundary line" % \
                         ', '.join(SystemManager.boundaryLine))
+                elif SystemManager.isSendMode():
+                    pass
                 else:
                     SystemManager.addr2linePath = value.split(',')
 
@@ -19348,6 +19351,19 @@ Copyright:
                 argList = sys.argv[2:]
             else:
                 argList = None
+
+            # print signal list #
+            if SystemManager.findOption('l'):
+                for idx, sig in enumerate(ConfigManager.SIG_LIST):
+                    if idx == 0:
+                        continue
+                    elif idx % 5 == 0:
+                        newline = True
+                    else:
+                        newline = False
+                    SystemManager.printPipe(\
+                        "{0:>2}) {1:<12}".format(idx, sig), newline=newline)
+                sys.exit(0)
 
             SystemManager.sendSignalArgs(argList)
 
