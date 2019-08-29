@@ -14230,6 +14230,8 @@ Copyright:
             try:
                 nrParams = \
                     len(ConfigManager.SYSCALL_PROTOTYPES[nmSyscall[4:]][1])
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printErr(\
                     "Fail to get the number of arguments for %s" % nmSyscall)
@@ -21638,7 +21640,11 @@ Copyright:
                     sys.exit(0)
         # check process #
         else:
-            pids = SystemManager.getPids(inputArg)
+            if inputArg.isdigit() and \
+                os.path.exists('%s/%s' % (SystemManager.procPath, inputArg)):
+                pids = [inputArg]
+            else:
+                pids = SystemManager.getPids(inputArg)
             if len(pids) == 0:
                 SystemManager.printErr(\
                     "Fail to recognize %s as a file or a process" % inputArg)
@@ -24136,8 +24142,8 @@ Copyright:
         # launch option #
         try:
             launchOption = '%s%s' % (' '.join(sys.argv), ' -')
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Launch', '# ' + launchOption))
+            SystemManager.infoBufferPrint("{0:20} # {1:<100}".\
+                format('Launch', launchOption))
 
             if SystemManager.jsonPrintEnable:
                 jsonData['launch'] = launchOption
@@ -25948,6 +25954,15 @@ class DbusManager(object):
                     "msg_iov" not in jsonData["args"]["msg"]:
                     return
 
+                # get D-Bus interface #
+                msgList = jsonData["args"]["msg"]["msg_iov"]
+                if type(msgList) is dict:
+                    for name, msg in msgList.items():
+                        length = msg['len']
+                        call = msg['data']
+                else:
+                    return
+
                 # acquire lock #
                 if lock:
                     lock.acquire()
@@ -25957,12 +25972,6 @@ class DbusManager(object):
                     ThreadAnalyzer.dbusData[tid]['totalCnt'] = 1
                 else:
                     ThreadAnalyzer.dbusData[tid]['totalCnt'] += 1
-
-                # get D-Bus interface #
-                msgList = jsonData["args"]["msg"]["msg_iov"]
-                for name, msg in msgList.items():
-                    length = msg['len']
-                    call = msg['data']
 
                 try:
                     ThreadAnalyzer.dbusData['totalCnt'] += 1
@@ -26072,7 +26081,7 @@ class DbusManager(object):
 
                 # set options #
                 sys.argv[1] = 'strace'
-                #SystemManager.showAll = True
+                SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
                 SystemManager.printFile = None
                 SystemManager.logEnable = False
@@ -28655,7 +28664,7 @@ struct msghdr {
                         elif type(arg[2]) is dict:
                             text = arg[2]
                         else:
-                            text = str(hex(arg[2]).upper()).rstrip('L')
+                            text = '0x{0:02x}'.format(arg[2])
                     elif arg[0].endswith('int') or arg[0].endswith('long'):
                         try:
                             text = int(arg[2])
@@ -28713,8 +28722,16 @@ struct msghdr {
             elif SystemManager.printFile:
                 self.addSample(name, '??', current, bt=backtrace)
             else:
+                ttyColsOrig = SystemManager.ttyCols
+                if SystemManager.showAll:
+                    SystemManager.ttyCols = 0
+                else:
+                    callString = '%s ' % callString[:self.pbufsize]
+
                 SystemManager.printPipe(\
                     '\n%s' % callString, newline=False, flush=True)
+
+                SystemManager.ttyCols = ttyColsOrig
 
             # print call history #
             if SystemManager.printFile:
@@ -33126,6 +33143,7 @@ class ThreadAnalyzer(object):
 
     def getDrawStats(self, logFile):
         logBuf = None
+        infoBuf = None
 
         chartStats = {}
 
@@ -33170,6 +33188,22 @@ class ThreadAnalyzer(object):
             UtilManager.printProgress(finalLine, len(logBuf))
 
             line = logBuf[finalLine]
+            finalLine += 1
+
+            # get system info #
+            if len(SystemManager.systemInfoBuffer) == 0 and \
+                line.startswith('[System General Info]'):
+                infoBuf = ''
+            elif infoBuf is not None:
+                if line.startswith('['):
+                    SystemManager.systemInfoBuffer = infoBuf
+                    infoBuf = None
+                    continue
+                elif line.startswith('=') or line.startswith(' '):
+                    continue
+                else:
+                    infoBuf += line
+                    continue
 
             # split line #
             sline = line.split('|')
@@ -33207,8 +33241,6 @@ class ThreadAnalyzer(object):
 
                 # change context #
                 context = contextlist[1]
-
-            finalLine += 1
 
             # EOF #
             if finalLine >= len(logBuf):
@@ -34101,7 +34133,7 @@ class ThreadAnalyzer(object):
                 maxCore = max(nrCore)
 
                 # convert total cpu usage by core number #
-                if False:
+                if not SystemManager.cpuAvrEnable:
                     cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
@@ -34381,9 +34413,10 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
 
@@ -34948,9 +34981,10 @@ class ThreadAnalyzer(object):
                 pass
 
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             # convert tick type to integer #
             try:
@@ -35496,9 +35530,10 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
 
@@ -35640,6 +35675,18 @@ class ThreadAnalyzer(object):
                 except:
                     err = SystemManager.getErrReason()
                     raise Exception(err)
+
+        # draw system info #
+        try:
+            if SystemManager.systemInfoBuffer and \
+                len(SystemManager.systemInfoBuffer) > 0:
+                self.figure.text(\
+                    0, 1, SystemManager.systemInfoBuffer,\
+                        va='top', ha='left', size=2)
+        except:
+            SystemManager.printWarn(\
+                "Fail to write system info because %s" % \
+                    SystemManager.getErrReason(), True)
 
         # save to file #
         self.saveImage(logFile, 'graph')
