@@ -26026,6 +26026,12 @@ class DbusManager(object):
                 "Fail to get root permission")
             sys.exit(0)
 
+        # check filter #
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printErr(\
+                "Input comm or tid for target with -g option")
+            sys.exit(0)
+
         # get select object #
         selectObj = SystemManager.getPkg('select')
 
@@ -26036,9 +26042,15 @@ class DbusManager(object):
         else:
             lock = None
 
+        taskList = []
         # get pids of gdbus threads #
-        taskList = SystemManager.getPids(\
-            'gdbus', isThread=True, withMain=True)
+        for val in SystemManager.filterGroup:
+            if val.isdigit() and \
+                os.path.exists('%s/%s' % (SystemManager.procPath, val)):
+                taskList.append(val)
+            else:
+                taskList += SystemManager.getPids(\
+                    val, isThread=True, withMain=True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
@@ -26047,7 +26059,7 @@ class DbusManager(object):
         # define common list #
         pipeList = []
         threadingList = []
-        SystemManager.filterGroup = taskList + SystemManager.filterGroup
+        SystemManager.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
         SystemManager.processEnable = False
         SystemManager.sort = 'd'
@@ -26879,6 +26891,7 @@ class Debugger(object):
         self.arch = arch = SystemManager.getArch()
         self.skipInst = 5
         self.syscall = ''
+        self.bufferedStr = ''
         self.mapFd = None
         self.pmap = None
         self.needRescan = True
@@ -27533,8 +27546,7 @@ struct msghdr {
             # do syscall #
             ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
             if ret > 0:
-                retval = buffer(lbuf)[:]
-                return retval
+                return memoryview(lbuf).tobytes()
         except SkipException:
             pass
         except SystemExit:
@@ -27623,15 +27635,15 @@ struct msghdr {
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
-                self.readMem(header.contents.msg_name, namelen).\
-                    decode('utf8', 'ignore').encode('utf8')
+                self.readMem(header.contents.msg_name, namelen)
+            msginfo['msg_name'] = msginfo['msg_name'].decode('utf8', 'ignore')
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
         iovlen = int(header.contents.msg_iovlen)
 
         if not SystemManager.showAll:
-            msginfo['msg_iov'] = iovaddr
+            msginfo['msg_iov'] = '0x{0:02x}'.format(iovaddr)
         else:
             msginfo['msg_iov'] = {}
 
@@ -27647,9 +27659,8 @@ struct msghdr {
                 # get iov data #
                 iovobjlen = int(iovobj.contents.iov_len)
                 iovobjbase = iovobj.contents.iov_base
-                iovobjdata = \
-                    self.readMem(iovobjbase, iovobjlen).\
-                        decode('utf8', 'ignore').encode('utf8')
+                iovobjdata = self.readMem(iovobjbase, iovobjlen)
+                iovobjdata = iovobjdata.decode('utf8', 'ignore')
 
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
 
@@ -27751,7 +27762,7 @@ struct msghdr {
                 return value
 
         if argname == "buf" and \
-            (syscall == "write" or syscall == 'read'):
+            (syscall == "write" or syscall == "read"):
             if self.values[2] > self.pbufsize:
                 length = self.pbufsize
             else:
@@ -27764,16 +27775,16 @@ struct msghdr {
 
             return value
 
-        if argname == "msg":
-            if (syscall == "recvmsg" or syscall == "sendmsg"):
-                try:
-                    return self.readMsgHdr(value)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SystemManager.printWarn(\
-                        "Fail to get msghdr because %s" % \
-                            SystemManager.getErrReason(), True)
+        if argname == "msg" and \
+            (syscall == "sendmsg" or syscall == "recvmsg"):
+            try:
+                return self.readMsgHdr(value)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printWarn(\
+                    "Fail to get msghdr because %s" % \
+                        SystemManager.getErrReason(), True)
 
         if argname == "flags" and value:
             if syscall.startswith('send') or \
@@ -28586,7 +28597,185 @@ struct msghdr {
 
 
 
+    def getConvertedArgs(self):
+        args = []
+
+        proto = ConfigManager.SYSCALL_PROTOTYPES
+
+        # get argument values from register #
+        regstr = self.readArgValues()
+
+        # get data types #
+        self.rettype, formats = proto[self.syscall]
+
+        # get values #
+        self.values = \
+            [value for value, format in zip(regstr, formats)]
+
+        seq = 0
+        for value, format in zip(regstr, formats):
+            # get type and name of a argument #
+            argtype, argname = format
+
+            # convert argument value #
+            value = self.convertValue(argtype, argname, value, seq)
+
+            # add argument #
+            self.addArg(argtype, argname, value)
+
+            seq += 1
+
+        # pick values from argument list #
+        for idx, arg in enumerate(self.args):
+            if arg[0].endswith('*'):
+                # convert pointer to values #
+                if UtilManager.isString(arg[2]):
+                    text = UtilManager.decodeArg(arg[2])
+
+                    # check output length #
+                    if not (SystemManager.printFile or \
+                        SystemManager.showAll) and \
+                        len(text) > self.pbufsize:
+                        text = '"%s"...' % text[:self.pbufsize]
+                    else:
+                        text = '"%s"' % text[:-1]
+                elif type(arg[2]) is dict:
+                    text = arg[2]
+                else:
+                    text = '0x{0:02x}'.format(arg[2])
+            elif arg[0].endswith('int') or arg[0].endswith('long'):
+                try:
+                    text = int(arg[2])
+                except:
+                    text = arg[2]
+            else:
+                text = arg[2]
+
+            # append an arg to list #
+            args.append(text)
+
+        return args
+
+
+
+    def isDeferrableCall(self, name):
+        if name == 'read' or \
+            name == 'recvmsg' or \
+            name == 'recvmmsg' or \
+            name == 'recv' or \
+            name == 'readv' or \
+            name == 'readlink' or \
+            name == 'recvfrom' or \
+            name == 'clock_gettime' or \
+            name == 'getgroups' or \
+            name == 'getgroups16' or \
+            name == 'gethostname' or \
+            name == 'getitimer' or \
+            name == 'getpeername' or \
+            name == 'gettimeofday' or \
+            name == 'getsockname' or \
+            name == 'process_vm_readv':
+            return True
+        else:
+            return False
+
+
+
+    def handleSyscallOutput(self, args, deferrable=False):
+        # get diff time #
+        current = time.time()
+        diff = current - self.start
+
+        # print call info in JSON format #
+        if SystemManager.jsonPrintEnable:
+            jsonData = {}
+            jsonData["type"] = "enter"
+            jsonData["time"] = current
+            jsonData["timediff"] = diff
+            jsonData["name"] = self.syscall
+            jsonData["args"] = {}
+
+            for idx, arg in enumerate(self.args):
+                jsonData['args'][arg[1]] = args[idx]
+
+            try:
+                SystemManager.printPipe(\
+                    UtilManager.convertDict2Str(jsonData))
+            except:
+                SystemManager.printErr(\
+                    "Fail to convert %s to JSON for marshalling because %s" % \
+                        ([jsonData], SystemManager.getErrReason()))
+            return
+
+        # convert args to string ##
+        argText = ', '.join(str(arg) for arg in args)
+
+        # get backtrace #
+        if SystemManager.funcDepth > 0:
+            backtrace = self.getBacktrace(SystemManager.funcDepth)
+            bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+        else:
+            backtrace = None
+            bts = ''
+
+        # build call string #
+        if deferrable:
+            callString = '%s) %s' % (argText, bts)
+        else:
+            callString = \
+                '%3.6f %s(%s) %s' % (diff, self.syscall, argText, bts)
+
+        # print call info #
+        if self.isRealtime:
+            self.addSample(\
+                self.syscall, '??', current, realtime=True, bt=backtrace)
+        elif SystemManager.printFile:
+            self.addSample(self.syscall, '??', current, bt=backtrace)
+        else:
+            ttyColsOrig = SystemManager.ttyCols
+
+            if SystemManager.showAll:
+                SystemManager.ttyCols = 0
+            else:
+                callString = '%s ' % callString[:self.pbufsize]
+
+            if deferrable:
+                prefix = ''
+            else:
+                prefix = '\n'
+
+            SystemManager.printPipe(\
+                '%s%s' % (prefix, callString), newline=False, flush=True)
+
+            SystemManager.ttyCols = ttyColsOrig
+
+        # print call history #
+        if SystemManager.printFile:
+            if deferrable:
+                callString = '%s%s' % (self.bufferedStr, callString)
+            self.callPrint.append(callString)
+
+        # check symbol #
+        if SystemManager.customCmd:
+            self.checkSymbol(self.syscall, newline=True, bt=backtrace)
+
+
+
+    def handleDefSyscall(self):
+        self.status = 'exit'
+
+        args = self.getConvertedArgs()
+
+        self.handleSyscallOutput(args, deferrable=True)
+
+
+
     def handleSyscall(self):
+        # check diferrable #
+        if self.status == 'deferrable':
+            self.handleDefSyscall()
+            self.status = 'exit'
+
         # get register set #
         if not self.getRegs():
             SystemManager.printErr(\
@@ -28598,7 +28787,6 @@ struct msghdr {
             return
 
         regs = self.regsDict
-        pbufsize = self.pbufsize
         nrSyscall = regs[self.sysreg]
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
@@ -28622,124 +28810,36 @@ struct msghdr {
                     "Fail to get args info of %s" % name, True)
                 return
 
-            args = []
+            # convert args #
             if not self.isRealtime:
-                # get argument values from register #
-                regstr = self.readArgValues()
+                if self.isDeferrableCall(name):
+                    self.status = 'deferrable'
 
-                # get data types #
-                self.rettype, formats = proto[name]
+                    if SystemManager.jsonPrintEnable:
+                        return
 
-                # get values #
-                self.values = \
-                    [value for value, format in zip(regstr, formats)]
+                    # get diff time #
+                    current = time.time()
+                    diff = current - self.start
 
-                seq = 0
-                for value, format in zip(regstr, formats):
-                    # get type and name of a argument #
-                    argtype, argname = format
+                    # build call string #
+                    callString = '%3.6f %s(' % (diff, name)
 
-                    # convert argument value #
-                    value = self.convertValue(argtype, argname, value, seq)
-
-                    # add argument #
-                    self.addArg(argtype, argname, value)
-
-                    seq += 1
-
-                # pick values from argument list #
-                for idx, arg in enumerate(self.args):
-                    if arg[0].endswith('*'):
-                        # convert pointer to values #
-                        if UtilManager.isString(arg[2]):
-                            text = UtilManager.decodeArg(arg[2])
-
-                            # check output length #
-                            if not (SystemManager.printFile or \
-                                SystemManager.showAll) and \
-                                len(text) > pbufsize:
-                                text = '"%s"...' % text[:pbufsize]
-                            else:
-                                text = '"%s"' % text[:-1]
-                        elif type(arg[2]) is dict:
-                            text = arg[2]
-                        else:
-                            text = '0x{0:02x}'.format(arg[2])
-                    elif arg[0].endswith('int') or arg[0].endswith('long'):
-                        try:
-                            text = int(arg[2])
-                        except:
-                            text = arg[2]
+                    if SystemManager.printFile:
+                        self.bufferedStr = callString
                     else:
-                        text = arg[2]
+                        SystemManager.printPipe(\
+                            '\n%s' % callString, newline=False, flush=True)
 
-                    # append an arg to list #
-                    args.append(text)
+                    return
 
-            # get diff time #
-            current = time.time()
-            diff = current - self.start
-
-            # print call info in JSON format #
-            if SystemManager.jsonPrintEnable:
-                jsonData = {}
-                jsonData["type"] = "enter"
-                jsonData["time"] = current
-                jsonData["timediff"] = diff
-                jsonData["name"] = name
-                jsonData["args"] = {}
-
-                for idx, arg in enumerate(self.args):
-                    jsonData['args'][arg[1]] = args[idx]
-
-                try:
-                    SystemManager.printPipe(\
-                        UtilManager.convertDict2Str(jsonData))
-                except:
-                    SystemManager.printErr(\
-                        "Fail to convert %s to JSON for marshalling because %s" % \
-                            ([jsonData], SystemManager.getErrReason()))
-                return
-
-            # convert args to string ##
-            argText = ', '.join(str(arg) for arg in args)
-
-            # get backtrace #
-            if SystemManager.funcDepth > 0:
-                backtrace = self.getBacktrace(SystemManager.funcDepth)
-                bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+                args = self.getConvertedArgs()
             else:
-                backtrace = None
-                bts = ''
+                args = []
 
-            # build call string #
-            callString = '%3.6f %s(%s) %s' % (diff, name, argText, bts)
+            self.handleSyscallOutput(args)
 
-            # print call info #
-            if self.isRealtime:
-                self.addSample(\
-                    name, '??', current, realtime=True, bt=backtrace)
-            elif SystemManager.printFile:
-                self.addSample(name, '??', current, bt=backtrace)
-            else:
-                ttyColsOrig = SystemManager.ttyCols
-                if SystemManager.showAll:
-                    SystemManager.ttyCols = 0
-                else:
-                    callString = '%s ' % callString[:self.pbufsize]
-
-                SystemManager.printPipe(\
-                    '\n%s' % callString, newline=False, flush=True)
-
-                SystemManager.ttyCols = ttyColsOrig
-
-            # print call history #
-            if SystemManager.printFile:
-                self.callPrint.append(callString)
-
-            # check symbol #
-            if SystemManager.customCmd:
-                self.checkSymbol(name, newline=True, bt=backtrace)
+            return
 
         # exit #
         elif self.status == 'exit':
