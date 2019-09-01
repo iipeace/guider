@@ -10925,10 +10925,12 @@ class SystemManager(object):
     dltObj = None
     dltCtx = None
     libcObj = None
+    libgioObj = None
     guiderObj = None
     libcppObj = None
     dltPath = 'libdlt.so'
     libcPath = 'libc.so.6'
+    libgioPath = 'libgio-2.0.so'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
 
@@ -17370,7 +17372,7 @@ Copyright:
     @staticmethod
     def printPipe(line, newline=True, flush=False):
         if SystemManager.dltEnable:
-            DltManager.doLogDlt(msg=line)
+            DltAnalyzer.doLogDlt(msg=line)
 
         if not SystemManager.printEnable:
             return
@@ -19420,7 +19422,7 @@ Copyright:
                     "input DLT message")
                 sys.exit(0)
 
-            ret = DltManager.doLogDlt(msg=SystemManager.sourceFile)
+            ret = DltAnalyzer.doLogDlt(msg=SystemManager.sourceFile)
             if ret == 0:
                 SystemManager.printInfo(\
                     "Logged DLT message successfully")
@@ -19436,7 +19438,7 @@ Copyright:
 
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            DltManager.runDltReceiver(mode='print')
+            DltAnalyzer.runDltReceiver(mode='print')
 
         # PRINTKMSG MODE #
         elif SystemManager.isPrintKmsgMode():
@@ -25846,8 +25848,42 @@ Copyright:
 
 
 
-class DbusManager(object):
+class DbusAnalyzer(object):
     """ Manager for D-Bus """
+
+    @staticmethod
+    def prepareDbusMethods():
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
+        # try to demangle symbol #
+        try:
+            # load standard libc library #
+            if not SystemManager.libgioObj:
+                SystemManager.libgioObj = \
+                    cdll.LoadLibrary(SystemManager.libgioPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to load %s to analyze dbus packets because %s" % \
+                    (SystemManager.libgioPath, err))
+            sys.exit(0)
+
+        # define methods #
+        gioObj = SystemManager.libgioObj
+        gioObj.g_dbus_message_get_destination.argtypes = None
+        gioObj.g_dbus_message_get_destination.restype = None
+        gioObj.g_dbus_message_get_path.argtypes = None
+        gioObj.g_dbus_message_get_path.restype = None
+        gioObj.g_dbus_message_get_interface.argtypes = None
+        gioObj.g_dbus_message_get_interface.restype = None
+        gioObj.g_dbus_message_get_member.argtypes = None
+        gioObj.g_dbus_message_get_member.restype = None
+
+
 
     @staticmethod
     def runDbusSnooper():
@@ -26029,10 +26065,13 @@ class DbusManager(object):
                 "Input comm or tid for target with -g option")
             sys.exit(0)
 
+        # prepare D-Bus methods to analyze BLOB data #
+        DbusAnalyzer.prepareDbusMethods()
+
         # get select object #
         selectObj = SystemManager.getPkg('select')
 
-        # get select object #
+        # get threading object #
         threadObj = SystemManager.getPkg('threading', False)
         if threadObj:
             lock = threadObj.Lock()
@@ -26113,7 +26152,7 @@ class DbusManager(object):
 
 
 
-class DltManager(object):
+class DltAnalyzer(object):
     """ Manager for DLT """
 
     # define constant #
@@ -26141,15 +26180,15 @@ class DltManager(object):
             ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
                 ('DLT Info', SystemManager.uptime, \
                 SystemManager.uptimeDiff, \
-                convertFunc(DltManager.dltData['cnt'])))
+                convertFunc(DltAnalyzer.dltData['cnt'])))
 
         # update daemon stat #
-        DltManager.procInfo.saveProcStats()
-        for pid in DltManager.pids:
-            DltManager.procInfo.saveProcData(\
+        DltAnalyzer.procInfo.saveProcStats()
+        for pid in DltAnalyzer.pids:
+            DltAnalyzer.procInfo.saveProcData(\
                 '%s/%s' % (SystemManager.procPath, pid), pid)
-        DltManager.procInfo.printProcUsage()
-        DltManager.procInfo.reinitStats()
+        DltAnalyzer.procInfo.printProcUsage()
+        DltAnalyzer.procInfo.reinitStats()
 
         SystemManager.addPrint(\
                 "{0:^20} | {1:^19} | {2:^19} |\n{3:1}\n".format(\
@@ -26157,7 +26196,7 @@ class DltManager(object):
 
         # traverse DLT table #
         dltCnt = 0
-        for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
+        for ecuId, ecuItem in sorted(DltAnalyzer.dltData.items(), \
             key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
             reverse=True):
             if ecuId == 'cnt':
@@ -26168,7 +26207,7 @@ class DltManager(object):
                 break
 
             ecuCnt = ecuItem['cnt']
-            ecuPer = ecuCnt / float(DltManager.dltData['cnt']) * 100
+            ecuPer = ecuCnt / float(DltAnalyzer.dltData['cnt']) * 100
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
                 ecuId, convertFunc(ecuCnt), ecuPer)
             SystemManager.addPrint(ecuStr)
@@ -26219,7 +26258,7 @@ class DltManager(object):
         SystemManager.printTopStats()
 
         # initialize data #
-        DltManager.dltData = {'cnt': 0}
+        DltAnalyzer.dltData = {'cnt': 0}
 
 
 
@@ -26230,7 +26269,7 @@ class DltManager(object):
             if SystemManager.repeatCount <= SystemManager.progressCnt:
                 sys.exit(0)
 
-        if DltManager.dltData['cnt'] == 0 and \
+        if DltAnalyzer.dltData['cnt'] == 0 and \
             not SystemManager.inWaitStatus:
             SystemManager.printWarn(\
                 "No DLT message received", True)
@@ -26274,27 +26313,27 @@ class DltManager(object):
                 if skipFlag:
                     return
 
-            DltManager.dltData['cnt'] += 1
+            DltAnalyzer.dltData['cnt'] += 1
 
             # add ecuId #
-            if not ecuId in DltManager.dltData:
-                DltManager.dltData[ecuId] = {'cnt': 0}
-            DltManager.dltData[ecuId]['cnt'] += 1
+            if not ecuId in DltAnalyzer.dltData:
+                DltAnalyzer.dltData[ecuId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId]['cnt'] += 1
 
             # add apId #
-            if not apId in DltManager.dltData[ecuId]:
-                DltManager.dltData[ecuId][apId] = {'cnt': 0}
-            DltManager.dltData[ecuId][apId]['cnt'] += 1
+            if not apId in DltAnalyzer.dltData[ecuId]:
+                DltAnalyzer.dltData[ecuId][apId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId][apId]['cnt'] += 1
 
             # add ctxId #
-            if not ctxId in DltManager.dltData[ecuId][apId]:
-                DltManager.dltData[ecuId][apId][ctxId] = {'cnt': 0}
-            DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
+            if not ctxId in DltAnalyzer.dltData[ecuId][apId]:
+                DltAnalyzer.dltData[ecuId][apId][ctxId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId][apId][ctxId]['cnt'] += 1
         # printing #
         elif mode == 'print':
             # get payload #
             dltObj.dlt_message_payload(\
-                ctypes.byref(msg), buf, DltManager.DLT_DAEMON_TEXTSIZE, 2, verbose)
+                ctypes.byref(msg), buf, DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
             #string = buf.value.decode("utf8")
             string = buf.value
 
@@ -26418,8 +26457,8 @@ class DltManager(object):
             create_string_buffer
 
         # define constant #
-        DLT_HTYP_WEID = DltManager.DLT_HTYP_WEID
-        DLT_ID_SIZE = DltManager.DLT_ID_SIZE
+        DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
+        DLT_ID_SIZE = DltAnalyzer.DLT_ID_SIZE
 
         # define log level #
         LOG_EMERG     = 0
@@ -26631,8 +26670,8 @@ class DltManager(object):
 
 
         # check dlt-daemon #
-        DltManager.pids = SystemManager.getProcPids('dlt-daemon')
-        if len(DltManager.pids) == 0:
+        DltAnalyzer.pids = SystemManager.getProcPids('dlt-daemon')
+        if len(DltAnalyzer.pids) == 0:
             SystemManager.printErr(\
                 "Fail to find running dlt-daemon process")
             sys.exit(0)
@@ -26754,7 +26793,7 @@ class DltManager(object):
         # define message #
         msg = DLTMessage()
         buf = create_string_buffer(\
-            b'\000' * DltManager.DLT_DAEMON_TEXTSIZE)
+            b'\000' * DltAnalyzer.DLT_DAEMON_TEXTSIZE)
 
         # save timestamp #
         prevTime = time.time()
@@ -26763,15 +26802,15 @@ class DltManager(object):
         # initialize dlt-daemon info #
         SystemManager.showAll = True
         SystemManager.cmdlineEnable = True
-        procInfo = DltManager.procInfo = ThreadAnalyzer(onlyInstance=True)
-        for pid in DltManager.pids:
+        procInfo = DltAnalyzer.procInfo = ThreadAnalyzer(onlyInstance=True)
+        for pid in DltAnalyzer.pids:
             procInfo.saveProcData(\
                 '%s/%s' % (SystemManager.procPath, pid), pid)
             procInfo.saveCmdlineData(\
                 '%s/%s' % (SystemManager.procPath, pid), pid)
 
         # set timer #
-        signal.signal(signal.SIGALRM, DltManager.onAlarm)
+        signal.signal(signal.SIGALRM, DltAnalyzer.onAlarm)
         SystemManager.updateTimer()
 
         if mode == 'top':
@@ -26794,7 +26833,7 @@ class DltManager(object):
                     SystemManager.waitUserInput(0.000001)
 
                     # print summary #
-                    DltManager.printSummary()
+                    DltAnalyzer.printSummary()
 
                     # save timestamp #
                     prevTime = time.time()
@@ -26861,7 +26900,7 @@ class DltManager(object):
                         dltObj.dlt_set_storageheader(\
                             msg.storageheader, c_char_p(''))
 
-                    DltManager.handleMessage(dltObj, msg, buf, mode, verbose)
+                    DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verbose)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -32830,9 +32869,9 @@ class ThreadAnalyzer(object):
                 self.runFileTop()
             # dlt top mode #
             elif SystemManager.dltTopEnable:
-                DltManager.runDltReceiver(mode='top')
+                DltAnalyzer.runDltReceiver(mode='top')
             elif SystemManager.dbusTopEnable:
-                DbusManager.runDbusSnooper()
+                DbusAnalyzer.runDbusSnooper()
 
             # request service to remote server #
             self.requestService()
