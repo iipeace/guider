@@ -25874,14 +25874,24 @@ class DbusAnalyzer(object):
 
         # define methods #
         gioObj = SystemManager.libgioObj
+        gioObj.g_dbus_message_new_from_blob.argtypes = None
+        gioObj.g_dbus_message_new_from_blob.restype = None
+        gioObj.g_dbus_message_get_arg0.argtypes = None
+        gioObj.g_dbus_message_get_arg0.restype = None
         gioObj.g_dbus_message_get_destination.argtypes = None
         gioObj.g_dbus_message_get_destination.restype = None
         gioObj.g_dbus_message_get_path.argtypes = None
         gioObj.g_dbus_message_get_path.restype = None
+        gioObj.g_dbus_message_get_sender.argtypes = None
+        gioObj.g_dbus_message_get_sender.restype = None
+        gioObj.g_dbus_message_get_signature.argtypes = None
+        gioObj.g_dbus_message_get_signature.restype = None
         gioObj.g_dbus_message_get_interface.argtypes = None
         gioObj.g_dbus_message_get_interface.restype = None
         gioObj.g_dbus_message_get_member.argtypes = None
         gioObj.g_dbus_message_get_member.restype = None
+        gioObj.g_dbus_message_print.argtypes = None
+        gioObj.g_dbus_message_print.restype = None
 
 
 
