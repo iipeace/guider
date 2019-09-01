@@ -21582,7 +21582,7 @@ Copyright:
         SystemManager.printPipe("\n[Address Info]\n%s" % twoLine)
 
         SystemManager.printPipe(\
-            "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
+            "{0:<18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
 
         # print symbols from offset list #
         for offset in SystemManager.filterGroup:
@@ -21613,16 +21613,13 @@ Copyright:
     def doSym2line():
         SystemManager.printLogo(big=True, onlyFile=True)
 
-        SystemManager.warningEnable = True
-
         if not SystemManager.sourceFile:
             SystemManager.printErr(\
                 "No PATH or COMM or PID with -I")
             sys.exit(0)
 
         if len(SystemManager.filterGroup) == 0:
-            SystemManager.printErr(\
-                "No symbol with -g")
+            SystemManager.printErr("No symbol with -g")
             sys.exit(0)
 
         resInfo = {}
@@ -21671,7 +21668,7 @@ Copyright:
         SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
 
         SystemManager.printPipe(\
-            "{0:<64} {1:<32} {2:<18}\n{3:1}".format(\
+            "{0:<48} {1:<52} {2:<18}\n{3:1}".format(\
                 'Symbol', 'PATH', 'Offset', twoLine))
 
         # print symbols from offset list #
@@ -21682,7 +21679,7 @@ Copyright:
                 addr = 'N/A'
 
             SystemManager.printPipe(\
-                "{0:<64} {1:<32} {2:<18}".format(sym, filePath, addr))
+                "{0:<48} {1:<52} {2:<18}".format(sym, filePath, addr))
 
         if len(resInfo) == 0:
             SystemManager.printPipe('\tNone')
@@ -30926,6 +30923,9 @@ class ElfAnalyzer(object):
         if path not in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
+                return None
+            elif path == 'vdso' or \
+                path == 'vsyscall':
                 return None
 
             SystemManager.printInfo(\
