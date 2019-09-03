@@ -10926,10 +10926,12 @@ class SystemManager(object):
     dltCtx = None
     libcObj = None
     libgioObj = None
+    libgObj = None
     guiderObj = None
     libcppObj = None
     dltPath = 'libdlt.so'
     libcPath = 'libc.so.6'
+    libgobjPath = 'libgobject-2.0.so'
     libgioPath = 'libgio-2.0.so'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
@@ -25849,20 +25851,26 @@ Copyright:
 
 
 class DbusAnalyzer(object):
-    """ Manager for D-Bus """
+    """ Analyzer for D-Bus """
 
     @staticmethod
     def prepareDbusMethods():
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
-        from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
+        from ctypes import cdll, POINTER, c_char_p, pointer, \
+            c_ulong, c_void_p
         # try to demangle symbol #
         try:
-            # load standard libc library #
+            # load standard libgio library #
             if not SystemManager.libgioObj:
                 SystemManager.libgioObj = \
                     cdll.LoadLibrary(SystemManager.libgioPath)
+
+            # load standard libgobj library #
+            if not SystemManager.libgObj:
+                SystemManager.libgObj = \
+                    cdll.LoadLibrary(SystemManager.libgobjPath)
         except SystemExit:
             sys.exit(0)
         except:
@@ -25873,25 +25881,40 @@ class DbusAnalyzer(object):
             sys.exit(0)
 
         # define methods #
+        gObj = SystemManager.libgObj
+        gObj.g_object_unref.argtypes = [c_void_p]
+
         gioObj = SystemManager.libgioObj
-        gioObj.g_dbus_message_new_from_blob.argtypes = None
-        gioObj.g_dbus_message_new_from_blob.restype = None
-        gioObj.g_dbus_message_get_arg0.argtypes = None
-        gioObj.g_dbus_message_get_arg0.restype = None
-        gioObj.g_dbus_message_get_destination.argtypes = None
-        gioObj.g_dbus_message_get_destination.restype = None
-        gioObj.g_dbus_message_get_path.argtypes = None
-        gioObj.g_dbus_message_get_path.restype = None
-        gioObj.g_dbus_message_get_sender.argtypes = None
-        gioObj.g_dbus_message_get_sender.restype = None
-        gioObj.g_dbus_message_get_signature.argtypes = None
-        gioObj.g_dbus_message_get_signature.restype = None
-        gioObj.g_dbus_message_get_interface.argtypes = None
-        gioObj.g_dbus_message_get_interface.restype = None
-        gioObj.g_dbus_message_get_member.argtypes = None
-        gioObj.g_dbus_message_get_member.restype = None
-        gioObj.g_dbus_message_print.argtypes = None
-        gioObj.g_dbus_message_print.restype = None
+        gioObj.g_dbus_message_new_from_blob.argtypes = \
+            [c_char_p, c_ulong, c_ulong, c_void_p]
+        gioObj.g_dbus_message_new_from_blob.restype = c_ulong
+
+        gioObj.g_dbus_message_get_message_type.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_message_type.restype = c_ulong
+
+        gioObj.g_dbus_message_get_arg0.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_arg0.restype = c_char_p
+
+        gioObj.g_dbus_message_get_sender.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_sender.restype = c_char_p
+
+        gioObj.g_dbus_message_get_destination.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_destination.restype = c_char_p
+
+        gioObj.g_dbus_message_get_path.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_path.restype = c_char_p
+
+        gioObj.g_dbus_message_get_signature.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_signature.restype = c_char_p
+
+        gioObj.g_dbus_message_get_interface.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_interface.restype = c_char_p
+
+        gioObj.g_dbus_message_get_member.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_member.restype = c_char_p
+
+        gioObj.g_dbus_message_print.argtypes = [c_ulong, c_ulong]
+        gioObj.g_dbus_message_print.restype = c_char_p
 
 
 
@@ -25993,18 +26016,59 @@ class DbusAnalyzer(object):
                     return
                 # check args #
                 elif "args" not in jsonData or \
+                    type(jsonData["args"]) is not dict or \
                     "msg" not in jsonData["args"] or \
+                    type(jsonData["args"]["msg"]) is not dict or \
                     "msg_iov" not in jsonData["args"]["msg"]:
                     return
 
                 # get D-Bus interface #
                 msgList = jsonData["args"]["msg"]["msg_iov"]
-                if type(msgList) is dict:
-                    for name, msg in msgList.items():
-                        length = msg['len']
-                        call = msg['data']
-                else:
+                if type(msgList) is not dict:
                     return
+
+                # get ctypes object #
+                ctypes = SystemManager.getPkg('ctypes')
+                from ctypes import c_char_p,  c_ulong, c_void_p, \
+                    cast, addressof, byref
+
+                libgioObj = SystemManager.libgioObj
+                libgObj = SystemManager.libgObj
+
+                for name, msg in msgList.items():
+                    # get message info #
+                    length = msg['len']
+                    call = msg['data']
+
+                    # recover data #
+                    if len(call) > length:
+                        call = call[:length]
+                    elif len(call) < length:
+                        call = call + (call[-1] * (length - len(call)))
+
+                    # cast bytes to void_p #
+                    buf = c_char_p(call.encode())
+
+                    # create GDBusMessage from bytes #
+                    gdmsg = libgioObj.g_dbus_message_new_from_blob(\
+                        buf, c_ulong(length), c_ulong(0), 0)
+
+                    if gdmsg == 0:
+                        continue
+
+                    # get property from message #
+                    addr = c_ulong(gdmsg)
+                    interface = libgioObj.g_dbus_message_get_interface(addr)
+                    path = libgioObj.g_dbus_message_get_path(addr)
+                    mtype = libgioObj.g_dbus_message_get_message_type(addr)
+
+                    '''
+                    print(libgioObj.g_dbus_message_print(\
+                        c_ulong(gdmsg), c_ulong(0)))
+                    '''
+
+                    # free object #
+                    libgObj.g_object_unref(gdmsg)
 
                 # acquire lock #
                 if lock:
@@ -26096,7 +26160,7 @@ class DbusAnalyzer(object):
                 taskList.append(val)
             else:
                 taskList += SystemManager.getPids(\
-                    val, isThread=True, withMain=True)
+                    val, isThread=True, withSibling=True)
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find gdbus thread")
@@ -27162,13 +27226,19 @@ struct msghdr {
             self.pid = None
             self.isRunning = False
 
-        # set register variable #
+        # set register variables #
         self.regs = user_regs_struct()
+        self.tempRegs = user_regs_struct()
         self.regsDict = None
+
 
         self.iovecObj = self.iovec(\
             iov_base=addressof(self.regs),\
             iov_len=sizeof(self.regs))
+
+        self.tempIovecObj = self.iovec(\
+            iov_base=addressof(self.tempRegs),\
+            iov_len=sizeof(self.tempRegs))
 
 
 
@@ -27682,7 +27752,8 @@ struct msghdr {
         else:
             msginfo['msg_name'] = \
                 self.readMem(header.contents.msg_name, namelen)
-            msginfo['msg_name'] = msginfo['msg_name'].decode('utf8', 'ignore')
+            msginfo['msg_name'] = \
+                msginfo['msg_name'].decode('utf8', 'ignore')
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
@@ -27706,7 +27777,7 @@ struct msghdr {
                 iovobjlen = int(iovobj.contents.iov_len)
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
-                iovobjdata = iovobjdata.decode('utf8', 'ignore')
+                iovobjdata = iovobjdata.decode('utf8')
 
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
 
@@ -28468,7 +28539,7 @@ struct msghdr {
 
     def handleBreakcall(self):
         # get register set of target #
-        if not self.getRegs():
+        if not self.updateRegs():
             SystemManager.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
             return
@@ -28507,7 +28578,7 @@ struct msghdr {
 
     def handleUsercall(self):
         # get register set of target #
-        if not self.getRegs():
+        if not self.updateRegs():
             SystemManager.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
             return
@@ -28643,9 +28714,7 @@ struct msghdr {
 
 
 
-    def getConvertedArgs(self):
-        args = []
-
+    def getRegArgs(self, ref=True):
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
         # get argument values from register #
@@ -28664,12 +28733,20 @@ struct msghdr {
             argtype, argname = format
 
             # convert argument value #
-            value = self.convertValue(argtype, argname, value, seq)
+            if ref:
+                value = self.convertValue(argtype, argname, value, seq)
 
             # add argument #
             self.addArg(argtype, argname, value)
 
             seq += 1
+
+
+
+    def getConvertedArgs(self):
+        args = []
+
+        self.getRegArgs()
 
         # pick values from argument list #
         for idx, arg in enumerate(self.args):
@@ -28742,7 +28819,10 @@ struct msghdr {
             jsonData["args"] = {}
 
             for idx, arg in enumerate(self.args):
-                jsonData['args'][arg[1]] = args[idx]
+                if len(args) > 0:
+                    jsonData['args'][arg[1]] = args[idx]
+                else:
+                    jsonData['args'][arg[1]] = arg[2]
 
             try:
                 SystemManager.printPipe(\
@@ -28754,7 +28834,10 @@ struct msghdr {
             return
 
         # convert args to string ##
-        argText = ', '.join(str(arg) for arg in args)
+        if len(args) > 0:
+            argText = ', '.join(str(arg) for arg in args)
+        else:
+            argText = ', '.join(str(arg[2]) for arg in self.args)
 
         # get backtrace #
         if SystemManager.funcDepth > 0:
@@ -28810,7 +28893,26 @@ struct msghdr {
     def handleDefSyscall(self):
         self.status = 'exit'
 
-        args = self.getConvertedArgs()
+        if self.getRegs(temp=True) != 0:
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        # set return value from register #
+        retval = self.tempRegs.getdict()[self.retreg]
+
+        # convert unsigned long to long #
+        retval = (retval & 0xffffffffffffffff)
+        if retval & 0x8000000000000000:
+            retval = retval - 0x10000000000000000
+
+        if retval < 0:
+            args = []
+
+            # get argument values from previous register set #
+            self.getRegArgs(ref=False)
+        else:
+            args = self.getConvertedArgs()
 
         self.handleSyscallOutput(args, deferrable=True)
 
@@ -28823,7 +28925,7 @@ struct msghdr {
             self.status = 'exit'
 
         # get register set #
-        if not self.getRegs():
+        if not self.updateRegs():
             SystemManager.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
             return
@@ -29783,10 +29885,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def getRegs(self):
-        if self.getRegsCost == 0:
-            start = time.time()
-
+    def getRegs(self, temp=False):
         pid = self.pid
         ctypes = self.ctypes
         wordSize = ConfigManager.wordSize
@@ -29796,17 +29895,36 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             if not self.supportGetRegset:
                 raise Exception()
 
+            if temp:
+                addr = ctypes.addressof(self.tempIovecObj)
+            else:
+                addr = ctypes.addressof(self.iovecObj)
+
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
-            ret = self.ptrace(\
-                cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
         except SystemExit:
             sys.exit(0)
         except:
+            if temp:
+                addr = ctypes.addressof(self.tempRegs)
+            else:
+                addr = ctypes.addressof(self.regs)
+
             self.supportGetRegset = False
             cmd = self.getregsCmd
-            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+            ret = self.ptrace(cmd, 0, addr)
+
+        return ret
+
+
+
+    def updateRegs(self):
+        if self.getRegsCost == 0:
+            start = time.time()
+
+        ret = self.getRegs()
 
         # set registers #
         if self.arch == 'arm':
