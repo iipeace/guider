@@ -10926,6 +10926,7 @@ class SystemManager(object):
     dltCtx = None
     libcObj = None
     libgioObj = None
+    libdbusObj = None
     libgObj = None
     guiderObj = None
     libcppObj = None
@@ -10933,6 +10934,7 @@ class SystemManager(object):
     libcPath = 'libc.so.6'
     libgobjPath = 'libgobject-2.0.so'
     libgioPath = 'libgio-2.0.so'
+    libdbusPath = 'libdbus-1.so.3'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
 
@@ -11701,6 +11703,8 @@ class SystemManager(object):
         # import package #
         try:
             obj =  __import__(name, fromlist = [name] if isRoot else [None])
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printWarn(\
                 "Fail to import python package: %s " % name, isExit)
@@ -21667,7 +21671,7 @@ Copyright:
                         if res:
                             resInfo[sym] = (res, filePath)
                     except:
-                        sys.exit(0)
+                        continue
 
         SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
 
@@ -25853,13 +25857,23 @@ Copyright:
 class DbusAnalyzer(object):
     """ Analyzer for D-Bus """
 
+    previousData = ''
+
+    GDBusMessageType = [
+        "INVALID",
+        "METHOD_CALL",
+        "METHOD_RETURN",
+        "ERROR",
+        "SIGNAL"
+    ]
+
     @staticmethod
     def prepareDbusMethods():
         # get ctypes object #
         ctypes = SystemManager.getPkg('ctypes')
 
         from ctypes import cdll, POINTER, c_char_p, pointer, \
-            c_ulong, c_void_p
+            c_ulong, c_void_p, c_int
         # try to demangle symbol #
         try:
             # load standard libgio library #
@@ -25871,20 +25885,29 @@ class DbusAnalyzer(object):
             if not SystemManager.libgObj:
                 SystemManager.libgObj = \
                     cdll.LoadLibrary(SystemManager.libgobjPath)
+
+            '''
+            # load standard libdbus library #
+            if not SystemManager.libdbusObj:
+                SystemManager.libdbusObj = \
+                    cdll.LoadLibrary(SystemManager.libdbusPath)
+            '''
         except SystemExit:
             sys.exit(0)
         except:
             err = SystemManager.getErrReason()
             SystemManager.printErr(\
-                "Fail to load %s to analyze dbus packets because %s" % \
-                    (SystemManager.libgioPath, err))
+                "Fail to load library to analyze dbus packets because %s" % err)
             sys.exit(0)
 
-        # define methods #
+        # define gobject methods #
         gObj = SystemManager.libgObj
+
         gObj.g_object_unref.argtypes = [c_void_p]
 
+        # define gio methods #
         gioObj = SystemManager.libgioObj
+
         gioObj.g_dbus_message_new_from_blob.argtypes = \
             [c_char_p, c_ulong, c_ulong, c_void_p]
         gioObj.g_dbus_message_new_from_blob.restype = c_ulong
@@ -25913,8 +25936,30 @@ class DbusAnalyzer(object):
         gioObj.g_dbus_message_get_member.argtypes = [c_ulong]
         gioObj.g_dbus_message_get_member.restype = c_char_p
 
+        gioObj.g_dbus_message_get_serial.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_serial.restype = c_char_p
+
         gioObj.g_dbus_message_print.argtypes = [c_ulong, c_ulong]
         gioObj.g_dbus_message_print.restype = c_char_p
+
+        '''
+        # define dbus methods #
+        dbusObj = SystemManager.libdbusObj
+
+        dbusObj.dbus_message_demarshal.argtypes = \
+            [c_char_p, c_int, c_void_p]
+        dbusObj.dbus_message_demarshal.restype = c_ulong
+
+        dbusObj.dbus_message_demarshal_bytes_needed.argtypes = \
+            [c_char_p, c_int]
+        dbusObj.dbus_message_demarshal_bytes_needed.restype = c_int
+
+        dbusObj.dbus_message_get_interface.argtypes = [c_void_p]
+        dbusObj.dbus_message_get_interface.restype = c_char_p
+
+        dbusObj.dbus_message_get_type.argtypes = [c_void_p]
+        dbusObj.dbus_message_get_type.restype = c_int
+        '''
 
 
 
@@ -26030,11 +26075,12 @@ class DbusAnalyzer(object):
                 # get ctypes object #
                 ctypes = SystemManager.getPkg('ctypes')
                 from ctypes import c_char_p,  c_ulong, c_void_p, \
-                    cast, addressof, byref
+                    cast, addressof, byref, c_int
 
                 libgioObj = SystemManager.libgioObj
                 libgObj = SystemManager.libgObj
 
+                cnt = 0
                 for name, msg in msgList.items():
                     # get message info #
                     length = msg['len']
@@ -26046,21 +26092,37 @@ class DbusAnalyzer(object):
                     elif len(call) < length:
                         call = call + (call[-1] * (length - len(call)))
 
+                    # composite data #
+                    if call[0] == 'l' or \
+                        call[0] == 'B':
+                        DbusAnalyzer.previousData = call
+                    else:
+                        call = DbusAnalyzer.previousData + call
+
                     # cast bytes to void_p #
                     buf = c_char_p(call.encode())
 
                     # create GDBusMessage from bytes #
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(\
-                        buf, c_ulong(length), c_ulong(0), 0)
+                        buf, c_ulong(len(call)), c_ulong(0), 0)
 
                     if gdmsg == 0:
                         continue
 
-                    # get property from message #
+                    # get properties from message #
                     addr = c_ulong(gdmsg)
+
+                    nrType = libgioObj.g_dbus_message_get_message_type(addr)
+                    mtype = DbusAnalyzer.GDBusMessageType[nrType]
+
                     interface = libgioObj.g_dbus_message_get_interface(addr)
+                    src = libgioObj.g_dbus_message_get_sender(addr)
+                    des = libgioObj.g_dbus_message_get_destination(addr)
+                    member = libgioObj.g_dbus_message_get_member(addr)
                     path = libgioObj.g_dbus_message_get_path(addr)
-                    mtype = libgioObj.g_dbus_message_get_message_type(addr)
+                    arg0 = libgioObj.g_dbus_message_get_arg0(addr)
+
+                    cnt += 1
 
                     '''
                     print(libgioObj.g_dbus_message_print(\
@@ -26069,6 +26131,9 @@ class DbusAnalyzer(object):
 
                     # free object #
                     libgObj.g_object_unref(gdmsg)
+
+                if cnt == 0:
+                    return
 
                 # acquire lock #
                 if lock:
@@ -27753,7 +27818,7 @@ struct msghdr {
             msginfo['msg_name'] = \
                 self.readMem(header.contents.msg_name, namelen)
             msginfo['msg_name'] = \
-                msginfo['msg_name'].decode('utf8', 'ignore')
+                msginfo['msg_name'].decode('latin-1')
 
         # get iov header info #
         iovaddr = cast(header.contents.msg_iov, c_void_p).value
@@ -27777,7 +27842,8 @@ struct msghdr {
                 iovobjlen = int(iovobj.contents.iov_len)
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
-                iovobjdata = iovobjdata.decode('utf8')
+                #iovobjdata = iovobjdata.decode('utf8')
+                iovobjdata = iovobjdata.decode('latin-1')
 
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
 
@@ -27829,6 +27895,17 @@ struct msghdr {
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
+
+        if argname == "msg" and \
+            (syscall == "sendmsg" or syscall == "recvmsg"):
+            try:
+                return self.readMsgHdr(value)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printWarn(\
+                    "Fail to get msghdr because %s" % \
+                        SystemManager.getErrReason(), True)
 
         # handle special syscalls #
         if syscall == "execve":
@@ -27891,17 +27968,6 @@ struct msghdr {
                 value = ret
 
             return value
-
-        if argname == "msg" and \
-            (syscall == "sendmsg" or syscall == "recvmsg"):
-            try:
-                return self.readMsgHdr(value)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SystemManager.printWarn(\
-                    "Fail to get msghdr because %s" % \
-                        SystemManager.getErrReason(), True)
 
         if argname == "flags" and value:
             if syscall.startswith('send') or \
