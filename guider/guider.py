@@ -2603,7 +2603,7 @@ class ConfigManager(object):
 
     # Define ptrace request type #
     PTRACE_TYPE = [
-        'PTRACE_TRACEME',       #0#
+        'PTRACE_TRACEME',           #0#
         'PTRACE_PEEKTEXT',
         'PTRACE_PEEKDATA',
         'PTRACE_PEEKUSR',
@@ -2612,15 +2612,18 @@ class ConfigManager(object):
         'PTRACE_POKEUSR',
         'PTRACE_CONT',
         'PTRACE_KILL',
-        'PTRACE_SINGLESTEP',    #9#
+        'PTRACE_SINGLESTEP',        #9#
         '', '',
-        'PTRACE_GETREGS',       #12#
-        'PTRACE_SETREGS',       #13#
+        'PTRACE_GETREGS',           #12#
+        'PTRACE_SETREGS',           #13#
         '', '',
-        'PTRACE_ATTACH',        #16#
-        'PTRACE_DETACH',        #17#
+        'PTRACE_ATTACH',            #16#
+        'PTRACE_DETACH',            #17#
         '', '', '', '', '', '',
-        'PTRACE_SYSCALL',        #24#
+        'PTRACE_SYSCALL',           #24#
+        '', '', '', '', '', '',
+        'PTRACE_SYSEMU',            #31#
+        'PTRACE_SYSEMU_SINGLESTEP', #32#
         ]
 
     # Define ptrace event type #
@@ -27134,6 +27137,8 @@ class DltAnalyzer(object):
 class Debugger(object):
     """ Debugger for ptrace """
 
+    lastInstance = None
+
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.ctypes = None
         self.status = 'enter'
@@ -27372,6 +27377,8 @@ struct msghdr {
         self.tempRegs = user_regs_struct()
         self.regsDict = None
 
+        # save instances #
+        Debugger.lastInstance = self
 
         self.iovecObj = self.iovec(\
             iov_base=addressof(self.regs),\
@@ -28071,6 +28078,13 @@ struct msghdr {
 
 
 
+    @staticmethod
+    def onAlarm(signum, frame):
+        Debugger.lastInstance.printIntervalSummary()
+        SystemManager.updateTimer()
+
+
+
     def printIntervalSummary(self):
         def checkInterval():
             if SystemManager.repeatCount == 0:
@@ -28582,10 +28596,6 @@ struct msghdr {
     def checkInterval(self):
         # continue target thread #
         self.cont(check=True)
-
-        # check realtime report interval #
-        if self.isExceedInterval():
-            self.printIntervalSummary()
 
         # wait for sampling time #
         time.sleep(self.sampleTime)
@@ -29199,18 +29209,6 @@ struct msghdr {
 
 
 
-    def isExceedInterval(self):
-        if not self.isRealtime:
-            return False
-
-        totalTime = time.time() - self.last
-        if totalTime >= SystemManager.intervalEnable:
-            return True
-        else:
-            return False
-
-
-
     def isInRun(self):
         try:
             self.statFd.seek(0)
@@ -29371,10 +29369,23 @@ struct msghdr {
         SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
         # set tracing attribute #
-        if mode == 'syscall':
-            if self.isRealtime:
-                self.getCpuUsage()
-                signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+        if self.isRealtime:
+            # get first cpu usage #
+            self.getCpuUsage()
+
+            # set alarm handler #
+            signal.signal(signal.SIGALRM, Debugger.onAlarm)
+
+            if mode == 'sample':
+                # set sampling rate to 100us #
+                if SystemManager.findOption('i'):
+                    self.sampleTime = \
+                        long(SystemManager.getOption('i')) / float(1000000)
+                else:
+                    self.sampleTime = float(0.0001)
+
+                SystemManager.printInfo(\
+                    'Do sampling every %g second' % self.sampleTime)
         # inst #
         elif SystemManager.isUtraceMode() and \
             SystemManager.funcDepth > 0:
@@ -29384,21 +29395,6 @@ struct msghdr {
             SystemManager.printInfo(\
                 'Do sampling every %s instrunctions' % \
                     SystemManager.funcDepth)
-        # sample #
-        else:
-            # get 1st cpu usage #
-            if self.isRealtime:
-                self.getCpuUsage()
-
-            # set sampling rate to 100us #
-            if SystemManager.findOption('i'):
-                self.sampleTime = \
-                    long(SystemManager.getOption('i')) / float(1000000)
-            else:
-                self.sampleTime = float(0.0001)
-
-            SystemManager.printInfo(\
-                'Do sampling every %g second' % self.sampleTime)
 
         # check the process is running #
         try:
@@ -29451,10 +29447,11 @@ struct msghdr {
         # select trap command #
         if mode == 'syscall':
             cmd = plist.index('PTRACE_SYSCALL')
+            #cmd = plist.index('PTRACE_SYSEMU')
         elif mode == 'inst':
             cmd = plist.index('PTRACE_SINGLESTEP')
         elif mode == 'sample':
-            pass
+            cmd = None
         elif mode == 'break':
             for value in SystemManager.customCmd:
                 addr = self.getAddrBySymbol(value)
@@ -29482,8 +29479,7 @@ struct msghdr {
                 SystemManager.intervalEnable == 0:
                 SystemManager.intervalEnable = 1
 
-            if self.mode == 'syscall':
-                signal.alarm(SystemManager.intervalEnable)
+            signal.alarm(SystemManager.intervalEnable)
         else:
             if SystemManager.intervalEnable > 0:
                 signal.signal(signal.SIGALRM, SystemManager.exitHandler)
@@ -29508,10 +29504,6 @@ struct msghdr {
                     self.cont(check=True)
                 # setup trap #
                 else:
-                    # check realtime report interval #
-                    if self.isExceedInterval():
-                        self.printIntervalSummary()
-
                     ret = self.ptrace(cmd, 0, 0)
 
             try:
@@ -29530,7 +29522,8 @@ struct msghdr {
                     # after execve() #
                     if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-                        ret = self.ptrace(cmd, 0, 0)
+                        if cmd:
+                            self.ptrace(cmd, 0, 0)
                         self.status = 'enter'
                         continue
 
@@ -29642,6 +29635,8 @@ struct msghdr {
 
     @staticmethod
     def destroyDebugger(instance):
+        Debugger.lastInstance = None
+
         # remove breakpoints #
         for brk in list(instance.breakList.keys()):
             instance.stop()
