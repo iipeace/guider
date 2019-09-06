@@ -25858,6 +25858,7 @@ class DbusAnalyzer(object):
     """ Analyzer for D-Bus """
 
     previousData = ''
+    errObj = None
 
     GDBusMessageType = [
         "INVALID",
@@ -25873,7 +25874,7 @@ class DbusAnalyzer(object):
         ctypes = SystemManager.getPkg('ctypes')
 
         from ctypes import cdll, POINTER, c_char_p, pointer, \
-            c_ulong, c_void_p, c_int
+            c_ulong, c_void_p, c_int, c_uint32, Structure
         # try to demangle symbol #
         try:
             # load standard libgio library #
@@ -25900,6 +25901,15 @@ class DbusAnalyzer(object):
                 "Fail to load library to analyze dbus packets because %s" % err)
             sys.exit(0)
 
+	# define error object #
+        class GError(Structure):
+            _fields_ = (
+                ("domain", c_uint32),
+                ("code", c_int),
+                ("message", c_char_p),
+            )
+        DbusAnalyzer.errObj = GError
+
         # define gobject methods #
         gObj = SystemManager.libgObj
 
@@ -25911,6 +25921,8 @@ class DbusAnalyzer(object):
         gioObj.g_dbus_message_new_from_blob.argtypes = \
             [c_char_p, c_ulong, c_ulong, c_void_p]
         gioObj.g_dbus_message_new_from_blob.restype = c_ulong
+
+        gioObj.g_error_free.argtypes = [c_void_p]
 
         gioObj.g_dbus_message_get_message_type.argtypes = [c_ulong]
         gioObj.g_dbus_message_get_message_type.restype = c_ulong
@@ -25966,22 +25978,49 @@ class DbusAnalyzer(object):
     @staticmethod
     def runDbusSnooper():
         def updateTaskInfo(dbusData):
-            taskManager.saveSystemStat()
+            try:
+                taskManager.saveSystemStat()
+            except:
+                SystemManager.printErr(\
+                    "Fail to update system stat because %s" % \
+                    SystemManager.getErrReason())
 
             for pid in taskList:
                 try:
+                    if pid not in dbusData:
+                        continue
+
+                    dbusList = []
+                    convertNum = UtilManager.convertNumber
+
                     # build D-Bus usage string #
                     dbusCnt = dbusData[pid]['totalCnt']
-                    dbusString = 'TOTAL: %s' % \
-                        (UtilManager.convertNumber(dbusCnt))
+                    dbusList.append(\
+                        '[TOTAL]: %s / [TYPE]: %s' % \
+                            (convertNum(dbusCnt), \
+                            convertNum(len(dbusData[pid])-1)))
+
+                    for name, value in sorted(\
+                        dbusData[pid].items(), \
+                        key=lambda x:x[1]['cnt'] if x[0] != 'totalCnt' else 0,\
+                        reverse=True):
+                        if name == 'totalCnt':
+                            continue
+                        dbusList.append("%s: %s" % \
+                            (name, convertNum(value['cnt'])))
 
                     # add D-Bus usage #
-                    taskManager.procData[pid]['dbusStr'] = dbusString
+                    taskManager.procData[pid]['dbusList'] = dbusList
                     taskManager.procData[pid]['dbusCnt'] = dbusCnt
                 except:
-                    pass
+                    SystemManager.printWarn(\
+                        "Fail to update task info because %s" % \
+                            SystemManager.getErrReason(), True)
 
         def printSummary(signum, frame):
+            # disable alarm #
+            signal.signal(signal.SIGALRM, signal.SIG_IGN)
+
             # check user input #
             SystemManager.waitUserInput(0.000001)
 
@@ -25993,10 +26032,10 @@ class DbusAnalyzer(object):
             ThreadAnalyzer.dbusData = {'totalCnt': 0}
 
             if lock and lock.locked():
-                lock.release()
-
-            # reset timer #
-            SystemManager.updateTimer()
+                try:
+                    lock.release()
+                except:
+                    pass
 
             # update cpu usage of tasks #
             updateTaskInfo(prevDbusData)
@@ -26013,6 +26052,12 @@ class DbusAnalyzer(object):
             taskManager.printProcUsage()
             taskManager.reinitStats()
             SystemManager.printTopStats()
+
+            # enable alarm #
+            signal.signal(signal.SIGALRM, printSummary)
+
+            # reset timer #
+            SystemManager.updateTimer()
 
         def executeLoop(rdPipeList):
             tid = SystemManager.syscall('gettid')
@@ -26075,12 +26120,14 @@ class DbusAnalyzer(object):
                 # get ctypes object #
                 ctypes = SystemManager.getPkg('ctypes')
                 from ctypes import c_char_p,  c_ulong, c_void_p, \
-                    cast, addressof, byref, c_int
+                    cast, addressof, byref, c_int, POINTER
 
                 libgioObj = SystemManager.libgioObj
                 libgObj = SystemManager.libgObj
 
                 cnt = 0
+                mlist = {}
+
                 for name, msg in msgList.items():
                     # get message info #
                     length = msg['len']
@@ -26090,7 +26137,7 @@ class DbusAnalyzer(object):
                     if len(call) > length:
                         call = call[:length]
                     elif len(call) < length:
-                        call = call + (call[-1] * (length - len(call)))
+                        call = call + ('\1' * (length - len(call)))
 
                     # composite data #
                     if call[0] == 'l' or \
@@ -26100,13 +26147,19 @@ class DbusAnalyzer(object):
                         call = DbusAnalyzer.previousData + call
 
                     # cast bytes to void_p #
-                    buf = c_char_p(call.encode())
+                    buf = c_char_p(call.encode('latin-1'))
 
                     # create GDBusMessage from bytes #
+                    errp = POINTER(DbusAnalyzer.errObj)()
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(\
-                        buf, c_ulong(len(call)), c_ulong(0), 0)
+                        buf, c_ulong(len(call)), c_ulong(0), byref(errp))
 
-                    if gdmsg == 0:
+                    # check error #
+                    if not gdmsg and errp:
+                        SystemManager.printWarn(\
+                            "Fail to convert GDbusMessage because %s" % \
+                            errp.contents.message)
+                        libgioObj.g_error_free(byref(errp.contents))
                         continue
 
                     # get properties from message #
@@ -26115,6 +26168,14 @@ class DbusAnalyzer(object):
                     nrType = libgioObj.g_dbus_message_get_message_type(addr)
                     mtype = DbusAnalyzer.GDBusMessageType[nrType]
 
+                    # check message type #
+                    if not (mtype == 'METHOD_CALL' or \
+                        mtype == 'SIGNAL'):
+                        # free object #
+                        libgObj.g_object_unref(gdmsg)
+                        continue
+
+                    # get properties from message #
                     interface = libgioObj.g_dbus_message_get_interface(addr)
                     src = libgioObj.g_dbus_message_get_sender(addr)
                     des = libgioObj.g_dbus_message_get_destination(addr)
@@ -26122,9 +26183,19 @@ class DbusAnalyzer(object):
                     path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
 
+                    # save message info #
+                    mname = '%s->%s(%s)[%s]' % \
+                        (path, interface, mtype, member)
+                    if mname not in mlist:
+                        mlist[mname] = {'count': 0}
+
+                    mlist[mname]['count'] += 1
+
                     cnt += 1
 
+                    # print message #
                     '''
+                    print(mtype, interface, src, des, member, path, arg0)
                     print(libgioObj.g_dbus_message_print(\
                         c_ulong(gdmsg), c_ulong(0)))
                     '''
@@ -26139,23 +26210,24 @@ class DbusAnalyzer(object):
                 if lock:
                     lock.acquire()
 
+                # increase count #
                 if tid not in ThreadAnalyzer.dbusData:
                     ThreadAnalyzer.dbusData[tid] = dict()
                     ThreadAnalyzer.dbusData[tid]['totalCnt'] = 1
                 else:
                     ThreadAnalyzer.dbusData[tid]['totalCnt'] += 1
 
-                try:
-                    ThreadAnalyzer.dbusData['totalCnt'] += 1
-                except:
-                    ThreadAnalyzer.dbusData['totalCnt'] = 1
+                ThreadAnalyzer.dbusData['totalCnt'] += 1
 
                 # merge D-Bus interface #
-                try:
-                    ThreadAnalyzer.dbusData[tid][call]['cnt'] += 1
-                except:
-                    ThreadAnalyzer.dbusData[tid][call] = dict()
-                    ThreadAnalyzer.dbusData[tid][call]['cnt'] = 1
+                for name, value in mlist.items():
+                    try:
+                        ThreadAnalyzer.dbusData[tid][name]['cnt'] += \
+                            value['count']
+                    except:
+                        ThreadAnalyzer.dbusData[tid][name] = dict()
+                        ThreadAnalyzer.dbusData[tid][name]['cnt'] = \
+                            value['count']
             except:
                 SystemManager.printWarn(\
                     "Fail to handle %s because %s" % \
@@ -26163,7 +26235,10 @@ class DbusAnalyzer(object):
             finally:
                 # release lock #
                 if lock and lock.locked():
-                    lock.release()
+                    try:
+                        lock.release()
+                    except:
+                        pass
 
         def updateDataFromPipe(rdPipeList):
             # merge dbus data #
@@ -26257,7 +26332,8 @@ class DbusAnalyzer(object):
 
                 # run a new worker thread #
                 if threadObj:
-                    tobj = threadObj.Thread(target=executeLoop, args=[[rdPipe]])
+                    tobj = threadObj.Thread(\
+                        target=executeLoop, args=[[rdPipe]])
                     threadingList.append(tobj)
             # child #
             elif pid == 0:
@@ -27842,7 +27918,6 @@ struct msghdr {
                 iovobjlen = int(iovobj.contents.iov_len)
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
-                #iovobjdata = iovobjdata.decode('utf8')
                 iovobjdata = iovobjdata.decode('latin-1')
 
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
@@ -27850,9 +27925,9 @@ struct msghdr {
                 # convert ' and " to "" for JSON converting #
                 try:
                     msginfo['msg_iov'][idx]['data'] = \
-                        iovobjdata.replace('"', '""')
+                        iovobjdata.replace('\"', '"')
                     msginfo['msg_iov'][idx]['data'] = \
-                        iovobjdata.replace("'", '""')
+                        iovobjdata.replace("\'", '"')
                 except:
                     msginfo['msg_iov'][idx]['data'] = iovobjdata
 
@@ -28964,8 +29039,11 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             return
 
+        # convert register set to dictionary #
+        tempRegsDict = self.tempRegs.getdict()
+
         # set return value from register #
-        retval = self.tempRegs.getdict()[self.retreg]
+        retval = tempRegsDict[self.retreg]
 
         # convert unsigned long to long #
         retval = (retval & 0xffffffffffffffff)
@@ -28988,7 +29066,6 @@ struct msghdr {
         # check diferrable #
         if self.status == 'deferrable':
             self.handleDefSyscall()
-            self.status = 'exit'
 
         # get register set #
         if not self.updateRegs():
@@ -44090,7 +44167,9 @@ class ThreadAnalyzer(object):
                 SystemManager.statFd = open(cpuPath, 'r')
                 cpuBuf = SystemManager.statFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % cpuPath)
+                SystemManager.printErr(\
+                    'Fail to read %s because %s' % \
+                    (cpuPath, SystemManager.getErrReason()))
 
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
@@ -45255,15 +45334,26 @@ class ThreadAnalyzer(object):
         if interval == 0:
             return
 
-        nrCtxSwc = \
-            self.cpuData['ctxt']['ctxt'] - \
-            self.prevCpuData['ctxt']['ctxt']
-        nrIrq = \
-            self.cpuData['intr']['intr'] - \
-            self.prevCpuData['intr']['intr']
-        nrSoftIrq = \
-            self.cpuData['softirq']['softirq'] - \
-            self.prevCpuData['softirq']['softirq']
+        try:
+            nrCtxSwc = \
+                self.cpuData['ctxt']['ctxt'] - \
+                self.prevCpuData['ctxt']['ctxt']
+        except:
+            nrCtxSwc = 0
+
+        try:
+            nrIrq = \
+                self.cpuData['intr']['intr'] - \
+                self.prevCpuData['intr']['intr']
+        except:
+            nrIrq = 0
+
+        try:
+            nrSoftIrq = \
+                self.cpuData['softirq']['softirq'] - \
+                self.prevCpuData['softirq']['softirq']
+        except:
+            nrSoftIrq = 0
 
         # get total cpu usage #
         nowData = self.cpuData['all']
@@ -47388,10 +47478,11 @@ class ThreadAnalyzer(object):
                     "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
 
             # print D-Bus #
-            if 'dbusStr' in value and \
-                len(value['dbusStr']) > 0:
-                SystemManager.addPrint(\
-                    "{0:>39} | {1:1}\n".format('DBUS', value['dbusStr']))
+            if 'dbusList' in value and \
+                len(value['dbusList']) > 0:
+                for line in value['dbusList']:
+                    SystemManager.addPrint(\
+                        "{0:>39} | {1:1}\n".format('D-BUS', line))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
