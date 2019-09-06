@@ -29085,6 +29085,7 @@ struct msghdr {
 
         if len(SystemManager.syscallList) > 0 and \
             self.getNrSyscall() not in SystemManager.syscallList:
+            #self.cmd = self.sysemuCmd
             return
 
         regs = self.regsDict
@@ -29340,13 +29341,16 @@ struct msghdr {
         self.supportGetRegset = True
         self.supportSetRegset = True
         self.supportProcessVmIO = True
+        self.cmd = None
         self.arch = SystemManager.getArch()
         self.sysreg = ConfigManager.REG_LIST[self.arch]
         self.retreg = ConfigManager.RET_LIST[self.arch]
         self.contCmd = plist.index('PTRACE_CONT')
         self.getregsCmd = plist.index('PTRACE_GETREGS')
         self.setregsCmd = plist.index('PTRACE_SETREGS')
-        self.contCmd = plist.index('PTRACE_CONT')
+        self.syscallCmd = plist.index('PTRACE_SYSCALL')
+        self.sysemuCmd = plist.index('PTRACE_SYSEMU')
+        self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
         self.pbufsize = SystemManager.ttyCols >> 1
 
         # sampling variables #
@@ -29446,12 +29450,11 @@ struct msghdr {
 
         # select trap command #
         if mode == 'syscall':
-            cmd = plist.index('PTRACE_SYSCALL')
-            #cmd = plist.index('PTRACE_SYSEMU')
+            self.cmd = self.syscallCmd
         elif mode == 'inst':
-            cmd = plist.index('PTRACE_SINGLESTEP')
+            self.cmd = self.singlestepCmd
         elif mode == 'sample':
-            cmd = None
+            self.cmd = None
         elif mode == 'break':
             for value in SystemManager.customCmd:
                 addr = self.getAddrBySymbol(value)
@@ -29496,7 +29499,7 @@ struct msghdr {
                 # skip instructions for performance #
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst):
-                        ret = self.ptrace(cmd, 0, 0)
+                        ret = self.ptrace(self.cmd, 0, 0)
                 # wait for sample calls #
                 elif mode == 'sample':
                     self.checkInterval()
@@ -29504,7 +29507,7 @@ struct msghdr {
                     self.cont(check=True)
                 # setup trap #
                 else:
-                    ret = self.ptrace(cmd, 0, 0)
+                    ret = self.ptrace(self.cmd, 0, 0)
 
             try:
                 # wait process #
@@ -29522,8 +29525,8 @@ struct msghdr {
                     # after execve() #
                     if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-                        if cmd:
-                            self.ptrace(cmd, 0, 0)
+                        if self.cmd:
+                            self.ptrace(self.cmd, 0, 0)
                         self.status = 'enter'
                         continue
 
@@ -29564,7 +29567,7 @@ struct msghdr {
                     # set up trap again #
                     if mode == 'syscall':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-                    self.ptrace(cmd, 0, 0)
+                    self.ptrace(self.cmd, 0, 0)
 
                     continue
 
