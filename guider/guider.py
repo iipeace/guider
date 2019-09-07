@@ -26201,6 +26201,10 @@ class DbusAnalyzer(object):
                     else:
                         call = DbusAnalyzer.previousData + call
 
+                    # check protocol message #
+                    if length == 16:
+                        continue
+
                     # cast bytes to void_p #
                     buf = c_char_p(call.encode('latin-1'))
 
