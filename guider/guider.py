@@ -25863,6 +25863,57 @@ class DbusAnalyzer(object):
     previousData = ''
     errObj = None
 
+    G_IO_ERROR_TYPE = [
+        'G_IO_ERROR_FAILED',
+        'G_IO_ERROR_NOT_FOUND',
+        'G_IO_ERROR_EXISTS',
+        'G_IO_ERROR_IS_DIRECTORY',
+        'G_IO_ERROR_NOT_DIRECTORY',
+        'G_IO_ERROR_NOT_EMPTY',
+        'G_IO_ERROR_NOT_REGULAR_FILE',
+        'G_IO_ERROR_NOT_SYMBOLIC_LINK',
+        'G_IO_ERROR_NOT_MOUNTABLE_FILE',
+        'G_IO_ERROR_FILENAME_TOO_LONG',
+        'G_IO_ERROR_INVALID_FILENAME',
+        'G_IO_ERROR_TOO_MANY_LINKS',
+        'G_IO_ERROR_NO_SPACE',
+        'G_IO_ERROR_INVALID_ARGUMENT',
+        'G_IO_ERROR_PERMISSION_DENIED',
+        'G_IO_ERROR_NOT_SUPPORTED',
+        'G_IO_ERROR_NOT_MOUNTED',
+        'G_IO_ERROR_ALREADY_MOUNTED',
+        'G_IO_ERROR_CLOSED',
+        'G_IO_ERROR_CANCELLED',
+        'G_IO_ERROR_PENDING',
+        'G_IO_ERROR_READ_ONLY',
+        'G_IO_ERROR_CANT_CREATE_BACKUP',
+        'G_IO_ERROR_WRONG_ETAG',
+        'G_IO_ERROR_TIMED_OUT',
+        'G_IO_ERROR_WOULD_RECURSE',
+        'G_IO_ERROR_BUSY',
+        'G_IO_ERROR_WOULD_BLOCK',
+        'G_IO_ERROR_HOST_NOT_FOUND',
+        'G_IO_ERROR_WOULD_MERGE',
+        'G_IO_ERROR_FAILED_HANDLED',
+        'G_IO_ERROR_TOO_MANY_OPEN_FILES',
+        'G_IO_ERROR_NOT_INITIALIZED',
+        'G_IO_ERROR_ADDRESS_IN_USE',
+        'G_IO_ERROR_PARTIAL_INPUT',
+        'G_IO_ERROR_INVALID_DATA',
+        'G_IO_ERROR_DBUS_ERROR',
+        'G_IO_ERROR_HOST_UNREACHABLE',
+        'G_IO_ERROR_NETWORK_UNREACHABLE',
+        'G_IO_ERROR_CONNECTION_REFUSED',
+        'G_IO_ERROR_PROXY_FAILED',
+        'G_IO_ERROR_PROXY_AUTH_FAILED',
+        'G_IO_ERROR_PROXY_NEED_AUTH',
+        'G_IO_ERROR_PROXY_NOT_ALLOWED',
+        'G_IO_ERROR_BROKEN_PIPE',
+        'G_IO_ERROR_CONNECTION_CLOSED',
+        'G_IO_ERROR_NOT_CONNECTED',
+        'G_IO_ERROR_MESSAGE_TOO_LARGE',
+    ]
+
     GDBusMessageType = [
         "INVALID",
         "METHOD_CALL",
@@ -25878,6 +25929,7 @@ class DbusAnalyzer(object):
 
         from ctypes import cdll, POINTER, c_char_p, pointer, \
             c_ulong, c_void_p, c_int, c_uint32, Structure
+
         # try to demangle symbol #
         try:
             # load standard libgio library #
@@ -26159,9 +26211,12 @@ class DbusAnalyzer(object):
 
                     # check error #
                     if not gdmsg and errp:
+                        code = errp.contents.code
+                        message = errp.contents.message
                         SystemManager.printWarn(\
-                            "Fail to convert GDbusMessage because %s" % \
-                            errp.contents.message)
+                            "Fail to convert GDbusMessage because %s(%s)" % \
+                            (DbusAnalyzer.G_IO_ERROR_TYPE[code], message))
+
                         libgioObj.g_error_free(byref(errp.contents))
                         continue
 
@@ -29112,7 +29167,9 @@ struct msghdr {
                     "Fail to get args info of %s" % name, True)
                 return
 
-            # convert args #
+            args = []
+
+            # convert args except for top mode #
             if not self.isRealtime:
                 if self.isDeferrableCall(name):
                     self.status = 'deferrable'
@@ -29136,8 +29193,6 @@ struct msghdr {
                     return
 
                 args = self.getConvertedArgs()
-            else:
-                args = []
 
             self.handleSyscallOutput(args)
 
