@@ -40,7 +40,7 @@ class RequestManager(object):
     def clear_request(cls):
         cls.requests.clear()
 
-SERVER_ADDR = "http://0.0.0.0:5000" # default Server ip/port (local)
+SERVER_ADDR = "http://localhost:5000" # default Server ip/port (local)
 
 class CustomFlask(Flask):
     jinja_options = Flask.jinja_options.copy()
@@ -51,7 +51,9 @@ class CustomFlask(Flask):
         variable_end_string='%%',
     ))
 
-app = CustomFlask(__name__, template_folder='./templates')
+app = CustomFlask(__name__, 
+        template_folder='templates',
+        static_folder='../guider-vue/static')
 
 # app.config['SECRET_KEY'] = 'XXXX'
 socketio = SocketIO(app)
@@ -63,7 +65,7 @@ sys.path.insert(0, '%s/../guider' % curDir)
 from guider import NetworkManager
 @app.route('/')
 def index():
-    return render_template('index.html', server_addr=SERVER_ADDR)
+    return render_template('index.html', server_addr=request.host_url)
 
 @socketio.on('connect')
 def connected():

@@ -1,0 +1,5 @@
+#python pacakge
+
+flask
+flask_socketio
+virtualenv
