@@ -11647,6 +11647,49 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getBacktrace():
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', isExit=False)
+        if not ctypes:
+            return
+
+        from ctypes import cdll, POINTER, c_void_p, c_int, byref, c_char
+
+        try:
+            # load standard libc library #
+            if not SystemManager.libcObj:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to load library to get backtrace because %s" % err)
+            sys.exit(0)
+
+
+        # define functions #
+        libcObj = SystemManager.libcObj
+
+        libcObj.backtrace.argtypes = [c_void_p, c_int]
+        libcObj.backtrace.restype = c_int
+
+        libcObj.backtrace_symbols.argtypes = [c_void_p, c_int]
+        libcObj.backtrace_symbols.restype = ctypes.POINTER(ctypes.c_char_p)
+
+        # define buffers #
+        buf = (c_void_p*1024)()
+
+        # call backtrace #
+        ret = libcObj.backtrace(byref(buf), c_int(1024))
+        syms = libcObj.backtrace_symbols(byref(buf), c_int(ret))
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def setComm(comm):
         if not sys.platform.startswith('linux'):
             return
@@ -16188,6 +16231,7 @@ Copyright:
                 return
 
             # enable for cProfile #
+            #sys.settrace
             #sys.exit(0)
 
             # do terminate #
@@ -16275,6 +16319,13 @@ Copyright:
         SystemManager.printErr('Terminated by user\n')
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
+
+
+
+    @staticmethod
+    def faultHandler(signum, frame):
+        sys.stdout.write('Terminated by SEGFAULT signal\n')
+        os._exit(0)
 
 
 
@@ -20707,6 +20758,7 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
@@ -20733,6 +20785,7 @@ Copyright:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
 
 
 
@@ -20745,6 +20798,7 @@ Copyright:
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -25860,7 +25914,7 @@ Copyright:
 class DbusAnalyzer(object):
     """ Analyzer for D-Bus """
 
-    previousData = ''
+    previousData = {}
     errObj = None
 
     G_IO_ERROR_TYPE = [
@@ -26194,12 +26248,16 @@ class DbusAnalyzer(object):
                     elif len(call) < length:
                         call = call + ('\1' * (length - len(call)))
 
+                    # check previous data #
+                    if tid not in DbusAnalyzer.previousData:
+                        DbusAnalyzer.previousData[tid] = ''
+
                     # composite data #
                     if call[0] == 'l' or \
                         call[0] == 'B':
-                        DbusAnalyzer.previousData = call
+                        DbusAnalyzer.previousData[tid] = call
                     else:
-                        call = DbusAnalyzer.previousData + call
+                        call = DbusAnalyzer.previousData[tid] + call
 
                     # check protocol message #
                     if length == 16:
@@ -29026,6 +29084,7 @@ struct msghdr {
             jsonData["time"] = current
             jsonData["timediff"] = diff
             jsonData["name"] = self.syscall
+            jsonData["tid"] = self.pid
             jsonData["args"] = {}
 
             for idx, arg in enumerate(self.args):
@@ -29036,7 +29095,7 @@ struct msghdr {
 
             try:
                 SystemManager.printPipe(\
-                    UtilManager.convertDict2Str(jsonData))
+                    str(UtilManager.convertDict2Str(jsonData)))
             except:
                 SystemManager.printErr(\
                     "Fail to convert %s to JSON for marshalling because %s" % \
@@ -29240,6 +29299,7 @@ struct msghdr {
                 jsonData["time"] = time.time()
                 jsonData["name"] = name
                 jsonData["ret"] = int(retval)
+                jsonData["tid"] = self.pid
                 jsonData["err"] = err
 
                 SystemManager.printPipe(str(jsonData))
