@@ -10872,6 +10872,7 @@ class SystemManager(object):
     stderr = sys.stderr
     packetSize = 32767
     defaultPort = 5555
+    bgProcList = None
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -20250,25 +20251,74 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcCount():
-        procList = SystemManager.getBgProcList()
+    def updateBgProcs():
+        SystemManager.bgProcList = SystemManager.getBgProcList()
 
-        return procList.count('\n')
+
+
+    @staticmethod
+    def checkBgProcs():
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        if len(SystemManager.bgProcList) > 0:
+            ppid = os.getppid()
+            myComm = SystemManager.getComm(SystemManager.pid)
+            parentComm = SystemManager.getComm(ppid)
+            if myComm == parentComm:
+                bgList = SystemManager.bgProcList.split('\n')
+                tempBgList = list(bgList)
+                for idx, line in enumerate(tempBgList):
+                    if len(line) == 0:
+                        continue
+                    pid = int(line.split()[0])
+                    if pid == ppid:
+                        bgList.pop(idx)
+                SystemManager.bgProcList = '\n'.join(bgList)
+
+        if len(SystemManager.bgProcList) > 0:
+            SystemManager.printWarn(\
+                SystemManager.getBgProcString(), True)
+
+
+
+    @staticmethod
+    def getBgProcCount():
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        return SystemManager.bgProcList.count('\n')
+
+
+
+    @staticmethod
+    def getBgProcString():
+        if not SystemManager.bgProcList or \
+            len(SystemManager.bgProcList) == 0:
+            return ''
+
+        procList = SystemManager.bgProcList
+
+        bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
+        bgStr = '%s%s\n%6s\t%16s\t%10s\t%s\n%s\n' % \
+            (bgStr, twoLine, "PID", "COMM", "RUNTIME", "COMMAND", oneLine)
+        bgStr = '%s%s%s' % (bgStr, procList, oneLine)
+
+        return bgStr
 
 
 
     @staticmethod
     def printBgProcs():
-        procList = SystemManager.getBgProcList()
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        procList = SystemManager.bgProcList
 
         if procList == '':
             print("\nno running process in the background\n")
         else:
-            print('\n[Running Process] [TOTAL: %s]' % procList.count('\n'))
-            print(twoLine)
-            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
-            print(oneLine)
-            print(procList + "%s" % oneLine)
+            print(SystemManager.getBgProcString())
 
 
 
@@ -26115,8 +26165,13 @@ class DbusAnalyzer(object):
                         reverse=True):
                         if name == 'totalCnt':
                             continue
-                        dbusList.append("%s: %s" % \
-                            (name, convertNum(value['cnt'])))
+                        try:
+                            per = int((value['cnt'] / float(dbusCnt)) * 100)
+                        except:
+                            per = 0
+
+                        dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
+                            convertNum(value['cnt']), per, name))
 
                     # add D-Bus usage #
                     taskManager.procData[pid]['dbusList'] = dbusList
@@ -26209,9 +26264,11 @@ class DbusAnalyzer(object):
                 return
 
             try:
+                ctype = jsonData["name"]
+
                 # check syscall #
-                if jsonData["name"] != "recvmsg" or \
-                    jsonData["type"] != "enter":
+                if (ctype != "recvmsg" or jsonData["type"] != "enter") and \
+                    (ctype != "sendmsg" or jsonData["type"] != "enter"):
                     return
                 # check args #
                 elif "args" not in jsonData or \
@@ -26242,22 +26299,33 @@ class DbusAnalyzer(object):
                     length = msg['len']
                     call = msg['data']
 
+                    if length == 0:
+                        length = len(call)
+
                     # recover data #
                     if len(call) > length:
                         call = call[:length]
                     elif len(call) < length:
-                        call = call + ('\1' * (length - len(call)))
+                        call = call + ('\0' * (length - len(call)))
 
                     # check previous data #
                     if tid not in DbusAnalyzer.previousData:
                         DbusAnalyzer.previousData[tid] = ''
 
                     # composite data #
-                    if call[0] == 'l' or \
-                        call[0] == 'B':
-                        DbusAnalyzer.previousData[tid] = call
-                    else:
-                        call = DbusAnalyzer.previousData[tid] + call
+                    if ctype == 'recvmsg':
+                        if call[0] == 'l' or \
+                            call[0] == 'B':
+                            DbusAnalyzer.previousData[tid] = call
+                        else:
+                            call = DbusAnalyzer.previousData[tid] + call
+                    elif ctype == 'sendmsg':
+                        if call[0] == 'l' or \
+                            call[0] == 'B':
+                            call = call + DbusAnalyzer.previousData[tid]
+                        else:
+                            DbusAnalyzer.previousData[tid] = call
+                            continue
 
                     # check protocol message #
                     if length == 16:
@@ -26285,13 +26353,17 @@ class DbusAnalyzer(object):
                     # get properties from message #
                     addr = c_ulong(gdmsg)
 
-                    nrType = libgioObj.g_dbus_message_get_message_type(addr)
-                    mtype = DbusAnalyzer.GDBusMessageType[nrType]
+                    try:
+                        nrType = libgioObj.g_dbus_message_get_message_type(addr)
+                        mtype = DbusAnalyzer.GDBusMessageType[nrType]
+                    except:
+                        SystemManager.printWarn(\
+                            "Fail to get type of GDbusMessage because %s" % \
+                            SystemManger.getErrReason())
+                        continue
 
                     # check message type #
-                    if not (mtype == 'METHOD_CALL' or \
-                        mtype == 'SIGNAL'):
-                        # free object #
+                    if mtype == 'METHOD_RETURN':
                         libgObj.g_object_unref(gdmsg)
                         continue
 
@@ -26303,9 +26375,14 @@ class DbusAnalyzer(object):
                     path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
 
+                    if ctype == 'recvmsg':
+                        direction = 'IN'
+                    else:
+                        direction = 'OUT'
+
                     # save message info #
-                    mname = '%s->%s(%s)[%s]' % \
-                        (path, interface, mtype, member)
+                    mname = '%3s %s:%s(%s) [%s]' % \
+                        (direction, path, interface, member, mtype)
                     if mname not in mlist:
                         mlist[mname] = {'count': 0}
 
@@ -26437,6 +26514,8 @@ class DbusAnalyzer(object):
         # set target syscalls #
         SystemManager.syscallList.append(\
             ConfigManager.sysList.index('sys_recvmsg'))
+        SystemManager.syscallList.append(\
+            ConfigManager.sysList.index('sys_sendmsg'))
 
         # create child processes to attach each targets #
         for tid in taskList:
@@ -48905,6 +48984,9 @@ def main(args=None):
 
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
+        # check background processes #
+        SystemManager.checkBgProcs()
+
         # set tty setting automatically #
         if not SystemManager.ttyEnable:
             SystemManager.setTtyAuto(True, False)
