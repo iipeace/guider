@@ -16325,6 +16325,7 @@ Copyright:
 
     @staticmethod
     def faultHandler(signum, frame):
+        SystemManager.releaseResource()
         sys.stdout.write('Terminated by SEGFAULT signal\n')
         os._exit(0)
 
@@ -26299,8 +26300,13 @@ class DbusAnalyzer(object):
                     length = msg['len']
                     call = msg['data']
 
+                    # update message size #
                     if length == 0:
                         length = len(call)
+
+                    # check message size #
+                    if length == 0:
+                        continue
 
                     # recover data #
                     if len(call) > length:
@@ -26310,22 +26316,40 @@ class DbusAnalyzer(object):
 
                     # check previous data #
                     if tid not in DbusAnalyzer.previousData:
-                        DbusAnalyzer.previousData[tid] = ''
+                        DbusAnalyzer.previousData[tid] = \
+                            {'recvmsg': '', 'sendmsg': ''}
+                    try:
+                        prevData = DbusAnalyzer.previousData[tid][ctype]
+                    except:
+                        prevData = ''
 
                     # composite data #
                     if ctype == 'recvmsg':
-                        if call[0] == 'l' or \
-                            call[0] == 'B':
-                            DbusAnalyzer.previousData[tid] = call
+                        # check this message #
+                        if call[0] == 'l' or call[0] == 'B':
+                            DbusAnalyzer.previousData[tid][ctype] = call
                         else:
-                            call = DbusAnalyzer.previousData[tid] + call
+                            # check prevous message #
+                            if len(prevData) > 0 and \
+                                (prevData[0] == 'l' or prevData[0] == 'B'):
+                                call = prevData + call
+                            else:
+                                DbusAnalyzer.previousData[tid][ctype] = call
+                                continue
                     elif ctype == 'sendmsg':
-                        if call[0] == 'l' or \
-                            call[0] == 'B':
-                            call = call + DbusAnalyzer.previousData[tid]
+                        # check this message #
+                        if call[0] == 'l' or call[0] == 'B':
+                            # check previous message #
+                            if len(prevData) > 0 and \
+                                (prevData[0] == 'l' or prevData[0] == 'B'):
+                                pass
+                            else:
+                                call = call + prevData
                         else:
-                            DbusAnalyzer.previousData[tid] = call
+                            DbusAnalyzer.previousData[tid][ctype] = call
                             continue
+                    else:
+                        continue
 
                     # check protocol message #
                     if length == 16:
