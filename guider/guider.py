@@ -13139,8 +13139,11 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor D-Bus messages
-        # {0:1} {1:1}
+    - Monitor D-Bus messages for main thread and gdbus threads in dbus-client process
+        # {0:1} {1:1} -g dbus-client
+
+    - Monitor D-Bus messages for all threads in dbus-client process
+        # {0:1} {1:1} -g dbus-client -P
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -20324,8 +20327,25 @@ Copyright:
 
 
     @staticmethod
-    def getPids(name, isThread=False, withSibling=False, withMain=False):
+    def getPids(name, isThread=False, isTid=False, \
+        withSibling=False, withMain=False):
+
         pidList = []
+
+        # check tasks by tid #
+        if isTid:
+            if withSibling:
+                path = '%s/%s/task' % (SystemManager.procPath, name)
+
+                pids = os.listdir(path)
+                for pid in pids:
+                    try:
+                        int(pid)
+                        pidList.append(pid)
+                    except:
+                        continue
+
+                return pidList
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
@@ -26518,13 +26538,28 @@ class DbusAnalyzer(object):
         for val in SystemManager.filterGroup:
             if val.isdigit() and \
                 os.path.exists('%s/%s' % (SystemManager.procPath, val)):
-                taskList.append(val)
+                if SystemManager.groupProcEnable:
+                    taskList = SystemManager.getPids(\
+                        val, isTid=True, withSibling=True)
+                else:
+                    taskList.append(val)
             else:
-                taskList += SystemManager.getPids(\
-                    val, isThread=True, withSibling=True)
+                if SystemManager.groupProcEnable:
+                    taskList += SystemManager.getPids(\
+                        val, isThread=True, withSibling=True)
+                else:
+                    tempList = SystemManager.getPids(\
+                        val, isThread=True, withSibling=True)
+
+                    if len(tempList) > 0:
+                        taskList.append(sorted(tempList)[0])
+                        for tid in tempList:
+                            comm = SystemManager.getComm(tid)
+                            if comm == 'gdbus':
+                                taskList.append(tid)
         if len(taskList) == 0:
             SystemManager.printErr(\
-                "Fail to find gdbus thread")
+                "Fail to find task to analyze dbus message")
             sys.exit(0)
 
         # define common list #
