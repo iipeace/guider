@@ -26180,10 +26180,10 @@ class DbusAnalyzer(object):
                             (convertNum(dbusCnt), \
                             convertNum(len(dbusData[pid])-1)))
 
-                    for name, value in sorted(\
-                        dbusData[pid].items(), \
+                    for name, value in sorted(dbusData[pid].items(),\
                         key=lambda x:x[1]['cnt'] if x[0] != 'totalCnt' else 0,\
                         reverse=True):
+
                         if name == 'totalCnt':
                             continue
                         try:
@@ -40952,14 +40952,16 @@ class ThreadAnalyzer(object):
             return
 
         # print nodes in tree #
-        def printTreeNodes(root, depth):
+        def printTreeNodes(root, depth, commIdx):
             treestr = ''
-            commIdx = ConfigManager.STAT_ATTR.index("COMM")
 
             for pid, childs in root.items():
                 indent = ''
 
-                comm = instance[pid]['stat'][commIdx][1:-1]
+                try:
+                    comm = instance[pid]['stat'][commIdx][1:-1]
+                except:
+                    continue
 
                 if depth == 0:
                     indent = '\n'
@@ -40974,12 +40976,14 @@ class ThreadAnalyzer(object):
                 else:
                     treestr += '%s- %s(%s)\n' % (indent, comm, pid)
 
-                treestr += printTreeNodes(childs, depth + 1)
+                treestr += printTreeNodes(childs, depth + 1, commIdx)
 
             return treestr
 
+        commIdx = ConfigManager.STAT_ATTR.index("COMM")
+
         # get string for tree #
-        finalstr = printTreeNodes(procTree, 0)
+        finalstr = printTreeNodes(procTree, 0, commIdx)
 
         # print tree #
         SystemManager.printPipe(finalstr)
