@@ -89,6 +89,38 @@ class ConfigManager(object):
         'x64'
     }
 
+    # Define ANSI color #
+    COLOR_LIST = {
+        'DEFAULT': '\033[0m',
+        'BOLD': '\033[1m',
+        'ITALIC': '\033[3m',
+        'UNDERLINE': '\033[4m',
+        'LIGHT': '\033[5m',
+        'REVERSE': '\033[7m',
+        'SCRATCH': '\033[9m',
+        'BLACK': '\033[30m',
+        'RED': '\033[31m',
+        'GREEN': '\033[32m',
+        'YELLOW': '\033[33m',
+        'BLUE': '\033[34m',
+        'PINK': '\033[35m',
+        'CYAN': '\033[36m',
+        'WHITE': '\033[37m',
+        'DEFCOLOR': '\033[39m',
+        'BGBLACK': '\033[40m',
+        'BGRED': '\033[41m',
+        'BGGREEN': '\033[42m',
+        'BGYELLOW': '\033[43m',
+        'BGBLUE': '\033[44m',
+        'BGPINK': '\033[45m',
+        'BGCYAN': '\033[46m',
+        'BGWHITE': '\033[47m',
+        'WARNING': '\033[95m',
+        'OKBLUE': '\033[94m',
+        'OKGREEN': '\033[92m',
+        'SPECIAL': '\033[93m',
+    }
+
     # Define cgroup entity #
     CGROUP_VALUE = [
         'tasks', 'cgroup.procs',
@@ -173,6 +205,116 @@ class ConfigManager(object):
         4: "SOCK_RDM",
         5: "SOCK_SEQPACKET",
         10: "SOCK_PACKET",
+    }
+
+    # Define log level #
+    LOG_LEVEL = {
+        0: "EMERG",
+        1: "ALERT",
+        2: "CRIT",
+        3: "ERR",
+        4: "WARNING",
+        5: "NOTICE",
+        6: "INFO",
+        7: "DEBUG",
+    }
+
+    # Define MSG type #
+    MSG_TYPE = {
+        0x1: "MSG_OOB",
+        0x2: "MSG_PEEK",
+        0x4: "MSG_DONTROUTE",
+        0x4: "MSG_TRYHARD",
+        0x8: "MSG_CTRUNC",
+        0x10: "MSG_PROBE",
+        0x20: "MSG_TRUNC",
+        0x40: "MSG_DONTWAIT",
+        0x80: "MSG_EOR",
+        0x100: "MSG_WAITALL",
+        0x200: "MSG_FIN",
+        0x400: "MSG_SYN",
+        0x800: "MSG_CONFIRM",
+        0x1000: "MSG_RST",
+        0x2000: "MSG_ERRQUEUE",
+        0x4000: "MSG_NOSIGNAL",
+        0x8000: "MSG_MORE",
+        0x40000000: "MSG_CMSG_CLOEXEC",
+        0x80000000: "MSG_CMSG_COMPAT",
+    }
+
+    # Define control message type #
+    CMSG_TYPE = {
+        0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
+        0x02: "SCM_CREDENTIALS", # rw: struct ucred
+        0x03: "SCM_SECURITY"
+    }
+
+    # Define mmap prot type #
+    PROT_TYPE = {
+        0x0: "PROT_NONE",  # Page can not be accessed
+        0x1: "PROT_READ",  # Page can be read
+        0x2: "PROT_WRITE", # Page can be written
+        0x4: "PROT_EXEC",  # Page can be executed
+    }
+
+    # Define perm type #
+    PERM_TYPE = {
+        0x0: "F_OK",
+        0x1: "X_OK",
+        0x2: "W_OK",
+        0x4: "R_OK",
+    }
+
+    # Define seek type #
+    SEEK_TYPE = {
+        0x0: "SEEK_SET",
+        0x1: "SEEK_CUR",
+        0x2: "SEEK_END",
+    }
+
+    # Define open flags type #
+    OPEN_TYPE = {
+        0o0: "O_RDONLY",
+        0o1: "O_WRONLY",
+        0o2: "O_RDWR",
+        0o100: "O_CREAT",
+        0o200: "O_EXCL",
+        0o400: "O_NOCTTY",
+        0o1000: "O_TRUNC",
+        0o2000: "O_APPEND",
+        0o4000: "O_NONBLOCK",
+        0o10000: "O_SYNC",
+        0o20000: "O_ASYNC",
+        0o40000: "O_DIRECT",
+        0o100000: "O_LARGEFILE",
+        0o200000: "O_DIRECTORY",
+        0o400000: "O_NOFOLLOW",
+        0o1000000: "O_NOATIME",
+        0o2000000: "O_CLOEXEC",
+        0o10000000: "O_PATH",
+        0o20200000: "O_TMPFILE",
+    }
+
+    # Define madvise type #
+    MADV_TYPE = {
+        0: "MADV_NORMAL",       # No further special treatment
+        1: "MADV_RANDOM",       # Expect random page references
+        2: "MADV_SEQUENTIAL",   # Expect sequential page references
+        3: "MADV_WILLNEED",     # Will need these pages
+        4: "MADV_DONTNEED",     # Don't need these pages
+        8: "MADV_FREE",         # Free pages only if memory pressure
+        9: "MADV_REMOVE",       # Remove these pages and resources
+        10: "MADV_DONTFORK",    # Do not inherit across fork
+        11: "MADV_DOFORK",      # Do inherit across fork
+        12: "MADV_MERGEABLE",   # KSM may merge identical pages
+        13: "MADV_UNMERGEABLE", # KSM may not merge identical pages
+        14: "MADV_HUGEPAGE",    # Worth backing with hugepages
+        15: "MADV_NOHUGEPAGE",  # Not worth backing with hugepages
+        16: "MADV_DONTDUMP",    # Explicity exclude from the core dump,
+        17: "MADV_DODUMP",      # Clear the MADV_DONTDUMP flag
+        18: "MADV_WIPEONFORK",  # Zero memory on fork, child only
+        19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
+        100: "MADV_HWPOISON",   # Poison a page for testing
     }
 
     # Define syscall prototypes #
@@ -2215,11 +2357,15 @@ class ConfigManager(object):
 
     # Define signal #
     SIG_LIST = [
-        'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGKILL', #9#
-        'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', 'SIGCHLD', 'SIGCONT', #18#
-        'SIGSTOP', 'SIGTSTP', 'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', 'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', #27#
-        'SIGWINCH', 'SIGIO', 'SIGPWR', 'SIGSYS' #31#
-        ] + [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
+        'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
+        'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
+        'SIGKILL','SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
+        'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', #16#
+        'SIGCHLD', 'SIGCONT', 'SIGSTOP', 'SIGTSTP', #20#
+        'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', #24#
+        'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
+        'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
+            [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
 
     # stat list from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
@@ -2457,7 +2603,7 @@ class ConfigManager(object):
 
     # Define ptrace request type #
     PTRACE_TYPE = [
-        'PTRACE_TRACEME',       #0#
+        'PTRACE_TRACEME',           #0#
         'PTRACE_PEEKTEXT',
         'PTRACE_PEEKDATA',
         'PTRACE_PEEKUSR',
@@ -2466,15 +2612,18 @@ class ConfigManager(object):
         'PTRACE_POKEUSR',
         'PTRACE_CONT',
         'PTRACE_KILL',
-        'PTRACE_SINGLESTEP',    #9#
+        'PTRACE_SINGLESTEP',        #9#
         '', '',
-        'PTRACE_GETREGS',       #12#
-        'PTRACE_SETREGS',       #13#
+        'PTRACE_GETREGS',           #12#
+        'PTRACE_SETREGS',           #13#
         '', '',
-        'PTRACE_ATTACH',        #16#
-        'PTRACE_DETACH',        #17#
+        'PTRACE_ATTACH',            #16#
+        'PTRACE_DETACH',            #17#
         '', '', '', '', '', '',
-        'PTRACE_SYSCALL',        #24#
+        'PTRACE_SYSCALL',           #24#
+        '', '', '', '', '', '',
+        'PTRACE_SYSEMU',            #31#
+        'PTRACE_SYSEMU_SINGLESTEP', #32#
         ]
 
     # Define ptrace event type #
@@ -2638,11 +2787,72 @@ class UtilManager(object):
 
 
     @staticmethod
+    def decodeArg(value):
+        try:
+            text = repr(value.decode())
+        except:
+            text = value
+
+        # define start index by encoding type #
+        if type(text) is bytes:
+            start = 2
+        else:
+            start = 1
+
+        return text[start:]
+
+
+
+    @staticmethod
+    def getFlagString(value, flist):
+        string = ''
+        numVal = int(value)
+        for bit in list(flist.keys()):
+            try:
+                if numVal & bit:
+                    string = '%s%s|' % (string, flist[bit])
+                elif bit == 1 and 0 in flist:
+                    string = '%s%s|' % (string, flist[0])
+            except:
+                SystemManager.printErr(\
+                    "Fail to get flag info for %s because %s" % \
+                    (value, SystemManager.getErrReason()))
+        if len(string) > 0:
+            return string[:-1]
+        else:
+            return value
+
+
+
+    @staticmethod
+    def encodeBase64(value):
+        base64 = SystemManager.getPkg('base64', False)
+
+        try:
+            return base64.standard_b64encode(value)
+        except:
+            return value
+
+
+
+    @staticmethod
+    def decodeBase64(value):
+        base64 = SystemManager.getPkg('base64', False)
+
+        try:
+            return value.encode()
+        except:
+            return value
+
+
+
+    @staticmethod
     def encodeStr(value):
         try:
             return value.encode()
         except:
             return value
+
 
 
 
@@ -2697,7 +2907,7 @@ class UtilManager(object):
 
 
     @staticmethod
-    def bstring2word(bstring):
+    def convertBstring2Word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
         except:
@@ -2713,6 +2923,13 @@ class UtilManager(object):
             return format(long(number),",")
         except:
             return number
+
+
+
+    @staticmethod
+    def convertColor(string, color='LIGHT'):
+        return '%s%s%s' % \
+            (ConfigManager.COLOR_LIST[color], string, ConfigManager.ENDC)
 
 
 
@@ -3004,26 +3221,37 @@ class UtilManager(object):
 
 
     @staticmethod
-    def makeJsonString(dictObj):
+    def convertDict2Str(dictObj):
         try:
-            jsonString = SystemManager.getPkg('json').dumps(dictObj, indent=2)
+            jsonStr = SystemManager.getPkg('json').\
+                dumps(dictObj, indent=2, ensure_ascii=False)
+        except SystemExit:
+            sys.exit(0)
         except:
+            SystemManager.printWarn(\
+                "Fail to convert %s to string because %s" % \
+                    ([dictObj], SystemManager.getErrReason()))
             return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
         if not SystemManager.encodeEnable:
-            jsonString = re.sub("\s", "", jsonString) + "\n"
+            jsonStr = re.sub("\s", "", jsonStr) + "\n"
 
-        return jsonString
+        return jsonStr
 
 
 
     @staticmethod
-    def makeJsonDict(strObj):
+    def convertStr2Dict(strObj):
         try:
             strObj = strObj.replace("'", '"')
             return SystemManager.getPkg('json').loads(strObj)
+        except SystemExit:
+            sys.exit(0)
         except:
+            SystemManager.printWarn(\
+                "Fail to convert %s to dict because %s" % \
+                    ([strObj], SystemManager.getErrReason()))
             return None
 
 
@@ -5575,7 +5803,7 @@ class FunctionAnalyzer(object):
                 symbolList = list()
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
-                    raise Exception()
+                    return None
 
                 for offset in offsetList:
                     symbol = binObj.getSymbolByOffset(offset)
@@ -8056,7 +8284,7 @@ class FunctionAnalyzer(object):
                 else:
                     # Find index of the backmost exception value #
                     maxIdx = -1
-                    for pos in exceptList.keys():
+                    for pos in list(exceptList.keys()):
                         try:
                             ridx = subStack.index(pos)
                             if ridx >= 0 and ridx > maxIdx:
@@ -9536,7 +9764,7 @@ class LeakAnalyzer(object):
                 self.symData[sym]['substack'] = dict()
 
             if val['callList']:
-                for time in val['callList'].keys():
+                for time in list(val['callList'].keys()):
                     callinfo = self.callData[time]
                     substack = ' <- '.join(callinfo['symstack'][1:])
 
@@ -10049,7 +10277,7 @@ class FileAnalyzer(object):
     def mergeMapLine(string, procMap, onlyExec=False):
         m = re.match((\
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) '
-            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>.\S+)\s*'
+            r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+).\s*'
             r'(?P<binName>.+)'), string)
         if not m:
             return
@@ -10061,6 +10289,8 @@ class FileAnalyzer(object):
             return
 
         fileName = d['binName']
+        if fileName.startswith('['):
+            fileName = fileName[1:-1]
         startAddr = int(d['startAddr'], 16)
         endAddr = int(d['endAddr'], 16)
 
@@ -10623,7 +10853,7 @@ class SystemManager(object):
     termGetId = None
     termSetId = None
     ttyRows = 43
-    ttyRowsMargin = 3
+    ttyRowsMargin = 2
     ttyCols = 156
     encoding = None
     encodeEnable = True
@@ -10642,6 +10872,7 @@ class SystemManager(object):
     stderr = sys.stderr
     packetSize = 32767
     defaultPort = 5555
+    bgProcList = None
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -10698,10 +10929,16 @@ class SystemManager(object):
     dltObj = None
     dltCtx = None
     libcObj = None
+    libgioObj = None
+    libdbusObj = None
+    libgObj = None
     guiderObj = None
     libcppObj = None
     dltPath = 'libdlt.so'
     libcPath = 'libc.so.6'
+    libgobjPath = 'libgobject-2.0.so'
+    libgioPath = 'libgio-2.0.so'
+    libdbusPath = 'libdbus-1.so.3'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
 
@@ -10709,7 +10946,6 @@ class SystemManager(object):
     remoteServObj = None
     addrListForPrint = {}
     addrListForReport = {}
-    jsonObject = None
 
     tgidEnable = True
     taskEnable = True
@@ -10733,6 +10969,7 @@ class SystemManager(object):
     netInIndex = -1
 
     printStreamEnable = False
+    terminalOver = False
     dltEnable = False
     cpuAvrEnable = True
     reportEnable = False
@@ -10823,16 +11060,19 @@ class SystemManager(object):
     depEnable = False
     sysEnable = False
     waitEnable = False
+    inWaitStatus = False
     cmdEnable = False
     perfEnable = False
     perfGroupEnable = False
     backgroundEnable = False
     resetEnable = False
     warningEnable = False
+    logEnable = True
     ttyEnable = False
     selectEnable = True
     cgroupEnable = False
     cmdlineEnable = False
+    schedstatEnable = True
     intervalEnable = 0
 
     forceEnable = False
@@ -10852,6 +11092,7 @@ class SystemManager(object):
     cmdList = {}
     rcmdList = {}
     savedProcTree = {}
+    savedProcComm = {}
     savedMountTree = {}
     preemptGroup = []
     filterGroup = []
@@ -11339,31 +11580,58 @@ class SystemManager(object):
 
 
     @staticmethod
-    def setOOMAdj(pri='-17'):
+    def setOOMAdj(pid='self', pri='-17'):
         if not sys.platform.startswith('linux'):
             return
 
         if not SystemManager.isRoot():
             return
 
-        oomPath = '%s/self/oom_adj' % SystemManager.procPath
+        # set path #
+        oomPath = '%s/%s/oom_score_adj' % (SystemManager.procPath, pid)
+        if not os.path.isfile(oomPath):
+            # use deprecated path #
+            oomPath = '%s/%s/oom_adj' % (SystemManager.procPath, pid)
 
         try:
             with open(oomPath, 'w') as fd:
                 fd.write(pri)
         except:
-            err = SystemManager.getErrReason()
             SystemManager.printWarn(\
-                "Fail to write oom_adj because %s" % err)
+                "Fail to write %s because %s" % \
+                    (oomPath, SystemManager.getErrReason()))
 
 
 
     @staticmethod
-    def getCmdline(pid):
+    def getExeCmd(pid):
+        cmd = SystemManager.getCmdline(pid, retList=True)[:2]
+        if cmd[1][0] != '/':
+            pwd = SystemManager.getCwd(pid)
+            cmd[1] = '%s/%s' % (pwd, cmd[1])
+        return cmd
+
+
+
+    @staticmethod
+    def getCwd(pid):
+        cwdPath = \
+            '%s/%s/cwd' % (SystemManager.procPath, pid)
+        return os.readlink(cwdPath)
+
+
+
+    @staticmethod
+    def getCmdline(pid, retList=False):
         cmdlinePath = \
             '%s/%s/cmdline' % (SystemManager.procPath, pid)
+
         with open(cmdlinePath, 'r') as fd:
-            return fd.readline().replace("\x00", " ")
+            res = fd.readline()
+            if retList:
+                return res.split("\x00")
+            else:
+                return res.replace("\x00", " ")
 
 
 
@@ -11376,6 +11644,49 @@ class SystemManager(object):
                 return fd.readline()[:-1]
         except:
             return None
+
+
+
+    @staticmethod
+    def getBacktrace():
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes', isExit=False)
+        if not ctypes:
+            return
+
+        from ctypes import cdll, POINTER, c_void_p, c_int, byref, c_char
+
+        try:
+            # load standard libc library #
+            if not SystemManager.libcObj:
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to load library to get backtrace because %s" % err)
+            sys.exit(0)
+
+
+        # define functions #
+        libcObj = SystemManager.libcObj
+
+        libcObj.backtrace.argtypes = [c_void_p, c_int]
+        libcObj.backtrace.restype = c_int
+
+        libcObj.backtrace_symbols.argtypes = [c_void_p, c_int]
+        libcObj.backtrace_symbols.restype = ctypes.POINTER(ctypes.c_char_p)
+
+        # define buffers #
+        buf = (c_void_p*1024)()
+
+        # call backtrace #
+        ret = libcObj.backtrace(byref(buf), c_int(1024))
+        syms = libcObj.backtrace_symbols(byref(buf), c_int(ret))
+
+        sys.exit(0)
 
 
 
@@ -11439,6 +11750,8 @@ class SystemManager(object):
         # import package #
         try:
             obj =  __import__(name, fromlist = [name] if isRoot else [None])
+        except SystemExit:
+            sys.exit(0)
         except:
             SystemManager.printWarn(\
                 "Fail to import python package: %s " % name, isExit)
@@ -11592,9 +11905,9 @@ class SystemManager(object):
     def getMemStat(pid):
         try:
             statmPath = "%s/%s/statm" % (SystemManager.procPath, pid)
-            fd = open(statmPath, 'r')
-            STATM_TYPE = fd.readlines()[0].split()
-            return STATM_TYPE
+            with open(statmPath, 'r') as fd:
+                STATM_TYPE = fd.readlines()[0].split()
+                return STATM_TYPE
         except:
             SystemManager.printWarn('Fail to open %s' % statmPath)
             return
@@ -11814,6 +12127,9 @@ class SystemManager(object):
             procPath = "%s/%s" % (SystemManager.procPath, pid)
             taskPath = "%s/%s" % (procPath, 'task')
 
+            # update comm of main thread #
+            comm = SystemManager.getComm(pid)
+
             try:
                 tids = os.listdir(taskPath)
             except:
@@ -11823,7 +12139,10 @@ class SystemManager(object):
             for tid in tids:
                 try:
                     int(tid)
-                    procTree[tid] = pid
+                    if tid == pid:
+                        procTree[tid] = '%s(%s)' % (pid, comm)
+                    else:
+                        procTree[tid] = pid
                 except:
                     continue
 
@@ -11901,7 +12220,8 @@ class SystemManager(object):
             if 'ANDROID_ROOT' in os.environ:
                 SystemManager.isAndroid = True
                 SystemManager.libcPath = 'libc.so'
-        elif sys.platform.startswith('win'):
+        elif sys.platform.startswith('win') or \
+            sys.platform.startswith('darwin'):
             SystemManager.isLinux = False
             if len(sys.argv) > 1 and \
                 not SystemManager.isClientMode() and \
@@ -11909,6 +12229,7 @@ class SystemManager(object):
                 not SystemManager.isConvertMode() and \
                 not SystemManager.isReadelfMode() and \
                 not SystemManager.isAddr2lineMode() and \
+                not SystemManager.isSym2lineMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -11997,9 +12318,6 @@ Usage:
                 # get command #
                 mode = sys.argv[1]
 
-                # print small logo #
-                SystemManager.printLogo()
-
                 topCommonStr = '''
         -o  <DIR|FILE>              save output data
         -u                          run in the background
@@ -12046,8 +12364,8 @@ OPTIONS:
                 w:wss | W:wchan
         -d  <CHARACTER>             disable options
                 a:memAvailable | A:cpuAverage
-                c:cpu | e:encode | G:gpu | p:print
-                t:truncate | T:task
+                c:cpu | e:encode | G:gpu | L:log
+                p:print | t:truncate | T:task
                                     '''
 
                 drawSubStr = '''
@@ -12131,7 +12449,8 @@ OPTIONS:
               b:block | c:cgroup | e:encode | g:graph
               h:heap | L:lock | m:memory | p:pipe
         -d  <CHARACTER>             disable options
-              a:all | c:cpu | C:compress | e:encode | u:user
+              a:all | c:cpu | C:compress | e:encode
+              l:latency | L:log | u:user
         -s  <DIR|FILE>              save trace data
         -f                          force execution
         -u                          run in the background
@@ -12815,13 +13134,16 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor dbus messages
+    Monitor D-Bus messages
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor dbus messages
-        # {0:1} {1:1}
+    - Monitor D-Bus messages for main thread and gdbus threads in dbus-client process
+        # {0:1} {1:1} -g dbus-client
+
+    - Monitor D-Bus messages for all threads in dbus-client process
+        # {0:1} {1:1} -g dbus-client -P
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -13177,6 +13499,7 @@ Description:
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
+        -l                          print signal list
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -13257,7 +13580,31 @@ Examples:
                 elif SystemManager.isPrintDltMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <MESSAGE>
+    # {0:1} {1:1}
+
+Description:
+    Print DLT messages in real-time
+
+OPTIONS:
+        -g  <STRING>                set filter
+        -X  <REQ@IP:PORT>           set request address
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print DLT messages in real-time
+        # {0:1} {1:1}
+
+    - Print DLT messages including specific strings
+        # {0:1} {1:1} -g test
+                    '''.format(cmd, mode)
+
+                # printkmsg #
+                elif SystemManager.isPrintKmsgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1}
 
 Description:
     Print DLT messages in real-time
@@ -13269,10 +13616,10 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Print DLT messages in real-time
+    - Print kernel logs in real-time
         # {0:1} {1:1}
 
-    - Print DLT messages including specific strings
+    - Print kernel logs including specific strings
         # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
@@ -13295,6 +13642,30 @@ OPTIONS:
 Examples:
     - Print symbol infomation of specific addresses in a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
+                    '''.format(cmd, mode)
+
+                # sym2line #
+                elif SystemManager.isSym2lineMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
+
+Description:
+    Show file and offset of specific symbols in a file or a process
+
+OPTIONS:
+        -I  <FILE|COMM|PID>         set input path or process
+        -g  <OFFSET>                set offset
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print infomation of specific symbols in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g testFunc
+
+    - Print infomation of specific symbols in a process
+        # {0:1} {1:1} -I yes -g testFunc
                     '''.format(cmd, mode)
 
                 # printcgroup #
@@ -13372,14 +13743,14 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
-                # printsystem #
-                elif SystemManager.isPrintSystemMode():
+                # printinfo #
+                elif SystemManager.isPrintInfoMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Show system info
+    Show system general info
 
 OPTIONS:
         -v                          verbose
@@ -13731,15 +14102,18 @@ COMMAND:
                 limitcpu    <cpu>
                 setcpu      <clock>
                 setsched    <priority>
-                getaff      <affinity>
-                setaff      <affinity>
+                getafnt     <affinity>
+                setafnt     <affinity>
                 pstree      <tree>
                 printenv    <env>
-                printsystem <system>
+                printinfo   <system>
                 readelf     <file>
                 addr2line   <symbol>
+                sym2line    <addr>
                 leaktrace   <leak>
-                printcgroup <cgroup>
+                printcgrp   <cgroup>
+
+    [log]       printkmsg   <KMSG>
                 printdlt    <DLT>
                 logdlt      <DLT>
 
@@ -13766,6 +14140,9 @@ OPTIONS:
                     SystemManager.printErr(\
                         'wrong command %s' % mode)
                     sys.exit(0)
+
+                # print small logo #
+                SystemManager.printLogo()
 
                 printPipe(helpStr)
 
@@ -13880,10 +14257,13 @@ Copyright:
 
     @staticmethod
     def syscall(syscall, *args):
+        if not SystemManager.isLinux:
+            return None
+
         # import ctypes #
         ctypes = SystemManager.getPkg('ctypes')
 
-        from ctypes import cdll, POINTER, c_size_t, c_int, c_long, c_ubyte
+        from ctypes import cdll, POINTER
 
         try:
             # load standard libc library #
@@ -13900,13 +14280,56 @@ Copyright:
                     nmSyscall = val
                 else:
                     nmSyscall = 'sys_%s' % val
+
                 nrSyscall = ConfigManager.sysList.index(nmSyscall)
             else:
                 raise Exception()
 
-            SystemManager.libcObj.syscall(nrSyscall)
+            try:
+                nrParams = \
+                    len(ConfigManager.SYSCALL_PROTOTYPES[nmSyscall[4:]][1])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printErr(\
+                    "Fail to get the number of arguments for %s" % nmSyscall)
+                raise Exception()
+
+            # check arguments #
+            if len(args) != nrParams:
+                SystemManager.printErr((\
+                    "Fail to get arguments for %s "
+                    "because of wrong parameters") % nmSyscall)
+                raise Exception()
+
+            if nrParams == 0:
+                return SystemManager.libcObj.syscall(nrSyscall)
+            elif nrParams == 1:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0])
+            elif nrParams == 2:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1])
+            elif nrParams == 3:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2])
+            elif nrParams == 4:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3])
+            elif nrParams == 5:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3], \
+                        args[4])
+            elif nrParams == 6:
+                return SystemManager.libcObj.syscall(\
+                    nrSyscall, args[0], args[1], args[2], args[3], \
+                        args[4], args[5])
+        except SystemExit:
+            sys.exit(0)
         except:
-            SystemManager.printWarn('Fail to call %s syscall' % syscall)
+            SystemManager.printWarn(\
+                'Fail to call %s syscall because %s' % \
+                    (syscall, SystemManager.getErrReason()), True)
 
 
 
@@ -13964,7 +14387,8 @@ Copyright:
         # load standard libc library #
         try:
             if not SystemManager.libcObj:
-                SystemManager.libcObj = cdll.LoadLibrary(SystemManager.libcPath)
+                SystemManager.libcObj = \
+                    cdll.LoadLibrary(SystemManager.libcPath)
         except:
             SystemManager.libcObj = None
             SystemManager.perfEnable = False
@@ -14264,7 +14688,8 @@ Copyright:
 
         # declare syscalls #
         SystemManager.libcObj.syscall.argtypes = \
-            [c_int, POINTER(struct_perf_event_attr), c_int, c_int, c_int, c_ulong]
+            [c_int, POINTER(struct_perf_event_attr), \
+                c_int, c_int, c_int, c_ulong]
         SystemManager.libcObj.syscall.restype = c_int
         SystemManager.libcObj.ioctl.restype = c_int
         SystemManager.libcObj.ioctl.argtypes = [c_int, c_ulong, c_int]
@@ -14944,7 +15369,7 @@ Copyright:
                 # symbol input with no objdump path #
                 if not SystemManager.objdumpPath:
                     # get address of symbol in binary #
-                    addr = SystemManager.getSymOffset(\
+                    addr = ElfAnalyzer.getSymOffset(\
                         cmdFormat[1], cmdFormat[2])
 
                     # use external objdump #
@@ -14972,7 +15397,7 @@ Copyright:
                     sys.exit(0)
 
                 # get address of symbol in binary #
-                addr = SystemManager.getSymOffset(\
+                addr = ElfAnalyzer.getSymOffset(\
                     cmdFormat[1], cmdFormat[2], SystemManager.objdumpPath)
                 if not addr:
                     SystemManager.printErr("Fail to find '%s' in %s" % \
@@ -15099,96 +15524,8 @@ Copyright:
 
 
 
-    @staticmethod
-    def getSymOffset(symbol, binPath, objdumpPath=None):
-        if not objdumpPath:
-            offset = None
-
-            try:
-                binObj = ElfAnalyzer.getObject(binPath)
-                if not binObj:
-                    raise Exception()
-
-                offset = binObj.getOffsetBySymbol(symbol)
-            except:
-                pass
-
-            # check similar list #
-            if type(offset) is list and len(offset) > 0:
-                SystemManager.printErr((\
-                    "Fail to find %s in %s, "
-                    "\n\tbut similar symbols [ %s ] are exist") % \
-                    (symbol, binPath, ', '.join(offset)))
-                sys.exit(0)
-
-            return offset
-
-        # get subprocess object #
-        subprocess = SystemManager.getPkg('subprocess')
-
-        syms = []
-        args = [objdumpPath, "-C", "-F", "-d", binPath]
-
-        SystemManager.printStat(\
-            "start finding %s... [ STOP(Ctrl+c) ]" % (symbol))
-
-        # start objdump process #
-        try:
-            proc = subprocess.Popen(\
-                args, stdout=subprocess.PIPE, \
-                stderr=subprocess.PIPE, bufsize=-1)
-        except:
-            SystemManager.printErr(\
-                "Fail to execute %s to get address from binary" % objdumpPath)
-            sys.exit(0)
-
-        while 1:
-            try:
-                # read a line from objdump process #
-                line = proc.stdout.readline()
-            except:
-                SystemManager.printErr(\
-                    "Fail to read output from objdump because %s" % \
-                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
-
-            # handle error #
-            if not line:
-                err = proc.stderr.read()
-                if len(err) > 0:
-                    proc.terminate()
-                    SystemManager.printErr(err[err.find(':') + 2:])
-                    sys.exit(0)
-                break
-
-            # parse line to find offset of symbol #
-            line = str(line)
-            m = re.match((\
-                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
-                r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
-            if not m:
-                continue
-
-            d = m.groupdict()
-            if d['symbol'] == symbol:
-                proc.terminate()
-                return d['offset']
-            elif d['symbol'].find(symbol) >= 0:
-                syms.append('%s {%s}' % (d['symbol'], d['offset']))
-
-        # check similar list #
-        if len(syms) == 0:
-            return None
-        else:
-            SystemManager.printErr((\
-                "Fail to find %s in %s, "
-                "\n\tbut similar symbols [ %s ] are exist") % \
-                (symbol, binPath, ', '.join(syms)))
-            sys.exit(0)
-
-
-
     def disableAllEvents(self):
-        for event in self.cmdList.keys():
+        for event in list(self.cmdList.keys()):
             self.cmdList[event] = False
 
 
@@ -15853,6 +16190,7 @@ Copyright:
 
         elif SystemManager.isTopMode() or \
             SystemManager.isStraceMode() or \
+            SystemManager.isBtraceMode() or \
             SystemManager.isUtraceMode():
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
@@ -15897,6 +16235,7 @@ Copyright:
                 return
 
             # enable for cProfile #
+            #sys.settrace
             #sys.exit(0)
 
             # do terminate #
@@ -15988,6 +16327,14 @@ Copyright:
 
 
     @staticmethod
+    def faultHandler(signum, frame):
+        SystemManager.releaseResource()
+        sys.stdout.write('Terminated by SEGFAULT signal\n')
+        os._exit(0)
+
+
+
+    @staticmethod
     def timerHandler(signum, frame):
         raise Exception()
 
@@ -16054,7 +16401,7 @@ Copyright:
                 sys.exit(0)
         else:
             SystemManager.printErr(\
-                'Fail to save trace data because output file is not set')
+                'Fail to save data because file path is not set')
             sys.exit(0)
 
         # set alarm again #
@@ -16299,18 +16646,41 @@ Copyright:
 
 
     @staticmethod
-    def addPrint(string, newline=1):
+    def doPrint():
+        if len(SystemManager.bufferString) == 0:
+            return
+
+        SystemManager.printPipe(SystemManager.bufferString)
+
+
+
+    @staticmethod
+    def printConsole(string):
+        # split and cut lines by cols #
+        string = '\n'.join(\
+            [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
+
+        # print on console #
+        print(string[:-1])
+
+
+
+    @staticmethod
+    def addPrint(string, newline=1, force=False):
+        if not force and SystemManager.checkCutCond(newline):
+            return
+
+        # add string to buffer #
         SystemManager.bufferString = \
             "%s%s" % (SystemManager.bufferString, string)
         SystemManager.bufferRows += newline
 
-        if not SystemManager.printFile or \
+        if SystemManager.terminalOver or \
+            not SystemManager.printFile or \
             not SystemManager.printStreamEnable:
             return
 
-        string = '\n'.join(\
-            [nline[:SystemManager.ttyCols-1] for nline in string.split('\n')])
-        print(string[:-1])
+        SystemManager.printConsole(string)
 
 
 
@@ -16337,6 +16707,7 @@ Copyright:
         del SystemManager.bufferString
         SystemManager.bufferString = ''
         SystemManager.bufferRows = 0
+        SystemManager.terminalOver = False
 
 
 
@@ -16376,6 +16747,77 @@ Copyright:
             os.system('cls')
         else:
             pass
+
+
+
+    @staticmethod
+    def printKmsg():
+        # open kmsg device node #
+        try:
+            kmsgPath = '/dev/kmsg'
+            fd = open(kmsgPath, 'r')
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to open %s because %s" % \
+                    (kmsgPath, err))
+            sys.exit(0)
+
+        # toDo: add lseek option #
+
+        SystemManager.printInfo(\
+            "start printing kernel log... [ STOP(Ctrl+c) ]")
+
+        while 1:
+            log = fd.readline()
+
+            # parse log #
+            pos = log.find(';')
+
+            meta = log[:pos].split(',')
+            if len(meta) > 2:
+                nrLevel = int(meta[0])
+                try:
+                    level = ConfigManager.LOG_LEVEL[nrLevel]
+                except:
+                    level = nrLevel
+                if not SystemManager.printFile:
+                    level = UtilManager.convertColor(level, 'BOLD')
+
+                # time #
+                time = meta[2]
+                if len(time) < 7:
+                    time = '0.%s' % time
+                else:
+                    time = '%s.%s' % (time[:-6], time[-6:])
+                if not SystemManager.printFile:
+                    time = UtilManager.convertColor(time, 'GREEN')
+
+                # name & log #
+                log = log[pos+1:]
+                npos = log.find(':')
+                name = log[:npos]
+                if not SystemManager.printFile:
+                    name = UtilManager.convertColor(name, 'SPECIAL')
+                if log[-1] == '\n':
+                    log = log[npos+1:-1]
+                else:
+                    log = log[npos+1:]
+
+                log = '[%s] (%s) %s: %s' % (time, level, name, log)
+
+            # apply filter #
+            if len(SystemManager.filterGroup) > 0:
+                found = False
+                for string in SystemManager.filterGroup:
+                    if string in log:
+                        found = True
+                        break
+
+                if not found:
+                    continue
+
+            SystemManager.printPipe(log[:-1])
 
 
 
@@ -16526,9 +16968,18 @@ Copyright:
                 ids = pair.split(':')
                 tid = ids[0]
                 pid = ids[1]
+
+                # get pid and comm #
+                if not pid.isdigit():
+                    group = pid
+                    pidPos = group.find('(')
+                    pid = group[:pidPos]
+                    comm = group[pidPos+1:-1]
+                    SystemManager.savedProcComm[pid] = comm
+
                 SystemManager.savedProcTree[tid] = pid
             except:
-                break
+                continue
 
         # remove process tree info #
         SystemManager.systemInfoBuffer = infoBuf[:treePosStart]
@@ -16932,7 +17383,7 @@ Copyright:
         # JSON mode #
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.convertDict2Str(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -16943,10 +17394,10 @@ Copyright:
             if not SystemManager.printStreamEnable:
                 SystemManager.clearScreen()
 
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
         # pipe mode #
         elif SystemManager.pipeEnable:
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
         # buffered mode #
         else:
             SystemManager.addProcBuffer(SystemManager.bufferString)
@@ -16958,12 +17409,16 @@ Copyright:
 
     @staticmethod
     def checkCutCond(newline=0):
-        if not SystemManager.printFile and \
+        if SystemManager.terminalOver:
+            return True
+        elif not SystemManager.printFile and \
             not SystemManager.jsonPrintEnable and \
             SystemManager.bufferRows + newline >= \
             SystemManager.ttyRows - SystemManager.ttyRowsMargin and \
             not SystemManager.printFile and \
             not SystemManager.printStreamEnable:
+            SystemManager.terminalOver = True
+            SystemManager.addPrint('---more---', force=True)
             return True
         else:
             return False
@@ -16971,9 +17426,18 @@ Copyright:
 
 
     @staticmethod
+    def updateTimer(interval=None):
+        if interval:
+            signal.alarm(int(interval))
+        else:
+            signal.alarm(SystemManager.intervalEnable)
+
+
+
+    @staticmethod
     def printPipe(line, newline=True, flush=False):
         if SystemManager.dltEnable:
-            DltManager.doLogDlt(msg=line)
+            DltAnalyzer.doLogDlt(msg=line)
 
         if not SystemManager.printEnable:
             return
@@ -17115,6 +17579,9 @@ Copyright:
                     SystemManager.fileForPrint.writelines(line)
                 else:
                     SystemManager.fileForPrint.write(line + retstr)
+
+                if flush:
+                    SystemManager.fileForPrint.flush()
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
@@ -17139,9 +17606,6 @@ Copyright:
                     sys.stdout.write(nline + '\n')
                 else:
                     sys.stdout.write(nline)
-
-                if flush or SystemManager.remoteRun:
-                    sys.stdout.flush()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -17152,6 +17616,9 @@ Copyright:
                         sys.stdout.write(line + '\n')
                     else:
                         sys.stdout.write(line)
+
+            if flush or SystemManager.remoteRun:
+                sys.stdout.flush()
 
 
 
@@ -17183,6 +17650,9 @@ Copyright:
 
     @staticmethod
     def printWarn(line, always=False):
+        if not SystemManager.logEnable:
+            return
+
         if not SystemManager.warningEnable and \
             not always:
             return
@@ -17196,6 +17666,9 @@ Copyright:
 
     @staticmethod
     def printErr(line):
+        if not SystemManager.logEnable:
+            return
+
         SystemManager.flushAllForPrint()
 
         msg = ('\n%s%s%s%s\n' % \
@@ -17207,6 +17680,9 @@ Copyright:
 
     @staticmethod
     def printInfo(line, prefix=True, suffix=True, notitle=False):
+        if not SystemManager.logEnable:
+            return
+
         if notitle:
             title = ''
         else:
@@ -17229,6 +17705,9 @@ Copyright:
 
     @staticmethod
     def printGood(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s%s' % \
             (ConfigManager.OKGREEN, '[Info] ', line, ConfigManager.ENDC))
 
@@ -17236,6 +17715,9 @@ Copyright:
 
     @staticmethod
     def printLine(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s' % \
             (ConfigManager.UNDERLINE, line, ConfigManager.ENDC))
 
@@ -17243,6 +17725,9 @@ Copyright:
 
     @staticmethod
     def printStat(line):
+        if not SystemManager.logEnable:
+            return
+
         print('\n%s%s%s%s' % \
             (ConfigManager.SPECIAL, '[Step] ', line, ConfigManager.ENDC))
 
@@ -17622,6 +18107,9 @@ Copyright:
                 if options.rfind('A') > -1:
                     SystemManager.cpuAvrEnable = False
 
+                if options.rfind('L') > -1:
+                    SystemManager.logEnable = False
+
                 if options.rfind('T') > -1:
                     SystemManager.taskEnable = False
 
@@ -17653,6 +18141,9 @@ Copyright:
 
                 if options.rfind('t') > -1:
                     SystemManager.processEnable = False
+
+                if options.rfind('D') > -1:
+                    SystemManager.dltEnable = True
 
                 # no more options except for top mode #
                 if not SystemManager.isTopMode():
@@ -17731,9 +18222,6 @@ Copyright:
                 if options.rfind('e') > -1:
                     SystemManager.encodeEnable = True
 
-                if options.rfind('D') > -1:
-                    SystemManager.dltEnable = True
-
                 if options.rfind('m') > -1:
                     if SystemManager.checkMemTopCond():
                         SystemManager.memEnable = True
@@ -17786,6 +18274,8 @@ Copyright:
                     SystemManager.printInfo(\
                         "set %s as boundary line" % \
                         ', '.join(SystemManager.boundaryLine))
+                elif SystemManager.isSendMode():
+                    pass
                 else:
                     SystemManager.addr2linePath = value.split(',')
 
@@ -18230,6 +18720,9 @@ Copyright:
                 if options.rfind('l') > -1:
                     SystemManager.latEnable = False
 
+                if options.rfind('L') > -1:
+                    SystemManager.logEnable = False
+
                 if options.rfind('a') > -1:
                     SystemManager.disableAll = True
 
@@ -18529,6 +19022,18 @@ Copyright:
 
 
     @staticmethod
+    def isBtraceMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'btrace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintEnvMode():
         if len(sys.argv) == 1:
             return False
@@ -18541,11 +19046,11 @@ Copyright:
 
 
     @staticmethod
-    def isPrintSystemMode():
+    def isPrintInfoMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'printsystem':
+        if sys.argv[1] == 'printinfo':
             return True
         else:
             return False
@@ -18557,7 +19062,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'setaff':
+        if sys.argv[1] == 'setafnt':
             return True
         else:
             return False
@@ -18569,7 +19074,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'getaff':
+        if sys.argv[1] == 'getafnt':
             return True
         else:
             return False
@@ -18721,6 +19226,18 @@ Copyright:
 
 
     @staticmethod
+    def isBrkTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'brktop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSysTopMode():
         if len(sys.argv) == 1:
             return False
@@ -18845,6 +19362,7 @@ Copyright:
             SystemManager.isSystemTopMode() or \
             SystemManager.isNetTopMode() or \
             SystemManager.isUserTopMode() or \
+            SystemManager.isBrkTopMode() or \
             SystemManager.isSysTopMode() or \
             SystemManager.isDltTopMode() or \
             SystemManager.isDbusTopMode() or \
@@ -18860,6 +19378,7 @@ Copyright:
         if SystemManager.isRecordMode() or \
             SystemManager.isTopMode() or \
             SystemManager.isStraceMode() or \
+            SystemManager.isBtraceMode() or \
             SystemManager.isUtraceMode():
             return True
         return False
@@ -18902,6 +19421,19 @@ Copyright:
             else:
                 argList = None
 
+            # print signal list #
+            if SystemManager.findOption('l'):
+                for idx, sig in enumerate(ConfigManager.SIG_LIST):
+                    if idx == 0:
+                        continue
+                    elif idx % 5 == 0:
+                        newline = True
+                    else:
+                        newline = False
+                    SystemManager.printPipe(\
+                        "{0:>2}) {1:<12}".format(idx, sig), newline=newline)
+                sys.exit(0)
+
             SystemManager.sendSignalArgs(argList)
 
         # PAUSE MODE #
@@ -18935,6 +19467,10 @@ Copyright:
         elif SystemManager.isAddr2lineMode():
             SystemManager.doAddr2line()
 
+        # SYM2LINE MODE #
+        elif SystemManager.isSym2lineMode():
+            SystemManager.doSym2line()
+
         # PRINTCGROUP MODE #
         elif SystemManager.isPrintcgroupMode():
             SystemManager.cgroupEnable = True
@@ -18951,7 +19487,7 @@ Copyright:
                     "input DLT message")
                 sys.exit(0)
 
-            ret = DltManager.doLogDlt(msg=SystemManager.sourceFile)
+            ret = DltAnalyzer.doLogDlt(msg=SystemManager.sourceFile)
             if ret == 0:
                 SystemManager.printInfo(\
                     "Logged DLT message successfully")
@@ -18967,7 +19503,17 @@ Copyright:
 
             SystemManager.printLogo(big=True, onlyFile=True)
 
-            DltManager.runDltReceiver(mode='print')
+            DltAnalyzer.runDltReceiver(mode='print')
+
+        # PRINTKMSG MODE #
+        elif SystemManager.isPrintKmsgMode():
+            # set console info #
+            SystemManager.ttyCols = 0
+            SystemManager.printStreamEnable = True
+
+            SystemManager.printLogo(big=True, onlyFile=True)
+
+            SystemManager.printKmsg()
 
         # PAGE MODE #
         elif SystemManager.isMemMode():
@@ -19021,13 +19567,17 @@ Copyright:
         elif SystemManager.isUtraceMode():
             SystemManager.doTrace('usercall')
 
+        # BTRACE MODE #
+        elif SystemManager.isBtraceMode():
+            SystemManager.doTrace('breakcall')
+
         # PRINTENV MODE #
         elif SystemManager.isPrintEnvMode():
             SystemManager.doPrintEnv()
 
-        # PRINTSYSTEM MODE #
-        elif SystemManager.isPrintSystemMode():
-            SystemManager.doPrintSystem()
+        # PRINTINFO MODE #
+        elif SystemManager.isPrintInfoMode():
+            SystemManager.doPrintInfo()
 
         # AFFINITY MODE #
         elif SystemManager.isSetAffinityMode():
@@ -19173,8 +19723,17 @@ Copyright:
 
 
     @staticmethod
+    def isSym2lineMode():
+        if sys.argv[1] == 'sym2line':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintcgroupMode():
-        if sys.argv[1] == 'printcgroup':
+        if sys.argv[1] == 'printcgrp':
             return True
         else:
             return False
@@ -19184,6 +19743,15 @@ Copyright:
     @staticmethod
     def isPrintDltMode():
         if sys.argv[1] == 'printdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintKmsgMode():
+        if sys.argv[1] == 'printkmsg':
             return True
         else:
             return False
@@ -19687,31 +20255,97 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcCount():
-        procList = SystemManager.getBgProcList()
+    def updateBgProcs():
+        SystemManager.bgProcList = SystemManager.getBgProcList()
 
-        return procList.count('\n')
+
+
+    @staticmethod
+    def checkBgProcs():
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        if len(SystemManager.bgProcList) > 0:
+            ppid = os.getppid()
+            myComm = SystemManager.getComm(SystemManager.pid)
+            parentComm = SystemManager.getComm(ppid)
+            if myComm == parentComm:
+                bgList = SystemManager.bgProcList.split('\n')
+                tempBgList = list(bgList)
+                for idx, line in enumerate(tempBgList):
+                    if len(line) == 0:
+                        continue
+                    pid = int(line.split()[0])
+                    if pid == ppid:
+                        bgList.pop(idx)
+                SystemManager.bgProcList = '\n'.join(bgList)
+
+        if len(SystemManager.bgProcList) > 0:
+            SystemManager.printWarn(\
+                SystemManager.getBgProcString(), True)
+
+
+
+    @staticmethod
+    def getBgProcCount():
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        return SystemManager.bgProcList.count('\n')
+
+
+
+    @staticmethod
+    def getBgProcString():
+        if not SystemManager.bgProcList or \
+            len(SystemManager.bgProcList) == 0:
+            return ''
+
+        procList = SystemManager.bgProcList
+
+        bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
+        bgStr = '%s%s\n%6s\t%16s\t%10s\t%s\n%s\n' % \
+            (bgStr, twoLine, "PID", "COMM", "RUNTIME", "COMMAND", oneLine)
+        bgStr = '%s%s%s' % (bgStr, procList, oneLine)
+
+        return bgStr
 
 
 
     @staticmethod
     def printBgProcs():
-        procList = SystemManager.getBgProcList()
+        if not SystemManager.bgProcList:
+            SystemManager.updateBgProcs()
+
+        procList = SystemManager.bgProcList
 
         if procList == '':
             print("\nno running process in the background\n")
         else:
-            print('\n[Running Process] [TOTAL: %s]' % procList.count('\n'))
-            print(twoLine)
-            print('%6s\t%16s\t%10s\t%s' % ("PID", "COMM", "RUNTIME", "COMMAND"))
-            print(oneLine)
-            print(procList + "%s" % oneLine)
+            print(SystemManager.getBgProcString())
 
 
 
     @staticmethod
-    def getPids(name, isThread=False):
+    def getPids(name, isThread=False, isTid=False, \
+        withSibling=False, withMain=False):
+
         pidList = []
+
+        # check tasks by tid #
+        if isTid:
+            if withSibling:
+                path = '%s/%s/task' % (SystemManager.procPath, name)
+
+                pids = os.listdir(path)
+                for pid in pids:
+                    try:
+                        int(pid)
+                        pidList.append(pid)
+                    except:
+                        continue
+
+                return pidList
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
@@ -19726,7 +20360,11 @@ Copyright:
             if isThread:
                 threadPath = '%s/task' % procPath
 
-                tids = os.listdir(threadPath)
+                try:
+                    tids = os.listdir(threadPath)
+                except:
+                    continue
+
                 for tid in tids:
                     try:
                         int(tid)
@@ -19746,7 +20384,20 @@ Copyright:
                     if comm != name:
                         continue
 
-                    pidList.append(tid)
+                    # including all sibling threads #
+                    if withSibling:
+                        for tid in tids:
+                            if tid not in pidList:
+                                pidList.append(tid)
+                        break
+
+                    # include a thread #
+                    if tid not in pidList:
+                        pidList.append(tid)
+
+                    # include main thread #
+                    if pid not in pidList:
+                        pidList.append(pid)
 
                 continue
 
@@ -19759,7 +20410,8 @@ Copyright:
             if comm != name:
                 continue
 
-            pidList.append(pid)
+            if pid not in pidList:
+                pidList.append(pid)
 
         return pidList
 
@@ -19876,6 +20528,8 @@ Copyright:
 
         # wait for user input #
         try:
+            SystemManager.inWaitStatus = True
+
             if newline:
                 suffix = '\n'
             else:
@@ -19905,6 +20559,8 @@ Copyright:
             sys.exit(0)
         except:
             pass
+        finally:
+            SystemManager.inWaitStatus = False
 
         return True
 
@@ -19932,6 +20588,9 @@ Copyright:
 
             SystemManager.printPipe("[Option]   {VAL}")
             SystemManager.printPipe("  exam) o -e bs -g task\n")
+
+            SystemManager.printPipe("[Run]      {COMMAND}")
+            SystemManager.printPipe("  exam) r usertop -g task\n")
 
         ulist = uinput.split()
         if len(ulist) == 0:
@@ -19994,6 +20653,24 @@ Copyright:
                 SystemManager.parseAnalOption(uinput[1:].strip())
             else:
                 printHelp()
+        # run #
+        elif ulist[0].upper() == 'RUN' or \
+            ulist[0] == 'r':
+            if len(ulist) > 1:
+                cmd = SystemManager.getExeCmd(SystemManager.pid)
+                cmd.extend(ulist[1:])
+
+                # launch new command #
+                pid = SystemManager.createProcess(cmd)
+                if pid < 0:
+                    sys.exit(0)
+
+                # ignore signals and wait for child #
+                SystemManager.setIgnoreSignal()
+                os.wait()
+                SystemManager.setNormalSignal()
+            else:
+                printHelp()
         # quit #
         elif ulist[0].upper() == 'QUIT' or \
             ulist[0].upper() == 'Q':
@@ -20033,9 +20710,9 @@ Copyright:
 
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False):
+    def executeProcess(cmd=None, mute=False, closeAll=True):
         try:
-            SystemManager.resetFileTable(mute)
+            SystemManager.resetFileTable(mute, closeAll)
 
             os.execvp(cmd[0], cmd)
         except:
@@ -20152,6 +20829,7 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
@@ -20170,6 +20848,19 @@ Copyright:
 
 
     @staticmethod
+    def setIgnoreSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGQUIT, signal.SIG_IGN)
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
+
+
+
+    @staticmethod
     def setNormalSignal():
         if not sys.platform.startswith('linux'):
             return
@@ -20178,6 +20869,7 @@ Copyright:
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
+        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -20323,9 +21015,7 @@ Copyright:
             # convert Guider path #
             if value.startswith('GUIDER '):
                 cmd = ' '.join(value.split()[1:])
-                path = '%s %s' % \
-                    (UtilManager.which('python')[0], \
-                        os.path.abspath(__file__))
+                path = ' '.join(SystemManager.getExeCmd(SystemManager.pid))
                 value = '%s %s' % (path, cmd)
 
             # run command #
@@ -20897,7 +21587,7 @@ Copyright:
 
 
     @staticmethod
-    def doPrintSystem():
+    def doPrintInfo():
         SystemManager.printLogo(big=True, onlyFile=True)
 
         SystemManager()
@@ -20905,7 +21595,7 @@ Copyright:
 
         if SystemManager.jsonPrintEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilManager.makeJsonString(SystemManager.jsonData)
+            jsonObj = UtilManager.convertDict2Str(SystemManager.jsonData)
             if not jsonObj:
                 SystemManager.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -20981,6 +21671,9 @@ Copyright:
                 else:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait)
+            elif mode == 'breakcall':
+                Debugger(pid=pid, execCmd=execCmd).\
+                    trace(mode='break', wait=wait)
             else:
                 pass
         except SystemExit:
@@ -20997,6 +21690,8 @@ Copyright:
     @staticmethod
     def doAddr2line():
         SystemManager.printLogo(big=True, onlyFile=True)
+
+        SystemManager.warningEnable = True
 
         if not SystemManager.sourceFile:
             SystemManager.printErr(\
@@ -21020,10 +21715,10 @@ Copyright:
                 "Fail to load elf object because %s" % err)
             sys.exit(0)
 
-        SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
+        SystemManager.printPipe("\n[Address Info]\n%s" % twoLine)
 
         SystemManager.printPipe(\
-            "{0:^18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
+            "{0:<18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
 
         # print symbols from offset list #
         for offset in SystemManager.filterGroup:
@@ -21045,6 +21740,85 @@ Copyright:
 
             SystemManager.printPipe(\
                 "{0:<18} {1:<1}".format(offset, symbol))
+
+        SystemManager.printPipe(oneLine + '\n')
+
+
+
+    @staticmethod
+    def doSym2line():
+        SystemManager.printLogo(big=True, onlyFile=True)
+
+        if not SystemManager.sourceFile:
+            SystemManager.printErr(\
+                "No PATH or COMM or PID with -I")
+            sys.exit(0)
+
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printErr("No symbol with -g")
+            sys.exit(0)
+
+        resInfo = {}
+        inputArg = SystemManager.sourceFile
+
+        # check file #
+        if os.path.isfile(inputArg):
+            filePath = inputArg
+            for sym in SystemManager.filterGroup:
+                # create elf object #
+                try:
+                    resInfo[sym] = \
+                        (ElfAnalyzer.getSymOffset(sym, inputArg), filePath)
+                except:
+                    sys.exit(0)
+        # check process #
+        else:
+            if inputArg.isdigit() and \
+                os.path.exists('%s/%s' % (SystemManager.procPath, inputArg)):
+                pids = [inputArg]
+            else:
+                pids = SystemManager.getPids(inputArg)
+            if len(pids) == 0:
+                SystemManager.printErr(\
+                    "Fail to recognize %s as a file or a process" % inputArg)
+                sys.exit(0)
+            elif len(pids) > 1:
+                SystemManager.printErr((\
+                    "Fail to find a unique process because "
+                    "multiple processes [%s] are found") % ', '.join(pids))
+                sys.exit(0)
+
+            # get file list on memorymap #
+            fileList = list(FileAnalyzer.getProcMapInfo(pids[0]).keys())
+
+            for filePath in fileList:
+                for sym in SystemManager.filterGroup:
+                    # create elf object #
+                    try:
+                        res = ElfAnalyzer.getSymOffset(sym, filePath)
+                        if res:
+                            resInfo[sym] = (res, filePath)
+                    except:
+                        continue
+
+        SystemManager.printPipe("\n[Symbol Info]\n%s" % twoLine)
+
+        SystemManager.printPipe(\
+            "{0:<48} {1:<52} {2:<18}\n{3:1}".format(\
+                'Symbol', 'PATH', 'Offset', twoLine))
+
+        # print symbols from offset list #
+        for sym, val in resInfo.items():
+            addr, filePath = val
+
+            if addr is None:
+                addr = 'N/A'
+
+            SystemManager.printPipe(\
+                "{0:<48} {1:<52} {2:<18}".format(sym, filePath, addr))
+
+        if len(resInfo) == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine + '\n')
 
@@ -21182,7 +21956,7 @@ Copyright:
         SystemManager.doLimitCpu(limitInfo, verbose=False)
 
         # terminate tasks #
-        SystemManager.terminateTasks(limitInfo.keys())
+        SystemManager.terminateTasks(list(limitInfo.keys()))
 
 
 
@@ -21255,7 +22029,7 @@ Copyright:
         mlist = SystemManager.getMemStat('self')
         if not mlist:
             SystemManager.printErr(\
-                "Fail to get memory size of guider")
+                "Fail to get memory size of Guider")
             sys.exit(0)
 
         # get memory size #
@@ -22235,9 +23009,7 @@ Copyright:
         # save system info #
         if initialized:
             # process info #
-            if SystemManager.tgidEnable:
-                pass
-            else:
+            if SystemManager.isRecordMode():
                 self.saveProcTree()
 
             # resource info #
@@ -22260,7 +23032,7 @@ Copyright:
         if procTree:
             self.procData = '!!!!!'
             for tid, pid in procTree.items():
-                self.procData += tid + ':' + pid + ','
+                self.procData += '%s:%s,' % (tid, pid)
 
 
 
@@ -22577,7 +23349,7 @@ Copyright:
 
     @staticmethod
     def killChilds():
-        SystemManager.terminateTasks(SystemManager.childList.keys())
+        SystemManager.terminateTasks(list(SystemManager.childList.keys()))
 
 
 
@@ -22763,7 +23535,7 @@ Copyright:
             else:
                 SystemManager.printErr(\
                     "Fail to start tracing because "
-                    "another guider is already running")
+                    "another Guider is already running")
                 os._exit(0)
 
         # clean up ring buffer for tracing #
@@ -23503,8 +24275,8 @@ Copyright:
         # launch option #
         try:
             launchOption = '%s%s' % (' '.join(sys.argv), ' -')
-            SystemManager.infoBufferPrint("{0:20} {1:<100}".\
-                format('Launch', '# ' + launchOption))
+            SystemManager.infoBufferPrint("{0:20} # {1:<100}".\
+                format('Launch', launchOption))
 
             if SystemManager.jsonPrintEnable:
                 jsonData['launch'] = launchOption
@@ -24402,7 +25174,7 @@ Copyright:
                 nrTasks = 0
 
                 tempSubdir = copy.deepcopy(subdir)
-                for val in subdir.keys():
+                for val in list(subdir.keys()):
                     if not val in ConfigManager.CGROUP_VALUE:
                         continue
                     elif val == 'tasks':
@@ -25210,10 +25982,722 @@ Copyright:
 
 
 
-class DltManager(object):
+class DbusAnalyzer(object):
+    """ Analyzer for D-Bus """
+
+    errObj = None
+    sentData = {}
+    lastSentInterface = {}
+    previousData = {}
+
+    G_IO_ERROR_TYPE = [
+        'G_IO_ERROR_FAILED',
+        'G_IO_ERROR_NOT_FOUND',
+        'G_IO_ERROR_EXISTS',
+        'G_IO_ERROR_IS_DIRECTORY',
+        'G_IO_ERROR_NOT_DIRECTORY',
+        'G_IO_ERROR_NOT_EMPTY',
+        'G_IO_ERROR_NOT_REGULAR_FILE',
+        'G_IO_ERROR_NOT_SYMBOLIC_LINK',
+        'G_IO_ERROR_NOT_MOUNTABLE_FILE',
+        'G_IO_ERROR_FILENAME_TOO_LONG',
+        'G_IO_ERROR_INVALID_FILENAME',
+        'G_IO_ERROR_TOO_MANY_LINKS',
+        'G_IO_ERROR_NO_SPACE',
+        'G_IO_ERROR_INVALID_ARGUMENT',
+        'G_IO_ERROR_PERMISSION_DENIED',
+        'G_IO_ERROR_NOT_SUPPORTED',
+        'G_IO_ERROR_NOT_MOUNTED',
+        'G_IO_ERROR_ALREADY_MOUNTED',
+        'G_IO_ERROR_CLOSED',
+        'G_IO_ERROR_CANCELLED',
+        'G_IO_ERROR_PENDING',
+        'G_IO_ERROR_READ_ONLY',
+        'G_IO_ERROR_CANT_CREATE_BACKUP',
+        'G_IO_ERROR_WRONG_ETAG',
+        'G_IO_ERROR_TIMED_OUT',
+        'G_IO_ERROR_WOULD_RECURSE',
+        'G_IO_ERROR_BUSY',
+        'G_IO_ERROR_WOULD_BLOCK',
+        'G_IO_ERROR_HOST_NOT_FOUND',
+        'G_IO_ERROR_WOULD_MERGE',
+        'G_IO_ERROR_FAILED_HANDLED',
+        'G_IO_ERROR_TOO_MANY_OPEN_FILES',
+        'G_IO_ERROR_NOT_INITIALIZED',
+        'G_IO_ERROR_ADDRESS_IN_USE',
+        'G_IO_ERROR_PARTIAL_INPUT',
+        'G_IO_ERROR_INVALID_DATA',
+        'G_IO_ERROR_DBUS_ERROR',
+        'G_IO_ERROR_HOST_UNREACHABLE',
+        'G_IO_ERROR_NETWORK_UNREACHABLE',
+        'G_IO_ERROR_CONNECTION_REFUSED',
+        'G_IO_ERROR_PROXY_FAILED',
+        'G_IO_ERROR_PROXY_AUTH_FAILED',
+        'G_IO_ERROR_PROXY_NEED_AUTH',
+        'G_IO_ERROR_PROXY_NOT_ALLOWED',
+        'G_IO_ERROR_BROKEN_PIPE',
+        'G_IO_ERROR_CONNECTION_CLOSED',
+        'G_IO_ERROR_NOT_CONNECTED',
+        'G_IO_ERROR_MESSAGE_TOO_LARGE',
+    ]
+
+    GDBusMessageType = [
+        "INVALID",
+        "METHOD_CALL",
+        "METHOD_RETURN",
+        "ERROR",
+        "SIGNAL"
+    ]
+
+    @staticmethod
+    def prepareDbusMethods():
+        # get ctypes object #
+        ctypes = SystemManager.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, c_char_p, pointer, \
+            c_ulong, c_void_p, c_int, c_uint32, Structure
+
+        # try to demangle symbol #
+        try:
+            # load standard libgio library #
+            if not SystemManager.libgioObj:
+                SystemManager.libgioObj = \
+                    cdll.LoadLibrary(SystemManager.libgioPath)
+
+            # load standard libgobj library #
+            if not SystemManager.libgObj:
+                SystemManager.libgObj = \
+                    cdll.LoadLibrary(SystemManager.libgobjPath)
+
+            '''
+            # load standard libdbus library #
+            if not SystemManager.libdbusObj:
+                SystemManager.libdbusObj = \
+                    cdll.LoadLibrary(SystemManager.libdbusPath)
+            '''
+        except SystemExit:
+            sys.exit(0)
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to load library to analyze dbus packets because %s" % err)
+            sys.exit(0)
+
+	# define error object #
+        class GError(Structure):
+            _fields_ = (
+                ("domain", c_uint32),
+                ("code", c_int),
+                ("message", c_char_p),
+            )
+        DbusAnalyzer.errObj = GError
+
+        # define gobject methods #
+        gObj = SystemManager.libgObj
+
+        gObj.g_object_unref.argtypes = [c_void_p]
+
+        # define gio methods #
+        gioObj = SystemManager.libgioObj
+
+        gioObj.g_dbus_message_new_from_blob.argtypes = \
+            [c_char_p, c_ulong, c_ulong, c_void_p]
+        gioObj.g_dbus_message_new_from_blob.restype = c_ulong
+
+        gioObj.g_error_free.argtypes = [c_void_p]
+
+        gioObj.g_dbus_message_get_message_type.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_message_type.restype = c_ulong
+
+        gioObj.g_dbus_message_get_arg0.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_arg0.restype = c_char_p
+
+        gioObj.g_dbus_message_get_sender.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_sender.restype = c_char_p
+
+        gioObj.g_dbus_message_get_destination.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_destination.restype = c_char_p
+
+        gioObj.g_dbus_message_get_path.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_path.restype = c_char_p
+
+        gioObj.g_dbus_message_get_signature.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_signature.restype = c_char_p
+
+        gioObj.g_dbus_message_get_interface.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_interface.restype = c_char_p
+
+        gioObj.g_dbus_message_get_member.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_member.restype = c_char_p
+
+        gioObj.g_dbus_message_get_serial.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_serial.restype = c_char_p
+
+        gioObj.g_dbus_message_print.argtypes = [c_ulong, c_ulong]
+        gioObj.g_dbus_message_print.restype = c_char_p
+
+        '''
+        # define dbus methods #
+        dbusObj = SystemManager.libdbusObj
+
+        dbusObj.dbus_message_demarshal.argtypes = \
+            [c_char_p, c_int, c_void_p]
+        dbusObj.dbus_message_demarshal.restype = c_ulong
+
+        dbusObj.dbus_message_demarshal_bytes_needed.argtypes = \
+            [c_char_p, c_int]
+        dbusObj.dbus_message_demarshal_bytes_needed.restype = c_int
+
+        dbusObj.dbus_message_get_interface.argtypes = [c_void_p]
+        dbusObj.dbus_message_get_interface.restype = c_char_p
+
+        dbusObj.dbus_message_get_type.argtypes = [c_void_p]
+        dbusObj.dbus_message_get_type.restype = c_int
+        '''
+
+
+
+    @staticmethod
+    def runDbusSnooper():
+        def updateTaskInfo(dbusData, sentData):
+            try:
+                taskManager.saveSystemStat()
+            except:
+                SystemManager.printErr(\
+                    "Fail to update system stat because %s" % \
+                    SystemManager.getErrReason())
+
+            for pid in taskList:
+                try:
+                    if pid not in dbusData:
+                        continue
+
+                    dbusList = []
+                    convertNum = UtilManager.convertNumber
+
+                    # build D-Bus usage string #
+                    dbusCnt = dbusData[pid]['totalCnt']
+                    dbusList.append(\
+                        '[TOTAL]: %s / [TYPE]: %s' % \
+                            (convertNum(dbusCnt), \
+                            convertNum(len(dbusData[pid])-1)))
+
+                    for name, value in sorted(dbusData[pid].items(),\
+                        key=lambda x:x[1]['cnt'] if x[0] != 'totalCnt' else 0,\
+                        reverse=True):
+
+                        if name == 'totalCnt':
+                            continue
+                        try:
+                            per = int((value['cnt'] / float(dbusCnt)) * 100)
+                        except:
+                            per = 0
+
+                        # get time info #
+                        if value['cnt'] > 0 and \
+                            pid in sentData and \
+                            name in sentData[pid]:
+                            data = sentData[pid][name]
+                            avr = data['total'] / value['cnt']
+                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f}' % \
+                                (name, data['min'], avr, data['max'])
+
+                        dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
+                            convertNum(value['cnt']), per, name))
+
+                    # add D-Bus usage #
+                    taskManager.procData[pid]['dbusList'] = dbusList
+                    taskManager.procData[pid]['dbusCnt'] = dbusCnt
+                except:
+                    SystemManager.printWarn(\
+                        "Fail to update task info because %s" % \
+                            SystemManager.getErrReason(), True)
+
+        def printSummary(signum, frame):
+            # disable alarm #
+            signal.signal(signal.SIGALRM, signal.SIG_IGN)
+
+            # check user input #
+            SystemManager.waitUserInput(0.000001)
+
+            # get summary list #
+            if lock:
+                lock.acquire()
+
+            # initialize data #
+            prevSentData = DbusAnalyzer.sentData
+            DbusAnalyzer.sentData = {}
+            prevDbusData = ThreadAnalyzer.dbusData
+            ThreadAnalyzer.dbusData = {'totalCnt': 0}
+
+            if lock and lock.locked():
+                try:
+                    lock.release()
+                except:
+                    pass
+
+            # update cpu usage of tasks #
+            updateTaskInfo(prevDbusData, prevSentData)
+
+            # print title #
+            SystemManager.addPrint(\
+                ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                    ('D-BUS Info', SystemManager.uptime, \
+                    SystemManager.uptimeDiff, \
+                    UtilManager.convertNumber(prevDbusData['totalCnt'])))
+
+            # print resource usage of tasks #
+            taskManager.printSystemUsage()
+            taskManager.printProcUsage()
+            taskManager.reinitStats()
+            SystemManager.printTopStats()
+
+            # enable alarm #
+            signal.signal(signal.SIGALRM, printSummary)
+
+            # reset timer #
+            SystemManager.updateTimer()
+
+        def executeLoop(rdPipeList):
+            tid = SystemManager.syscall('gettid')
+
+            # main thread #
+            if SystemManager.pid == tid:
+                SystemManager.updateUptime()
+
+                # save initial stat of tasks #
+                updateTaskInfo(ThreadAnalyzer.dbusData, DbusAnalyzer.sentData)
+                taskManager.reinitStats()
+
+                # set timer #
+                signal.signal(signal.SIGALRM, printSummary)
+                SystemManager.updateTimer()
+
+            while 1:
+                # multi-threaded loop #
+                if len(threadingList) > 0:
+                    # sibling thread #
+                    if SystemManager.pid != tid:
+                        updateDataFromPipe(rdPipeList)
+                    # main thread #
+                    else:
+                        signal.pause()
+                # single-threaded loop #
+                else:
+                    updateDataFromPipe(rdPipeList)
+
+        def updateData(data):
+            tid = data[0]
+            params = data[1]
+
+            # convert string to dict #
+            try:
+                jsonData = UtilManager.convertStr2Dict(params)
+                if not jsonData:
+                    return
+            except:
+                return
+
+            try:
+                ctype = jsonData["name"]
+
+                # check syscall #
+                if (ctype != "recvmsg" or jsonData["type"] != "enter") and \
+                    (ctype != "sendmsg" or jsonData["type"] != "enter"):
+                    return
+                # check args #
+                elif "args" not in jsonData or \
+                    type(jsonData["args"]) is not dict or \
+                    "msg" not in jsonData["args"] or \
+                    type(jsonData["args"]["msg"]) is not dict or \
+                    "msg_iov" not in jsonData["args"]["msg"]:
+                    return
+
+                # get D-Bus interface #
+                msgList = jsonData["args"]["msg"]["msg_iov"]
+                if type(msgList) is not dict:
+                    return
+
+                # get ctypes object #
+                ctypes = SystemManager.getPkg('ctypes')
+                from ctypes import c_char_p,  c_ulong, c_void_p, \
+                    cast, addressof, byref, c_int, POINTER
+
+                libgioObj = SystemManager.libgioObj
+                libgObj = SystemManager.libgObj
+
+                cnt = 0
+                mlist = {}
+
+                for name, msg in msgList.items():
+                    # get message info #
+                    length = msg['len']
+                    call = msg['data']
+
+                    # update message size #
+                    if length == 0:
+                        length = len(call)
+
+                    # check message size #
+                    if length == 0:
+                        continue
+
+                    # recover data #
+                    if len(call) > length:
+                        call = call[:length]
+                    elif len(call) < length:
+                        call = call + ('\0' * (length - len(call)))
+
+                    # check previous data #
+                    if tid not in DbusAnalyzer.previousData:
+                        DbusAnalyzer.previousData[tid] = dict()
+                        DbusAnalyzer.previousData[tid]['recvmsg'] = ''
+                        DbusAnalyzer.previousData[tid]['sendmsg'] = ''
+                    try:
+                        prevData = DbusAnalyzer.previousData[tid][ctype]
+                    except:
+                        prevData = ''
+
+                    # composite data #
+                    if ctype == 'recvmsg':
+                        # check this message #
+                        if call[0] == 'l' or call[0] == 'B':
+                            DbusAnalyzer.previousData[tid][ctype] = call
+                        else:
+                            # check prevous message #
+                            if len(prevData) > 0 and \
+                                (prevData[0] == 'l' or prevData[0] == 'B'):
+                                call = prevData + call
+                            else:
+                                DbusAnalyzer.previousData[tid][ctype] = call
+                                continue
+                    elif ctype == 'sendmsg':
+                        # check this message #
+                        if call[0] == 'l' or call[0] == 'B':
+                            # check previous message #
+                            if len(prevData) > 0 and \
+                                (prevData[0] == 'l' or prevData[0] == 'B'):
+                                pass
+                            else:
+                                call = call + prevData
+                        else:
+                            DbusAnalyzer.previousData[tid][ctype] = call
+                            continue
+                    else:
+                        continue
+
+                    # check protocol message #
+                    if length == 16:
+                        continue
+
+                    # cast bytes to void_p #
+                    buf = c_char_p(call.encode('latin-1'))
+
+                    # create GDBusMessage from bytes #
+                    errp = POINTER(DbusAnalyzer.errObj)()
+                    gdmsg = libgioObj.g_dbus_message_new_from_blob(\
+                        buf, c_ulong(len(call)), c_ulong(0), byref(errp))
+
+                    # check error #
+                    if not gdmsg and errp:
+                        code = errp.contents.code
+                        message = errp.contents.message
+                        SystemManager.printWarn(\
+                            "Fail to convert GDbusMessage because %s(%s)" % \
+                            (DbusAnalyzer.G_IO_ERROR_TYPE[code], message))
+
+                        libgioObj.g_error_free(byref(errp.contents))
+                        continue
+
+                    # get properties from message #
+                    addr = c_ulong(gdmsg)
+
+                    try:
+                        nrType = libgioObj.g_dbus_message_get_message_type(addr)
+                        mtype = DbusAnalyzer.GDBusMessageType[nrType]
+                    except:
+                        SystemManager.printWarn(\
+                            "Fail to get type of GDbusMessage because %s" % \
+                            SystemManger.getErrReason())
+                        continue
+
+                    # check sent data #
+                    if tid not in DbusAnalyzer.sentData:
+                        DbusAnalyzer.sentData[tid] = dict()
+                        DbusAnalyzer.sentData[tid]['last'] = 0
+
+                    # check message type #
+                    if mtype == 'METHOD_RETURN':
+                        if tid in DbusAnalyzer.lastSentInterface:
+                            lastIf = DbusAnalyzer.lastSentInterface[tid]
+                        else:
+                            lastIf = None
+
+                        if lastIf in DbusAnalyzer.sentData[tid] and \
+                            DbusAnalyzer.sentData[tid][lastIf]['time'] > 0:
+                            lastData = DbusAnalyzer.sentData[tid][lastIf]
+                            elapsed = jsonData['time'] - lastData['time']
+
+                            if lastData['min'] == 0 or \
+                                elapsed < lastData['min']:
+                                DbusAnalyzer.sentData[tid][lastIf]['min'] = \
+                                    elapsed
+
+                            if elapsed > lastData['max']:
+                                DbusAnalyzer.sentData[tid][lastIf]['max'] = \
+                                elapsed
+
+                            DbusAnalyzer.sentData[tid][lastIf]['total'] += \
+                                elapsed
+
+                            DbusAnalyzer.sentData[tid][lastIf]['time'] = 0
+                            DbusAnalyzer.lastSentInterface[tid] = None
+
+                        libgObj.g_object_unref(gdmsg)
+                        continue
+
+                    # get properties from message #
+                    interface = libgioObj.g_dbus_message_get_interface(addr)
+                    src = libgioObj.g_dbus_message_get_sender(addr)
+                    des = libgioObj.g_dbus_message_get_destination(addr)
+                    member = libgioObj.g_dbus_message_get_member(addr)
+                    #path = libgioObj.g_dbus_message_get_path(addr)
+                    arg0 = libgioObj.g_dbus_message_get_arg0(addr)
+
+                    if ctype == 'recvmsg':
+                        direction = 'IN'
+                    else:
+                        direction = 'OUT'
+
+                    # save message info #
+                    mname = '%3s %s(%s) [%s]' % \
+                        (direction, interface.decode(), member.decode(), mtype)
+                    if mname not in mlist:
+                        mlist[mname] = {'count': 0}
+
+                    # save sent message info #
+                    if ctype == 'sendmsg':
+                        if not mname in DbusAnalyzer.sentData[tid]:
+                            DbusAnalyzer.sentData[tid][mname] = dict()
+                            DbusAnalyzer.sentData[tid][mname]['min'] = 0
+                            DbusAnalyzer.sentData[tid][mname]['max'] = 0
+                            DbusAnalyzer.sentData[tid][mname]['total'] = 0
+
+                        time = jsonData['time']
+                        DbusAnalyzer.sentData[tid][mname]['time'] = time
+                        DbusAnalyzer.lastSentInterface[tid] = mname
+                    elif mname in DbusAnalyzer.sentData[tid]:
+                        DbusAnalyzer.sentData[tid][mname]['time'] = 0
+                        DbusAnalyzer.lastSentInterface[tid] = None
+
+                    # increase count #
+                    cnt += 1
+                    mlist[mname]['count'] += 1
+
+                    # print message #
+                    '''
+                    print(mtype, interface, src, des, member, arg0)
+                    print(libgioObj.g_dbus_message_print(\
+                        c_ulong(gdmsg), c_ulong(0)))
+                    '''
+
+                    # free object #
+                    libgObj.g_object_unref(gdmsg)
+
+                if cnt == 0:
+                    return
+
+                # acquire lock #
+                if lock:
+                    lock.acquire()
+
+                # increase count #
+                if tid not in ThreadAnalyzer.dbusData:
+                    ThreadAnalyzer.dbusData[tid] = dict()
+                    ThreadAnalyzer.dbusData[tid]['totalCnt'] = 1
+                else:
+                    ThreadAnalyzer.dbusData[tid]['totalCnt'] += 1
+
+                ThreadAnalyzer.dbusData['totalCnt'] += 1
+
+                # merge D-Bus interface #
+                for name, value in mlist.items():
+                    try:
+                        ThreadAnalyzer.dbusData[tid][name]['cnt'] += \
+                            value['count']
+                    except:
+                        ThreadAnalyzer.dbusData[tid][name] = dict()
+                        ThreadAnalyzer.dbusData[tid][name]['cnt'] = \
+                            value['count']
+            except:
+                SystemManager.printWarn(\
+                    "Fail to handle %s because %s" % \
+                        ([jsonData], SystemManager.getErrReason()))
+            finally:
+                # release lock #
+                if lock and lock.locked():
+                    try:
+                        lock.release()
+                    except:
+                        pass
+
+        def updateDataFromPipe(rdPipeList):
+            # merge dbus data #
+            try:
+                # wait for event #
+                [read, write, error] = \
+                    selectObj.select(rdPipeList, [], [])
+
+                # read messages through pipe connected to child processes #
+                for robj in read:
+                    # get tid of target #
+                    try:
+                        tid = taskList[pipeList.index(robj)]
+                    except:
+                        tid = '?'
+
+                    # handle data arrived #
+                    while 1:
+                        output = robj.readline()
+                        if output == '\n':
+                            continue
+                        elif output and len(output) > 0:
+                            updateData((tid, output))
+
+                        break
+            except:
+                return
+
+        # check root permission #
+        if not SystemManager.isRoot():
+            SystemManager.printErr(\
+                "Fail to get root permission")
+            sys.exit(0)
+
+        # check filter #
+        if len(SystemManager.filterGroup) == 0:
+            SystemManager.printErr(\
+                "Input comm or tid for target with -g option")
+            sys.exit(0)
+
+        # prepare D-Bus methods to analyze BLOB data #
+        DbusAnalyzer.prepareDbusMethods()
+
+        # get select object #
+        selectObj = SystemManager.getPkg('select')
+
+        # get threading object #
+        threadObj = SystemManager.getPkg('threading', False)
+        if threadObj:
+            lock = threadObj.Lock()
+        else:
+            lock = None
+
+        taskList = []
+        # get pids of gdbus threads #
+        for val in SystemManager.filterGroup:
+            if val.isdigit() and \
+                os.path.exists('%s/%s' % (SystemManager.procPath, val)):
+                if SystemManager.groupProcEnable:
+                    taskList = SystemManager.getPids(\
+                        val, isTid=True, withSibling=True)
+                else:
+                    taskList.append(val)
+            else:
+                if SystemManager.groupProcEnable:
+                    taskList += SystemManager.getPids(\
+                        val, isThread=True, withSibling=True)
+                else:
+                    tempList = SystemManager.getPids(\
+                        val, isThread=True, withSibling=True)
+
+                    if len(tempList) > 0:
+                        taskList.append(sorted(tempList)[0])
+                        for tid in tempList:
+                            comm = SystemManager.getComm(tid)
+                            if comm == 'gdbus':
+                                taskList.append(tid)
+        if len(taskList) == 0:
+            SystemManager.printErr(\
+                "Fail to find task to analyze dbus message")
+            sys.exit(0)
+
+        # define common list #
+        pipeList = []
+        threadingList = []
+        SystemManager.filterGroup = taskList
+        taskManager = ThreadAnalyzer(onlyInstance=True)
+        SystemManager.processEnable = False
+        SystemManager.sort = 'd'
+
+        # set target syscalls #
+        SystemManager.syscallList.append(\
+            ConfigManager.sysList.index('sys_recvmsg'))
+        SystemManager.syscallList.append(\
+            ConfigManager.sysList.index('sys_sendmsg'))
+
+        # create child processes to attach each targets #
+        for tid in taskList:
+            # create pipe #
+            rd, wr = os.pipe()
+
+            pid = SystemManager.createProcess()
+            # parent #
+            if pid > 0:
+                os.close(wr)
+                rdPipe = os.fdopen(rd)
+                pipeList.append(rdPipe)
+
+                # run a new worker thread #
+                if threadObj:
+                    tobj = threadObj.Thread(\
+                        target=executeLoop, args=[[rdPipe]])
+                    threadingList.append(tobj)
+            # child #
+            elif pid == 0:
+                # redirect stdout to pipe #
+                os.dup2(wr,1)
+                os.close(wr)
+                os.close(rd)
+
+                # set options #
+                sys.argv[1] = 'strace'
+                SystemManager.showAll = True
+                SystemManager.intervalEnable = 0
+                SystemManager.printFile = None
+                SystemManager.logEnable = False
+                SystemManager.filterGroup = [tid]
+                SystemManager.jsonPrintEnable = True
+
+                # execute strace mode #
+                SystemManager.doTrace('syscall')
+
+                sys.exit(0)
+
+        # start worker threads #
+        for tobj in threadingList:
+            tobj.start()
+
+        # run event loop #
+        executeLoop(pipeList)
+
+
+
+
+
+class DltAnalyzer(object):
     """ Manager for DLT """
 
+    # define constant #
+    DLT_HTYP_WEID = 0x04
+    DLT_SIZE_WEID = DLT_ID_SIZE = 4
+    DLT_MSIN_MSTP = 0x0e # message type #
+    DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
+    DLT_DAEMON_TEXTSIZE = 10024
+
     # define list #
+    pids = []
+    procInfo = None
     dltData = {'cnt': 0}
 
     @staticmethod
@@ -25229,28 +26713,34 @@ class DltManager(object):
             ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
                 ('DLT Info', SystemManager.uptime, \
                 SystemManager.uptimeDiff, \
-                convertFunc(DltManager.dltData['cnt'])))
+                convertFunc(DltAnalyzer.dltData['cnt'])))
+
+        # update daemon stat #
+        DltAnalyzer.procInfo.saveProcStats()
+        for pid in DltAnalyzer.pids:
+            DltAnalyzer.procInfo.saveProcData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+        DltAnalyzer.procInfo.printProcUsage()
+        DltAnalyzer.procInfo.reinitStats()
 
         SystemManager.addPrint(\
-                "{0:1}\n{1:^20} | {2:^19} | {3:^19} |\n{4:1}\n".format(\
-                twoLine, "ECU", "AP", "CONTEXT", twoLine), newline=3)
+                "{0:^20} | {1:^19} | {2:^19} |\n{3:1}\n".format(\
+                "ECU", "AP", "CONTEXT", twoLine), newline=2)
 
         # traverse DLT table #
         dltCnt = 0
-        for ecuId, ecuItem in sorted(DltManager.dltData.items(), \
+        for ecuId, ecuItem in sorted(DltAnalyzer.dltData.items(), \
             key=lambda x:x[1]['cnt'] if x[0] != 'cnt' else 0, \
             reverse=True):
             if ecuId == 'cnt':
                 continue
 
-            if quitLoop:
-                break
-            elif SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
+            if quitLoop or \
+                SystemManager.checkCutCond():
                 break
 
             ecuCnt = ecuItem['cnt']
-            ecuPer = ecuCnt / float(DltManager.dltData['cnt']) * 100
+            ecuPer = ecuCnt / float(DltAnalyzer.dltData['cnt']) * 100
             ecuStr = "{0:4} {1:>8}({2:5.1f}%)\n".format(\
                 ecuId, convertFunc(ecuCnt), ecuPer)
             SystemManager.addPrint(ecuStr)
@@ -25262,10 +26752,8 @@ class DltManager(object):
                 if apId == 'cnt':
                     continue
 
-                if quitLoop:
-                    break
-                elif SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
+                if quitLoop or \
+                    SystemManager.checkCutCond():
                     quitLoop = True
                     break
 
@@ -25282,10 +26770,8 @@ class DltManager(object):
                     if ctxId == 'cnt':
                         continue
 
-                    if quitLoop:
-                        break
-                    elif SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
+                    if quitLoop or \
+                        SystemManager.checkCutCond():
                         quitLoop = True
                         break
 
@@ -25305,22 +26791,118 @@ class DltManager(object):
         SystemManager.printTopStats()
 
         # initialize data #
-        DltManager.dltData = {'cnt': 0}
+        DltAnalyzer.dltData = {'cnt': 0}
 
 
 
     @staticmethod
     def onAlarm(signum, frame):
-        if DltManager.dltData['cnt'] == 0:
+        if SystemManager.isPrintDltMode():
+            SystemManager.progressCnt += 1
+            if SystemManager.repeatCount <= SystemManager.progressCnt:
+                sys.exit(0)
+
+        if DltAnalyzer.dltData['cnt'] == 0 and \
+            not SystemManager.inWaitStatus:
             SystemManager.printWarn(\
                 "No DLT message received", True)
-        DltManager.updateTimer()
+
+        SystemManager.updateTimer()
 
 
 
     @staticmethod
-    def updateTimer():
-        signal.alarm(SystemManager.intervalEnable)
+    def handleMessage(dltObj, msg, buf, mode, verbose):
+        ctypes = SystemManager.getPkg('ctypes')
+
+        DLT_MSIN_MTIN = 0xf0 # message type info #
+        DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
+
+        # save and reset global filter #
+        filterGroup = SystemManager.filterGroup
+
+        # pick storage info #
+        if msg.storageheader:
+            ecuId = msg.storageheader.contents.ecu
+        else:
+            return
+        if msg.extendedheader:
+            apId = msg.extendedheader.contents.apid
+            ctxId = msg.extendedheader.contents.ctid
+        else:
+            return
+
+        # summarizing #
+        if mode == 'top':
+            # check filter #
+            if len(filterGroup) > 0:
+                skipFlag = True
+                for cond in filterGroup:
+                    if cond == ecuId or \
+                        cond == apId or \
+                        cond == ctxId:
+                        skipFlag = False
+                        break
+                if skipFlag:
+                    return
+
+            DltAnalyzer.dltData['cnt'] += 1
+
+            # add ecuId #
+            if not ecuId in DltAnalyzer.dltData:
+                DltAnalyzer.dltData[ecuId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId]['cnt'] += 1
+
+            # add apId #
+            if not apId in DltAnalyzer.dltData[ecuId]:
+                DltAnalyzer.dltData[ecuId][apId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId][apId]['cnt'] += 1
+
+            # add ctxId #
+            if not ctxId in DltAnalyzer.dltData[ecuId][apId]:
+                DltAnalyzer.dltData[ecuId][apId][ctxId] = {'cnt': 0}
+            DltAnalyzer.dltData[ecuId][apId][ctxId]['cnt'] += 1
+        # printing #
+        elif mode == 'print':
+            # get payload #
+            dltObj.dlt_message_payload(\
+                ctypes.byref(msg), buf, DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
+            #string = buf.value.decode("utf8")
+            string = buf.value
+
+            # check filter #
+            if len(filterGroup) > 0:
+                skipFlag = True
+                for cond in filterGroup:
+                    if cond == ecuId or \
+                        cond == apId or \
+                        cond == ctxId or \
+                        cond in string:
+                        skipFlag = False
+                        break
+                if skipFlag:
+                    return
+
+            # get message info #
+            timeSec = msg.storageheader.contents.seconds
+            timeUs = msg.storageheader.contents.microseconds
+            uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
+            subtype = \
+                (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
+                    >> DLT_MSIN_MTIN_SHIFT
+            try:
+                info = LOGINFO[subtype]
+            except:
+                info = ''
+
+            # get date time #
+            ntime = time.strftime(\
+                '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
+
+            output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
+                ntime, timeUs, uptime, ecuId, apId, ctxId, info, string)
+
+            SystemManager.printPipe(output, flush=True)
 
 
 
@@ -25408,12 +26990,8 @@ class DltManager(object):
             create_string_buffer
 
         # define constant #
-        DLT_HTYP_WEID = 0x04
-        DLT_SIZE_WEID = DLT_ID_SIZE = 4
-        DLT_MSIN_MSTP = 0x0e # message type #
-        DLT_MSIN_MTIN = 0xf0 # message type info #
-        DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
-        DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
+        DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
+        DLT_ID_SIZE = DltAnalyzer.DLT_ID_SIZE
 
         # define log level #
         LOG_EMERG     = 0
@@ -25449,6 +27027,7 @@ class DltManager(object):
                  int32_t totalBytesRcvd;   /**< total number of received bytes */
                  char *buffer;             /**< pointer to receiver buffer */
                  char *buf;                /**< pointer to position within receiver buffer */
+                 char *backup_buf;     /** pointer to the buffer with partial messages if any **/
                  int fd;                   /**< connection handle */
                  int32_t buffersize;       /**< size of receiver buffer */
              } DltReceiver;
@@ -25460,6 +27039,7 @@ class DltManager(object):
                 ("totalBytesRcvd", c_int32),
                 ("buffer", POINTER(c_char)),
                 ("buf", POINTER(c_char)),
+                ("backup_buf", POINTER(c_char)),
                 ("fd", c_int),
                 ("buffersize", c_int32)
             ]
@@ -25499,6 +27079,7 @@ class DltManager(object):
             } PACKED DltStorageHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("pattern", c_char * DLT_ID_SIZE),
                 ("seconds", c_uint32),
@@ -25520,6 +27101,7 @@ class DltManager(object):
             } PACKED DltStandardHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("htyp", c_uint8),
                 ("mcnt", c_uint8),
@@ -25540,6 +27122,7 @@ class DltManager(object):
             } PACKED DltExtendedHeader;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("msin", c_uint8),
                 ("noar", c_uint8),
@@ -25561,6 +27144,7 @@ class DltManager(object):
             } PACKED DltStandardHeaderExtra;
             '''
 
+            _pack_ = 1
             _fields_ = [
                 ("ecu", c_char * DLT_ID_SIZE),
                 ("seid", c_uint32),
@@ -25606,11 +27190,11 @@ class DltManager(object):
                 ("datasize", c_int32),
                 ("headerbuffer", \
                     c_uint8 * (sizeof(DltStorageHeader) +
-                    sizeof(DltStandardHeader) + \
-                    sizeof(DltStandardHeaderExtra) +
-                    sizeof(DltExtendedHeader))),
+                        sizeof(DltStandardHeader) + \
+                        sizeof(DltStandardHeaderExtra) +
+                        sizeof(DltExtendedHeader))),
                 ("databuffer", POINTER(c_uint8)),
-                ("databuffersize", c_uint32),
+                ("databuffersize", c_int32),
                 ("storageheader", POINTER(DltStorageHeader)),
                 ("standardheader", POINTER(DltStandardHeader)),
                 ("headerextra", DltStandardHeaderExtra),
@@ -25618,6 +27202,12 @@ class DltManager(object):
             ]
 
 
+        # check dlt-daemon #
+        DltAnalyzer.pids = SystemManager.getProcPids('dlt-daemon')
+        if len(DltAnalyzer.pids) == 0:
+            SystemManager.printErr(\
+                "Fail to find running dlt-daemon process")
+            sys.exit(0)
 
         # load DLT library #
         try:
@@ -25686,14 +27276,9 @@ class DltManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            # check dlt-daemon #
-            if SystemManager.getProcPids('dlt-daemon') == []:
-                SystemManager.printErr(\
-                    "Fail to find running dlt-daemon process")
-            else:
-                SystemManager.printErr(\
-                    "Fail to connect to dlt-daemon with %s:%s because %s" % \
-                        (servIp, servPort, SystemManager.getErrReason()))
+            SystemManager.printErr(\
+                "Fail to connect to dlt-daemon with %s:%s because %s" % \
+                    (servIp, servPort, SystemManager.getErrReason()))
             sys.exit(0)
 
         '''
@@ -25712,7 +27297,7 @@ class DltManager(object):
             RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
             ret = dltObj.dlt_receiver_init(\
-                byref(dltReceiver), nrConnSock, RECVBUFSIZE)
+                byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE))
             if ret < 0:
                 SystemManager.printErr(\
                     "Fail to initialize DLT receiver")
@@ -25738,28 +27323,35 @@ class DltManager(object):
                     "Fail to get dlt_receiver_receive symbol")
                 sys.exit(0)
 
-        # initialize message #
+        # define message #
         msg = DLTMessage()
-        ret = dltObj.dlt_message_init(byref(msg), verbose)
-        if ret < 0:
-            SystemManager.printErr(\
-                "Fail to initialize DLT message")
-            sys.exit(0)
+        buf = create_string_buffer(\
+            b'\000' * DltAnalyzer.DLT_DAEMON_TEXTSIZE)
 
         # save timestamp #
         prevTime = time.time()
         SystemManager.updateUptime()
 
+        # initialize dlt-daemon info #
+        SystemManager.showAll = True
+        SystemManager.cmdlineEnable = True
+        procInfo = DltAnalyzer.procInfo = ThreadAnalyzer(onlyInstance=True)
+        for pid in DltAnalyzer.pids:
+            procInfo.saveProcData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+            procInfo.saveCmdlineData(\
+                '%s/%s' % (SystemManager.procPath, pid), pid)
+
         # set timer #
-        signal.signal(signal.SIGALRM, DltManager.onAlarm)
-        DltManager.updateTimer()
+        signal.signal(signal.SIGALRM, DltAnalyzer.onAlarm)
+        SystemManager.updateTimer()
 
         if mode == 'top':
             SystemManager.printInfo(\
                 "start collecting DLT log... [ STOP(Ctrl+c) ]")
         elif mode == 'print':
             SystemManager.printInfo(\
-                "start printing DLT log... [ STOP(Ctrl+c) ]")
+                "start printing DLT log... [ STOP(Ctrl+c) ]\n")
 
         while 1:
             # summarizing #
@@ -25774,144 +27366,81 @@ class DltManager(object):
                     SystemManager.waitUserInput(0.000001)
 
                     # print summary #
-                    DltManager.printSummary()
+                    DltAnalyzer.printSummary()
 
                     # save timestamp #
                     prevTime = time.time()
 
                     # update timer #
-                    DltManager.updateTimer()
+                    SystemManager.updateTimer()
 
             try:
+                # initialize message #
+                ret = dltObj.dlt_message_init(byref(msg), verbose)
+                if ret < 0:
+                    SystemManager.printErr(\
+                        "Fail to initialize DLT message")
+                    sys.exit(0)
+
                 # check DLT data to be read #
                 try:
-                    ret = dlt_receiver_receive(byref(dltReceiver))
+                    ret = dlt_receiver_receive(byref(dltReceiver), 0)
                     if ret <= 0:
                         continue
                 except:
                     sys.exit(0)
 
                 # check DLT data to be read #
-                res = dltObj.dlt_message_read(\
-                    byref(msg), cast(dltReceiver.buf, POINTER(c_uint8)),\
-                    c_uint(dltReceiver.bytesRcvd), c_int(0), verbose)
-                if res != 0:
-                    continue
+                while 1:
+                    ret = dltObj.dlt_message_read(\
+                        byref(msg), cast(dltReceiver.buf, POINTER(c_char_p)),\
+                        c_uint(dltReceiver.bytesRcvd), c_int(0), c_int(verbose))
+                    if ret != 0:
+                        # move receiver buffer pointer to start of the buffer #
+                        ret = dltObj.dlt_receiver_move_to_begin(\
+                            byref(dltReceiver))
+                        if ret < 0:
+                            SystemManager.printErr(\
+                                "Fail to move the pointer to receiver buffer")
+                            sys.exit(0)
 
-                # get data size to be removed #
-                size = msg.headersize + msg.datasize - \
-                    sizeof(DltStorageHeader)
-                if msg.found_serialheader:
-                    size += DLT_ID_SIZE
+                        break
 
-                # remove message from buffer #
-                if dltObj.dlt_receiver_remove(\
-                    byref(dltReceiver), size) < 0:
-                    SystemMangaer.printErr(\
-                        "Fail to remove data from buffer")
-                    sys.exit(0)
+                    # get data size to be removed #
+                    size = msg.headersize + msg.datasize - \
+                        sizeof(DltStorageHeader)
+                    if msg.found_serialheader:
+                        size += DLT_ID_SIZE
 
-                # print dlt message #
-                if verbose:
-                    dltObj.dlt_message_print_ascii(\
-                        byref(msg), "", msg.headersize, 0)
+                    # remove message from buffer #
+                    if dltObj.dlt_receiver_remove(\
+                        byref(dltReceiver), size) < 0:
+                        SystemManager.printErr(\
+                            "Fail to remove data from buffer")
+                        sys.exit(0)
 
-                # set storage info #
-                if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, msg.headerextra.ecu)
-                else:
-                    dltObj.dlt_set_storageheader(\
-                        msg.storageheader, c_char_p(''))
+                    # print dlt message #
+                    if verbose:
+                        dltObj.dlt_message_print_ascii(\
+                            byref(msg), byref(buf), \
+                            c_uint32(msg.headersize), c_int(verbose))
 
-                # move receiver buffer pointer to start of the buffer #
-                ret = dltObj.dlt_receiver_move_to_begin(byref(dltReceiver))
-                if ret < 0:
-                    SystemManager.printErr(\
-                        "Fail to move the pointer to receiver buffer")
-                    sys.exit(0)
+                    # set storage info #
+                    if msg.standardheader.contents.htyp & DLT_HTYP_WEID:
+                        dltObj.dlt_set_storageheader(\
+                            msg.storageheader, msg.headerextra.ecu)
+                    else:
+                        dltObj.dlt_set_storageheader(\
+                            msg.storageheader, c_char_p(''))
 
-                # pick storage info #
-                ecuId = msg.storageheader.contents.ecu
-                apId = msg.extendedheader.contents.apid
-                ctxId = msg.extendedheader.contents.ctid
+                    DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verbose)
             except SystemExit:
                 sys.exit(0)
             except:
                 SystemManager.printWarn(\
                     "Fail to process DLT message because %s" % \
-                        SystemManager.getErrReason())
+                        SystemManager.getErrReason(), True)
                 continue
-
-            # summarizing #
-            if mode == 'top':
-                # check filter #
-                if len(SystemManager.filterGroup) > 0:
-                    skipFlag = True
-                    for cond in SystemManager.filterGroup:
-                        if cond == ecuId or \
-                            cond == apId or \
-                            cond == ctxId:
-                            skipFlag = False
-                            break
-                    if skipFlag:
-                        continue
-
-                DltManager.dltData['cnt'] += 1
-
-                # add ecuId #
-                if not ecuId in DltManager.dltData:
-                    DltManager.dltData[ecuId] = {'cnt': 0}
-                DltManager.dltData[ecuId]['cnt'] += 1
-
-                # add apId #
-                if not apId in DltManager.dltData[ecuId]:
-                    DltManager.dltData[ecuId][apId] = {'cnt': 0}
-                DltManager.dltData[ecuId][apId]['cnt'] += 1
-
-                # add ctxId #
-                if not ctxId in DltManager.dltData[ecuId][apId]:
-                    DltManager.dltData[ecuId][apId][ctxId] = {'cnt': 0}
-                DltManager.dltData[ecuId][apId][ctxId]['cnt'] += 1
-            # printing #
-            elif mode == 'print':
-                # get payload #
-                buf = ctypes.create_string_buffer(b'\000' * 10024)
-                dltObj.dlt_message_payload(byref(msg), buf, 10024, 2, verbose)
-                string = buf.value.decode("utf8")
-
-                # check filter #
-                if len(SystemManager.filterGroup) > 0:
-                    skipFlag = True
-                    for cond in SystemManager.filterGroup:
-                        if cond == ecuId or \
-                            cond == apId or \
-                            cond == ctxId or \
-                            cond in string:
-                            skipFlag = False
-                            break
-                    if skipFlag:
-                        continue
-
-                # get message info #
-                timeSec = msg.storageheader.contents.seconds
-                timeUs = msg.storageheader.contents.microseconds
-                uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
-                subtype = \
-                    (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
-                        >> DLT_MSIN_MTIN_SHIFT
-                try:
-                    info = LOGINFO[subtype]
-                except:
-                    info = ''
-
-                # get date time #
-                ntime = time.strftime(\
-                    '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
-
-                SystemManager.printPipe(\
-                    "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
-                    ntime, timeUs, uptime, ecuId, apId, ctxId, info, string))
 
         # free message #
         dltObj.dlt_message_free(msg, verbose)
@@ -25923,6 +27452,8 @@ class DltManager(object):
 class Debugger(object):
     """ Debugger for ptrace """
 
+    lastInstance = None
+
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.ctypes = None
         self.status = 'enter'
@@ -25931,9 +27462,12 @@ class Debugger(object):
         self.arch = arch = SystemManager.getArch()
         self.skipInst = 5
         self.syscall = ''
+        self.bufferedStr = ''
         self.mapFd = None
         self.pmap = None
         self.needRescan = True
+        self.initPtrace = False
+        self.initPvr = False
 
         self.args = []
         self.values = []
@@ -25944,6 +27478,7 @@ class Debugger(object):
         self.callTable = {}
         self.fileTable = {}
         self.breakList = {}
+        self.breakBackupList = {}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -25962,14 +27497,63 @@ class Debugger(object):
         self.peekIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigManager.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
-        # get ctypes object #
-        self.ctypes = ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, Structure, sizeof, addressof,\
-            c_ulong, c_int, c_uint, c_uint32, byref, c_ushort
-
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
             raise Exception()
+
+        # get ctypes object #
+        ctypes = self.ctypes = SystemManager.getPkg('ctypes')
+        from ctypes import cdll, Structure, sizeof, c_void_p, \
+            addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
+            c_size_t, c_int, POINTER, sizeof, cast
+
+        # define member classes #
+        '''
+struct iovec {
+    ptr_t iov_base; /* Starting address */
+    size_t iov_len; /* Length in bytes */
+};
+        '''
+        class iovec(Structure):
+            _fields_ = (
+                ('iov_base', c_void_p),
+                ('iov_len', c_size_t)
+            )
+        self.iovec = iovec
+        self.iovec_ptr = iovec_ptr = POINTER(iovec)
+
+        '''
+struct msghdr {
+    void            *msg_name;  /* ptr to socket address structure */
+    int             msg_namelen;    /* size of socket address structure */
+    struct iov_iter msg_iter;   /* data */
+    void            *msg_control;   /* ancillary data */
+    __kernel_size_t msg_controllen; /* ancillary data buffer length */
+    unsigned int    msg_flags;  /* flags on received message */
+    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
+};
+        '''
+        class msghdr(Structure):
+            _fields_ = (
+                ('msg_name', c_void_p),
+                ('msg_namelen', c_uint),
+                ('msg_iov', iovec_ptr),
+                ('msg_iovlen', c_size_t),
+                ('msg_control', c_void_p),
+                ('msg_controllen', c_size_t),
+                ('msg_flags', c_int)
+            )
+        self.msghdr = msghdr
+        self.msghdr_ptr = msghdr_ptr = POINTER(msghdr)
+
+        class cmsghdr(Structure):
+            _fields_ = (
+                ('cmsg_len', c_size_t),
+                ('cmsg_level', c_int),
+                ('cmsg_type', c_int)
+            )
+        self.cmsghdr = cmsghdr
+        self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
 
         class user_regs_struct(Structure):
             def getdict(struct):
@@ -26103,19 +27687,21 @@ class Debugger(object):
             self.pid = None
             self.isRunning = False
 
-        # set register variable #
+        # set register variables #
         self.regs = user_regs_struct()
+        self.tempRegs = user_regs_struct()
+        self.regsDict = None
 
-        # for ARCH_REGS_FOR_GETREGSET #
-        class iovec(Structure):
-            _fields_ = (
-                ("iov_base", c_ulong),
-                ("iov_len", c_uint32),
-            )
+        # save instances #
+        Debugger.lastInstance = self
 
-        self.iovec = iovec(\
-            iov_base=ctypes.addressof(self.regs),\
-            iov_len=ctypes.sizeof(self.regs))
+        self.iovecObj = self.iovec(\
+            iov_base=addressof(self.regs),\
+            iov_len=sizeof(self.regs))
+
+        self.tempIovecObj = self.iovec(\
+            iov_base=addressof(self.tempRegs),\
+            iov_len=sizeof(self.tempRegs))
 
 
 
@@ -26214,7 +27800,7 @@ class Debugger(object):
                 'No breakpoint registered with addr %s' % addr, True)
             return False
 
-        self.writeMem(addr, self.breakList[addr]['word'])
+        self.writeMem(addr, self.breakList[addr]['data'])
 
         self.breakList.pop(addr, None)
 
@@ -26222,17 +27808,29 @@ class Debugger(object):
 
 
 
-    def setBreakpoint(self, addr):
-        origWord = self.readMem(addr)
+    def addBreakpoint(self, addr, sym=None):
+        # convert addr to aligned value #
+        addr -= addr % ConfigManager.wordSize
+
+        if addr in self.breakBackupList:
+            origWord = self.breakBackupList[addr]['data']
+        else:
+            origWord = self.readMem(addr)
+
+            # backup data #
+            self.breakBackupList[addr] = dict()
+            self.breakBackupList[addr]['data'] = origWord
+            self.breakBackupList[addr]['symbol'] = sym
 
         ret = self.writeMem(addr, b'\xCC' * ConfigManager.wordSize)
         if ret < 0:
             SystemManager.printWarn(\
-                'Fail to set breakpoint wigh addr %s' % addr, True)
+                'Fail to add breakpoint with addr %s' % addr, True)
             return False
 
         self.breakList[addr] = dict()
-        self.breakList[addr]['word'] = origWord
+        self.breakList[addr]['data'] = origWord
+        self.breakList[addr]['symbol'] = sym
 
         return True
 
@@ -26260,7 +27858,7 @@ class Debugger(object):
 
 
 
-    def stop(self, pid=None):
+    def stop(self, pid=None, thread=True):
         if not pid:
             pid = self.pid
 
@@ -26268,13 +27866,23 @@ class Debugger(object):
             SystemManager.printWarn('Fail to stop wrong thread %s' % pid)
             return -1
 
+        # send signal to a thread #
+        try:
+            if not thread:
+                raise Exception()
+
+            SystemManager.syscall('tkill', pid, signal.SIGSTOP)
+            return 0
+        except:
+            pass
+
+        # send signal to a process #
         try:
             os.kill(pid, signal.SIGSTOP)
+            return 0
         except:
             SystemManager.printSigError(pid, 'SIGSTOP', 'warning')
             return -1
-
-        return 0
 
 
 
@@ -26455,7 +28063,7 @@ class Debugger(object):
 
         # convert type from bytes to word #
         for idx in xrange(0, len(fdata), wordSize):
-            data = UtilManager.bstring2word(fdata[idx:idx+wordSize])
+            data = UtilManager.convertBstring2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret < 0:
@@ -26471,6 +28079,59 @@ class Debugger(object):
         # check size #
         if size == 0:
             size = wordSize
+
+        class SkipException(Exception):
+            pass
+
+        try:
+            if not self.supportProcessVmIO:
+                raise SkipException()
+
+            # get ctypes object #
+            ctypes = self.ctypes
+            from ctypes import cdll, Structure, c_void_p, c_char_p, \
+                c_ulong, c_size_t, c_int, POINTER, cast, c_char, byref
+
+            try:
+                # load standard libc library #
+                if not SystemManager.libcObj:
+                    SystemManager.libcObj = \
+                        cdll.LoadLibrary(SystemManager.libcPath)
+            except:
+                raise Exception()
+
+            # prepare process_vm_readv syscall #
+            process_vm_readv = SystemManager.libcObj.process_vm_readv
+
+            if not self.initPvr:
+                process_vm_readv.restype = c_size_t
+                process_vm_readv.argtypes = \
+                    [c_int, self.iovec_ptr, c_size_t, \
+                        self.iovec_ptr, c_size_t, c_ulong]
+                self.initPvr = True
+
+            # create params #
+            pid = self.pid
+
+            lbuf = (c_char*size)()
+            liov = (self.iovec*1)()[0]
+            liov.iov_base = cast(byref(lbuf), c_void_p)
+            liov.iov_len = size
+
+            riov = (self.iovec*1)()[0]
+            riov.iov_base = c_void_p(addr)
+            riov.iov_len = size
+
+            # do syscall #
+            ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
+            if ret > 0:
+                return memoryview(lbuf).tobytes()
+        except SkipException:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportProcessVmIO = False
 
         # define return list #
         data = bytes()
@@ -26518,6 +28179,8 @@ class Debugger(object):
                 idx = string.index(b'\0')
                 ret += string[:idx]
                 return ret
+            except SystemExit:
+                sys.exit(0)
             except:
                 ret += string
 
@@ -26526,10 +28189,120 @@ class Debugger(object):
 
 
 
+    def readMsgHdr(self, addr):
+        # get ctypes object #
+        ctypes = self.ctypes
+        from ctypes import cdll, Structure, c_void_p, \
+            c_uint, c_size_t, c_int, POINTER, sizeof, cast
+
+        # get socket object #
+        socket = SystemManager.getPkg('socket', False)
+
+        # read msghdr structure #
+        ret = self.readMem(addr, sizeof(self.msghdr))
+        if not ret:
+            return addr
+
+        # cast struct msghdr #
+        msginfo = {}
+        header = cast(ret, self.msghdr_ptr)
+
+        # get msg info #
+        namelen = int(header.contents.msg_namelen)
+        msginfo['msg_namelen'] = namelen
+        if namelen == 0:
+            msginfo['msg_name'] = 'NULL'
+        else:
+            msginfo['msg_name'] = \
+                self.readMem(header.contents.msg_name, namelen)
+            msginfo['msg_name'] = \
+                msginfo['msg_name'].decode('latin-1')
+
+        # get iov header info #
+        iovaddr = cast(header.contents.msg_iov, c_void_p).value
+        iovlen = int(header.contents.msg_iovlen)
+
+        if not SystemManager.showAll:
+            msginfo['msg_iov'] = '0x{0:02x}'.format(iovaddr)
+        else:
+            msginfo['msg_iov'] = {}
+
+            # get iov info #
+            for idx in xrange(0, iovlen):
+                offset = idx * sizeof(self.iovec)
+                msginfo['msg_iov'][idx] = {}
+
+                # get iov object #
+                iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
+                iovobj = cast(iovobj, self.iovec_ptr)
+
+                # get iov data #
+                iovobjlen = int(iovobj.contents.iov_len)
+                iovobjbase = iovobj.contents.iov_base
+                iovobjdata = self.readMem(iovobjbase, iovobjlen)
+                iovobjdata = iovobjdata.decode('latin-1')
+
+                msginfo['msg_iov'][idx]['len'] = iovobjlen
+
+                # convert ' and " to "" for JSON converting #
+                try:
+                    msginfo['msg_iov'][idx]['data'] = \
+                        iovobjdata.replace('\"', '"')
+                    msginfo['msg_iov'][idx]['data'] = \
+                        iovobjdata.replace("\'", '"')
+                except:
+                    msginfo['msg_iov'][idx]['data'] = iovobjdata
+
+        # get control info #
+        control = header.contents.msg_control
+        controllen = int(header.contents.msg_controllen)
+        msginfo['msg_control'] = {}
+        msginfo['msg_control']['len'] = controllen
+
+        if not SystemManager.showAll:
+            msginfo['msg_control']['addr'] = control
+        elif controllen >= ctypes.sizeof(self.cmsghdr):
+            control = self.readMem(header.contents.msg_control, controllen)
+            controlobj = cast(control, self.cmsghdr_ptr)
+
+            cmsglen = int(controlobj.contents.cmsg_len)
+            cmsglevel = controlobj.contents.cmsg_level
+            cmsgtype = controlobj.contents.cmsg_type
+
+            msginfo['msg_control']['cmsglen'] = cmsglen
+            if socket and cmsglevel == socket.SOL_SOCKET:
+                msginfo['msg_control']['cmsglevel'] = 'SOL_SOCKET'
+            else:
+                msginfo['msg_control']['cmsglevel'] = cmsglevel
+            try:
+                msginfo['msg_control']['cmsgtype'] = \
+                    ConfigManager.CMSG_TYPE[cmsgtype]
+            except:
+                msginfo['msg_control']['cmsgtype'] = cmsgtype
+
+        # get msg_flags #
+        flag = header.contents.msg_flags
+        msginfo['msg_flags'] = flag
+
+        return msginfo
+
+
+
     def convertValue(self, argtype, argname, value, seq=0):
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
+
+        if argname == "msg" and \
+            (syscall == "sendmsg" or syscall == "recvmsg"):
+            try:
+                return self.readMsgHdr(value)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printWarn(\
+                    "Fail to get msghdr because %s" % \
+                        SystemManager.getErrReason(), True)
 
         # handle special syscalls #
         if syscall == "execve":
@@ -26552,45 +28325,55 @@ class Debugger(object):
                 # toDo: handle socket call args #
                 return value
 
-        if syscall == "write" and argname == "buf":
-            # check std fds for dereferencing the pointer #
-            fd = self.values[0]
-            if fd < 3:
-                if self.values[2] > self.pbufsize:
-                    length = self.pbufsize
-                else:
-                    length = self.values[2]
+        if syscall.startswith('mmap') or syscall == 'mprotect':
+            if argname == 'prot':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.PROT_TYPE)
+            elif argname == 'flags':
+                pass
 
-                # read string from address #
-                ret = self.readMem(value, length)
-                if ret:
-                    value = ret
+        if syscall == 'open':
+            if argname == 'flags':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.OPEN_TYPE)
+
+        if argname == 'whence':
+            return ConfigManager.SEEK_TYPE[int(value)]
+
+        if syscall == 'access':
+            if argname == 'mode':
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.PERM_TYPE)
+
+        if argname == 'behavior' and \
+            syscall.startswith('madvise'):
+            try:
+                return ConfigManager.MADV_TYPE[int(value)]
+            except:
+                return value
+
+        if argname == "buf" and \
+            (syscall == "write" or syscall == "read"):
+            if self.values[2] > self.pbufsize:
+                length = self.pbufsize
+            else:
+                length = self.values[2]
+
+            # read string from address #
+            ret = self.readMem(value, length)
+            if ret:
+                value = ret
 
             return value
 
-        if syscall == "recvmsg" and argname == "msg":
-            return value
+        if argname == "flags" and value:
+            if syscall.startswith('send') or \
+                syscall.startswith('recv'):
+                return UtilManager.getFlagString(\
+                    value, ConfigManager.MSG_TYPE)
 
-            '''
-struct iovec {
-    ptr_t iov_base; /* Starting address */
-    size_t iov_len; /* Length in bytes */
-};
-
-struct msghdr {
-    void            *msg_name;  /* ptr to socket address structure */
-    int             msg_namelen;    /* size of socket address structure */
-    struct iov_iter msg_iter;   /* data */
-    void            *msg_control;   /* ancillary data */
-    __kernel_size_t msg_controllen; /* ancillary data buffer length */
-    unsigned int    msg_flags;  /* flags on received message */
-    struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
-};
-            '''
-
-        if argname == "signum":
-            # toDo: handle signal number #
-            return value
+        if argname == "signum" or argname == "sig":
+            return ConfigManager.SIG_LIST[int(value)]
 
         # remove const prefix #
         if argtype.startswith("const "):
@@ -26610,6 +28393,13 @@ struct msghdr {
 
 
 
+    @staticmethod
+    def onAlarm(signum, frame):
+        Debugger.lastInstance.printIntervalSummary()
+        SystemManager.updateTimer()
+
+
+
     def printIntervalSummary(self):
         def checkInterval():
             if SystemManager.repeatCount == 0:
@@ -26625,7 +28415,7 @@ struct msghdr {
                 if not SystemManager.printStreamEnable:
                     SystemManager.clearScreen()
 
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
             # buffered mode #
             else:
                 SystemManager.addProcBuffer(SystemManager.bufferString)
@@ -26733,18 +28523,12 @@ struct msghdr {
                     SystemManager.addPrint(\
                         '{0:>17} | {1:<1}\n'.format('%.1f%%' % bper, bt))
 
-                    # cut by rows of terminal #
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         quitLoop = True
                         break
 
-            # cut by rows of terminal #
-            if quitLoop:
-                finishPrint()
-                return
-            elif SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
+            if quitLoop or \
+                SystemManager.checkCutCond():
                 finishPrint()
                 return
 
@@ -26827,7 +28611,7 @@ struct msghdr {
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
 
-        for mfile in self.pmap.keys():
+        for mfile in list(self.pmap.keys()):
             eobj = ElfAnalyzer.getObject(mfile)
             if eobj:
                 eobj.mergeSymTable()
@@ -26953,13 +28737,13 @@ struct msghdr {
             prefix = ''
 
         SystemManager.printPipe('%s%s' % (prefix, oneLine))
-        for reg, val in sorted(self.regs.getdict().items()):
+        for reg, val in sorted(self.regsDict.items()):
             deref = self.readMem(val)
             try:
                 deref = '"%s"' % deref.decode("utf-8")
                 deref = re.sub('\W+','', deref)
             except:
-                deref = hex(UtilManager.bstring2word(deref))
+                deref = hex(UtilManager.convertBstring2Word(deref))
             SystemManager.printPipe(\
                 '%s: %x [%s]' % (reg, val, deref))
         SystemManager.printPipe(oneLine)
@@ -26968,7 +28752,9 @@ struct msghdr {
 
     def getNrSyscall(self):
         try:
-            return self.regs.getdict()[self.sysreg]
+            return self.regsDict[self.sysreg]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -27122,13 +28908,9 @@ struct msghdr {
 
 
 
-    def doSampling(self):
+    def checkInterval(self):
         # continue target thread #
         self.cont(check=True)
-
-        # check realtime report interval #
-        if self.isExceedInterval():
-            self.printIntervalSummary()
 
         # wait for sampling time #
         time.sleep(self.sampleTime)
@@ -27221,9 +29003,48 @@ struct msghdr {
 
 
 
+    def handleBreakcall(self):
+        # get register set of target #
+        if not self.updateRegs():
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        # read args #
+        args = self.readArgValues()
+
+        # get aligned address #
+        addr = self.pc - (self.pc % ConfigManager.wordSize)
+
+        # get breakpoint addr #
+        if addr not in self.breakList:
+            SystemManager.printErr(\
+                "Fail to get address %s in breakpoint list" % addr)
+            sys.exit(0)
+
+        # remove breakpoint #
+        self.removeBreakpoint(addr)
+
+        # apply new register set #
+        self.setPC(addr)
+        self.setRegs()
+
+
+
+    def doHandleUsercall(self, mode):
+        previous = self.status
+        self.status = mode
+
+        # interprete user function call #
+        self.handleUsercall()
+
+        self.status = previous
+
+
+
     def handleUsercall(self):
         # get register set of target #
-        if not self.getRegs():
+        if not self.updateRegs():
             SystemManager.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
             return
@@ -27359,13 +29180,232 @@ struct msghdr {
 
 
 
+    def getRegArgs(self, ref=True):
+        proto = ConfigManager.SYSCALL_PROTOTYPES
+
+        # get argument values from register #
+        regstr = self.readArgValues()
+
+        # get data types #
+        self.rettype, formats = proto[self.syscall]
+
+        # get values #
+        self.values = \
+            [value for value, format in zip(regstr, formats)]
+
+        seq = 0
+        for value, format in zip(regstr, formats):
+            # get type and name of a argument #
+            argtype, argname = format
+
+            # convert argument value #
+            if ref:
+                value = self.convertValue(argtype, argname, value, seq)
+
+            # add argument #
+            self.addArg(argtype, argname, value)
+
+            seq += 1
+
+
+
+    def getConvertedArgs(self):
+        args = []
+
+        self.getRegArgs()
+
+        # pick values from argument list #
+        for idx, arg in enumerate(self.args):
+            if arg[0].endswith('*'):
+                # convert pointer to values #
+                if UtilManager.isString(arg[2]):
+                    text = UtilManager.decodeArg(arg[2])
+
+                    # check output length #
+                    if not (SystemManager.printFile or \
+                        SystemManager.showAll) and \
+                        len(text) > self.pbufsize:
+                        text = '"%s"...' % text[:self.pbufsize]
+                    else:
+                        text = '"%s"' % text[:-1]
+                elif type(arg[2]) is dict:
+                    text = arg[2]
+                else:
+                    text = '0x{0:02x}'.format(arg[2])
+            elif arg[0].endswith('int') or arg[0].endswith('long'):
+                try:
+                    text = int(arg[2])
+                except:
+                    text = arg[2]
+            else:
+                text = arg[2]
+
+            # append an arg to list #
+            args.append(text)
+
+        return args
+
+
+
+    def isDeferrableCall(self, name):
+        if name == 'read' or \
+            name == 'recvmsg' or \
+            name == 'recvmmsg' or \
+            name == 'recv' or \
+            name == 'readv' or \
+            name == 'readlink' or \
+            name == 'recvfrom' or \
+            name == 'clock_gettime' or \
+            name == 'getgroups' or \
+            name == 'getgroups16' or \
+            name == 'gethostname' or \
+            name == 'getitimer' or \
+            name == 'getpeername' or \
+            name == 'gettimeofday' or \
+            name == 'getsockname' or \
+            name == 'process_vm_readv':
+            return True
+        else:
+            return False
+
+
+
+    def handleSyscallOutput(self, args, deferrable=False):
+        # get diff time #
+        current = time.time()
+        diff = current - self.start
+
+        # print call info in JSON format #
+        if SystemManager.jsonPrintEnable:
+            jsonData = {}
+            jsonData["type"] = "enter"
+            jsonData["time"] = current
+            jsonData["timediff"] = diff
+            jsonData["name"] = self.syscall
+            jsonData["tid"] = self.pid
+            jsonData["args"] = {}
+
+            for idx, arg in enumerate(self.args):
+                if len(args) > 0:
+                    jsonData['args'][arg[1]] = args[idx]
+                else:
+                    jsonData['args'][arg[1]] = arg[2]
+
+            try:
+                SystemManager.printPipe(\
+                    str(UtilManager.convertDict2Str(jsonData)))
+            except:
+                SystemManager.printErr(\
+                    "Fail to convert %s to JSON for marshalling because %s" % \
+                        ([jsonData], SystemManager.getErrReason()))
+            return
+
+        # convert args to string ##
+        if len(args) > 0:
+            argText = ', '.join(str(arg) for arg in args)
+        else:
+            argText = ', '.join(str(arg[2]) for arg in self.args)
+
+        # get backtrace #
+        if SystemManager.funcDepth > 0:
+            backtrace = self.getBacktrace(SystemManager.funcDepth)
+            bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+        else:
+            backtrace = None
+            bts = ''
+
+        # build call string #
+        if deferrable:
+            callString = '%s) %s' % (argText, bts)
+        else:
+            callString = \
+                '%3.6f %s(%s) %s' % (diff, self.syscall, argText, bts)
+
+        # print call info #
+        if self.isRealtime:
+            self.addSample(\
+                self.syscall, '??', current, realtime=True, bt=backtrace)
+        elif SystemManager.printFile:
+            self.addSample(self.syscall, '??', current, bt=backtrace)
+        else:
+            ttyColsOrig = SystemManager.ttyCols
+
+            if SystemManager.showAll:
+                SystemManager.ttyCols = 0
+            else:
+                callString = '%s ' % callString[:self.pbufsize]
+
+            if deferrable:
+                prefix = ''
+            else:
+                prefix = '\n'
+
+            SystemManager.printPipe(\
+                '%s%s' % (prefix, callString), newline=False, flush=True)
+
+            SystemManager.ttyCols = ttyColsOrig
+
+        # print call history #
+        if SystemManager.printFile:
+            if deferrable:
+                callString = '%s%s' % (self.bufferedStr, callString)
+            self.callPrint.append(callString)
+
+        # check symbol #
+        if SystemManager.customCmd:
+            self.checkSymbol(self.syscall, newline=True, bt=backtrace)
+
+
+
+    def handleDefSyscall(self):
+        self.status = 'exit'
+
+        if self.getRegs(temp=True) != 0:
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        # convert register set to dictionary #
+        tempRegsDict = self.tempRegs.getdict()
+
+        # set return value from register #
+        retval = tempRegsDict[self.retreg]
+
+        # convert unsigned long to long #
+        retval = (retval & 0xffffffffffffffff)
+        if retval & 0x8000000000000000:
+            retval = retval - 0x10000000000000000
+
+        if retval < 0:
+            args = []
+
+            # get argument values from previous register set #
+            self.getRegArgs(ref=False)
+        else:
+            args = self.getConvertedArgs()
+
+        self.handleSyscallOutput(args, deferrable=True)
+
+
+
     def handleSyscall(self):
-        sysreg = self.sysreg
-        retreg = self.retreg
-        status = self.status
-        pbufsize = self.pbufsize
-        regs = self.regs.getdict()
-        nrSyscall = regs[sysreg]
+        # check diferrable #
+        if self.status == 'deferrable':
+            self.handleDefSyscall()
+
+        # get register set #
+        if not self.updateRegs():
+            SystemManager.printErr(\
+                "Fail to get register values of thread %d" % self.pid)
+            return
+
+        if len(SystemManager.syscallList) > 0 and \
+            self.getNrSyscall() not in SystemManager.syscallList:
+            #self.cmd = self.sysemuCmd
+            return
+
+        regs = self.regsDict
+        nrSyscall = regs[self.sysreg]
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
         try:
@@ -27374,7 +29414,7 @@ struct msghdr {
             return
 
         # enter #
-        if status == 'enter':
+        if self.status == 'enter':
             # set next status #
             self.status = 'exit'
 
@@ -27382,103 +29422,50 @@ struct msghdr {
             if self.wait:
                 return
 
-            # get argument values from register #
-            regstr = self.readArgValues()
+            # check prototype #
+            if name not in proto:
+                SystemManager.printWarn(\
+                    "Fail to get args info of %s" % name, True)
+                return
 
-            # parse arguments #
-            if name in proto:
-                # get data types #
-                self.rettype, formats = proto[name]
-
-                # get values #
-                self.values = \
-                    [value for value, format in zip(regstr, formats)]
-
-                seq = 0
-                for value, format in zip(regstr, formats):
-                    # get type and name of a argument #
-                    argtype, argname = format
-
-                    # convert argument value #
-                    value = self.convertValue(argtype, argname, value, seq)
-
-                    # add argument #
-                    self.addArg(argtype, argname, value)
-
-                    seq += 1
-
-            # pick values from argument list #
             args = []
-            for idx, arg in enumerate(self.args):
-                if arg[0].endswith('*'):
-                    # convert pointer to values #
-                    if type(arg[2]) is bytes:
-                        try:
-                            text = repr(arg[2].decode())
-                        except:
-                            text = arg[2]
 
-                        # define start index by encoding type #
-                        if type(text) is bytes:
-                            start = 2
-                        else:
-                            start = 1
+            # convert args except for top mode #
+            if not self.isRealtime:
+                if self.isDeferrableCall(name):
+                    self.status = 'deferrable'
 
-                        # check output length #
-                        if len(text) > pbufsize:
-                            text = '"%s"...' % \
-                                text[start:pbufsize]
-                        else:
-                            text = '"%s"' % text[start:-1]
+                    if SystemManager.jsonPrintEnable:
+                        return
 
-                        args.append(text)
+                    # get diff time #
+                    current = time.time()
+                    diff = current - self.start
+
+                    # build call string #
+                    callString = '%3.6f %s(' % (diff, name)
+
+                    if SystemManager.printFile:
+                        self.bufferedStr = callString
                     else:
-                        args.append(str(hex(arg[2]).upper()).rstrip('L'))
-                else:
-                    args.append(str(arg[2]))
+                        SystemManager.printPipe(\
+                            '\n%s' % callString, newline=False, flush=True)
 
-            argText = ', '.join(args)
+                    return
 
-            # get diff time #
-            current = time.time()
-            diff = current - self.start
+                args = self.getConvertedArgs()
 
-            # get backtrace #
-            if SystemManager.funcDepth > 0:
-                backtrace = self.getBacktrace(SystemManager.funcDepth)
-                bts = '\n\t%s ' % self.getBacktraceString(backtrace)
-            else:
-                backtrace = None
-                bts = ''
+            self.handleSyscallOutput(args)
 
-            # build call string #
-            callString = '%3.6f %s(%s) %s' % (diff, name, argText, bts)
-
-            # print call info #
-            if self.isRealtime:
-                self.addSample(\
-                    name, '??', current, realtime=True, bt=backtrace)
-            elif SystemManager.printFile:
-                self.addSample(name, '??', current, bt=backtrace)
-            else:
-                SystemManager.printPipe(\
-                    '\n%s' % callString, newline=False, flush=True)
-
-            # print call history #
-            if SystemManager.printFile:
-                self.callPrint.append(callString)
-
-            # check symbol #
-            if SystemManager.customCmd:
-                self.checkSymbol(name, newline=True, bt=backtrace)
+            return
 
         # exit #
-        elif status == 'exit':
+        elif self.status == 'exit':
             # set next status #
             self.status = 'enter'
 
             # set return value from register #
-            retval = regs[retreg]
+            retval = regs[self.retreg]
 
             # convert unsigned long to long #
             retval = (retval & 0xffffffffffffffff)
@@ -27503,6 +29490,22 @@ struct msghdr {
             else:
                 err = ''
 
+            # print call info in JSON format #
+            if SystemManager.jsonPrintEnable:
+                jsonData = {}
+                jsonData["type"] = "exit"
+                jsonData["time"] = time.time()
+                jsonData["name"] = name
+                jsonData["ret"] = int(retval)
+                jsonData["tid"] = self.pid
+                jsonData["err"] = err
+
+                SystemManager.printPipe(str(jsonData))
+
+                self.clearArgs()
+
+                return
+
             # build call string #
             callString = '= %s %s' % (retval, err)
 
@@ -27521,18 +29524,6 @@ struct msghdr {
         else:
             SystemManager.printErr(\
                 'Fail to recognize syscall status')
-
-
-
-    def isExceedInterval(self):
-        if not self.isRealtime:
-            return False
-
-        totalTime = time.time() - self.last
-        if totalTime >= SystemManager.intervalEnable:
-            return True
-        else:
-            return False
 
 
 
@@ -27570,19 +29561,23 @@ struct msghdr {
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SystemManager.procPath, self.pid, self.pid)
                 self.statFd = open(statPath, 'r')
                 stat = self.statFd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarn('Fail to open %s' % statPath)
                 return
 
         # check stat change #
         if self.prevStat == stat:
-            return 0
+            return [0, 0, 0]
 
         self.prevStat = stat
 
@@ -27609,6 +29604,31 @@ struct msghdr {
 
 
 
+    def getAddrBySymbol(self, symbol, binary=None):
+        if not self.pmap:
+            self.loadSymbols()
+
+        if binary:
+            fcache = ElfAnalyzer.getObject(binary)
+            if fcache:
+                offset = fcache.getOffsetBySymbol(symbol)
+                if offset:
+                    offset = int(offset, 16)
+                    return self.pmap[binary]['vstart'] + offset
+
+        for mfile in list(self.pmap.keys()):
+            fcache = ElfAnalyzer.getObject(mfile)
+            if fcache:
+                offset = fcache.getOffsetBySymbol(symbol)
+                if offset:
+                    offset = int(offset, 16)
+                    if ElfAnalyzer.isRelocFile(mfile):
+                        return self.pmap[mfile]['vstart'] + offset
+                    else:
+                        return offset
+
+
+
     def trace(self, mode='syscall', wait=None):
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
@@ -27617,10 +29637,9 @@ struct msghdr {
         # Wait only on non-SIGCHLD children #
         __WCLONE = 0x80000000
 
-       # default variables #
+        # default variables #
         regs = None
         pid = self.pid
-        arch = SystemManager.getArch()
         plist = ConfigManager.PTRACE_TYPE
         self.commIdx = ConfigManager.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigManager.STAT_ATTR.index("UTIME")
@@ -27636,9 +29655,19 @@ struct msghdr {
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
-        self.sysreg = ConfigManager.REG_LIST[arch]
-        self.retreg = ConfigManager.RET_LIST[arch]
-        self.contCmd = ConfigManager.PTRACE_TYPE.index('PTRACE_CONT')
+        self.supportGetRegset = True
+        self.supportSetRegset = True
+        self.supportProcessVmIO = True
+        self.cmd = None
+        self.arch = SystemManager.getArch()
+        self.sysreg = ConfigManager.REG_LIST[self.arch]
+        self.retreg = ConfigManager.RET_LIST[self.arch]
+        self.contCmd = plist.index('PTRACE_CONT')
+        self.getregsCmd = plist.index('PTRACE_GETREGS')
+        self.setregsCmd = plist.index('PTRACE_SETREGS')
+        self.syscallCmd = plist.index('PTRACE_SYSCALL')
+        self.sysemuCmd = plist.index('PTRACE_SYSEMU')
+        self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
         self.pbufsize = SystemManager.ttyCols >> 1
 
         # sampling variables #
@@ -27661,10 +29690,23 @@ struct msghdr {
         SystemManager.addExitFunc(Debugger.destroyDebugger, self)
 
         # set tracing attribute #
-        if mode == 'syscall':
-            if self.isRealtime:
-                self.getCpuUsage()
-                signal.signal(signal.SIGALRM, SystemManager.defaultHandler)
+        if self.isRealtime:
+            # get first cpu usage #
+            self.getCpuUsage()
+
+            # set alarm handler #
+            signal.signal(signal.SIGALRM, Debugger.onAlarm)
+
+            if mode == 'sample':
+                # set sampling rate to 100us #
+                if SystemManager.findOption('i'):
+                    self.sampleTime = \
+                        long(SystemManager.getOption('i')) / float(1000000)
+                else:
+                    self.sampleTime = float(0.0001)
+
+                SystemManager.printInfo(\
+                    'Do sampling every %g second' % self.sampleTime)
         # inst #
         elif SystemManager.isUtraceMode() and \
             SystemManager.funcDepth > 0:
@@ -27674,25 +29716,12 @@ struct msghdr {
             SystemManager.printInfo(\
                 'Do sampling every %s instrunctions' % \
                     SystemManager.funcDepth)
-        # sample #
-        else:
-            # get 1st cpu usage #
-            if self.isRealtime:
-                self.getCpuUsage()
-
-            # set sampling rate to 100us #
-            if SystemManager.findOption('i'):
-                self.sampleTime = \
-                    long(SystemManager.getOption('i')) / float(1000000)
-            else:
-                self.sampleTime = float(0.0001)
-
-            SystemManager.printInfo(\
-                'Do sampling every %g second' % self.sampleTime)
 
         # check the process is running #
         try:
             os.kill(pid, 0)
+        except SystemExit:
+            sys.exit(0)
         except:
             ereason = SystemManager.getErrReason()
             if ereason != '0':
@@ -27727,6 +29756,8 @@ struct msghdr {
                 not SystemManager.isTopMode():
                 try:
                     self.handleUsercall()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return
         # set trap event type #
@@ -27736,9 +29767,20 @@ struct msghdr {
 
         # select trap command #
         if mode == 'syscall':
-            cmd = plist.index('PTRACE_SYSCALL')
-        elif mode == 'inst' or mode == 'sample':
-            cmd = plist.index('PTRACE_SINGLESTEP')
+            self.cmd = self.syscallCmd
+        elif mode == 'inst':
+            self.cmd = self.singlestepCmd
+        elif mode == 'sample':
+            self.cmd = None
+        elif mode == 'break':
+            for value in SystemManager.customCmd:
+                addr = self.getAddrBySymbol(value)
+                if not addr:
+                    SystemManager.printErr(\
+                        "Fail to find adress of %s" % value)
+                    sys.exit(0)
+
+                self.addBreakpoint(addr, value)
         else:
             SystemManager.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -27757,8 +29799,7 @@ struct msghdr {
                 SystemManager.intervalEnable == 0:
                 SystemManager.intervalEnable = 1
 
-            if self.mode == 'syscall':
-                signal.alarm(SystemManager.intervalEnable)
+            signal.alarm(SystemManager.intervalEnable)
         else:
             if SystemManager.intervalEnable > 0:
                 signal.signal(signal.SIGALRM, SystemManager.exitHandler)
@@ -27775,17 +29816,15 @@ struct msghdr {
                 # skip instructions for performance #
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst):
-                        ret = self.ptrace(cmd, 0, 0)
-                # wait to sample calls #
+                        ret = self.ptrace(self.cmd, 0, 0)
+                # wait for sample calls #
                 elif mode == 'sample':
-                    self.doSampling()
+                    self.checkInterval()
+                elif mode == 'break':
+                    self.cont(check=True)
                 # setup trap #
                 else:
-                    # check realtime report interval #
-                    if self.isExceedInterval():
-                        self.printIntervalSummary()
-
-                    ret = self.ptrace(cmd, 0, 0)
+                    ret = self.ptrace(self.cmd, 0, 0)
 
             try:
                 # wait process #
@@ -27799,25 +29838,28 @@ struct msghdr {
                     raise Exception()
 
                 # trap #
-                if stat == signal.SIGTRAP or \
-                    (mode == 'sample' and stat == signal.SIGSTOP):
+                if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
-                        ret = self.ptrace(cmd, 0, 0)
+                        if self.cmd:
+                            self.ptrace(self.cmd, 0, 0)
                         self.status = 'enter'
                         continue
-                    # inst #
-                    elif mode == 'inst' or mode == 'sample':
+
+                    # usercall #
+                    elif mode == 'inst':
+                        self.doHandleUsercall(mode)
+
+                    # breakcall #
+                    elif mode == 'break':
                         previous = self.status
                         self.status = mode
 
-                        # interprete user function call #
-                        self.handleUsercall()
+                        # interprete function call #
+                        self.handleBreakcall()
 
                         self.status = previous
-                    else:
-                        continue
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
@@ -27825,28 +29867,24 @@ struct msghdr {
                     if mode != 'syscall':
                         continue
 
-                    # get register set #
-                    if not self.getRegs():
-                        SystemManager.printErr(\
-                            "Fail to get register values of thread %d" % pid)
-                        return
-
-                    if len(SystemManager.syscallList) > 0 and \
-                        self.getNrSyscall() not in SystemManager.syscallList:
-                        continue
-
                     # interprete syscall context #
                     self.handleSyscall()
 
                 # stop signal #
                 elif stat == signal.SIGSTOP:
+                    if mode == 'sample':
+                        self.doHandleUsercall(mode)
+                        continue
+
                     self.status = 'stop'
                     SystemManager.printWarn(\
                         'Blocked thread %s because of %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
 
                     # set up trap again #
-                    self.ptrace(cmd, 0, 0)
+                    if mode == 'syscall':
+                        self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+                    self.ptrace(self.cmd, 0, 0)
 
                     continue
 
@@ -27881,6 +29919,9 @@ struct msghdr {
                         'Detected thread %s with %s' % \
                         (pid, ConfigManager.SIG_LIST[stat]))
 
+                    if mode == 'sample':
+                        self.doHandleUsercall(mode)
+
                     # continue target from signal stop #
                     if mode != 'syscall':
                         self.cont(check=True, sig=stat)
@@ -27893,6 +29934,8 @@ struct msghdr {
                     ret = self.waitpid(int(pid), __WALL)
 
                     ereason = SystemManager.getErrReason()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     ereason = 'the thread is terminated'
 
@@ -27905,14 +29948,22 @@ struct msghdr {
                 SystemManager.printErr(\
                     "Terminated tracing thread %s %s" % \
                     (pid, ereason))
+
                 break
 
 
 
     @staticmethod
     def destroyDebugger(instance):
+        Debugger.lastInstance = None
+
+        # remove breakpoints #
+        for brk in list(instance.breakList.keys()):
+            instance.stop()
+            instance.removeBreakpoint(brk)
+
         '''
-        this code will not be effective because
+        below code will not be effective because
         the instance also exists in exitFuncList
         '''
 
@@ -28250,45 +30301,112 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def getRegs(self):
-        if self.getRegsCost == 0:
-            start = time.time()
+    def setPC(self, val):
+        if self.arch == 'arm':
+            self.regs.r15 = val
+        elif self.arch == 'aarch64':
+            self.regs.r32 = val
+        elif self.arch == 'x86':
+            self.regs.eip = val
+        elif self.arch == 'x64':
+            self.regs.rip = val
 
+
+
+    def setRegs(self):
         pid = self.pid
         ctypes = self.ctypes
-        arch = SystemManager.getArch()
         wordSize = ConfigManager.wordSize
 
         # get register set #
-        if arch == 'aarch64':
+        try:
+            if not self.supportSetRegset:
+                raise Exception()
+
+            cmd = PTRACE_SETREGSET = 0x4205
+            NT_PRSTATUS = 1
+            nrWords = ctypes.sizeof(self.regs) * wordSize
+            ret = self.ptrace(\
+                cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportSetRegset = False
+            cmd = self.setregsCmd
+            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+
+        # check ret value #
+        if ret >= 0:
+            return True
+        else:
+            return False
+
+
+
+    def getRegs(self, temp=False):
+        pid = self.pid
+        ctypes = self.ctypes
+        wordSize = ConfigManager.wordSize
+
+        # get register set #
+        try:
+            if not self.supportGetRegset:
+                raise Exception()
+
+            if temp:
+                addr = ctypes.addressof(self.tempIovecObj)
+            else:
+                addr = ctypes.addressof(self.iovecObj)
+
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
-            ret = self.ptrace(cmd, NT_PRSTATUS, ctypes.addressof(self.iovec))
-        else:
-            cmd = ConfigManager.PTRACE_TYPE.index('PTRACE_GETREGS')
-            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            if temp:
+                addr = ctypes.addressof(self.tempRegs)
+            else:
+                addr = ctypes.addressof(self.regs)
+
+            self.supportGetRegset = False
+            cmd = self.getregsCmd
+            ret = self.ptrace(cmd, 0, addr)
+
+        return ret
+
+
+
+    def updateRegs(self):
+        if self.getRegsCost == 0:
+            start = time.time()
+
+        ret = self.getRegs()
 
         # set registers #
-        if arch == 'arm':
+        if self.arch == 'arm':
             self.fp = self.regs.r11
             self.sp = self.regs.r13
             self.lr = self.regs.r14
             self.pc = self.regs.r15
-        elif arch == 'aarch64':
+        elif self.arch == 'aarch64':
             self.fp = self.regs.r29
             self.lr = self.regs.r30
             self.sp = self.regs.r31
             self.pc = self.regs.r32
-        elif arch == 'x86':
+        elif self.arch == 'x86':
             self.fp = self.regs.ebp
             self.sp = self.regs.esp
             self.pc = self.regs.eip
-        elif arch == 'x64':
+        elif self.arch == 'x64':
             # no use rbp as frame pointer #
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
+
+        # set regsdict #
+        self.regsDict = self.regs.getdict()
 
         # measure the cost for copying register set of the target process #
         if self.getRegsCost == 0:
@@ -28334,8 +30452,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def waitpid(self, pid, options=0):
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
-        from ctypes import cdll, c_int, c_ulong, pointer, POINTER
+        ctypes = self.ctypes
+        from ctypes import cdll, c_int, c_ulong, pointer, POINTER, c_uint
 
         try:
             # load standard libc library #
@@ -28348,7 +30466,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 (c_int, POINTER(None), c_int)
             SystemManager.libcObj.waitpid.restype = c_int
 
-            status = ctypes.c_uint(0)
+            status = c_uint(0)
             ret = SystemManager.libcObj.waitpid(pid, pointer(status), options)
             return ret, status.value
         except SystemExit:
@@ -28374,7 +30492,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         '''
 
         # get ctypes object #
-        ctypes = SystemManager.getPkg('ctypes')
+        ctypes = self.ctypes
 
         try:
             # load standard libc library #
@@ -28383,10 +30501,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     ctypes.cdll.LoadLibrary(SystemManager.libcPath)
 
             # type converting #
-            SystemManager.libcObj.ptrace.argtypes = \
-                (ctypes.c_ulong, ctypes.c_ulong, \
-                    ctypes.c_ulong, ctypes.c_ulong)
-            SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
+            if not self.initPtrace:
+                SystemManager.libcObj.ptrace.argtypes = \
+                    (ctypes.c_ulong, ctypes.c_ulong, \
+                        ctypes.c_ulong, ctypes.c_ulong)
+                SystemManager.libcObj.ptrace.restype = ctypes.c_ulong
+                self.initPtrace = True
 
             return SystemManager.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
@@ -28458,11 +30578,8 @@ class EventAnalyzer(object):
         eventData = EventAnalyzer.eventData
 
         if len(eventData) > 0:
-            if not SystemManager.isFunctionMode():
-                SystemManager.printPipe("\n\n\n")
-
             SystemManager.printPipe(\
-                "[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
+                "\n[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
             SystemManager.printPipe(twoLine)
             try:
                 EventAnalyzer.printEvent()
@@ -29432,6 +31549,9 @@ class ElfAnalyzer(object):
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
                 return None
+            elif path == 'vdso' or \
+                path == 'vsyscall':
+                return None
 
             SystemManager.printInfo(\
                 "Start loading %s... " % path, suffix=False)
@@ -29578,6 +31698,94 @@ class ElfAnalyzer(object):
                     (symbol, err), True)
             SystemManager.demangleEnable = False
             return origSym
+
+
+
+    @staticmethod
+    def getSymOffset(symbol, binPath, objdumpPath=None):
+        if not objdumpPath:
+            offset = None
+
+            try:
+                binObj = ElfAnalyzer.getObject(binPath)
+                if not binObj:
+                    raise Exception()
+
+                offset = binObj.getOffsetBySymbol(symbol)
+            except:
+                pass
+
+            # check similar list #
+            if type(offset) is list and len(offset) > 0:
+                SystemManager.printErr((\
+                    "Fail to find %s in %s, "
+                    "\n\tbut similar symbols [ %s ] are exist") % \
+                    (symbol, binPath, ', '.join(offset)))
+                sys.exit(0)
+
+            return offset
+
+        # get subprocess object #
+        subprocess = SystemManager.getPkg('subprocess')
+
+        syms = []
+        args = [objdumpPath, "-C", "-F", "-d", binPath]
+
+        SystemManager.printStat(\
+            "start finding %s... [ STOP(Ctrl+c) ]" % (symbol))
+
+        # start objdump process #
+        try:
+            proc = subprocess.Popen(\
+                args, stdout=subprocess.PIPE, \
+                stderr=subprocess.PIPE, bufsize=-1)
+        except:
+            SystemManager.printErr(\
+                "Fail to execute %s to get address from binary" % objdumpPath)
+            sys.exit(0)
+
+        while 1:
+            try:
+                # read a line from objdump process #
+                line = proc.stdout.readline()
+            except:
+                SystemManager.printErr(\
+                    "Fail to read output from objdump because %s" % \
+                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
+
+            # handle error #
+            if not line:
+                err = proc.stderr.read()
+                if len(err) > 0:
+                    proc.terminate()
+                    SystemManager.printErr(err[err.find(':') + 2:])
+                    sys.exit(0)
+                break
+
+            # parse line to find offset of symbol #
+            line = str(line)
+            m = re.match((\
+                r'\s*(?P<addr>\S*)\s*\<(?P<symbol>.*)\>\s*\('\
+                r'File Offset:\s*(?P<offset>\S*)\s*\)'), line)
+            if not m:
+                continue
+
+            d = m.groupdict()
+            if d['symbol'] == symbol:
+                proc.terminate()
+                return d['offset']
+            elif d['symbol'].find(symbol) >= 0:
+                syms.append('%s {%s}' % (d['symbol'], d['offset']))
+
+        # check similar list #
+        if len(syms) == 0:
+            return None
+        else:
+            SystemManager.printErr((\
+                "Fail to find %s in %s, "
+                "\n\tbut similar symbols [ %s ] are exist") % \
+                (symbol, binPath, ', '.join(syms)))
+            sys.exit(0)
 
 
 
@@ -29779,7 +31987,8 @@ class ElfAnalyzer(object):
         # get offset or symbol list #
         try:
             for idx, val in enumerate(self.sortedSymTable):
-                if symbol == val[0]:
+                if symbol == val[0] or \
+                    symbol == val[0].split('@')[0]:
                     return str(hex(self.sortedAddrTable[idx]))
                 elif symbol in val[0]:
                     clist.append('%s {%s}' % \
@@ -30973,6 +33182,7 @@ class ThreadAnalyzer(object):
     procTotData = {}
     procIntData = []
     procEventData = []
+    dbusData = {'totalCnt': 0}
 
     # request type #
     requestType = [
@@ -31245,9 +33455,9 @@ class ThreadAnalyzer(object):
                 self.runFileTop()
             # dlt top mode #
             elif SystemManager.dltTopEnable:
-                DltManager.runDltReceiver(mode='top')
+                DltAnalyzer.runDltReceiver(mode='top')
             elif SystemManager.dbusTopEnable:
-                self.runDbusTop()
+                DbusAnalyzer.runDbusSnooper()
 
             # request service to remote server #
             self.requestService()
@@ -31441,13 +33651,6 @@ class ThreadAnalyzer(object):
 
 
 
-    def runDbusTop(self):
-        SystemManager.printErr(\
-            "Not implemented yet")
-        sys.exit(0)
-
-
-
     def runFileTop(self):
         def getFilter():
             procFilter = []
@@ -31525,14 +33728,7 @@ class ThreadAnalyzer(object):
             SystemManager.checkProgress()
 
             # reset system status #
-            del self.prevProcData
-            self.prevProcData = self.procData
-            self.procData = {}
-            self.fileData = {}
-            self.nrThread = 0
-            self.nrProcess = 0
-            self.nrFd = 0
-            SystemManager.jsonData = {}
+            self.reinitStats()
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -31598,15 +33794,7 @@ class ThreadAnalyzer(object):
             SystemManager.checkProgress()
 
             # reset system status #
-            del self.prevCpuData
-            self.prevCpuData = self.cpuData
-            self.cpuData = {}
-            self.abnormalTaskList = {}
-            self.nrPrevThread = self.nrThread
-            self.nrPrevProcess = self.nrProcess
-            self.nrThread = 0
-            self.nrProcess = 0
-            SystemManager.jsonData = {}
+            self.reinitStats()
 
             # run user custom command #
             SystemManager.writeRecordCmd('AFTER')
@@ -31629,6 +33817,29 @@ class ThreadAnalyzer(object):
 
             # check request from client #
             self.checkServer()
+
+
+
+    def saveProcStats(self):
+        del self.prevProcData
+        self.prevProcData = self.procData
+        self.procData = {}
+        SystemManager.topInstance = self
+        SystemManager.procInstance = self.procData
+
+
+
+    def reinitStats(self):
+        del self.prevCpuData
+        self.prevCpuData = self.cpuData
+        self.cpuData = {}
+        self.fileData = {}
+        self.abnormalTaskList = {}
+        self.nrPrevThread = self.nrThread
+        self.nrPrevProcess = self.nrProcess
+        self.nrThread = 0
+        self.nrProcess = 0
+        SystemManager.jsonData = {}
 
 
 
@@ -31657,6 +33868,7 @@ class ThreadAnalyzer(object):
 
     def getDrawStats(self, logFile):
         logBuf = None
+        infoBuf = None
 
         chartStats = {}
 
@@ -31701,6 +33913,22 @@ class ThreadAnalyzer(object):
             UtilManager.printProgress(finalLine, len(logBuf))
 
             line = logBuf[finalLine]
+            finalLine += 1
+
+            # get system info #
+            if len(SystemManager.systemInfoBuffer) == 0 and \
+                line.startswith('[System General Info]'):
+                infoBuf = ''
+            elif infoBuf is not None:
+                if line.startswith('['):
+                    SystemManager.systemInfoBuffer = infoBuf
+                    infoBuf = None
+                    continue
+                elif line.startswith('=') or line.startswith(' '):
+                    continue
+                else:
+                    infoBuf += line
+                    continue
 
             # split line #
             sline = line.split('|')
@@ -31738,8 +33966,6 @@ class ThreadAnalyzer(object):
 
                 # change context #
                 context = contextlist[1]
-
-            finalLine += 1
 
             # EOF #
             if finalLine >= len(logBuf):
@@ -32632,7 +34858,7 @@ class ThreadAnalyzer(object):
                 maxCore = max(nrCore)
 
                 # convert total cpu usage by core number #
-                if False:
+                if not SystemManager.cpuAvrEnable:
                     cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
@@ -32912,9 +35138,10 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
 
@@ -33479,9 +35706,10 @@ class ThreadAnalyzer(object):
                 pass
 
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             # convert tick type to integer #
             try:
@@ -34027,9 +36255,10 @@ class ThreadAnalyzer(object):
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), dpi=2000, \
+                facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
 
@@ -34171,6 +36400,18 @@ class ThreadAnalyzer(object):
                 except:
                     err = SystemManager.getErrReason()
                     raise Exception(err)
+
+        # draw system info #
+        try:
+            if SystemManager.systemInfoBuffer and \
+                len(SystemManager.systemInfoBuffer) > 0:
+                self.figure.text(\
+                    0, 1, SystemManager.systemInfoBuffer,\
+                        va='top', ha='left', size=2)
+        except:
+            SystemManager.printWarn(\
+                "Fail to write system info because %s" % \
+                    SystemManager.getErrReason(), True)
 
         # save to file #
         self.saveImage(logFile, 'graph')
@@ -34354,8 +36595,8 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe((\
                 '\n[Thread Creation Info] [Alive: +] [Die: -] '
                 '[CreatedTime: //] [ChildCount: ||] '
-                '[CpuUsage: <>] [WaitTimeForChilds: {}] '
-                '[WaitTimeOfParent: []]'))
+                '[CpuUsage: <>] [WaitForChilds: {}] '
+                '[WaitOfParent: []]'))
             SystemManager.printPipe(twoLine)
 
             cnt = 0
@@ -34483,7 +36724,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe(\
                 "%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
                 ('', len(self.irqData), totalUsage, totalCnt))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
 
@@ -34822,21 +37063,23 @@ class ThreadAnalyzer(object):
             UtilManager.convertSize2Unit(SystemManager.logSize)))
         SystemManager.printPipe(twoLine)
 
+        lastAField = "{0:_^17}|{1:_^16}".format("Mem Info", "Process")
+        lastBField = "%3s|%3s|%4s(%2s)" % ('Rcl', 'Wst', 'DRcl', 'Nr')
+
         SystemManager.printPipe(\
-            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".\
-                format(title, "CPU Info", "SCHED Info", \
-                    "BLOCK Info", "MEM Info"))
+            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".format(\
+                title, "CPU Info", "SCHED Info", "BLOCK Info", lastAField))
+
         SystemManager.printPipe(\
             "{0:^32}|{0:^35}|{0:^22}|{0:^26}|{0:^34}|".format(""))
 
         SystemManager.printPipe((\
             "%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-            "%3s|%3s|%4s(%2s)|") % \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri', \
             'IRQ', 'Yld', ' Lose', 'Steal', 'Mig', \
             'Read', 'MB', 'Cnt', 'Write', 'MB', \
-            'Sum', 'Usr', 'Buf', 'Ker', 'Rcl', 'Wst', 'DRcl', 'Nr'))
+            'Sum', 'Usr', 'Buf', 'Ker', lastBField))
         SystemManager.printPipe(twoLine)
 
         # initialize swapper thread per core #
@@ -34968,20 +37211,22 @@ class ThreadAnalyzer(object):
                 dreclaimedTime = '-'
                 dreclaimedCnt = '-'
 
+            lastField = "%3s|%3s|%4s(%2s)" % \
+                (reclaimedMem, wastedMem, dreclaimedTime, dreclaimedCnt)
+
             SystemManager.addPrint(\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], '-'*5, '-'*5, '-', '-', \
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
                     yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
                     ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                    usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                    wastedMem, dreclaimedTime, dreclaimedCnt))
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
             count += 1
 
         SystemManager.printPipe("%s# %s: %d\n" % ('', 'CPU', count))
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
 
         # set sort value #
@@ -35025,6 +37270,14 @@ class ThreadAnalyzer(object):
         totalWastedMem = 0
         totalDreclaimedTime = 0
         totalDreclaimedCnt = 0
+
+        # define variables for tasks #
+        normCnt = 0
+        newCnt = 0
+        dieCnt = 0
+        normThreadString = ''
+        newThreadString = ''
+        dieThreadString = ''
 
         # print thread information after sorting by time of cpu usage #
         count = 0
@@ -35182,20 +37435,55 @@ class ThreadAnalyzer(object):
                 totalDreclaimedTime = '-'
                 totalDreclaimedCnt = '-'
 
-            SystemManager.addPrint(\
+            # set last field #
+            if len(SystemManager.savedProcComm) > 0:
+                if key in SystemManager.savedProcComm:
+                    lastField = "{0:>16}".format(\
+                        SystemManager.savedProcComm[key])
+                elif value['tgid'] in SystemManager.savedProcComm:
+                    lastField = "{0:>16}".format(\
+                        SystemManager.savedProcComm[value['tgid']])
+                elif key == value['tgid']:
+                    lastField = "{0:>16}".format(value['comm'])
+                else:
+                    lastField = "{0:>16}".format('?')
+            else:
+                lastField = "%3s|%3s|%4s(%2s)" % \
+                    (reclaimedMem, wastedMem, dreclaimedTime, dreclaimedCnt)
+
+            if value['new'] != ' ':
+                newCnt += 1
+                newThreadString += (\
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                    "%4s(%3s/%3s/%3s)|%s|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
+            if value['die'] != ' ':
+                dieCnt += 1
+                dieThreadString += (\
+                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                    "%4s(%3s/%3s/%3s)|%s|\n") % \
+                    (value['comm'], key, value['ptid'], value['new'], value['die'], \
+                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
+                    yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
+                    ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
+                    usedMem, userMem, cacheMem, kernelMem, lastField))
+
+            normCnt += 1
+            normThreadString += (\
                 ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
+                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
+                "%4s(%3s/%3s/%3s)|%s|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'], \
                 cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
                 yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
                 ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-            count += 1
-
-        SystemManager.printPipe("%s# %s: %d\n" % ('', 'Hot', count))
+                usedMem, userMem, cacheMem, kernelMem, lastField))
 
         # build total usage string #
         try:
@@ -35237,22 +37525,41 @@ class ThreadAnalyzer(object):
         except:
             pass
 
+        lastField = "%3s|%3s|%4s(%2s)" % \
+            (totalReclaimedMem, totalWastedMem, \
+            totalDreclaimedTime, totalDreclaimedCnt)
+
         # print TOTAL information #
         SystemManager.printPipe(\
             ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-            "%3s|%3s|%4s(%2s)|") % \
+            "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('{0:>29}'.format('[ TOTAL ]'), ' ', ' ', \
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-', \
             totalIrqTime, totalYieldCnt, totalPreemptedCnt, \
             totalPreemptionCnt, totalMigrateCnt, totalIoRdWait, \
             totalReadBlock, totalReadBlockCnt, totalIoWrWait, \
             totalWriteBlock, totalUsedMem, totalUserMem, totalCacheMem, \
-            totalKernelMem, totalReclaimedMem, totalWastedMem, \
-            totalDreclaimedTime, totalDreclaimedCnt))
+            totalKernelMem, lastField))
 
-        SystemManager.printPipe(SystemManager.bufferString)
-        SystemManager.printPipe(oneLine)
+        # print normal thread info #
+        if normCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'Hot', normCnt, normThreadString, oneLine))
+        else:
+            SystemManager.printPipe("\tNone\n%s" % oneLine)
+
+        # print new thread info #
+        if newCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'New', newCnt, newThreadString, oneLine))
+
+        # print die thread info #
+        if dieCnt > 0:
+            SystemManager.printPipe(\
+                "%s# %s: %d\n%s\n%s" % \
+                    ('', 'Die', dieCnt, dieThreadString, oneLine))
 
         # print thread preempted information after sorting by time of cpu usage #
         for val in SystemManager.preemptGroup:
@@ -35283,201 +37590,12 @@ class ThreadAnalyzer(object):
                 "%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
                 ('', 'PRT', tid, self.threadData[tid]['comm'], \
                 self.preemptData[index][4], count))
-            SystemManager.printPipe(SystemManager.bufferString)
-            SystemManager.printPipe(oneLine)
-
-        # print new thread information after sorting by new thread flags #
-        count = 0
-        SystemManager.clearPrint()
-        for key, value in sorted(\
-            self.threadData.items(), \
-            key=lambda e: e[1]['new'], reverse=True):
-
-            if value['new'] == ' ':
-                break
-
-            count += 1
-
-            usagePercent = \
-                round(float(value['usage']) / float(self.totalTime), 7) * 100
-
-            if not SystemManager.showAll:
-                continue
-
-            if SystemManager.cpuEnable:
-                cpuTime = '%5.2f' % value['usage']
-                cpuPer = '%5.1f' % usagePercent
-                prtTime = '%5.2f' % value['cpuWait']
-                schedLatency = '%5.2f' % value['schedLatency']
-                pri = value['pri']
-                yieldCnt = '%5d' % value['yield']
-                preemptedCnt = '%5d' % value['preempted']
-                preemptionCnt = '%5d' % value['preemption']
-                migrateCnt = '%4d' % value['migrate']
-            else:
-                cpuTime = '-'
-                cpuPer = '-'
-                prtTime = '-'
-                schedLatency = '-'
-                pri = '-'
-                yieldCnt = '-'
-                preemptedCnt = '-'
-                preemptionCnt = '-'
-                migrateCnt = '-'
-
-            if SystemManager.irqEnable:
-                irqTime = '%5.2f' % value['irq']
-            else:
-                irqTime = '-'
-
-            if SystemManager.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
-                readBlock = '%3d' % value['readBlock']
-                readBlockCnt = '%4d' % value['readBlockCnt']
-                ioWrWait = '%5.2f' % value['ioWrWait']
-                writeBlock = '%3d' % \
-                    (value['writeBlock'] + value['awriteBlock'])
-            else:
-                ioRdWait = '-'
-                readBlock = '-'
-                readBlockCnt = '-'
-                ioWrWait = '-'
-                writeBlock = '-'
-
-            if SystemManager.memEnable:
-                usedMem = '%4d' % \
-                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                userMem = '%3d' % (value['userPages'] >> 8)
-                cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
-                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                dreclaimedCnt = '%2d' % value['dReclaimCnt']
-            else:
-                usedMem = '-'
-                userMem = '-'
-                cacheMem = '-'
-                kernelMem = '-'
-                reclaimedMem = '-'
-                wastedMem = '-'
-                dreclaimedTime = '-'
-                dreclaimedCnt = '-'
-
-            SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
-                (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-        if count > 0:
-            SystemManager.printPipe("%s# %s: %d\n" % ('', 'New', count))
-            SystemManager.printPipe(SystemManager.bufferString)
-            SystemManager.printPipe(oneLine)
-
-        # print terminated thread information after sorting by die flags #
-        count = 0
-        SystemManager.clearPrint()
-        for key, value in sorted(\
-            self.threadData.items(), \
-            key=lambda e: e[1]['die'], reverse=True):
-
-            if value['die'] == ' ':
-                break
-
-            count += 1
-
-            usagePercent = \
-                round(float(value['usage']) / float(self.totalTime), 7) * 100
-
-            if not SystemManager.showAll:
-                continue
-
-            if SystemManager.cpuEnable:
-                cpuTime = '%5.2f' % value['usage']
-                cpuPer = '%5.1f' % usagePercent
-                prtTime = '%5.2f' % value['cpuWait']
-                schedLatency = '%5.2f' % value['schedLatency']
-                pri = value['pri']
-                yieldCnt = '%5d' % value['yield']
-                preemptedCnt = '%5d' % value['preempted']
-                preemptionCnt = '%5d' % value['preemption']
-                migrateCnt = '%4d' % value['migrate']
-            else:
-                cpuTime = '-'
-                cpuPer = '-'
-                prtTime = '-'
-                schedLatency = '-'
-                pri = '-'
-                yieldCnt = '-'
-                preemptedCnt = '-'
-                preemptionCnt = '-'
-                migrateCnt = '-'
-
-            if SystemManager.irqEnable:
-                irqTime = '%5.2f' % value['irq']
-            else:
-                irqTime = '-'
-
-            if SystemManager.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
-                readBlock = '%3d' % value['readBlock']
-                readBlockCnt = '%4d' % value['readBlockCnt']
-                ioWrWait = '%5.2f' % value['ioWrWait']
-                writeBlock = '%3d' % \
-                    (value['writeBlock'] + value['awriteBlock'])
-            else:
-                ioRdWait = '-'
-                readBlock = '-'
-                readBlockCnt = '-'
-                ioWrWait = '-'
-                writeBlock = '-'
-
-            if SystemManager.memEnable:
-                usedMem = '%4d' % \
-                    ((value['nrPages'] >> 8) + (value['remainKmem'] >> 20))
-                userMem = '%3d' % (value['userPages'] >> 8)
-                cacheMem = '%3d' % (value['cachePages'] >> 8)
-                kernelMem = '%3d' % \
-                    ((value['kernelPages'] >> 8) + (value['remainKmem'] >> 20))
-                reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
-                wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
-                dreclaimedCnt = '%2d' % value['dReclaimCnt']
-            else:
-                usedMem = '-'
-                userMem = '-'
-                cacheMem = '-'
-                kernelMem = '-'
-                reclaimedMem = '-'
-                wastedMem = '-'
-                dreclaimedTime = '-'
-                dreclaimedCnt = '-'
-
-            SystemManager.addPrint(\
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
-                "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|"
-                "%3s|%3s|%4s(%2s)|\n") % \
-                (value['comm'], key, value['ptid'], value['new'], value['die'], \
-                cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime, \
-                yieldCnt, preemptedCnt, preemptionCnt, migrateCnt, \
-                ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock, \
-                usedMem, userMem, cacheMem, kernelMem, reclaimedMem, \
-                wastedMem, dreclaimedTime, dreclaimedCnt))
-
-        if count > 0:
-            SystemManager.printPipe("%s# %s: %d\n" % ('', 'Die', count))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # prepare to draw graph #
-        if not SystemManager.isRecordMode() and SystemManager.graphEnable:
+        if not SystemManager.isRecordMode() and \
+            SystemManager.graphEnable:
             # get pylab object #
             pylab = SystemManager.getPkg('pylab')
             from pylab import rc, rcParams
@@ -35658,7 +37776,7 @@ class ThreadAnalyzer(object):
         else:
             SystemManager.printPipe('%s' % oneLine)
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
 
 
 
@@ -35678,7 +37796,7 @@ class ThreadAnalyzer(object):
         for icount in xrange(0, len(self.depData)):
             SystemManager.addPrint(self.depData[icount] + '\n')
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
 
 
@@ -35812,7 +37930,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe('%s\n%s' % (totalFutexInfo, oneLine))
 
             # print thread info #
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.clearPrint()
 
         if not SystemManager.showAll:
@@ -36087,7 +38205,7 @@ class ThreadAnalyzer(object):
             SystemManager.printPipe('\n%s' % oneLine)
 
             # print thread info #
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.clearPrint()
 
         if not SystemManager.showAll:
@@ -36277,7 +38395,7 @@ class ThreadAnalyzer(object):
                     SystemManager.printPipe('')
 
                 SystemManager.printPipe(\
-                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:<20}".\
                     format(cid, opt, num, size, seqString, filesystem, dev))
 
                 opt = ''
@@ -36287,7 +38405,7 @@ class ThreadAnalyzer(object):
                     start = UtilManager.convertSize2Unit(optSize)
                     end = UtilManager.convertSize2Unit(optSize << 1)
                     SystemManager.printPipe(\
-                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:^20}".\
+                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:<20}".\
                         format('', '[%7s - %7s]' % (start, end), cnt))
 
                 tcnt += 1
@@ -36420,7 +38538,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -36493,7 +38611,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -36567,7 +38685,7 @@ class ThreadAnalyzer(object):
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
                 SystemManager.printPipe("%s# %s\n" % ('', '%s(Cnt)' % idx))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
                 SystemManager.clearPrint()
 
@@ -36868,7 +38986,7 @@ class ThreadAnalyzer(object):
 
         # print buffered info #
         SystemManager.printPipe("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.doPrint()
         SystemManager.printPipe(oneLine)
         SystemManager.clearPrint()
 
@@ -37073,7 +39191,7 @@ class ThreadAnalyzer(object):
 
         if SystemManager.cpuEnable:
             SystemManager.printPipe("%s# %s\n" % ('', 'CPU(%)'))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # preempted units on timeline #
@@ -37142,7 +39260,7 @@ class ThreadAnalyzer(object):
 
         if len(SystemManager.bufferString) > 0:
             SystemManager.printPipe("%s# %s\n" % ('', 'Delay(%)'))
-            SystemManager.printPipe(SystemManager.bufferString)
+            SystemManager.doPrint()
             SystemManager.printPipe(oneLine)
 
         # memory usage on timeline #
@@ -37209,7 +39327,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # block read usage on timeline #
@@ -37274,7 +39392,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_RD(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # block write usage on timeline #
@@ -37340,7 +39458,7 @@ class ThreadAnalyzer(object):
 
             if len(SystemManager.bufferString) > 0:
                 SystemManager.printPipe("%s# %s\n" % ('', 'BLK_WR(MB)'))
-                SystemManager.printPipe(SystemManager.bufferString)
+                SystemManager.doPrint()
                 SystemManager.printPipe(oneLine)
 
         # event usage on timeline #
@@ -37960,8 +40078,10 @@ class ThreadAnalyzer(object):
         for idx, val in list(enumerate(ThreadAnalyzer.procIntData)):
             if idx == 0:
                 before = 'START'
-            else:
+            elif 'time' in ThreadAnalyzer.procIntData[idx - 1]:
                 before = ThreadAnalyzer.procIntData[idx - 1]['time']
+            else:
+                continue
 
             if 'total' not in val:
                 continue
@@ -38810,7 +40930,7 @@ class ThreadAnalyzer(object):
         for pid, val in sorted(SystemManager.procInstance.items(), \
             key=lambda x: long(x[1]['oomScore'] if 'oomScore' in x[1] else 0), \
             reverse=True):
-            if val['oomScore'] == 0:
+            if 'oomScore' not in val or val['oomScore'] == 0:
                 break
 
             stat = val['stat']
@@ -38892,14 +41012,16 @@ class ThreadAnalyzer(object):
             return
 
         # print nodes in tree #
-        def printTreeNodes(root, depth):
+        def printTreeNodes(root, depth, commIdx):
             treestr = ''
-            commIdx = ConfigManager.STAT_ATTR.index("COMM")
 
             for pid, childs in root.items():
                 indent = ''
 
-                comm = instance[pid]['stat'][commIdx][1:-1]
+                try:
+                    comm = instance[pid]['stat'][commIdx][1:-1]
+                except:
+                    continue
 
                 if depth == 0:
                     indent = '\n'
@@ -38914,12 +41036,14 @@ class ThreadAnalyzer(object):
                 else:
                     treestr += '%s- %s(%s)\n' % (indent, comm, pid)
 
-                treestr += printTreeNodes(childs, depth + 1)
+                treestr += printTreeNodes(childs, depth + 1, commIdx)
 
             return treestr
 
+        commIdx = ConfigManager.STAT_ATTR.index("COMM")
+
         # get string for tree #
-        finalstr = printTreeNodes(procTree, 0)
+        finalstr = printTreeNodes(procTree, 0, commIdx)
 
         # print tree #
         SystemManager.printPipe(finalstr)
@@ -39605,7 +41729,7 @@ class ThreadAnalyzer(object):
                         float(time) - float(SystemManager.startTime)
                 # normal intervals #
                 elif ftime > 0:
-                    self.thisInterval = float(time) -ftime
+                    self.thisInterval = float(time) - ftime
                 # long time running intervals #
                 else:
                     for idx in xrange(index - 1, -1, -1):
@@ -42144,7 +44268,6 @@ class ThreadAnalyzer(object):
             if SystemManager.sort != 'f':
                 for fd, path in sorted(value['fdList'].items(),\
                     key=lambda e: int(e[0]), reverse=True):
-                    # cut by rows of terminal #
                     if SystemManager.checkCutCond():
                         break
 
@@ -42192,9 +44315,7 @@ class ThreadAnalyzer(object):
                 fdCnt += 1
                 procCnt += 1
 
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 break
 
             if fdCnt > 0:
@@ -42241,12 +44362,6 @@ class ThreadAnalyzer(object):
             # make path of tid #
             procPath = "%s/%s" % (SystemManager.procPath, pid)
             fdlistPath = "%s/%s" % (procPath, 'fd')
-
-            # make process object with constant value #
-            self.procData[pid] = dict(self.init_procData)
-            self.procData[pid]['mainID'] = pid
-            self.procData[pid]['taskPath'] = procPath
-            self.procData[pid]['fdList'] = {}
 
             # save stat of process #
             self.saveProcData(procPath, pid)
@@ -42371,7 +44486,9 @@ class ThreadAnalyzer(object):
                 SystemManager.statFd = open(cpuPath, 'r')
                 cpuBuf = SystemManager.statFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % cpuPath)
+                SystemManager.printErr(\
+                    'Fail to read %s because %s' % \
+                    (cpuPath, SystemManager.getErrReason()))
 
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
@@ -42552,11 +44669,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # reset and save proc instance #
-        del self.prevProcData
-        self.prevProcData = self.procData
-        self.procData = {}
-        SystemManager.topInstance = self
-        SystemManager.procInstance = self.procData
+        self.saveProcStats()
 
         # get thread list #
         for pid in pids:
@@ -42572,11 +44685,6 @@ class ThreadAnalyzer(object):
 
             # save info per process #
             if SystemManager.processEnable:
-                # make process object with constant value #
-                self.procData[pid] = dict(self.init_procData)
-                self.procData[pid]['mainID'] = pid
-                self.procData[pid]['taskPath'] = procPath
-
                 # save stat of process #
                 self.saveProcData(procPath, pid)
 
@@ -42603,10 +44711,8 @@ class ThreadAnalyzer(object):
 
                 threadPath = "%s/%s" % (taskPath, tid)
 
-                # make process object with constant value #
-                self.procData[tid] = dict(self.init_procData)
-                self.procData[tid]['mainID'] = pid
-                self.procData[tid]['taskPath'] = threadPath
+                # save stat of thread #
+                self.saveProcData(threadPath, tid, pid)
 
                 # main thread #
                 if pid == tid:
@@ -42620,9 +44726,6 @@ class ThreadAnalyzer(object):
                         self.procData[pid] = dict(self.init_procData)
                         self.procData[pid]['tids'] = []
                         self.procData[pid]['tids'].append(tid)
-
-                # save stat of thread #
-                self.saveProcData(threadPath, tid)
 
 
 
@@ -42866,9 +44969,15 @@ class ThreadAnalyzer(object):
 
 
     def saveProcSchedData(self, path, tid):
-        schedBuf = self.saveTaskData(path, tid, 'schedstat')
-
         try:
+            if not SystemManager.schedstatEnable:
+                raise Exception()
+
+            schedBuf = self.saveTaskData(path, tid, 'schedstat')
+            if len(schedBuf) == 0:
+                SystemManager.schedstatEnable = False
+                raise Exception()
+
             SCHED_POLICY = schedBuf[0].split()
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
@@ -42907,17 +45016,16 @@ class ThreadAnalyzer(object):
 
         # save cmdline info #
         try:
-            cmdlinePath = "%s/cmdline" % path
-            with open(cmdlinePath, 'r') as fd:
-                self.procData[tid]['cmdline'] = \
-                    fd.readline().split('\x00')[0]
+            self.procData[tid]['cmdline'] = \
+                SystemManager.getCmdline(tid)
 
             if SystemManager.isThreadTopMode():
                 if mainID in self.procData:
                     self.procData[mainID]['cmdline'] = \
                         self.procData[tid]['cmdline']
         except:
-            SystemManager.printWarn('Fail to open %s' % cmdlinePath)
+            SystemManager.printWarn(\
+                'Fail to open %s because' % SystemManager.getErrReason())
             return
 
 
@@ -42974,25 +45082,48 @@ class ThreadAnalyzer(object):
         if not self.procData[tid]['status']:
             self.procData[tid]['status'] = {}
 
-        for line in statusBuf:
-            if line.startswith('VmSwap') or \
-                line.startswith('FDSize') or \
-                line.startswith('SigCgt') or \
-                line.startswith('Uid') or \
-                line.startswith('voluntary_ctxt_switches') or \
-                line.startswith('nonvoluntary_ctxt_switches'):
+        # check status change #
+        self.procData[tid]['statusOrig'] = statusBuf
+        if tid in self.prevProcData and \
+            'statusOrig' in self.prevProcData[tid] and \
+            self.prevProcData[tid]['statusOrig'] == statusBuf:
+            self.procData[tid]['status'] = self.prevProcData[tid]['status']
+            del self.prevProcData[tid]['statusOrig']
+        else:
+            for line in statusBuf:
+                try:
+                    statusList = line.split(':')
+                    self.procData[tid]['status'][statusList[0]] = \
+                        statusList[1].strip()
+                except:
+                    pass
 
-                statusList = line.split(':')
-                self.procData[tid]['status'][statusList[0]] = \
-                    statusList[1].strip()
+        stat = 'statm'
+        mainID = self.procData[tid]['mainID']
+        if mainID in self.procData and \
+            stat in self.procData[mainID] and  \
+            self.procData[mainID][stat]:
+            self.procData[tid][stat] = \
+                self.procData[mainID][stat]
+        else:
+            statmBuf = self.saveTaskData(path, tid, stat)
+            if statmBuf:
+                self.procData[tid][stat] = statmBuf[0].split()
+                if mainID in self.procData:
+                    self.procData[mainID][stat] = self.procData[tid][stat]
 
-        statmBuf = self.saveTaskData(path, tid, 'statm')
-        if statmBuf:
-            self.procData[tid]['statm'] = statmBuf[0].split()
 
 
+    def saveProcData(self, path, tid, pid=None):
+        # initialize task #
+        if tid not in self.procData:
+            if not pid:
+                pid = tid
+            self.procData[tid] = dict(self.init_procData)
+            self.procData[tid]['mainID'] = pid
+            self.procData[tid]['taskPath'] = path
+            self.procData[tid]['fdList'] = {}
 
-    def saveProcData(self, path, tid):
         # save stat data #
         try:
             self.prevProcData[tid]['statFd'].seek(0)
@@ -43015,13 +45146,16 @@ class ThreadAnalyzer(object):
                     self.procData[tid]['statFd'] = None
                     self.reclaimFds()
             except:
-                SystemManager.printWarn('Fail to open %s' % statPath)
+                SystemManager.printWarn(\
+                    'Fail to open %s because %s' % \
+                        (statPath, SystemManager.getErrReason()))
                 self.procData.pop(tid, None)
                 return
 
         # check stat change #
         self.procData[tid]['statOrig'] = statBuf
         if tid in self.prevProcData and \
+            'statOrig' in self.prevProcData[tid] and \
             self.prevProcData[tid]['statOrig'] == statBuf:
             self.procData[tid]['stat'] = self.prevProcData[tid]['stat']
             del self.prevProcData[tid]['statOrig']
@@ -43519,15 +45653,26 @@ class ThreadAnalyzer(object):
         if interval == 0:
             return
 
-        nrCtxSwc = \
-            self.cpuData['ctxt']['ctxt'] - \
-            self.prevCpuData['ctxt']['ctxt']
-        nrIrq = \
-            self.cpuData['intr']['intr'] - \
-            self.prevCpuData['intr']['intr']
-        nrSoftIrq = \
-            self.cpuData['softirq']['softirq'] - \
-            self.prevCpuData['softirq']['softirq']
+        try:
+            nrCtxSwc = \
+                self.cpuData['ctxt']['ctxt'] - \
+                self.prevCpuData['ctxt']['ctxt']
+        except:
+            nrCtxSwc = 0
+
+        try:
+            nrIrq = \
+                self.cpuData['intr']['intr'] - \
+                self.prevCpuData['intr']['intr']
+        except:
+            nrIrq = 0
+
+        try:
+            nrSoftIrq = \
+                self.cpuData['softirq']['softirq'] - \
+                self.prevCpuData['softirq']['softirq']
+        except:
+            nrSoftIrq = 0
 
         # get total cpu usage #
         nowData = self.cpuData['all']
@@ -43767,7 +45912,6 @@ class ThreadAnalyzer(object):
                     percoreStats[int(idx)] = dict()
 
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         return
 
                     # get cpu stats #
@@ -43996,7 +46140,6 @@ class ThreadAnalyzer(object):
             for idx, value in self.gpuData.items():
                 try:
                     if SystemManager.checkCutCond():
-                        SystemManager.addPrint('---more---')
                         return
 
                     totalGpuUsage = value['CUR_LOAD']
@@ -44684,7 +46827,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.addPrint(\
             "{0:^40} | {1:^53} | {2:^53} |\n{3:1}\n".format(\
-            "Network", "Receive", "Transfer", oneLine))
+            "Network", "Receive", "Transfer", oneLine), newline=2)
 
         SystemManager.addPrint((\
             "{0:^16} | {1:^21} | "
@@ -44957,6 +47100,12 @@ class ThreadAnalyzer(object):
                         reverse=True)
             except:
                 sortedProcData = self.procData.items()
+        # dbus #
+        elif SystemManager.sort == 'd':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: \
+                    int(e[1]['dbusCnt']) \
+                        if 'dbusCnt' in e[1] else 0, reverse=True)
         # CPU #
         else:
             # set cpu usage as default #
@@ -44982,6 +47131,11 @@ class ThreadAnalyzer(object):
                 focusVal = value['new']
             elif SystemManager.sort == 'o':
                 focusVal = value['oomScore']
+            elif SystemManager.sort == 'd':
+                if 'dbusCnt' in value:
+                    return False
+                else:
+                    return True
             else:
                 focusVal = 1
 
@@ -45100,10 +47254,10 @@ class ThreadAnalyzer(object):
                 etc = 'OOMScore'
             elif SystemManager.sigHandlerEnable:
                 etc = 'SignalHandler'
-            elif SystemManager.isThreadTopMode():
-                etc = 'Process'
-            else:
+            elif SystemManager.processEnable:
                 etc = 'Parent'
+            else:
+                etc = 'Process'
 
             # set memory type #
             if SystemManager.pssEnable:
@@ -45228,7 +47382,6 @@ class ThreadAnalyzer(object):
 
         # print resource usage of processes / threads #
         procCnt = 0
-        needLine = False
         procData = self.procData
         for idx, value in sortedProcData:
             stat = value['stat']
@@ -45274,9 +47427,7 @@ class ThreadAnalyzer(object):
             if isBreakCond(value):
                 break
 
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 return
 
             # get comm #
@@ -45438,7 +47589,8 @@ class ThreadAnalyzer(object):
                     etc = value['status']['SigCgt'].lstrip('0')
                 except:
                     etc = '-'
-            elif SystemManager.isThreadTopMode():
+            elif not SystemManager.processEnable:
+                # process name #
                 try:
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % \
@@ -45446,6 +47598,7 @@ class ThreadAnalyzer(object):
                 except:
                     etc = ''
             else:
+                # parent name #
                 try:
                     pgid = procData[idx]['stat'][self.ppidIdx]
                     etc = '%s(%s)' % \
@@ -45585,14 +47738,8 @@ class ThreadAnalyzer(object):
                         SystemManager.collectProcPerfData(value['perfFds'])
                     perfString = SystemManager.getPerfString(perfData)
                     if len(perfString) > 0:
-                        # cut by rows of terminal #
-                        if SystemManager.checkCutCond():
-                            SystemManager.addPrint('---more---')
-                            return
-
                         SystemManager.addPrint(\
-                            "{0:>40}| {1:1}\n".format(' ', perfString))
-                        needLine = True
+                            "{0:>40}| {1:1}\n".format('PERF', perfString))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -45605,11 +47752,6 @@ class ThreadAnalyzer(object):
                 mval = memData[1]
 
                 SystemManager.addPrint(mval)
-
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
 
                 if not SystemManager.wssEnable:
                     continue
@@ -45634,15 +47776,11 @@ class ThreadAnalyzer(object):
                         isFirstLined = False
 
                     pstr = '%s' % pstr[slimit:]
+
                 tstr = '%s%s' % (tstr, pstr)
 
                 # count newlines #
                 newline = tstr.count('\n')+1
-
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond(newline):
-                    SystemManager.addPrint('---more---')
-                    return
 
                 SystemManager.addPrint(\
                     "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
@@ -45650,23 +47788,20 @@ class ThreadAnalyzer(object):
             # print cmdline #
             if SystemManager.cmdlineEnable and \
                 len(value['cmdline']) > 0:
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
-
                 SystemManager.addPrint(\
-                    "{0:>39} | CMD: {1:1}\n".format(' ', value['cmdline']))
+                    "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
             # print cgroup #
             if 'cgroup' in value:
-                # cut by rows of terminal #
-                if SystemManager.checkCutCond():
-                    SystemManager.addPrint('---more---')
-                    return
-
                 SystemManager.addPrint(\
-                    "{0:>39} | CGR: {1:1}\n".format(' ', value['cgroup']))
+                    "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
+
+            # print D-Bus #
+            if 'dbusList' in value and \
+                len(value['dbusList']) > 0:
+                for line in value['dbusList']:
+                    SystemManager.addPrint(\
+                        "{0:>39} | {1:1}\n".format('D-BUS', line))
 
             # print stacks of threads sampled #
             if SystemManager.stackEnable:
@@ -45681,20 +47816,14 @@ class ThreadAnalyzer(object):
 
                 try:
                     self.stackTable[idx]['total'] = 0
-                    needLine = True
                 except:
                     pass
 
             procCnt += 1
-            if SystemManager.memEnable or needLine:
-                needLine = True
+            if SystemManager.memEnable:
                 SystemManager.addPrint("%s\n" % oneLine)
 
         if procCnt > 0:
-            if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
-                return
-
             if SystemManager.floatEnable:
                 totalTime = round(totalStats['ttime'], 1)
             else:
@@ -45723,15 +47852,12 @@ class ThreadAnalyzer(object):
                 'Task: %s' % convertNum(totalStats['task']), \
                 td=cl+(pd*2)+14))
 
-        if procCnt == 0:
+            SystemManager.addPrint("%s\n" % oneLine)
+        else:
             text = "{0:^16}".format('None')
             frame = '%s%s|' % \
                 (text, ' ' * (SystemManager.lineLength - len(text) - 1))
             SystemManager.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
-        elif needLine:
-            pass
-        else:
-            SystemManager.addPrint("%s\n" % oneLine)
 
         # print special processes #
         if self.printSpecialTask('abnormal') == -1:
@@ -45760,9 +47886,7 @@ class ThreadAnalyzer(object):
 
         procCnt = 0
         for idx in taskList:
-            # cut by rows of terminal #
             if SystemManager.checkCutCond():
-                SystemManager.addPrint('---more---')
                 return -1
 
             # define stat variables #
@@ -45942,7 +48066,7 @@ class ThreadAnalyzer(object):
         # REPORT service #
         if data[0] == '{':
             # convert report data to dictionary type #
-            reportStat = UtilManager.makeJsonDict(data)
+            reportStat = UtilManager.convertStr2Dict(data)
 
             # check converting result #
             if not reportStat:
@@ -46345,7 +48469,7 @@ class ThreadAnalyzer(object):
                     SystemManager.inputFile, filePath)
 
         # convert dict data to JSON-type string #
-        jsonObj = UtilManager.makeJsonString(self.reportData)
+        jsonObj = UtilManager.convertDict2Str(self.reportData)
         if not jsonObj:
             SystemManager.printWarn(\
                 "Fail to convert report data to JSON type")
@@ -46416,7 +48540,7 @@ class ThreadAnalyzer(object):
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
 
-        jstr = UtilManager.makeJsonString(reportCpuData)
+        jstr = UtilManager.convertDict2Str(reportCpuData)
         if jstr:
             reportElasticData += jstr
 
@@ -46449,7 +48573,7 @@ class ThreadAnalyzer(object):
         reportMemoryData.update(beatFields)
         reportMemoryData.update(systemMemoryFields)
 
-        jstr = UtilManager.makeJsonString(reportMemoryData)
+        jstr = UtilManager.convertDict2Str(reportMemoryData)
         if jstr:
             reportElasticData += jstr
 
@@ -46473,7 +48597,7 @@ class ThreadAnalyzer(object):
         reportNetworkData.update(beatFields)
         reportNetworkData.update(systemNetworkFields)
 
-        jstr = UtilManager.makeJsonString(reportNetworkData)
+        jstr = UtilManager.convertDict2Str(reportNetworkData)
         if jstr:
             reportElasticData += jstr
 
@@ -46506,7 +48630,7 @@ class ThreadAnalyzer(object):
             reportDiskioData.update(beatFields)
             reportDiskioData.update(systemDiskioFields)
 
-            jstr = UtilManager.makeJsonString(reportDiskioData)
+            jstr = UtilManager.convertDict2Str(reportDiskioData)
             if jstr:
                 reportElasticData += jstr
 
@@ -46566,7 +48690,7 @@ class ThreadAnalyzer(object):
             reportProcessData.update(beatFields)
             reportProcessData.update(systemProcessFields)
 
-            jstr = UtilManager.makeJsonString(reportProcessData)
+            jstr = UtilManager.convertDict2Str(reportProcessData)
             if jstr:
                 reportElasticData += jstr
 
@@ -46680,7 +48804,7 @@ def main(args=None):
     # set error logger #
     SystemManager.setErrorLogger()
 
-    # import guider native module #
+    # import Guider native module #
     SystemManager.importNative()
 
     # set comm #
@@ -46983,6 +49107,9 @@ def main(args=None):
 
     #-------------------- REALTIME MODE --------------------
     if SystemManager.isTopMode():
+        # check background processes #
+        SystemManager.checkBgProcs()
+
         # set tty setting automatically #
         if not SystemManager.ttyEnable:
             SystemManager.setTtyAuto(True, False)
@@ -47046,10 +49173,26 @@ def main(args=None):
         # dbus #
         elif SystemManager.isDbusTopMode():
             SystemManager.dbusTopEnable = True
+            SystemManager.floatEnable = True
+
+            # set default interval to 3 for accuracy #
+            if not SystemManager.findOption('i') and \
+                not SystemManager.findOption('R'):
+                SystemManager.intervalEnable = 3
 
         # usercall #
         elif SystemManager.isUserTopMode():
             SystemManager.doTrace('usercall')
+
+        # breakcall #
+        elif SystemManager.isBrkTopMode():
+            if not SystemManager.customCmd or \
+                len(SystemManager.customCmd) == 0:
+                SystemManager.printErr(\
+                    "Input value for breakpoint with -c option")
+                sys.exit(0)
+
+            SystemManager.doTrace('breakcall')
 
         # syscall #
         elif SystemManager.isSysTopMode():

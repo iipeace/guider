@@ -113,6 +113,43 @@ def request_start(timestamp, targetAddr):
                 print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
         is_connected = RequestManager.get_requestStatus(timestamp)
         print("is_connected : " + str(is_connected) + " / timestamp : " + timestamp)
+=======
+
+@socketio.on('custom_connect') # this is custom one
+def custom_connect(msg):
+    emit('server_response', {'data': msg})
+    print("This is custom-connect message")
+
+@socketio.on('request_start')
+def request_start(timestamp, msg):
+    print('Requested ----- ')
+    msg['timestamp'] = timestamp
+    RequestManager.add_request(timestamp)
+    is_connected = RequestManager.get_request(timestamp)
+#fname = "json_log-" + str(timestamp) + ".txt"
+#f=open(fname, "w")
+    cntGetData = -1
+    while (is_connected==True):
+        str_pipe = pipe.getData() # str type with json contents
+        cntGetData = cntGetData + 1
+        try: # to catch out json parse error
+            json_pipe = json.loads(str_pipe)
+            msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
+            msg['mem_pipe'] = json.dumps(json_pipe["mem"])
+            msg['proc_pipe'] = json.dumps(json_pipe["process"])
+            length_pipe = len(str_pipe)
+            msg['length_pipe'] = str(length_pipe)
+            emit('server_response', msg)
+#f.write("[" + str(cntGetData) + "] Correct Json--------------------------------------------------------\n")
+        except:
+            print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
+#f.write("[" + str(cntGetData) + "] ErrorLog------------------------------------------------------------\n")
+#f.write(str_pipe)
+#f.write("[" + str(cntGetData) + "] finished------------------------------------------------------------\n")
+
+        is_connected = RequestManager.get_request(timestamp)
+
+>>>>>>> master
         # time.sleep should not be used for its blocking thread or something.
         # (related articles are found over stackoverflow or somewhere else)
 
