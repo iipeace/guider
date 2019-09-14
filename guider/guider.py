@@ -25985,8 +25985,10 @@ Copyright:
 class DbusAnalyzer(object):
     """ Analyzer for D-Bus """
 
-    previousData = {}
     errObj = None
+    sentData = {}
+    lastSentInterface = {}
+    previousData = {}
 
     G_IO_ERROR_TYPE = [
         'G_IO_ERROR_FAILED',
@@ -26157,7 +26159,7 @@ class DbusAnalyzer(object):
 
     @staticmethod
     def runDbusSnooper():
-        def updateTaskInfo(dbusData):
+        def updateTaskInfo(dbusData, sentData):
             try:
                 taskManager.saveSystemStat()
             except:
@@ -26191,6 +26193,15 @@ class DbusAnalyzer(object):
                         except:
                             per = 0
 
+                        # get time info #
+                        if value['cnt'] > 0 and \
+                            pid in sentData and \
+                            name in sentData[pid]:
+                            data = sentData[pid][name]
+                            avr = data['total'] / value['cnt']
+                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f}' % \
+                                (name, data['min'], avr, data['max'])
+
                         dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
                             convertNum(value['cnt']), per, name))
 
@@ -26213,6 +26224,9 @@ class DbusAnalyzer(object):
             if lock:
                 lock.acquire()
 
+            # initialize data #
+            prevSentData = DbusAnalyzer.sentData
+            DbusAnalyzer.sentData = {}
             prevDbusData = ThreadAnalyzer.dbusData
             ThreadAnalyzer.dbusData = {'totalCnt': 0}
 
@@ -26223,7 +26237,7 @@ class DbusAnalyzer(object):
                     pass
 
             # update cpu usage of tasks #
-            updateTaskInfo(prevDbusData)
+            updateTaskInfo(prevDbusData, prevSentData)
 
             # print title #
             SystemManager.addPrint(\
@@ -26252,7 +26266,7 @@ class DbusAnalyzer(object):
                 SystemManager.updateUptime()
 
                 # save initial stat of tasks #
-                updateTaskInfo(ThreadAnalyzer.dbusData)
+                updateTaskInfo(ThreadAnalyzer.dbusData, DbusAnalyzer.sentData)
                 taskManager.reinitStats()
 
                 # set timer #
@@ -26336,8 +26350,9 @@ class DbusAnalyzer(object):
 
                     # check previous data #
                     if tid not in DbusAnalyzer.previousData:
-                        DbusAnalyzer.previousData[tid] = \
-                            {'recvmsg': '', 'sendmsg': ''}
+                        DbusAnalyzer.previousData[tid] = dict()
+                        DbusAnalyzer.previousData[tid]['recvmsg'] = ''
+                        DbusAnalyzer.previousData[tid]['sendmsg'] = ''
                     try:
                         prevData = DbusAnalyzer.previousData[tid][ctype]
                     except:
@@ -26406,8 +26421,38 @@ class DbusAnalyzer(object):
                             SystemManger.getErrReason())
                         continue
 
+                    # check sent data #
+                    if tid not in DbusAnalyzer.sentData:
+                        DbusAnalyzer.sentData[tid] = dict()
+                        DbusAnalyzer.sentData[tid]['last'] = 0
+
                     # check message type #
                     if mtype == 'METHOD_RETURN':
+                        if tid in DbusAnalyzer.lastSentInterface:
+                            lastIf = DbusAnalyzer.lastSentInterface[tid]
+                        else:
+                            lastIf = None
+
+                        if lastIf in DbusAnalyzer.sentData[tid] and \
+                            DbusAnalyzer.sentData[tid][lastIf]['time'] > 0:
+                            lastData = DbusAnalyzer.sentData[tid][lastIf]
+                            elapsed = jsonData['time'] - lastData['time']
+
+                            if lastData['min'] == 0 or \
+                                elapsed < lastData['min']:
+                                DbusAnalyzer.sentData[tid][lastIf]['min'] = \
+                                    elapsed
+
+                            if elapsed > lastData['max']:
+                                DbusAnalyzer.sentData[tid][lastIf]['max'] = \
+                                elapsed
+
+                            DbusAnalyzer.sentData[tid][lastIf]['total'] += \
+                                elapsed
+
+                            DbusAnalyzer.sentData[tid][lastIf]['time'] = 0
+                            DbusAnalyzer.lastSentInterface[tid] = None
+
                         libgObj.g_object_unref(gdmsg)
                         continue
 
@@ -26416,7 +26461,7 @@ class DbusAnalyzer(object):
                     src = libgioObj.g_dbus_message_get_sender(addr)
                     des = libgioObj.g_dbus_message_get_destination(addr)
                     member = libgioObj.g_dbus_message_get_member(addr)
-                    path = libgioObj.g_dbus_message_get_path(addr)
+                    #path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
 
                     if ctype == 'recvmsg':
@@ -26425,18 +26470,33 @@ class DbusAnalyzer(object):
                         direction = 'OUT'
 
                     # save message info #
-                    mname = '%3s %s:%s(%s) [%s]' % \
-                        (direction, path, interface, member, mtype)
+                    mname = '%3s %s(%s) [%s]' % \
+                        (direction, interface.decode(), member.decode(), mtype)
                     if mname not in mlist:
                         mlist[mname] = {'count': 0}
 
-                    mlist[mname]['count'] += 1
+                    # save sent message info #
+                    if ctype == 'sendmsg':
+                        if not mname in DbusAnalyzer.sentData[tid]:
+                            DbusAnalyzer.sentData[tid][mname] = dict()
+                            DbusAnalyzer.sentData[tid][mname]['min'] = 0
+                            DbusAnalyzer.sentData[tid][mname]['max'] = 0
+                            DbusAnalyzer.sentData[tid][mname]['total'] = 0
 
+                        time = jsonData['time']
+                        DbusAnalyzer.sentData[tid][mname]['time'] = time
+                        DbusAnalyzer.lastSentInterface[tid] = mname
+                    elif mname in DbusAnalyzer.sentData[tid]:
+                        DbusAnalyzer.sentData[tid][mname]['time'] = 0
+                        DbusAnalyzer.lastSentInterface[tid] = None
+
+                    # increase count #
                     cnt += 1
+                    mlist[mname]['count'] += 1
 
                     # print message #
                     '''
-                    print(mtype, interface, src, des, member, path, arg0)
+                    print(mtype, interface, src, des, member, arg0)
                     print(libgioObj.g_dbus_message_print(\
                         c_ulong(gdmsg), c_ulong(0)))
                     '''
