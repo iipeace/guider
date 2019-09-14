@@ -14,6 +14,5 @@ __pycache__
 .python-version
 
 # Distribution / packaging
-build/
-dist/
 MANIFEST
+*.idea

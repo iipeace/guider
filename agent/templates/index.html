@@ -1,37 +1,13 @@
+<!DOCTYPE html>
 <html>
-<head>
-    <title></title>
-</head>
-<body>
-  <pre id="log"></pre>
-  <input type='button' value='전송' onclick='sendMsg();'>aaaa</input>
-
-
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-  <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
-
-    <script>
-        var socket = io.connect();
-        $(document).ready(function () {
-             //Or given server url: io.connect("http://xxxx:123")
-            socket.on('connect', function () { //The default event: connect, when a connection is fired
-            console.log('Start connect!');
-        //socket.emit('Leekr_event', { data: 'Im connected!' });
-            });
-            socket.on('server_response', function (msg) {
-                $('#log').append('<br>' + $('<div/>').text('Received #' + ': ' + msg.data).html());
-                console.log(msg);
-            });
-        });
-
-        function sendMsg(){
-            console.log("Button Clicked!");
-            socket.emit('Leekr_event', { data: 'Im connected!' });
-        };
-
-    </script>
-</body>
-
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1.0">
+		<title>guider-vue</title>
+	</head>
+	<body>
+		<div id="app"></div>
+		<input type="hidden" id="serverAddr" value="%% server_addr %%"/
+	</body>
+	<script type="text/javascript" src="./static/js/app.js"></script>
 </html>
