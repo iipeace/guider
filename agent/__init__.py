@@ -113,7 +113,6 @@ def request_start(timestamp, targetAddr):
                 print("[" + str(cntGetData) + "]----------------Json parsing error----------------")
         is_connected = RequestManager.get_requestStatus(timestamp)
         print("is_connected : " + str(is_connected) + " / timestamp : " + timestamp)
-=======
 
 @socketio.on('custom_connect') # this is custom one
 def custom_connect(msg):
@@ -149,7 +148,6 @@ def request_start(timestamp, msg):
 
         is_connected = RequestManager.get_request(timestamp)
 
->>>>>>> master
         # time.sleep should not be used for its blocking thread or something.
         # (related articles are found over stackoverflow or somewhere else)
 
