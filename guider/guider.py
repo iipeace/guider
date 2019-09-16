@@ -26199,8 +26199,12 @@ class DbusAnalyzer(object):
                             name in sentData[pid]:
                             data = sentData[pid][name]
                             avr = data['total'] / value['cnt']
-                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f}' % \
-                                (name, data['min'], avr, data['max'])
+                            if data['time'] > 0:
+                                wstat = 'WAIT'
+                            else:
+                                wstat = ''
+                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f} %s' % \
+                                (name, data['min'], avr, data['max'], wstat)
 
                         dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
                             convertNum(value['cnt']), per, name))
