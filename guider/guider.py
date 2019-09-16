@@ -26596,6 +26596,7 @@ class DbusAnalyzer(object):
         taskList = []
         # get pids of gdbus threads #
         for val in SystemManager.filterGroup:
+            # by TID #
             if val.isdigit() and \
                 os.path.exists('%s/%s' % (SystemManager.procPath, val)):
                 if SystemManager.groupProcEnable:
@@ -26603,6 +26604,7 @@ class DbusAnalyzer(object):
                         val, isTid=True, withSibling=True)
                 else:
                     taskList.append(val)
+            # by COMM #
             else:
                 if SystemManager.groupProcEnable:
                     taskList += SystemManager.getPids(\
