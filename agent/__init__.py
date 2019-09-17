@@ -9,6 +9,7 @@ try:
     import re
     import logging
 
+    from threading import Lock
     from flask import Flask, render_template, request, jsonify
     from flask_socketio import SocketIO, send, emit
 except ImportError:
@@ -36,7 +37,6 @@ class RequestManager(object):
 
     @classmethod
     def get_requestStatus(cls, request_id):
-        print(cls.requests)
         return cls.requests.get(request_id)
 
     @classmethod
@@ -56,96 +56,117 @@ class CustomFlask(Flask):
 
 
 
-# define flask object #
-app = CustomFlask(__name__, 
-        template_folder='templates',
-        static_folder='../guider-vue/static')
+def createApp(config_filename=None):
+    # define flask object #
+    app = CustomFlask(__name__,
+            template_folder='templates',
+            static_folder='../guider-vue/static')
+    if config_filename:
+        app.config.from_pyfile(config_filename)
 
-# app.config['SECRET_KEY'] = 'XXXX'
-socketio = SocketIO(app)
+    # app.config['SECRET_KEY'] = 'XXXX'
+    socketio = SocketIO(app)
 
-# add Guider path here
-curDir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, '%s/../guider' % curDir)
+    # add Guider path here #
+    curDir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, '%s/../guider' % curDir)
 
-from guider import NetworkManager
-@app.route('/')
-def index():
-    return render_template('index.html', server_addr=request.host_url)
+    # import NetworkManger form Guider #
+    from guider import NetworkManager
 
+    @app.route('/')
+    def index():
+        print("route /")
 
+        return render_template('index.html', server_addr=request.host_url)
 
-@socketio.on('connect')
-def connected():
-    print("Connected")
+    @socketio.on('connect')
+    def connected():
+        print("connect")
 
+    @socketio.on('disconnect')
+    def disconnected():
+        print("disconnect")
 
+        RequestManager.clear_request()
 
-@socketio.on('disconnect')
-def disconnected():
-    RequestManager.clear_request()
+    @socketio.on('request_start')
+    def request_start(timestamp, targetAddr):
+        print('request_start')
 
+        # set addresses #
+        NetworkManager.prepareServerConn(None, targetAddr)
 
+        # get connection with server #
+        conn = NetworkManager.getServerConn()
+        if not conn:
+            print('\nFail to get connection with server')
+            sys.exit(0)
 
-@socketio.on('request_start')
-def request_start(timestamp, targetAddr):
-    NetworkManager.prepareServerConn(None, targetAddr)
-    # get connection with server #
-    conn = NetworkManager.getServerConn()
-    if not conn:
-        print('\nFail to get connection with server')
-        sys.exit(0)
+        # request command #
+        pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J')
+        if not pipe:
+            print('\nFail to get command pipe')
+            sys.exit(0)
 
-    # request command #
-    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J')
-    if not pipe:
-        print('\nFail to get command pipe')
-        sys.exit(0)
+        # build message #
+        msg = {}
+        msg['timestamp'] = timestamp
+        RequestManager.add_request(timestamp)
 
-    print('Requested ----- ')
-    msg = {}
-    msg['timestamp'] = timestamp
-    RequestManager.add_request(timestamp)
-    is_connected = RequestManager.get_requestStatus(timestamp)
-    cntGetData = -1
+        '''
+	# for multi-thread feautre #
+	global thread
+	with thread_lock:
+	    if thread is None:
+		thread = socketio.start_background_task(thread_task)
+        '''
 
-    while (is_connected != False):
-        str_pipe = pipe.getData() # str type with json contents
-        cntGetData = cntGetData + 1
-        if pipe.getDataType(str_pipe) == 'JSON':
-            try:
-                json_pipe = json.loads(str_pipe)
-                msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
-                msg['mem_pipe'] = json.dumps(json_pipe["mem"])
-                msg['proc_pipe'] = json.dumps(json_pipe["process"])
-                msg['length_pipe'] = str(len(str_pipe))
-                emit('server_response', msg)
-            except:
-                errPrefix = '---------------- JSON parsing error ----------------'
-                errSuffix = '----------------------------------------------------'
-                print("%s\n%s, %s\n%s" % \
-                    (errName, str(cntGetData), len(str_pipe), errSuffix))
+        while(RequestManager.get_requestStatus(timestamp)):
+            # read data from Guider #
+            str_pipe = pipe.getData()
 
-        is_connected = RequestManager.get_requestStatus(timestamp)
-        print("is_connected : " + str(is_connected) + " / timestamp : " + timestamp)
+            print('got a message from Guider at %s' % timestamp)
 
+            data_type = pipe.getDataType(str_pipe)
+            if data_type == 'JSON':
+                try:
+                    # convert string to JSON #
+                    json_pipe = json.loads(str_pipe)
 
+                    # split stats #
+                    msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
+                    msg['mem_pipe'] = json.dumps(json_pipe["mem"])
+                    msg['proc_pipe'] = json.dumps(json_pipe["process"])
+                    msg['length_pipe'] = str(len(str_pipe))
 
-@socketio.on('custom_connect') # this is custom one
-def custom_connect(msg):
-    emit('server_response', {'data': msg})
-    print("This is custom-connect message")
+                    emit('server_response', msg)
+                except:
+                    line = '-' * 50
+                    print("%s\n%s\n%s" % (line, len(str_pipe), line))
+            else:
+                print('[%s] %s' % (data_type, str_pipe))
 
+        print('request_finished')
 
+    @socketio.on('custom_connect') # this is custom one
+    def custom_connect(msg):
+        print("custom_connect")
 
-@socketio.on('request_stop')
-def request_stop(target_timestamp):
-    if RequestManager.get_requestStatus(target_timestamp) == True:
-        RequestManager.disable_request(target_timestamp)
-        emit('request_stop_result', 'stop success : ' + target_timestamp)
-    else:
-        emit('request_stop_result', 'stop failed : ' + target_timestamp )
-    return
+        emit('server_response', {'data': msg})
+
+    @socketio.on('request_stop')
+    def request_stop(target_timestamp):
+        print("request_stop")
+
+        if RequestManager.get_requestStatus(target_timestamp) == True:
+            RequestManager.disable_request(target_timestamp)
+            emit('request_stop_result', 'stop success : ' + target_timestamp)
+        else:
+            emit('request_stop_result', 'stop failed : ' + target_timestamp )
+        return
+
+    return app, socketio
 
 
 
@@ -154,6 +175,31 @@ if __name__ == '__main__':
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
 
-    request_manager = RequestManager()
+    # create flask app #
+    app, socketio = createApp()
 
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # define default address #
+    DEFIP = '0.0.0.0'
+    DEFPORT = 5000
+
+    # parse address for binding #
+    if len(sys.argv) > 1:
+        addrList = sys.argv[1].split(':')
+        if len(addrList) == 2:
+            ip, port = addrList
+        elif len(addrList) == 1:
+            if '.' in addrList[0]:
+                ip = addrList[0]
+                port = DEFPORT
+            else:
+                ip = DEFIP
+                port = addrList[0]
+        else:
+            print('input IP:PORT')
+            sys.exit(0)
+    else:
+        ip = DEFIP
+        port = DEFPORT
+
+    # run app #
+    socketio.run(app, host=ip, port=port)
