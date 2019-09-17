@@ -2584,6 +2584,21 @@ class ConfigManager(object):
         'Path',
         ]
 
+    TCP_STAT = [
+        'N/A',
+        'ESTABLISHED',
+        'SYN_SENT',
+        'SYN_RECV',
+        'FIN_WAIT1',
+        'FIN_WAIT2',
+        'TIME_WAIT',
+        'CLOSE',
+        'CLOSE_WAIT',
+        'LAST_ACK',
+        'LISTEN',
+        'CLOSING'
+      ]
+
     # Define futex operation flags #
     FUTEX_TYPE = [
         'FUTEX_WAIT',
@@ -3697,7 +3712,7 @@ class NetworkManager(object):
             if ret < 0:
                 raise Exception()
 
-            if self.status is not 'ALWAYS':
+            if self.status != 'ALWAYS':
                 self.status = 'SENT'
             return True
         except:
@@ -16445,7 +16460,7 @@ Copyright:
                 f = compressor.GzipFile(fileobj=fd)
 
                 # write system info #
-                if SystemManager.systemInfoBuffer is not '':
+                if SystemManager.systemInfoBuffer != '':
                     totalStr = '%s\n%s\n%s\n' % \
                         (SystemManager.magicString, \
                         SystemManager.systemInfoBuffer, \
@@ -16466,7 +16481,7 @@ Copyright:
                 f = open(outputFile, 'w')
 
                 # write system info #
-                if SystemManager.systemInfoBuffer is not '':
+                if SystemManager.systemInfoBuffer != '':
                     magicStr = '%s\n' % SystemManager.magicString
                     f.writelines(magicStr)
                     f.writelines(SystemManager.systemInfoBuffer)
@@ -20037,17 +20052,20 @@ Copyright:
     @staticmethod
     def getSocketAddrList(addrList):
         portList = {}
+        stIdx = ConfigManager.UDP_ATTR.index('st')
         inodeIdx = ConfigManager.UDP_ATTR.index('inode')
         addrIdx = ConfigManager.UDP_ATTR.index('local_address')
 
         # get udp list #
-        UDP_ATTR = SystemManager.getUdpList()
-        for udp in UDP_ATTR:
+        udpList = SystemManager.getUdpList()
+        for udp in udpList:
             try:
                 if udp[inodeIdx] in addrList:
                     ip, port = udp[addrIdx].split(':')
+
                     # convert ip address and port #
                     ip = SystemManager.convertCIDR(ip)
+
                     portList["UDP:%s:%s" % (ip, int(port, base=16))] = None
             except:
                 pass
@@ -20058,9 +20076,18 @@ Copyright:
             try:
                 if tcp[inodeIdx] in addrList:
                     ip, port = tcp[addrIdx].split(':')
+
                     # convert ip address and port #
                     ip = SystemManager.convertCIDR(ip)
-                    portList["TCP:%s:%s" % (ip, int(port, base=16))] = None
+
+                    try:
+                        stat = ' /%s' % \
+                            ConfigManager.TCP_STAT[int(tcp[stIdx],16)]
+                    except:
+                        stat = ''
+
+                    item = "TCP:%s:%s%s" % (ip, int(port, base=16), stat)
+                    portList[item] = None
             except:
                 pass
 
@@ -20512,6 +20539,7 @@ Copyright:
     def waitUserInput(wait=0, msg=None, newline=True):
         # check condition #
         if SystemManager.printFile or \
+            SystemManager.backgroundEnable or \
             SystemManager.isReportTopMode() or \
             not SystemManager.selectEnable:
             return
@@ -23309,7 +23337,7 @@ Copyright:
                     rbuf = fd.read()
 
                 with open(SystemManager.outputFile, 'w') as fd:
-                    if SystemManager.systemInfoBuffer is not '':
+                    if SystemManager.systemInfoBuffer != '':
                         fd.writelines(SystemManager.magicString + '\n')
                         fd.writelines(SystemManager.systemInfoBuffer)
                         fd.writelines(SystemManager.magicString + '\n')
@@ -33236,6 +33264,30 @@ class ThreadAnalyzer(object):
 
 
 
+    @staticmethod
+    def checkFilter(comm, pid):
+        found = False
+
+        for idx in SystemManager.filterGroup:
+            # check exclusion condition #
+            if idx.startswith('^'):
+                cond = idx[1:]
+                if comm.find(cond) > -1 or pid == cond:
+                    found=False
+                    break
+                else:
+                    found=True
+                    continue
+
+            # check inclusion condition #
+            if comm.find(idx) > -1 or pid == idx:
+                found = True
+                break
+
+        return found
+
+
+
     def __init__(self, file=None, onlyInstance=None):
 
         # thread mode #
@@ -33658,7 +33710,7 @@ class ThreadAnalyzer(object):
 
 
     def runFileTop(self):
-        def getFilter():
+        def getFilter(init=False):
             procFilter = []
             fileFilter = []
 
@@ -33671,21 +33723,20 @@ class ThreadAnalyzer(object):
             for pval in newFilter[0].split(','):
                 if pval != '':
                     procFilter.append(pval)
-
-            if len(procFilter) > 0:
-                plist = ', '.join(procFilter)
-                SystemManager.printInfo(\
-                    "only specific processes including [ %s ] are shown" % \
-                    plist)
-
             if len(newFilter) > 1:
                 for fval in newFilter[1].split(','):
                     if fval != '':
                         fileFilter.append(fval)
-            if len(fileFilter) > 0:
-                flist = ', '.join(fileFilter)
+
+            if init and len(procFilter) > 0:
                 SystemManager.printInfo(\
-                    "only specific files including [ %s ] are shown" % flist)
+                    "only specific processes including [ %s ] are shown" % \
+                        ', '.join(procFilter))
+
+            if init and len(fileFilter) > 0:
+                SystemManager.printInfo(\
+                    "only specific files including [ %s ] are shown" % \
+                        ', '.join(fileFilter))
 
             return [procFilter, fileFilter]
 
@@ -33849,30 +33900,8 @@ class ThreadAnalyzer(object):
 
 
 
-    def checkFilter(self, comm, pid):
-        found = False
-
-        for idx in SystemManager.filterGroup:
-            # check exclusion condition #
-            if idx.startswith('^'):
-                cond = idx[1:]
-                if comm.find(cond) > -1 or pid == cond:
-                    found=False
-                    break
-                else:
-                    found=True
-                    continue
-
-            # check inclusion condition #
-            if comm.find(idx) > -1 or pid == idx:
-                found = True
-                break
-
-        return found
-
-
-
-    def getDrawStats(self, logFile):
+    @staticmethod
+    def getDrawStats(logFile):
         logBuf = None
         infoBuf = None
 
@@ -33914,6 +33943,7 @@ class ThreadAnalyzer(object):
         # context varaible #
         finalLine = 0
         context = None
+        totalRam = None
 
         while 1:
             UtilManager.printProgress(finalLine, len(logBuf))
@@ -33961,7 +33991,7 @@ class ThreadAnalyzer(object):
                     try:
                         totalRam = UtilManager.convertUnit2Size(sline[1][:-1])
                     except:
-                        totalRam = None
+                        pass
 
                     try:
                         totalSwap = UtilManager.convertUnit2Size(sline[3][:-1])
@@ -34106,7 +34136,7 @@ class ThreadAnalyzer(object):
                     comm = d['comm'].strip()
 
                     if SystemManager.filterGroup != []:
-                        if not self.checkFilter(comm, d['pid']):
+                        if not ThreadAnalyzer.checkFilter(comm, d['pid']):
                             intervalList = None
                         else:
                             pid = d['pid']
@@ -34131,7 +34161,7 @@ class ThreadAnalyzer(object):
                     intervalList = None
 
                     # calculate total usage of tasks filtered #
-                    if self.checkFilter(comm, pid):
+                    if ThreadAnalyzer.checkFilter(comm, pid):
                         if not "[ TOTAL ]" in cpuProcUsage:
                             cpuProcUsage["[ TOTAL ]"] = dict()
 
@@ -34214,7 +34244,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not self.checkFilter(comm, d['pid']):
+                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -34267,7 +34297,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not self.checkFilter(comm, d['pid']):
+                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -34311,7 +34341,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not self.checkFilter(comm, d['pid']):
+                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -34424,9 +34454,7 @@ class ThreadAnalyzer(object):
         UtilManager.deleteProgress()
 
         # check output data #
-        try:
-            totalRam
-        except:
+        if not totalRam:
             SystemManager.printErr(\
                 "Fail to find Detailed Statistics in %s" % logFile)
             sys.exit(0)
@@ -34468,7 +34496,7 @@ class ThreadAnalyzer(object):
             logFile = flist[0]
 
             # parse stats #
-            graphStats, chartStats = self.getDrawStats(logFile)
+            graphStats, chartStats = ThreadAnalyzer.getDrawStats(logFile)
         # get stats from multiple files for comparison #
         else:
             logFile = 'guider.out'
@@ -34480,9 +34508,10 @@ class ThreadAnalyzer(object):
             # parse stats from multiple files #
             for lfile in flist:
                 try:
-                    gstats, cstats = self.getDrawStats(lfile)
+                    gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
                 except:
                     continue
+
                 for key, val in gstats.items():
                     graphStats['%s:%s' % (lfile, key)] = val
 
