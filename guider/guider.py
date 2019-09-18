@@ -26158,6 +26158,9 @@ class DbusAnalyzer(object):
         gioObj.g_dbus_message_get_member.argtypes = [c_ulong]
         gioObj.g_dbus_message_get_member.restype = c_char_p
 
+        gioObj.g_dbus_message_get_error_name.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_error_name.restype = c_char_p
+
         gioObj.g_dbus_message_get_serial.argtypes = [c_ulong]
         gioObj.g_dbus_message_get_serial.restype = c_char_p
 
@@ -26228,11 +26231,15 @@ class DbusAnalyzer(object):
                             data = sentData[pid][name]
                             avr = data['total'] / value['cnt']
                             if data['time'] > 0:
-                                wstat = 'WAIT'
+                                wstat = '/WAIT'
                             else:
                                 wstat = ''
-                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f} %s' % \
-                                (name, data['min'], avr, data['max'], wstat)
+                            if data['err'] > 0:
+                                errstr = ', Err: %s' % data['err']
+                            else:
+                                errstr = ''
+                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
+                                (name, data['min'], avr, data['max'], errstr, wstat)
 
                         dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
                             convertNum(value['cnt']), per, name))
@@ -26283,6 +26290,12 @@ class DbusAnalyzer(object):
             taskManager.printProcUsage()
             taskManager.reinitStats()
             SystemManager.printTopStats()
+
+            # check repeat count #
+            if SystemManager.repeatCount > 0:
+                SystemManager.progressCnt += 1
+                if SystemManager.repeatCount <= SystemManager.progressCnt:
+                    os.kill(os.getpid(), signal.SIGINT)
 
             # enable alarm #
             signal.signal(signal.SIGALRM, printSummary)
@@ -26459,7 +26472,9 @@ class DbusAnalyzer(object):
                         DbusAnalyzer.sentData[tid]['last'] = 0
 
                     # check message type #
-                    if mtype == 'METHOD_RETURN':
+                    if mtype == 'METHOD_RETURN' or \
+                        mtype == 'INVALID' or \
+                        mtype == 'ERROR':
                         if tid in DbusAnalyzer.lastSentInterface:
                             lastIf = DbusAnalyzer.lastSentInterface[tid]
                         else:
@@ -26478,6 +26493,13 @@ class DbusAnalyzer(object):
                             if elapsed > lastData['max']:
                                 DbusAnalyzer.sentData[tid][lastIf]['max'] = \
                                 elapsed
+
+                            # check error return #
+                            if mtype == 'INVALID' or \
+                                mtype == 'ERROR':
+                                errstr = libgioObj.g_dbus_message_get_error_name(addr)
+                                if errstr:
+                                    DbusAnalyzer.sentData[tid][lastIf]['err'] += 1
 
                             DbusAnalyzer.sentData[tid][lastIf]['total'] += \
                                 elapsed
@@ -26513,6 +26535,7 @@ class DbusAnalyzer(object):
                             DbusAnalyzer.sentData[tid][mname] = dict()
                             DbusAnalyzer.sentData[tid][mname]['min'] = 0
                             DbusAnalyzer.sentData[tid][mname]['max'] = 0
+                            DbusAnalyzer.sentData[tid][mname]['err'] = 0
                             DbusAnalyzer.sentData[tid][mname]['total'] = 0
 
                         time = jsonData['time']
