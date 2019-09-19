@@ -26,10 +26,11 @@ matrix:
       before_install:
         - cd guider-vue
       install:
-        - npm
-      script:
         - npm install
         - npm run dev
         - npm run build
+      script:
+        - npm --version
+      cache: npm
       after_success:
         - cd ..
