@@ -13718,10 +13718,10 @@ Description:
     Get libleaktracer.so from https://github.com/iipeace/portable/tree/master/leaktracer
 
     Run below commands to get leaktracer output
-    $ LD_PRELOAD=libleaktracer.so \\
+    $ LD_PRELOAD=./libleaktracer.so \\
         LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
-    $ LD_PRELOAD=libleaktracer.so \\
+    $ LD_PRELOAD=./libleaktracer.so \\
         LEAKTRACER_ONSIG_REPORTFILENAME=leaks.out \\
         LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
@@ -13735,8 +13735,11 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
+    - Create an output file including memory leakage hints of a specific process
+        # {0:1} kill -35 a.out
+
     - Print funtions caused memory leakage of a specific process
-        # {0:1} {1:1} -I leaks.out -g 1234
+        # {0:1} {1:1} -I leaks.out -g a.out
                     '''.format(cmd, mode)
 
                 # printenv #
@@ -17247,7 +17250,6 @@ Copyright:
         textwrap = SystemManager.getPkg('textwrap', False)
         if not textwrap:
             SystemManager.printWarn((\
-                "Fail to import python package: textwrap\n"
                 "\tTry to enter %s command to install the package") % \
                     ("'pip install textwrap3'"), True)
             sys.exit(0)
@@ -17256,7 +17258,6 @@ Copyright:
         PIL = SystemManager.getPkg('PIL', False)
         if not PIL:
             SystemManager.printWarn((\
-                "Fail to import python package: PIL\n"
                 "\tTry to enter %s command to install the package") % \
                     ("'pip install pillow'"), True)
             sys.exit(0)
@@ -34585,7 +34586,6 @@ class ThreadAnalyzer(object):
         matplotlib = SystemManager.getPkg('matplotlib', False)
         if not matplotlib:
             SystemManager.printWarn((\
-                "Fail to import python package: matplotlib\n"
                 "Try to enter %s command to install the package") % \
                     ("'pip install matplotlib'"), True)
             sys.exit(0)
@@ -36328,7 +36328,6 @@ class ThreadAnalyzer(object):
         matplotlib = SystemManager.getPkg('matplotlib', False)
         if not matplotlib:
             SystemManager.printWarn((\
-                "Fail to import python package: matplotlib\n"
                 "Try to enter %s command to install the package") % \
                     ("'pip install matplotlib'"), True)
             sys.exit(0)
@@ -39053,7 +39052,6 @@ class ThreadAnalyzer(object):
             matplotlib = SystemManager.getPkg('matplotlib', False)
             if not matplotlib:
                 SystemManager.printWarn((\
-                    "Fail to import python package: matplotlib\n"
                     "Try to enter %s command to install the package") % \
                         ("'pip install matplotlib'"), True)
                 sys.exit(0)

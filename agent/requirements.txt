@@ -1,4 +1,4 @@
-#python pacakge
+# python pacakge for Web
 
 flask
 flask_socketio

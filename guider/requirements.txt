@@ -1,0 +1,11 @@
+# python package for drawing
+
+cycler
+kiwisolver
+matplotlib
+numpy
+Pillow
+pyparsing
+python-dateutil
+six
+textwrap3

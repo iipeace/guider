@@ -1,9 +1,35 @@
-language: python
+matrix:
+  include:
+    - language: python
+      python:
+        - 2.7
+        - 3.4
+        - 3.5
+        - 3.6
+      before_install:
+        - cd guider
+      install:
+        - pip install --upgrade pip
+        - pip install pipenv
+        - pipenv install --dev
+        - pip install -r guider/requirements.txt
+        - pip install -r agent/requirements.txt
+        - python setup.py install
+      script:
+        - make
+        - guider top -R 10 -o
+        - guider draw guider.out
+      after_success:
+        - cd ..
 
-python:
-- "2.7"
-- "3.4"
-- "3.5"
-- "3.6"
-
-script: cd guider && make && ./guider
+    - language: node_js
+      node_js:
+        - 4
+        - 6
+        - 8
+      before_install:
+        - cd guider-vue
+      script:
+        - npm install
+        - npm run dev
+        - npm run build
