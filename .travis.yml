@@ -26,7 +26,7 @@ matrix:
       before_install:
         - cd guider-vue
       install:
-        - pip install -r requirements.txt
+        - npm
       script:
         - npm install
         - npm run dev
