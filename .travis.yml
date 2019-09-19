@@ -12,8 +12,7 @@ matrix:
         - pip install --upgrade pip
         - pip install pipenv
         - pipenv install --dev
-        - pip install -r guider/requirements.txt
-        - pip install -r agent/requirements.txt
+        - pip install -r requirements.txt
         - python setup.py install
       script:
         - make
@@ -29,7 +28,11 @@ matrix:
         - 8
       before_install:
         - cd guider-vue
+      install:
+        - pip install -r requirements.txt
       script:
         - npm install
         - npm run dev
         - npm run build
+      after_success:
+        - cd ..
