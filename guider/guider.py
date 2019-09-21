@@ -28171,14 +28171,17 @@ struct msghdr {
             # create params #
             pid = self.pid
 
-            lbuf = (c_char*size)()
-            liov = (self.iovec*1)()[0]
-            liov.iov_base = cast(byref(lbuf), c_void_p)
-            liov.iov_len = size
+            try:
+                lbuf = (c_char*size)()
+                liov = (self.iovec*1)()[0]
+                liov.iov_base = cast(byref(lbuf), c_void_p)
+                liov.iov_len = size
 
-            riov = (self.iovec*1)()[0]
-            riov.iov_base = c_void_p(addr)
-            riov.iov_len = size
+                riov = (self.iovec*1)()[0]
+                riov.iov_base = c_void_p(addr)
+                riov.iov_len = size
+            except:
+                return ''
 
             # do syscall #
             ret = process_vm_readv(pid, liov, 1, riov, 1, 0)

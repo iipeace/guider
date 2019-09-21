@@ -9,6 +9,8 @@
 *.dat*
 *.report
 __pycache__
+build
+dist
 
 # virtualenv
 .python-version
