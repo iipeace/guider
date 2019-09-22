@@ -20082,7 +20082,7 @@ Copyright:
                     ip = SystemManager.convertCIDR(ip)
 
                     try:
-                        stat = ' /%s' % \
+                        stat = '/%s' % \
                             ConfigManager.TCP_STAT[int(tcp[stIdx],16)]
                     except:
                         stat = ''
@@ -21204,6 +21204,9 @@ Copyright:
 
             # create new network object #
             netObj = NetworkManager('server', netObj.ip, None, True)
+
+            # close useless ports #
+            SystemManager.localServObj.close()
 
             if request == 'DOWNLOAD':
                 onDownload(netObj, conn, value, errAddr)
