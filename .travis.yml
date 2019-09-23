@@ -26,7 +26,6 @@ matrix:
         - cd guider-vue
       install:
         - npm install
-        - npm run dev
         - npm run build
       script:
         - npm --version
