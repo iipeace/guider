@@ -30,11 +30,11 @@ export default {
     },
     server_response: function (msg) { // msg is json
       EventBus.$emit('cnt_emit', this.emitCount)
-      var cpuUsage = this.refineCpuPipe(msg.cpu_pipe)
+      const cpuUsage = this.refineCpuPipe(msg.cpu_pipe)
       EventBus.$emit('cpu_usage', cpuUsage)
-      var memUsage = this.refineMemPipe(msg.mem_pipe)
+      const memUsage = this.refineMemPipe(msg.mem_pipe)
       EventBus.$emit('mem_usage', memUsage)
-      var procUsage = this.refineProcPipe(msg.proc_pipe)
+      const procUsage = this.refineProcPipe(msg.proc_pipe)
       EventBus.$emit('proc_usage', procUsage)
       this.emitCount = this.emitCount + 1
     },
@@ -45,7 +45,7 @@ export default {
   methods: {
     emitStart: function () {
       console.log('Start button Clicked!')
-      var timestamp = +new Date()
+      const timestamp = new Date()
       EventBus.$emit('reset_data')
       this.$socket.emit('request_start', String(timestamp), this.targetAddr)
     },
@@ -62,11 +62,11 @@ export default {
     connectSocket: function () {
       this.$socket.connect() // if connection is not establised.
     },
-    refineCpuPipe: function (cpu_pipe) {
-      var jsonObj = JSON.parse(cpu_pipe)
-      var cpuTotal = new Array()
-      var jsonPercore = jsonObj.percore
-      var logCpu = 'Emit Count <' + String(this.emitCount) + '>    :  '
+    refineCpuPipe: function (pipe) {
+      const jsonObj = JSON.parse(pipe)
+      const cpuTotal = []
+      const jsonPercore = jsonObj.percore
+      let logCpu = 'Emit Count <' + String(this.emitCount) + '>    :  '
       for (let i = 0; i < jsonObj.nrCore; i++) {
         cpuTotal.push(jsonPercore[i].total)
         logCpu = logCpu + 'core[' + String(i + 1) + '] : ' + jsonPercore[i].total + '     / '
@@ -74,25 +74,25 @@ export default {
       // this.appendLog(logCpu);
       return cpuTotal
     },
-    refineMemPipe: function (mem_pipe) {
-      var jsonObj = JSON.parse(mem_pipe)
-      var memTotal = {}
-      var arrDisp = ['total', 'available', 'kernel', 'anon', 'cache', 'free']
-      for (var key in jsonObj) {
+    refineMemPipe: function (pipe) {
+      const jsonObj = JSON.parse(pipe)
+      const memTotal = {}
+      const arrDisp = ['total', 'available', 'kernel', 'anon', 'cache', 'free']
+      for (let key in jsonObj) {
         if (arrDisp.includes(key) === true) {
           memTotal[key] = jsonObj[key]
         }
       }
       return memTotal
     },
-    refineProcPipe: function (proc_pipe) {
-      var jsonObj = JSON.parse(proc_pipe)
-      var procTotal = new Array() // Json Array to return
+    refineProcPipe: function (pipe) {
+      const jsonObj = JSON.parse(pipe)
+      const procTotal = [] // Json Array to return
 
-      for (var keyPID in jsonObj) { // key is PID.
-        var objPID = {}
+      for (let keyPID in jsonObj) { // key is PID.
+        const objPID = {}
         objPID['PID'] = keyPID
-        for (var keyParam in jsonObj[keyPID]) {
+        for (let keyParam in jsonObj[keyPID]) {
           if (this.arrProcParam.includes(keyParam) === true) {
             objPID[keyParam] = jsonObj[keyPID][keyParam]
           }
