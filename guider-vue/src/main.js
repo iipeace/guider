@@ -12,8 +12,8 @@ Vue.use(new VueSocketIO({
   connection: serverAddr // 'http://localhost:5000'
 }))
 
-new Vue({
-  el: '#app',
+const vm = new Vue({
   components: { App },
   template: '<App/>'
 })
+vm.$mount('#app')
