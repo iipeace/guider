@@ -125,6 +125,8 @@ def createApp(config_filename=None):
         while(RequestManager.get_requestStatus(timestamp)):
             # read data from Guider #
             str_pipe = pipe.getData()
+            if not str_pipe:
+                break
 
             print('got a message from Guider at %s' % timestamp)
 

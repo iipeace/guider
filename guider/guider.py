@@ -3276,7 +3276,8 @@ class UtilManager(object):
 class NetworkManager(object):
     """ Manager for remote communication """
 
-    def __init__(self, mode, ip, port, blocking=True, tcp=False):
+    def __init__(\
+        self, mode, ip, port, blocking=True, tcp=False, anyPort=False):
         self.mode = mode
         self.ip = None
         self.port = None
@@ -3288,6 +3289,7 @@ class NetworkManager(object):
         self.time = None
         self.sendSize = 32767
         self.recvSize = 32767
+        self.tcp = tcp
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
@@ -3322,9 +3324,7 @@ class NetworkManager(object):
             self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
             # set REUSEADDR #
-            '''
             self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-            '''
 
             # set SENDTIMEOUT #
             '''
@@ -3340,15 +3340,19 @@ class NetworkManager(object):
             '''
 
             if mode == 'server':
-                if not port:
-                    try:
-                        self.port = SystemManager.defaultPort
-                        self.socket.bind((self.ip, self.port))
-                    except:
-                        self.port = 0
-                        self.socket.bind((self.ip, self.port))
+                # decision port #
+                if anyPort:
+                    self.port = 0
+                elif not port:
+                    self.port = SystemManager.defaultPort
                 else:
                     self.port = port
+
+                # bind #
+                try:
+                    self.socket.bind((self.ip, self.port))
+                except:
+                    self.port = 0
                     self.socket.bind((self.ip, self.port))
 
                 # get binded port #
@@ -3364,11 +3368,20 @@ class NetworkManager(object):
                 feedback = ', use port bigger than 1024'
             else:
                 feedback = ''
+
             SystemManager.printErr(\
                 "Fail to create socket with %s:%s as server because %s%s" % \
                 (self.ip, self.port, err, feedback))
+
+            '''
+            if error "99 Cannot assign requested address" occurs:
+                add "net.ipv4.ip_nonlocal_bind = 1" in /etc/sysctl.conf
+                execute sysctl -p /etc/sysctl.conf
+            '''
+
             self.ip = None
             self.port = None
+
             return None
 
 
@@ -3394,7 +3407,9 @@ class NetworkManager(object):
 
 
     def close(self):
-        return self.socket.close()
+        ret = self.socket.close()
+        self.socket = None
+        return ret
 
 
 
@@ -3408,46 +3423,24 @@ class NetworkManager(object):
 
 
 
-    def connect(self, addr):
-        self.socket.connect(addr)
+    def connect(self, addr=None):
+        if addr is None:
+            addr = (self.ip, self.port)
+
+        return self.socket.connect(addr)
 
 
 
     def handleServerRequest(self, req, onlySocket=False):
-        def getConn(ip, targetIp, targetPort):
-            # create tcp socket object #
-            netObj = NetworkManager(\
-                'client', self.ip, 0, blocking=True, tcp=True)
-
-            # get connection #
-            try:
-                netObj.timeout()
-                netObj.connect((targetIp, targetPort))
-                return netObj
-            except SystemExit:
-                sys.exit(0)
-            except:
-                err = SystemManager.getErrReason()
-                SystemManager.printWarn((\
-                    'Failed to connect to client because %s' % err), True)
-                return
-
-        def onDownload(req, addr):
+        def onDownload(req):
             # parse path #
-            path = req.split('|', 1)[1]
-            path = path.split(',')
+            plist = req.split('|', 1)[1]
+            path = plist.split(',')
             origPath = path[0].strip()
             targetPath = path[1].strip()
-
-            # parse addr #
-            addr = addr.split(':')
-            targetIp = addr[0]
-            targetPort = int(addr[1])
-
-            # get connection #
-            receiver = getConn(self.ip, targetIp, targetPort)
-            if not receiver:
-                return
+            receiver = self
+            targetIp = self.ip
+            targetPort = self.port
 
             # get select object #
             selectObj = SystemManager.getPkg('select')
@@ -3468,7 +3461,7 @@ class NetworkManager(object):
                         continue
                     else:
                         totalSize = long(size.decode())
-                        receiver.send('ACK')
+                        receiver.send('ACK'.encode())
                         break
 
                 # receive file #
@@ -3501,27 +3494,22 @@ class NetworkManager(object):
             finally:
                 receiver.close()
 
-        def onUpload(req, addr):
+        def onUpload(req):
             # parse path #
-            path = req.split('|', 1)[1]
-            path = path.split(',')
+            plist = req.split('|', 1)[1]
+            path = plist.split(',')
+
             origPath = path[0].strip()
             targetPath = path[1].strip()
-
-            # parse addr #
-            addr = addr.split(':')
-            targetIp = addr[0]
-            targetPort = int(addr[1])
+            sender = self
+            targetIp = self.ip
+            targetPort = self.port
+            addr = '%s:%s' % (targetIp, targetPort)
 
             # check file #
             if not os.path.isfile(origPath):
                 SystemManager.printErr(\
                     'Failed to find %s to transfer' % origPath)
-                return
-
-            # get connection #
-            sender = getConn(self.ip, targetIp, targetPort)
-            if not sender:
                 return
 
             convert = UtilManager.convertSize2Unit
@@ -3537,6 +3525,8 @@ class NetworkManager(object):
                     ret = sender.recv(3)
                     if ret is None:
                         continue
+                    elif ret is False:
+                        sys.exit(0)
                     else:
                         break
 
@@ -3562,37 +3552,30 @@ class NetworkManager(object):
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully\n" % \
                         (origPath, convert(os.path.getsize(origPath)), \
-                            ':'.join(list(map(str, addr))), targetPath))
+                            addr, targetPath))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
                     "Fail to upload %s to %s:%s because %s" % \
-                        (origPath, ':'.join(list(map(str, addr))), \
-                            targetPath, err))
+                        (origPath, addr, targetPath, err))
             finally:
                 sender.close()
 
-        def onRun(req, addr, onlySocket):
+        def onRun(req, onlySocket):
             # parse command #
             origReq = req
             command = req.split('|', 1)[1]
 
             # parse addr #
-            addr = addr.split(':')
-            targetIp = addr[0]
-            targetPort = int(addr[1])
+            addr = '%s:%s' % (self.ip, self.port)
 
             if not onlySocket:
                 SystemManager.printInfo(\
-                    "'%s' is executed from %s\n" % \
-                    (command, ':'.join(list(map(str, addr)))))
+                    "'%s' is executed from %s\n" % (command, addr))
 
-            # get connection #
-            conn = getConn(self.ip, targetIp, targetPort)
-            if not conn:
-                return
-            elif onlySocket:
-                return conn
+            # return just the connected socket #
+            if onlySocket:
+                return self
 
             # get select object #
             selectObj = SystemManager.getPkg('select')
@@ -3604,10 +3587,10 @@ class NetworkManager(object):
             while 1:
                 try:
                     [readSock, writeSock, errorSock] = \
-                        selectObj.select([conn.socket], [], [])
+                        selectObj.select([self.socket], [], [])
 
                     # receive packet #
-                    output = conn.getData()
+                    output = self.getData()
                     if not output:
                         break
 
@@ -3623,7 +3606,10 @@ class NetworkManager(object):
             print(oneLine)
 
             # close connection #
-            conn.close()
+            try:
+                self.close()
+            except:
+                pass
 
 
 
@@ -3633,46 +3619,29 @@ class NetworkManager(object):
         # unmarshalling #
         if type(req) is tuple:
             try:
-                message = req[0].decode()
+                req = req[0].decode()
             except:
-                message = req[0]
-
-            try:
-                ip = req[1][0]
-                port = req[1][1]
-            except:
-                SystemManager.printWarn(\
-                    "Fail to get address of client from message")
-                return
-
-            SystemManager.printWarn(\
-                "received '%s' request from %s:%s" % \
-                (message, ip, port))
-
-            try:
-                mlist = message.split(':')
-                req = ':'.join(mlist[:-2])
-                addr = ':'.join(mlist[-2:])
-            except:
-                req = addr = None
+                req = req[0]
 
             # handle request #
             if not req:
                 SystemManager.printErr(\
-                    'Fail to recognize request')
+                    'Fail to recognize the request')
                 return
 
             elif req.upper().startswith('DOWNLOAD'):
-                return onDownload(req, addr)
+                return onDownload(req)
 
             elif req.upper().startswith('UPLOAD'):
-                return onUpload(req, addr)
+                return onUpload(req)
 
             elif req.upper().startswith('RUN'):
-                return onRun(req, addr, onlySocket)
+                return onRun(req, onlySocket)
 
             elif req.startswith('ERROR'):
-                SystemManager.printErr(req.split('|', 1)[1])
+                err = req.split('|', 1)[1]
+                errMsg = err.split(':', 1)[0]
+                SystemManager.printErr(errMsg)
 
             else:
                 SystemManager.printErr(\
@@ -3703,7 +3672,10 @@ class NetworkManager(object):
             message = UtilManager.encodeStr(message)
 
         try:
-            if not write and SystemManager.localServObj:
+            # check protocol #
+            if self.tcp:
+                ret = self.socket.send(message)
+            elif not write and SystemManager.localServObj:
                 ret = SystemManager.localServObj.socket.sendto(\
                     message, (self.ip, self.port))
             else:
@@ -3769,7 +3741,7 @@ class NetworkManager(object):
         except:
             err = SystemManager.getErrReason()
             SystemManager.printWarn(\
-                "Fail to send data to %s:%d as client because %s" % \
+                "Fail to receive data from %s:%d as client because %s" % \
                 (self.ip, self.port, err))
             return False
 
@@ -3846,6 +3818,9 @@ class NetworkManager(object):
             except SystemExit:
                 sys.exit(0)
             except:
+                SystemManager.printWarn(\
+                    "Fail to receive data from %s:%d as client because %s" % \
+                    (self.ip, self.port, SystemManager.getErrReason()))
                 return None
 
 
@@ -3871,6 +3846,9 @@ class NetworkManager(object):
 
     @staticmethod
     def requestCmd(connObj, cmd):
+        if not connObj:
+            return
+
         # send request to server #
         connObj.send(cmd)
 
@@ -3901,7 +3879,7 @@ class NetworkManager(object):
 
         # handle reply from server #
         try:
-            return connObj.handleServerRequest(reply, True)
+            return connObj.handleServerRequest(reply, onlySocket=True)
         except:
             return None
 
@@ -3913,7 +3891,7 @@ class NetworkManager(object):
             SystemManager.printErr(\
                 "No running server or wrong server address")
 
-        # set server address #
+        # set server address in local #
         if SystemManager.isLinux and not SystemManager.remoteServObj:
             try:
                 addr = SystemManager.getProcAddrs(__module__)
@@ -3930,32 +3908,25 @@ class NetworkManager(object):
                 printErr()
                 return None
             else:
-                NetworkManager.setRemoteServer(addr)
+                NetworkManager.setRemoteServer(addr, tcp=True)
+        # set server address again #
+        elif SystemManager.remoteServObj:
+            if not SystemManager.remoteServObj.tcp:
+                SystemManager.remoteServObj.close()
+            servObj = SystemManager.remoteServObj
+            NetworkManager.setRemoteServer(\
+                '%s:%s' % (servObj.ip, servObj.port), tcp=True)
 
         # check server address #
         if not SystemManager.remoteServObj:
             printErr()
             return None
 
-        # set local address #
-        if not SystemManager.localServObj:
-            NetworkManager.setServerNetwork(None, None)
-
+        # do connect to server #
         try:
-            # close local bind socket #
-            SystemManager.localServObj.close()
-
-            # get local address info #
-            ip = SystemManager.localServObj.ip
-            port = SystemManager.localServObj.port
-            SystemManager.localServObj = None
-
-            # bind socket for remote server #
-            #SystemManager.remoteServObj.bind(ip, port)
-            SystemManager.remoteServObj.timeout()
-
             connObj = SystemManager.remoteServObj
-
+            connObj.timeout()
+            connObj.connect((connObj.ip, connObj.port))
             return connObj
         except:
             err = SystemManager.getErrReason()
@@ -4006,7 +3977,7 @@ class NetworkManager(object):
 
 
     @staticmethod
-    def setRemoteServer(value):
+    def setRemoteServer(value, tcp=False):
         # receive mode #
         if value and len(value) == 0:
             SystemManager.remoteServObj = 'NONE'
@@ -4048,15 +4019,21 @@ class NetworkManager(object):
                         reqList[:-1])
                 sys.exit(0)
 
-        networkObject = NetworkManager('client', ip, port)
+        # create a socket #
+        networkObject = NetworkManager('client', ip, port, tcp=tcp)
         if not networkObject.ip:
             sys.exit(0)
         else:
             networkObject.request = service
             SystemManager.remoteServObj = networkObject
 
+        if tcp:
+            proto = 'TCP'
+        else:
+            proto = 'UDP'
+
         SystemManager.printInfo(\
-            "use %s:%d as remote address" % (ip, port))
+            "use %s:%d(%s) as remote address" % (ip, port, proto))
 
 
 
@@ -4069,7 +4046,7 @@ class NetworkManager(object):
         if not ip or not SystemManager.isEffectiveRequest(service):
             SystemManager.printErr((\
                 "wrong option value with -N option, "
-                "input [%s]@IP:PORT in format") % \
+                "input in the format [%s]@IP:PORT") % \
                     '|'.join(ThreadAnalyzer.requestType))
             sys.exit(0)
 
@@ -4092,7 +4069,7 @@ class NetworkManager(object):
             else:
                 SystemManager.printErr((\
                     "wrong option value with -N option, "
-                    "input [%s]@IP:PORT in format") % \
+                    "input in the format [%s]@IP:PORT") % \
                         '|'.join(ThreadAnalyzer.requestType))
 
         SystemManager.printInfo(\
@@ -4101,7 +4078,8 @@ class NetworkManager(object):
 
 
     @staticmethod
-    def setServerNetwork(ip, port, force=False, blocking=False):
+    def setServerNetwork(\
+        ip, port, force=False, blocking=False, tcp=False, anyPort=False):
         if SystemManager.localServObj and not force:
             SystemManager.printWarn(\
                 "Fail to set server network because it is already set")
@@ -4123,6 +4101,7 @@ class NetworkManager(object):
 
         # check server setting #
         if SystemManager.localServObj and \
+            SystemManager.localServObj.socket and \
             SystemManager.localServObj.ip == ip and \
             SystemManager.localServObj.port == port:
             if blocking:
@@ -4131,16 +4110,25 @@ class NetworkManager(object):
                 SystemManager.localServObj.socket.setblocking(0)
             return
 
-        # create new server setting #
-        networkObject = NetworkManager('server', ip, port, blocking)
+        # create a new server setting #
+        networkObject = NetworkManager('server', ip, port, blocking, tcp, anyPort)
         if not networkObject.ip:
             SystemManager.printWarn(\
-                "Fail to set server network", True)
+                "Fail to set server IP", True)
             return
 
+        if tcp:
+            proto = 'TCP'
+        else:
+            proto = 'UDP'
+
         SystemManager.localServObj = networkObject
-        SystemManager.printInfo("use %s:%d as local address" % \
-            (SystemManager.localServObj.ip, SystemManager.localServObj.port))
+        SystemManager.printInfo(\
+            "use %s:%d(%s) as local address" % \
+            (SystemManager.localServObj.ip, \
+                SystemManager.localServObj.port, proto))
+
+        return networkObject
 
 
 
@@ -4148,7 +4136,7 @@ class NetworkManager(object):
     def prepareServerConn(cliAddr, servAddr):
         # set local address #
         if not cliAddr:
-            NetworkManager.setServerNetwork(None, None)
+            NetworkManager.setServerNetwork(None, None, anyPort=True)
         else:
             service, ip, port = NetworkManager.parseAddr(cliAddr)
 
@@ -4315,7 +4303,7 @@ class NetworkManager(object):
 
     def __del__(self):
         try:
-            self.socket.close()
+            self.close()
         except:
             pass
 
@@ -5626,19 +5614,18 @@ class FunctionAnalyzer(object):
 
 
 
-    def getBinFromServer(self, localObj, remoteObj, src, des):
+    def getBinFromServer(self, remoteObj, src, des):
         if not remoteObj or remoteObj == 'NONE':
             SystemManager.printErr(\
                 "wrong remote address with -X, "
-                "input {ip:port} in format")
+                "input in the format {ip:port}")
             sys.exit(0)
 
         # set download command #
         req = 'DOWNLOAD:%s,%s' % (src, des)
 
         # get connection with server #
-        if not self.connObj:
-            self.connObj = NetworkManager.getServerConn()
+        self.connObj = NetworkManager.getServerConn()
 
         # request download command #
         NetworkManager.requestCmd(self.connObj, req)
@@ -5699,7 +5686,6 @@ class FunctionAnalyzer(object):
                 if not os.path.isfile(binPath) and \
                     SystemManager.remoteServObj:
                     self.getBinFromServer(\
-                        SystemManager.localServObj, \
                         SystemManager.remoteServObj, \
                         value['origBin'], binPath)
             # add address to offsetList #
@@ -11312,7 +11298,7 @@ class SystemManager(object):
         if len(value) == 0:
             SystemManager.printErr(\
                 ("wrong option value %s with -k, "
-                "input {tids} in format"))
+                "input in the format {tids}"))
             sys.exit(0)
 
         # check root permission #
@@ -11343,8 +11329,9 @@ class SystemManager(object):
             sys.exit(0)
         except:
             err = SystemManager.getErrReason()
-            SystemManager.printErr(\
-                "Fail to kill tasks because %s, input {tids} in format" % err)
+            SystemManager.printErr((\
+                "Fail to kill tasks because %s, "
+                "input in the format {tids}") % err)
             sys.exit(0)
 
 
@@ -11354,7 +11341,7 @@ class SystemManager(object):
         if len(value) == 0:
             SystemManager.printErr(\
                 ("wrong option value %s with -z, "
-                "input {mask:tids} in format"))
+                "input in the format {mask:tids}"))
             sys.exit(0)
 
         # check root permission #
@@ -11395,7 +11382,7 @@ class SystemManager(object):
         except:
             SystemManager.printErr(\
                 "Fail to set cpu affinity of task, "
-                "input {mask:tids} in format")
+                "input in the format {mask:tids}")
             sys.exit(0)
 
 
@@ -11410,7 +11397,7 @@ class SystemManager(object):
         if len(value) == 0:
             SystemManager.printErr(\
                 "Fail to set cpu affinity of task, "
-                "input {mask:tids} in format")
+                "input in the format {mask:tids}")
             sys.exit(0)
         elif value.find('-P') >= 0:
             isProcess = True
@@ -11436,7 +11423,7 @@ class SystemManager(object):
         if len(value) == 0:
             SystemManager.printErr(\
                 "Fail to get cpu affinity of task, "
-                "input tids in format")
+                "input in the format {tids}")
             sys.exit(0)
 
         if not SystemManager.isRoot():
@@ -11462,7 +11449,7 @@ class SystemManager(object):
         except:
             SystemManager.printErr(\
                 "Fail to get cpu affinity of task, "
-                "input tids in format")
+                "input in the format {tids}")
             sys.exit(0)
 
 
@@ -16803,7 +16790,7 @@ Copyright:
                     level = UtilManager.convertColor(level, 'BOLD')
 
                 # time #
-                time = meta[2]
+                time = str(meta[2])
                 if len(time) < 7:
                     time = '0.%s' % time
                 else:
@@ -17908,7 +17895,7 @@ Copyright:
         else:
             SystemManager.printErr((\
                 "wrong option value with -R, "
-                "input INTERVAL:REPEAT in format"))
+                "input in the format INTERVAL:REPEAT"))
             sys.exit(0)
 
         if not SystemManager.intervalEnable or \
@@ -18430,7 +18417,11 @@ Copyright:
 
             elif option == 'X':
                 if not SystemManager.findOption('x'):
-                    NetworkManager.setServerNetwork(None, None)
+                    service, ip, port = NetworkManager.parseAddr(value)
+                    if port == SystemManager.defaultPort:
+                        NetworkManager.setServerNetwork(None, None, anyPort=True)
+                    else:
+                        NetworkManager.setServerNetwork(None, None)
 
                 NetworkManager.setRemoteServer(value)
 
@@ -20542,7 +20533,8 @@ Copyright:
         if SystemManager.printFile or \
             SystemManager.backgroundEnable or \
             SystemManager.isReportTopMode() or \
-            not SystemManager.selectEnable:
+            not SystemManager.selectEnable or \
+            'REMOTERUN' in os.environ:
             return
 
         # get select object #
@@ -20763,6 +20755,9 @@ Copyright:
             return pid
         # child #
         elif pid == 0:
+            # initialize child list #
+            SystemManager.childList = {}
+
             # Guider #
             if not cmd:
                 SystemManager.pid = os.getpid()
@@ -20905,85 +20900,90 @@ Copyright:
 
     @staticmethod
     def runServerMode():
-        def sendErrMsg(netObj, ip, port, message):
-            message = 'ERROR|%s:%s:%s' % (message, ip, port)
-            netObj.sendto(message, ip, port)
+        def sendErrMsg(netObj, message):
+            message = 'ERROR|%s:%s:%s' % \
+                (message, netObj.ip, netObj.port)
+            netObj.send(message)
 
-        def onDownload(netObj, conn, value, errAddr):
+        def onDownload(netObj, value, response):
+            # pick path #
             try:
                 src, des = value.split(',')
             except:
                 SystemManager.printWarn(\
-                    'Failed to recognize paths', True)
-                sendErrMsg(netObj, errAddr[0], errAddr[1], \
-                    "wrong format of paths, use {src, des} in format")
+                    'Failed to recognize path', True)
+                sendErrMsg(netObj,\
+                    "wrong format for path, input in the format {src, des}")
                 return
 
+            # verify path #
             targetPath = src.strip()
             if not os.path.isfile(targetPath):
                 SystemManager.printWarn(\
                     'Failed to find %s to transfer' % targetPath, True)
-                sendErrMsg(netObj, ip, port, \
-                    "wrong path %s" % targetPath)
+                sendErrMsg(netObj, "wrong path %s" % targetPath)
                 return
 
-            remotePath = des.strip()
+            # response from command request #
+            netObj.send(response)
 
-            # get connection info #
-            sender, addr = conn
+            remotePath = des.strip()
+            addr = '%s:%s' % (netObj.ip, netObj.port)
 
             # transfer file #
             try:
                 # send file size #
                 stat = os.stat(targetPath)
                 st_size = '%s' % stat.st_size
-                sender.send(UtilManager.encodeStr(st_size))
+                netObj.send(UtilManager.encodeStr(st_size))
 
                 # read for ACK #
                 while 1:
-                    ret = sender.recv(3)
+                    ret = netObj.recv(3)
                     if ret is None:
                         continue
+                    elif ret is False:
+                        sys.exit(0)
                     else:
                         break
 
                 # send file #
                 with open(targetPath,'rb') as fd:
-                    buf = fd.read(sender.sendSize)
+                    buf = fd.read(netObj.sendSize)
                     while (buf):
-                        sender.send(buf)
-                        buf = fd.read(sender.sendSize)
+                        netObj.send(buf)
+                        buf = fd.read(netObj.sendSize)
 
                 SystemManager.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
-                        (targetPath, \
-                        UtilManager.convertSize2Unit(\
-                            os.path.getsize(targetPath)), \
-                        ':'.join(list(map(str, addr))), remotePath))
+                        (targetPath, UtilManager.convertSize2Unit(\
+                            os.path.getsize(targetPath)), addr, remotePath))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
                     "Fail to upload %s to %s:%s because %s" % \
-                    (targetPath, ':'.join(list(map(str, addr))), \
-                    err, remotePath))
+                    (targetPath, addr, err, remotePath))
             finally:
-                sender.close()
+                netObj.close()
 
-        def onUpload(netObj, conn, value, errAddr):
+        def onUpload(netObj, value, response):
             try:
                 src, des = value.split(',')
             except:
                 SystemManager.printWarn(\
                     'Failed to recognize path', True)
-                sendErrMsg(netObj, errAddr[0], errAddr[1], \
-                    "wrong format of path, use {src, des} in format")
+                sendErrMsg(netObj,\
+                    "wrong format for path, input in the format {src, des}")
                 return
+
+            # response from command request #
+            netObj.send(response)
 
             # get select object #
             selectObj = SystemManager.getPkg('select')
 
             # get connection info #
-            receiver, addr = conn
+            addr = '%s:%s' % (netObj.ip, netObj.port)
 
             # receive file #
             try:
@@ -20994,20 +20994,21 @@ Copyright:
 
                 # receive file size #
                 while 1:
-                    size = receiver.recv(receiver.recvSize)
+                    size = netObj.recv(netObj.recvSize)
                     if not size:
                         continue
                     else:
                         totalSize = long(size.decode())
-                        receiver.send('ACK')
+                        netObj.send('ACK')
                         break
 
                 # receive file #
                 with open(targetPath, 'wb') as fd:
                     while 1:
-                        selectObj.select([receiver], [], [], 3)
+                        [read, write, error] = \
+                            selectObj.select([netObj.socket], [], [], 3)
 
-                        buf = receiver.recv(receiver.recvSize)
+                        buf = netObj.recv(netObj.recvSize)
                         if buf:
                             fd.write(buf)
                             curSize += len(buf)
@@ -21020,26 +21021,27 @@ Copyright:
                     "%s [%s] is downloaded from %s:%s successfully" % \
                     (targetPath, \
                     UtilManager.convertSize2Unit(\
-                        os.path.getsize(targetPath)), \
-                    ':'.join(list(map(str, addr))), origPath))
+                        os.path.getsize(targetPath)), addr, origPath))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
                     'Fail to download %s from %s:%s because %s' % \
-                        (origPath, ':'.join(list(map(str, addr))), \
-                        targetPath, err))
+                        (origPath, addr, targetPath, err))
             finally:
-                receiver.close()
+                netObj.close()
 
-        def onRun(netObj, conn, value, errAddr):
+        def onRun(connObj, value, response):
             def enableSigPipe():
                 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+            # response from command request #
+            connObj.send(response)
 
             # get subprocess object #
             subprocess = SystemManager.getPkg('subprocess')
 
             # get connection info #
-            sock, addr = conn
+            addr = '%s:%s' % (connObj.ip, connObj.port)
 
             # convert Guider path #
             if value.startswith('GUIDER '):
@@ -21049,12 +21051,6 @@ Copyright:
 
             # run command #
             try:
-                # create socket for stream #
-                pipeObj = NetworkManager(\
-                    'client', addr[0], addr[1], blocking=True, tcp=True)
-                pipeObj.socket.close()
-                pipeObj.socket = sock
-
                 # copy environment variables #
                 myEnv = copy.deepcopy(os.environ)
                 myEnv["REMOTERUN"] = "True"
@@ -21069,8 +21065,7 @@ Copyright:
                     preexec_fn=os.setsid)
 
                 SystemManager.printInfo(\
-                    "'%s' command is executed for %s" % \
-                    (value, ':'.join(list(map(str, addr)))))
+                    "'%s' command is executed for %s" % (value, addr))
 
                 # get select object #
                 selectObj = SystemManager.getPkg('select')
@@ -21081,12 +21076,12 @@ Copyright:
                         # wait for event #
                         [read, write, error] = \
                             selectObj.select(\
-                                [procObj.stdout, pipeObj.socket], [], [], 1)
+                                [procObj.stdout, connObj.socket], [], [], 1)
 
                         # read output from pipe #
                         for robj in read:
                             # check connection close #
-                            if robj == pipeObj.socket:
+                            if robj == connObj.socket:
                                 raise Exception()
 
                             # handle data arrived #
@@ -21095,7 +21090,7 @@ Copyright:
                                 if output == '\n':
                                     continue
                                 elif output and len(output) > 0:
-                                    ret = pipeObj.write(output)
+                                    ret = connObj.write(output)
                                     if not ret:
                                         raise Exception()
                                 else:
@@ -21108,56 +21103,45 @@ Copyright:
                         break
 
                 SystemManager.printInfo(\
-                    "'%s' command is terminated for %s" % \
-                    (value, ':'.join(list(map(str, addr)))))
+                    "'%s' command is terminated for %s" % (value, addr))
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
-                    "Fail to execute '%s' from %s because %s" % \
-                    (value, ':'.join(list(map(str, addr))), err))
+                    "Fail to execute '%s' from %s because %s" % (value, addr, err))
             finally:
                 try:
-                    pipeObj.close()
+                    connObj.close()
 
                     os.killpg(procObj.pid, signal.SIGKILL)
                 except:
                     pass
 
-        def handleRequest(netObj, connMan, req):
-            def doConnect(req, data, connMan):
-                # send tcp server info #
-                message = '%s|%s:%s:%s' % \
-                    (req, value, connMan.ip, connMan.port)
-                netObj.sendto(message, ip, port)
-
-                # get connection #
-                try:
-                    connMan.listen()
-                    sock, addr = connMan.accept()
-                    return [sock, addr]
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    err = SystemManager.getErrReason()
-                    SystemManager.printWarn(\
-                        'Failed to connect to client because %s' % err, True)
-                    return False
+        def handleConn(connObj):
+            # read command #
+            req = connObj.recvfrom()
 
             # unmarshalling #
             if type(req) is tuple:
+                # check garbage value)
+                if req[0] == '':
+                    return
+
                 try:
                     message = req[0].decode()
                 except:
                     message = req[0]
 
-                try:
-                    ip = req[1][0]
-                    port = req[1][1]
-                    errAddr = req[1]
-                except:
-                    SystemManager.printWarn(\
-                        "Fail to get address of client from message")
-                    return False
+                if req[1] is None:
+                    ip = connObj.ip
+                    port = connObj.port
+                else:
+                    try:
+                        ip = req[1][0]
+                        port = req[1][1]
+                    except:
+                        SystemManager.printWarn(\
+                            "Fail to get address of client from message")
+                        return False
 
                 SystemManager.printInfo(\
                     "received request '%s' from %s:%s" % \
@@ -21188,34 +21172,26 @@ Copyright:
                 request != 'RUN':
                 SystemManager.printWarn(\
                     "Fail to recognize request '%s'" % message, True)
-                sendErrMsg(netObj, ip, port, \
-                    "No support request '%s'" % message)
+                sendErrMsg(connObj, "No support request '%s'" % message)
+
                 return False
+
+            # build response data #
+            response = '%s|%s' % (request, value)
 
             # create worker process #
             pid = SystemManager.createProcess()
             if pid > 0:
                 return True
 
-            # connect to client #
-            conn = doConnect(request, value, connMan)
-            if not conn:
-                sys.exit(0)
-
-            # create new network object #
-            netObj = NetworkManager('server', netObj.ip, None, True)
-
-            # close useless ports #
-            SystemManager.localServObj.close()
-
             if request == 'DOWNLOAD':
-                onDownload(netObj, conn, value, errAddr)
+                onDownload(connObj, value, response)
 
             elif request == 'UPLOAD':
-                onUpload(netObj, conn, value, errAddr)
+                onUpload(connObj, value, response)
 
             elif request == 'RUN':
-                onRun(netObj, conn, value, errAddr)
+                onRun(connObj, value, response)
 
             sys.exit(0)
 
@@ -21224,36 +21200,67 @@ Copyright:
         # start server mode #
         SystemManager.printInfo("SERVER MODE")
 
-        # import select package #
+        # import packages #
         SystemManager.getPkg('select')
+        socket = SystemManager.getPkg('socket')
 
         # get ip and port #
         if SystemManager.localServObj:
             ip = SystemManager.localServObj.ip
             port = SystemManager.localServObj.port
+            SystemManager.localServObj.close()
         else:
             ip = port = None
 
         # set address #
-        NetworkManager.setServerNetwork(ip, port, force=True, blocking=True)
+        connMan = NetworkManager.setServerNetwork(\
+            ip, port, force=True, blocking=True, tcp=True)
 
         SystemManager.printStat(\
             "run process %s as server" % SystemManager.pid)
 
-        # create tcp socket object #
-        connMan = NetworkManager(\
-            'server', SystemManager.localServObj.ip, 0, tcp=True)
-        connMan.timeout()
+        # set SA_RESTART for SIGCHLD #
+        signal.siginterrupt(signal.SIGCHLD, False)
+
+        # listen #
+        try:
+            connMan.listen()
+            connMan.timeout()
+        except:
+            SystemManager.printErr(\
+                'Fail to listen to prepare for connection because %s' % \
+                    SystemManager.getErrReason())
+            sys.exit(0)
 
         # run mainloop #
         while 1:
-            # receive request from client #
-            req = SystemManager.localServObj.recvfrom()
-            if not req:
+            # accept #
+            try:
+                sock, addr = connMan.accept()
+            except SystemExit:
+                sys.exit(0)
+            except socket.timeout:
+                continue
+            except:
+                SystemManager.printWarn(\
+                    'Fail to accept to prepare for connection because %s' % \
+                        SystemManager.getErrReason())
                 continue
 
+            SystemManager.printInfo(\
+                "Connected to client %s:%s" % (addr[0], addr[1]))
+
+            # create a TCP socket #
+            connObj = NetworkManager('server', addr[0], addr[1], tcp=True)
+            if not connObj or not connObj.ip:
+                continue
+
+            # apply connected socket to object #
+            connObj.socket = sock
+
             # handle request from client #
-            if handleRequest(SystemManager.localServObj, connMan, req):
+            if handleConn(connObj):
+                connObj.close()
                 SystemManager.printBgProcs()
 
         sys.exit(0)
@@ -21289,15 +21296,16 @@ Copyright:
         # start client mode #
         SystemManager.printInfo("CLIENT MODE")
 
-        # get connection #
-        connObj = NetworkManager.getServerConn()
-        if not connObj:
-            return
-
         # run mainloop #
         hlist = list()
         while 1:
             try:
+                # get connection #
+                connObj = NetworkManager.getServerConn()
+                if not connObj:
+                    return
+
+                # get input #
                 uinput = getUserInput()
                 if uinput.startswith('!') and \
                     len(uinput) > 1 and \
@@ -21305,6 +21313,7 @@ Copyright:
                     long(uinput[1:]) < len(hlist):
                     uinput = hlist[long(uinput[1:])]
 
+                # handle local command #
                 if len(uinput) == 0:
                     continue
                 elif uinput == '!' or uinput.upper() == 'HISTORY':
@@ -21316,6 +21325,7 @@ Copyright:
                 # backup command #
                 hlist.append(uinput)
 
+                # request command #
                 NetworkManager.requestCmd(connObj, uinput)
             except SystemExit:
                 return
@@ -21417,7 +21427,7 @@ Copyright:
                 not vals[0].isdigit() or not vals[1].isdigit():
                 SystemManager.printErr(\
                 ("wrong option value to set cpu clock, "
-                "input CORE:CLOCK(HZ){:GOVERNOR} in format"))
+                "input in the format CORE:CLOCK(HZ){:GOVERNOR}"))
                 sys.exit(0)
 
             targetlist.append(vals)
@@ -21571,7 +21581,7 @@ Copyright:
         if len(value) == 0:
             SystemManager.printErr(\
                 ("wrong option value to set priority, "
-                "input POLICY:PRIORITY|TIME:PID in format"))
+                "input in the format POLICY:PRIORITY|TIME:PID"))
             sys.exit(0)
         elif value.find('-P') >= 0:
             isProcess = True
@@ -21797,7 +21807,7 @@ Copyright:
         if os.path.isfile(inputArg):
             filePath = inputArg
             for sym in SystemManager.filterGroup:
-                # create elf object #
+                # create ELF object #
                 try:
                     resInfo[sym] = \
                         (ElfAnalyzer.getSymOffset(sym, inputArg), filePath)
@@ -21914,7 +21924,7 @@ Copyright:
         if len(sys.argv) < 3:
             SystemManager.printErr(\
                 ("wrong option value to test cpu load, "
-                "input {THREAD:}LOAD in format"))
+                "input in the format {THREAD:}LOAD"))
             sys.exit(0)
 
         # get the number of task and load #
@@ -21922,7 +21932,7 @@ Copyright:
         if len(value) > 2:
             SystemManager.printErr(\
                 ("wrong option value to test cpu load, "
-                "input {THREAD:}LOAD in format"))
+                "input in the format {THREAD:}LOAD"))
             sys.exit(0)
         elif len(value) == 2:
             try:
@@ -22029,7 +22039,7 @@ Copyright:
         else:
             SystemManager.printErr(\
                 ("wrong option value to test memory allocation, "
-                "input SIZE{:INTERVAL:COUNT} in format"))
+                "input SIZE{:INTERVAL:COUNT} in the format"))
             sys.exit(0)
 
         # convert time #
@@ -22039,7 +22049,7 @@ Copyright:
         except:
             SystemManager.printErr(\
                 ("wrong option value to test memory allocation, "
-                "input SIZE{:INTERVAL:COUNT} in format"))
+                "input SIZE{:INTERVAL:COUNT} in the format"))
             sys.exit(0)
 
         # check size type #
@@ -22323,6 +22333,12 @@ Copyright:
     @staticmethod
     def terminateTasks(targetList):
         for pid in targetList:
+            # check task #
+            try:
+                os.kill(pid, 0)
+            except:
+                continue
+
             try:
                 os.kill(pid, signal.SIGKILL)
             except:
@@ -22532,7 +22548,7 @@ Copyright:
         if len(value) == 0:
             SystemManager.printErr(\
                 ("wrong option value %s with -Y, "
-                "input POLICY:PRIORITY|TIME:PID in format") % value)
+                "input POLICY:PRIORITY|TIME:PID in the format") % value)
             sys.exit(0)
 
         # check root permission #
@@ -22631,7 +22647,7 @@ Copyright:
                 err = map(str, sys.exc_info()[1].args)
                 SystemManager.printErr((\
                     "wrong option value %s with -Y because %s, "
-                    "input POLICY:PRIORITY|TIME:PID in format") % \
+                    "input in the format POLICY:PRIORITY|TIME:PID") % \
                     (item, ' '.join(list(err))))
                 sys.exit(0)
 
@@ -26115,7 +26131,7 @@ class DbusAnalyzer(object):
                 "Fail to load library to analyze dbus packets because %s" % err)
             sys.exit(0)
 
-	# define error object #
+        # define error object #
         class GError(Structure):
             _fields_ = (
                 ("domain", c_uint32),
@@ -26467,7 +26483,7 @@ class DbusAnalyzer(object):
                     except:
                         SystemManager.printWarn(\
                             "Fail to get type of GDbusMessage because %s" % \
-                            SystemManger.getErrReason())
+                            SystemManager.getErrReason())
                         continue
 
                     # check sent data #
