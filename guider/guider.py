@@ -3371,7 +3371,7 @@ class NetworkManager(object):
 
             SystemManager.printErr(\
                 "Fail to create socket with %s:%s as server because %s%s" % \
-                (self.ip, self.port, err, feedback))
+                    (self.ip, self.port, err, feedback))
 
             '''
             if error "99 Cannot assign requested address" occurs:
@@ -4194,7 +4194,6 @@ class NetworkManager(object):
             except:
                 SystemManager.printWarn(\
                     "Fail to open %s to read effective ip addresses" % path)
-                return effectiveList
 
         return list(effectiveList.keys())
 
