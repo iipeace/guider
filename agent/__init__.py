@@ -60,7 +60,7 @@ def createApp(config_filename=None):
     # define flask object #
     app = CustomFlask(__name__,
             template_folder='templates',
-            static_folder='../guider-vue/static')
+            static_folder='./static')
     if config_filename:
         app.config.from_pyfile(config_filename)
 
