@@ -20469,6 +20469,7 @@ Copyright:
 
             runtime = '?'
 
+            # comm #
             try:
                 statPath = "%s/%s/stat" % (SystemManager.procPath, pid)
                 with open(statPath, 'r') as fd:
@@ -20492,6 +20493,7 @@ Copyright:
             except:
                 pass
 
+            # runtime #
             if runtime != '?':
                 try:
                     m, s = divmod(runtime, 60)
@@ -20500,17 +20502,31 @@ Copyright:
                 except:
                     pass
 
+            # socket #
             try:
                 objs = SystemManager.getProcSocketObjs(pid)
                 addrs = SystemManager.getSocketAddrList(objs)
-                netList = ','.join(addrs)
+
+                # merge address #
+                netDict = {}
+                for item in addrs:
+                    addr, stat = item.split('/')
+                    if not addr in netDict:
+                        netDict[addr] = list()
+                    netDict[addr].append(stat)
+
+                # build string #
+                netList = ''
+                for addr, stat in netDict.items():
+                    netList = '%s%s/%s,' % (netList, addr, '/'.join(stat))
                 if len(netList) > 0:
-                    network = '(%s)' % netList
+                    network = '(%s)' % netList[:-1]
                 else:
                     network = ''
             except:
                 network = ''
 
+            # cmdline #
             try:
                 cmdline = SystemManager.getCmdline(pid)
             except:
