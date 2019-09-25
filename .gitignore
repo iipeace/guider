@@ -10,7 +10,7 @@
 *.report
 __pycache__
 build
-dist
+static
 
 # virtualenv
 .python-version

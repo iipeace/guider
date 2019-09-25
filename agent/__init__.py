@@ -59,7 +59,8 @@ class CustomFlask(Flask):
 def createApp(config_filename=None):
     # define flask object #
     app = CustomFlask(__name__,
-            template_folder='templates',
+            template_folder='./static',
+            static_url_path='',
             static_folder='./static')
     if config_filename:
         app.config.from_pyfile(config_filename)
