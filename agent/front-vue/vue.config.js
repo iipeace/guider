@@ -1,7 +1,7 @@
 const webpack = require('webpack');
 
 module.exports = {
-  outputDir: '../agent/static',
+  outputDir: '../static',
   lintOnSave: false,
   devServer: {
     compress: true,
