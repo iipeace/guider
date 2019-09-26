@@ -47,7 +47,8 @@ It usually supports all platforms based on the Linux kernel as shown below.
 * webOS
 * ccOS
 * Tizen
-* Windows (only for drawing, reporting, networking)
+* Windows (Some features only)
+* macOS (Some features only)
 
 The features of Guider are as follows.
 ![guider_mindmap](https://user-images.githubusercontent.com/15862689/46118768-27bb8c00-c243-11e8-8fae-a23c38d5bca3.png)
@@ -944,12 +945,14 @@ COMMAND:
                 usertop     <usercall>
                 strace      <syscall>
                 utrace      <usercall>
+                dlttop      <DLT>
+                dbustop     <D-Bus>
 
-    [profile]   record      <thread>
-                funcrecord  <function>
-                filerecord  <file>
-                syscrecord  <syscall>
-                sysrecord   <system>
+    [profile]   rec         <thread>
+                funcrec     <function>
+                filerec     <file>
+                sysrec      <syscall>
+                genrec      <system>
                 report      <report>
                 mem         <page>
 
@@ -967,14 +970,20 @@ COMMAND:
                 limitcpu    <cpu>
                 setcpu      <clock>
                 setsched    <priority>
-                getaffinity <affinity>
-                setaffinity <affinity>
+                getafnt     <affinity>
+                setafnt     <affinity>
                 pstree      <tree>
                 printenv    <env>
-                printsystem <system>
+                printinfo   <system>
                 readelf     <file>
                 addr2line   <symbol>
+                sym2line    <addr>
                 leaktrace   <leak>
+                printcgrp   <cgroup>
+
+    [log]       printkmsg   <KMSG>
+                printdlt    <DLT>
+                logdlt      <DLT>
 
     [control]   list        <list>
                 start       <signal>
