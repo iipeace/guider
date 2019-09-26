@@ -47,7 +47,8 @@ It usually supports all platforms based on the Linux kernel as shown below.
 * webOS
 * ccOS
 * Tizen
-* Windows (only for drawing, reporting, networking)
+* Windows (Some features only)
+* macOS (Some features only)
 
 The features of Guider are as follows.
 ![guider_mindmap](https://user-images.githubusercontent.com/15862689/46118768-27bb8c00-c243-11e8-8fae-a23c38d5bca3.png)
