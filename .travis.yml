@@ -22,7 +22,7 @@ matrix:
       node_js:
         - 10
       before_install:
-        - cd guider-vue
+        - cd agent/front-vue
       install:
         - npm install
         - npm run build
