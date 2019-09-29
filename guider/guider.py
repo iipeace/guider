@@ -3760,6 +3760,7 @@ class NetworkManager(object):
                 # get only data #
                 output = output[0]
 
+                # composite packets #
                 data = data + output
                 if len(output) == 0:
                     break
@@ -3775,11 +3776,12 @@ class NetworkManager(object):
                 (self.ip, self.port, err))
             return None
 
+        # decode data #
         try:
             retstr = data.decode()
             return retstr
         except:
-            return None
+            return data
 
 
 
@@ -3857,7 +3859,7 @@ class NetworkManager(object):
         try:
             connObj.handleServerRequest(reply)
         except:
-            pass
+            return
 
 
 
@@ -3867,7 +3869,8 @@ class NetworkManager(object):
             return None
 
         # add command prefix #
-        cmd = 'run:%s' % cmd
+        if not cmd.startswith('run:'):
+            cmd = 'run:%s' % cmd
 
         # send request to server #
         connObj.send(cmd)
@@ -20271,15 +20274,16 @@ Copyright:
 
 
     @staticmethod
-    def updateBgProcs():
+    def updateBgProcs(cache=False):
+        if SystemManager.bgProcList and cache:
+            return
         SystemManager.bgProcList = SystemManager.getBgProcList()
 
 
 
     @staticmethod
     def checkBgProcs():
-        if not SystemManager.bgProcList:
-            SystemManager.updateBgProcs()
+        SystemManager.updateBgProcs()
 
         if len(SystemManager.bgProcList) > 0:
             ppid = os.getppid()
@@ -20303,9 +20307,8 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcCount():
-        if not SystemManager.bgProcList:
-            SystemManager.updateBgProcs()
+    def getBgProcCount(cache=False):
+        SystemManager.updateBgProcs(cache)
 
         return SystemManager.bgProcList.count('\n')
 
@@ -20329,9 +20332,8 @@ Copyright:
 
 
     @staticmethod
-    def printBgProcs(forceUpdate=False):
-        if forceUpdate or not SystemManager.bgProcList:
-            SystemManager.updateBgProcs()
+    def printBgProcs(cache=False):
+        SystemManager.updateBgProcs(cache)
 
         procList = SystemManager.bgProcList
 
@@ -21124,12 +21126,11 @@ Copyright:
             finally:
                 try:
                     connObj.close()
-
                     os.killpg(procObj.pid, signal.SIGKILL)
                 except:
                     pass
 
-        def handleConn(connObj):
+        def handleConn(connObj, connMan):
             # read command #
             req = connObj.recvfrom()
 
@@ -21196,6 +21197,9 @@ Copyright:
             pid = SystemManager.createProcess()
             if pid > 0:
                 return True
+
+            # close listen socket of parent #
+            connMan.close()
 
             if request == 'DOWNLOAD':
                 onDownload(connObj, value, response)
@@ -21272,9 +21276,9 @@ Copyright:
             connObj.socket = sock
 
             # handle request from client #
-            if handleConn(connObj):
+            if handleConn(connObj, connMan):
                 connObj.close()
-                SystemManager.printBgProcs(True)
+                SystemManager.printBgProcs()
 
         sys.exit(0)
 
@@ -21340,6 +21344,21 @@ Copyright:
 
                 # request command #
                 NetworkManager.requestCmd(connObj, uinput)
+
+                pipe = NetworkManager.getCmdPipe(connObj, uinput)
+                if not pipe:
+                    print('\nFail to get command pipe')
+                    sys.exit(0)
+
+                while 1:
+                    output = pipe.getData()
+                    if not output:
+                        break
+
+                    dataType = pipe.getDataType(output)
+
+                    print(output[:-1])
+
             except SystemExit:
                 return
             except:
@@ -23581,7 +23600,7 @@ Copyright:
             sys.exit(0)
         elif stat == '1':
             # no running Guider process except for myself #
-            if SystemManager.getBgProcCount() <= 1:
+            if SystemManager.getBgProcCount(cache=True) <= 1:
                 res = SystemManager.readCmdVal('enable')
                 # default status #
                 if res == '0' or SystemManager.forceEnable:
