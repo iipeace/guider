@@ -3625,8 +3625,6 @@ class NetworkManager(object):
 
             # handle request #
             if not req:
-                SystemManager.printErr(\
-                    'Fail to recognize the request')
                 return
 
             elif req.upper().startswith('DOWNLOAD'):
@@ -20331,8 +20329,8 @@ Copyright:
 
 
     @staticmethod
-    def printBgProcs():
-        if not SystemManager.bgProcList:
+    def printBgProcs(forceUpdate=False):
+        if forceUpdate or not SystemManager.bgProcList:
             SystemManager.updateBgProcs()
 
         procList = SystemManager.bgProcList
@@ -20436,7 +20434,7 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcList():
+    def getBgProcList(checkCmdline=False):
         nrProc = 0
         printBuf = ''
         myPid = str(SystemManager.pid)
@@ -20448,7 +20446,7 @@ Copyright:
         # get my comm #
         myComm = SystemManager.getComm(SystemManager.pid)
 
-        # get my comm #
+        # get my cmdline #
         myCmdline = SystemManager.getCmdline(SystemManager.pid).split()
 
         pids = os.listdir(SystemManager.procPath)
@@ -20462,7 +20460,7 @@ Copyright:
                 continue
 
             # check cmdline again #
-            if myComm != __module__:
+            if myComm != __module__ and checkCmdline:
                 cmdlineList = SystemManager.getCmdline(pid).split()
                 if len(cmdlineList) > 2 and myCmdline[:2] != cmdlineList[:2]:
                     continue
@@ -21175,7 +21173,7 @@ Copyright:
             # handle request #
             if not request:
                 SystemManager.printWarn(\
-                    'Fail to recognize request', True)
+                    'Fail to recognize the request', True)
                 return False
 
             # convert request to capital #
@@ -21186,7 +21184,7 @@ Copyright:
                 request != 'UPLOAD' and \
                 request != 'RUN':
                 SystemManager.printWarn(\
-                    "Fail to recognize request '%s'" % message, True)
+                    "Fail to recognize the request '%s'" % message, True)
                 sendErrMsg(connObj, "No support request '%s'" % message)
 
                 return False
@@ -21276,7 +21274,7 @@ Copyright:
             # handle request from client #
             if handleConn(connObj):
                 connObj.close()
-                SystemManager.printBgProcs()
+                SystemManager.printBgProcs(True)
 
         sys.exit(0)
 
@@ -48351,7 +48349,7 @@ class ThreadAnalyzer(object):
                 # wrong request or just data from server #
                 else:
                     SystemManager.printErr(\
-                        "Fail to recognize request from client")
+                        "Fail to recognize the request from client")
 
 
 
