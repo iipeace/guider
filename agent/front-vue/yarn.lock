@@ -24,7 +24,7 @@
     convert-source-map "^1.1.0"
     debug "^4.1.0"
     json5 "^2.1.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
     resolve "^1.3.2"
     semver "^5.4.1"
     source-map "^0.5.0"
@@ -36,7 +36,7 @@
   dependencies:
     "@babel/types" "^7.2.0"
     jsesc "^2.5.1"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
     source-map "^0.5.0"
     trim-right "^1.0.1"
 
@@ -82,7 +82,7 @@
   dependencies:
     "@babel/helper-function-name" "^7.1.0"
     "@babel/types" "^7.0.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
 
 "@babel/helper-explode-assignable-expression@^7.1.0":
   version "7.1.0"
@@ -139,7 +139,7 @@
     "@babel/helper-split-export-declaration" "^7.0.0"
     "@babel/template" "^7.1.0"
     "@babel/types" "^7.0.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
 
 "@babel/helper-optimise-call-expression@^7.0.0":
   version "7.0.0"
@@ -158,7 +158,7 @@
   resolved "https://registry.yarnpkg.com/@babel/helper-regex/-/helper-regex-7.0.0.tgz#2c1718923b57f9bbe64705ffe5640ac64d9bdb27"
   integrity sha512-TR0/N0NDCcUIUEbqV6dCO+LptmmSQFQ7q70lfcEB4URsjD0E1HzicrwUH+ap6BAQ2jhCX9Q4UqZy4wilujWlkg==
   dependencies:
-    lodash "^4.17.10"
+    lodash "^4.17.13"
 
 "@babel/helper-remap-async-to-generator@^7.1.0":
   version "7.1.0"
@@ -367,7 +367,7 @@
   integrity sha512-vDTgf19ZEV6mx35yiPJe4fS02mPQUUcBNwWQSZFXSzTSbsJFQvHt7DqyS3LK8oOWALFOsJ+8bbqBgkirZteD5Q==
   dependencies:
     "@babel/helper-plugin-utils" "^7.0.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
 
 "@babel/plugin-transform-classes@^7.2.0":
   version "7.2.0"
@@ -647,7 +647,7 @@
     "@babel/types" "^7.1.6"
     debug "^4.1.0"
     globals "^11.1.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
 
 "@babel/types@^7.0.0", "@babel/types@^7.1.2", "@babel/types@^7.1.6", "@babel/types@^7.2.0":
   version "7.2.0"
@@ -655,7 +655,7 @@
   integrity sha512-b4v7dyfApuKDvmPb+O488UlGuR1WbwMXFsO/cyqMrnfvRAChZKJAYeeglWTjUO1b9UghKKgepAQM5tsvBJca6A==
   dependencies:
     esutils "^2.0.2"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
     to-fast-properties "^2.0.0"
 
 "@intervolga/optimize-cssnano-plugin@^1.0.5":
@@ -838,7 +838,7 @@
     hash-sum "^1.0.2"
     html-webpack-plugin "^3.2.0"
     launch-editor-middleware "^2.2.1"
-    lodash.defaultsdeep "^4.6.0"
+    lodash.defaultsdeep "^4.6.1"
     lodash.mapvalues "^4.6.0"
     lodash.transform "^4.6.0"
     mini-css-extract-plugin "^0.5.0"
@@ -2316,7 +2316,7 @@ css-loader@^1.0.1:
     css-selector-tokenizer "^0.7.0"
     icss-utils "^2.1.0"
     loader-utils "^1.0.2"
-    lodash "^4.17.11"
+    lodash "^4.17.13"
     postcss "^6.0.23"
     postcss-modules-extract-imports "^1.2.0"
     postcss-modules-local-by-default "^1.2.0"
@@ -3002,7 +3002,7 @@ eslint@^4.19.1:
     js-yaml "^3.13.1"
     json-stable-stringify-without-jsonify "^1.0.1"
     levn "^0.3.0"
-    lodash "^4.17.4"
+    lodash "^4.17.13"
     minimatch "^3.0.2"
     mkdirp "^0.5.1"
     natural-compare "^1.4.0"
@@ -3686,7 +3686,7 @@ globule@^1.0.0:
   resolved "https://registry.yarnpkg.com/globule/-/globule-1.2.0.tgz#1dc49c6822dd9e8a2fa00ba2a295006e8664bd09"
   dependencies:
     glob "~7.1.1"
-    lodash "~4.17.4"
+    lodash "^4.17.13"
     minimatch "~3.0.2"
 
 graceful-fs@^4.1.11, graceful-fs@^4.1.2, graceful-fs@^4.1.6:
@@ -3909,7 +3909,7 @@ html-webpack-plugin@^3.2.0:
   dependencies:
     html-minifier "^3.2.3"
     loader-utils "^0.2.16"
-    lodash "^4.17.3"
+    lodash "^4.17.13"
     pretty-error "^2.0.2"
     tapable "^1.0.0"
     toposort "^1.0.0"
@@ -3956,7 +3956,7 @@ http-proxy-middleware@~0.18.0:
   dependencies:
     http-proxy "^1.16.2"
     is-glob "^4.0.0"
-    lodash "^4.17.5"
+    lodash "^4.17.13"
     micromatch "^3.1.9"
 
 http-proxy@^1.16.2:
@@ -4101,7 +4101,7 @@ inquirer@^3.0.6:
     cli-width "^2.0.0"
     external-editor "^2.0.4"
     figures "^2.0.0"
-    lodash "^4.3.0"
+    lodash "^4.17.13"
     mute-stream "0.0.7"
     run-async "^2.2.0"
     rx-lite "^4.0.8"
@@ -4679,9 +4679,9 @@ lodash.clonedeep@^4.3.2:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.clonedeep/-/lodash.clonedeep-4.5.0.tgz#e23f3f9c4f8fbdde872529c1071857a086e5ccef"
 
-lodash.defaultsdeep@^4.6.0:
-  version "4.6.0"
-  resolved "https://registry.yarnpkg.com/lodash.defaultsdeep/-/lodash.defaultsdeep-4.6.0.tgz#bec1024f85b1bd96cbea405b23c14ad6443a6f81"
+lodash.defaultsdeep@^4.6.1:
+  version "4.6.1"
+  resolved "https://registry.yarnpkg.com/lodash.defaultsdeep/-/lodash.defaultsdeep-4.6.1.tgz#512e9bd721d272d94e3d3a63653fa17516741ca6"
 
 lodash.kebabcase@^4.1.1:
   version "4.1.1"
@@ -4704,10 +4704,9 @@ lodash.tail@^4.1.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/lodash.tail/-/lodash.tail-4.1.1.tgz#d2333a36d9e7717c8ad2f7cacafec7c32b444664"
 
-lodash.template@^4.4.0:
-  version "4.4.0"
-  resolved "https://registry.yarnpkg.com/lodash.template/-/lodash.template-4.4.0.tgz#e73a0385c8355591746e020b99679c690e68fba0"
-  integrity sha1-5zoDhcg1VZF0bgILmWecaQ5o+6A=
+lodash.template@^4.5.0:
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/lodash.template/-/lodash.template-4.5.0.tgz#f976195cf3f347d0d5f52483569fe8031ccce8ab"
   dependencies:
     lodash._reinterpolate "~3.0.0"
     lodash.templatesettings "^4.0.0"
@@ -4727,18 +4726,9 @@ lodash.uniq@^4.5.0:
   version "4.5.0"
   resolved "https://registry.yarnpkg.com/lodash.uniq/-/lodash.uniq-4.5.0.tgz#d0225373aeb652adc1bc82e4945339a842754773"
 
-lodash@^4.0.0, lodash@^4.17.3, lodash@^4.17.4, lodash@^4.17.5, lodash@^4.3.0, lodash@~4.17.4:
-  version "4.17.5"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.5.tgz#99a92d65c0272debe8c96b6057bc8fbfa3bed511"
-
-lodash@^4.13.1:
-  version "4.17.10"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.10.tgz#1b7793cf7259ea38fb3661d4d38b3260af8ae4e7"
-
-lodash@^4.17.10, lodash@^4.17.11:
-  version "4.17.11"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.11.tgz#b39ea6229ef607ecd89e2c8df12536891cac9b8d"
-  integrity sha512-cQKh8igo5QUhZ7lg38DYWAxMvjSAKG0A8wGSVimP07SIUEK2UO+arSRKbRZWtelMtN5V0Hkwh5ryOto/SshYIg==
+lodash@^4.17.13:
+  version "4.17.13"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.13.tgz#0bdc3a6adc873d2f4e0c4bac285df91b64fc7b93"
 
 log-symbols@^2.2.0:
   version "2.2.0"
@@ -6730,7 +6720,7 @@ request-promise-core@1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/request-promise-core/-/request-promise-core-1.1.1.tgz#3eee00b2c5aa83239cfb04c5700da36f81cd08b6"
   dependencies:
-    lodash "^4.13.1"
+    lodash "^4.17.13"
 
 request-promise-native@^1.0.5:
   version "1.0.5"
@@ -6923,7 +6913,7 @@ sass-graph@^2.2.4:
   resolved "https://registry.yarnpkg.com/sass-graph/-/sass-graph-2.2.4.tgz#13fbd63cd1caf0908b9fd93476ad43a51d1e0b49"
   dependencies:
     glob "^7.0.0"
-    lodash "^4.0.0"
+    lodash "^4.17.13"
     scss-tokenizer "^0.2.3"
     yargs "^7.0.0"
 
@@ -7539,7 +7529,7 @@ table@4.0.2:
     ajv "^5.2.3"
     ajv-keywords "^2.1.0"
     chalk "^2.1.0"
-    lodash "^4.17.4"
+    lodash "^4.17.13"
     slice-ansi "1.0.0"
     string-width "^2.1.1"
 
@@ -8014,7 +8004,7 @@ vue-eslint-parser@^2.0.3:
     eslint-visitor-keys "^1.0.0"
     espree "^3.5.2"
     esquery "^1.0.0"
-    lodash "^4.17.4"
+    lodash "^4.17.13"
 
 vue-hot-reload-api@^2.3.0:
   version "2.3.0"
@@ -8116,7 +8106,7 @@ webpack-bundle-analyzer@^3.3.2:
     express "^4.16.3"
     filesize "^3.6.1"
     gzip-size "^5.0.0"
-    lodash "^4.17.10"
+    lodash "^4.17.13"
     mkdirp "^0.5.1"
     opener "^1.5.1"
     ws "^6.0.0"
@@ -8188,7 +8178,7 @@ webpack-merge@^4.2.1:
   resolved "https://registry.yarnpkg.com/webpack-merge/-/webpack-merge-4.2.1.tgz#5e923cf802ea2ace4fd5af1d3247368a633489b4"
   integrity sha512-4p8WQyS98bUJcCvFMbdGZyZmsKuWjWVnVHnAS3FFg0HDaRVrPbkivx2RYCre8UiemD67RsiFFLfn4JhLAin8Vw==
   dependencies:
-    lodash "^4.17.5"
+    lodash "^4.17.13"
 
 webpack-sources@^1.1.0:
   version "1.1.0"
@@ -8294,7 +8284,7 @@ workbox-build@^3.6.3:
     fs-extra "^4.0.2"
     glob "^7.1.2"
     joi "^11.1.1"
-    lodash.template "^4.4.0"
+    lodash.template "^4.5.0"
     pretty-bytes "^4.0.2"
     stringify-object "^3.2.2"
     strip-comments "^1.0.2"
