@@ -15471,6 +15471,14 @@ Copyright:
     @staticmethod
     def writeSyscallCmd(enable):
         scmd = ""
+        defaultList = [
+            'sys_execve',
+            'sys_nice',
+            'sys_setpriority',
+            'sys_sched_setparam',
+            'sys_sched_setscheduler',
+            'sys_ioprio_set',
+            ]
 
         if SystemManager.isFunctionMode() and \
             not SystemManager.heapEnable:
@@ -15478,6 +15486,7 @@ Copyright:
         else:
             cmd = 'raw_syscalls/enable'
 
+        # specific syscalls #
         if enable:
             sfilter = ""
             pfilter = SystemManager.getPidFilter()
@@ -15490,14 +15499,26 @@ Copyright:
             if len(sfilter) > 0 and len(pfilter) > 0:
                 scmd = "(%s && %s)" % (sfilter, pfilter)
             elif len(sfilter) > 0:
-                scmd = "%s || ( id == %s )" % \
-                    (sfilter, ConfigManager.sysList.index("sys_execve"))
+                scmd = sfilter
+                for item in defaultList:
+                    try:
+                        scmd = "%s || ( id == %s )" % \
+                            (scmd, ConfigManager.sysList.index(item))
+                    except:
+                        continue
             elif len(pfilter) > 0:
                 scmd = "(%s)" % pfilter
             else:
                 pass
+        # default syscalls #
         else:
-            scmd = "( id == %s )" % ConfigManager.sysList.index("sys_execve")
+            for item in defaultList:
+                try:
+                    scmd = "%s || ( id == %s )" % \
+                        (scmd, ConfigManager.sysList.index(item))
+                except:
+                    continue
+            scmd = scmd[scmd.find("("):]
 
         SystemManager.writeCmd('raw_syscalls/filter', scmd)
         SystemManager.writeCmd(cmd, '1')
@@ -23532,48 +23553,12 @@ Copyright:
 
 
     def initCmdList(self):
-        self.cmdList["sched/sched_switch"] = SystemManager.cpuEnable
-        self.cmdList["sched/sched_migrate_task"] = SystemManager.cpuEnable
+        sm = SystemManager
+
+        # default #
         self.cmdList["sched/sched_process_fork"] = True
         self.cmdList["sched/sched_process_exit"] = True
         self.cmdList["sched/sched_process_wait"] = True
-        self.cmdList["sched/sched_wakeup"] = \
-            self.cmdList["sched/sched_wakeup_new"] = \
-            (SystemManager.cpuEnable and SystemManager.latEnable) or \
-            SystemManager.depEnable
-        self.cmdList["irq"] = SystemManager.irqEnable
-        self.cmdList["raw_syscalls"] = SystemManager.sysEnable | \
-            SystemManager.depEnable | SystemManager.lockEnable
-        self.cmdList["kmem/mm_page_alloc"] = SystemManager.memEnable
-        self.cmdList["kmem/mm_page_free"] = SystemManager.memEnable
-        self.cmdList["kmem/mm_page_free_direct"] = False
-        self.cmdList["kmem/kmalloc"] = SystemManager.memEnable
-        self.cmdList["kmem/kfree"] = SystemManager.memEnable
-        self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
-        self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = \
-            SystemManager.memEnable
-        self.cmdList["timer/hrtimer_start"] = False
-        self.cmdList["block/block_bio_queue"] = SystemManager.blockEnable
-        self.cmdList["block/block_rq_complete"] = SystemManager.blockEnable
-        self.cmdList["writeback/writeback_dirty_page"] = \
-            SystemManager.blockEnable
-        self.cmdList["writeback/wbc_writepage"] = SystemManager.blockEnable
-        self.cmdList["net/net_dev_xmit"] = SystemManager.networkEnable
-        self.cmdList["net/netif_receive_skb"] = SystemManager.networkEnable
-        self.cmdList["uprobes"] = SystemManager.ueventEnable
-        self.cmdList["kprobes"] = SystemManager.keventEnable
-        self.cmdList["filelock/locks_get_lock_context"] = \
-            SystemManager.lockEnable
-        self.cmdList["power/cpu_idle"] = SystemManager.powerEnable
-        # toDo #
-        self.cmdList["power/cpu_frequency"] = SystemManager.powerEnable
-        self.cmdList["power/suspend_resume"] = SystemManager.powerEnable
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
-            SystemManager.memEnable
-        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = \
-            SystemManager.memEnable
-        self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
-        self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
         self.cmdList["task"] = True
         self.cmdList["signal"] = True
         self.cmdList["printk"] = True
@@ -23581,6 +23566,52 @@ Copyright:
         self.cmdList["module/module_free"] = True
         self.cmdList["module/module_put"] = True
         self.cmdList["module/module_get"] = True
+
+        # sched #
+        self.cmdList["sched/sched_switch"] = \
+            self.cmdList["sched/sched_migrate_task"] = sm.cpuEnable
+        self.cmdList["sched/sched_wakeup"] = \
+            self.cmdList["sched/sched_wakeup_new"] = \
+            (sm.cpuEnable and sm.latEnable) or sm.depEnable
+
+        self.cmdList["irq"] = sm.irqEnable
+
+        self.cmdList["raw_syscalls"] = \
+            sm.sysEnable | sm.depEnable | sm.lockEnable
+
+        # mem #
+        self.cmdList["kmem/mm_page_alloc"] = \
+            self.cmdList["kmem/mm_page_free"] = \
+            self.cmdList["kmem/kmalloc"] = \
+            self.cmdList["kmem/kfree"] = \
+            self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = \
+            self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
+            self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = \
+                sm.memEnable
+        self.cmdList["kmem/mm_page_free_direct"] = False
+        self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
+        self.cmdList["timer/hrtimer_start"] = False
+        self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
+        self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
+
+        # bio #
+        self.cmdList["block/block_bio_queue"] = \
+            self.cmdList["block/block_rq_complete"] = \
+            self.cmdList["writeback/writeback_dirty_page"] = \
+            self.cmdList["writeback/wbc_writepage"] = sm.blockEnable
+
+        # network #
+        self.cmdList["net/net_dev_xmit"] = \
+            self.cmdList["net/netif_receive_skb"] = sm.networkEnable
+
+        self.cmdList["uprobes"] = sm.ueventEnable
+        self.cmdList["kprobes"] = sm.keventEnable
+        self.cmdList["filelock/locks_get_lock_context"] = sm.lockEnable
+
+        # power #
+        self.cmdList["power/cpu_idle"] = \
+            self.cmdList["power/cpu_frequency"] = \
+            self.cmdList["power/suspend_resume"] = sm.powerEnable
 
 
 
