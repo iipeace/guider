@@ -20307,6 +20307,9 @@ Copyright:
 
     @staticmethod
     def checkBgProcs():
+        if not SystemManager.isLinux:
+            return
+
         SystemManager.updateBgProcs()
 
         if len(SystemManager.bgProcList) > 0:
