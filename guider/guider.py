@@ -3762,9 +3762,17 @@ class NetworkManager(object):
 
                 # composite packets #
                 data = data + output
+
                 if len(output) == 0:
                     break
-                elif len(output) < self.recvSize and \
+
+                # decode data #
+                try:
+                    output = output.decode()
+                except:
+                    pass
+
+                if len(output) < self.recvSize and \
                     output[-1] == '\n':
                     break
         except SystemExit:
