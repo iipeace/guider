@@ -21370,11 +21370,13 @@ Copyright:
                 hlist.append(uinput)
 
                 # request command #
+                '''
                 NetworkManager.requestCmd(connObj, uinput)
+                '''
 
                 pipe = NetworkManager.getCmdPipe(connObj, uinput)
                 if not pipe:
-                    print('\nFail to get command pipe')
+                    SystemManager.printErr('Fail to get command pipe')
                     sys.exit(0)
 
                 while 1:
