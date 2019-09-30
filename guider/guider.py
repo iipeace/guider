@@ -34248,6 +34248,8 @@ class ThreadAnalyzer(object):
 
                             cpuProcUsage["[ TOTAL ]"]['usage'] = \
                                 ' '.join(list(map(str,filterTotal)))
+
+                            cpuProcUsage["[ TOTAL ]"]['count'] = 1
                         else:
                             filterTotal = list(map(int, \
                                 cpuProcUsage["[ TOTAL ]"]['usage'].split()))
@@ -34257,6 +34259,8 @@ class ThreadAnalyzer(object):
 
                             cpuProcUsage["[ TOTAL ]"]['usage'] = \
                                 ' '.join(list(map(str,filterTotal)))
+
+                            cpuProcUsage["[ TOTAL ]"]['count'] += 1
 
                         cpuProcUsage["[ TOTAL ]"]['minimum'] = \
                             min(filterTotal)
@@ -35103,7 +35107,8 @@ class ThreadAnalyzer(object):
 
                 #-------------------- Process CPU usage --------------------#
                 # total CPU usage of processes filtered #
-                if "[ TOTAL ]" in cpuProcUsage:
+                if "[ TOTAL ]" in cpuProcUsage and \
+                    cpuProcUsage["[ TOTAL ]"]['count'] > 1:
                     totalUsage = cpuProcUsage["[ TOTAL ]"]['usage'].split()
                     totalUsage = list(map(int, totalUsage))[:lent]
 
@@ -35138,7 +35143,7 @@ class ThreadAnalyzer(object):
                             alpha=0.3), horizontalalignment='center')
                         break
 
-                    cpuProcUsage.pop("[ TOTAL ]", None)
+                cpuProcUsage.pop("[ TOTAL ]", None)
 
                 # define top variable #
                 if SystemManager.nrTop:
