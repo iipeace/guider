@@ -4232,9 +4232,12 @@ class NetworkManager(object):
         ipList = NetworkManager.getUsingIps()
 
         # remove invaild ip #
-        ipList.remove('0.0.0.0')
+        try:
+            ipList.remove('0.0.0.0')
+        except:
+            pass
 
-        if len(ipList) == 0:
+        if not ipList or len(ipList) == 0:
             return None
         elif '127.0.0.1' in ipList:
             return '127.0.0.1'
@@ -24664,6 +24667,9 @@ Copyright:
 
     def updateDiskInfo(self, time, data):
         self.diskInfo[time] = dict()
+
+        if not data:
+            return
 
         for l in data:
             values = l.split()
