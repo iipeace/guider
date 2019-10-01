@@ -15481,10 +15481,13 @@ Copyright:
         scmd = ""
         defaultList = [
             'sys_execve',
+            'sys_execveat',
             'sys_nice',
             'sys_setpriority',
             'sys_sched_setparam',
             'sys_sched_setscheduler',
+            'sys_sched_setattr',
+            'sys_bpf',
             'sys_ioprio_set',
             ]
 
@@ -38440,8 +38443,38 @@ class ThreadAnalyzer(object):
                         call = syscall[4:]
                         nrArgs = len(proto[call][1])
                         if nrArgs > 0:
-                            param = '(%s)' % ','.join(\
-                                param[1:-1].split(',')[:nrArgs])
+                            paramlist = param[1:-1].split(',')[:nrArgs]
+                            # convert values #
+                            try:
+                                for idx, args in enumerate(proto[call][1]):
+                                    val = paramlist[idx]
+
+                                    # check type #
+                                    if '*' in args[0]:
+                                        paramlist[idx] = '0x%s' % val.strip()
+                                        continue
+                                    if not 'int' in args[0] and \
+                                        not 'short' in args[0] and \
+                                        not 'long' in args[0]:
+                                        paramlist[idx] = '0x%s' % val.strip()
+                                        continue
+
+                                    # type casting #
+                                    if 'unsigned' in args[0]:
+                                        paramlist[idx] = str(long(val, 16))
+                                        continue
+
+                                    val = int(val, 16)
+                                    if 'short' in args[0]:
+                                        paramlist[idx] = \
+                                            -(val & 0x8000) | (val & 0x7fff)
+                                    elif 'int' in args[0]:
+                                        paramlist[idx] = \
+                                            -(val & 0x80000000) | (val & 0x7fffffff)
+                            except:
+                                pass
+
+                            param = '(%s)' % ', '.join(list(map(str, paramlist)))
                         else:
                             param = ' '
                     except:
