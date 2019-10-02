@@ -16368,8 +16368,10 @@ Copyright:
 
     @staticmethod
     def faultHandler(signum, frame):
+        '''
         SystemManager.releaseResource()
         sys.stdout.write('Terminated by SEGFAULT signal\n')
+        '''
         os._exit(0)
 
 
@@ -20906,7 +20908,6 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
@@ -20933,7 +20934,6 @@ Copyright:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
 
 
 
@@ -20946,7 +20946,6 @@ Copyright:
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -26868,6 +26867,9 @@ class DbusAnalyzer(object):
                 os.dup2(wr,1)
                 os.close(wr)
                 os.close(rd)
+
+                # set SIGPIPE handler for termination of parent #
+                SystemManager.setPipeHandler()
 
                 # set options #
                 sys.argv[1] = 'strace'
