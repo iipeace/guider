@@ -29603,7 +29603,7 @@ struct msghdr {
 
 
     def handleSyscall(self):
-        # check diferrable #
+        # check deferrable #
         if self.status == 'deferrable':
             self.handleDefSyscall()
 
@@ -29613,12 +29613,14 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             return
 
+        # check SYSEMU condition #
         if len(SystemManager.syscallList) > 0 and \
-            self.getNrSyscall() not in SystemManager.syscallList:
+            not self.getNrSyscall() in SystemManager.syscallList:
             #self.cmd = self.sysemuCmd
             return
 
         regs = self.regsDict
+        self.cmd = self.syscallCmd
         nrSyscall = regs[self.sysreg]
         proto = ConfigManager.SYSCALL_PROTOTYPES
 
@@ -29671,6 +29673,10 @@ struct msghdr {
 
             self.handleSyscallOutput(args)
 
+            # check SYSEMU condition #
+            if len(SystemManager.syscallList) > 0:
+                self.clearArgs()
+
             return
 
         # exit #
@@ -29704,13 +29710,21 @@ struct msghdr {
             else:
                 err = ''
 
+            # convert type #
+            try:
+                rtype = proto[name][0]
+                if '*' in rtype:
+                    retval = '0x%s' % int(str(retval), 16)
+            except:
+                pass
+
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
                 jsonData["type"] = "exit"
                 jsonData["time"] = time.time()
                 jsonData["name"] = name
-                jsonData["ret"] = int(retval)
+                jsonData["ret"] = retval
                 jsonData["tid"] = self.pid
                 jsonData["err"] = err
 
