@@ -22,7 +22,7 @@ Table of contents
    * [Output](#Output)
    * [How to use](#How-to-use)
    * [Requirement](#Requirement)
-   * [Build & Installation](#Build-&-Installation)
+   * [Build & Installation](#Build--Installation)
    * [Kernel Configuration](#Kernel-Configuration)
    * [Help](#Help)
 <!--te-->
