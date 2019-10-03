@@ -8,3 +8,10 @@ build to static/ directory
 cd ./front-vue/ && npm install && npm run build && cd ..
 ```
 
+## Run
+
+```sh
+./__init__.py port_number(optional, default=5000)
+```
+
+
