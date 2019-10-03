@@ -18,3 +18,7 @@ static
 # Distribution / packaging
 MANIFEST
 *.idea
+
+# python Virtualenv
+venv/
+
