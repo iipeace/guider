@@ -108,12 +108,11 @@ def createApp(config_filename=None):
             sys.exit(0)
 
         # build message #
-        msg = {}
-        msg['timestamp'] = timestamp
+        msg = {'timestamp': timestamp}
         RequestManager.add_request(timestamp)
 
         '''
-        # for multi-thread feautre #
+        # for multi-thread feature #
         global thread
         with thread_lock:
         if thread is None:
