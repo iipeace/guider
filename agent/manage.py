@@ -13,7 +13,10 @@ manager = Manager(app)
 
 @manager.command
 def run():
-    app.run()
+    try:
+        app.run(host='localhost', port=8000)
+    except KeyboardInterrupt:
+        pass
 
 
 @manager.command

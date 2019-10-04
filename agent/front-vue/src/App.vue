@@ -1,7 +1,6 @@
 <template>
   <div>
     <socket-io></socket-io>
-    <input type="hidden" id="serverAddr" value="%% server_addr %%"/>
     <notifications></notifications>
     <router-view :key="$route.fullPath"></router-view>
   </div>
