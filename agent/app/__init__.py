@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restful import Api
 from flask_socketio import SocketIO
+from flask_cors import CORS
 
 from app.config import config_dict
 
@@ -15,8 +16,10 @@ def create_app(config_name):
                 static_url_path='',
                 static_folder=f_config.STATIC_FOLDER)
     app.config.from_object(f_config)
+    cors = CORS(app, resources={r"*": {"origins": "*"}})
 
     socket = SocketIO(app)
+    socket.init_app(app, cors_allowed_origins="*")
 
     api = Api(app)
     api.add_resource(Main, '/')
@@ -24,4 +27,4 @@ def create_app(config_name):
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)
     
-    return app
+    return app, socket
