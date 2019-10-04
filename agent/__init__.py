@@ -18,7 +18,6 @@ except ImportError:
     sys.exit(0)
 
 
-
 class RequestManager(object):
     requests = {}
 
@@ -44,7 +43,6 @@ class RequestManager(object):
         cls.requests.clear()
 
 
-
 class CustomFlask(Flask):
     jinja_options = Flask.jinja_options.copy()
     jinja_options.update(dict(
@@ -55,13 +53,12 @@ class CustomFlask(Flask):
     ))
 
 
-
 def createApp(config_filename=None):
     # define flask object #
     app = CustomFlask(__name__,
-            template_folder='./static',
-            static_url_path='',
-            static_folder='./static')
+                      template_folder='./static',
+                      static_url_path='',
+                      static_folder='./static')
     if config_filename:
         app.config.from_pyfile(config_filename)
 
@@ -116,14 +113,14 @@ def createApp(config_filename=None):
         RequestManager.add_request(timestamp)
 
         '''
-	# for multi-thread feautre #
-	global thread
-	with thread_lock:
-	    if thread is None:
-		thread = socketio.start_background_task(thread_task)
+        # for multi-thread feautre #
+        global thread
+        with thread_lock:
+        if thread is None:
+        thread = socketio.start_background_task(thread_task)
         '''
 
-        while(RequestManager.get_requestStatus(timestamp)):
+        while RequestManager.get_requestStatus(timestamp):
             # read data from Guider #
             str_pipe = pipe.getData()
             if not str_pipe:
@@ -152,7 +149,7 @@ def createApp(config_filename=None):
 
         print('request_finished')
 
-    @socketio.on('custom_connect') # this is custom one
+    @socketio.on('custom_connect')  # this is custom one
     def custom_connect(msg):
         print("custom_connect")
 
@@ -166,11 +163,10 @@ def createApp(config_filename=None):
             RequestManager.disable_request(target_timestamp)
             emit('request_stop_result', 'stop success : ' + target_timestamp)
         else:
-            emit('request_stop_result', 'stop failed : ' + target_timestamp )
+            emit('request_stop_result', 'stop failed : ' + target_timestamp)
         return
 
     return app, socketio
-
 
 
 if __name__ == '__main__':
