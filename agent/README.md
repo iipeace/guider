@@ -1,6 +1,6 @@
 # Guider Web
 
-## Build
+## Build Front End Codes
 
 build to static/ directory
 
@@ -8,10 +8,17 @@ build to static/ directory
 cd ./front-vue/ && npm install && npm run build && cd ..
 ```
 
+## Install Python Dependencies
+
+It is recomended to use Virtualenv 
+
+```sh
+pip install -r requirements.txt
+
+```
 ## Run
 
 ```sh
-./__init__.py port_number(optional, default=5000)
+python manage.py run
 ```
-
 
