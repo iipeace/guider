@@ -16368,8 +16368,10 @@ Copyright:
 
     @staticmethod
     def faultHandler(signum, frame):
+        '''
         SystemManager.releaseResource()
         sys.stdout.write('Terminated by SEGFAULT signal\n')
+        '''
         os._exit(0)
 
 
@@ -20906,7 +20908,6 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
@@ -20933,7 +20934,6 @@ Copyright:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGQUIT, signal.SIG_IGN)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
 
 
 
@@ -20946,7 +20946,6 @@ Copyright:
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
         signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
-        signal.signal(signal.SIGSEGV, SystemManager.faultHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -26324,46 +26323,46 @@ class DbusAnalyzer(object):
                         key=lambda x:x[1]['cnt'] if x[0] != 'totalCnt' else 0,\
                         reverse=True):
 
-                        if name == 'totalCnt':
+                        if name == 'totalCnt' or value['cnt'] == 0:
                             continue
+
                         try:
                             per = int((value['cnt'] / float(dbusCnt)) * 100)
                         except:
                             per = 0
 
                         # get time info #
-                        if value['cnt'] > 0:
-                            # set data type #
-                            if pid in sentData and \
-                                name in sentData[pid]:
-                                data = sentData[pid][name]
-                            elif pid in recvData and \
-                                name in recvData[pid]:
-                                data = recvData[pid][name]
-                            else:
-                                continue
+                        if pid in sentData and \
+                            name in sentData[pid]:
+                            data = sentData[pid][name]
+                        elif pid in recvData and \
+                            name in recvData[pid]:
+                            data = recvData[pid][name]
+                        else:
+                            continue
 
-                            if data['time'] > 0:
-                                wstat = '/WAIT'
-                                cnt = value['cnt'] - 1
-                            else:
-                                wstat = ''
-                                cnt = value['cnt']
+                        if data['time'] > 0:
+                            wstat = '/WAIT'
+                            cnt = value['cnt'] - 1
+                        else:
+                            wstat = ''
+                            cnt = value['cnt']
 
-                            # get complete call count #
-                            if cnt > 0:
-                                avr = data['total'] / cnt
-                            else:
-                                avr = 0
+                        # get complete call count #
+                        if cnt > 0:
+                            avr = data['total'] / cnt
+                        else:
+                            avr = 0
 
-                            if data['err'] > 0:
-                                errstr = ', Err: %s' % data['err']
-                            else:
-                                errstr = ''
+                        if data['err'] > 0:
+                            errstr = ', Err: %s' % data['err']
+                        else:
+                            errstr = ''
 
-                            if data['max'] > 0:
-                                name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
-                                    (name, data['min'], avr, data['max'], errstr, wstat)
+                        if data['max'] > 0:
+                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
+                                (name, data['min'], avr, data['max'], \
+                                    errstr, wstat)
 
                         dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
                             convertNum(value['cnt']), per, name))
@@ -26868,6 +26867,9 @@ class DbusAnalyzer(object):
                 os.dup2(wr,1)
                 os.close(wr)
                 os.close(rd)
+
+                # set SIGPIPE handler for termination of parent #
+                SystemManager.setPipeHandler()
 
                 # set options #
                 sys.argv[1] = 'strace'
@@ -28407,9 +28409,6 @@ struct msghdr {
         from ctypes import cdll, Structure, c_void_p, \
             c_uint, c_size_t, c_int, POINTER, sizeof, cast
 
-        # get socket object #
-        socket = SystemManager.getPkg('socket', False)
-
         # read msghdr structure #
         ret = self.readMem(addr, sizeof(self.msghdr))
         if not ret:
@@ -28465,6 +28464,18 @@ struct msghdr {
                 except:
                     msginfo['msg_iov'][idx]['data'] = iovobjdata
 
+        # get msg_flags #
+        flag = header.contents.msg_flags
+        msginfo['msg_flags'] = flag
+
+        # ignore cmsg info #
+        return msginfo
+
+        # get socket object #
+        socket = SystemManager.getPkg('socket', False)
+        if not socket:
+            return msginfo
+
         # get control info #
         control = header.contents.msg_control
         controllen = int(header.contents.msg_controllen)
@@ -28491,10 +28502,6 @@ struct msghdr {
                     ConfigManager.CMSG_TYPE[cmsgtype]
             except:
                 msginfo['msg_control']['cmsgtype'] = cmsgtype
-
-        # get msg_flags #
-        flag = header.contents.msg_flags
-        msginfo['msg_flags'] = flag
 
         return msginfo
 
@@ -29601,7 +29608,12 @@ struct msghdr {
 
 
     def handleSyscall(self):
-        # check diferrable #
+        # skip useless return processing #
+        if self.status == 'skip':
+            self.status = 'enter'
+            return
+
+        # check deferrable #
         if self.status == 'deferrable':
             self.handleDefSyscall()
 
@@ -29611,9 +29623,11 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             return
 
+        # check SYSEMU condition #
         if len(SystemManager.syscallList) > 0 and \
-            self.getNrSyscall() not in SystemManager.syscallList:
+            not self.getNrSyscall() in SystemManager.syscallList:
             #self.cmd = self.sysemuCmd
+            self.status = 'skip'
             return
 
         regs = self.regsDict
@@ -29669,6 +29683,10 @@ struct msghdr {
 
             self.handleSyscallOutput(args)
 
+            # check SYSEMU condition #
+            if len(SystemManager.syscallList) > 0:
+                self.clearArgs()
+
             return
 
         # exit #
@@ -29702,13 +29720,21 @@ struct msghdr {
             else:
                 err = ''
 
+            # convert type #
+            try:
+                rtype = proto[name][0]
+                if '*' in rtype:
+                    retval = '0x%s' % int(str(retval), 16)
+            except:
+                pass
+
             # print call info in JSON format #
             if SystemManager.jsonPrintEnable:
                 jsonData = {}
                 jsonData["type"] = "exit"
                 jsonData["time"] = time.time()
                 jsonData["name"] = name
-                jsonData["ret"] = int(retval)
+                jsonData["ret"] = str(retval)
                 jsonData["tid"] = self.pid
                 jsonData["err"] = err
 
