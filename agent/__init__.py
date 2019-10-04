@@ -115,8 +115,8 @@ def createApp(config_filename=None):
         # for multi-thread feature #
         global thread
         with thread_lock:
-        if thread is None:
-        thread = socketio.start_background_task(thread_task)
+            if thread is None:
+                thread = socketio.start_background_task(thread_task)
         '''
 
         while RequestManager.get_requestStatus(timestamp):
