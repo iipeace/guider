@@ -28,3 +28,4 @@ update==0.0.1
 wcwidth==0.1.7
 Werkzeug==0.16.0
 zipp==0.6.0
+Flask-cors
