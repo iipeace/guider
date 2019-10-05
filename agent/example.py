@@ -3,13 +3,11 @@
 
 import os
 import sys
-import json
+from guider import NetworkManager
 
 # add guider path #
 curDir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, '%s/../guider' % curDir)
-
-from guider import NetworkManager
 
 if __name__ == '__main__':
 

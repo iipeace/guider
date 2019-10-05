@@ -58,7 +58,7 @@ def communicate_with_guider(timestamp, targetAddr):
     msg['timestamp'] = timestamp
     RequestManager.add_request(timestamp)
 
-    while(RequestManager.get_requestStatus(timestamp)):
+    while RequestManager.get_requestStatus(timestamp):
         # read data from Guider #
         str_pipe = pipe.getData()
         if not str_pipe:
@@ -79,7 +79,7 @@ def communicate_with_guider(timestamp, targetAddr):
                 msg['length_pipe'] = str(len(str_pipe))
 
                 emit('server_response', msg)
-            except:
+            except (json.decoder.JSONDecodeError, KeyError):
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
         else:
@@ -90,8 +90,8 @@ def communicate_with_guider(timestamp, targetAddr):
 
 def disconnect_with_guider(target_timestamp):
     print("request_stop")
-    if RequestManager.get_requestStatus(target_timestamp) == True:
+    if RequestManager.get_requestStatus(target_timestamp):
         RequestManager.disable_request(target_timestamp)
         emit('request_stop_result', 'stop success : ' + target_timestamp)
     else:
-        emit('request_stop_result', 'stop failed : ' + target_timestamp )
+        emit('request_stop_result', 'stop failed : ' + target_timestamp)

@@ -6,12 +6,11 @@ try:
     import os
     import sys
     import json
-    import re
     import logging
 
-    from threading import Lock
-    from flask import Flask, render_template, request, jsonify
-    from flask_socketio import SocketIO, send, emit
+    # from threading import Lock
+    from flask import Flask, render_template, request
+    from flask_socketio import SocketIO, emit
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -141,7 +140,7 @@ def createApp(config_filename=None):
                     msg['length_pipe'] = str(len(str_pipe))
 
                     emit('server_response', msg)
-                except:
+                except (json.decoder.JSONDecodeError, KeyError):
                     line = '-' * 50
                     print("%s\n%s\n%s" % (line, len(str_pipe), line))
             else:
@@ -159,7 +158,7 @@ def createApp(config_filename=None):
     def request_stop(target_timestamp):
         print("request_stop")
 
-        if RequestManager.get_requestStatus(target_timestamp) == True:
+        if RequestManager.get_requestStatus(target_timestamp):
             RequestManager.disable_request(target_timestamp)
             emit('request_stop_result', 'stop success : ' + target_timestamp)
         else:
