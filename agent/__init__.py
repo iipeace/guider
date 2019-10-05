@@ -72,8 +72,9 @@ def createApp(config_filename=None):
     # import NetworkManger form Guider #
     from guider import NetworkManager
 
-    @app.route('/')
-    def index():
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path>')
+    def index(path):
         print("route /")
 
         return render_template('index.html', server_addr=request.host_url)
