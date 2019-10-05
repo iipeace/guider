@@ -25,9 +25,20 @@ matrix:
         - cd agent/front-vue
       install:
         - npm install
-        - npm run build
       script:
-        - npm --version
+        - npm run lint
       cache: npm
+      after_success:
+        - cd ..
+
+    - language: python
+      python:
+        - 3.6
+      before_install:
+        - cd agent
+      install:
+        - pip install flake8
+      script:
+        - flake8
       after_success:
         - cd ..
