@@ -16,7 +16,7 @@ def create_app(config_name):
                 static_url_path='',
                 static_folder=f_config.STATIC_FOLDER)
     app.config.from_object(f_config)
-    cors = CORS(app, resources={r"*": {"origins": "*"}})
+    CORS(app, resources={r"*": {"origins": "*"}})
 
     socket = SocketIO(app)
     socket.init_app(app, cors_allowed_origins="*")
@@ -26,5 +26,5 @@ def create_app(config_name):
 
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)
-    
+
     return app, socket
