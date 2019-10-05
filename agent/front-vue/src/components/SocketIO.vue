@@ -55,13 +55,11 @@ export default {
   },
   methods: {
     emitStart: function() {
-      console.log("Start button Clicked!");
       const timestamp = new Date();
       EventBus.$emit("reset_data");
       this.$socket.emit("request_start", String(timestamp), this.targetAddr);
     },
     emitStop: function() {
-      console.log("Stop button Clicked!");
       this.$socket.emit("request_stop", this.targetTimestamp);
     },
     appendLog: function(newLog) {

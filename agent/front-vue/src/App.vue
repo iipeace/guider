@@ -75,14 +75,14 @@ export default {
   },
   mounted: function() {
     // this.initChart();
-    EventBus.$on("reset_data", nothing => {
+    EventBus.$on("reset_data", () => {
       this.cpuUsage = [];
       this.memUsageTypeA = {};
       this.memUsageTypeB = {};
       this.procInfo = [];
       this.flasCpuEmit++;
     });
-    EventBus.$on("cnt_emit", cpuEmit => {
+    EventBus.$on("cnt_emit", () => {
       this.emitCount = this.emitCount + 1;
     });
     EventBus.$on("cpu_usage", cpuTotal => {
