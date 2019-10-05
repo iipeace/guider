@@ -17,4 +17,4 @@ export default {
     Vue.use(Notify);
     Vue.use(RTLPlugin);
   }
-}
+};

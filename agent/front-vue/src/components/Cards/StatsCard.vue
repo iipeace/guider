@@ -10,11 +10,10 @@
         </div>
       </div>
       <div v-if="$slots.footer">
-        <hr/>
+        <hr />
         <slot name="footer"></slot>
       </div>
     </div>
-
   </card>
 </template>
 <script>
@@ -27,5 +26,4 @@ export default {
   }
 };
 </script>
-<style>
-</style>
+<style></style>
