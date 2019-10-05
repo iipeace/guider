@@ -21,49 +21,49 @@
   </table>
 </template>
 <script>
-  export default {
-    name: 'base-table',
-    props: {
-      columns: {
-        type: Array,
-        default: () => [],
-        description: "Table columns"
-      },
-      data: {
-        type: Array,
-        default: () => [],
-        description: "Table data"
-      },
-      type: {
-        type: String, // striped | hover
-        default: "",
-        description: "Whether table is striped or hover type"
-      },
-      theadClasses: {
-        type: String,
-        default: '',
-        description: "<thead> css classes"
-      },
-      tbodyClasses: {
-        type: String,
-        default: '',
-        description: "<tbody> css classes"
-      }
+export default {
+  name: 'base-table',
+  props: {
+    columns: {
+      type: Array,
+      default: () => [],
+      description: 'Table columns'
     },
-    computed: {
-      tableClass() {
-        return this.type && `table-${this.type}`;
-      }
+    data: {
+      type: Array,
+      default: () => [],
+      description: 'Table data'
     },
-    methods: {
-      hasValue(item, column) {
-        return item[column.toLowerCase()] !== "undefined";
-      },
-      itemValue(item, column) {
-        return item[column.toLowerCase()];
-      }
+    type: {
+      type: String, // striped | hover
+      default: '',
+      description: 'Whether table is striped or hover type'
+    },
+    theadClasses: {
+      type: String,
+      default: '',
+      description: '<thead> css classes'
+    },
+    tbodyClasses: {
+      type: String,
+      default: '',
+      description: '<tbody> css classes'
     }
-  };
+  },
+  computed: {
+    tableClass () {
+      return this.type && `table-${this.type}`
+    }
+  },
+  methods: {
+    hasValue (item, column) {
+      return item[column.toLowerCase()] !== 'undefined'
+    },
+    itemValue (item, column) {
+      return item[column.toLowerCase()]
+    }
+  }
+}
 </script>
 <style>
 </style>

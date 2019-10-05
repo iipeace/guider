@@ -14,50 +14,50 @@
 </template>
 <script>
 export default {
-  name: "base-radio",
+  name: 'base-radio',
   props: {
     name: {
       type: [String, Number],
-      description: "Radio label"
+      description: 'Radio label'
     },
     disabled: {
       type: Boolean,
-      description: "Whether radio is disabled"
+      description: 'Whether radio is disabled'
     },
     value: {
       type: [String, Boolean],
-      description: "Radio value"
+      description: 'Radio value'
     },
     inline: {
       type: Boolean,
-      description: "Whether radio is inline"
+      description: 'Whether radio is inline'
     }
   },
-  data() {
+  data () {
     return {
-      cbId: ""
-    };
+      cbId: ''
+    }
   },
   computed: {
     model: {
-      get() {
-        return this.value;
+      get () {
+        return this.value
       },
-      set(value) {
-        this.$emit("input", value);
+      set (value) {
+        this.$emit('input', value)
       }
     },
-    inlineClass() {
+    inlineClass () {
       if (this.inline) {
-        return `form-check-inline`;
+        return `form-check-inline`
       }
-      return "";
+      return ''
     }
   },
-  created() {
+  created () {
     this.cbId = Math.random()
       .toString(16)
-      .slice(2);
+      .slice(2)
   }
-};
+}
 </script>

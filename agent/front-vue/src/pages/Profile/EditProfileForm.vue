@@ -80,16 +80,16 @@
   </card>
 </template>
 <script>
-  export default {
-    props: {
-      model: {
-        type: Object,
-        default: () => {
-          return {};
-        }
+export default {
+  props: {
+    model: {
+      type: Object,
+      default: () => {
+        return {}
       }
     }
   }
+}
 </script>
 <style>
 </style>

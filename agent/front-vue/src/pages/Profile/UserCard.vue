@@ -33,16 +33,16 @@
   </card>
 </template>
 <script>
-  export default {
-    props: {
-      user: {
-        type: Object,
-        default: () => {
-          return {};
-        }
+export default {
+  props: {
+    user: {
+      type: Object,
+      default: () => {
+        return {}
       }
     }
   }
+}
 </script>
 <style>
 </style>

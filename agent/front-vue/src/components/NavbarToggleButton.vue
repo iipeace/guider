@@ -13,15 +13,15 @@ export default {
   props: {
     target: {
       type: [String, Number],
-      description: "Button target element"
+      description: 'Button target element'
     },
     toggled: {
       type: Boolean,
       default: false,
-      description: "Whether button is toggled"
+      description: 'Whether button is toggled'
     }
   }
-};
+}
 </script>
 <style>
 </style>

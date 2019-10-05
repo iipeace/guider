@@ -22,35 +22,35 @@
   </div>
 </template>
 <script>
-  export default {
-    name: "card",
-    props: {
-      title: {
-        type: String,
-        description: "Card title"
-      },
-      subTitle: {
-        type: String,
-        description: "Card subtitle"
-      },
-      type: {
-        type: String,
-        description: "Card type (e.g primary/danger etc)"
-      },
-      headerClasses: {
-        type: [String, Object, Array],
-        description: "Card header css classes"
-      },
-      bodyClasses: {
-        type: [String, Object, Array],
-        description: "Card body css classes"
-      },
-      footerClasses: {
-        type: [String, Object, Array],
-        description: "Card footer css classes"
-      }
+export default {
+  name: 'card',
+  props: {
+    title: {
+      type: String,
+      description: 'Card title'
+    },
+    subTitle: {
+      type: String,
+      description: 'Card subtitle'
+    },
+    type: {
+      type: String,
+      description: 'Card type (e.g primary/danger etc)'
+    },
+    headerClasses: {
+      type: [String, Object, Array],
+      description: 'Card header css classes'
+    },
+    bodyClasses: {
+      type: [String, Object, Array],
+      description: 'Card body css classes'
+    },
+    footerClasses: {
+      type: [String, Object, Array],
+      description: 'Card footer css classes'
     }
-  };
+  }
+}
 </script>
 <style>
 </style>

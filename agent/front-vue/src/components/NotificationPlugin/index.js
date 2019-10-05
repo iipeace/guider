@@ -1,4 +1,4 @@
-import Notifications from './Notifications.vue';
+import Notifications from './Notifications.vue'
 
 const NotificationStore = {
   state: [], // here the notifications will be added
@@ -11,56 +11,56 @@ const NotificationStore = {
     closeOnClick: true,
     showClose: true
   },
-  setOptions(options) {
-    this.settings = Object.assign(this.settings, options);
+  setOptions (options) {
+    this.settings = Object.assign(this.settings, options)
   },
-  removeNotification(timestamp) {
-    const indexToDelete = this.state.findIndex(n => n.timestamp === timestamp);
+  removeNotification (timestamp) {
+    const indexToDelete = this.state.findIndex(n => n.timestamp === timestamp)
     if (indexToDelete !== -1) {
-      this.state.splice(indexToDelete, 1);
+      this.state.splice(indexToDelete, 1)
     }
   },
-  addNotification(notification) {
+  addNotification (notification) {
     if (typeof notification === 'string' || notification instanceof String) {
-      notification = { message: notification };
+      notification = { message: notification }
     }
-    notification.timestamp = new Date();
+    notification.timestamp = new Date()
     notification.timestamp.setMilliseconds(
       notification.timestamp.getMilliseconds() + this.state.length
-    );
-    notification = Object.assign({}, this.settings, notification);
-    this.state.push(notification);
+    )
+    notification = Object.assign({}, this.settings, notification)
+    this.state.push(notification)
   },
-  notify(notification) {
+  notify (notification) {
     if (Array.isArray(notification)) {
       notification.forEach(notificationInstance => {
-        this.addNotification(notificationInstance);
-      });
+        this.addNotification(notificationInstance)
+      })
     } else {
-      this.addNotification(notification);
+      this.addNotification(notification)
     }
   }
-};
+}
 
 const NotificationsPlugin = {
-  install(Vue, options) {
+  install (Vue, options) {
     let app = new Vue({
       data: {
         notificationStore: NotificationStore
       },
       methods: {
-        notify(notification) {
-          this.notificationStore.notify(notification);
+        notify (notification) {
+          this.notificationStore.notify(notification)
         }
       }
-    });
-    Vue.prototype.$notify = app.notify;
-    Vue.prototype.$notifications = app.notificationStore;
-    Vue.component('Notifications', Notifications);
+    })
+    Vue.prototype.$notify = app.notify
+    Vue.prototype.$notifications = app.notificationStore
+    Vue.component('Notifications', Notifications)
     if (options) {
-      NotificationStore.setOptions(options);
+      NotificationStore.setOptions(options)
     }
   }
-};
+}
 
-export default NotificationsPlugin;
+export default NotificationsPlugin

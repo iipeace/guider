@@ -19,17 +19,17 @@
     </base-table>
 </template>
 <script>
-  import {BaseTable} from '@/components'
-  export default {
-    components: {
-      BaseTable
-    },
-    computed: {
-      tableData() {
-        return this.$t('dashboard.taskList');
-      }
+import { BaseTable } from '@/components'
+export default {
+  components: {
+    BaseTable
+  },
+  computed: {
+    tableData () {
+      return this.$t('dashboard.taskList')
     }
   }
+}
 </script>
 <style>
 </style>

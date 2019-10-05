@@ -1,4 +1,4 @@
-const webpack = require('webpack');
+const webpack = require('webpack')
 
 module.exports = {
   outputDir: '../static',
@@ -11,7 +11,7 @@ module.exports = {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true
-      },
+      }
     }
   },
   configureWebpack: {
@@ -46,4 +46,4 @@ module.exports = {
     // Enable CSS source maps.
     sourceMap: process.env.NODE_ENV !== 'production'
   }
-};
+}

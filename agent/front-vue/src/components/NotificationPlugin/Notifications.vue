@@ -13,7 +13,7 @@
   </div>
 </template>
 <script>
-import Notification from './Notification.vue';
+import Notification from './Notification.vue'
 
 export default {
   components: {
@@ -33,25 +33,25 @@ export default {
       default: false
     }
   },
-  data() {
+  data () {
     return {
       notifications: this.$notifications.state
-    };
+    }
   },
   methods: {
-    removeNotification(timestamp) {
-      this.$notifications.removeNotification(timestamp);
+    removeNotification (timestamp) {
+      this.$notifications.removeNotification(timestamp)
     }
   },
-  created() {
-    this.$notifications.settings.overlap = this.overlap;
+  created () {
+    this.$notifications.settings.overlap = this.overlap
   },
   watch: {
-    overlap: function(newVal) {
-      this.$notifications.settings.overlap = newVal;
+    overlap: function (newVal) {
+      this.$notifications.settings.overlap = newVal
     }
   }
-};
+}
 </script>
 <style lang="scss">
 .notifications {

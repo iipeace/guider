@@ -4,9 +4,9 @@
 <script>
 export default {
   name: 'starter-page',
-  data() {
-    return {};
+  data () {
+    return {}
   }
-};
+}
 </script>
 <style></style>
