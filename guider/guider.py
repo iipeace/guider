@@ -3974,7 +3974,7 @@ class NetworkManager(object):
                 pass
         else:
             try:
-                if addrList[0].find('.') > 0:
+                if '.' in addrList[0]:
                     ip = addrList[0]
                 else:
                     port = int(addrList[0])
@@ -4517,7 +4517,7 @@ class PageAnalyzer(object):
 
             if start == end == all:
                 switch = 0
-            elif line.find('-') >= 0:
+            elif '-' in line:
                 soffset = hex(long(soffset, base=16)).rstrip('L')
                 eoffset = hex(long(eoffset, base=16)).rstrip('L')
 
@@ -6370,7 +6370,7 @@ class FunctionAnalyzer(object):
         if SystemManager.groupProcEnable:
             for key, value in self.getTargetList(lines).items():
                 for item in desc:
-                    if value['comm'].find(item) >= 0:
+                    if item in value['comm']:
                         plist[value['tgid']] = 0
 
         # start parsing logs #
@@ -6438,15 +6438,15 @@ class FunctionAnalyzer(object):
             return 1
 
         # set condition #
-        if cond.find('>') >= 0:
+        if '>' in cond:
             condVal = cond[cond.find('>') + 1:]
             condOp = '>'
             condStr = cond[:cond.find('>')]
-        elif cond.find('<') >= 0:
+        elif '<' in cond:
             condVal = cond[cond.find('<') + 1:]
             condOp = '<'
             condStr = cond[:cond.find('<')]
-        elif cond.find('==') >= 0:
+        elif '==' in cond:
             condVal = cond[cond.find('==') + 2:]
             condOp = '=='
             condStr = cond[:cond.find('==')]
@@ -6560,7 +6560,7 @@ class FunctionAnalyzer(object):
         # cpu tick event #
         # toDo: find shorter periodic event for sampling #
         if isFixedEvent and func == "hrtimer_start:":
-            if args.rfind('tick_sched_timer') > -1:
+            if 'tick_sched_timer' in args:
                 self.cpuEnabled = True
 
                 self.saveEventParam('CPU_TICK', 1, 0)
@@ -6593,12 +6593,12 @@ class FunctionAnalyzer(object):
 
                 # Increase page counts of thread #
                 pageType = None
-                if flags.find('NOFS') >= 0 or \
-                    flags.find('GFP_WRITE') >= 0 or \
-                    flags.find('0x1000000') >= 0:
+                if 'NOFS' in flags or \
+                    'GFP_WRITE' in flags or \
+                    '0x1000000' in flags:
                     pageType = 'CACHE'
                     self.threadData[tid]['cachePages'] += pageCnt
-                elif flags.find('USER') >= 0:
+                elif 'USER' in flags:
                     pageType = 'USER'
                     self.threadData[tid]['userPages'] += pageCnt
                 else:
@@ -7188,7 +7188,7 @@ class FunctionAnalyzer(object):
 
             # Calculate a total of cpu usage #
             elif d['func'] == "hrtimer_start:" and \
-                d['etc'].rfind('tick_sched_timer') > -1:
+                'tick_sched_timer' in d['etc']:
                 self.totalTick += 1
                 self.threadData[thread]['cpuTick'] += 1
 
@@ -7298,7 +7298,7 @@ class FunctionAnalyzer(object):
                 return (string[pos+5:len(string)-2], None, None)
 
             # no user stack tracing supported #
-            if string.find('??') > -1:
+            if '??' in string:
                 if SystemManager.userEnable and SystemManager.userEnableWarn:
                     SystemManager.printWarn((\
                         "enable CONFIG_USER_STACKTRACE_SUPPORT kernel option "
@@ -10512,7 +10512,7 @@ class FileAnalyzer(object):
 
                 # save process info #
                 for val in SystemManager.filterGroup:
-                    if comm.rfind(val) > -1 or tid == val:
+                    if val in comm or tid == val:
                         # access procData #
                         try:
                             self.procData[pid]
@@ -11410,7 +11410,7 @@ class SystemManager(object):
                 "Fail to set cpu affinity of task, "
                 "input in the format {mask:tids}")
             sys.exit(0)
-        elif value.find('-P') >= 0:
+        elif '-P' in value >= 0:
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
 
@@ -11974,7 +11974,7 @@ class SystemManager(object):
         # check a thread #
         for item in tlist:
             if item == tid or \
-                comm.find(item) >= 0 or \
+                item in comm or \
                 item == '' or \
                 SystemManager.isEffectiveTid(tid, item):
                 return False
@@ -12030,22 +12030,25 @@ class SystemManager(object):
 
     @staticmethod
     def isEffectiveEnableOption(options):
-        if options.rfind('i') >= 0 or options.rfind('m')>= 0  or \
-            options.rfind('n') >= 0 or options.rfind('h') >= 0 or \
-            options.rfind('b') >= 0 or options.rfind('p') >= 0 or \
-            options.rfind('P') >= 0 or options.rfind('r') >= 0 or \
-            options.rfind('g') >= 0 or options.rfind('L') >= 0 or \
-            options.rfind('t') >= 0 or options.rfind('v') >= 0 or \
-            options.rfind('l') >= 0 or options.rfind('G') >= 0 or \
-            options.rfind('c') >= 0 or options.rfind('s') >= 0 or \
-            options.rfind('S') >= 0 or options.rfind('u') >= 0 or \
-            options.rfind('a') >= 0 or options.rfind('I') >= 0 or \
-            options.rfind('f') >= 0 or options.rfind('F') >= 0 or \
-            options.rfind('w') >= 0 or options.rfind('W') >= 0 or \
-            options.rfind('r') >= 0 or options.rfind('R') >= 0 or \
-            options.rfind('d') >= 0 or options.rfind('o') >= 0 or \
-            options.rfind('C') >= 0 or options.rfind('E') or \
-            options.rfind('D') >= 0:
+        if not options:
+            return False
+
+        if 'i' in options or 'm' in options or \
+            'n' in options or 'h' in options or \
+            'b' in options or 'p' in options or \
+            'P' in options or 'r' in options or \
+            'g' in options or 'L' in options or \
+            't' in options or 'v' in options or \
+            'l' in options or 'G' in options or \
+            'c' in options or 's' in options or \
+            'S' in options or 'u' in options or \
+            'a' in options or 'I' in options or \
+            'f' in options or 'F' in options or \
+            'w' in options or 'W' in options or \
+            'r' in options or 'R' in options or \
+            'd' in options or 'o' in options or \
+            'C' in options or 'E' in options or \
+            'D' in options:
             return True
         else:
             return False
@@ -12314,7 +12317,7 @@ class SystemManager(object):
                 cmd = sys.argv[0]
 
             # remove pyc file extention #
-            if cmd.find('.pyc') >= 0:
+            if '.pyc' in cmd:
                 cmd = cmd[:cmd.find('.pyc')]
 
             # disable extended ascii code support #
@@ -16937,18 +16940,23 @@ Copyright:
 
         if infoBuf == '':
             return
+
         mountPosStart = infoBuf.find('Storage Info')
         if mountPosStart == -1:
             return
+
         mountPosStart = infoBuf.find(twoLine, mountPosStart+1)
         if mountPosStart == -1:
             return
+
         mountPosStart = infoBuf.find(twoLine, mountPosStart+1)
         if mountPosStart == -1:
             return
+
         mountPosStart = infoBuf.find('\n', mountPosStart)
         if mountPosStart == -1:
             return
+
         mountPosEnd = infoBuf.find(oneLine, mountPosStart)
         if mountPosEnd == -1:
             return
@@ -16999,6 +17007,7 @@ Copyright:
 
         if infoBuf == '':
             return
+
         treePosStart = infoBuf.find('!!!!!')
         if treePosStart == -1:
             return
@@ -17036,12 +17045,15 @@ Copyright:
         # get position of launch option #
         if infoBuf == '':
             return
+
         launchPosStart = infoBuf.find('Launch')
         if launchPosStart == -1:
             return
+
         launchPosEnd = infoBuf.find('\n', launchPosStart)
         if launchPosEnd == -1:
             return
+
         SystemManager.launchBuffer = infoBuf[launchPosStart:launchPosEnd]
 
         # check version #
@@ -17076,8 +17088,8 @@ Copyright:
                 (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
-        if SystemManager.launchBuffer.find(' funcrec') > -1 or \
-            SystemManager.launchBuffer.find(' funcrecord') > -1:
+        if ' funcrec' in SystemManager.launchBuffer or \
+            ' funcrecord' in SystemManager.launchBuffer:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
             SystemManager.printInfo("FUNCTION MODE")
@@ -17110,11 +17122,11 @@ Copyright:
                     ', '.join(SystemManager.filterGroup))
 
         # apply dependency option #
-        if SystemManager.launchBuffer.find(' -D') > -1:
+        if ' -D' in SystemManager.launchBuffer:
             SystemManager.depEnable = True
 
         # apply syscall option #
-        if SystemManager.launchBuffer.find(' -t') > -1:
+        if ' -t' in SystemManager.launchBuffer:
             SystemManager.sysEnable = True
 
         # apply disable option #
@@ -17122,15 +17134,15 @@ Copyright:
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')]
-            if filterList.find('u') > -1:
+            if 'u' in filterList:
                 SystemManager.userEnable = False
                 SystemManager.userRecordEnable = False
-            if filterList.find('a') > -1:
+            if 'a' in filterList:
                 SystemManager.disableAll = True
-            if filterList.find('c') > -1:
+            if 'c' in filterList:
                 SystemManager.cpuEnable = False
                 SystemManager.latEnable = False
-            if filterList.find('l') > -1:
+            if 'l' in filterList:
                 SystemManager.latEnable = False
 
         # apply enable option #
@@ -17138,19 +17150,19 @@ Copyright:
         if launchPosStart > -1:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')]
-            if filterList.find('m') > -1:
+            if 'm' in filterList:
                 SystemManager.memEnable = True
-            if filterList.find('b') > -1:
+            if 'b' in filterList:
                 SystemManager.blockEnable = True
-            if filterList.find('P') > -1:
+            if 'P' in filterList:
                 SystemManager.powerEnable = True
-            if filterList.find('h') > -1:
+            if 'h' in filterList:
                 SystemManager.heapEnable = True
-            if filterList.find('L') > -1:
+            if 'L' in filterList:
                 SystemManager.lockEnable = True
-            if filterList.find('i') > -1:
+            if 'i' in filterList:
                 SystemManager.irqEnable = True
-            if filterList.find('n') > -1:
+            if 'n' in filterList:
                 SystemManager.networkEnable = True
 
         # apply custom option #
@@ -18123,34 +18135,34 @@ Copyright:
             elif option == 'd':
                 options = value
 
-                if options.rfind('p') > -1:
+                if 'p' in options:
                     SystemManager.printEnable = False
 
-                if options.rfind('u') > -1:
+                if 'u' in options:
                     SystemManager.userEnable = False
 
-                if options.rfind('c') > -1:
+                if 'c' in options:
                     SystemManager.cpuEnable = False
 
-                if options.rfind('t') > -1:
+                if 't' in options:
                     SystemManager.truncEnable = False
 
-                if options.rfind('e') > -1:
+                if 'e' in options:
                     SystemManager.encodeEnable = False
 
-                if options.rfind('a') > -1:
+                if 'a' in options:
                     SystemManager.freeMemEnable = True
 
-                if options.rfind('G') > -1:
+                if 'G' in options:
                     SystemManager.gpuEnable = False
 
-                if options.rfind('A') > -1:
+                if 'A' in options:
                     SystemManager.cpuAvrEnable = False
 
-                if options.rfind('L') > -1:
+                if 'L' in options:
                     SystemManager.logEnable = False
 
-                if options.rfind('T') > -1:
+                if 'T' in options:
                     SystemManager.taskEnable = False
 
             elif option == 'c':
@@ -18176,46 +18188,46 @@ Copyright:
             elif option == 'e':
                 options = value
 
-                if options.rfind('g') > -1:
+                if 'g' in options:
                     SystemManager.graphEnable = True
 
-                if options.rfind('t') > -1:
+                if 't' in options:
                     SystemManager.processEnable = False
 
-                if options.rfind('D') > -1:
+                if 'D' in options:
                     SystemManager.dltEnable = True
 
                 # no more options except for top mode #
                 if not SystemManager.isTopMode():
                     continue
 
-                if options.rfind('c') > -1:
+                if 'c' in options:
                     SystemManager.cpuEnable = True
 
-                if options.rfind('p') > -1:
+                if 'p' in options:
                     SystemManager.pipeEnable = True
 
-                if options.rfind('P') > -1:
+                if 'P' in options:
                     SystemManager.perfEnable = True
                     if SystemManager.findOption('g'):
                         SystemManager.perfGroupEnable = True
 
-                if options.rfind('i') > -1:
+                if 'i' in options:
                     SystemManager.irqEnable = True
 
-                if options.rfind('b') > -1:
+                if 'b' in options:
                     if SystemManager.checkDiskTopCond():
                         SystemManager.blockEnable = True
                     else:
                         sys.exit(0)
 
-                if options.rfind('s') > -1:
+                if 's' in options:
                     if SystemManager.checkStackTopCond():
                         SystemManager.stackEnable = True
                     else:
                         sys.exit(0)
 
-                if options.rfind('S') > -1:
+                if 'S' in options:
                     if not SystemManager.isRoot():
                         SystemManager.printErr(\
                             "Fail to get root permission to analyze PSS")
@@ -18223,7 +18235,7 @@ Copyright:
                     SystemManager.pssEnable = True
                     SystemManager.sort = 'm'
 
-                if options.rfind('u') > -1:
+                if 'u' in options:
                     if not SystemManager.isRoot():
                         SystemManager.printErr(\
                             "Fail to get root permission to analyze USS")
@@ -18231,20 +18243,20 @@ Copyright:
                     SystemManager.ussEnable = True
                     SystemManager.sort = 'm'
 
-                if options.rfind('L') > -1:
+                if 'L' in options:
                     SystemManager.cmdlineEnable = True
 
                 # check last field #
-                if options.rfind('a') > -1:
+                if 'a' in options:
                     ThreadAnalyzer.setLastField('affinity')
-                elif options.rfind('o') > -1:
+                elif 'o' in options:
                     ThreadAnalyzer.setLastField('oom')
-                elif options.rfind('W') > -1:
+                elif 'W' in options:
                     ThreadAnalyzer.setLastField('wchan')
-                elif options.rfind('h') > -1:
+                elif 'h' in options:
                     ThreadAnalyzer.setLastField('signal')
 
-                if options.rfind('f') > -1:
+                if 'f' in options:
                     SystemManager.floatEnable = True
 
                     # set default interval to 3 for accuracy #
@@ -18252,23 +18264,23 @@ Copyright:
                         not SystemManager.findOption('R'):
                         SystemManager.intervalEnable = 3
 
-                if options.rfind('F') > -1:
+                if 'F' in options:
                     SystemManager.wfcEnable = True
 
-                if options.rfind('R') > -1:
+                if 'R' in options:
                     SystemManager.reportEnable = True
                     SystemManager.reportFileEnable = True
 
-                if options.rfind('e') > -1:
+                if 'e' in options:
                     SystemManager.encodeEnable = True
 
-                if options.rfind('m') > -1:
+                if 'm' in options:
                     if SystemManager.checkMemTopCond():
                         SystemManager.memEnable = True
                     else:
                         sys.exit(0)
 
-                if options.rfind('w') > -1:
+                if 'w' in options:
                     if SystemManager.checkWssTopCond():
                         SystemManager.memEnable = True
                         SystemManager.wssEnable = True
@@ -18276,10 +18288,10 @@ Copyright:
                     else:
                         sys.exit(0)
 
-                if options.rfind('n') > -1:
+                if 'n' in options:
                     SystemManager.networkEnable = True
 
-                if options.rfind('P') > -1:
+                if 'P' in options:
                     if SystemManager.checkPerfTopCond():
                         SystemManager.perfEnable = True
                         if SystemManager.findOption('g'):
@@ -18287,17 +18299,17 @@ Copyright:
                     else:
                         sys.exit(0)
 
-                if options.rfind('r') > -1:
+                if 'r' in options:
                     SystemManager.reportEnable = True
 
-                if options.rfind('d') > -1:
+                if 'd' in options:
                     SystemManager.diskEnable = True
 
-                if options.rfind('E') > -1:
+                if 'E' in options:
                     SystemManager.reportEnable = True
                     SystemManager.elasticEnable = True
 
-                if options.rfind('C') > -1:
+                if 'C' in options:
                     SystemManager.cgroupEnable = True
 
                 if not SystemManager.isEffectiveEnableOption(options):
@@ -18562,37 +18574,37 @@ Copyright:
 
             elif option == 'e':
                 options = value
-                if options.rfind('i') > -1:
+                if 'i' in options:
                     SystemManager.irqEnable = True
 
-                if options.rfind('m') > -1:
+                if 'm' in options:
                     SystemManager.memEnable = True
 
-                if options.rfind('n') > -1:
+                if 'n' in options:
                     SystemManager.networkEnable = True
 
-                if options.rfind('h') > -1:
+                if 'h' in options:
                     SystemManager.heapEnable = True
 
-                if options.rfind('b') > -1:
+                if 'b' in options:
                     SystemManager.blockEnable = True
 
-                if options.rfind('p') > -1:
+                if 'p' in options:
                     SystemManager.pipeEnable = True
 
-                if options.rfind('P') > -1:
+                if 'P' in options:
                     SystemManager.powerEnable = True
 
-                if options.rfind('r') > -1:
+                if 'r' in options:
                     SystemManager.resetEnable = True
 
-                if options.rfind('g') > -1:
+                if 'g' in options:
                     SystemManager.graphEnable = True
 
-                if options.rfind('L') > -1:
+                if 'L' in options:
                     SystemManager.lockEnable = True
 
-                if options.rfind('c') > -1:
+                if 'c' in options:
                     SystemManager.cgroupEnable = True
 
                 if not SystemManager.isEffectiveEnableOption(options):
@@ -18742,35 +18754,35 @@ Copyright:
             elif option == 'd':
                 options = value
 
-                if options.rfind('c') > -1:
+                if 'c' in options:
                     SystemManager.cpuEnable = False
                     SystemManager.latEnable = False
 
-                if options.rfind('m') > -1:
+                if 'm' in options:
                     SystemManager.memEnable = False
 
-                if options.rfind('h') > -1:
+                if 'h' in options:
                     SystemManager.heapEnable = False
 
-                if options.rfind('b') > -1:
+                if 'b' in options:
                     SystemManager.blockEnable = False
 
-                if options.rfind('u') > -1:
+                if 'u' in options:
                     SystemManager.userEnable = False
 
-                if options.rfind('p') > -1:
+                if 'p' in options:
                     SystemManager.printEnable = False
 
-                if options.rfind('l') > -1:
+                if 'l' in options:
                     SystemManager.latEnable = False
 
-                if options.rfind('L') > -1:
+                if 'L' in options:
                     SystemManager.logEnable = False
 
-                if options.rfind('a') > -1:
+                if 'a' in options:
                     SystemManager.disableAll = True
 
-                if options.rfind('C') > -1:
+                if 'C' in options:
                     SystemManager.compressEnable = False
 
             # Ignore options #
@@ -20523,7 +20535,7 @@ Copyright:
                         statList[commIndex] = \
                             "%s %s" % (statList[commIndex], tmpStr)
                         statList.pop(idx)
-                        if tmpStr.rfind(')') > -1:
+                        if ')' in tmpStr:
                             break
 
                 procStart = \
@@ -21654,7 +21666,7 @@ Copyright:
                 ("wrong option value to set priority, "
                 "input in the format POLICY:PRIORITY|TIME:PID"))
             sys.exit(0)
-        elif value.find('-P') >= 0:
+        elif ' -P' in value:
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
 
@@ -22124,7 +22136,7 @@ Copyright:
             sys.exit(0)
 
         # check size type #
-        if size.find('.') > -1:
+        if '.' in size:
             SystemManager.printErr(\
                 ("wrong option value, "
                 "input number in integer format"))
@@ -22272,7 +22284,7 @@ Copyright:
                     statList[COMM_IDX] = \
                         "%s %s" % (statList[COMM_IDX], tmpStr)
                     statList.pop(idx)
-                    if tmpStr.rfind(')') > -1:
+                    if ')' in tmpStr:
                         break
 
             comm = statList[COMM_IDX][1:-1]
@@ -24780,13 +24792,17 @@ Copyright:
 
             # check skip condition #
             try:
+                # special device #
+                if not dev.startswith('/'):
+                    rpath = path
+                else:
+                    rpath = os.path.realpath(dev)
+                    dev = os.path.basename(rpath)
+
                 if fs == 'tmpfs':
                     raise MountException
 
-                rpath = os.path.realpath(dev)
-                dev = os.path.basename(rpath)
-
-                if dev.find(':') > -1:
+                if ':' in dev:
                     major, minor = dev.split(':')
                     for mp in self.diskInfo['prev'].values():
                         if mp['major'] == major and mp['minor'] == minor:
@@ -25120,7 +25136,7 @@ Copyright:
                 # get node name from full-path #
                 dev = key[key.rfind('/')+1:]
 
-                if dev.find(':') > -1:
+                if ':' in dev:
                     major, minor = dev.split(':')
                     for name, mp in self.diskInfo['prev'].items():
                         if mp['major'] == major and mp['minor'] == minor:
@@ -25759,7 +25775,7 @@ Copyright:
                 readSize = readTime = writeSize = writeTime = '?'
 
                 # get real device node #
-                if dev.find(':') > -1:
+                if ':' in dev:
                     major, minor = dev.split(':')
                     for name, mp in self.diskInfo['prev'].items():
                         if mp['major'] == major and mp['minor'] == minor:
@@ -31846,7 +31862,7 @@ class ElfAnalyzer(object):
             return ElfAnalyzer.cachedDemangleTable[symbol]
 
         # check including version #
-        if symbol.rfind('@') > -1:
+        if '@' in symbol:
             symbol, version = symbol.split('@')
             version = '@%s' % version
         else:
@@ -32012,7 +32028,7 @@ class ElfAnalyzer(object):
             if d['symbol'] == symbol:
                 proc.terminate()
                 return d['offset']
-            elif d['symbol'].find(symbol) >= 0:
+            elif symbol in d['symbol']:
                 syms.append('%s {%s}' % (d['symbol'], d['offset']))
 
         # check similar list #
@@ -32049,12 +32065,12 @@ class ElfAnalyzer(object):
             return False
 
         # check file name #
-        if path.find('.so') < 0 and \
-            path.find('.ttf') < 0 and \
-            path.find('.pak') < 0:
-            return False
-        else:
+        if '.so' in path or \
+            '.ttf' in path or \
+            '.pak' in path:
             return True
+        else:
+            return False
 
 
 
@@ -33476,7 +33492,7 @@ class ThreadAnalyzer(object):
             # check exclusion condition #
             if idx.startswith('^'):
                 cond = idx[1:]
-                if comm.find(cond) > -1 or pid == cond:
+                if cond in comm or pid == cond:
                     found=False
                     break
                 else:
@@ -33484,7 +33500,7 @@ class ThreadAnalyzer(object):
                     continue
 
             # check inclusion condition #
-            if comm.find(idx) > -1 or pid == idx:
+            if idx in comm > -1 or pid == idx:
                 found = True
                 break
 
@@ -33888,7 +33904,7 @@ class ThreadAnalyzer(object):
             if SystemManager.groupProcEnable:
                 for key, value in self.threadData.items():
                     for item in SystemManager.filterGroup:
-                        if value['comm'].find(item) >= 0:
+                        if item in value['comm']:
                             plist[value['tgid']] = 0
 
             for key in list(self.threadData.keys()):
@@ -37038,7 +37054,7 @@ class ThreadAnalyzer(object):
                 skipFlag = False
                 for fval in SystemManager.filterGroup:
                     if SystemManager.isEffectiveTid(val[2], fval) or \
-                        val[1].find(fval) >= 0:
+                        fval in val[1]:
                         skipFlag = False
                         break
                     skipFlag = True
@@ -37118,7 +37134,7 @@ class ThreadAnalyzer(object):
                 skipFlag = False
                 for fval in SystemManager.filterGroup:
                     if SystemManager.isEffectiveTid(val[3], fval) or \
-                        val[2].find(fval) >= 0:
+                        fval in val[2]:
                         skipFlag = False
                         break
                     skipFlag = True
@@ -37214,7 +37230,7 @@ class ThreadAnalyzer(object):
             skipFlag = False
             for fval in SystemManager.filterGroup:
                 if SystemManager.isEffectiveTid(val[4], fval) or \
-                    val[3].find(fval) >= 0:
+                    fval in val[3]:
                     skipFlag = False
                     break
                 skipFlag = True
@@ -41364,7 +41380,7 @@ class ThreadAnalyzer(object):
             if SystemManager.filterGroup != []:
                 skip = True
                 for item in SystemManager.filterGroup:
-                    if key == item or value['stat'][commIdx].find(item) >= 0:
+                    if key == item or item in value['stat'][commIdx]:
                         skip = False
                         break
                 if skip:
@@ -42242,7 +42258,7 @@ class ThreadAnalyzer(object):
                 etc = d['etc']
                 time = d['time']
 
-                if func.find("tracing_mark_write") >= 0:
+                if 'tracing_mark_write' in func:
                     m = re.match(r'^.+EVENT_(?P<event>\S+)', etc)
                     if m:
                         d = m.groupdict()
@@ -42922,14 +42938,13 @@ class ThreadAnalyzer(object):
             self.threadData[thread]['nrPages'] += pow(2, order)
             self.threadData[coreId]['nrPages'] += pow(2, order)
 
-            if flags.find('NOFS') >= 0 or \
-                flags.find('GFP_WRITE') >= 0 or \
-                flags.find('0x1000000') >= 0:
-
+            if 'NOFS' in flags or \
+                'GFP_WRITE' in flags or \
+                '0x1000000' in flags:
                 pageType = 'CACHE'
                 self.threadData[thread]['cachePages'] += pow(2, order)
                 self.threadData[coreId]['cachePages'] += pow(2, order)
-            elif flags.find('USER') >= 0:
+            elif 'USER' in flags:
                 pageType = 'USER'
                 self.threadData[thread]['userPages'] += pow(2, order)
                 self.threadData[coreId]['userPages'] += pow(2, order)
@@ -43990,16 +44005,16 @@ class ThreadAnalyzer(object):
 
             state = None
 
-            if etc.rfind("suspend_enter") > 0:
-                if etc.rfind("begin") > 0:
-                    state = 'S'
-            elif etc.rfind("machine_suspend") > 0:
-                if etc.rfind("end") > 0:
-                    state = 'F'
+            if 'suspend_enter' in etc and \
+                'begin' in etc:
+                state = 'S'
+            elif 'machine_suspend' in etc and \
+                'end' in etc:
+                state = 'F'
             # Complete a PM transition for all non-sysdev devices #
-            elif etc.rfind("dpm_resume_user") > 0:
-                if etc.rfind("end") > 0:
-                    state = 'R'
+            elif 'dpm_resume_user' in etc and \
+                'end' in etc:
+                state = 'R'
 
             if state:
                 self.suspendData.append([time, state])
@@ -44150,7 +44165,7 @@ class ThreadAnalyzer(object):
 
         # custom event #
         elif func in SystemManager.customEventList or \
-            True in [True for event in SystemManager.customEventList if event.find('/') == -1]:
+            True in [True for event in SystemManager.customEventList if not '/' in event]:
             # add data into list #
             ntime = float(time) - float(SystemManager.startTime)
             self.customEventData.append(\
@@ -44455,7 +44470,7 @@ class ThreadAnalyzer(object):
             plist = {}
             for idx, value in sortedProcData:
                 for item in procFilter:
-                    if value['stat'][self.commIdx].find(item) >= 0:
+                    if item in value['stat'][self.commIdx]:
                         plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
                         break
 
@@ -44486,8 +44501,7 @@ class ThreadAnalyzer(object):
                         break
                     # check current's parent comm #
                     elif ppid in self.procData and \
-                            self.procData[ppid]['stat'][self.commIdx][1:-1].\
-                            find(item) >= 0:
+                        item in self.procData[ppid]['stat'][self.commIdx]:
                         exceptFlag = False
                         break
                     # check current's parent pid #
@@ -44502,7 +44516,7 @@ class ThreadAnalyzer(object):
                     if idx == item:
                         exceptFlag = False
                         break
-                    elif comm.find(item) >= 0:
+                    elif item in comm:
                         exceptFlag = False
                         break
 
@@ -44545,7 +44559,7 @@ class ThreadAnalyzer(object):
                     if fileFilter != []:
                         found = False
                         for fileItem in fileFilter:
-                            if path.find(fileItem) >= 0:
+                            if fileItem in path:
                                 found = True
                                 break
                         if not found:
@@ -44776,7 +44790,7 @@ class ThreadAnalyzer(object):
                             'iowait': long(statList[5]), \
                             'irq': long(statList[6]), \
                             'softirq': long(statList[7])}
-                elif cpuId.rfind('cpu') == 0:
+                elif cpuId.startswith('cpu'):
                     if not int(cpuId[3:]) in self.cpuData:
                         self.cpuData[int(cpuId[3:])] = \
                             {'user': long(statList[1]), \
@@ -45444,7 +45458,7 @@ class ThreadAnalyzer(object):
                     statList[commIndex] = \
                         "%s %s" % (statList[commIndex], tmpStr)
                     statList.pop(idx)
-                    if tmpStr.rfind(')') > -1:
+                    if ')' in tmpStr:
                         break
 
             # convert type of values #
@@ -45487,7 +45501,7 @@ class ThreadAnalyzer(object):
         # kill processes #
         for item in SystemManager.killFilter:
             if tid == item or \
-                self.procData[tid]['stat'][self.commIdx].find(item) >= 0:
+                item in self.procData[tid]['stat'][self.commIdx]:
                 try:
                     os.kill(int(tid), signal.SIGKILL)
 
@@ -46158,9 +46172,9 @@ class ThreadAnalyzer(object):
                         ctype = fd.readline()[:-1]
 
                     with open('%s/temp' % tempDir, 'r') as fd:
-                        if ctype.find('CPU') >= 0:
+                        if 'CPU' in ctype:
                             coreTempData['CPU'] = int(fd.readline()[:-4])
-                        elif ctype.find('GPU') >= 0:
+                        elif 'GPU' in ctype:
                             coreTempData['GPU'] = int(fd.readline()[:-4])
                 except:
                     pass
@@ -47432,14 +47446,14 @@ class ThreadAnalyzer(object):
                         if idx  == item:
                             break
                         # check current thread comm #
-                        elif stat[self.commIdx].find(item) >= 0:
+                        elif item in stat[self.commIdx]:
                             break
                         # check current's parent pid by comm #
                         elif ppid in plist:
                             break
                         # check current's parent comm #
                         elif ppid in procData and \
-                            procData[ppid]['stat'][self.commIdx].find(item) >= 0:
+                            item in procData[ppid]['stat'][self.commIdx]:
                             break
                         # check current's parent pid #
                         elif item.isdigit() and \
@@ -47455,7 +47469,7 @@ class ThreadAnalyzer(object):
 
                         # check current process comm #
                         if pid in procData and \
-                            procData[pid]['stat'][self.commIdx].find(item) >= 0:
+                            item in procData[pid]['stat'][self.commIdx]:
                             break
                         # check current pid by comm #
                         elif pid in plist:
@@ -47474,7 +47488,7 @@ class ThreadAnalyzer(object):
                 else:
                     if idx == item:
                         break
-                    elif stat[self.commIdx].find(item) >= 0:
+                    elif item in stat[self.commIdx]:
                         break
                     else:
                         exceptFlag = True
@@ -47488,7 +47502,7 @@ class ThreadAnalyzer(object):
 
             for idx, value in sortedProcData:
                 for item in SystemManager.filterGroup:
-                    if value['stat'][self.commIdx].find(item) >= 0:
+                    if item in value['stat'][self.commIdx]:
                         if SystemManager.processEnable:
                             plist[self.procData[idx]['stat'][self.ppidIdx]] = 0
                         else:
