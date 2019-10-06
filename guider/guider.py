@@ -24800,7 +24800,7 @@ Copyright:
                     dev = os.path.basename(rpath)
 
                 if fs == 'tmpfs':
-                    raise MountException
+                    continue
 
                 if ':' in dev:
                     major, minor = dev.split(':')
@@ -25756,7 +25756,7 @@ Copyright:
             'read': long(0), 'write': long(0)}
         outputCnt = 0
 
-        # make block device table #
+        # create block device table #
         for key, val in sorted(self.mountInfo.items(), key=lambda e: e[0]):
             # check device node path #
             if val['fs'] == 'tmpfs':
@@ -47227,7 +47227,8 @@ class ThreadAnalyzer(object):
                 continue
 
             origDev = dev
-            if 'mount' in value and value['mount']['fs'] == 'tmpfs':
+            if 'mount' in value and \
+                value['mount']['fs'] == 'tmpfs':
                 dev = value['mount']['path']
 
             # get readtime #
