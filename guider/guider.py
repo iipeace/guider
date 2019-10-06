@@ -16232,23 +16232,14 @@ Copyright:
             SystemManager.condExit = True
 
         elif SystemManager.isTopMode() or \
-            SystemManager.isStraceMode() or \
-            SystemManager.isBtraceMode() or \
-            SystemManager.isUtraceMode():
+            SystemManager.isTraceMode():
             # run user custom command #
             SystemManager.writeRecordCmd('STOP')
 
             if SystemManager.printFile:
                 # reload data written to file #
                 if SystemManager.pipeEnable:
-                    SystemManager.fileForPrint.seek(0, 0)
-                    SystemManager.procBuffer = \
-                        SystemManager.fileForPrint.read().replace(\
-                        '\n\n', 'NEWSTAT\n\n')
-                    SystemManager.procBuffer = \
-                        SystemManager.procBuffer.split('NEWSTAT')
-                    SystemManager.fileForPrint.seek(0, 0)
-                    SystemManager.fileForPrint.truncate()
+                    SystemManager.reloadFileBuffer()
 
                 SystemManager.printLogo(absolute=True, big=True)
 
@@ -16316,14 +16307,7 @@ Copyright:
 
             # reload data written to file #
             if SystemManager.pipeEnable:
-                SystemManager.fileForPrint.seek(0, 0)
-                SystemManager.procBuffer = \
-                    SystemManager.fileForPrint.read().replace(\
-                    '\n\n', 'NEWSTAT\n\n')
-                SystemManager.procBuffer = \
-                    SystemManager.procBuffer.split('NEWSTAT')
-                SystemManager.fileForPrint.seek(0, 0)
-                SystemManager.fileForPrint.truncate()
+                SystemManager.reloadFileBuffer()
 
             SystemManager.printLogo(absolute=True, big=True)
 
@@ -16353,7 +16337,7 @@ Copyright:
             SystemManager.printInfo(\
                 "save results based monitoring into "
                 "%s [%s] successfully" % \
-                (SystemManager.inputFile, fsize))
+                    (SystemManager.inputFile, fsize))
         elif SystemManager.resetEnable:
             SystemManager.writeEvent("EVENT_START")
         else:
@@ -17957,6 +17941,22 @@ Copyright:
 
 
     @staticmethod
+    def reloadFileBuffer():
+        try:
+            SystemManager.fileForPrint.seek(0, 0)
+            SystemManager.procBuffer = \
+                SystemManager.fileForPrint.read().replace(\
+                '\n\n', 'NEWSTAT\n\n')
+            SystemManager.procBuffer = \
+                SystemManager.procBuffer.split('NEWSTAT')
+            SystemManager.fileForPrint.seek(0, 0)
+            SystemManager.fileForPrint.truncate()
+        except:
+            return
+
+
+
+    @staticmethod
     def applySaveOption(value=None):
         # apply default path #
         if value == '':
@@ -19430,13 +19430,28 @@ Copyright:
 
 
     @staticmethod
+    def isTraceMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'trace':
+            return True
+        elif SystemManager.isStraceMode() or \
+            SystemManager.isUtraceMode() or \
+            SystemManager.isBtraceMode():
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isRuntimeMode():
         if SystemManager.isRecordMode() or \
             SystemManager.isTopMode() or \
-            SystemManager.isStraceMode() or \
-            SystemManager.isBtraceMode() or \
-            SystemManager.isUtraceMode():
+            SystemManager.isTraceMode():
             return True
+
         return False
 
 
@@ -41118,7 +41133,8 @@ class ThreadAnalyzer(object):
     def printIntervalUsage():
         if SystemManager.fileTopEnable:
             ThreadAnalyzer.printFileTable()
-        elif SystemManager.dltTopEnable:
+        elif SystemManager.jsonPrintEnable or \
+            SystemManager.dltTopEnable:
             pass
         else:
             # build summary interval table #
@@ -46569,97 +46585,92 @@ class ThreadAnalyzer(object):
             if SystemManager.networkEnable:
                 SystemManager.sysInstance.updateNetworkInfo()
 
-            for dev, value in sorted(\
-                SystemManager.sysInstance.networkInfo.items()):
-                # check value #
-                if not 'rdiff' in value or \
-                    not 'tdiff' in value:
-                    continue
+                for dev, value in sorted(\
+                    SystemManager.sysInstance.networkInfo.items()):
+                    # check value #
+                    if not 'rdiff' in value or \
+                        not 'tdiff' in value:
+                        continue
 
-                self.reportData['net'][dev] = dict()
-                reportData = self.reportData['net'][dev]
+                    self.reportData['net'][dev] = dict()
+                    reportData = self.reportData['net'][dev]
 
-                rdiff = value['rdiff']
-                tdiff = value['tdiff']
+                    rdiff = value['rdiff']
+                    tdiff = value['tdiff']
 
-                reportData['trans'] = dict()
-                reportData['trans']['bytes'] = rdiff[0]
-                reportData['trans']['packets'] = rdiff[1]
-                reportData['trans']['errs'] = rdiff[2]
-                reportData['trans']['drop'] = rdiff[3]
-                reportData['trans']['fifo'] = rdiff[4]
-                reportData['trans']['frame'] = rdiff[5]
-                reportData['trans']['compressed'] = rdiff[6]
-                reportData['trans']['multicast'] = rdiff[7]
+                    reportData['trans'] = dict()
+                    reportData['trans']['bytes'] = rdiff[0]
+                    reportData['trans']['packets'] = rdiff[1]
+                    reportData['trans']['errs'] = rdiff[2]
+                    reportData['trans']['drop'] = rdiff[3]
+                    reportData['trans']['fifo'] = rdiff[4]
+                    reportData['trans']['frame'] = rdiff[5]
+                    reportData['trans']['compressed'] = rdiff[6]
+                    reportData['trans']['multicast'] = rdiff[7]
 
-                reportData['recv'] = dict()
-                reportData['recv']['bytes'] = tdiff[0]
-                reportData['recv']['packets'] = tdiff[1]
-                reportData['recv']['errs'] = tdiff[2]
-                reportData['recv']['drop'] = tdiff[3]
-                reportData['recv']['fifo'] = tdiff[4]
-                reportData['recv']['frame'] = tdiff[5]
-                reportData['recv']['compressed'] = tdiff[6]
-                reportData['recv']['multicast'] = tdiff[7]
+                    reportData['recv'] = dict()
+                    reportData['recv']['bytes'] = tdiff[0]
+                    reportData['recv']['packets'] = tdiff[1]
+                    reportData['recv']['errs'] = tdiff[2]
+                    reportData['recv']['drop'] = tdiff[3]
+                    reportData['recv']['fifo'] = tdiff[4]
+                    reportData['recv']['frame'] = tdiff[5]
+                    reportData['recv']['compressed'] = tdiff[6]
+                    reportData['recv']['multicast'] = tdiff[7]
 
             # storage #
             if SystemManager.diskEnable:
                 SystemManager.sysInstance.updateStorageInfo()
-            else:
-                '''
-                storageData should have been saved on disktop mode
-                '''
-                pass
 
-            # copy storage data into report data structure #
-            self.reportData['storage'] = \
-                copy.deepcopy(SystemManager.sysInstance.storageData)
+                # copy storage data into report data structure #
+                self.reportData['storage'] = \
+                    copy.deepcopy(SystemManager.sysInstance.storageData)
 
-            prevStorageData = SystemManager.sysInstance.prevStorageData
+                prevStorageData = SystemManager.sysInstance.prevStorageData
 
-            # calculate diff of read /write on each devices #
-            for dev, value in sorted(self.reportData['storage'].items()):
-                # get read size on this interval #
-                try:
-                    value['read'] -= prevStorageData[dev]['read']
-                except:
-                    value['read'] = 0
+                # calculate diff of read /write on each devices #
+                for dev, value in sorted(self.reportData['storage'].items()):
+                    # get read size on this interval #
+                    try:
+                        value['read'] -= prevStorageData[dev]['read']
+                    except:
+                        value['read'] = 0
 
-                # get write size on this interval #
-                try:
-                    value['write'] -= prevStorageData[dev]['write']
-                except:
-                    value['write'] = 0
+                    # get write size on this interval #
+                    try:
+                        value['write'] -= prevStorageData[dev]['write']
+                    except:
+                        value['write'] = 0
 
-                # get readtime on this interval #
-                try:
-                    value['readtime'] -= prevStorageData[dev]['readtime']
-                except:
-                    value['readtime'] = 0
+                    # get readtime on this interval #
+                    try:
+                        value['readtime'] -= prevStorageData[dev]['readtime']
+                    except:
+                        value['readtime'] = 0
 
-                # get writetime on this interval #
-                try:
-                    value['writetime'] -= prevStorageData[dev]['writetime']
-                except:
-                    value['writetime'] = 0
+                    # get writetime on this interval #
+                    try:
+                        value['writetime'] -= prevStorageData[dev]['writetime']
+                    except:
+                        value['writetime'] = 0
 
-                # get iotime on this interval #
-                try:
-                    value['iotime'] -= prevStorageData[dev]['iotime']
-                except:
-                    value['iotime'] = 0
+                    # get iotime on this interval #
+                    try:
+                        value['iotime'] -= prevStorageData[dev]['iotime']
+                    except:
+                        value['iotime'] = 0
 
-                # get iowtime on this interval #
-                try:
-                    value['iowtime'] -= prevStorageData[dev]['iowtime']
-                except:
-                    value['iowtime'] = 0
+                    # get iowtime on this interval #
+                    try:
+                        value['iowtime'] -= prevStorageData[dev]['iowtime']
+                    except:
+                        value['iowtime'] = 0
 
-                # get avq on this interval #
-                try:
-                    value['avq'] = value['iowtime'] / value['iotime']
-                except:
-                    value['avq'] = 0
+                    # get avq on this interval #
+                    try:
+                        value['avq'] = value['iowtime'] / value['iotime']
+                    except:
+                        value['avq'] = 0
 
             if SystemManager.jsonPrintEnable:
                 SystemManager.jsonData.update(self.reportData)
