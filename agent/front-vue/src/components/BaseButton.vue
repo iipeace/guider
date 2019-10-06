@@ -6,15 +6,16 @@
     @click="handleClick"
     class="btn"
     :class="[
-      {'btn-round': round},
-      {'btn-block': block},
-      {'btn-icon btn-fab': icon},
-      {[`btn-${type}`]: type},
-      {[`btn-${size}`]: size},
-      {'btn-simple': simple},
-      {'btn-link': link},
-      {'disabled': disabled && tag !== 'button'}
-    ]">
+      { 'btn-round': round },
+      { 'btn-block': block },
+      { 'btn-icon btn-fab': icon },
+      { [`btn-${type}`]: type },
+      { [`btn-${size}`]: size },
+      { 'btn-simple': simple },
+      { 'btn-link': link },
+      { disabled: disabled && tag !== 'button' }
+    ]"
+  >
     <slot name="loading">
       <i v-if="loading" class="fas fa-spinner fa-spin"></i>
     </slot>
@@ -57,7 +58,7 @@ export default {
     link: {
       type: Boolean,
       description: "Whether button is a link (no borders or background)"
-    },
+    }
   },
   methods: {
     handleClick(evt) {
@@ -66,5 +67,4 @@ export default {
   }
 };
 </script>
-<style>
-</style>
+<style></style>

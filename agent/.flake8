@@ -1,0 +1,6 @@
+[flake8]
+exclude =
+    front-vue,
+    .venv,
+    venv,
+show_source = True

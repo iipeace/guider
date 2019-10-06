@@ -6,17 +6,15 @@ try:
     import os
     import sys
     import json
-    import re
     import logging
 
-    from threading import Lock
-    from flask import Flask, render_template, request, jsonify
-    from flask_socketio import SocketIO, send, emit
+    # from threading import Lock
+    from flask import Flask, render_template, request
+    from flask_socketio import SocketIO, emit
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
     sys.exit(0)
-
 
 
 class RequestManager(object):
@@ -44,7 +42,6 @@ class RequestManager(object):
         cls.requests.clear()
 
 
-
 class CustomFlask(Flask):
     jinja_options = Flask.jinja_options.copy()
     jinja_options.update(dict(
@@ -55,13 +52,12 @@ class CustomFlask(Flask):
     ))
 
 
-
 def createApp(config_filename=None):
     # define flask object #
     app = CustomFlask(__name__,
-            template_folder='./static',
-            static_url_path='',
-            static_folder='./static')
+                      template_folder='./static',
+                      static_url_path='',
+                      static_folder='./static')
     if config_filename:
         app.config.from_pyfile(config_filename)
 
@@ -75,8 +71,9 @@ def createApp(config_filename=None):
     # import NetworkManger form Guider #
     from guider import NetworkManager
 
-    @app.route('/')
-    def index():
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path>')
+    def index(path):
         print("route /")
 
         return render_template('index.html', server_addr=request.host_url)
@@ -111,19 +108,18 @@ def createApp(config_filename=None):
             sys.exit(0)
 
         # build message #
-        msg = {}
-        msg['timestamp'] = timestamp
+        msg = {'timestamp': timestamp}
         RequestManager.add_request(timestamp)
 
         '''
-	# for multi-thread feautre #
-	global thread
-	with thread_lock:
-	    if thread is None:
-		thread = socketio.start_background_task(thread_task)
+        # for multi-thread feature #
+        global thread
+        with thread_lock:
+            if thread is None:
+                thread = socketio.start_background_task(thread_task)
         '''
 
-        while(RequestManager.get_requestStatus(timestamp)):
+        while RequestManager.get_requestStatus(timestamp):
             # read data from Guider #
             str_pipe = pipe.getData()
             if not str_pipe:
@@ -144,7 +140,7 @@ def createApp(config_filename=None):
                     msg['length_pipe'] = str(len(str_pipe))
 
                     emit('server_response', msg)
-                except:
+                except (json.decoder.JSONDecodeError, KeyError):
                     line = '-' * 50
                     print("%s\n%s\n%s" % (line, len(str_pipe), line))
             else:
@@ -152,7 +148,7 @@ def createApp(config_filename=None):
 
         print('request_finished')
 
-    @socketio.on('custom_connect') # this is custom one
+    @socketio.on('custom_connect')  # this is custom one
     def custom_connect(msg):
         print("custom_connect")
 
@@ -162,15 +158,14 @@ def createApp(config_filename=None):
     def request_stop(target_timestamp):
         print("request_stop")
 
-        if RequestManager.get_requestStatus(target_timestamp) == True:
+        if RequestManager.get_requestStatus(target_timestamp):
             RequestManager.disable_request(target_timestamp)
             emit('request_stop_result', 'stop success : ' + target_timestamp)
         else:
-            emit('request_stop_result', 'stop failed : ' + target_timestamp )
+            emit('request_stop_result', 'stop failed : ' + target_timestamp)
         return
 
     return app, socketio
-
 
 
 if __name__ == '__main__':
