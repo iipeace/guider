@@ -46845,143 +46845,137 @@ class ThreadAnalyzer(object):
         pss = 0
         memBuf = []
 
-        if maps:
-            for key, item in sorted(maps.items(), reverse=True):
-                tmpstr = ''
-
-                if len(item) == 0 or item['count'] == 0:
-                    continue
-
-                try:
-                    prop = 'Size:'
-                    tmpstr = "%s%s%7s / " % \
-                        (tmpstr, "VSS:", \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                except:
-                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
-
-                try:
-                    prop = 'Rss:'
-                    tmpstr = "%s%s%7s / " % \
-                        (tmpstr, prop.upper(), \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                    rss += item[prop]
-                except:
-                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
-
-                try:
-                    prop = 'Pss:'
-                    tmpstr = "%s%s%7s / " % \
-                        (tmpstr, prop.upper(), \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                    pss += item[prop]
-                except:
-                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
-
-                try:
-                    prop = 'Swap:'
-                    tmpstr = "%s%s%7s / " % \
-                        (tmpstr, prop.upper(), \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                except:
-                    tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
-
-                try:
-                    prop = 'AnonHugePages:'
-                    tmpstr = "%s%s:%5s / " % \
-                        (tmpstr, 'HUGE', \
-                        UtilManager.convertSize2Unit(item[prop] << 10, True))
-                except:
-                    tmpstr = "%s%s:%5s / " % (tmpstr, 'HUGE', 0)
-
-                try:
-                    prop = 'Locked:'
-                    tmpstr = "%s%s%6s / " % \
-                        (tmpstr, 'LOCK:', \
-                        UtilManager.convertSize2Unit(item[prop] << 10, True))
-                except:
-                    tmpstr = "%s%s%6s / " % (tmpstr, 'LOCK:', 0)
-
-                try:
-                    prop = 'Shared_Clean:'
-                    sss += item[prop]
-                except:
-                    pass
-
-                try:
-                    prop = 'Shared_Dirty:'
-                    sss += item[prop]
-                    tmpstr = "%s%s:%7s / " % \
-                        (tmpstr, 'SDRT', \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                except:
-                    tmpstr = "%s%s:%7s / " % (tmpstr, 'SDRT', 0)
-
-                try:
-                    prop = 'Private_Dirty:'
-                    tmpstr = "%s%s:%7s" % \
-                        (tmpstr, 'PDRT', \
-                        UtilManager.convertSize2Unit(item[prop] << 10))
-                except:
-                    tmpstr = "%s%s:%7s" % (tmpstr, 'PDRT', 0)
-
-                '''
-                try:
-                    prop = 'NOPM'
-                    tmpstr = "%s%s:%5s" % \
-                        (tmpstr, prop, \
-                        UtilManager.convertSize2Unit(item[prop] << 10, True))
-                except:
-                    tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
-                '''
-
-                mtype = '(%s)[%s]' % (item['count'], key)
-                memBuf.append(\
-                    [key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
-
-                if SystemManager.wssEnable:
-                    # get current WSS size #
-                    try:
-                        wss =  UtilManager.convertSize2Unit(\
-                            item['Referenced:'] << 10, False)
-                    except:
-                        wss =  0
-
-                    # get previous WSS history #
-                    try:
-                        self.procData[idx]['wss'] = \
-                            self.prevProcData[idx]['wss']
-                    except:
-                        self.procData[idx].setdefault('wss', dict())
-
-                        # clear reference bits #
-                        try:
-                            path = '%s/%s/clear_refs' % \
-                                (SystemManager.procPath, idx)
-                            with open(path, 'w') as fd:
-                                fd.write('1')
-                        except:
-                            pass
-
-                    # update WSS history #
-                    try:
-                        history = self.procData[idx]['wss'][key]
-                        self.procData[idx]['wss'][key] = \
-                            '%s -> %7s' % (history, wss)
-                    except:
-                        self.procData[idx]['wss'][key] = '[%7s]' % wss
-
-            # update pss #
-            if SystemManager.pssEnable:
-                mems = pss >> 2
-            # update uss #
-            elif SystemManager.ussEnable:
-                mems = (rss - sss) >> 2
-
-        if SystemManager.memEnable:
-            return memBuf, mems
-        else:
+        if not maps:
             return [], mems
+
+        convertFunc = UtilManager.convertSize2Unit
+
+        for key, item in sorted(maps.items(), reverse=True):
+            tmpstr = ''
+
+            if len(item) == 0 or item['count'] == 0:
+                continue
+
+            try:
+                prop = 'Size:'
+                tmpstr = "%s%s%7s / " % \
+                    (tmpstr, "VSS:", convertFunc(item[prop] << 10))
+            except:
+                tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
+
+            try:
+                prop = 'Rss:'
+                tmpstr = "%s%s%7s / " % \
+                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+                rss += item[prop]
+            except:
+                tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
+
+            try:
+                prop = 'Pss:'
+                tmpstr = "%s%s%7s / " % \
+                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+                pss += item[prop]
+            except:
+                tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
+
+            try:
+                prop = 'Swap:'
+                tmpstr = "%s%s%7s / " % \
+                    (tmpstr, prop.upper(), convertFunc(item[prop] << 10))
+            except:
+                tmpstr = "%s%s%7s / " % (tmpstr, prop.upper(), 0)
+
+            try:
+                prop = 'AnonHugePages:'
+                tmpstr = "%s%s:%5s / " % \
+                    (tmpstr, 'HUGE', convertFunc(item[prop] << 10, True))
+            except:
+                tmpstr = "%s%s:%5s / " % (tmpstr, 'HUGE', 0)
+
+            try:
+                prop = 'Locked:'
+                tmpstr = "%s%s%6s / " % \
+                    (tmpstr, 'LOCK:', convertFunc(item[prop] << 10, True))
+            except:
+                tmpstr = "%s%s%6s / " % (tmpstr, 'LOCK:', 0)
+
+            try:
+                prop = 'Shared_Clean:'
+                sss += item[prop]
+            except:
+                pass
+
+            try:
+                prop = 'Shared_Dirty:'
+                sss += item[prop]
+                tmpstr = "%s%s:%7s / " % \
+                    (tmpstr, 'SDRT', convertFunc(item[prop] << 10))
+            except:
+                tmpstr = "%s%s:%7s / " % (tmpstr, 'SDRT', 0)
+
+            try:
+                prop = 'Private_Dirty:'
+                tmpstr = "%s%s:%7s" % \
+                    (tmpstr, 'PDRT', convertFunc(item[prop] << 10))
+            except:
+                tmpstr = "%s%s:%7s" % (tmpstr, 'PDRT', 0)
+
+            '''
+            try:
+                prop = 'NOPM'
+                tmpstr = "%s%s:%5s" % \
+                    (tmpstr, prop, convertFunc(item[prop] << 10, True))
+            except:
+                tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
+            '''
+
+            mtype = '(%s)[%s]' % (item['count'], key)
+            memBuf.append(\
+                [key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
+
+            if SystemManager.wssEnable:
+                # get current WSS size #
+                try:
+                    wss =  convertFunc(item['Referenced:'] << 10, False)
+                except:
+                    wss =  0
+
+                # get previous WSS history #
+                try:
+                    self.procData[idx]['wss'] = \
+                        self.prevProcData[idx]['wss']
+                except:
+                    self.procData[idx].setdefault('wss', dict())
+
+                    # clear reference bits #
+                    try:
+                        path = '%s/%s/clear_refs' % \
+                            (SystemManager.procPath, idx)
+                        with open(path, 'w') as fd:
+                            fd.write('1')
+                    except:
+                        pass
+
+                # update WSS history #
+                try:
+                    history = self.procData[idx]['wss'][key]
+                    self.procData[idx]['wss'][key] = \
+                        '%s -> %7s' % (history, wss)
+                except:
+                    self.procData[idx]['wss'][key] = '[%7s]' % wss
+
+        # update pss #
+        if SystemManager.pssEnable:
+            mems = pss >> 2
+        # update uss #
+        elif SystemManager.ussEnable:
+            mems = (rss - sss) >> 2
+
+        if not SystemManager.memEnable:
+            memBuf = []
+
+        return memBuf, mems
 
 
 
