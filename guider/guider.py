@@ -46494,12 +46494,15 @@ class ThreadAnalyzer(object):
             self.reportData['timestamp'] = SystemManager.uptime
 
             # system #
-            self.reportData['system'] = {}
-            self.reportData['system']['pid'] = SystemManager.pid
-            self.reportData['system']['uptime'] = SystemManager.uptime
-            self.reportData['system']['interval'] = interval
-            self.reportData['system']['nrIrq'] = nrIrq
-            self.reportData['system']['nrSoftIrq'] = nrSoftIrq
+            self.reportData['system'] = {
+                'pid': SystemManager.pid,
+                'uptime': SystemManager.uptime,
+                'interval': interval,
+                'nrIrq': nrIrq,
+                'nrSoftIrq': nrSoftIrq,
+                }
+
+            # load #
             try:
                 loads = list(map(float, SystemManager.loadavg.split()[:3]))
                 self.reportData['system']['load1m'] = loads[0]
@@ -46509,18 +46512,21 @@ class ThreadAnalyzer(object):
                 pass
 
             # cpu #
-            self.reportData['cpu'] = {}
-            self.reportData['cpu']['total'] = totalUsage
-            self.reportData['cpu']['idle'] = idleUsage
-            self.reportData['cpu']['user'] = userUsage
-            self.reportData['cpu']['kernel'] = kerUsage
-            self.reportData['cpu']['irq'] = irqUsage
-            self.reportData['cpu']['iowait'] = ioUsage
-            self.reportData['cpu']['nrCore'] = SystemManager.nrCore
             try:
-                self.reportData['cpu']['percore'] = percoreStats
+                percoreStats
             except:
-                pass
+                percoreStats = None
+
+            self.reportData['cpu'] = {
+                'total': totalUsage,
+                'idle': idleUsage,
+                'user': userUsage,
+                'kernel': kerUsage,
+                'irq': irqUsage,
+                'iowait': ioUsage,
+                'nrCore': SystemManager.nrCore,
+                'percore': percoreStats
+                }
 
             # gpu #
             try:
@@ -46529,58 +46535,66 @@ class ThreadAnalyzer(object):
                 pass
 
             # memory #
-            self.reportData['mem'] = {}
-            self.reportData['mem']['total'] = totalMem
-            self.reportData['mem']['free'] = freeMem
-            self.reportData['mem']['available'] = availMem
-            self.reportData['mem']['anon'] = totalAnonMem
-            self.reportData['mem']['file'] = totalFileMem
-            self.reportData['mem']['slab'] = totalSlabMem
-            # cache = file + slab #
-            self.reportData['mem']['cache'] = totalCacheMem
-            self.reportData['mem']['kernel'] = totalKernelMem
-            self.reportData['mem']['freeDiff'] = freeMemDiff
-            self.reportData['mem']['availableDiff'] = availMemDiff
-            self.reportData['mem']['anonDiff'] = anonMemDiff
-            self.reportData['mem']['fileDiff'] = fileMemDiff
-            self.reportData['mem']['slabDiff'] = slabMemDiff
-            if cmaTotalMem > 0:
+            self.reportData['mem'] = {
+                'total': totalMem,
+                'free': freeMem,
+                'available': availMem,
+                'anon': totalAnonMem,
+                'file': totalFileMem,
+                'slab': totalSlabMem,
+                'cache': totalCacheMem,
+                'kernel': totalKernelMem,
+                'freeDiff': freeMemDiff,
+                'availableDiff': availMemDiff,
+                'anonDiff': anonMemDiff,
+                'fileDiff': fileMemDiff,
+                'slabDiff': slabMemDiff,
+                'pgDirty': pgDirty,
+                'pgRclmBg': pgRclmBg,
+                'pgRclmFg': pgRclmFg,
+                'nrMinFlt': nrMinFault,
+                'pgMlock': pgMlock
+                }
+
+            # cma #
+            try:
                 self.reportData['mem']['cmaTotal'] = cmaTotalMem
                 self.reportData['mem']['cmaFree'] = cmaFreeMem
                 self.reportData['mem']['cmaDev'] = cmaDevMem
-            self.reportData['mem']['pgDirty'] = pgDirty
-            self.reportData['mem']['pgRclmBg'] = pgRclmBg
-            self.reportData['mem']['pgRclmFg'] = pgRclmFg
-            self.reportData['mem']['nrMinFlt'] = nrMinFault
-            self.reportData['mem']['pgMlock'] = pgMlock
+            except:
+                pass
 
             # swap #
-            self.reportData['swap'] = {}
-            self.reportData['swap']['total'] = swapTotal
-            self.reportData['swap']['usage'] = swapUsage
-            self.reportData['swap']['usageDiff'] = swapUsageDiff
-            self.reportData['swap']['swapin'] = swapInMem
-            self.reportData['swap']['swapout'] = swapOutMem
+            self.reportData['swap'] = {
+                'total': swapTotal,
+                'usage': swapUsage,
+                'usageDiff': swapUsageDiff,
+                'swapin': swapInMem,
+                'swapout': swapOutMem
+                }
 
             # block #
-            self.reportData['block'] = {}
-            self.reportData['block']['read'] = pgInMemDiff
-            self.reportData['block']['write'] = pgOutMemDiff
-            self.reportData['block']['ioWait'] = ioUsage
-            self.reportData['block']['nrMajFlt'] = nrMajFault
-            self.reportData['block']['nrTask'] = nrBlocked
+            self.reportData['block'] = {
+                'read': pgInMemDiff,
+                'write': pgOutMemDiff,
+                'ioWait': ioUsage,
+                'nrMajFlt': nrMajFault,
+                'nrTask': nrBlocked
+                }
 
             # task #
-            self.reportData['task'] = {}
-            self.reportData['task']['nrBlocked'] = nrBlocked
-            self.reportData['task']['nrProc'] = self.nrProcess
-            self.reportData['task']['nrThread'] = self.nrThread
-            self.reportData['task']['nrCtx'] = nrCtxSwc
+            self.reportData['task'] = {
+                'nrBlocked': nrBlocked,
+                'nrProc': self.nrProcess,
+                'nrThread': self.nrThread,
+                'nrCtx': nrCtxSwc
+                }
 
             # network #
-            self.reportData['net'] = {}
-            self.reportData['net']['inbound'] = netIn
-            self.reportData['net']['outbound'] = netOut
+            self.reportData['net'] = {
+                'inbound': netIn,
+                'outbound': netOut
+                }
 
             if SystemManager.networkEnable:
                 SystemManager.sysInstance.updateNetworkInfo()
@@ -46598,25 +46612,27 @@ class ThreadAnalyzer(object):
                     rdiff = value['rdiff']
                     tdiff = value['tdiff']
 
-                    reportData['trans'] = dict()
-                    reportData['trans']['bytes'] = rdiff[0]
-                    reportData['trans']['packets'] = rdiff[1]
-                    reportData['trans']['errs'] = rdiff[2]
-                    reportData['trans']['drop'] = rdiff[3]
-                    reportData['trans']['fifo'] = rdiff[4]
-                    reportData['trans']['frame'] = rdiff[5]
-                    reportData['trans']['compressed'] = rdiff[6]
-                    reportData['trans']['multicast'] = rdiff[7]
+                    reportData['trans'] = {
+                        'bytes': rdiff[0],
+                        'packets': rdiff[1],
+                        'errs': rdiff[2],
+                        'drop': rdiff[3],
+                        'fifo': rdiff[4],
+                        'frame': rdiff[5],
+                        'compressed': rdiff[6],
+                        'multicast': rdiff[7]
+                        }
 
-                    reportData['recv'] = dict()
-                    reportData['recv']['bytes'] = tdiff[0]
-                    reportData['recv']['packets'] = tdiff[1]
-                    reportData['recv']['errs'] = tdiff[2]
-                    reportData['recv']['drop'] = tdiff[3]
-                    reportData['recv']['fifo'] = tdiff[4]
-                    reportData['recv']['frame'] = tdiff[5]
-                    reportData['recv']['compressed'] = tdiff[6]
-                    reportData['recv']['multicast'] = tdiff[7]
+                    reportData['recv'] = {
+                        'bytes': tdiff[0],
+                        'packets': tdiff[1],
+                        'errs': tdiff[2],
+                        'drop': tdiff[3],
+                        'fifo': tdiff[4],
+                        'frame': tdiff[5],
+                        'compressed': tdiff[6],
+                        'multicast': tdiff[7]
+                        }
 
             # storage #
             if SystemManager.diskEnable:
@@ -46671,6 +46687,8 @@ class ThreadAnalyzer(object):
                         value['avq'] = value['iowtime'] / value['iotime']
                     except:
                         value['avq'] = 0
+            else:
+                self.reportData['storage'] = dict()
 
             if SystemManager.jsonPrintEnable:
                 SystemManager.jsonData.update(self.reportData)
