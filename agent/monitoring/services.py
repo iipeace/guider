@@ -34,7 +34,6 @@ def communicate_with_guider(timestamp, targetAddr):
     curDir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, '%s/../../guider' % curDir)
     from guider import NetworkManager
-    targetAddr = '211.251.238.39:500'
     print('request_start')
 
     # set addresses #
