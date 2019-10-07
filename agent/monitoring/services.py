@@ -54,8 +54,6 @@ def communicate_with_guider(timestamp, targetAddr):
         sys.exit(0)
 
     # build message #
-    msg = {}
-    msg['timestamp'] = timestamp
     RequestManager.add_request(timestamp)
 
     while RequestManager.get_requestStatus(timestamp):
@@ -73,9 +71,13 @@ def communicate_with_guider(timestamp, targetAddr):
                 json_pipe = json.loads(str_pipe)
 
                 # split stats #
+                msg = {}
+                msg['timestamp'] = json_pipe["timestamp"]
                 msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
                 msg['mem_pipe'] = json.dumps(json_pipe["mem"])
                 msg['proc_pipe'] = json.dumps(json_pipe["process"])
+                msg['storage_pipe'] = json.dumps(json_pipe["storage"])
+                msg['net_pipe'] = json.dumps(json_pipe["net"])
                 msg['length_pipe'] = str(len(str_pipe))
 
                 emit('server_response', msg)
