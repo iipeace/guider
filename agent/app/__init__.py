@@ -26,5 +26,4 @@ def create_app(config_name):
 
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)
-    
     return app, socket
