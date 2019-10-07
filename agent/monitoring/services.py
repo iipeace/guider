@@ -73,24 +73,25 @@ def communicate_with_guider(timestamp, targetAddr):
 
                 # cpu
                 cpu = json_pipe['cpu']
-                cpu_total = cpu['kernel'] + cpu['user'] + cpu['irq']
-                msg['cpu'] = dict(kernel=cpu['kernel'], user=cpu['user'],
-                                  irq=cpu['irq'], nrCore=cpu['nrCore'],
-                                  total=cpu_total)
+                msg['cpu'] = dict(kernel=cpu['kernel'],
+                                  user=cpu['user'],
+                                  irq=cpu['irq'],
+                                  nrCore=cpu['nrCore'],
+                                  total=cpu['total'])
 
                 # memory
                 memory = json_pipe['mem']
-                total_memory = memory['kernel'] + memory['cache'] + \
-                               memory['free'] + memory['anon']
-                msg['memory'] = dict(kernel=memory['kernel'], cache=memory['cache'],
-                                     free=memory['free'], anon=memory['anon'],
-                                     total=total_memory)
+                msg['memory'] = dict(kernel=memory['kernel'],
+                                     cache=memory['cache'],
+                                     free=memory['free'],
+                                     anon=memory['anon'],
+                                     total=memory['total'])
 
                 # storage
                 storage = json_pipe['storage']['total']
-                total_storage = storage['free'] + storage['usage']
-                msg['storage'] = dict(free=storage['free'], usage=storage['usage'],
-                                      total=total_storage)
+                msg['storage'] = dict(free=storage['free'],
+                                      usage=storage['usage'],
+                                      total=storage['total'])
 
                 # network
                 network = json_pipe['net']
@@ -101,7 +102,6 @@ def communicate_with_guider(timestamp, targetAddr):
 
                 emit('server_response', msg)
             except (json.decoder.JSONDecodeError, KeyError):
-                print('aaaa')
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
         else:

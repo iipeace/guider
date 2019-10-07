@@ -1,9 +1,9 @@
 <template>
   <div>
     <div>
-      <font size="2"
-        >Input the guider target IP addr and port (ex> 192.168.24.12:5000)
-      </font>
+      <span
+        style="font-size: x-small; ">Input the guider target IP addr and port (ex> 192.168.24.12:5000)
+      </span>
       <input type="text" v-model="targetAddr" @keyup.enter="emitStart" />
       <button class="basic-button" id="emitStart" @click="emitStart">
         Start
