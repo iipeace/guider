@@ -1,7 +1,6 @@
 import sys
 import json
 
-
 from flask_socketio import emit
 
 
@@ -35,7 +34,6 @@ def communicate_with_guider(timestamp, targetAddr):
     curDir = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, '%s/../../guider' % curDir)
     from guider import NetworkManager
-
     print('request_start')
 
     # set addresses #
@@ -54,8 +52,6 @@ def communicate_with_guider(timestamp, targetAddr):
         sys.exit(0)
 
     # build message #
-    msg = {}
-    msg['timestamp'] = timestamp
     RequestManager.add_request(timestamp)
 
     while RequestManager.get_requestStatus(timestamp):
@@ -72,11 +68,36 @@ def communicate_with_guider(timestamp, targetAddr):
                 # convert string to JSON #
                 json_pipe = json.loads(str_pipe)
 
-                # split stats #
-                msg['cpu_pipe'] = json.dumps(json_pipe["cpu"])
-                msg['mem_pipe'] = json.dumps(json_pipe["mem"])
-                msg['proc_pipe'] = json.dumps(json_pipe["process"])
-                msg['length_pipe'] = str(len(str_pipe))
+                msg = dict(timestamp=json_pipe['timestamp'])
+
+                # cpu
+                cpu = json_pipe['cpu']
+                msg['cpu'] = dict(kernel=cpu['kernel'],
+                                  user=cpu['user'],
+                                  irq=cpu['irq'],
+                                  nrCore=cpu['nrCore'],
+                                  total=cpu['total'])
+
+                # memory
+                memory = json_pipe['mem']
+                msg['memory'] = dict(kernel=memory['kernel'],
+                                     cache=memory['cache'],
+                                     free=memory['free'],
+                                     anon=memory['anon'],
+                                     total=memory['total'])
+
+                # storage
+                storage = json_pipe['storage']['total']
+                msg['storage'] = dict(free=storage['free'],
+                                      usage=storage['usage'],
+                                      total=storage['total'])
+
+                # network
+                network = json_pipe['net']
+                msg['network'] = dict(
+                    inbound=network['inbound'], outbound=network['outbound'])
+
+                print(msg)
 
                 emit('server_response', msg)
             except (json.decoder.JSONDecodeError, KeyError):

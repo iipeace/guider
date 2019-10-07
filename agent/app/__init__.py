@@ -22,9 +22,9 @@ def create_app(config_name):
     socket.init_app(app, cors_allowed_origins="*")
 
     api = Api(app)
-    api.add_resource(Main, '/')
+
+    api.add_resource(Main, '/', '/<path:path>')
 
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)
-
     return app, socket
