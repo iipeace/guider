@@ -31,9 +31,6 @@ config_dict = dict(
 )
 
 config_database = dict(
-    host='localhost',
-    db='guider',
-    user='root',
-    password='password',
+    host='mongodb://localhost/guider',
     port=27017
 )
