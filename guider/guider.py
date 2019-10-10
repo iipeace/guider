@@ -26423,7 +26423,7 @@ class DbusAnalyzer(object):
             DbusAnalyzer.sentData = {}
             DbusAnalyzer.recvData = {}
             prevDbusData = ThreadAnalyzer.dbusData
-            ThreadAnalyzer.dbusData = {'totalCnt': 0}
+            ThreadAnalyzer.dbusData = {'totalCnt': 0, 'totalErr': 0}
 
             if lock and lock.locked():
                 try:
@@ -26431,15 +26431,19 @@ class DbusAnalyzer(object):
                 except:
                     pass
 
+            convertNum = UtilManager.convertNumber
+
             # update cpu usage of tasks #
             updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
             # print title #
             SystemManager.addPrint(\
-                ("[%s] [Time: %7.3f] [Interval: %.1f] [NrMsg: %s]\n") % \
+                ("[%s] [Time: %7.3f] [Interval: %.1f] "
+                "[NrMsg: %s] [NrErr: %s]\n") % \
                     ('D-BUS Info', SystemManager.uptime, \
                     SystemManager.uptimeDiff, \
-                    UtilManager.convertNumber(prevDbusData['totalCnt'])))
+                    convertNum(prevDbusData['totalCnt']),
+                    convertNum(prevDbusData['totalErr'])))
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
@@ -26546,6 +26550,7 @@ class DbusAnalyzer(object):
 
                     # check message size #
                     if length == 0:
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # recover data #
@@ -26555,10 +26560,11 @@ class DbusAnalyzer(object):
                         call = call + ('\0' * (length - len(call)))
 
                     # check previous data #
-                    if tid not in DbusAnalyzer.previousData:
+                    if not tid in DbusAnalyzer.previousData:
                         DbusAnalyzer.previousData[tid] = dict()
                         DbusAnalyzer.previousData[tid]['recvmsg'] = ''
                         DbusAnalyzer.previousData[tid]['sendmsg'] = ''
+
                     try:
                         prevData = DbusAnalyzer.previousData[tid][ctype]
                     except:
@@ -26590,6 +26596,7 @@ class DbusAnalyzer(object):
                             DbusAnalyzer.previousData[tid][ctype] = call
                             continue
                     else:
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # check protocol message #
@@ -26612,11 +26619,14 @@ class DbusAnalyzer(object):
                     if not gdmsg and errp:
                         code = errp.contents.code
                         message = errp.contents.message
+
                         SystemManager.printWarn(\
                             "Fail to convert GDbusMessage because %s(%s)" % \
                             (DbusAnalyzer.G_IO_ERROR_TYPE[code], message))
 
                         libgioObj.g_error_free(byref(errp.contents))
+
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # get properties from message #
@@ -26629,6 +26639,7 @@ class DbusAnalyzer(object):
                         SystemManager.printWarn(\
                             "Fail to get type of GDbusMessage because %s" % \
                             SystemManager.getErrReason())
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # check direction #
@@ -26665,7 +26676,13 @@ class DbusAnalyzer(object):
                         else:
                             lastIf = None
 
-                        if lastIf in data[tid] and \
+                        # check signal return error by message drop #
+                        if direction == 'IN' and \
+                            lastIf is not None and \
+                            'SIGNAL' in lastIf:
+                            pass
+                        # update elapsed time #
+                        elif lastIf in data[tid] and \
                             data[tid][lastIf]['time'] > 0:
                             lastData = data[tid][lastIf]
                             elapsed = jsonData['time'] - lastData['time']
@@ -26685,8 +26702,8 @@ class DbusAnalyzer(object):
                                     data[tid][lastIf]['err'] += 1
 
                             data[tid][lastIf]['total'] += elapsed
-
                             data[tid][lastIf]['time'] = 0
+
                             lastInterface[tid] = None
 
                         libgObj.g_object_unref(gdmsg)
@@ -33451,7 +33468,7 @@ class ThreadAnalyzer(object):
     procTotData = {}
     procIntData = []
     procEventData = []
-    dbusData = {'totalCnt': 0}
+    dbusData = {'totalCnt': 0, 'totalErr': 0}
 
     # request type #
     requestType = [
