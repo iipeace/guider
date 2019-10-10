@@ -14248,7 +14248,7 @@ Copyright:
         if not arch or len(arch) == 0:
             return
 
-        SystemManager.removeEmptyValue(arch)
+        arch = SystemManager.clearList(arch)
 
         # set systemcall table #
         if arch == 'arm':
@@ -16910,10 +16910,28 @@ Copyright:
 
 
     @staticmethod
-    def removeEmptyValue(targetList):
-        for val in targetList:
-            if val == '':
-                del targetList[targetList.index('')]
+    def clearList(targetList):
+        targetType = type(targetList)
+
+        if targetType is str:
+            targetStr = ''
+            for val in targetList:
+                if val != '':
+                    targetStr = '%s%s' % (targetStr, val)
+            return targetStr
+        elif targetType is list:
+            # remove redundant values #
+            targetList = list(set(targetList))
+
+            # remove empty values #
+            newList = []
+            for val in targetList:
+                if val != '':
+                    newList.append(val)
+
+            return newList
+        else:
+            return targetList
 
 
 
@@ -17088,7 +17106,8 @@ Copyright:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.filterGroup = filterList.split(',')
-            SystemManager.removeEmptyValue(SystemManager.filterGroup)
+            SystemManager.filterGroup = \
+                SystemManager.clearList(SystemManager.filterGroup)
             SystemManager.printInfo(\
                 "only specific threads including [%s] were recorded" % \
                 ', '.join(SystemManager.filterGroup))
@@ -17180,7 +17199,8 @@ Copyright:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.userCmd = str(filterList).split(',')
-            SystemManager.removeEmptyValue(SystemManager.userCmd)
+            SystemManager.userCmd = \
+                SystemManager.clearList(SystemManager.userCmd)
             SystemManager.printInfo("profiled user events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SystemManager.userCmd]))
             SystemManager.userEventList = \
@@ -17193,7 +17213,8 @@ Copyright:
             filterList = SystemManager.launchBuffer[launchPosStart + 3:]
             filterList = filterList[:filterList.find(' -')].strip()
             SystemManager.kernelCmd = str(filterList).split(',')
-            SystemManager.removeEmptyValue(SystemManager.kernelCmd)
+            SystemManager.kernelCmd = \
+                SystemManager.clearList(SystemManager.kernelCmd)
             SystemManager.printInfo("profiled kernel events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SystemManager.kernelCmd]))
             SystemManager.kernelEventList = \
@@ -18110,7 +18131,8 @@ Copyright:
                     sys.exit(0)
                 else:
                     SystemManager.preemptGroup = value.split(',')
-                    SystemManager.removeEmptyValue(SystemManager.preemptGroup)
+                    SystemManager.preemptGroup = \
+                        SystemManager.clearList(SystemManager.preemptGroup)
 
                     if len(SystemManager.preemptGroup) == 0:
                         SystemManager.printErr((\
@@ -18167,11 +18189,13 @@ Copyright:
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
-                SystemManager.removeEmptyValue(SystemManager.customCmd)
+                SystemManager.customCmd = \
+                    SystemManager.clearList(SystemManager.customCmd)
 
             elif option == 'g':
                 SystemManager.filterGroup = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.filterGroup)
+                SystemManager.filterGroup = \
+                    SystemManager.clearList(SystemManager.filterGroup)
 
             elif option == 'A':
                 SystemManager.archOption = value
@@ -18352,7 +18376,8 @@ Copyright:
 
             elif option == 'O':
                 SystemManager.perCoreList = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.perCoreList)
+                SystemManager.perCoreList = \
+                    SystemManager.clearList(SystemManager.perCoreList)
                 if len(SystemManager.perCoreList) == 0:
                     SystemManager.printErr(\
                         "Input value for filter with -O option")
@@ -18374,7 +18399,8 @@ Copyright:
 
             elif option == 't' and not SystemManager.isRecordMode():
                 SystemManager.syscallList = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.syscallList)
+                SystemManager.syscallList = \
+                    SystemManager.clearList(SystemManager.syscallList)
                 enabledSyscall = []
 
                 for val in SystemManager.syscallList:
@@ -18614,7 +18640,8 @@ Copyright:
 
             elif option == 'g':
                 SystemManager.filterGroup = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.filterGroup)
+                SystemManager.filterGroup = \
+                    SystemManager.clearList(SystemManager.filterGroup)
                 if len(SystemManager.filterGroup) == 0:
                     SystemManager.printErr(\
                         "Input value for filter with -g option")
@@ -18657,12 +18684,14 @@ Copyright:
             elif option == 'U':
                 SystemManager.ueventEnable = True
                 SystemManager.userCmd = str(value).split(',')
-                SystemManager.removeEmptyValue(SystemManager.userCmd)
+                SystemManager.userCmd = \
+                    SystemManager.clearList(SystemManager.userCmd)
 
             elif option == 'K':
                 SystemManager.keventEnable = True
                 SystemManager.kernelCmd = str(value).split(',')
-                SystemManager.removeEmptyValue(SystemManager.kernelCmd)
+                SystemManager.kernelCmd = \
+                    SystemManager.clearList(SystemManager.kernelCmd)
 
             elif option == 'M':
                 SystemManager.objdumpPath = value
@@ -18700,7 +18729,8 @@ Copyright:
             elif option == 't':
                 SystemManager.sysEnable = True
                 SystemManager.syscallList = value.split(',')
-                SystemManager.removeEmptyValue(SystemManager.syscallList)
+                SystemManager.syscallList = \
+                    SystemManager.clearList(SystemManager.syscallList)
                 enabledSyscall = []
 
                 for val in SystemManager.syscallList:
@@ -18745,7 +18775,8 @@ Copyright:
 
             elif option == 'c':
                 SystemManager.customCmd = str(value).split(',')
-                SystemManager.removeEmptyValue(SystemManager.customCmd)
+                SystemManager.customCmd = \
+                    SystemManager.clearList(SystemManager.customCmd)
                 if SystemManager.customCmd == []:
                     SystemManager.printErr(\
                         "Fail to recognize custom events")
@@ -20739,7 +20770,9 @@ Copyright:
                 SystemManager.filterGroup = []
             else:
                 SystemManager.filterGroup = (' '.join(ulist[1:])).split(',')
-            SystemManager.removeEmptyValue(SystemManager.filterGroup)
+
+            SystemManager.filterGroup = \
+                SystemManager.clearList(SystemManager.filterGroup)
 
             if SystemManager.isThreadMode():
                 mode = 'threads'
@@ -22656,7 +22689,7 @@ Copyright:
             sys.exit(0)
 
         schedGroup = value.split(',')
-        SystemManager.removeEmptyValue(schedGroup)
+        schedGroup = SystemManager.clearList(schedGroup)
         for item in schedGroup:
             schedSet = item.split(':')
             try:
@@ -26697,7 +26730,8 @@ class DbusAnalyzer(object):
                             # check error return #
                             if mtype == 'INVALID' or \
                                 mtype == 'ERROR':
-                                errstr = libgioObj.g_dbus_message_get_error_name(addr)
+                                errstr = \
+                                    libgioObj.g_dbus_message_get_error_name(addr)
                                 if errstr:
                                     data[tid][lastIf]['err'] += 1
 
@@ -26877,6 +26911,9 @@ class DbusAnalyzer(object):
             SystemManager.printErr(\
                 "Fail to find task to analyze dbus message")
             sys.exit(0)
+
+        # remove redundant tasks #
+        taskList = SystemManager.clearList(taskList)
 
         # define common list #
         pipeList = []
