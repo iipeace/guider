@@ -29,7 +29,6 @@ export default {
       clientMsg: "",
       log: "",
       targetTimestamp: "",
-      emitCount: 0,
       arrProcParam: ["nrThreads", "mem", "life", "comm", "ttime", "PPID"],
       targetAddr: ""
     };
@@ -37,14 +36,6 @@ export default {
   sockets: {
     connect: function() {
       this.connectSocket();
-    },
-    server_response: function(msg) {
-      // msg is json
-      EventBus.$emit("cnt_emit", this.emitCount);
-      EventBus.$emit("cpu_usage", msg.cpu);
-      EventBus.$emit("mem_usage", msg.memory);
-      // EventBus.$emit("proc_usage", procUsage);
-      this.emitCount = this.emitCount + 1;
     },
     request_stop_result: function(msg) {
       this.appendLog(msg);
