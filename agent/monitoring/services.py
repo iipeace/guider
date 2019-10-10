@@ -2,7 +2,7 @@ import sys
 import json
 
 from flask_socketio import emit
-from models import CPU, Memory, Storage, Network, Data
+from monitoring.models import CPU, Memory, Network, Data
 
 class RequestManager(object):
     requests = {}
@@ -29,7 +29,7 @@ class RequestManager(object):
         cls.requests.clear()
 
 def save_database(msg):
-    cpu = Cpu(kernel=msg['cpu']['kernel'],
+    cpu = CPU(kernel=msg['cpu']['kernel'],
                         user=msg['cpu']['user'],
                         irq=msg['cpu']['irq'],
                         nrCore=msg['cpu']['nrCore'],
@@ -42,12 +42,12 @@ def save_database(msg):
                             total=msg['memory']['total'])
 
     network = Network(inbound=msg['network']['inbound'], outbound=msg['network']['outbound'])
-
+    '''
     storage = Storage(free=msg['storage']['free'],
                             usage=msg['storage']['usage'],
                             total=msg['storage']['total'])
-
-    data = Data(cpu=cpu, memory=memory, network=network, storage=storage)
+    '''
+    data = Data(cpu=cpu, memory=memory, network=network)
     data.save()
 
     print('database saved in mongodb!')
@@ -93,6 +93,8 @@ def communicate_with_guider(timestamp, targetAddr):
 
                 msg = dict(timestamp=json_pipe['timestamp'])
 
+                #print msg!
+
                 # cpu
                 cpu = json_pipe['cpu']
                 msg['cpu'] = dict(kernel=cpu['kernel'],
@@ -100,7 +102,6 @@ def communicate_with_guider(timestamp, targetAddr):
                                   irq=cpu['irq'],
                                   nrCore=cpu['nrCore'],
                                   total=cpu['total'])
-
                 # memory
                 memory = json_pipe['mem']
                 msg['memory'] = dict(kernel=memory['kernel'],
@@ -108,28 +109,32 @@ def communicate_with_guider(timestamp, targetAddr):
                                      free=memory['free'],
                                      anon=memory['anon'],
                                      total=memory['total'])
-
                 # storage
+                '''
                 storage = json_pipe['storage']['total']
+                print(storage)
                 msg['storage'] = dict(free=storage['free'],
                                       usage=storage['usage'],
                                       total=storage['total'])
-
+'''
                 # network
                 network = json_pipe['net']
                 msg['network'] = dict(
                     inbound=network['inbound'], outbound=network['outbound'])
-
+                
+   
                 # save msg to db
                 save_database(msg)
 
-                #print msg!
-                print(msg)
 
                 emit('server_response', msg)
-            except (json.decoder.JSONDecodeError, KeyError):
+            except (json.decoder.JSONDecodeError, KeyError) as e:
+                print(e)
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
+            
+            # TODO: Error Handling for MongoEngine
+            
         else:
             print('[%s] %s' % (data_type, str_pipe))
 
