@@ -22,3 +22,5 @@ MANIFEST
 # python Virtualenv
 venv/
 
+# vscode
+.vscode/
