@@ -2,7 +2,7 @@ import sys
 import json
 
 from flask_socketio import emit
-
+from models import CPU, Memory, Storage, Network, Data
 
 class RequestManager(object):
     requests = {}
@@ -28,6 +28,29 @@ class RequestManager(object):
     def clear_request(cls):
         cls.requests.clear()
 
+def save_database(msg):
+    cpu = Cpu(kernel=msg['cpu']['kernel'],
+                        user=msg['cpu']['user'],
+                        irq=msg['cpu']['irq'],
+                        nrCore=msg['cpu']['nrCore'],
+                        total=msg['cpu']['total'])
+
+    memory = Memory(kernel=msg['memory']['kernel'],
+                            cache=msg['memory']['cache'],
+                            free=msg['memory']['free'],
+                            anon=msg['memory']['anon'],
+                            total=msg['memory']['total'])
+
+    network = Network(inbound=msg['network']['inbound'], outbound=msg['network']['outbound'])
+
+    storage = Storage(free=msg['storage']['free'],
+                            usage=msg['storage']['usage'],
+                            total=msg['storage']['total'])
+
+    data = Data(cpu=cpu, memory=memory, network=network, storage=storage)
+    data.save()
+
+    print('database saved in mongodb!')
 
 def communicate_with_guider(timestamp, targetAddr):
     import os
@@ -97,6 +120,10 @@ def communicate_with_guider(timestamp, targetAddr):
                 msg['network'] = dict(
                     inbound=network['inbound'], outbound=network['outbound'])
 
+                # save msg to db
+                save_database(msg)
+
+                #print msg!
                 print(msg)
 
                 emit('server_response', msg)

@@ -29,3 +29,11 @@ config_dict = dict(
     test=TestingConfig,
     prod=ProductConfig
 )
+
+config_database = dict(
+    host='localhost',
+    db='guider',
+    user='root',
+    password='password',
+    port=27017
+)
