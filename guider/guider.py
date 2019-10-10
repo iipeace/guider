@@ -45620,19 +45620,16 @@ class ThreadAnalyzer(object):
             for line in ioBuf:
                 line = line.split()
                 if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
-                    try:
-                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
-                    except:
+                    if self.procData[tid]['io'] is None:
                         self.procData[tid]['io'] = {}
-                        self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
         # save perf fds #
-        if SystemManager.perfGroupEnable:
-            try:
-                self.procData[tid]['perfFds'] = \
-                    self.prevProcData[tid]['perfFds']
-            except:
-                pass
+        if SystemManager.perfGroupEnable and \
+            tid in self.prevProcData and \
+            'perfFds' in self.prevProcData[tid]:
+            self.procData[tid]['perfFds'] = \
+                self.prevProcData[tid]['perfFds']
 
         # save oom_score #
         if SystemManager.oomEnable:
@@ -45677,8 +45674,8 @@ class ThreadAnalyzer(object):
                             self.procData[tid]['oomFd']
             except:
                 SystemManager.printWarn('Fail to open %s' % oomPath)
+
                 self.procData.pop(tid, None)
-                return
 
 
 
