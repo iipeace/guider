@@ -45064,11 +45064,10 @@ class ThreadAnalyzer(object):
 
         # get thread list #
         for pid in pids:
-            try:
-                int(pid)
-                self.nrProcess += 1
-            except:
+            if not pid.isdigit():
                 continue
+
+            self.nrProcess += 1
 
             # make path of tid #
             procPath = "%s/%s" % (SystemManager.procPath, pid)
@@ -45094,11 +45093,10 @@ class ThreadAnalyzer(object):
                 continue
 
             for tid in tids:
-                try:
-                    int(tid)
-                    self.nrThread += 1
-                except:
+                if not tid.isdigit():
                     continue
+
+                self.nrThread += 1
 
                 threadPath = "%s/%s" % (taskPath, tid)
 
