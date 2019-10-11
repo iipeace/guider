@@ -29,31 +29,6 @@ class RequestManager(object):
         cls.requests.clear()
 
 
-import os
-curDir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, '%s/../../guider' % curDir)
-from guider import NetworkManager
-
-
-def connect_with_guider(timestamp, targetAddr):
-
-    NetworkManager.prepareServerConn(None, targetAddr)
-
-    conn = NetworkManager.getServerConn()
-    if not conn:
-        raise Exception('Fail to get connection with server')
-
-    RequestManager.add_request(timestamp)
-
-
-def communicate_with_guider(timestamp, cmd):
-
-    if(RequestManager.get_requestStatus(timestamp) == False):
-        raise Exception('disconnetcted with guider')
-
-    pipe = NetworkManager.getCmdPipe()
-
-
 
 def communicate_with_guider(timestamp, targetAddr):
     print('request_start')
