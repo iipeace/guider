@@ -1,32 +1,51 @@
 <template>
   <div>
+    <div class="row">
+      <div class="col-12">
+        <span>NETWORK</span>
+        <vue-apex-charts width="500" type="line" :options="chartOptions" :series="series"/>
+      </div>
+    </div>
   </div>
 </template>
 <script>
-import * as chartConfigs from "@/components/Charts/config";
-import config from "@/config";
+
+import {EventBus} from '../event-bus'
+import VueApexCharts from 'vue-apexcharts'
 
 export default {
   components: {
+    VueApexCharts,
   },
-  data() {
+  data: function () {
+    return {
+      chartOptions: {
+        chart: {
+          id: 'basic-bar'
+        },
+        xaxis: {
+          categories: []
+        }
+      },
+      series: [{
+        name: 'inbound',
+        data: []
+      }]
+    }
   },
   computed: {
   },
   methods: {
+    updateChart() {
+      this.series.data = [0,1,2]
+    }
   },
   mounted() {
-    this.i18n = this.$i18n;
-    if (this.enableRTL) {
-      this.i18n.locale = "ar";
-      this.$rtl.enableRTL();
-    }
+    EventBus.$on('setDashboardData', (data) => {
+      console.log(data)
+    })
   },
   beforeDestroy() {
-    if (this.$rtl.isRTL) {
-      this.i18n.locale = "en";
-      this.$rtl.disableRTL();
-    }
   }
 };
 </script>

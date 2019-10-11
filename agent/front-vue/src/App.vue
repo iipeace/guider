@@ -7,7 +7,7 @@
 </template>
 
 <script>
-import SocketIo from "./components/SocketIO";
+import SocketIo from "./pages/SocketIO";
 import { EventBus } from "./event-bus";
 
 export default {

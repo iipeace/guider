@@ -37,6 +37,9 @@ export default {
     connect: function() {
       this.connectSocket();
     },
+    server_response: function(data) {
+      EventBus.$emit('setDashboardData', data)
+    },
     request_stop_result: function(msg) {
       this.appendLog(msg);
     }
