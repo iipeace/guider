@@ -1,21 +1,28 @@
 <template>
   <div>
-    <div>
-      <span
-        style="font-size: x-small; ">Input the guider target IP addr and port (ex> 192.168.24.12:5000)
-      </span>
-      <input type="text" v-model="targetAddr" @keyup.enter="emitStart" />
-      <button class="basic-button" id="emitStart" @click="emitStart">
-        Start
-      </button>
-      <button
-        class="basic-button"
-        id="disconnectSocket"
-        @click="disconnectSocket"
-      >
-        Stop
-      </button>
-    </div>
+    <b-row>
+      <b-col sm="6">
+        <b-form-input
+          type="text"
+          v-model="targetAddr"
+          @keyup.enter="emitStart"
+          aria-describedby="input-description-help"
+        />
+        <b-form-text id="input-description-help">
+          Input the guider target IP addr and port (ex> 192.168.24.12:5000)
+        </b-form-text>
+      </b-col>
+      <b-col sm="2">
+        <b-btn id="emitStart" @click="emitStart">
+          Start
+        </b-btn>
+      </b-col>
+      <b-col sm="2">
+        <b-btn id="disconnectSocket" @click="disconnectSocket">
+          Stop
+        </b-btn>
+      </b-col>
+    </b-row>
   </div>
 </template>
 
@@ -67,7 +74,7 @@ export default {
     },
     connectSocket: function() {
       this.$socket.connect(); // if connection is not establised.
-    },
+    }
   }
 };
 </script>
