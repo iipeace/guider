@@ -1,11 +1,10 @@
 from flask import Flask
 from flask_restful import Api
 from flask_socketio import SocketIO
-from flask_cors import CORS
 
 from app.config import config_dict
 
-from monitoring.controllers import Main
+from monitoring.controllers import Main, Slack
 from monitoring.services import communicate_with_guider, disconnect_with_guider
 
 
@@ -16,7 +15,6 @@ def create_app(config_name):
                 static_url_path='',
                 static_folder=f_config.STATIC_FOLDER)
     app.config.from_object(f_config)
-    CORS(app, resources={r"*": {"origins": "*"}})
 
     socket = SocketIO(app)
     socket.init_app(app, cors_allowed_origins="*")
@@ -24,6 +22,7 @@ def create_app(config_name):
     api = Api(app)
 
     api.add_resource(Main, '/', '/<path:path>')
+    api.add_resource(Slack, '/slack/')
 
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)
