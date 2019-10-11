@@ -29,11 +29,8 @@ class RequestManager(object):
         cls.requests.clear()
 
 
+
 def communicate_with_guider(timestamp, targetAddr):
-    import os
-    curDir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, '%s/../../guider' % curDir)
-    from guider import NetworkManager
     print('request_start')
 
     # set addresses #
