@@ -4,6 +4,7 @@ import json
 from flask_socketio import emit
 from monitoring.models import CPU, Memory, Network, Data
 
+
 class RequestManager(object):
     requests = {}
 
@@ -28,20 +29,20 @@ class RequestManager(object):
     def clear_request(cls):
         cls.requests.clear()
 
+
 def save_database(msg):
-    cpu = CPU(kernel=msg['cpu']['kernel'],
-                        user=msg['cpu']['user'],
-                        irq=msg['cpu']['irq'],
-                        nrCore=msg['cpu']['nrCore'],
-                        total=msg['cpu']['total'])
+    cpu = CPU(kernel=msg['cpu']['kernel'], user=msg['cpu']['user'],
+              irq=msg['cpu']['irq'], nrCore=msg['cpu']['nrCore'],
+              total=msg['cpu']['total'])
 
     memory = Memory(kernel=msg['memory']['kernel'],
-                            cache=msg['memory']['cache'],
-                            free=msg['memory']['free'],
-                            anon=msg['memory']['anon'],
-                            total=msg['memory']['total'])
+                    cache=msg['memory']['cache'],
+                    free=msg['memory']['free'],
+                    anon=msg['memory']['anon'],
+                    total=msg['memory']['total'])
 
-    network = Network(inbound=msg['network']['inbound'], outbound=msg['network']['outbound'])
+    network = Network(inbound=msg['network']['inbound'],
+                      outbound=msg['network']['outbound'])
     '''
     storage = Storage(free=msg['storage']['free'],
                             usage=msg['storage']['usage'],
@@ -51,6 +52,7 @@ def save_database(msg):
     data.save()
 
     print('database saved in mongodb!')
+
 
 def communicate_with_guider(timestamp, targetAddr):
     import os
@@ -93,8 +95,6 @@ def communicate_with_guider(timestamp, targetAddr):
 
                 msg = dict(timestamp=json_pipe['timestamp'])
 
-                #print msg!
-
                 # cpu
                 cpu = json_pipe['cpu']
                 msg['cpu'] = dict(kernel=cpu['kernel'],
@@ -121,20 +121,15 @@ def communicate_with_guider(timestamp, targetAddr):
                 network = json_pipe['net']
                 msg['network'] = dict(
                     inbound=network['inbound'], outbound=network['outbound'])
-                
-   
                 # save msg to db
                 save_database(msg)
-
 
                 emit('server_response', msg)
             except (json.decoder.JSONDecodeError, KeyError) as e:
                 print(e)
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
-            
             # TODO: Error Handling for MongoEngine
-            
         else:
             print('[%s] %s' % (data_type, str_pipe))
 
