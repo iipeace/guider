@@ -2720,7 +2720,7 @@ class ConfigManager(object):
         try:
             f = open(path, 'r')
         except:
-            SystemManager.printErr("Fail to open %s" % path)
+            SystemManager.printOpenErr(path)
             return None
 
         if num == 0:
@@ -2749,7 +2749,7 @@ class ConfigManager(object):
         try:
             fd = open(path, 'w')
         except:
-            SystemManager.printErr("Fail to open %s" % path)
+            SystemManager.printOpenErr(path)
             return None
 
         return fd
@@ -4201,8 +4201,7 @@ class NetworkManager(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printWarn(\
-                    "Fail to open %s to read effective ip addresses" % path)
+                SystemManager.printOpenWarn(path)
 
         return list(effectiveList.keys())
 
@@ -4274,9 +4273,7 @@ class NetworkManager(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printWarn(\
-                "Fail to open %s to read ip addresses with device info" % \
-                routePath)
+            SystemManager.printOpenWarn(routePath)
             return effectiveList
 
 
@@ -4479,7 +4476,7 @@ class PageAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printErr('Fail to open %s' % fpath)
+            SystemManager.printOpenErr(fpath)
             sys.exit(0)
 
         start = hex(start).rstrip('L')
@@ -9616,8 +9613,7 @@ class LeakAnalyzer(object):
             with open(file, 'r') as fd:
                 lines = fd.readlines()[1:]
         except:
-            SystemManager.printErr(\
-                "Fail to open %s" % file)
+            SystemManager.printOpenErr(file)
             sys.exit(0)
 
         SystemManager.printInfo("start processing data...")
@@ -10235,8 +10231,7 @@ class FileAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printWarn(\
-                    'Fail to open %s to get process memory map' % path)
+                SystemManager.printOpenWarn(path)
                 return
 
         # read maps #
@@ -10452,8 +10447,7 @@ class FileAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printErr(\
-                'Fail to open %s' % (SystemManager.procPath))
+            SystemManager.printOpenErr(SystemManager.procPath)
             sys.exit(0)
 
         # scan comms include words in SystemManager.filterGroup #
@@ -10478,7 +10472,7 @@ class FileAnalyzer(object):
                     pidComm = pidComm[0:len(pidComm) - 1]
                     fd.close()
                 except:
-                    SystemManager.printWarn('Fail to open %s' % (commPath))
+                    SystemManager.printOpenWarn(commPath)
                     continue
 
             # make path of tid #
@@ -10487,7 +10481,7 @@ class FileAnalyzer(object):
             try:
                 tids = os.listdir(taskPath)
             except:
-                SystemManager.printWarn('Fail to open %s' % (taskPath))
+                SystemManager.printOpenWarn(taskPath)
                 continue
 
             # make thread list in process object #
@@ -10507,7 +10501,7 @@ class FileAnalyzer(object):
                     comm = comm[0:len(comm) - 1]
                     fd.close()
                 except:
-                    SystemManager.printWarn('Fail to open %s' % (commPath))
+                    SystemManager.printOpenWarn(commPath)
                     continue
 
                 # save process info #
@@ -10692,7 +10686,7 @@ class FileAnalyzer(object):
                 except:
                     self.profFailedCnt += 1
                     if SystemManager.warningEnable:
-                        SystemManager.printWarn('Fail to open %s' % fileName)
+                        SystemManager.printOpenWarn(fileName)
                     continue
 
             # check file size whether it is readable or not #
@@ -10757,7 +10751,7 @@ class FileAnalyzer(object):
                     self.profSuccessCnt += 1
 
                     # fd resource is about to run out #
-                    if SystemManager.maxFd-16 < fd:
+                    if SystemManager.maxKeepFd < fd:
                         val['fd'].close()
                         val['fd'] = None
                 except:
@@ -10832,8 +10826,7 @@ class LogManager(object):
                 fd.write(message)
         except:
             self.error = True
-            SystemManager.printErr(\
-                'Fail to open %s to log error' % errorFile)
+            SystemManager.printOpenErr(errorFile)
 
 
 
@@ -10875,6 +10868,7 @@ class SystemManager(object):
     imagePath = None
     launchBuffer = None
     maxFd = 512
+    maxKeepFd = maxFd - 16
     lineLength = 154
     pid = 0
     prio = None
@@ -11244,6 +11238,7 @@ class SystemManager(object):
             soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
             resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
             SystemManager.maxFd = hard
+            SystemManager.maxKeepFd = SystemManager.maxFd - 16
             return
 
         # try to get maxFd by native call #
@@ -11251,6 +11246,7 @@ class SystemManager(object):
             SystemManager.maxFd = \
                 SystemManager.guiderObj.getrlimit(\
                     ConfigManager.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
+            SystemManager.maxKeepFd = SystemManager.maxFd - 16
             return
         except:
             pass
@@ -11283,6 +11279,7 @@ class SystemManager(object):
                 ConfigManager.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
 
             SystemManager.maxFd = rlim.rlim_cur
+            SystemManager.maxKeepFd = SystemManager.maxFd - 16
         except:
             SystemManager.printWarn(\
                 "Fail to get the maximum file descriptor because %s" % \
@@ -11639,12 +11636,19 @@ class SystemManager(object):
         cmdlinePath = \
             '%s/%s/cmdline' % (SystemManager.procPath, pid)
 
-        with open(cmdlinePath, 'r') as fd:
-            res = fd.readline()
+        try:
+            with open(cmdlinePath, 'r') as fd:
+                res = fd.readline()
+                if retList:
+                    return res.split("\x00")
+                else:
+                    return res.replace("\x00", " ")
+        except:
+            SystemManager.printOpenWarn(cmdlinePath)
             if retList:
-                return res.split("\x00")
+                return []
             else:
-                return res.replace("\x00", " ")
+                return ''
 
 
 
@@ -11895,7 +11899,7 @@ class SystemManager(object):
                 SystemManager.diskStatsFd = open(diskstatPath, 'r')
                 SystemManager.diskStats = SystemManager.diskStatsFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % diskstatPath)
+                SystemManager.printOpenWarn(diskstatPath)
 
 
 
@@ -11910,7 +11914,7 @@ class SystemManager(object):
                 SystemManager.mountFd = open(mountPath, 'r')
                 return SystemManager.mountFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % mountPath)
+                SystemManager.printOpenWarn(mountPath)
 
 
 
@@ -11922,7 +11926,7 @@ class SystemManager(object):
                 STATM_TYPE = fd.readlines()[0].split()
                 return STATM_TYPE
         except:
-            SystemManager.printWarn('Fail to open %s' % statmPath)
+            SystemManager.printOpenWarn(statmPath)
             return
 
 
@@ -12129,8 +12133,7 @@ class SystemManager(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printErr(\
-                'Fail to open %s' % (SystemManager.procPath))
+            SystemManager.printOpenErr(SystemManager.procPath)
             return None
 
         for pid in pids:
@@ -12149,7 +12152,7 @@ class SystemManager(object):
             try:
                 tids = os.listdir(taskPath)
             except:
-                SystemManager.printWarn('Fail to open %s' % (taskPath))
+                SystemManager.printOpenWarn(taskPath)
                 continue
 
             for tid in tids:
@@ -15798,8 +15801,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printErr(\
-                "Fail to open %s to get uds list " % udsPath)
+            SystemManager.printOpenErr(udsPath)
             return udsBuf
 
         UDS_ATTR = []
@@ -15827,8 +15829,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printErr(\
-                "Fail to open %s to get udp list " % udpPath)
+            SystemManager.printOpenErr(udpPath)
             return udpBuf
 
         udpList = []
@@ -15858,8 +15859,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SystemManager.printErr(\
-                "Fail to open %s to get tcp list " % tcpPath)
+            SystemManager.printOpenErr(tcpPath)
             return tcpBuf
 
         tcpList = []
@@ -16417,9 +16417,7 @@ Copyright:
                     lines = fr.readlines()
             except:
                 err = SystemManager.getErrReason()
-                SystemManager.printErr(\
-                    'Fail to open %s to save trace data because %s' % \
-                    (rpath, err))
+                SystemManager.printOpenErr(rpath)
                 sys.exit(0)
 
             # write trace data #
@@ -16598,10 +16596,7 @@ Copyright:
                     SystemManager.cmdFd.write(\
                         'echo "\nstart recording... [ STOP(Ctrl+c) ]\n"\n')
                 except:
-                    err = SystemManager.getErrReason()
-                    SystemManager.printErr(\
-                        "Fail to open %s to write command because %s" % \
-                        (SystemManager.cmdEnable, err))
+                    SystemManager.printOpenErr(SystemManager.cmdEnable)
                     return -1
             if SystemManager.cmdFd:
                 try:
@@ -16786,10 +16781,7 @@ Copyright:
             kmsgPath = '/dev/kmsg'
             fd = open(kmsgPath, 'r')
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printErr(\
-                "Fail to open %s because %s" % \
-                    (kmsgPath, err))
+            SystemManager.printOpenErr(kmsgPath)
             sys.exit(0)
 
         # toDo: add lseek option #
@@ -17246,9 +17238,7 @@ Copyright:
                 SystemManager.eventLogFD = \
                     open(SystemManager.eventLogFile, 'w')
             except:
-                SystemManager.printWarn(\
-                    "Fail to open %s to write event\n" % \
-                    SystemManager.eventLogFile)
+                SystemManager.printOpenWarn(SystemManager.eventLogFile)
                 return
 
         if SystemManager.eventLogFD:
@@ -17625,8 +17615,7 @@ Copyright:
                         "ready for writing statistics to %s" % \
                         SystemManager.inputFile)
             except:
-                SystemManager.printErr(\
-                    "Fail to open %s\n" % SystemManager.inputFile)
+                SystemManager.printOpenErr(SystemManager.inputFile)
                 sys.exit(0)
 
         # file output #
@@ -17804,6 +17793,22 @@ Copyright:
             sys.exit(0)
         except:
             return False
+
+
+
+    @staticmethod
+    def printOpenErr(path, always=False):
+        SystemManager.printWarn(\
+            'Fail to open %s because %s' % \
+                (path, SystemManager.getErrReason()), always)
+
+
+
+    @staticmethod
+    def printOpenWarn(path, always=False):
+        SystemManager.printWarn(\
+            'Fail to open %s because %s' % \
+                (path, SystemManager.getErrReason()), always)
 
 
 
@@ -18840,7 +18845,7 @@ Copyright:
         try:
             f = open(symPath, 'r')
         except IOError:
-            SystemManager.printWarn("Fail to open %s" % symPath)
+            SystemManager.printOpenWarn(symPath)
 
         ret = None
         startPos = len(SystemManager.kerSymTable)
@@ -19988,9 +19993,7 @@ Copyright:
 
             SystemManager.reportObject = open(reportPath, perm)
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printErr(\
-                "Fail to open %s because %s" % (reportPath, err))
+            SystemManager.printOpenErr(reportPath)
             sys.exit(0)
 
         SystemManager.reportEnable = True
@@ -20191,9 +20194,7 @@ Copyright:
         try:
             fdlist = os.listdir(fdlistPath)
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printWarn(\
-                'Fail to open %s because %s' % (fdlistPath, err))
+            SystemManager.printOpenWarn(fdlistPath)
             return socketAddrList
 
         # save fd info of process #
@@ -20211,7 +20212,7 @@ Copyright:
                 if filename.startswith('socket'):
                     socketAddrList.append(filename.split('[')[1][:-1])
             except:
-                SystemManager.printWarn('Fail to open %s' % fdPath)
+                SystemManager.printOpenWarn(fdPath)
 
         return socketAddrList
 
@@ -20304,7 +20305,7 @@ Copyright:
                 SystemManager.uptime = \
                     float(SystemManager.uptimeFd.readlines()[0].split()[0])
             except:
-                SystemManager.printWarn('Fail to open %s' % uptimePath)
+                SystemManager.printOpenWarn(uptimePath)
 
 
 
@@ -20547,7 +20548,7 @@ Copyright:
         myComm = SystemManager.getComm(SystemManager.pid)
 
         # get my cmdline #
-        myCmdline = SystemManager.getCmdline(SystemManager.pid).split()
+        myCmdline = SystemManager.getCmdline(SystemManager.pid, True)
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
@@ -20561,7 +20562,7 @@ Copyright:
 
             # check cmdline again #
             if myComm != __module__ and checkCmdline:
-                cmdlineList = SystemManager.getCmdline(pid).split()
+                cmdlineList = SystemManager.getCmdline(pid, True)
                 if len(cmdlineList) > 2 and myCmdline[:2] != cmdlineList[:2]:
                     continue
 
@@ -21480,7 +21481,7 @@ Copyright:
                 SystemManager.statFd = open(cpuPath, 'r')
                 cpuBuf = SystemManager.statFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % cpuPath)
+                SystemManager.printOpenWarn(cpuPath)
 
         nrCore = 0
         if cpuBuf:
@@ -22604,7 +22605,7 @@ Copyright:
 
             # check cmdline again #
             if myComm != __module__:
-                cmdlineList = SystemManager.getCmdline(pid).split()
+                cmdlineList = SystemManager.getCmdline(pid, True)
                 if len(cmdlineList) > 2 and myCmdline[:2] != cmdlineList[:2]:
                     continue
 
@@ -22612,7 +22613,7 @@ Copyright:
                 waitStatus = False
 
                 try:
-                    cmdList = SystemManager.getCmdline(pid).split(' ')
+                    cmdList = SystemManager.getCmdline(pid, True)
                     for val in cmdList:
                         if val == '-c':
                             waitStatus = True
@@ -23219,11 +23220,10 @@ Copyright:
         OSFile = '/etc/os-release'
 
         try:
-            osf = open(OSFile, 'r')
-            self.osData = osf.readlines()
-            osf.close()
+            with open(OSFile, 'r') as osf:
+                self.osData = osf.readlines()
         except:
-            SystemManager.printWarn("Fail to open %s for Linux" % OSFile)
+            SystemManager.printOpenWarn(OSFile)
 
 
 
@@ -23250,13 +23250,13 @@ Copyright:
             self.osData = osf.readlines()
             osf.close()
         except:
-            SystemManager.printWarn("Fail to open %s for webOS" % OSFile)
+            SystemManager.printOpenWarn(OSFile)
 
         try:
             self.devData = devf.readlines()
             devf.close()
         except:
-            SystemManager.printWarn("Fail to open %s for webOS" % devFile)
+            SystemManager.printOpenWarn(devFile)
 
 
 
@@ -23422,7 +23422,7 @@ Copyright:
             size = f.readlines()
             f.close()
         except:
-            SystemManager.printWarn("Fail to open %s" % bufFile)
+            SystemManager.printOpenWarn(bufFile)
             return 0
 
 
@@ -23441,14 +23441,14 @@ Copyright:
         try:
             pd = open(pipePath, 'r')
         except:
-            SystemManager.printErr("Fail to open %s" % pipePath)
+            SystemManager.printOpenErr(pipePath)
             sys.exit(0)
 
         try:
             # use os.O_DIRECT | os.O_RDWR | os.O_TRUNC | os.O_CREAT #
             fd = open(filePath, 'w')
         except:
-            SystemManager.printErr("Fail to open %s" % filePath)
+            SystemManager.printOpenErr(filePath)
             sys.exit(0)
 
         pageSize = SystemManager.pageSize
@@ -24889,7 +24889,7 @@ Copyright:
                 SystemManager.shmFd = open(path, 'r')
                 data = SystemManager.shmFd.readlines()[1:]
             except:
-                SystemManager.printWarn('Fail to open %s' % path)
+                SystemManager.printOpenWarn(path)
                 return
 
         # backup shm data #
@@ -24938,7 +24938,7 @@ Copyright:
                 SystemManager.msgqFd = open(path, 'r')
                 data = SystemManager.msgqFd.readlines()[1:]
             except:
-                SystemManager.printWarn('Fail to open %s' % path)
+                SystemManager.printOpenWarn(path)
                 return
 
         # backup msgq data #
@@ -24987,7 +24987,7 @@ Copyright:
                 SystemManager.semFd = open(path, 'r')
                 data = SystemManager.semFd.readlines()[1:]
             except:
-                SystemManager.printWarn('Fail to open %s' % path)
+                SystemManager.printOpenWarn(path)
                 return
 
         # backup sem data #
@@ -25055,7 +25055,7 @@ Copyright:
                 SystemManager.netdevFd = open(devPath, 'r')
                 data = SystemManager.netdevFd.readlines()[2:]
             except:
-                SystemManager.printWarn('Fail to open %s' % devPath)
+                SystemManager.printOpenWarn(devPath)
                 return
 
         try:
@@ -25119,7 +25119,7 @@ Copyright:
             with open(path, 'r') as fd:
                 data = fd.readlines()
         except:
-            SystemManager.printWarn('Fail to open %s' % path)
+            SystemManager.printOpenWarn(path)
             return
 
         # parse data #
@@ -28936,7 +28936,7 @@ struct msghdr {
             try:
                 self.mapFd = open(mpath, 'r')
             except:
-                SystemManager.printWarn('Fail to open %s' % mpath)
+                SystemManager.printOpenWarn(mpath)
                 return None
 
         # scan process memory map #
@@ -29865,7 +29865,7 @@ struct msghdr {
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printWarn('Fail to open %s' % statPath)
+                SystemManager.printOpenWarn(statPath)
                 return
 
         # convert string to list #
@@ -29895,7 +29895,7 @@ struct msghdr {
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printWarn('Fail to open %s' % statPath)
+                SystemManager.printOpenWarn(statPath)
                 return
 
         # check stat change #
@@ -32676,9 +32676,9 @@ class ElfAnalyzer(object):
             fd = open(path, 'rb')
         except:
             if debug:
-                SystemManager.printErr("Fail to open %s" % path)
+                SystemManager.printOpenErr(path)
             else:
-                SystemManager.printWarn("Fail to open %s" % path)
+                SystemManager.printOpenWarn(path)
 
             err = SystemManager.getErrReason()
             raise Exception(err)
@@ -37987,9 +37987,7 @@ class ThreadAnalyzer(object):
             with open(SystemManager.sourceFile, 'r') as fd:
                 confBuf = fd.read()
         except:
-            SystemManager.printErr(\
-                "Fail to open %s to set configuration" % \
-                SystemManager.sourceFile)
+            SystemManager.printOpenErr(SystemManager.sourceFile)
             sys.exit(0)
 
         if not confBuf:
@@ -39934,9 +39932,7 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SystemManager.getErrReason()
-            SystemManager.printErr(\
-                "Fail to open %s because %s" % (file, err))
+            SystemManager.printOpenErr(file)
             sys.exit(0)
 
 
@@ -41631,9 +41627,7 @@ class ThreadAnalyzer(object):
             try:
                 fd = open(file, 'rb')
             except:
-                err = SystemManager.getErrReason()
-                SystemManager.printErr(\
-                    "Fail to open %s because %s" % (file, err))
+                SystemManager.printOpenErr(file)
                 sys.exit(0)
 
             # check compression #
@@ -41677,18 +41671,14 @@ class ThreadAnalyzer(object):
                             continue
                         buf.append('%s\n' % item)
                 except:
-                    err = SystemManager.getErrReason()
-                    SystemManager.printErr(\
-                        "Fail to open %s because %s" % (file, err))
+                    SystemManager.printOpenErr(file)
                     sys.exit(0)
             else:
                 try:
                     with open(file, 'r') as fd:
                         buf = fd.readlines(nrLine)
                 except:
-                    err = SystemManager.getErrReason()
-                    SystemManager.printErr(\
-                        "Fail to open %s because %s" % (file, err))
+                    SystemManager.printOpenErr(file)
                     sys.exit(0)
 
             # verify log buffer #
@@ -44732,8 +44722,7 @@ class ThreadAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printErr(\
-                'Fail to open %s' % SystemManager.procPath)
+            SystemManager.printOpenErr(SystemManager.procPath)
             sys.exit(0)
 
         # remove self info #
@@ -44761,7 +44750,7 @@ class ThreadAnalyzer(object):
             try:
                 fdlist = os.listdir(fdlistPath)
             except:
-                SystemManager.printWarn('Fail to open %s' % fdlistPath)
+                SystemManager.printOpenWarn(fdlistPath)
                 continue
 
             # save fd info of process #
@@ -44811,7 +44800,7 @@ class ThreadAnalyzer(object):
                         self.procData[pid]['fdInfo']['NORMAL'] += 1
                 except:
                     self.nrFd -= 1
-                    SystemManager.printWarn('Fail to open %s' % fdPath)
+                    SystemManager.printOpenWarn(fdPath)
 
 
 
@@ -44828,7 +44817,7 @@ class ThreadAnalyzer(object):
 
                 irqBuf = SystemManager.irqFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % irqPath)
+                SystemManager.printOpenWarn(irqPath)
 
         # save softirq info #
         try:
@@ -44844,7 +44833,7 @@ class ThreadAnalyzer(object):
                 sirqBuf = SystemManager.softirqFd.readlines()
                 irqBuf += sirqBuf[1:]
             except:
-                SystemManager.printWarn('Fail to open %s' % sirqPath)
+                SystemManager.printOpenWarn(sirqPath)
 
         if irqBuf:
             self.prevIrqData = self.irqData
@@ -44932,7 +44921,7 @@ class ThreadAnalyzer(object):
 
                 memBuf = SystemManager.memFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % memPath)
+                SystemManager.printOpenWarn(memPath)
 
         if memBuf:
             self.prevMemData = self.memData
@@ -44960,7 +44949,7 @@ class ThreadAnalyzer(object):
 
                 vmBuf = SystemManager.vmstatFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % vmstatPath)
+                SystemManager.printOpenWarn(vmstatPath)
 
         if vmBuf:
             self.prevVmData = self.vmData
@@ -44982,7 +44971,7 @@ class ThreadAnalyzer(object):
 
                 swapBuf = SystemManager.swapFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % swapPath)
+                SystemManager.printOpenWarn(swapPath)
 
         # get swap usage if it changed #
         if self.prevSwaps != swapBuf and swapBuf:
@@ -45024,7 +45013,7 @@ class ThreadAnalyzer(object):
                 SystemManager.netstatFd = open(netstatPath, 'r')
                 SystemManager.netstat = SystemManager.netstatFd.readlines()
             except:
-                SystemManager.printWarn('Fail to open %s' % netstatPath)
+                SystemManager.printOpenWarn(netstatPath)
 
         # save loadavg #
         try:
@@ -45036,7 +45025,7 @@ class ThreadAnalyzer(object):
                 SystemManager.loadavgFd = open(loadavgPath, 'r')
                 SystemManager.loadavg = SystemManager.loadavgFd.readlines()[0]
             except:
-                SystemManager.printWarn('Fail to open %s' % loadavgPath)
+                SystemManager.printOpenWarn(loadavgPath)
 
         # collect perf data #
         if SystemManager.perfEnable:
@@ -45055,8 +45044,7 @@ class ThreadAnalyzer(object):
         try:
             pids = os.listdir(SystemManager.procPath)
         except:
-            SystemManager.printErr(\
-                'Fail to open %s directory' % SystemManager.procPath)
+            SystemManager.printOpenErr(SystemManager.procPath)
             sys.exit(0)
 
         # reset and save proc instance #
@@ -45089,7 +45077,7 @@ class ThreadAnalyzer(object):
             try:
                 tids = os.listdir(taskPath)
             except:
-                SystemManager.printWarn('Fail to open %s' % taskPath)
+                SystemManager.printOpenWarn(taskPath)
                 continue
 
             for tid in tids:
@@ -45192,7 +45180,7 @@ class ThreadAnalyzer(object):
                 buf = fd.readlines()
         except:
             SystemManager.procInstance[tid]['maps'] = None
-            SystemManager.printWarn('Fail to open %s' % fpath)
+            SystemManager.printOpenWarn(fpath)
             return
 
         # check kernel thread #
@@ -45358,21 +45346,23 @@ class ThreadAnalyzer(object):
 
 
     def saveProcSchedData(self, path, tid):
-        try:
-            if not SystemManager.schedstatEnable:
-                raise Exception()
+        self.procData[tid]['execTime'] = 0
+        self.procData[tid]['waitTime'] = 0
 
+        if not SystemManager.schedstatEnable:
+            return
+
+        try:
             schedBuf = self.saveTaskData(path, tid, 'schedstat')
             if len(schedBuf) == 0:
                 SystemManager.schedstatEnable = False
-                raise Exception()
+                return
 
             SCHED_POLICY = schedBuf[0].split()
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
         except:
-            self.procData[tid]['execTime'] = 0
-            self.procData[tid]['waitTime'] = 0
+            return
 
 
 
@@ -45404,22 +45394,19 @@ class ThreadAnalyzer(object):
                     return
 
         # save cmdline info #
-        try:
-            self.procData[tid]['cmdline'] = \
-                SystemManager.getCmdline(tid)
+        self.procData[tid]['cmdline'] = \
+            SystemManager.getCmdline(tid)
 
-            if SystemManager.isThreadTopMode():
-                if mainID in self.procData:
-                    self.procData[mainID]['cmdline'] = \
-                        self.procData[tid]['cmdline']
-        except:
-            SystemManager.printWarn(\
-                'Fail to open %s because' % SystemManager.getErrReason())
-            return
+        if SystemManager.isThreadTopMode():
+            if mainID in self.procData:
+                self.procData[mainID]['cmdline'] = \
+                    self.procData[tid]['cmdline']
 
 
 
     def saveTaskData(self, path, tid, name):
+        buf = []
+
         try:
             fd = '%sFd' % name
             self.prevProcData[tid][fd].seek(0)
@@ -45432,13 +45419,12 @@ class ThreadAnalyzer(object):
                 buf = newFd.readlines()
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd-16 < newFd.fileno():
+                if SystemManager.maxKeepFd < newFd.fileno():
                     newFd.close()
                     self.procData[tid][fd] = None
                     self.reclaimFds()
             except:
-                SystemManager.printWarn('Fail to open %s' % newPath)
-                return []
+                SystemManager.printOpenWarn(newPath)
 
         return buf
 
@@ -45504,8 +45490,24 @@ class ThreadAnalyzer(object):
 
 
     def saveProcData(self, path, tid, pid=None):
+        def getStatBuf(self, path, tid):
+            self.procData[tid]['statFd'] = open(path, 'r')
+            statBuf = self.procData[tid]['statFd'].readlines()[0]
+
+            if tid in self.prevProcData:
+                self.prevProcData[tid]['alive'] = True
+
+            # fd resource is about to run out #
+            if SystemManager.maxKeepFd < \
+                self.procData[tid]['statFd'].fileno():
+                self.procData[tid]['statFd'].close()
+                self.procData[tid]['statFd'] = None
+                self.reclaimFds()
+
+            return statBuf
+
         # initialize task #
-        if tid not in self.procData:
+        if not tid in self.procData:
             if not pid:
                 pid = tid
             self.procData[tid] = dict(self.init_procData)
@@ -45513,33 +45515,25 @@ class ThreadAnalyzer(object):
             self.procData[tid]['taskPath'] = path
             self.procData[tid]['fdList'] = {}
 
+        statPath = "%s/%s" % (path, 'stat')
+
         # save stat data #
         try:
-            self.prevProcData[tid]['statFd'].seek(0)
-            self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-            statBuf = self.procData[tid]['statFd'].readlines()[0]
-            self.prevProcData[tid]['alive'] = True
-        except:
-            try:
-                statPath = "%s/%s" % (path, 'stat')
-                self.procData[tid]['statFd'] = open(statPath, 'r')
+            if tid in self.prevProcData and \
+                'statFd' in self.prevProcData[tid] and \
+                self.prevProcData[tid]['statFd']:
+                self.prevProcData[tid]['statFd'].seek(0)
+                self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
                 statBuf = self.procData[tid]['statFd'].readlines()[0]
+                self.prevProcData[tid]['alive'] = True
+            else:
+                statBuf = getStatBuf(self, statPath, tid)
+        except:
+            SystemManager.printOpenWarn(statPath)
 
-                if tid in self.prevProcData:
-                    self.prevProcData[tid]['alive'] = True
+            self.procData.pop(tid, None)
 
-                # fd resource is about to run out #
-                if SystemManager.maxFd-16 < \
-                    self.procData[tid]['statFd'].fileno():
-                    self.procData[tid]['statFd'].close()
-                    self.procData[tid]['statFd'] = None
-                    self.reclaimFds()
-            except:
-                SystemManager.printWarn(\
-                    'Fail to open %s because %s' % \
-                        (statPath, SystemManager.getErrReason()))
-                self.procData.pop(tid, None)
-                return
+            return
 
         # check stat change #
         self.procData[tid]['statOrig'] = statBuf
@@ -45662,7 +45656,7 @@ class ThreadAnalyzer(object):
                     long(self.procData[tid]['oomFd'].readline())
 
                 # fd resource is about to run out #
-                if SystemManager.maxFd-16 < oomFd.fileno():
+                if SystemManager.maxKeepFd < oomFd.fileno():
                     oomFd.close()
                     self.procData[tid]['oomFd'] = None
                     self.reclaimFds()
@@ -45673,7 +45667,7 @@ class ThreadAnalyzer(object):
                         self.procData[mainID]['oomFd'] = \
                             self.procData[tid]['oomFd']
             except:
-                SystemManager.printWarn('Fail to open %s' % oomPath)
+                SystemManager.printOpenWarn(oomPath)
 
                 self.procData.pop(tid, None)
 
@@ -47814,7 +47808,8 @@ class ThreadAnalyzer(object):
                         self.stackTable[idx]['stack'] = {}
                         self.stackTable[idx]['total'] = 0
                     except:
-                        SystemManager.printWarn("Fail to open %s" % spath)
+                        SystemManager.printOpenWarn(spath)
+
                         self.stackTable.pop(idx, None)
 
             # check limit #
