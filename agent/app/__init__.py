@@ -21,7 +21,8 @@ def create_app(config_name):
 
     socket = SocketIO(app)
     socket.init_app(app, cors_allowed_origins="*")
-    db.init_app(app) # TODO: exception handling for mongo-engine
+    # TODO: exception handling for mongo-engine
+    db.init_app(app)
 
     api = Api(app)
     api.add_resource(Main, '/', '/<path:path>')
