@@ -6,7 +6,8 @@
           type="text"
           v-model="targetAddr"
           @keyup.enter="emitStart"
-          aria-describedby="input-description-help"></b-form-input>
+          aria-describedby="input-description-help"
+        ></b-form-input>
         <b-form-text id="input-description-help">
           Input the guider target IP addr and port (ex> 192.168.24.12:5000)
         </b-form-text>
@@ -44,7 +45,7 @@ export default {
       this.connectSocket();
     },
     server_response: function(data) {
-      EventBus.$emit('setDashboardData', data)
+      EventBus.$emit("setDashboardData", data);
     },
     request_stop_result: function(msg) {
       this.appendLog(msg);
@@ -52,9 +53,9 @@ export default {
   },
   methods: {
     emitStart: function() {
-      this.connectSocket()
+      this.connectSocket();
       const timestamp = new Date();
-      this.targetTimestamp = String(timestamp)
+      this.targetTimestamp = String(timestamp);
       this.$socket.emit("request_start", this.targetTimestamp, this.targetAddr);
     },
     emitStop: function() {
@@ -65,12 +66,12 @@ export default {
     },
     disconnectSocket: function() {
       this.$socket.emit("request_stop", this.targetTimestamp);
-      this.targetTimestamp = ''
+      this.targetTimestamp = "";
       this.$socket.disconnect();
     },
     connectSocket: function() {
       this.$socket.connect(); // if connection is not establised.
-    },
+    }
   }
 };
 </script>

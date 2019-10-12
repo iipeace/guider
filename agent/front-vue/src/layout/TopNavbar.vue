@@ -26,8 +26,8 @@ export default {
   },
   data() {
     return {
-      showMenu: false,
-    }
+      showMenu: false
+    };
   },
   methods: {
     capitalizeFirstLetter(string) {
@@ -49,8 +49,7 @@ export default {
       this.showMenu = !this.showMenu;
     }
   },
-  mounted: function() {
-  }
+  mounted: function() {}
 };
 </script>
 <style></style>

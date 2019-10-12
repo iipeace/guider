@@ -7,7 +7,13 @@
             <h4>CPU</h4>
           </b-card-header>
           <b-card-body>
-            <vue-apex-charts width="100%" height="300" type="area" :options="chartOptions" :series="dataSet.cpuSeries"/>
+            <vue-apex-charts
+              width="100%"
+              height="300"
+              type="area"
+              :options="chartOptions"
+              :series="dataSet.cpuSeries"
+            />
           </b-card-body>
         </b-card>
       </b-col>
@@ -17,7 +23,13 @@
             <h4>MEMORY</h4>
           </b-card-header>
           <b-card-body>
-            <vue-apex-charts width="100%" height="300" type="area" :options="chartOptions" :series="dataSet.memorySeries"/>
+            <vue-apex-charts
+              width="100%"
+              height="300"
+              type="area"
+              :options="chartOptions"
+              :series="dataSet.memorySeries"
+            />
           </b-card-body>
         </b-card>
       </b-col>
@@ -27,7 +39,13 @@
             <h4>NETWORK</h4>
           </b-card-header>
           <b-card-body>
-            <vue-apex-charts width="100%" height="300" type="line" :options="chartOptions" :series="dataSet.networkSeries"/>
+            <vue-apex-charts
+              width="100%"
+              height="300"
+              type="line"
+              :options="chartOptions"
+              :series="dataSet.networkSeries"
+            />
           </b-card-body>
         </b-card>
       </b-col>
@@ -35,32 +53,30 @@
   </div>
 </template>
 <script>
-
-import {EventBus} from '../event-bus'
-import VueApexCharts from 'vue-apexcharts'
-import GuiderDataSet from '../model/guider-data-set'
+import { EventBus } from "../event-bus";
+import VueApexCharts from "vue-apexcharts";
+import GuiderDataSet from "../model/guider-data-set";
 
 export default {
   components: {
-    VueApexCharts,
+    VueApexCharts
   },
-  data: function () {
+  data: function() {
     return {
       dataSet: new GuiderDataSet(),
       chartOptions: {
         xaxis: {
-          name: 'timestamp'
+          name: "timestamp"
         }
       }
-    }
+    };
   },
   mounted() {
-    EventBus.$on('setDashboardData', (data) => {
-      this.dataSet.setGuiderData(data)
-    })
+    EventBus.$on("setDashboardData", data => {
+      this.dataSet.setGuiderData(data);
+    });
   },
-  beforeDestroy() {
-  }
+  beforeDestroy() {}
 };
 </script>
 <style></style>
