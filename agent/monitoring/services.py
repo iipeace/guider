@@ -1,4 +1,3 @@
-import os
 import sys
 import json
 
@@ -117,7 +116,6 @@ def communicate_with_guider(timestamp, targetAddr):
                 #                       usage=storage['usage'],
                 #                       total=storage['total'])
 
-                
                 # network
                 network = json_pipe['net']
                 msg['network'] = dict(

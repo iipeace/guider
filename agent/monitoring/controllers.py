@@ -1,4 +1,4 @@
-#-*- coding:utf-8 -*-
+# -*- coding:utf-8 -*-
 
 from flask import make_response, render_template, request, Response
 from flask_restful import Resource
@@ -31,5 +31,5 @@ class Slack(Resource):
 
     def post(self):
         if request.form.get('token') != get_secret('SLACK_VERIFY_TOKEN'):
-            return
-            return Response('안녕', content_type='application/json;charset=utf-8')
+            return Response(
+                '안녕', content_type='application/json;charset=utf-8')

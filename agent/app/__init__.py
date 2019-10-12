@@ -15,7 +15,6 @@ def create_app(config_name):
                 static_url_path='',
                 static_folder=f_config.STATIC_FOLDER)
     app.config.from_object(f_config)
-    
     app.config['MONGODB_SETTINGS'] = config_database
 
     socket = SocketIO(app)

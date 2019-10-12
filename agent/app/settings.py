@@ -1,4 +1,5 @@
-import os, json
+import os
+import json
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 secret_file = os.path.join(basedir, 'secrets.json')
@@ -7,12 +8,12 @@ secret_file = os.path.join(basedir, 'secrets.json')
 try:
     with open(secret_file) as f:
         secrets = json.loads(f.read())
-except:
-    pass
+except FileExistsError:
+    raise Exception('setting file is not exists, plz for secret key')
 
 
 def get_secret(key):
     try:
         return secrets[key]
     except KeyError:
-        print('KEY IS NOT EXIST')
+        print('key is not exist')
