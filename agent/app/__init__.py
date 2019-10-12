@@ -5,7 +5,7 @@ from flask_cors import CORS
 
 from app.config import config_dict, config_database
 from monitoring.models import db
-from monitoring.controllers import Main
+from monitoring.controllers import Main, Dataset
 from monitoring.services import communicate_with_guider, disconnect_with_guider
 
 
@@ -26,6 +26,7 @@ def create_app(config_name):
 
     api = Api(app)
     api.add_resource(Main, '/', '/<path:path>')
+    api.add_resource(Dataset, '/dataset')
 
     socket.on_event('request_start', communicate_with_guider)
     socket.on_event('request_stop', disconnect_with_guider)

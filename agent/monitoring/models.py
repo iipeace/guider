@@ -19,11 +19,10 @@ class Memory(db.EmbeddedDocument):
     total = db.IntField()
 
 
-'''class Storage(db.EmbeddedDocument):
+class Storage(db.EmbeddedDocument):
     free = db.IntField()
     usage = db.IntField()
     total = db.IntField()
-'''
 
 
 class Network(db.EmbeddedDocument):
@@ -35,5 +34,5 @@ class Data(db.Document):
     timestamp = db.DateTimeField(default=datetime.utcnow)
     cpu = db.EmbeddedDocumentField(CPU)
     memory = db.EmbeddedDocumentField(Memory)
-    # storage = db.EmbeddedDocumentField(Storage)
+    storage = db.EmbeddedDocumentField(Storage)
     network = db.EmbeddedDocumentField(Network)
