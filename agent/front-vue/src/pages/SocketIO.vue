@@ -52,6 +52,7 @@ export default {
   },
   methods: {
     emitStart: function() {
+      this.connectSocket()
       const timestamp = new Date();
       this.targetTimestamp = String(timestamp)
       this.$socket.emit("request_start", this.targetTimestamp, this.targetAddr);
@@ -64,6 +65,7 @@ export default {
     },
     disconnectSocket: function() {
       this.$socket.emit("request_stop", this.targetTimestamp);
+      this.targetTimestamp = ''
       this.$socket.disconnect();
     },
     connectSocket: function() {
