@@ -1,21 +1,27 @@
 <template>
-  <div>
-    <div>
-      <span
-        style="font-size: x-small; ">Input the guider target IP addr and port (ex> 192.168.24.12:5000)
-      </span>
-      <input type="text" v-model="targetAddr" @keyup.enter="emitStart" />
-      <button class="basic-button" id="emitStart" @click="emitStart">
-        Start
-      </button>
-      <button
-        class="basic-button"
-        id="disconnectSocket"
-        @click="disconnectSocket"
-      >
-        Stop
-      </button>
-    </div>
+  <div class="container-fluid">
+    <b-row>
+      <b-col sm="6">
+        <b-form-input
+          type="text"
+          v-model="targetAddr"
+          @keyup.enter="emitStart"
+          aria-describedby="input-description-help"></b-form-input>
+        <b-form-text id="input-description-help">
+          Input the guider target IP addr and port (ex> 192.168.24.12:5000)
+        </b-form-text>
+      </b-col>
+      <b-col sm="2">
+        <b-btn id="emitStart" @click="emitStart">
+          Start
+        </b-btn>
+      </b-col>
+      <b-col sm="2">
+        <b-btn id="disconnectSocket" @click="disconnectSocket">
+          Stop
+        </b-btn>
+      </b-col>
+    </b-row>
   </div>
 </template>
 
@@ -47,7 +53,6 @@ export default {
   methods: {
     emitStart: function() {
       const timestamp = new Date();
-      EventBus.$emit("reset_data");
       this.$socket.emit("request_start", String(timestamp), this.targetAddr);
     },
     emitStop: function() {

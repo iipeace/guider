@@ -60,6 +60,7 @@ def communicate_with_guider(timestamp, targetAddr):
     sys.path.insert(0, '%s/../../guider' % curDir)
     from guider import NetworkManager
     print('request_start')
+    targetAddr = '211.251.238.39:500'
 
     # set addresses #
     NetworkManager.prepareServerConn(None, targetAddr)
@@ -110,10 +111,10 @@ def communicate_with_guider(timestamp, targetAddr):
                                      anon=memory['anon'],
                                      total=memory['total'])
                 # storage
-                storage = json_pipe['storage']['total']
-                msg['storage'] = dict(free=storage['free'],
-                                      usage=storage['usage'],
-                                      total=storage['total'])
+                # storage = json_pipe['storage']['total']
+                # msg['storage'] = dict(free=storage['free'],
+                #                       usage=storage['usage'],
+                #                       total=storage['total'])
 
                 
                 # network
