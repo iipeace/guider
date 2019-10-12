@@ -7,7 +7,7 @@
             <h4>NETWORK</h4>
           </b-card-header>
           <b-card-body>
-            <vue-apex-charts type="line" :options="chartOptions" :series="network_series"/>
+            <vue-apex-charts type="line" :options="chartOptions" :series="networkSeries"/>
           </b-card-body>
         </b-card>
       </b-col>
@@ -36,14 +36,11 @@ export default {
   data: function () {
     return {
       chartOptions: {
-        chart: {
-          id: 'basic-bar'
-        },
         xaxis: {
           categories: []
         }
       },
-      network_series: [
+      networkSeries: [
         {
           name: 'inbound',
           data: []
@@ -53,21 +50,33 @@ export default {
           data: []
         }
       ],
-      labels: []
     }
   },
   computed: {
   },
   methods: {
-    updateChart() {
-      this.series.data = [0,1,2]
-    }
+    updateNetworkChart(networkInfo) {
+      // this.networkSeries[0].data.push(networkInfo['inbound'])
+      // this.networkSeries[1].data.push(networkInfo['outbound'])
+    },
+    // updateMemoryChart() {
+    //   this.series.data = [0,1,2]
+    // },
+    // updateCpuChart() {
+    //   this.series.data = [0,1,2]
+    // },
+    // updateStorageChart() {
+    //   this.series.data = [0,1,2]
+    // },
   },
   mounted() {
     EventBus.$on('setDashboardData', (data) => {
-      this.labels.push(data['timestamp'])
-      this.network_series[0].data.push(data['network']['inbound'])
-      this.network_series[1].data.push(data['network']['outbound'])
+      console.log('www')
+      // this.chartOptions.xaxis.categories.push(data['timestamp'])
+      // this.updateNetworkChart(data['network'])
+      // this.updateMemoryChart(data['memory'])
+      // this.updateCpuChart(data['cpu'])
+      // this.updateStorageChart(data['storage'])
     })
   },
   beforeDestroy() {
