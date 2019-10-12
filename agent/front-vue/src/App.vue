@@ -1,7 +1,5 @@
 <template>
   <div>
-    <socket-io></socket-io>
-    <notifications></notifications>
     <router-view :key="$route.fullPath"></router-view>
   </div>
 </template>
@@ -12,17 +10,29 @@ import { EventBus } from "./event-bus";
 
 export default {
   name: "App",
-  components: { SocketIo },
   data() {
     return {
+      colorCodes: [
+        "#DC143C",
+        "#008000",
+        "#000080",
+        "#b07025",
+        "#FFFF00",
+        "#BFFF00",
+        "#80FF00",
+        "#40FF00",
+        "#00FF00",
+        "#00FF40",
+        "#00FF80",
+        "#00FFBF",
+        "#00FFFF",
+        "#00BFFF",
+        "#0080FF",
+        "#0040FF"
+      ]
     };
   },
   methods: {
-    disableRTL() {
-      if (!this.$rtl.isRTL) {
-        this.$rtl.disableRTL();
-      }
-    },
     toggleNavOpen() {
       let root = document.getElementsByTagName("html")[0];
       root.classList.toggle("nav-open");

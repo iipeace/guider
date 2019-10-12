@@ -29,3 +29,8 @@ config_dict = dict(
     test=TestingConfig,
     prod=ProductConfig
 )
+
+config_database = dict(
+    host='mongodb://localhost/guider',
+    port=27017
+)

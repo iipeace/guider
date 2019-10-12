@@ -102,7 +102,7 @@ def createApp(config_filename=None):
             sys.exit(0)
 
         # request command #
-        pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J')
+        pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -a -J -e dn')
         if not pipe:
             print('\nFail to get command pipe')
             sys.exit(0)

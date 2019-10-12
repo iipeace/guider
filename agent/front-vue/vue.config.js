@@ -28,19 +28,11 @@ module.exports = {
     ]
   },
   pwa: {
-    name: 'Guider Vue',
-    themeColor: '#344675',
-    msTileColor: '#344675',
-    appleMobileWebAppCapable: 'yes',
-    appleMobileWebAppStatusBarStyle: '#344675'
-  },
-  pluginOptions: {
-    i18n: {
-      locale: "en",
-      fallbackLocale: "en",
-      localeDir: "locales",
-      enableInSFC: false
-    }
+    name: "Guider Vue",
+    themeColor: "#344675",
+    msTileColor: "#344675",
+    // appleMobileWebAppCapable: "yes",
+    appleMobileWebAppStatusBarStyle: "#344675"
   },
   css: {
     // Enable CSS source maps.

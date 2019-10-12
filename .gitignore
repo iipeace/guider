@@ -23,3 +23,5 @@ MANIFEST
 venv/
 
 agent/app/secrets.json
+# vscode
+.vscode/
