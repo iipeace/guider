@@ -1,10 +1,6 @@
 import sys
 import os
 
-curDir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, '%s/../../guider' % curDir)
-from guider import NetworkManager
-
 
 class Singleton(object):
     _instance = None
@@ -22,6 +18,10 @@ class GuiderInstance(Singleton):
 
     @classmethod
     def connect(cls, target_addr):
+        curDir = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, '%s/../../guider' % curDir)
+        from guider import NetworkManager
+
         NetworkManager.prepareServerConn(None, target_addr)
         conn = NetworkManager.getServerConn()
         if not conn:
