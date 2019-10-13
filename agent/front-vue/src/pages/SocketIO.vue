@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="container-fluid">
     <b-row>
       <b-col sm="6">
         <b-form-input
@@ -7,7 +7,7 @@
           v-model="targetAddr"
           @keyup.enter="emitStart"
           aria-describedby="input-description-help"
-        />
+        ></b-form-input>
         <b-form-text id="input-description-help">
           Input the guider target IP addr and port (ex> 192.168.24.12:5000)
         </b-form-text>
@@ -36,7 +36,6 @@ export default {
       clientMsg: "",
       log: "",
       targetTimestamp: "",
-      emitCount: 0,
       arrProcParam: ["nrThreads", "mem", "life", "comm", "ttime", "PPID"],
       targetAddr: ""
     };
@@ -45,13 +44,8 @@ export default {
     connect: function() {
       this.connectSocket();
     },
-    server_response: function(msg) {
-      // msg is json
-      EventBus.$emit("cnt_emit", this.emitCount);
-      EventBus.$emit("cpu_usage", msg.cpu);
-      EventBus.$emit("mem_usage", msg.memory);
-      // EventBus.$emit("proc_usage", procUsage);
-      this.emitCount = this.emitCount + 1;
+    server_response: function(data) {
+      EventBus.$emit("setDashboardData", data);
     },
     request_stop_result: function(msg) {
       this.appendLog(msg);
@@ -59,9 +53,10 @@ export default {
   },
   methods: {
     emitStart: function() {
+      this.connectSocket();
       const timestamp = new Date();
-      EventBus.$emit("reset_data");
-      this.$socket.emit("request_start", String(timestamp), this.targetAddr);
+      this.targetTimestamp = String(timestamp);
+      this.$socket.emit("request_start", this.targetTimestamp, this.targetAddr);
     },
     emitStop: function() {
       this.$socket.emit("request_stop", this.targetTimestamp);
@@ -70,6 +65,8 @@ export default {
       this.log += newLog + "\n";
     },
     disconnectSocket: function() {
+      this.$socket.emit("request_stop", this.targetTimestamp);
+      this.targetTimestamp = "";
       this.$socket.disconnect();
     },
     connectSocket: function() {

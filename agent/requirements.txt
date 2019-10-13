@@ -35,3 +35,4 @@ wcwidth==0.1.7
 Werkzeug==0.16.0
 WTForms==2.2.1
 zipp==0.6.0
+slacker==0.13.0

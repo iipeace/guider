@@ -13,11 +13,13 @@
     "lint-fix": "vue-cli-service lint --fix"
   },
   "dependencies": {
+    "apexcharts": "^3.8.6",
     "babel-polyfill": "^6.26.0",
     "bootstrap-vue": "^2.0.0-rc.19",
     "chart.js": "^2.7.3",
     "register-service-worker": "^1.5.2",
     "vue": "^2.6.6",
+    "vue-apexcharts": "^1.5.0",
     "vue-chartjs": "^3.4.0",
     "vue-router": "^3.0.2",
     "vue-router-prefetch": "^1.4.0",
