@@ -5,7 +5,7 @@ from flask_restful import Resource
 
 from slacker import Slacker
 
-from app.settings import get_secret
+# from app.settings import get_secret
 
 
 class Main(Resource):
@@ -25,11 +25,13 @@ class Slack(Resource):
 
     def get(self):
         msg = request.args.get('msg')
-        token = get_secret('SLACK_OAUTH_TOKEN')
-        slack = Slacker(token)
-        slack.chat.post_message(channel='#guideropensource', text=msg)
+        # token = get_secret('SLACK_OAUTH_TOKEN')
+        # slack = Slacker(token)
+        # slack.chat.post_message(channel='#guideropensource', text=msg)
+        pass
 
     def post(self):
-        if request.form.get('token') != get_secret('SLACK_VERIFY_TOKEN'):
-            return Response(
-                '안녕', content_type='application/json;charset=utf-8')
+        # if request.form.get('token') != get_secret('SLACK_VERIFY_TOKEN'):
+        #     return Response(
+        #         '안녕', content_type='application/json;charset=utf-8')
+        pass

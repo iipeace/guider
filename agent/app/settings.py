@@ -8,8 +8,8 @@ secret_file = os.path.join(basedir, 'secrets.json')
 try:
     with open(secret_file) as f:
         secrets = json.loads(f.read())
-except FileExistsError:
-    raise Exception('setting file is not exists, plz for secret key')
+except FileNotFoundError:
+    raise Exception('setting file is not exists, add for secret key')
 
 
 def get_secret(key):

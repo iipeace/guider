@@ -110,7 +110,7 @@ def communicate_with_guider(timestamp, targetAddr):
                                      free=memory['free'],
                                      anon=memory['anon'],
                                      total=memory['total'])
-                # storage
+                # # storage
                 # storage = json_pipe['storage']['total']
                 # msg['storage'] = dict(free=storage['free'],
                 #                       usage=storage['usage'],

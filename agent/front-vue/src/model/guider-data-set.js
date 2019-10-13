@@ -16,10 +16,9 @@ export default class GuiderDataSet {
   memoryCache = [];
   memoryFree = [];
   memoryAnon = [];
-  memoryTotal = [];
   memorySeries = [
     {
-      name: "kernel",
+      name: "free",
       data: []
     },
     {
@@ -27,22 +26,17 @@ export default class GuiderDataSet {
       data: []
     },
     {
-      name: "free",
+      name: "kernel",
       data: []
     },
     {
       name: "anon",
-      data: []
-    },
-    {
-      name: "total",
       data: []
     }
   ];
   cpuKernel = [];
   cpuUser = [];
   cpuIrq = [];
-  cpuTotal = [];
   cpuSeries = [
     {
       name: "kernel",
@@ -54,10 +48,6 @@ export default class GuiderDataSet {
     },
     {
       name: "irq",
-      data: []
-    },
-    {
-      name: "total",
       data: []
     }
   ];
@@ -87,7 +77,6 @@ export default class GuiderDataSet {
     this.cpuKernel.push({ x: this.timestamp, y: data["cpu"]["kernel"] });
     this.cpuUser.push({ x: this.timestamp, y: data["cpu"]["user"] });
     this.cpuIrq.push({ x: this.timestamp, y: data["cpu"]["irq"] });
-    this.cpuTotal.push({ x: this.timestamp, y: data["cpu"]["total"] });
     this.cpuSeries = [
       {
         name: "kernel",
@@ -100,10 +89,6 @@ export default class GuiderDataSet {
       {
         name: "irq",
         data: this.cpuIrq
-      },
-      {
-        name: "total",
-        data: this.cpuTotal
       }
     ];
 
@@ -112,27 +97,22 @@ export default class GuiderDataSet {
     this.memoryCache.push({ x: this.timestamp, y: data["memory"]["cache"] });
     this.memoryFree.push({ x: this.timestamp, y: data["memory"]["free"] });
     this.memoryAnon.push({ x: this.timestamp, y: data["memory"]["anon"] });
-    this.memoryTotal.push({ x: this.timestamp, y: data["memory"]["total"] });
     this.memorySeries = [
       {
-        name: "kernel",
-        data: this.memoryKernel
+        name: "free",
+        data: this.memoryFree
       },
       {
         name: "cache",
         data: this.memoryCache
       },
       {
-        name: "free",
-        data: this.memoryFree
+        name: "kernel",
+        data: this.memoryKernel
       },
       {
         name: "anon",
         data: this.memoryAnon
-      },
-      {
-        name: "total",
-        data: this.memoryTotal
       }
     ];
 
