@@ -30,11 +30,3 @@ matrix:
       cache: npm
       after_success:
         - cd ..
-
-    - language: python
-      python:
-        - 3.6
-      before_install:
-        - cd agent
-      after_success:
-        - cd ..
