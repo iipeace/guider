@@ -36,9 +36,5 @@ matrix:
         - 3.6
       before_install:
         - cd agent
-      install:
-        - pip install flake8
-      script:
-        - flake8
       after_success:
         - cd ..
