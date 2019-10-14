@@ -53,6 +53,10 @@ export default {
   },
   methods: {
     emitStart: function() {
+      // if (!this.targetAddr) {
+      //   alert("Enter Server Address");
+      //   return false;
+      // }
       this.connectSocket();
       const timestamp = new Date();
       this.targetTimestamp = String(timestamp);
