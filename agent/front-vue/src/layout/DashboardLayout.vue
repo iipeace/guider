@@ -23,15 +23,16 @@
     </div>
   </div>
 </template>
-<style lang="scss"></style>
 <script>
 import TopNavbar from "./TopNavbar.vue";
 import DashboardContent from "./Content.vue";
+import ContentFooter from "./ContentFooter";
 
 export default {
   components: {
     TopNavbar,
-    DashboardContent
+    DashboardContent,
+    ContentFooter
   },
   methods: {
     toggleSidebar() {
@@ -42,3 +43,4 @@ export default {
   }
 };
 </script>
+<style lang="scss"></style>
