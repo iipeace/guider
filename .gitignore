@@ -22,5 +22,6 @@ MANIFEST
 # python Virtualenv
 venv/
 
+agent/app/secrets.json
 # vscode
 .vscode/

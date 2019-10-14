@@ -4180,6 +4180,32 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def getRepMacAddr():
+        dirPath = '/sys/class/net'
+
+        try:
+            devices = os.listdir(dirPath)
+        except:
+            SystemManager.printOpenErr(dirPath)
+            return
+
+        for dev in devices:
+            if dev == 'lo':
+                continue
+
+            target = '%s/%s/address' % (dirPath, dev)
+            try:
+                with open(target, 'r') as fd:
+                    addr = fd.readline()[:-1]
+                    return (dev, addr)
+            except:
+                SystemManager.printOpenErr(target)
+
+        return ('None', 'None')
+
+
+
+    @staticmethod
     def getUsingIps():
         effectiveList = {}
         connPaths = \
@@ -11145,6 +11171,7 @@ class SystemManager(object):
         self.osData = None
         self.devData = None
         self.procData = None
+        self.macAddr = None
 
         # update starttime #
         SystemManager.updateUptime()
@@ -23115,13 +23142,13 @@ Copyright:
         # update uptime #
         SystemManager.updateUptime()
 
+        # cmdline #
         try:
             self.cmdlineData = SystemManager.procReadline('cmdline')[0:-1]
         except:
-            SystemManager.printWarn(\
-                "Fail to get cmdline because %s" % \
-                SystemManager.getErrReason())
+            SystemManager.printOpenWarn('cmdline')
 
+        # load #
         try:
             self.loadData = SystemManager.procReadline('loadavg')
         except:
@@ -23138,6 +23165,7 @@ Copyright:
         [4] = lastPid
         '''
 
+        # kernel version #
         try:
             self.systemInfo['kernelVer'] = \
                 SystemManager.procReadline(\
@@ -23145,6 +23173,7 @@ Copyright:
         except:
             pass
 
+        # os version #
         try:
             self.systemInfo['osVer'] = \
                 SystemManager.procReadline(\
@@ -23152,6 +23181,7 @@ Copyright:
         except:
             pass
 
+        # os type #
         try:
             self.systemInfo['osType'] = \
                 SystemManager.procReadline(\
@@ -23159,6 +23189,7 @@ Copyright:
         except:
             pass
 
+        # rtc #
         try:
             timeInfo = SystemManager.procReadlines('driver/rtc')
 
@@ -23182,6 +23213,7 @@ Copyright:
         self.updateStorageInfo(isGeneral=True)
         self.updateNetworkInfo()
         self.updateIPCInfo()
+        self.saveMacAddr()
 
         # save user info #
         self.saveUserInfo()
@@ -24606,6 +24638,20 @@ Copyright:
         except:
             pass
 
+        # mac #
+        try:
+            if self.macAddr is None:
+                raise Exception()
+
+            macStr = '%s_%s' % (self.macAddr[0], self.macAddr[1])
+            SystemManager.infoBufferPrint(\
+                "{0:20} {1:<10}".format('Mac', macStr))
+
+            if SystemManager.jsonPrintEnable:
+                jsonData['mac'] = macStr
+        except:
+            pass
+
         # kernel args #
         try:
             title = 'Cmdline'
@@ -25018,6 +25064,18 @@ Copyright:
             semData['cgid'] = cgid
             semData['otime'] = otime
             semData['ctime'] = ctime
+
+
+
+    def saveMacAddr(self):
+        if self.macAddr:
+            return
+
+        # mac address #
+        try:
+            self.macAddr = NetworkManager.getRepMacAddr()
+        except:
+            pass
 
 
 
@@ -46674,6 +46732,11 @@ class ThreadAnalyzer(object):
                 'inbound': netIn,
                 'outbound': netOut
                 }
+
+            if SystemManager.sysInstance.macAddr:
+                macAddr = SystemManager.sysInstance.macAddr
+                macStr = '%s_%s' % (macAddr[0], macAddr[1])
+                self.reportData['net']['repmac'] = macStr
 
             if SystemManager.networkEnable:
                 SystemManager.sysInstance.updateNetworkInfo()
