@@ -31,7 +31,7 @@ module.exports = {
     name: "Guider Vue",
     themeColor: "#344675",
     msTileColor: "#344675",
-    // appleMobileWebAppCapable: "yes",
+    appleMobileWebAppCapable: "yes",
     appleMobileWebAppStatusBarStyle: "#344675"
   },
   css: {
