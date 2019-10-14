@@ -6,7 +6,6 @@
 
 <script>
 export default {
-  name: "App",
   data() {
     return {
       colorCodes: [
@@ -36,7 +35,6 @@ export default {
     }
   },
   mounted: function() {
-    this.$watch("$route", this.disableRTL, { immediate: true });
     this.$watch("$sidebar.showSidebar", this.toggleNavOpen);
   }
 };

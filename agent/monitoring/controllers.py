@@ -1,7 +1,11 @@
 from flask import make_response, render_template, request, jsonify
 from flask_restful import Resource
+<<<<<<< HEAD
 from datetime import datetime
 from monitoring.models import Data, spread_data, deserialize_data
+=======
+from monitoring.models import Data
+>>>>>>> upstream/master
 
 
 class Main(Resource):

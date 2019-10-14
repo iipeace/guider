@@ -7,7 +7,7 @@
     <!-- -->
     <div class="sidebar-wrapper" id="style-3">
       <div class="logo">
-        GUIDER
+        <h4 class="text-center">GUIDER</h4>
       </div>
       <slot> </slot>
       <ul class="nav">
