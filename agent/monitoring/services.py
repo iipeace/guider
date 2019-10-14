@@ -2,7 +2,7 @@ import sys
 import json
 
 from flask_socketio import emit
-from monitoring.models import CPU, Memory, Network, Data
+from monitoring.models import CPU, Memory, Network, Storage, Data
 
 
 class RequestManager(object):
@@ -31,27 +31,31 @@ class RequestManager(object):
 
 
 def save_database(msg):
-    cpu = CPU(kernel=msg['cpu']['kernel'], user=msg['cpu']['user'],
-              irq=msg['cpu']['irq'], nrCore=msg['cpu']['nrCore'],
-              total=msg['cpu']['total'])
+    try:
+        cpu = CPU(kernel=msg['cpu']['kernel'], user=msg['cpu']['user'],
+                  irq=msg['cpu']['irq'], nrCore=msg['cpu']['nrCore'],
+                  total=msg['cpu']['total'])
 
-    memory = Memory(kernel=msg['memory']['kernel'],
-                    cache=msg['memory']['cache'],
-                    free=msg['memory']['free'],
-                    anon=msg['memory']['anon'],
-                    total=msg['memory']['total'])
+        memory = Memory(kernel=msg['memory']['kernel'],
+                        cache=msg['memory']['cache'],
+                        free=msg['memory']['free'],
+                        anon=msg['memory']['anon'],
+                        total=msg['memory']['total'])
 
-    network = Network(inbound=msg['network']['inbound'],
-                      outbound=msg['network']['outbound'])
-    '''
-    storage = Storage(free=msg['storage']['free'],
-                            usage=msg['storage']['usage'],
-                            total=msg['storage']['total'])
-    '''
-    data = Data(cpu=cpu, memory=memory, network=network)
-    data.save()
+        network = Network(inbound=msg['network']['inbound'],
+                          outbound=msg['network']['outbound'])
 
-    print('database saved in mongodb!')
+        storage = Storage(free=msg['storage']['free'],
+                          usage=msg['storage']['usage'],
+                          total=msg['storage']['total'])
+
+        data = Data(cpu=cpu, memory=memory, network=network,
+                    storage=storage, mac_addr=msg['mac_addr'])
+        data.save()
+
+        print('database saved in mongodb!')
+    except Exception as e:
+        print('failed to save instance in MongoDB')
 
 
 def communicate_with_guider(timestamp, targetAddr):
@@ -93,7 +97,8 @@ def communicate_with_guider(timestamp, targetAddr):
                 # convert string to JSON #
                 json_pipe = json.loads(str_pipe)
 
-                msg = dict(timestamp=json_pipe['timestamp'])
+                msg = dict(timestamp=json_pipe['timestamp'],
+                           mac_addr=json_pipe['net']['repmac'])
 
                 # cpu
                 cpu = json_pipe['cpu']
@@ -119,16 +124,18 @@ def communicate_with_guider(timestamp, targetAddr):
                 network = json_pipe['net']
                 msg['network'] = dict(
                     inbound=network['inbound'], outbound=network['outbound'])
-
+                print(msg)
                 # save msg to db
+                emit('server_response', msg)
                 save_database(msg)
 
-                emit('server_response', msg)
             except (json.decoder.JSONDecodeError, KeyError) as e:
+                print(str_pipe)
                 print(e)
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
-            # TODO: Error Handling for MongoEngine
+            except Exception as e:
+                print('Error occured')
         else:
             print('[%s] %s' % (data_type, str_pipe))
 

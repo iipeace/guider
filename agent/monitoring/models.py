@@ -1,5 +1,6 @@
 from flask_mongoengine import MongoEngine
 from datetime import datetime
+
 db = MongoEngine()
 
 
@@ -32,6 +33,7 @@ class Network(db.EmbeddedDocument):
 
 class Data(db.Document):
     timestamp = db.DateTimeField(default=datetime.utcnow)
+    mac_addr = db.StringField()
     cpu = db.EmbeddedDocumentField(CPU)
     memory = db.EmbeddedDocumentField(Memory)
     storage = db.EmbeddedDocumentField(Storage)

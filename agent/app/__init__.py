@@ -19,8 +19,11 @@ def create_app(config_name):
 
     socket = SocketIO(app)
     socket.init_app(app, cors_allowed_origins="*")
-    # TODO: exception handling for mongo-engine
-    db.init_app(app)
+
+    try:
+        db.init_app(app)
+    except Exception as e:
+        print('Faile to connect MongoDB', e)
 
     api = Api(app)
 
