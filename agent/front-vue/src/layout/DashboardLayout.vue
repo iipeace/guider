@@ -18,21 +18,17 @@
       <top-navbar></top-navbar>
 
       <dashboard-content @click.native="toggleSidebar"> </dashboard-content>
-
-      <content-footer></content-footer>
     </div>
   </div>
 </template>
 <script>
 import TopNavbar from "./TopNavbar.vue";
 import DashboardContent from "./Content.vue";
-import ContentFooter from "./ContentFooter";
 
 export default {
   components: {
     TopNavbar,
-    DashboardContent,
-    ContentFooter
+    DashboardContent
   },
   methods: {
     toggleSidebar() {
