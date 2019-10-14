@@ -87,29 +87,31 @@ def spread_network(network):
     )
 
 
-def deserialize_data(data):
+def deserialize_data(data, cnt):
+    if cnt == 0:
+        cnt = 1
     return {
         "cpu": {
-            "kernel": data.cpu_kernel,
-            "user": data.cpu_user,
-            "irq": data.cpu_irq,
-            "nrCore": data.cpu_nrCore,
-            "total": data.cpu_total
+            "kernel": data.get('cpu_kernel', 0)/cnt,
+            "user": data.get('cpu_user', 0)/cnt,
+            "irq": data.get('cpu_irq', 0)/cnt,
+            "nrCore": data.get('cpu_nrCore', 0)/cnt,
+            "total": data.get('cpu_total', 0)/cnt
         },
         "storage": {
-            "free": data.storage_free,
-            "usage": data.storage_usage,
-            "total": data.storage_total
+            "free": data.get('storage_free', 0)/cnt,
+            "usage": data.get('storage_usage', 0)/cnt,
+            "total": data.get('storage_total', 0)/cnt
         },
         "memory": {
-            "kernel": data.memory_kernel,
-            "cache": data.memory_cache,
-            "free": data.memory_free,
-            "anon": data.memory_anon,
-            "total": data.memory_total
+            "kernel": data.get('memory_kernel', 0)/cnt,
+            "cache": data.get('memory_cache', 0)/cnt,
+            "free": data.get('memory_free', 0)/cnt,
+            "anon": data.get('memory_anon', 0)/cnt,
+            "total": data.get('memory_total', 0)/cnt
         },
         "network": {
-            "inbound": data.network_inbound,
-            "outbound": data.network_inbound
+            "inbound": data.get('network_inbound', 0)/cnt,
+            "outbound": data.get('network_inbound', 0)/cnt
         }
     }
