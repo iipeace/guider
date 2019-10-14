@@ -43,6 +43,7 @@ class Dataset(Resource):
                 end = int(datetime.timestamp(end[0]['timestamp'])) + from_utc
             else:
                 end = int(end)
+            num = int(num)
         except Exception as e:
             print('Failed to parse start, end ', e)
             return jsonify(dict(status="failed", data=[]))
