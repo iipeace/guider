@@ -91,5 +91,5 @@ class Slack(Resource):
     def post(self):
         # if request.form.get('token') != get_secret('SLACK_VERIFY_TOKEN'):
         #     return Response(
-        #         '안녕', content_type='application/json;charset=utf-8')
+        #         'Hello', content_type='application/json;charset=utf-8')
         pass
