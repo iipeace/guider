@@ -68,16 +68,10 @@ def communicate_with_guider(timestamp, targetAddr):
     # set addresses #
     NetworkManager.prepareServerConn(None, targetAddr)
 
-    # get connection with server #
-    conn = NetworkManager.getServerConn()
-    if not conn:
-        print('\nFail to get connection with server')
-        sys.exit(0)
-
-    # request command #
-    pipe = NetworkManager.getCmdPipe(conn, 'GUIDER top -J -a -e dn')
+    # execute remote command for real-time visualization #
+    pipe = NetworkManager.execRemoteCmd('GUIDER top -J -a -e dn')
     if not pipe:
-        print('\nFail to get command pipe')
+        print('\nFail to execute remote command')
         sys.exit(0)
 
     # build message #

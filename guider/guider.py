@@ -3424,20 +3424,6 @@ class NetworkManager(object):
 
 
 
-    def isConnected(self):
-        if not self.connected:
-            return False
-
-        # send test packet to connected socket #
-        try:
-            self.socket.send('0')
-
-            return True
-        except:
-            return False
-
-
-
     def connect(self, addr=None):
         if addr is None:
             addr = (self.ip, self.port)
@@ -3914,6 +3900,19 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def execRemoteCmd(command):
+        # get new connection #
+        connObj = NetworkManager.getServerConn()
+        if not connObj:
+            return None
+
+        # launch remote command #
+        pipe = NetworkManager.getCmdPipe(connObj, command)
+        return pipe
+
+
+
+    @staticmethod
     def getServerConn():
         def printErr():
             SystemManager.printErr(\
@@ -3954,7 +3953,7 @@ class NetworkManager(object):
         try:
             connObj = SystemManager.remoteServObj
             connObj.timeout()
-            connObj.connect((connObj.ip, connObj.port))
+            connObj.connect()
             return connObj
         except:
             err = SystemManager.getErrReason()
@@ -21470,11 +21469,6 @@ Copyright:
         hlist = list()
         while 1:
             try:
-                # get connection #
-                connObj = NetworkManager.getServerConn()
-                if not connObj:
-                    return
-
                 isHistory = False
 
                 # get input #
@@ -21499,15 +21493,11 @@ Copyright:
                 if not isHistory:
                     hlist.append(uinput)
 
-                # request command #
-                '''
-                NetworkManager.requestCmd(connObj, uinput)
-                '''
-
-                pipe = NetworkManager.getCmdPipe(connObj, uinput)
+                # launch remote command #
+                pipe = NetworkManager.execRemoteCmd(uinput)
                 if not pipe:
-                    SystemManager.printErr('Fail to get command pipe')
-                    sys.exit(0)
+                    SystemManager.printErr(\
+                        "Fail to execute remote command")
 
                 while 1:
                     output = pipe.getData()
