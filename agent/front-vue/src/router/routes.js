@@ -7,6 +7,8 @@ const Dashboard = () =>
   import(/* webpackChunkName: "dashboard" */ "@/pages/Dashboard.vue");
 const Command = () =>
   import(/* webpackChunkName: "dashboard" */ "@/pages/Command.vue");
+const Background = () =>
+  import(/* webpackChunkName: "dashboard" */ "@/pages/Background.vue");
 
 const routes = [
   {
@@ -23,6 +25,11 @@ const routes = [
         path: "command",
         name: "command",
         component: Command
+      },
+      {
+        path: "background",
+        name: "background",
+        component: Background
       }
     ]
   },

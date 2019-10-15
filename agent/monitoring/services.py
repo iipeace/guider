@@ -55,7 +55,7 @@ def save_database(msg):
 
         print('database saved in mongodb!')
     except Exception as e:
-        print('failed to save instance in MongoDB')
+        print('failed to save instance in MongoDB', e)
 
 
 def communicate_with_guider(timestamp, targetAddr):
@@ -135,7 +135,7 @@ def communicate_with_guider(timestamp, targetAddr):
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
             except Exception as e:
-                print('Error occured')
+                print('Error occured', e)
         else:
             print('[%s] %s' % (data_type, str_pipe))
 
