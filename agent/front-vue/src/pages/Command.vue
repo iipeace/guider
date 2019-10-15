@@ -2,7 +2,7 @@
   <div>
     <b-card no-body>
       <b-card-header>
-        <h4>Commander</h4>
+        <h4>Command</h4>
       </b-card-header>
       <b-card-body>
         <b-row>
@@ -25,6 +25,19 @@
             <b-btn @click="sendCommand">Launch</b-btn>
           </b-col>
         </b-row>
+        <b-row>
+          <b-col>
+            <b-form-group label="Quick command">
+              <b-form-radio-group
+                v-model="selected"
+                :options="options"
+                name="radios-stacked"
+                stacked
+              ></b-form-radio-group>
+            </b-form-group>
+
+          </b-col>
+        </b-row>
       </b-card-body>
       <b-card-footer>
         <h5>Result</h5>
@@ -41,12 +54,19 @@ export default {
   data() {
     return {
       command: "",
-      response: {},
-      data: {}
+      data: {},
+      selected: 'first',
+      options: [
+        { text: 'First radio', value: 'first' },
+        { text: 'Second radio', value: 'second' },
+        { text: 'Third radio', value: 'third' }
+      ]
     };
   },
   methods: {
-    sendCommand() {}
+    sendCommand() {
+
+    }
   }
 };
 </script>

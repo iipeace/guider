@@ -1,5 +1,5 @@
 <template>
-  <div class="sidebar" :data="darkblue" style="width: 170px;">
+  <div class="sidebar" :data="backgroundColor" style="width: 170px;">
     <!--
             Tip 1: you can change the color of the sidebar's background using: data-background-color="white | black | darkblue"
             Tip 2: you can change the color of the active button using the data-active-color="primary | info | success | warning | danger"
@@ -37,7 +37,7 @@ export default {
     },
     backgroundColor: {
       type: String,
-      default: "vue"
+      default: "darkblue"
     },
     activeColor: {
       type: String,

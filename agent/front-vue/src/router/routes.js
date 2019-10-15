@@ -1,4 +1,3 @@
-import DashboardLayout from "@/layout/DashboardLayout.vue";
 // GeneralViews
 import NotFound from "@/pages/NotFoundPage.vue";
 
@@ -11,28 +10,9 @@ const Background = () =>
   import(/* webpackChunkName: "dashboard" */ "@/pages/Background.vue");
 
 const routes = [
-  {
-    path: "/",
-    component: DashboardLayout,
-    redirect: "/dashboard",
-    children: [
-      {
-        path: "dashboard",
-        name: "dashboard",
-        component: Dashboard
-      },
-      {
-        path: "command",
-        name: "command",
-        component: Command
-      },
-      {
-        path: "background",
-        name: "background",
-        component: Background
-      }
-    ]
-  },
+  { path: "/dashboard", name: "Dashboard", alias: "/", component: Dashboard},
+  { path: "/command", name: "Command", component: Command},
+  { path: "/background", name: "Background", component: Background},
   { path: "*", component: NotFound }
 ];
 

@@ -25,8 +25,11 @@ export default {
     }
   },
   methods: {
-    capitalizeFirstLetter(string) {
-      return string.charAt(0).toUpperCase() + string.slice(1);
+    capitalizeFirstLetter(name) {
+      if (!name) {
+        return '';
+      }
+      return name.charAt(0).toUpperCase() + name.slice(1);
     }
   }
 };
