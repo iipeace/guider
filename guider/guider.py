@@ -21447,6 +21447,8 @@ Copyright:
                 if not connObj:
                     return
 
+                isHistory = False
+
                 # get input #
                 uinput = getUserInput()
                 if uinput.startswith('!') and \
@@ -21454,6 +21456,7 @@ Copyright:
                     uinput[1:].isdigit() and \
                     long(uinput[1:]) < len(hlist):
                     uinput = hlist[long(uinput[1:])]
+                    isHistory = True
 
                 # handle local command #
                 if len(uinput) == 0:
@@ -21465,7 +21468,8 @@ Copyright:
                     break
 
                 # backup command #
-                hlist.append(uinput)
+                if not isHistory:
+                    hlist.append(uinput)
 
                 # request command #
                 '''
