@@ -20419,6 +20419,7 @@ Copyright:
     def updateBgProcs(cache=False):
         if SystemManager.bgProcList and cache:
             return
+
         SystemManager.bgProcList = SystemManager.getBgProcList()
 
 
@@ -20655,10 +20656,18 @@ Copyright:
                 # merge address #
                 netDict = {}
                 for item in addrs:
-                    addr, stat = item.split('/')
+                    ret = item.split('/')
+                    if len(ret) == 2:
+                        addr, stat = ret
+                    else:
+                        addr = ret[0]
+                        stat = None
+
                     if not addr in netDict:
                         netDict[addr] = list()
-                    netDict[addr].append(stat)
+
+                    if stat:
+                        netDict[addr].append(stat)
 
                 # build string #
                 netList = ''
