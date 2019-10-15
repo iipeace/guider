@@ -12,6 +12,11 @@
           name="command"
           icon="tim-icons icon-chart-pie-36"
         />
+        <sidebar-link
+          to="/background"
+          name="background"
+          icon="tim-icons icon-chart-pie-36"
+        />
       </template>
     </side-bar>
     <div class="main-panel">

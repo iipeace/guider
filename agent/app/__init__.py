@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_restful import Api
 from flask_socketio import SocketIO
+from flask_cors import CORS
 
 from app.config import config_dict, config_database
 from monitoring.models import db
@@ -14,6 +15,10 @@ def create_app(config_name):
                 template_folder=f_config.STATIC_FOLDER,
                 static_url_path='',
                 static_folder=f_config.STATIC_FOLDER)
+    CORS(app, resources={
+        r"/dataset/*": {"origin": "*"},
+        r"/slack/*": {"origin": "*"},
+    })
     app.config.from_object(f_config)
     app.config['MONGODB_SETTINGS'] = config_database
 
@@ -23,7 +28,7 @@ def create_app(config_name):
     try:
         db.init_app(app)
     except Exception as e:
-        print('Faile to connect MongoDB', e)
+        print('Failed to connect MongoDB', e)
 
     api = Api(app)
 

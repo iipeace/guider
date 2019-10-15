@@ -27,6 +27,11 @@ class Dataset(Resource):
         end = args.get('end', None)
         num = args.get('num', 20)
         from_utc = 9 * 60 * 60
+        # check if database exists
+        if Data.objects.count() == 0:
+            return jsonify(dict(status="ok", data=[]))
+
+        # validate query string
         try:
             if start is None:
                 start = (Data.objects.order_by('+timestamp').limit(1))
@@ -47,6 +52,8 @@ class Dataset(Resource):
         print(len(datas), start, end)
         # TODO: Quering Database in range, Not processing everything.
         # TODO: only fetch data in a certain mac_address.
+
+        # Summarized results in database.
         result = []
         idx = 0
         for c in range(num):
