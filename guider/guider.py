@@ -3290,6 +3290,7 @@ class NetworkManager(object):
         self.sendSize = 32767
         self.recvSize = 32767
         self.tcp = tcp
+        self.connected = False
 
         # get socket object #
         socket = SystemManager.getPkg('socket')
@@ -3423,11 +3424,29 @@ class NetworkManager(object):
 
 
 
+    def isConnected(self):
+        if not self.connected:
+            return False
+
+        # send test packet to connected socket #
+        try:
+            self.socket.send('0')
+
+            return True
+        except:
+            return False
+
+
+
     def connect(self, addr=None):
         if addr is None:
             addr = (self.ip, self.port)
 
-        return self.socket.connect(addr)
+        ret = self.socket.connect(addr)
+
+        self.connected = True
+
+        return ret
 
 
 
