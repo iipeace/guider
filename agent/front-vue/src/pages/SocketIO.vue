@@ -42,11 +42,18 @@ export default {
     };
   },
   sockets: {
-    connect: function() {
-      this.connectSocket();
-    },
-    server_response: function(data) {
-      EventBus.$emit("setDashboardData", data);
+    // connect: function() {
+    //   this.connectSocket();
+    // },
+    set_dashboard_data: function(data) {
+      if (data.result === 0) {
+        EventBus.$emit("setDashboardData", data.data);
+      } else {
+        this.disconnectSocket();
+        alert("disconnected from server");
+        window.console.log(data.errorMsg);
+        this.connected = false
+      }
     },
     request_stop_result: function(msg) {
       this.appendLog(msg);
@@ -54,15 +61,25 @@ export default {
   },
   methods: {
     emitStart: function() {
-      // if (!this.targetAddr) {
-      //   alert("Enter Server Address");
-      //   return false;
-      // }
-      this.connectSocket();
-      const timestamp = new Date();
-      this.targetTimestamp = String(timestamp);
-      this.$socket.emit("request_start", this.targetTimestamp, this.targetAddr);
-      this.connected = true;
+      if (this.connected) {
+        alert("command alredy run");
+        return false;
+      }
+
+      try {
+        this.connected = true;
+        this.connectSocket();
+        const timestamp = new Date();
+        this.targetTimestamp = String(timestamp);
+        EventBus.$emit("setTargetAddr", this.targetAddr);
+        this.$socket.emit(
+          "get_dashboard_data",
+          this.targetTimestamp,
+          this.targetAddr
+        );
+      } catch (e) {
+        this.connected = false;
+      }
     },
     emitStop: function() {
       this.$socket.emit("request_stop", this.targetTimestamp);
@@ -71,6 +88,7 @@ export default {
       this.log += newLog + "\n";
     },
     disconnectSocket: function() {
+      this.isRun = false;
       this.$socket.emit("request_stop", this.targetTimestamp);
       this.targetTimestamp = "";
       this.$socket.disconnect();

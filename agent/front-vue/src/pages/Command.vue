@@ -21,7 +21,7 @@
                 <option
                   v-for="command in hotCommandDataSet"
                   :key="command.name"
-                  >{{ command.name }}</option
+                >{{ command.name }}</option
                 >
               </datalist>
             </b-form-group>
@@ -76,6 +76,7 @@
 
 <script>
 import { HotCommandDataSet } from "../model/hot-command-data-set";
+import {EventBus} from "../event-bus";
 
 export default {
   data() {
@@ -123,7 +124,29 @@ export default {
         this.helpOptionsMap.set(d.name, optionMap);
       });
     },
-    sendCommand() {}
+    sendCommand() {
+      this.$socket.emit(
+        "get_data_by_command",
+        this.targetTimestamp,
+        this.targetAddr,
+        this.command
+      );
+    },
+  },
+  mounted() {
+    EventBus.$on("setTargetAddr", data => {
+      window.console.log(data);
+      this.targetAddr = data;
+    });
+  },
+  sockets: {
+    set_command_data: function(data) {
+      if(data.result === 0){
+        this.data = data.data
+      } else if(data.result === -1) {
+        alert(data.errorMsg)
+      }
+    }
   }
 };
 </script>

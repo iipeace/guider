@@ -6,8 +6,8 @@
           <vue-apex-charts
             height="auto"
             type="area"
-            :options="dataSet.cpuChartOptions"
-            :series="dataSet.cpuSeries"
+            :options="dataSet.memoryChartOptions"
+            :series="dataSet.memorySeries"
           />
         </b-card>
       </b-col>
@@ -16,8 +16,8 @@
           <vue-apex-charts
             height="auto"
             type="area"
-            :options="dataSet.memoryChartOptions"
-            :series="dataSet.memorySeries"
+            :options="dataSet.cpuChartOptions"
+            :series="dataSet.cpuSeries"
           />
         </b-card>
       </b-col>
