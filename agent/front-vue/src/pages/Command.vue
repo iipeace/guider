@@ -11,33 +11,58 @@
               id="fieldset-horizontal"
               label-cols-sm="4"
               label-cols-lg="3"
-              description="Enter guider command"
+              :description="fullCommand"
               label="Enter command"
               label-for="input-horizontal"
             >
-              <b-form-input
-                id="input-horizontal"
-                v-model="command"
-              ></b-form-input>
+              <b-form-input list="my-list-id" v-model="command"></b-form-input>
+
+              <datalist id="my-list-id">
+                <option
+                  v-for="command in hotCommandDataSet"
+                  :key="command.name"
+                  >{{ command.name }}</option
+                >
+              </datalist>
             </b-form-group>
           </b-col>
           <b-col>
             <b-btn @click="sendCommand">Launch</b-btn>
           </b-col>
         </b-row>
-        <b-row>
-          <b-col>
-            <b-form-group label="Quick command">
-              <b-form-radio-group
-                v-model="selected"
-                :options="options"
-                name="radios-stacked"
-                stacked
-              ></b-form-radio-group>
-            </b-form-group>
-
-          </b-col>
-        </b-row>
+        <div>
+          <b-form-group label="Command Help">
+            <b-form-checkbox-group
+              v-model="selectedOptions"
+              name="flavour-2a"
+              stacked
+            >
+              <b-row
+                v-for="option in options.values()"
+                :value="option"
+                :key="option.name"
+                class="mt-1"
+              >
+                <b-col sm="1">
+                  <b-form-checkbox :value="option.name">
+                    {{ option.name }}
+                  </b-form-checkbox>
+                </b-col>
+                <b-col sm="3">
+                  <b-form-input
+                    v-if="option.hasInput"
+                    size="sm"
+                    v-model="option.input"
+                    trim
+                  ></b-form-input>
+                </b-col>
+                <b-col>
+                  <span>{{ option.description }}</span>
+                </b-col>
+              </b-row>
+            </b-form-checkbox-group>
+          </b-form-group>
+        </div>
       </b-card-body>
       <b-card-footer>
         <h5>Result</h5>
@@ -50,23 +75,55 @@
 </template>
 
 <script>
+import { HotCommandDataSet } from "../model/hot-command-data-set";
+
 export default {
   data() {
     return {
       command: "",
       data: {},
-      selected: 'first',
-      options: [
-        { text: 'First radio', value: 'first' },
-        { text: 'Second radio', value: 'second' },
-        { text: 'Third radio', value: 'third' }
-      ]
+      selectedOptions: [],
+      options: [],
+      hotCommandDataSet: [],
+      helpOptionsMap: new Map()
     };
   },
-  methods: {
-    sendCommand() {
+  computed: {
+    fullCommand: function() {
+      let detailCommand = "";
+      const options = this.helpOptionsMap.get(this.command);
+      if (this.selectedOptions) {
+        this.selectedOptions.forEach(s => {
+          const option = options.get(s);
+          detailCommand += `-${option.name} ${option.input} `;
+        });
+      }
 
+      return `${this.command} ${detailCommand}`;
     }
+  },
+  created() {
+    this.init();
+  },
+  watch: {
+    command: function(val) {
+      if (this.helpOptionsMap.has(val)) {
+        this.options = this.helpOptionsMap.get(val);
+      }
+    }
+  },
+  methods: {
+    init() {
+      this.hotCommandDataSet = HotCommandDataSet;
+      this.hotCommandDataSet.forEach(d => {
+        const optionMap = new Map();
+        d.helpOptions.forEach(o => {
+          optionMap.set(o.name, o);
+        });
+        this.helpOptionsMap.set(d.name, optionMap);
+      });
+    },
+    sendCommand() {}
   }
 };
 </script>
