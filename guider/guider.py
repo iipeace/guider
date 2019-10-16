@@ -20465,6 +20465,10 @@ Copyright:
 
     @staticmethod
     def printBgProcs(cache=False):
+        if SystemManager.jsonPrintEnable:
+            print(SystemManager.getBgProcList(isJson=True))
+            return
+
         SystemManager.updateBgProcs(cache)
 
         procList = SystemManager.bgProcList
@@ -20552,9 +20556,10 @@ Copyright:
 
 
     @staticmethod
-    def getBgProcList(checkCmdline=False):
+    def getBgProcList(checkCmdline=False, isJson=False):
         nrProc = 0
         printBuf = ''
+        printDict = {}
         myPid = str(SystemManager.pid)
         gstatList = ConfigManager.STAT_ATTR
 
@@ -20611,12 +20616,7 @@ Copyright:
 
             # runtime #
             if runtime != '?':
-                try:
-                    m, s = divmod(runtime, 60)
-                    h, m = divmod(m, 60)
-                    runtime = '%s:%2s:%2s' % (h, m, s)
-                except:
-                    pass
+                runtime = UtilManager.convertTime(runtime)
 
             # socket #
             try:
@@ -20656,13 +20656,22 @@ Copyright:
             except:
                 cmdline = '?'
 
-            try:
+            # build #
+            if isJson:
+                printDict[pid] = {
+                    'comm': comm,
+                    'runtime': runtime,
+                    'cmdline': cmdline,
+                    'network': network
+                }
+            else:
                 printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
                     (printBuf, pid, comm, runtime, cmdline, network)
-            except:
-                continue
 
-        return printBuf
+        if isJson:
+            return printDict
+        else:
+            return printBuf
 
 
 
