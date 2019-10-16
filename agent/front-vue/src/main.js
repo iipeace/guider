@@ -19,7 +19,7 @@ const serverAddr = "http://localhost:8000";
 
 Vue.use(
   new VueSocketIO({
-    debug: true,
+    debug: process.env.NODE_ENV !== "production",
     connection: serverAddr // 'http://localhost:5000'
   })
 );
