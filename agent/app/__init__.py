@@ -6,7 +6,7 @@ from flask_cors import CORS
 from app.config import config_dict, config_database
 from monitoring.models import db
 from monitoring.controllers import Main, Slack, Dataset
-from monitoring.services import communicate_with_guider, disconnect_with_guider
+from monitoring.services import get_dashboard_data, disconnect_with_guider, get_data_by_command
 
 
 def create_app(config_name):
@@ -36,6 +36,7 @@ def create_app(config_name):
     api.add_resource(Dataset, '/dataset')
     api.add_resource(Slack, '/slack/')
 
-    socket.on_event('request_start', communicate_with_guider)
+    socket.on_event('get_dashboard_data', get_dashboard_data)
+    socket.on_event('get_data_by_command', get_data_by_command)
     socket.on_event('request_stop', disconnect_with_guider)
     return app, socket

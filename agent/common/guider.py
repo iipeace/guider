@@ -1,30 +1,63 @@
 import sys
 import os
 
-
-class Singleton(object):
-    _instance = None
-
-    def __new__(class_, *args, **kwargs):
-        if not isinstance(class_._instance, class_):
-            class_._instance = object.__new__(class_, *args, **kwargs)
-        return class_._instance
+curDir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, '%s/../../guider' % curDir)
+from guider import NetworkManager
 
 
-class GuiderInstance(Singleton):
-    def __init__(self):
-        self.target_addr = ''
-        self.conn = None
+class RequestManager(object):
+    requests = {}
+
+    def __new__(self):
+        if not hasattr(self, 'instance'):
+            self.instance = super(RequestManager, self).__new__(self)
+            return self.instance
 
     @classmethod
-    def connect(cls, target_addr):
-        curDir = os.path.dirname(os.path.abspath(__file__))
-        sys.path.insert(0, '%s/../../guider' % curDir)
-        from guider import NetworkManager
+    def add_request(cls, request_id):
+        cls.requests[request_id] = True
 
-        NetworkManager.prepareServerConn(None, target_addr)
-        conn = NetworkManager.getServerConn()
-        if not conn:
-            raise Exception('Fail to get connection with server')
-        cls.target_addr = target_addr
-        cls.conn = conn
+    @classmethod
+    def disable_request(cls, request_id):
+        cls.requests[request_id] = False
+
+    @classmethod
+    def get_requestStatus(cls, request_id):
+        return cls.requests.get(request_id)
+
+    @classmethod
+    def clear_request(cls):
+        cls.requests.clear()
+
+
+class GuiderInstance(object):
+    _target_addr = None
+    _network_manager = None
+    __instance = None
+
+    @staticmethod
+    def get_instance(target_addr):
+        if GuiderInstance.__instance is None or \
+                GuiderInstance.__instance and \
+                GuiderInstance.__instance.get_target_addr() != target_addr:
+            GuiderInstance(target_addr)
+        return GuiderInstance.__instance
+
+    def __init__(self, target_addr):
+        self.target_addr = target_addr
+        self._network_manager = NetworkManager(mode=None, ip=None, port=None)
+        self._network_manager.prepareServerConn(None, target_addr)
+        GuiderInstance.__instance = self
+
+    def get_target_addr(self):
+        return self.target_addr
+
+    def run_cmd(self, cmd):
+        pipe = self._network_manager.execRemoteCmd(cmd)
+        if not pipe:
+            raise Exception("FAIL Connect with guider")
+        return pipe
+
+    def stop_cmd(self, pipe):
+        pipe.close()

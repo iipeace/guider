@@ -3,31 +3,7 @@ import json
 
 from flask_socketio import emit
 from monitoring.models import CPU, Memory, Network, Storage, Data
-
-
-class RequestManager(object):
-    requests = {}
-
-    def __new__(self):
-        if not hasattr(self, 'instance'):
-            self.instance = super(RequestManager, self).__new__(self)
-            return self.instance
-
-    @classmethod
-    def add_request(cls, request_id):
-        cls.requests[request_id] = True
-
-    @classmethod
-    def disable_request(cls, request_id):
-        cls.requests[request_id] = False
-
-    @classmethod
-    def get_requestStatus(cls, request_id):
-        return cls.requests.get(request_id)
-
-    @classmethod
-    def clear_request(cls):
-        cls.requests.clear()
+from common.guider import GuiderInstance, RequestManager
 
 
 def save_database(msg):
@@ -58,20 +34,41 @@ def save_database(msg):
         print('failed to save instance in MongoDB', e)
 
 
-def communicate_with_guider(timestamp, targetAddr):
-    import os
-    curDir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, '%s/../../guider' % curDir)
-    from guider import NetworkManager
-    print('request_start')
+def get_data_by_command(timestamp, target_addr, cmd):
 
-    # set addresses #
-    NetworkManager.prepareServerConn(None, targetAddr)
+    result = dict(result=0, data=dict(), errMsg='')
+    if cmd is None or cmd is '':
+        result['result'] = -1
+        result['errorMsg'] = 'Required data missing'
+        emit('set_command_data', result)
+        sys.exit(0)
 
+    pipe = GuiderInstance.get_instance(target_addr).run_cmd(cmd)
+    RequestManager.add_request(timestamp)
+
+    while RequestManager.get_requestStatus(timestamp):
+        str_pipe = pipe.getData()
+        if not str_pipe:
+            result['result'] = -1
+            emit('set_command_data', result)
+            pipe.close()
+            RequestManager.clear_request()
+            break
+        result['data'] = str_pipe
+        emit('set_command_data', result)
+
+
+def get_dashboard_data(timestamp, target_addr):
+
+    result = dict(result=0, data=dict(), errMsg='')
     # execute remote command for real-time visualization #
-    pipe = NetworkManager.execRemoteCmd('GUIDER top -J -a -e dn')
+    cmd = 'GUIDER top -J -a -e dn'
+    pipe = GuiderInstance.get_instance(target_addr).run_cmd(cmd)
     if not pipe:
         print('\nFail to execute remote command')
+        result['result'] = -1
+        emit('set_dashboard_data', result)
+        RequestManager.clear_request()
         sys.exit(0)
 
     # build message #
@@ -118,18 +115,28 @@ def communicate_with_guider(timestamp, targetAddr):
                 network = json_pipe['net']
                 msg['network'] = dict(
                     inbound=network['inbound'], outbound=network['outbound'])
-                print(msg)
+
                 # save msg to db
-                emit('server_response', msg)
                 save_database(msg)
+
+                result = dict(result=0, data=msg)
+                emit('set_dashboard_data', result)
 
             except (json.decoder.JSONDecodeError, KeyError) as e:
                 print(str_pipe)
                 print(e)
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
+                result['result']= -1
+                result['errorMsg'] =e
+                emit('set_dashboard_data', result)
+                pipe.close()
             except Exception as e:
                 print('Error occured', e)
+                result['result']= -1
+                result['errorMsg'] =e
+                emit('set_dashboard_data', result)
+                pipe.close()
         else:
             print('[%s] %s' % (data_type, str_pipe))
 
