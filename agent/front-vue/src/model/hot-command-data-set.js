@@ -22,18 +22,26 @@ export class Command {
 
 export const HotCommandDataSet = [
   new Command("top", [
-    new Option("e", true, "enable options\n" +
-                          "                a:affinity | b:block | c:cpu | C:cgroup\n" +
-                          "                d:disk | D:DLT | e:encode | E:Elastic\n" +
-                          "                f:float | F:wfc | h:sigHandler | i:irq\n" +
-                          "                L:cmdline | m:memory | n:net | o:oomScore\n" +
-                          "                p:pipe | P:perf | r:report | R:fileReport\n" +
-                          "                s:stack | S:pss | t:thread | u:uss\n" +
-                          "                w:wss | W:wchan"),
-    new Option("d", true, "disable options\n" +
-                          "                a:memAvailable | A:cpuAverage\n" +
-                          "                c:cpu | e:encode | G:gpu | L:log\n" +
-                          "                p:print | t:truncate | T:task"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" +
+        "                a:affinity | b:block | c:cpu | C:cgroup\n" +
+        "                d:disk | D:DLT | e:encode | E:Elastic\n" +
+        "                f:float | F:wfc | h:sigHandler | i:irq\n" +
+        "                L:cmdline | m:memory | n:net | o:oomScore\n" +
+        "                p:pipe | P:perf | r:report | R:fileReport\n" +
+        "                s:stack | S:pss | t:thread | u:uss\n" +
+        "                w:wss | W:wchan"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" +
+        "                a:memAvailable | A:cpuAverage\n" +
+        "                c:cpu | e:encode | G:gpu | L:log\n" +
+        "                p:print | t:truncate | T:task"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),
@@ -61,18 +69,26 @@ export const HotCommandDataSet = [
     new Option("v", false, "verbose")
   ]),
   new Command("disktop", [
-    new Option("e", true, "enable options\n" +
-                          "                a:affinity | b:block | c:cpu | C:cgroup\n" +
-                          "                d:disk | D:DLT | e:encode | E:Elastic\n" +
-                          "                f:float | F:wfc | h:sigHandler | i:irq\n" +
-                          "                L:cmdline | m:memory | n:net | o:oomScore\n" +
-                          "                p:pipe | P:perf | r:report | R:fileReport\n" +
-                          "                s:stack | S:pss | t:thread | u:uss\n" +
-                          "                w:wss | W:wchan"),
-    new Option("d", true, "disable options\n" +
-                          "                a:memAvailable | A:cpuAverage\n" +
-                          "                c:cpu | e:encode | G:gpu | L:log\n" +
-                          "                p:print | t:truncate | T:task"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" +
+        "                a:affinity | b:block | c:cpu | C:cgroup\n" +
+        "                d:disk | D:DLT | e:encode | E:Elastic\n" +
+        "                f:float | F:wfc | h:sigHandler | i:irq\n" +
+        "                L:cmdline | m:memory | n:net | o:oomScore\n" +
+        "                p:pipe | P:perf | r:report | R:fileReport\n" +
+        "                s:stack | S:pss | t:thread | u:uss\n" +
+        "                w:wss | W:wchan"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" +
+        "                a:memAvailable | A:cpuAverage\n" +
+        "                c:cpu | e:encode | G:gpu | L:log\n" +
+        "                p:print | t:truncate | T:task"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),
@@ -100,18 +116,26 @@ export const HotCommandDataSet = [
     new Option("v", false, "verbose")
   ]),
   new Command("nettop", [
-    new Option("e", true, "enable options\n" +
-                          "                a:affinity | b:block | c:cpu | C:cgroup\n" +
-                          "                d:disk | D:DLT | e:encode | E:Elastic\n" +
-                          "                f:float | F:wfc | h:sigHandler | i:irq\n" +
-                          "                L:cmdline | m:memory | n:net | o:oomScore\n" +
-                          "                p:pipe | P:perf | r:report | R:fileReport\n" +
-                          "                s:stack | S:pss | t:thread | u:uss\n" +
-                          "                w:wss | W:wchan"),
-    new Option("d", true, "disable options\n" +
-                          "                a:memAvailable | A:cpuAverage\n" +
-                          "                c:cpu | e:encode | G:gpu | L:log\n" +
-                          "                p:print | t:truncate | T:task"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" +
+        "                a:affinity | b:block | c:cpu | C:cgroup\n" +
+        "                d:disk | D:DLT | e:encode | E:Elastic\n" +
+        "                f:float | F:wfc | h:sigHandler | i:irq\n" +
+        "                L:cmdline | m:memory | n:net | o:oomScore\n" +
+        "                p:pipe | P:perf | r:report | R:fileReport\n" +
+        "                s:stack | S:pss | t:thread | u:uss\n" +
+        "                w:wss | W:wchan"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" +
+        "                a:memAvailable | A:cpuAverage\n" +
+        "                c:cpu | e:encode | G:gpu | L:log\n" +
+        "                p:print | t:truncate | T:task"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),
@@ -139,10 +163,16 @@ export const HotCommandDataSet = [
     new Option("v", false, "verbose")
   ]),
   new Command("filetop", [
-    new Option("e", true, "enable options\n" +
-                          "                p:pipe | e:encode"),
-    new Option("d", true, "disable options\n" +
-                          "                e:encode | p:print"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" + "                p:pipe | e:encode"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" + "                e:encode | p:print"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),
@@ -165,18 +195,26 @@ export const HotCommandDataSet = [
     new Option("v", false, "verbose")
   ]),
   new Command("systop", [
-    new Option("e", true, "enable options\n" +
-                          "                a:affinity | b:block | c:cpu | C:cgroup\n" +
-                          "                d:disk | D:DLT | e:encode | E:Elastic\n" +
-                          "                f:float | F:wfc | h:sigHandler | i:irq\n" +
-                          "                L:cmdline | m:memory | n:net | o:oomScore\n" +
-                          "                p:pipe | P:perf | r:report | R:fileReport\n" +
-                          "                s:stack | S:pss | t:thread | u:uss\n" +
-                          "                w:wss | W:wchan"),
-    new Option("d", true, "disable options\n" +
-                          "                a:memAvailable | A:cpuAverage\n" +
-                          "                c:cpu | e:encode | G:gpu | L:log\n" +
-                          "                p:print | t:truncate | T:task"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" +
+        "                a:affinity | b:block | c:cpu | C:cgroup\n" +
+        "                d:disk | D:DLT | e:encode | E:Elastic\n" +
+        "                f:float | F:wfc | h:sigHandler | i:irq\n" +
+        "                L:cmdline | m:memory | n:net | o:oomScore\n" +
+        "                p:pipe | P:perf | r:report | R:fileReport\n" +
+        "                s:stack | S:pss | t:thread | u:uss\n" +
+        "                w:wss | W:wchan"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" +
+        "                a:memAvailable | A:cpuAverage\n" +
+        "                c:cpu | e:encode | G:gpu | L:log\n" +
+        "                p:print | t:truncate | T:task"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),
@@ -204,18 +242,26 @@ export const HotCommandDataSet = [
     new Option("v", false, "verbose")
   ]),
   new Command("usertop", [
-    new Option("e", true, "enable options\n" +
-                          "                a:affinity | b:block | c:cpu | C:cgroup\n" +
-                          "                d:disk | D:DLT | e:encode | E:Elastic\n" +
-                          "                f:float | F:wfc | h:sigHandler | i:irq\n" +
-                          "                L:cmdline | m:memory | n:net | o:oomScore\n" +
-                          "                p:pipe | P:perf | r:report | R:fileReport\n" +
-                          "                s:stack | S:pss | t:thread | u:uss\n" +
-                          "                w:wss | W:wchan"),
-    new Option("d", true, "disable options\n" +
-                          "                a:memAvailable | A:cpuAverage\n" +
-                          "                c:cpu | e:encode | G:gpu | L:log\n" +
-                          "                p:print | t:truncate | T:task"),
+    new Option(
+      "e",
+      true,
+      "enable options\n" +
+        "                a:affinity | b:block | c:cpu | C:cgroup\n" +
+        "                d:disk | D:DLT | e:encode | E:Elastic\n" +
+        "                f:float | F:wfc | h:sigHandler | i:irq\n" +
+        "                L:cmdline | m:memory | n:net | o:oomScore\n" +
+        "                p:pipe | P:perf | r:report | R:fileReport\n" +
+        "                s:stack | S:pss | t:thread | u:uss\n" +
+        "                w:wss | W:wchan"
+    ),
+    new Option(
+      "d",
+      true,
+      "disable options\n" +
+        "                a:memAvailable | A:cpuAverage\n" +
+        "                c:cpu | e:encode | G:gpu | L:log\n" +
+        "                p:print | t:truncate | T:task"
+    ),
     new Option("o", true, "save output data"),
     new Option("u", false, "run in the background"),
     new Option("W", false, "wait for signal"),

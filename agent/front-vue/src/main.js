@@ -9,6 +9,16 @@ import App from "./App";
 import router from "./router/index";
 import BlackDashboard from "./plugins/blackDashboard";
 import VueSocketIO from "vue-socket.io";
+import { library } from "@fortawesome/fontawesome-svg-core";
+import {
+  faCheck,
+  faCircle,
+  faPlus,
+  faSave,
+  faTimes,
+  faBars
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 Vue.use(BlackDashboard);
 Vue.use(VueRouter);
@@ -23,6 +33,9 @@ Vue.use(
     connection: serverAddr // 'http://localhost:5000'
   })
 );
+
+library.add(faPlus, faCircle, faTimes, faSave, faCheck, faBars);
+Vue.component("font-awesome-icon", FontAwesomeIcon);
 
 /* eslint-disable no-new */
 new Vue({
