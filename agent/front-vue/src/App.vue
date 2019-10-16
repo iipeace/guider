@@ -11,14 +11,14 @@
 </template>
 
 <script>
-import TopNavbar from './layout/TopNavbar';
-import SideNavBar from './layout/SideNavBar';
+import TopNavbar from "./layout/TopNavbar";
+import SideNavBar from "./layout/SideNavBar";
 
 export default {
   components: {
     SideNavBar,
     TopNavbar
-  },
+  }
 };
 </script>
 

@@ -27,7 +27,7 @@ export default {
   methods: {
     capitalizeFirstLetter(name) {
       if (!name) {
-        return '';
+        return "";
       }
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
