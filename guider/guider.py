@@ -3926,7 +3926,6 @@ class NetworkManager(object):
                 addr = None
 
             if not addr:
-                printErr()
                 return None
 
             # classify ip and port #
@@ -20271,34 +20270,29 @@ Copyright:
         # get pids #
         pids = SystemManager.getProcPids(name)
         if len(pids) == 1:
-            # check permission #
-            if not SystemManager.isRoot():
-                SystemManager.printErr(\
-                    "Fail to get address because of root permission")
-                sys.exit(0)
-
             # get socket objects #
             objs = SystemManager.getProcSocketObjs(pids[0])
 
             # get bind address #
             addrs = SystemManager.getSocketAddrList(objs)
             if len(addrs) == 0:
-                SystemManager.printErr(\
-                    "Fail to get socket attribute of server process")
+                SystemManager.printWarn(\
+                    "Fail to get socket attribute of server", True)
                 return None
 
             # get server address #
             addr = addrs[0]
 
             return addr[addr.find(':')+1:]
-        elif len(pids) > 1:
-            SystemManager.printErr(\
-                "Found multiple running %s processes" % name)
-            return None
+
+        if len(pids) > 1:
+            SystemManager.printWarn(\
+                "Found multiple running %s processes" % name, True)
         else:
-            SystemManager.printErr(\
-                "Fail to find %s process" % name)
-            return None
+            SystemManager.printWarn(\
+                "Fail to find %s process" % name, True)
+
+        return None
 
 
 
@@ -20318,16 +20312,9 @@ Copyright:
             except:
                 continue
 
-            # make comm path of pid #
-            procPath = "%s/%s" % (SystemManager.procPath, pid)
-
-            try:
-                fd = open(procPath + '/comm', 'r')
-                comm = fd.readline()[0:-1]
-            except:
-                continue
-
-            if comm.startswith(name):
+            # check comm #
+            comm = SystemManager.getComm(pid)
+            if comm and comm.startswith(name):
                 pidList.append(int(pid))
 
         return pidList
@@ -20512,9 +20499,7 @@ Copyright:
 
         pids = os.listdir(SystemManager.procPath)
         for pid in pids:
-            try:
-                int(pid)
-            except:
+            if not pid.isdigit():
                 continue
 
             # make comm path of pid #
@@ -20529,21 +20514,11 @@ Copyright:
                     continue
 
                 for tid in tids:
-                    try:
-                        int(tid)
-                    except:
+                    if not tid.isdigit():
                         continue
 
-                    targetPath = '%s/%s/comm' % (threadPath, tid)
-
-                    try:
-                        with open(targetPath, 'r') as fd:
-                            comm = fd.readline()[0:-1]
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        continue
-
+                    # get comm #
+                    comm = SystemManager.getComm(tid)
                     if comm != name:
                         continue
 
@@ -20564,12 +20539,8 @@ Copyright:
 
                 continue
 
-            try:
-                with open('%s/comm' % procPath, 'r') as fd:
-                    comm = fd.readline()[0:-1]
-            except:
-                continue
-
+            # get comm #
+            comm = SystemManager.getComm(pid)
             if comm != name:
                 continue
 
@@ -21498,6 +21469,7 @@ Copyright:
                 if not pipe:
                     SystemManager.printErr(\
                         "Fail to execute remote command")
+                    continue
 
                 while 1:
                     output = pipe.getData()
