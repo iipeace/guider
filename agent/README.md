@@ -13,12 +13,12 @@ cd ./front-vue/ && npm install && npm run build && cd ..
 It is recomended to use Virtualenv 
 
 ```sh
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
 ```
 ## Run
 
 ```sh
-python manage.py run
+python3 manage.py run
 ```
 
