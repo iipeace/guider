@@ -15,9 +15,11 @@
       <b-col sm="2">
         <b-btn v-if="!connected" id="emitStart" @click="emitStart">
           Connect
+          <font-awesome-icon icon="circle" style="color:#00CC6A" />
         </b-btn>
         <b-btn v-else id="disconnectSocket" @click="disconnectSocket">
           Disconnect
+          <font-awesome-icon icon="circle" style="color:#FF0000" />
         </b-btn>
       </b-col>
     </b-row>
