@@ -13,13 +13,11 @@
         </b-form-text>
       </b-col>
       <b-col sm="2">
-        <b-btn id="emitStart" @click="emitStart">
-          Start
+        <b-btn v-if="!connected" id="emitStart" @click="emitStart">
+          Connect
         </b-btn>
-      </b-col>
-      <b-col sm="2">
-        <b-btn id="disconnectSocket" @click="disconnectSocket">
-          Stop
+        <b-btn v-else id="disconnectSocket" @click="disconnectSocket">
+          Disconnect
         </b-btn>
       </b-col>
     </b-row>
@@ -37,7 +35,8 @@ export default {
       log: "",
       targetTimestamp: "",
       arrProcParam: ["nrThreads", "mem", "life", "comm", "ttime", "PPID"],
-      targetAddr: ""
+      targetAddr: "",
+      connected: false
     };
   },
   sockets: {
@@ -61,6 +60,7 @@ export default {
       const timestamp = new Date();
       this.targetTimestamp = String(timestamp);
       this.$socket.emit("request_start", this.targetTimestamp, this.targetAddr);
+      this.connected = true;
     },
     emitStop: function() {
       this.$socket.emit("request_stop", this.targetTimestamp);
@@ -72,6 +72,7 @@ export default {
       this.$socket.emit("request_stop", this.targetTimestamp);
       this.targetTimestamp = "";
       this.$socket.disconnect();
+      this.connected = false;
     },
     connectSocket: function() {
       this.$socket.connect(); // if connection is not establised.
