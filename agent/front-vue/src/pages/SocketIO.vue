@@ -21,32 +21,12 @@
 </template>
 
 <script>
-import { EventBus } from "../event-bus";
-
 export default {
   name: "socket-io",
   data() {
     return {
       targetAddr: ""
     };
-  },
-  sockets: {
-    // connect: function() {
-    //   this.connectSocket();
-    // },
-    set_dashboard_data: function(data) {
-      if (data.result === 0) {
-        EventBus.$emit("setDashboardData", data.data);
-      } else {
-        this.disconnectSocket();
-        alert("disconnected from server");
-        window.console.log(data.errorMsg);
-        this.connected = false;
-      }
-    },
-    request_stop_result: function(msg) {
-      this.appendLog(msg);
-    }
   },
   methods: {
     setTargetAddr: function() {

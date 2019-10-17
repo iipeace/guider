@@ -75,9 +75,9 @@
 </template>
 
 <script>
-  import {HotCommandDataSet} from "../model/hot-command-data-set";
+import { HotCommandDataSet } from "../model/hot-command-data-set";
 
-  export default {
+export default {
   data() {
     return {
       command: "",
@@ -85,8 +85,12 @@
       selectedOptions: [],
       options: [],
       hotCommandDataSet: [],
-      helpOptionsMap: new Map()
+      helpOptionsMap: new Map(),
+      requestId: ""
     };
+  },
+  props: {
+    targetAddr: String
   },
   computed: {
     fullCommand: function() {
@@ -124,16 +128,28 @@
       });
     },
     sendCommand() {
-      if (!this.$store.getters.hasTargetAddr) {
+      if (!this.targetAddr) {
         alert("please set target address");
         return false;
       }
+      if (this.requestId !== "") {
+        this.StopCommandRun();
+      }
+      this.requestId = "command" + String(new Date());
       this.$socket.emit(
         "get_data_by_command",
         this.$store.getters.getTargetAddr,
+        this.requestId,
         this.fullCommand
       );
+    },
+    StopCommandRun() {
+      this.$socket.emit("stop_command_run", this.requestId);
+      this.requestId = "";
     }
+  },
+  beforeDestroy() {
+    this.StopCommandRun();
   },
   sockets: {
     set_command_data: function(data) {

@@ -61,10 +61,14 @@ export default {
   components: {
     VueApexCharts
   },
+  props: {
+    targetAddr: String
+  },
   data: function() {
     return {
       dataSet: new GuiderGraphDataSet(),
-      isRun: false
+      isRun: false,
+      requestId: ""
     };
   },
   sockets: {
@@ -92,11 +96,10 @@ export default {
 
       try {
         this.isRun = true;
-        this.$socket.connect();
-        this.targetTimestamp = String(new Date());
+        this.requestId = "dashboard" + String(new Date());
         this.$socket.emit(
           "get_dashboard_data",
-          this.targetTimestamp,
+          this.requestId,
           this.$store.getters.getTargetAddr
         );
       } catch (e) {
@@ -105,9 +108,8 @@ export default {
     },
     StopCommandRun() {
       this.isRun = false;
-      this.$socket.emit("request_stop", this.targetTimestamp);
-      this.targetTimestamp = "";
-      this.$socket.disconnect();
+      this.$socket.emit("stop_command_run", this.requestId);
+      this.requestId = "";
     }
   },
   mounted() {
@@ -115,7 +117,9 @@ export default {
       this.dataSet.setGuiderData(data);
     });
   },
-  beforeDestroy() {}
+  beforeDestroy() {
+    this.StopCommandRun();
+  }
 };
 </script>
 <style></style>

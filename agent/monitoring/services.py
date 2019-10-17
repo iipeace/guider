@@ -34,7 +34,8 @@ def save_database(msg):
         print('failed to save instance in MongoDB', e)
 
 
-def get_data_by_command(target_addr, cmd):
+def get_data_by_command(target_addr, request_id, cmd):
+    print('request in')
     result = dict(result=0, data=dict(), errMsg='')
     if cmd is None or cmd is '' or target_addr is None or target_addr is '':
         result['result'] = -1
@@ -43,16 +44,22 @@ def get_data_by_command(target_addr, cmd):
         sys.exit(0)
 
     try:
+        RequestManager.add_request(request_id)
         GuiderInstance.set_network_manager(target_addr)
-        pipe = GuiderInstance.run_cmd(target_addr, cmd)
-        str_pipe = pipe.getData()
-        while str_pipe:
+        pipe = GuiderInstance.get_command_pipe(target_addr, cmd)
+        while RequestManager.get_request_status(request_id):
+            str_pipe = pipe.getData()
+            if not str_pipe:
+                break
             result['data'] = str_pipe
             emit('set_command_data', result)
-            str_pipe = pipe.getData()
-
         pipe.close()
-    except Exception:
+        RequestManager.stop_request(request_id)
+    except Exception as e:
+        print(e)
+        if pipe:
+            pipe.close()
+        RequestManager.stop_request(request_id)
         emit('set_command_data', result)
 
 
@@ -90,41 +97,44 @@ def parse_to_dashboard_data(data):
     return msg
 
 
-def get_dashboard_data(timestamp, target_addr):
+def get_dashboard_data(request_id, target_addr):
     result = dict(result=-1, data=dict(), errorMsg='')
     if target_addr is None or target_addr is '':
         result['errorMsg'] = 'Guider Address data missing'
         emit('set_dashboard_data', result)
-        sys.exit(0)
+        return None
 
-    # execute remote command for real-time visualization #
     cmd = 'GUIDER top -J -a -e dn'
     try:
         GuiderInstance.set_network_manager(target_addr)
-        pipe = GuiderInstance.run_cmd(target_addr, cmd)
-    except Exception:
+        pipe = GuiderInstance.get_command_pipe(target_addr, cmd)
+    except Exception as e:
+        print(e)
         result['errorMsg'] = 'Fail to connect with guider'
         emit('set_dashboard_data', result)
-        sys.exit(0)
+        return None
 
-    # build message #
-    RequestManager.add_request(timestamp)
+    RequestManager.add_request(request_id)
 
-    while RequestManager.get_requestStatus(timestamp):
+    while RequestManager.get_request_status(request_id):
         # read data from Guider #
-        str_pipe = pipe.getData()
-        if not str_pipe:
-            result['errorMsg'] = 'disconnected by guider'
-            emit('set_dashboard_data', result)
+        try:
+            str_pipe = pipe.getData()
+            if not str_pipe:
+                result['errorMsg'] = 'Fail to connect with guider'
+                emit('set_dashboard_data', result)
+                break
+            data_type = pipe.getDataType(str_pipe)
+        except Exception as e:
+            print(e)
             break
 
-        data_type = pipe.getDataType(str_pipe)
         if data_type == 'JSON':
             try:
                 # convert, parse string to JSON #
                 msg = parse_to_dashboard_data(pipe.getData())
                 # save msg to db
-                # save_database(msg)
+                save_database(msg)
                 # call web method
                 result = dict(result=0, data=msg)
                 emit('set_dashboard_data', result)
@@ -141,16 +151,21 @@ def get_dashboard_data(timestamp, target_addr):
                 emit('set_dashboard_data', result)
                 pipe.close()
         else:
+            print('not json')
             # print('[%s] %s' % (data_type, str_pipe))
             pass
+
+    if pipe:
+        pipe.close()
+    RequestManager.stop_request(request_id)
 
     print('request_finished')
 
 
-def disconnect_with_guider(target_timestamp):
+def stop_command_run(request_id):
     print("request_stop")
-    if RequestManager.get_requestStatus(target_timestamp):
-        RequestManager.disable_request(target_timestamp)
-        emit('request_stop_result', 'stop success : ' + target_timestamp)
+    if RequestManager.get_request_status(request_id):
+        RequestManager.stop_request(request_id)
+        emit('request_stop_result', 'stop success : ' + request_id)
     else:
-        emit('request_stop_result', 'stop failed : ' + target_timestamp)
+        emit('request_stop_result', 'stop failed : ' + request_id)
