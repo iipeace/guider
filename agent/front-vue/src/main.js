@@ -10,6 +10,8 @@ import router from "./router/index";
 import BlackDashboard from "./plugins/blackDashboard";
 import VueSocketIO from "vue-socket.io";
 import { library } from "@fortawesome/fontawesome-svg-core";
+import Datetime from 'vue-datetime'
+import 'vue-datetime/dist/vue-datetime.css'
 import {
   faCheck,
   faCircle,
@@ -21,6 +23,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 Vue.use(BlackDashboard);
+Vue.use(Datetime)
 Vue.use(VueRouter);
 Vue.use(RouterPrefetch);
 

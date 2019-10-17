@@ -12,8 +12,8 @@
         icon="tim-icons icon-chart-pie-36"
       />
       <sidebar-link
-        to="/background"
-        name="background"
+        to="/history"
+        name="history"
         icon="tim-icons icon-chart-pie-36"
       />
     </template>
