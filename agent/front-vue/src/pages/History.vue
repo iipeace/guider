@@ -6,17 +6,19 @@
           Browse the stored database
           <b-row>
             <b-col sm="6">
-              From <datetime type="datetime" v-model="fromDate"></datetime>
-              
+              From <br />
+              <datetime type="datetime" v-model="start"></datetime>
             </b-col>
             <b-col sm="6">
-              To <datetime type="datetime" :value="now" disabled></datetime>
+              To <br />
+              <datetime type="datetime" :value="now" disabled></datetime>
             </b-col>
             <b-col sm="6">
-              Sample # <input v-model="sampleNum">
+              Sample # <br />
+              <input v-model="sampleNum" />
             </b-col>
           </b-row>
-          <input type="button" value="Browse!" @click="getData"> {{errMsg}}
+          <input type="button" value="Browse!" @click="getData" /> {{ errMsg }}
         </b-card>
       </b-col>
       <b-col sm="6">
@@ -72,35 +74,33 @@ export default {
   data: function() {
     return {
       dataSet: new GuiderGraphDataSet(),
-      fromDate: '',
+      start: null,
       sampleNum: 40,
-      errMsg: ''
+      errMsg: ""
     };
   },
   computed: {
     now: function() {
-      return new Date().toISOString()
+      return new Date().toISOString();
     }
   },
   methods: {
     async getData() {
       // init values
-      this.errMsg = ''
-      this.dataSet = new GuiderGraphDataSet()
+      this.errMsg = "";
+      this.dataSet = new GuiderGraphDataSet();
       try {
-        let url = 'http://localhost:8000/dataset'
-        let hasQuery = false
-        if(this.fromDate){
-          let timestamp = Date.parse(this.fromDate)/1000
-          url += `?from=${timestamp}`
-          hasQuery = true
+        let url = "http://localhost:8000/dataset";
+        let hasQuery = false;
+        if (this.start) {
+          let timestamp = Date.parse(this.start) / 1000;
+          url += `?start=${timestamp}`;
+          hasQuery = true;
         }
-        if(this.sampleNum >= 20 && this.sampleNum <= 100){
-          url += (hasQuery ? '&':'?') + `num=${this.sampleNum}`
-        }
-        else throw Error("Sample Number should be in range 20~100")
+        if (this.sampleNum >= 20 && this.sampleNum <= 100) {
+          url += (hasQuery ? "&" : "?") + `num=${this.sampleNum}`;
+        } else throw Error("Sample Number should be in range 20~100");
         const response = await fetch(url);
-        console.log(url)
         const responseOK = response && response.status == 200;
         if (responseOK) {
           const body = await response.json();
@@ -114,13 +114,12 @@ export default {
           } else throw Error("Internal Server Error");
         } else throw Error("Failed to load body");
       } catch (e) {
-        this.errMsg = e
-        // TODO: Print Error!
+        this.errMsg = e;
       }
     }
   },
   async mounted() {
-    await this.getData()
+    await this.getData();
   },
   beforeDestroy() {}
 };
