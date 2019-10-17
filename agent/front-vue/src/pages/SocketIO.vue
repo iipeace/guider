@@ -52,7 +52,7 @@ export default {
         this.disconnectSocket();
         alert("disconnected from server");
         window.console.log(data.errorMsg);
-        this.connected = false
+        this.connected = false;
       }
     },
     request_stop_result: function(msg) {
