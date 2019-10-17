@@ -1,6 +1,14 @@
 <template>
   <div class="container-fluid">
     <b-row>
+      <b-col sm="12">
+        <b-btn v-if="isRun" @click="StopCommandRun" style="float: right;"
+          >STOP</b-btn
+        >
+        <b-btn v-else @click="GetDashboardData" style="float: right;"
+          >START</b-btn
+        >
+      </b-col>
       <b-col sm="6">
         <b-card style="background: white; ">
           <vue-apex-charts
@@ -53,10 +61,57 @@ export default {
   components: {
     VueApexCharts
   },
+  props: {
+    targetAddr: String
+  },
   data: function() {
     return {
-      dataSet: new GuiderGraphDataSet()
+      dataSet: new GuiderGraphDataSet(),
+      isRun: false
     };
+  },
+  sockets: {
+    set_dashboard_data: function(data) {
+      if (data.result === 0) {
+        this.dataSet.setGuiderData(data.data);
+      } else if (data.result < 0){
+        this.isRun = false;
+        this.StopCommandRun();
+        alert(data.errorMsg);
+      }
+    }
+  },
+  methods: {
+    GetDashboardData() {
+      if (!this.targetAddr) {
+        alert("please set target address")
+        return false;
+      }
+
+      if (this.isRun) {
+        alert("command alredy run");
+        return false;
+      }
+
+      try {
+        this.isRun = true;
+        this.$socket.connect();
+        this.targetTimestamp = String(new Date());
+        this.$socket.emit(
+          "get_dashboard_data",
+          this.targetTimestamp,
+          this.targetAddr
+        );
+      } catch (e) {
+        this.isRun = false;
+      }
+    },
+    StopCommandRun() {
+      this.isRun = false;
+      this.$socket.emit("request_stop", this.targetTimestamp);
+      this.targetTimestamp = "";
+      this.$socket.disconnect();
+    }
   },
   mounted() {
     EventBus.$on("setDashboardData", data => {

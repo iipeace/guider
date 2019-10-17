@@ -6,58 +6,56 @@ sys.path.insert(0, '%s/../../guider' % curDir)
 from guider import NetworkManager
 
 
-class RequestManager(object):
-    requests = {}
+class SingleTonInstance(object):
+    instances= {}
 
     def __new__(self):
         if not hasattr(self, 'instance'):
             self.instance = super(RequestManager, self).__new__(self)
             return self.instance
 
+
+class RequestManager(SingleTonInstance):
     @classmethod
     def add_request(cls, request_id):
-        cls.requests[request_id] = True
+        cls.instances[request_id] = True
 
     @classmethod
     def disable_request(cls, request_id):
-        cls.requests[request_id] = False
+        cls.instances[request_id] = False
 
     @classmethod
     def get_requestStatus(cls, request_id):
-        return cls.requests.get(request_id)
+        return cls.instances.get(request_id)
 
     @classmethod
     def clear_request(cls):
-        cls.requests.clear()
+        cls.instances.clear()
 
 
-class GuiderInstance(object):
-    _target_addr = None
-    _network_manager = None
-    __instance = None
+class GuiderInstance(SingleTonInstance):
 
-    @staticmethod
-    def get_instance(target_addr):
-        if GuiderInstance.__instance is None or \
-                GuiderInstance.__instance and \
-                GuiderInstance.__instance.get_target_addr() != target_addr:
-            GuiderInstance(target_addr)
-        return GuiderInstance.__instance
+    @classmethod
+    def set_network_manager(cls, target_addr):
+        network_mgr = NetworkManager(mode=None, ip=None, port=None)
+        network_mgr.prepareServerConn(None, target_addr)
+        if target_addr not in cls.instances:
+            cls.instances[target_addr] = network_mgr
 
-    def __init__(self, target_addr):
-        self.target_addr = target_addr
-        self._network_manager = NetworkManager(mode=None, ip=None, port=None)
-        self._network_manager.prepareServerConn(None, target_addr)
-        GuiderInstance.__instance = self
-
-    def get_target_addr(self):
-        return self.target_addr
-
-    def run_cmd(self, cmd):
-        pipe = self._network_manager.execRemoteCmd(cmd)
+    @classmethod
+    def run_cmd(cls, target_addr, cmd):
+        network_mgr = cls.instances.get(target_addr)
+        pipe = network_mgr.execRemoteCmd(cmd)
         if not pipe:
-            raise Exception("FAIL Connect with guider")
+            raise Exception("Fail to execute remote command")
         return pipe
 
-    def stop_cmd(self, pipe):
-        pipe.close()
+    @classmethod
+    def stop_connection(cls, target_addr):
+        del cls.instances[target_addr]
+
+    @classmethod
+    def get_network_manager(cls, target_addr):
+        if target_addr not in cls.instances:
+            raise Exception('object is not exist')
+        return cls.instances.get(target_addr)

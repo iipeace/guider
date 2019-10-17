@@ -5,7 +5,6 @@
         <b-form-input
           type="text"
           v-model="targetAddr"
-          @keyup.enter="emitStart"
           aria-describedby="input-description-help"
         ></b-form-input>
         <b-form-text id="input-description-help">
@@ -13,13 +12,8 @@
         </b-form-text>
       </b-col>
       <b-col sm="2">
-        <b-btn v-if="!connected" id="emitStart" @click="emitStart">
-          Connect
-          <font-awesome-icon icon="circle" style="color:#00CC6A" />
-        </b-btn>
-        <b-btn v-else id="disconnectSocket" @click="disconnectSocket">
-          Disconnect
-          <font-awesome-icon icon="circle" style="color:#FF0000" />
+        <b-btn @click="setTargetAddr">
+          SET
         </b-btn>
       </b-col>
     </b-row>
@@ -33,12 +27,7 @@ export default {
   name: "socket-io",
   data() {
     return {
-      clientMsg: "",
-      log: "",
-      targetTimestamp: "",
-      arrProcParam: ["nrThreads", "mem", "life", "comm", "ttime", "PPID"],
-      targetAddr: "",
-      connected: false
+      targetAddr: ""
     };
   },
   sockets: {
@@ -60,42 +49,8 @@ export default {
     }
   },
   methods: {
-    emitStart: function() {
-      if (this.connected) {
-        alert("command alredy run");
-        return false;
-      }
-
-      try {
-        this.connected = true;
-        this.connectSocket();
-        const timestamp = new Date();
-        this.targetTimestamp = String(timestamp);
-        EventBus.$emit("setTargetAddr", this.targetAddr);
-        this.$socket.emit(
-          "get_dashboard_data",
-          this.targetTimestamp,
-          this.targetAddr
-        );
-      } catch (e) {
-        this.connected = false;
-      }
-    },
-    emitStop: function() {
-      this.$socket.emit("request_stop", this.targetTimestamp);
-    },
-    appendLog: function(newLog) {
-      this.log += newLog + "\n";
-    },
-    disconnectSocket: function() {
-      this.isRun = false;
-      this.$socket.emit("request_stop", this.targetTimestamp);
-      this.targetTimestamp = "";
-      this.$socket.disconnect();
-      this.connected = false;
-    },
-    connectSocket: function() {
-      this.$socket.connect(); // if connection is not establised.
+    setTargetAddr: function() {
+      EventBus.$emit("setPropTargetAddr", this.targetAddr)
     }
   }
 };

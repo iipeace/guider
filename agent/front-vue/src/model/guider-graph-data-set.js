@@ -183,14 +183,6 @@ export default class GuiderGraphDataSet {
   };
 
   addSeriesData(timestamp, list, data) {
-    // if (list.length > 10) {
-    //   list = list.filter(function(info) {
-    //     let diff = timestamp - info.x;
-    //     if (diff < 10) {
-    //       return info;
-    //     }
-    //   });
-    // }
     list.push({ x: timestamp, y: data });
   }
 

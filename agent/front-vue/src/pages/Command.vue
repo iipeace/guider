@@ -89,6 +89,9 @@ export default {
       helpOptionsMap: new Map()
     };
   },
+  props: {
+    targetAddr: String
+  },
   computed: {
     fullCommand: function() {
       let detailCommand = "";
@@ -125,25 +128,22 @@ export default {
       });
     },
     sendCommand() {
+      if (!this.targetAddr) {
+        alert("please set target address");
+        return false;
+      }
       this.$socket.emit(
         "get_data_by_command",
-        this.targetTimestamp,
         this.targetAddr,
         this.command
       );
     }
   },
-  mounted() {
-    EventBus.$on("setTargetAddr", data => {
-      window.console.log(data);
-      this.targetAddr = data;
-    });
-  },
   sockets: {
     set_command_data: function(data) {
       if (data.result === 0) {
         this.data = data.data;
-      } else if (data.result === -1) {
+      } else if (data.result < 0) {
         alert(data.errorMsg);
       }
     }
