@@ -21,12 +21,13 @@ class RequestManager(SingleTonInstance):
         cls.instances[request_id] = True
 
     @classmethod
-    def disable_request(cls, request_id):
-        cls.instances[request_id] = False
+    def stop_request(cls, request_id):
+        if request_id in cls.instances:
+            del cls.instances[request_id]
 
     @classmethod
-    def get_requestStatus(cls, request_id):
-        return cls.instances.get(request_id)
+    def get_request_status(cls, request_id):
+        return request_id in cls.instances
 
     @classmethod
     def clear_request(cls):
@@ -43,7 +44,7 @@ class GuiderInstance(SingleTonInstance):
             cls.instances[target_addr] = network_mgr
 
     @classmethod
-    def run_cmd(cls, target_addr, cmd):
+    def get_command_pipe(cls, target_addr, cmd):
         network_mgr = cls.instances.get(target_addr)
         pipe = network_mgr.execRemoteCmd(cmd)
         if not pipe:
