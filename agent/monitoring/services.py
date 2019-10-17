@@ -34,41 +34,77 @@ def save_database(msg):
         print('failed to save instance in MongoDB', e)
 
 
-def get_data_by_command(timestamp, target_addr, cmd):
-
+def get_data_by_command(target_addr, cmd):
     result = dict(result=0, data=dict(), errMsg='')
-    if cmd is None or cmd is '':
+    if cmd is None or cmd is '' or target_addr is None or target_addr is '':
         result['result'] = -1
         result['errorMsg'] = 'Required data missing'
         emit('set_command_data', result)
         sys.exit(0)
 
-    pipe = GuiderInstance.get_instance(target_addr).run_cmd(cmd)
-    RequestManager.add_request(timestamp)
-
-    while RequestManager.get_requestStatus(timestamp):
+    try:
+        GuiderInstance.set_network_manager(target_addr)
+        pipe = GuiderInstance.run_cmd(target_addr, cmd)
         str_pipe = pipe.getData()
-        if not str_pipe:
-            result['result'] = -1
+        while str_pipe:
+            result['data'] = str_pipe
             emit('set_command_data', result)
-            pipe.close()
-            RequestManager.clear_request()
-            break
-        result['data'] = str_pipe
+            str_pipe = pipe.getData()
+
+        pipe.close()
+    except:
         emit('set_command_data', result)
 
 
-def get_dashboard_data(timestamp, target_addr):
+def parse_to_dashboard_data(data):
+    json_pipe = json.loads(data)
 
-    result = dict(result=0, data=dict(), errMsg='')
+    msg = dict(timestamp=json_pipe['timestamp'],
+               mac_addr=json_pipe['net']['repmac'])
+
+    # cpu
+    cpu = json_pipe['cpu']
+    msg['cpu'] = dict(kernel=cpu['kernel'],
+                      user=cpu['user'],
+                      irq=cpu['irq'],
+                      nrCore=cpu['nrCore'],
+                      total=cpu['total'])
+    # memory
+    memory = json_pipe['mem']
+    msg['memory'] = dict(kernel=memory['kernel'],
+                         cache=memory['cache'],
+                         free=memory['free'],
+                         anon=memory['anon'],
+                         total=memory['total'])
+    # # storage
+    storage = json_pipe['storage']['total']
+    msg['storage'] = dict(free=storage['free'],
+                          usage=storage['usage'],
+                          total=storage['total'])
+
+    # network
+    network = json_pipe['net']
+    msg['network'] = dict(
+        inbound=network['inbound'], outbound=network['outbound'])
+
+    return msg
+
+
+def get_dashboard_data(timestamp, target_addr):
+    result = dict(result=-1, data=dict(), errorMsg='')
+    if target_addr is None or target_addr is '':
+        result['errorMsg'] = 'Guider Address data missing'
+        emit('set_dashboard_data', result)
+        sys.exit(0)
+
     # execute remote command for real-time visualization #
     cmd = 'GUIDER top -J -a -e dn'
-    pipe = GuiderInstance.get_instance(target_addr).run_cmd(cmd)
-    if not pipe:
-        print('\nFail to execute remote command')
-        result['result'] = -1
+    try:
+        GuiderInstance.set_network_manager(target_addr)
+        pipe = GuiderInstance.run_cmd(target_addr, cmd)
+    except Exception as e:
+        result['errorMsg'] = 'Fail to connect with guider'
         emit('set_dashboard_data', result)
-        RequestManager.clear_request()
         sys.exit(0)
 
     # build message #
@@ -78,67 +114,35 @@ def get_dashboard_data(timestamp, target_addr):
         # read data from Guider #
         str_pipe = pipe.getData()
         if not str_pipe:
+            result['errorMsg'] = 'disconnected by guider'
+            emit('set_dashboard_data', result)
             break
-
-        print('got a message from Guider at %s' % timestamp)
 
         data_type = pipe.getDataType(str_pipe)
         if data_type == 'JSON':
             try:
-                # convert string to JSON #
-                json_pipe = json.loads(str_pipe)
-
-                msg = dict(timestamp=json_pipe['timestamp'],
-                           mac_addr=json_pipe['net']['repmac'])
-
-                # cpu
-                cpu = json_pipe['cpu']
-                msg['cpu'] = dict(kernel=cpu['kernel'],
-                                  user=cpu['user'],
-                                  irq=cpu['irq'],
-                                  nrCore=cpu['nrCore'],
-                                  total=cpu['total'])
-                # memory
-                memory = json_pipe['mem']
-                msg['memory'] = dict(kernel=memory['kernel'],
-                                     cache=memory['cache'],
-                                     free=memory['free'],
-                                     anon=memory['anon'],
-                                     total=memory['total'])
-                # # storage
-                storage = json_pipe['storage']['total']
-                msg['storage'] = dict(free=storage['free'],
-                                      usage=storage['usage'],
-                                      total=storage['total'])
-
-                # network
-                network = json_pipe['net']
-                msg['network'] = dict(
-                    inbound=network['inbound'], outbound=network['outbound'])
-
+                # convert, parse string to JSON #
+                msg = parse_to_dashboard_data(pipe.getData())
                 # save msg to db
-                save_database(msg)
-
+                # save_database(msg)
+                # call web method
                 result = dict(result=0, data=msg)
                 emit('set_dashboard_data', result)
-
             except (json.decoder.JSONDecodeError, KeyError) as e:
-                print(str_pipe)
                 print(e)
                 line = '-' * 50
                 print("%s\n%s\n%s" % (line, len(str_pipe), line))
-                result['result']= -1
-                result['errorMsg'] =e
+                result['errorMsg'] = e
                 emit('set_dashboard_data', result)
                 pipe.close()
             except Exception as e:
                 print('Error occured', e)
-                result['result']= -1
-                result['errorMsg'] =e
+                result['errorMsg'] = e
                 emit('set_dashboard_data', result)
                 pipe.close()
         else:
-            print('[%s] %s' % (data_type, str_pipe))
+            # print('[%s] %s' % (data_type, str_pipe))
+            pass
 
     print('request_finished')
 
