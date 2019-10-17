@@ -76,7 +76,6 @@
 
 <script>
 import { HotCommandDataSet } from "../model/hot-command-data-set";
-import { EventBus } from "../event-bus";
 
 export default {
   data() {
@@ -132,11 +131,7 @@ export default {
         alert("please set target address");
         return false;
       }
-      this.$socket.emit(
-        "get_data_by_command",
-        this.targetAddr,
-        this.command
-      );
+      this.$socket.emit("get_data_by_command", this.targetAddr, this.command);
     }
   },
   sockets: {

@@ -10,9 +10,15 @@ const History = () =>
   import(/* webpackChunkName: "dashboard" */ "@/pages/History.vue");
 
 const routes = [
-  { path: "/dashboard", name: "Dashboard", alias: "/", component: Dashboard, props: true},
-  { path: "/command", name: "Command", component: Command, props: true},
-  { path: "/history", name: "Background", component: History},
+  {
+    path: "/dashboard",
+    name: "Dashboard",
+    alias: "/",
+    component: Dashboard,
+    props: true
+  },
+  { path: "/command", name: "Command", component: Command, props: true },
+  { path: "/history", name: "Background", component: History },
   { path: "*", component: NotFound }
 ];
 
