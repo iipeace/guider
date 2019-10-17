@@ -74,7 +74,7 @@ export default {
     set_dashboard_data: function(data) {
       if (data.result === 0) {
         this.dataSet.setGuiderData(data.data);
-      } else if (data.result < 0){
+      } else if (data.result < 0) {
         this.isRun = false;
         this.StopCommandRun();
         alert(data.errorMsg);
@@ -84,7 +84,7 @@ export default {
   methods: {
     GetDashboardData() {
       if (!this.targetAddr) {
-        alert("please set target address")
+        alert("please set target address");
         return false;
       }
 
