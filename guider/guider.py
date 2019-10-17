@@ -16780,29 +16780,6 @@ Copyright:
 
 
     @staticmethod
-    def printRawTitle(absolute=False, big=False, pager=False):
-        # check remote runner #
-        if "REMOTERUN" in os.environ:
-            return
-
-        # check extended ascii support #
-        SystemManager.convertExtAscii(ConfigManager.logo)
-
-        # check type #
-        if big:
-            if pager:
-                SystemManager.printPipe(ConfigManager.logo)
-            else:
-                print(ConfigManager.logo)
-        else:
-            title = "/ G.u.i.d.e.r \tver.%s /" % __version__
-            underline = '_' * (len(title))
-            overline = '-' * (len(title))
-            print(' %s\n%s\n%s\n' % (underline, title, overline))
-
-
-
-    @staticmethod
     def clearScreen():
         # check stdout status #
         if not SystemManager.printEnable or \
@@ -16887,11 +16864,14 @@ Copyright:
 
 
     @staticmethod
-    def printLogo(absolute=False, big=False, onlyFile=False):
+    def printLogo(absolute=False, big=False, onlyFile=False, pager=True):
         # check print option and remote runner #
         if not SystemManager.printEnable or \
             "REMOTERUN" in os.environ:
             return
+
+        # check extended ascii support #
+        SystemManager.convertExtAscii(ConfigManager.logo)
 
         if not SystemManager.printFile:
             if SystemManager.printStreamEnable:
@@ -16901,7 +16881,10 @@ Copyright:
                 return
 
         if big:
-            SystemManager.printPipe(ConfigManager.logo)
+            if pager:
+                SystemManager.printPipe(ConfigManager.logo)
+            else:
+                print(ConfigManager.logo)
         else:
             title = "/ G.u.i.d.e.r \tver.%s /" % __version__
             underline = '_' * (len(title))
@@ -17841,10 +17824,10 @@ Copyright:
 
 
     @staticmethod
-    def printOpenErr(path, always=False):
-        SystemManager.printWarn(\
+    def printOpenErr(path):
+        SystemManager.printErr(\
             'Fail to open %s because %s' % \
-                (path, SystemManager.getErrReason()), always)
+                (path, SystemManager.getErrReason()))
 
 
 
@@ -49241,7 +49224,7 @@ def main(args=None):
     atexit.register(SystemManager.doExit)
 
     # print logo #
-    SystemManager.printRawTitle(big=True)
+    SystemManager.printLogo(big=True, pager=False)
 
     # check environment #
     SystemManager.checkEnv()
