@@ -29,7 +29,10 @@
                 </b-form-group>
               </b-col>
               <b-col>
-                <b-btn size="sm" @click="sendCommand">Launch</b-btn>
+                <b-btn v-if="!isRunning" size="sm" @click="sendCommand"
+                  >Launch</b-btn
+                >
+                <b-btn v-else size="sm" @click="stopCommandRun">Stop</b-btn>
                 <b-button size="sm" v-b-modal.modal-scrollable
                   >History</b-button
                 >
@@ -97,6 +100,7 @@
 
 <script>
   import {HotCommandDataSet} from "../model/hot-command-data-set";
+  import {mapGetters} from "vuex";
 
   export default {
   data() {
@@ -123,7 +127,8 @@
       }
 
       return `GUIDER ${this.command} ${detailCommand}`;
-    }
+    },
+    ...mapGetters(["isRunning"])
   },
   created() {
     this.init();
@@ -152,7 +157,7 @@
         return false;
       }
       if (this.requestId !== "") {
-        this.StopCommandRun();
+        this.stopCommandRun();
       }
       this.requestId = "command" + String(new Date());
       this.$socket.emit(
@@ -162,14 +167,16 @@
         this.fullCommand
       );
       this.commandHistory.push(this.fullCommand);
+      this.$store.commit("startRun");
     },
-    StopCommandRun() {
+    stopCommandRun() {
       this.$socket.emit("stop_command_run", this.requestId);
       this.requestId = "";
+      this.$store.commit("stopRun");
     }
   },
   beforeDestroy() {
-    this.StopCommandRun();
+    this.stopCommandRun();
   },
   sockets: {
     set_command_data: function(data) {
