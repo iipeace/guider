@@ -21830,7 +21830,7 @@ Copyright:
                     ', '.join(SystemManager.filterGroup))
             elif not SystemManager.sourceFile:
                 SystemManager.printErr(\
-                    "No TID with -g option or command with -I")
+                    "No TID with -g option or command with -I option")
             else:
                 SystemManager.printErr("No TID with -g option")
             sys.exit(0)
@@ -29170,15 +29170,31 @@ struct msghdr {
                 not self.runStatus:
                 sym = 'WAIT(%s)' % sym
 
+            # add backtrace #
+            if bt:
+                btString = self.getBacktraceString(bt)
+            else:
+                btString = None
+
             # add symbol table #
-            try:
+            if sym in self.callTable:
                 self.callTable[sym]['cnt'] += 1
+            else:
+                self.callTable[sym] = {
+                    'cnt': 1,
+                    'path': filename,
+                    'err': 0,
+                    'backtrace': dict()
+                }
+
+            # increase count of callstack #
+            try:
+                self.callTable[sym]['backtrace'][btString] += 1
+            except SystemExit:
+                sys.exit(0)
             except:
-                self.callTable[sym] = dict()
-                self.callTable[sym]['cnt'] = 1
-                self.callTable[sym]['path'] = filename
-                self.callTable[sym]['err'] = 0
-                self.callTable[sym]['backtrace'] = dict()
+                if sym in self.callTable:
+                    self.callTable[sym]['backtrace'][btString] = 1
 
             # add file table #
             try:
@@ -29186,17 +29202,6 @@ struct msghdr {
             except:
                 self.fileTable[filename] = dict()
                 self.fileTable[filename]['cnt'] = 1
-
-            # add backtrace #
-            if bt:
-                btString = self.getBacktraceString(bt)
-
-                try:
-                    self.callTable[sym]['backtrace'][btString] += 1
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    self.callTable[sym]['backtrace'][btString] = 1
 
             if not SystemManager.printFile:
                 return
