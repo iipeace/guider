@@ -61,9 +61,6 @@ export default {
   components: {
     VueApexCharts
   },
-  props: {
-    targetAddr: String
-  },
   data: function() {
     return {
       dataSet: new GuiderGraphDataSet(),
@@ -83,7 +80,7 @@ export default {
   },
   methods: {
     GetDashboardData() {
-      if (!this.targetAddr) {
+      if (!this.$store.getters.hasTargetAddr) {
         alert("please set target address");
         return false;
       }
@@ -100,7 +97,7 @@ export default {
         this.$socket.emit(
           "get_dashboard_data",
           this.targetTimestamp,
-          this.targetAddr
+          this.$store.getters.getTargetAddr
         );
       } catch (e) {
         this.isRun = false;

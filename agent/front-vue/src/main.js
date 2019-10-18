@@ -21,6 +21,7 @@ import {
   faBars
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import store from "./store";
 
 Vue.use(BlackDashboard);
 Vue.use(Datetime);
@@ -43,5 +44,6 @@ Vue.component("font-awesome-icon", FontAwesomeIcon);
 /* eslint-disable no-new */
 new Vue({
   router,
+  store,
   render: h => h(App)
 }).$mount("#app");
