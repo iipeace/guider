@@ -26,22 +26,26 @@ class Dataset(Resource):
         start = args.get('start', None)
         end = args.get('end', None)
         num = args.get('num', 20)
+        count = Data.objects.count()
         from_utc = 9 * 60 * 60
         # check if database exists
-        if Data.objects.count() == 0:
+        if count == 0:
             return jsonify(dict(status="ok", data=[]))
-
+        else:
+            db_start = (Data.objects.order_by('+timestamp').limit(1))
+            db_start = int(datetime.timestamp(db_start[0]['timestamp'])) + \
+                from_utc
+            db_end = (Data.objects.order_by('-timestamp').limit(1))
+            db_end = int(datetime.timestamp(db_end[0]['timestamp'])) + from_utc
         # validate query string
         try:
             if start is None:
-                start = (Data.objects.order_by('+timestamp').limit(1))
-                start = int(datetime.timestamp(start[0]['timestamp'])) + \
-                    from_utc
+                start = db_start
             else:
                 start = int(start)
+
             if end is None:
-                end = (Data.objects.order_by('-timestamp').limit(1))
-                end = int(datetime.timestamp(end[0]['timestamp'])) + from_utc
+                end = db_end
             else:
                 end = int(end)
             num = int(num)
@@ -83,7 +87,9 @@ class Dataset(Resource):
                 data=deserialize_data(sum, cnt)
             ))
 
-        return jsonify(dict(status="ok", data=result))
+        return jsonify(dict(
+            status="ok", data=result,
+            meta=dict(start=db_start, end=db_end, count=count)))
 
 
 class Slack(Resource):

@@ -52,7 +52,7 @@ def get_data_by_command(target_addr, cmd):
             str_pipe = pipe.getData()
 
         pipe.close()
-    except:
+    except Exception:
         emit('set_command_data', result)
 
 
@@ -102,7 +102,7 @@ def get_dashboard_data(timestamp, target_addr):
     try:
         GuiderInstance.set_network_manager(target_addr)
         pipe = GuiderInstance.run_cmd(target_addr, cmd)
-    except Exception as e:
+    except Exception:
         result['errorMsg'] = 'Fail to connect with guider'
         emit('set_dashboard_data', result)
         sys.exit(0)
