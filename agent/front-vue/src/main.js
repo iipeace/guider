@@ -7,23 +7,16 @@ import VueRouter from "vue-router";
 import RouterPrefetch from "vue-router-prefetch";
 import App from "./App";
 import router from "./router/index";
-import BlackDashboard from "./plugins/blackDashboard";
 import VueSocketIO from "vue-socket.io";
-import { library } from "@fortawesome/fontawesome-svg-core";
+import {library} from "@fortawesome/fontawesome-svg-core";
 import Datetime from "vue-datetime";
 import "vue-datetime/dist/vue-datetime.css";
-import {
-  faCheck,
-  faCircle,
-  faPlus,
-  faSave,
-  faTimes,
-  faBars
-} from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
+import {faBars, faCheck, faCircle, faPlus, faSave, faTimes} from "@fortawesome/free-solid-svg-icons";
+import {FontAwesomeIcon} from "@fortawesome/vue-fontawesome";
 import store from "./store";
+import "@/assets/sass/black-dashboard.scss";
+import "@/assets/css/nucleo-icons.css";
 
-Vue.use(BlackDashboard);
 Vue.use(Datetime);
 Vue.use(VueRouter);
 Vue.use(RouterPrefetch);

@@ -35,7 +35,7 @@
 </template>
 
 <script>
-  import SocketIo from "../pages/SocketIO.vue";
+  import SocketIo from "../components/SocketIO.vue";
 
   export default {
   name: "NavBar",

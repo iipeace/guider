@@ -33,14 +33,14 @@ const actions = {};
 
 // getters are functions
 const getters = {
-  getTargetAddr: state => {
+  getTargetAddr: () => {
     const targetAddr = sessionStorage.getItem("targetAddr");
     if (targetAddr) {
       return targetAddr;
     }
-    return '';
+    return "";
   },
-  hasTargetAddr: state => {
+  hasTargetAddr: () => {
     const targetAddr = sessionStorage.getItem("targetAddr");
     return !!targetAddr;
   },
