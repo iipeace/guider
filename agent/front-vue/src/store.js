@@ -6,7 +6,8 @@ Vue.use(Vuex);
 // root state object.
 // each Vuex instance is just a single state tree.
 const state = {
-  targetAddr: ""
+  targetAddr: "",
+  run: false
 };
 
 // mutations are operations that actually mutates the state.
@@ -17,6 +18,12 @@ const state = {
 const mutations = {
   setTargetAddr(state, addr) {
     state.targetAddr = addr;
+  },
+  stopRun(state) {
+    state.run = false;
+  },
+  startRun(state) {
+    state.run = true;
   }
 };
 
@@ -31,6 +38,9 @@ const getters = {
   },
   hasTargetAddr: state => {
     return !!state.targetAddr;
+  },
+  isRunning: state => {
+    return state.run;
   }
 };
 
