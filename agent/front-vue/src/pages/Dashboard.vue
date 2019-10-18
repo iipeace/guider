@@ -74,7 +74,7 @@
         this.dataSet.setGuiderData(data.data);
       } else if (data.result < 0) {
         this.isRun = false;
-        this.StopCommandRun();
+        this.stopCommandRun();
         alert(data.errorMsg);
       }
     }
@@ -103,7 +103,7 @@
         this.isRun = false;
       }
     },
-    StopCommandRun() {
+    stopCommandRun() {
       this.isRun = false;
       this.$socket.emit("stop_command_run", this.requestId);
       this.requestId = "";
@@ -115,7 +115,7 @@
     });
   },
   beforeDestroy() {
-    this.StopCommandRun();
+    this.stopCommandRun();
   }
 };
 </script>

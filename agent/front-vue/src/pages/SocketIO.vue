@@ -28,6 +28,9 @@ export default {
       targetAddr: ""
     };
   },
+  created() {
+    this.targetAddr = this.$store.getters.getTargetAddr;
+  },
   methods: {
     setTargetAddr: function() {
       this.$store.commit("setTargetAddr", this.targetAddr);

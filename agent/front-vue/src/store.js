@@ -1,12 +1,12 @@
 import Vue from "vue";
 import Vuex from "vuex";
+import createLogger from "vuex/dist/logger";
 
 Vue.use(Vuex);
 
 // root state object.
 // each Vuex instance is just a single state tree.
 const state = {
-  targetAddr: "",
   run: false
 };
 
@@ -17,7 +17,7 @@ const state = {
 // for debugging purposes.
 const mutations = {
   setTargetAddr(state, addr) {
-    state.targetAddr = addr;
+    sessionStorage.setItem("targetAddr", addr);
   },
   stopRun(state) {
     state.run = false;
@@ -34,10 +34,15 @@ const actions = {};
 // getters are functions
 const getters = {
   getTargetAddr: state => {
-    return state.targetAddr;
+    const targetAddr = sessionStorage.getItem("targetAddr");
+    if (targetAddr) {
+      return targetAddr;
+    }
+    return '';
   },
   hasTargetAddr: state => {
-    return !!state.targetAddr;
+    const targetAddr = sessionStorage.getItem("targetAddr");
+    return !!targetAddr;
   },
   isRunning: state => {
     return state.run;
@@ -46,9 +51,13 @@ const getters = {
 
 // A Vuex instance is created by combining the state, mutations, actions,
 // and getters.
+const debug = process.env.NODE_ENV !== "production";
+
 export default new Vuex.Store({
   state,
   getters,
   actions,
-  mutations
+  mutations,
+  strict: debug,
+  plugins: debug ? [createLogger()] : []
 });
