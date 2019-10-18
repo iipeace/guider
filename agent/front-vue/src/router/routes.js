@@ -14,11 +14,10 @@ const routes = [
     path: "/dashboard",
     name: "Dashboard",
     alias: "/",
-    component: Dashboard,
-    props: true
+    component: Dashboard
   },
-  { path: "/command", name: "Command", component: Command, props: true },
-  { path: "/history", name: "Background", component: History },
+  { path: "/command", name: "Command", component: Command },
+  { path: "/history", name: "History", component: History },
   { path: "*", component: NotFound }
 ];
 

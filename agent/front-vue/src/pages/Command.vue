@@ -1,76 +1,82 @@
 <template>
   <div>
     <b-card no-body>
-      <b-card-header>
-        <h4>Command</h4>
-      </b-card-header>
       <b-card-body>
         <b-row>
-          <b-col sm="8">
-            <b-form-group
-              id="fieldset-horizontal"
-              label-cols-sm="4"
-              label-cols-lg="3"
-              :description="fullCommand"
-              label="Enter command"
-              label-for="input-horizontal"
-            >
-              <b-form-input list="my-list-id" v-model="command"></b-form-input>
-
-              <datalist id="my-list-id">
-                <option
-                  v-for="command in hotCommandDataSet"
-                  :key="command.name"
-                  >{{ command.name }}</option
+          <b-col sm="6">
+            <b-row>
+              <b-col sm="8">
+                <b-form-group
+                  id="fieldset-horizontal"
+                  label-cols-sm="4"
+                  label-cols-lg="3"
+                  :description="fullCommand"
+                  label="Enter command"
+                  label-for="input-horizontal"
                 >
-              </datalist>
-            </b-form-group>
+                  <b-form-input
+                    list="my-list-id"
+                    v-model="command"
+                  ></b-form-input>
+
+                  <datalist id="my-list-id">
+                    <option
+                      v-for="command in hotCommandDataSet"
+                      :key="command.name"
+                      >{{ command.name }}</option
+                    >
+                  </datalist>
+                </b-form-group>
+              </b-col>
+              <b-col>
+                <b-btn size="sm" @click="sendCommand">Launch</b-btn>
+                <b-button size="sm" v-b-modal.modal-scrollable
+                  >History</b-button
+                >
+              </b-col>
+            </b-row>
+            <div>
+              <b-form-group label="Command Help">
+                <b-form-checkbox-group
+                  v-model="selectedOptions"
+                  name="flavour-2a"
+                  stacked
+                >
+                  <b-row
+                    v-for="option in options.values()"
+                    :value="option"
+                    :key="option.name"
+                    class="mt-1"
+                  >
+                    <b-col sm="1">
+                      <b-form-checkbox :value="option.name">
+                        {{ option.name }}
+                      </b-form-checkbox>
+                    </b-col>
+                    <b-col sm="3">
+                      <b-form-input
+                        v-if="option.hasInput"
+                        size="sm"
+                        v-model="option.input"
+                        trim
+                      ></b-form-input>
+                    </b-col>
+                    <b-col>
+                      <span>{{ option.description }}</span>
+                    </b-col>
+                  </b-row>
+                </b-form-checkbox-group>
+              </b-form-group>
+            </div>
           </b-col>
           <b-col>
-            <b-btn @click="sendCommand">Launch</b-btn>
-            <b-button v-b-modal.modal-scrollable>History</b-button>
+            <h5>Result</h5>
+            <code>
+              {{ data }}
+            </code>
           </b-col>
         </b-row>
-        <div>
-          <b-form-group label="Command Help">
-            <b-form-checkbox-group
-              v-model="selectedOptions"
-              name="flavour-2a"
-              stacked
-            >
-              <b-row
-                v-for="option in options.values()"
-                :value="option"
-                :key="option.name"
-                class="mt-1"
-              >
-                <b-col sm="1">
-                  <b-form-checkbox :value="option.name">
-                    {{ option.name }}
-                  </b-form-checkbox>
-                </b-col>
-                <b-col sm="3">
-                  <b-form-input
-                    v-if="option.hasInput"
-                    size="sm"
-                    v-model="option.input"
-                    trim
-                  ></b-form-input>
-                </b-col>
-                <b-col>
-                  <span>{{ option.description }}</span>
-                </b-col>
-              </b-row>
-            </b-form-checkbox-group>
-          </b-form-group>
-        </div>
       </b-card-body>
-      <b-card-footer>
-        <h5>Result</h5>
-        <code>
-          {{ data }}
-        </code>
-      </b-card-footer>
     </b-card>
 
     <b-modal
@@ -169,6 +175,7 @@
     set_command_data: function(data) {
       if (data.result === 0) {
         this.data = data.data;
+        this.data.replace(/(?:\r\n|\r|\n)/g, "2222222");
       } else if (data.result < 0) {
         alert(data.errorMsg);
       }
