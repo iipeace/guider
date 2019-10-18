@@ -50,7 +50,7 @@ export default {
   },
   methods: {
     setTargetAddr: function() {
-      EventBus.$emit("setPropTargetAddr", this.targetAddr);
+      this.$store.commit("setTargetAddr", this.targetAddr);
     }
   }
 };
