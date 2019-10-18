@@ -4,36 +4,20 @@
     <side-nav-bar></side-nav-bar>
     <div class="main-panel">
       <div class="content">
-        <router-view v-bind="getRouterData"></router-view>
+        <router-view></router-view>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import TopNavbar from "./layout/TopNavbar";
-import SideNavBar from "./layout/SideNavBar";
-import { EventBus } from "./event-bus";
+  import TopNavbar from "./layout/TopNavbar";
+  import SideNavBar from "./layout/SideNavBar";
 
-export default {
-  data: function() {
-    return {
-      targetAddr: ""
-    };
-  },
+  export default {
   components: {
     SideNavBar,
     TopNavbar
-  },
-  computed: {
-    getRouterData() {
-      return { targetAddr: this.targetAddr };
-    }
-  },
-  mounted() {
-    EventBus.$on("setPropTargetAddr", addr => {
-      this.targetAddr = addr;
-    });
   }
 };
 </script>
