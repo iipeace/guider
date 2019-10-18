@@ -1,23 +1,26 @@
 <template>
   <div>
-    <top-navbar></top-navbar>
-    <side-nav-bar></side-nav-bar>
-    <div class="main-panel">
-      <div class="content">
-        <router-view></router-view>
-      </div>
-    </div>
+    <nav-bar></nav-bar>
+    <breadcrumb :list="list" />
+    <router-view></router-view>
   </div>
 </template>
 
 <script>
-  import TopNavbar from "./layout/TopNavbar";
-  import SideNavBar from "./layout/SideNavBar";
+  import NavBar from "./layout/NavBar";
+  import Breadcrumb from "./layout/Breadcrumb";
 
   export default {
   components: {
-    SideNavBar,
-    TopNavbar
+    Breadcrumb,
+    NavBar
+  },
+  computed: {
+    list() {
+      return this.$route.matched.filter(
+        route => route.name || route.meta.label
+      );
+    }
   }
 };
 </script>
