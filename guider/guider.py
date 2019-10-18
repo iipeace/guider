@@ -29188,13 +29188,14 @@ struct msghdr {
                 }
 
             # increase count of callstack #
-            try:
-                self.callTable[sym]['backtrace'][btString] += 1
-            except SystemExit:
-                sys.exit(0)
-            except:
-                if sym in self.callTable:
-                    self.callTable[sym]['backtrace'][btString] = 1
+            if btString:
+                try:
+                    self.callTable[sym]['backtrace'][btString] += 1
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    if sym in self.callTable:
+                        self.callTable[sym]['backtrace'][btString] = 1
 
             # add file table #
             try:
