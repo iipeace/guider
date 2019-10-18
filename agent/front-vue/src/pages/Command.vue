@@ -128,7 +128,7 @@ export default {
       });
     },
     sendCommand() {
-      if (!this.targetAddr) {
+      if (!this.$store.getters.getTargetAddr) {
         alert("please set target address");
         return false;
       }
