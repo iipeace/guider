@@ -20438,7 +20438,7 @@ Copyright:
         procList = SystemManager.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%6s\t%16s\t%10s\t%s\n%s\n' % \
+        bgStr = '%s%s\n%6s\t%16s\t%14s\t%s\n%s\n' % \
             (bgStr, twoLine, "PID", "COMM", "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
 
@@ -20648,7 +20648,7 @@ Copyright:
                     'network': network
                 }
             else:
-                printBuf = '%s%6s\t%16s\t%10s\t%s %s\n' % \
+                printBuf = '%s%6s\t%16s\t%14s\t%s %s\n' % \
                     (printBuf, pid, comm, runtime, cmdline, network)
 
         if isJson:
