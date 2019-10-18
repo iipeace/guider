@@ -75,9 +75,9 @@
 </template>
 
 <script>
-import { HotCommandDataSet } from "../model/hot-command-data-set";
+  import {HotCommandDataSet} from "../model/hot-command-data-set";
 
-export default {
+  export default {
   data() {
     return {
       command: "",
@@ -88,9 +88,6 @@ export default {
       helpOptionsMap: new Map(),
       requestId: ""
     };
-  },
-  props: {
-    targetAddr: String
   },
   computed: {
     fullCommand: function() {
@@ -128,7 +125,7 @@ export default {
       });
     },
     sendCommand() {
-      if (!this.targetAddr) {
+      if (!this.$store.getters.hasTargetAddr) {
         alert("please set target address");
         return false;
       }
