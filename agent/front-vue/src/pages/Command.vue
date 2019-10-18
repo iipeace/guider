@@ -99,7 +99,7 @@
         });
       }
 
-      return `${this.command} ${detailCommand}`;
+      return `GUIDER ${this.command} ${detailCommand}`;
     }
   },
   created() {
@@ -131,7 +131,7 @@
       this.$socket.emit(
         "get_data_by_command",
         this.$store.getters.getTargetAddr,
-        this.command
+        this.fullCommand
       );
     }
   },
