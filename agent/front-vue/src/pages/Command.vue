@@ -67,20 +67,24 @@
       </b-card-body>
       <b-card-footer>
         <h5>Result</h5>
-        <p>
+        <code>
           {{ data }}
-        </p>
+        </code>
       </b-card-footer>
     </b-card>
 
-    <b-modal id="modal-scrollable" scrollable ok-only title="Command Histories">
-      <span
-        class="my-4"
-        v-for="(command, index) in commandHistory"
-        :key="command"
-      >
+    <b-modal
+      id="modal-scrollable"
+      body-bg-variant="info"
+      scrollable
+      hide-footer
+    >
+      <template slot="modal-title">
+        <h3 style="color: black">Command Histories</h3>
+      </template>
+      <h4 v-for="(command, index) in commandHistory" :key="command">
         {{ index + 1 }}. {{ command }}
-      </span>
+      </h4>
     </b-modal>
   </div>
 </template>
