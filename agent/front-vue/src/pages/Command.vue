@@ -28,6 +28,7 @@
           </b-col>
           <b-col>
             <b-btn @click="sendCommand">Launch</b-btn>
+            <b-button v-b-modal.modal-scrollable>History</b-button>
           </b-col>
         </b-row>
         <div>
@@ -71,6 +72,16 @@
         </p>
       </b-card-footer>
     </b-card>
+
+    <b-modal id="modal-scrollable" scrollable ok-only title="Command Histories">
+      <span
+        class="my-4"
+        v-for="(command, index) in commandHistory"
+        :key="command"
+      >
+        {{ index + 1 }}. {{ command }}
+      </span>
+    </b-modal>
   </div>
 </template>
 
@@ -86,7 +97,8 @@
       options: [],
       hotCommandDataSet: [],
       helpOptionsMap: new Map(),
-      requestId: ""
+      requestId: "",
+      commandHistory: []
     };
   },
   computed: {
@@ -139,6 +151,7 @@
         this.requestId,
         this.fullCommand
       );
+      this.commandHistory.push(this.fullCommand);
     },
     StopCommandRun() {
       this.$socket.emit("stop_command_run", this.requestId);
