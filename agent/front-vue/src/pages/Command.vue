@@ -73,7 +73,7 @@
             </div>
           </b-col>
           <b-col>
-            <h5>Result</h5>
+            <h4>Output</h4>
             <code>
               {{ data }}
             </code>
@@ -182,7 +182,6 @@
     set_command_data: function(data) {
       if (data.result === 0) {
         this.data = data.data;
-        this.data.replace(/(?:\r\n|\r|\n)/g, "2222222");
       } else if (data.result < 0) {
         alert(data.errorMsg);
       }
