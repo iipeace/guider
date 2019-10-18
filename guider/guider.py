@@ -35584,12 +35584,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sBlock Read - %s' % (prefix, maxsize))
+                    '%sBlock Read - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35625,12 +35626,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sBlock Write - %s' % (prefix, maxsize))
+                    '%sBlock Write - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35666,12 +35668,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sReclaim BG - %s' % (prefix, maxsize))
+                    '%sReclaim BG - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35707,12 +35710,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sReclaim FG - %s' % (prefix, maxsize))
+                    '%sReclaim FG - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35748,12 +35752,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sNetwork In - %s' % (prefix, maxsize))
+                    '%sNetwork In - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35789,12 +35794,13 @@ class ThreadAnalyzer(object):
                 minval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[minIdx] << 10))
                 maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
                     (prefix, convertSize2Unit(usage[-1] << 10))
 
                 labelList.append(\
-                    '%sNetwork Out - %s' % (prefix, maxsize))
+                    '%sNetwork Out - %s' % (prefix, totalsize))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -35843,6 +35849,7 @@ class ThreadAnalyzer(object):
                     maxIdx = wrUsage.index(max(wrUsage))
 
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(wrUsage) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(wrUsage[-1] << 10))
@@ -35867,13 +35874,14 @@ class ThreadAnalyzer(object):
                                 fontsize=5, color=color, fontweight='bold')
 
                         labelList.append(\
-                            '%s%s Transfer - %s' % (prefix, idx, maxsize))
+                            '%s%s Transfer - %s' % (prefix, idx, totalsize))
 
                     # Network Receive #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(rdUsage) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(rdUsage[-1] << 10))
@@ -35898,7 +35906,7 @@ class ThreadAnalyzer(object):
                                 fontsize=5, color=color, fontweight='bold')
 
                         labelList.append(\
-                            '%s%s Receive - %s' % (prefix, idx, maxsize))
+                            '%s%s Receive - %s' % (prefix, idx, totalsize))
 
                 # System Storage Usage #
                 for idx, item in storageUsage.items():
@@ -35922,6 +35930,7 @@ class ThreadAnalyzer(object):
                     maxIdx = wrUsage.index(max(wrUsage))
 
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(wrUsage) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(wrUsage[-1] << 10))
@@ -35946,13 +35955,14 @@ class ThreadAnalyzer(object):
                                 fontsize=5, color=color, fontweight='bold')
 
                         labelList.append(\
-                            '%s%s Write - %s' % (prefix, idx, maxsize))
+                            '%s%s Write - %s' % (prefix, idx, totalsize))
 
                     # Storage Read #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(rdUsage) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
                         (prefix, convertSize2Unit(rdUsage[-1] << 10))
@@ -35977,7 +35987,7 @@ class ThreadAnalyzer(object):
                                 fontsize=5, color=color, fontweight='bold')
 
                         labelList.append(\
-                            '%s%s Read - %s' % (prefix, idx, maxsize))
+                            '%s%s Read - %s' % (prefix, idx, totalsize))
 
                 # IO usage of processes #
                 for idx, item in blkProcUsage.items():
@@ -36011,6 +36021,7 @@ class ThreadAnalyzer(object):
                     maxIdx = wrUsage.index(max(wrUsage))
 
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(wrUsage) << 10)
                     maxval = '%s[%s]%s' % (prefix, maxsize, idx)
                     lastval = '%s[%s]%s' % \
                         (prefix, convertSize2Unit(wrUsage[-1] << 10), idx)
@@ -36035,13 +36046,14 @@ class ThreadAnalyzer(object):
                                 fontweight='bold')
 
                         labelList.append(\
-                            '%s%s[BWR] - %s' % (prefix, idx, maxsize))
+                            '%s%s[BWR] - %s' % (prefix, idx, totalsize))
 
                     # Block Read of process #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convertSize2Unit(sum(rdUsage) << 10)
                     maxval = '%s[%s]%s' % (prefix, maxsize, idx)
                     lastval = '%s[%s]%s' % \
                         (prefix, convertSize2Unit(rdUsage[-1] << 10), idx)
@@ -36066,7 +36078,7 @@ class ThreadAnalyzer(object):
                                 fontweight='bold')
 
                         labelList.append(\
-                            '%s%s[BRD] - %s' % (prefix, idx, maxsize))
+                            '%s%s[BRD] - %s' % (prefix, idx, totalsize))
 
             '''
             ylabel('I/O', fontsize=5)
