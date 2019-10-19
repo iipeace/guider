@@ -1,9 +1,9 @@
-import sys
 import json
+import sys
 
+from common.guider import GuiderInstance, RequestManager
 from flask_socketio import emit
 from monitoring.models import CPU, Memory, Network, Storage, Data
-from common.guider import GuiderInstance, RequestManager
 
 
 def save_database(msg):
@@ -35,12 +35,12 @@ def save_database(msg):
 
 
 def get_data_by_command(target_addr, request_id, cmd):
-    print('request in')
+    print('request in', request_id)
     result = dict(result=0, data=dict(), errMsg='')
     if cmd is None or cmd is '' or target_addr is None or target_addr is '':
         result['result'] = -1
         result['errorMsg'] = 'Required data missing'
-        emit('set_command_data', result)
+        emit(request_id, result)
         sys.exit(0)
 
     try:
@@ -52,7 +52,7 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe
-            emit('set_command_data', result)
+            emit(request_id, result)
         pipe.close()
         RequestManager.stop_request(request_id)
     except Exception as e:
