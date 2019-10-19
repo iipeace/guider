@@ -29,11 +29,13 @@
                 </b-form-group>
               </b-col>
               <b-col>
-                <b-btn v-if="!isRunning" size="sm" @click="sendCommand"
+                <b-btn v-if="!requestId" size="sm" @click="sendCommand"
                   >Launch</b-btn
                 >
                 <b-btn v-else size="sm" @click="stopCommandRun">Stop</b-btn>
-                <b-button size="sm" v-b-modal.modal-scrollable
+                <b-button
+                  size="sm"
+                  @click="$bvModal.show(`modal-scrollable-${index}`)"
                   >History</b-button
                 >
               </b-col>
@@ -74,21 +76,20 @@
           </b-col>
           <b-col>
             <h4>Output</h4>
-            <p v-html="data">
-            </p>
+            <code v-html="data"></code>
           </b-col>
         </b-row>
       </b-card-body>
     </b-card>
 
     <b-modal
-      id="modal-scrollable"
+      :id="`modal-scrollable-${index}`"
       body-bg-variant="info"
       scrollable
       hide-footer
     >
       <template slot="modal-title">
-        <h3 style="color: black">Command Histories</h3>
+        <h3 style="color: black">Command-{{ index + 1 }} Histories</h3>
       </template>
       <h4 v-for="(command, index) in commandHistory" :key="command">
         {{ index + 1 }}. {{ command }}
@@ -98,10 +99,12 @@
 </template>
 
 <script>
-import { HotCommandDataSet } from "../model/hot-command-data-set";
-import { mapGetters } from "vuex";
+  import {HotCommandDataSet} from "../model/hot-command-data-set";
 
-export default {
+  export default {
+  props: {
+    index: Number
+  },
   data() {
     return {
       command: "",
@@ -126,8 +129,7 @@ export default {
       }
 
       return `GUIDER ${this.command} ${detailCommand}`;
-    },
-    ...mapGetters(["isRunning"])
+    }
   },
   created() {
     this.init();
@@ -158,7 +160,7 @@ export default {
       if (this.requestId !== "") {
         this.stopCommandRun();
       }
-      this.requestId = `command ${new Date().getTime()}`;
+      this.requestId = `${this.fullCommand}-${new Date().getTime()}`;
 
       this.sockets.subscribe(this.requestId, data => {
         if (data.result === 0) {
@@ -175,16 +177,17 @@ export default {
         this.fullCommand
       );
       this.commandHistory.push(this.fullCommand);
-      this.$store.commit("startRun");
     },
     stopCommandRun() {
       this.sockets.unsubscribe(this.requestId);
       this.$socket.emit("stop_command_run", this.requestId);
       this.requestId = "";
-      this.$store.commit("stopRun");
     }
   },
   beforeDestroy() {
+    if (this.requestId) {
+      this.sockets.unsubscribe(this.requestId);
+    }
     this.stopCommandRun();
   }
 };

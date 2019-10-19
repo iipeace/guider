@@ -7,18 +7,26 @@
     >
       <h4 class="active">{{ getName(routeObject) }}</h4>
     </b-col>
+    <b-col class="text-right">
+      <h4>{{getTargetAddr}}</h4>
+    </b-col>
   </b-row>
 </template>
 
 <script>
-export default {
+  import {mapGetters} from "vuex";
+
+  export default {
   props: {
     list: Array
   },
   computed: {
     routeRecords() {
       return this.list.filter(route => route.name || route.meta.label);
-    }
+    },
+    ...mapGetters([
+      'getTargetAddr'
+    ])
   },
   methods: {
     getName(item) {
