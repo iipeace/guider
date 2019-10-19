@@ -7,7 +7,7 @@
 
       <b-navbar-nav>
         <b-nav-item to="/dashboard">DashBoard</b-nav-item>
-        <b-nav-item to="/command">Command</b-nav-item>
+        <b-nav-item to="/commandTabs">Command Tabs</b-nav-item>
         <b-nav-item to="/history">History</b-nav-item>
       </b-navbar-nav>
 
