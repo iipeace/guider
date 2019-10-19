@@ -12758,9 +12758,9 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-                b:block | e:encode | g:graph | i:irq
-                L:lock | m:memory | n:net | p:pipe
-                r:reset | P:power
+                b:block | c:cgroup | e:encode | g:graph
+                i:irq | L:lock | m:memory | n:net
+                p:pipe | r:reset | P:power
         -d  <CHARACTER>             disable options
                 a:all | c:cpu | C:compress | e:encode
         -s  <DIR|FILE>              save trace data
