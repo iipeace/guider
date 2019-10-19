@@ -8,11 +8,18 @@ import RouterPrefetch from "vue-router-prefetch";
 import App from "./App";
 import router from "./router/index";
 import VueSocketIO from "vue-socket.io";
-import {library} from "@fortawesome/fontawesome-svg-core";
+import { library } from "@fortawesome/fontawesome-svg-core";
 import Datetime from "vue-datetime";
 import "vue-datetime/dist/vue-datetime.css";
-import {faBars, faCheck, faCircle, faPlus, faSave, faTimes} from "@fortawesome/free-solid-svg-icons";
-import {FontAwesomeIcon} from "@fortawesome/vue-fontawesome";
+import {
+  faBars,
+  faCheck,
+  faCircle,
+  faPlus,
+  faSave,
+  faTimes
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import store from "./store";
 import "@/assets/sass/black-dashboard.scss";
 import "@/assets/css/nucleo-icons.css";

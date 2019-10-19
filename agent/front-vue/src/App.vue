@@ -7,10 +7,10 @@
 </template>
 
 <script>
-  import NavBar from "./layout/NavBar";
-  import Breadcrumb from "./layout/Breadcrumb";
+import NavBar from "./layout/NavBar";
+import Breadcrumb from "./layout/Breadcrumb";
 
-  export default {
+export default {
   components: {
     Breadcrumb,
     NavBar
