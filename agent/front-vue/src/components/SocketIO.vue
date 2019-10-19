@@ -8,7 +8,7 @@
           aria-describedby="input-description-help"
         ></b-form-input>
         <b-form-text id="input-description-help">
-          Input the guider target IP addr and port (ex> 192.168.24.12:5000)
+          Input the Guider's IP and PORT to connect [ ex) 127.0.0.1:5555 ]
         </b-form-text>
       </b-col>
       <b-col>

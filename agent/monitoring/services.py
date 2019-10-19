@@ -51,7 +51,7 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe.replace('\n', '</br>')
-            emit('set_command_data', result)
+            emit(request_id, result)
         pipe.close()
         RequestManager.stop_request(request_id)
     except Exception as e:
@@ -59,7 +59,7 @@ def get_data_by_command(target_addr, request_id, cmd):
         if pipe:
             pipe.close()
         RequestManager.stop_request(request_id)
-        emit('set_command_data', result)
+        emit(request_id, result)
 
 
 def parse_to_dashboard_data(data):

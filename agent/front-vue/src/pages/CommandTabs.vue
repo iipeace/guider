@@ -16,7 +16,7 @@
           >
             Close tab
           </b-button>
-          <command></command>
+          <command :index="i"></command>
         </b-tab>
 
         <!-- New Tab Button (Using tabs-end slot) -->
@@ -37,9 +37,9 @@
 </template>
 
 <script>
-import Command from "../components/Command";
+  import Command from "../components/Command";
 
-const MAX_TAB_COUNT = 5;
+  const MAX_TAB_COUNT = 5;
 
 export default {
   components: {
