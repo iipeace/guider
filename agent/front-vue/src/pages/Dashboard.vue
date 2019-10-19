@@ -2,10 +2,10 @@
   <div class="container-fluid">
     <b-row>
       <b-col sm="12">
-        <b-btn v-if="isRun" @click="StopCommandRun" style="float: right;"
+        <b-btn v-if="isRun" @click="stopCommandRun" style="float: right;"
           >STOP</b-btn
         >
-        <b-btn v-else @click="GetDashboardData" style="float: right;"
+        <b-btn v-else @click="getDashboardData" style="float: right;"
           >START</b-btn
         >
       </b-col>
@@ -53,11 +53,11 @@
   </div>
 </template>
 <script>
-import { EventBus } from "../event-bus";
-import VueApexCharts from "vue-apexcharts";
-import GuiderGraphDataSet from "../model/guider-graph-data-set";
+  import {EventBus} from "../event-bus";
+  import VueApexCharts from "vue-apexcharts";
+  import GuiderGraphDataSet from "../model/guider-graph-data-set";
 
-export default {
+  export default {
   components: {
     VueApexCharts
   },
@@ -80,7 +80,7 @@ export default {
     }
   },
   methods: {
-    GetDashboardData() {
+    getDashboardData() {
       if (!this.$store.getters.hasTargetAddr) {
         alert("please set target address");
         return false;
