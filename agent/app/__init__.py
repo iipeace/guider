@@ -5,7 +5,7 @@ from flask_cors import CORS
 
 from app.config import config_dict, config_database
 from monitoring.models import db
-from monitoring.controllers import Main, Slack, Dataset
+from monitoring.controllers import Main, Slack, Devices, Dataset
 from monitoring.services import get_dashboard_data, stop_command_run, get_data_by_command
 
 
@@ -17,6 +17,7 @@ def create_app(config_name):
                 static_folder=f_config.STATIC_FOLDER)
     CORS(app, resources={
         r"/dataset/*": {"origin": "*"},
+        r"/devices/*": {"origin": "*"},
         r"/slack/*": {"origin": "*"},
     })
     app.config.from_object(f_config)
@@ -34,6 +35,7 @@ def create_app(config_name):
 
     api.add_resource(Main, '/', '/<path:path>')
     api.add_resource(Dataset, '/dataset')
+    api.add_resource(Devices, '/devices')
     api.add_resource(Slack, '/slack/')
 
     socket.on_event('get_dashboard_data', get_dashboard_data)
