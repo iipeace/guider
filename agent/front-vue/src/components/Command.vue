@@ -74,9 +74,8 @@
           </b-col>
           <b-col>
             <h4>Output</h4>
-            <code>
-              {{ data }}
-            </code>
+            <p v-html="data">
+            </p>
           </b-col>
         </b-row>
       </b-card-body>
