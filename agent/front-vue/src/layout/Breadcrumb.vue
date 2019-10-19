@@ -8,15 +8,15 @@
       <h4 class="active">{{ getName(routeObject) }}</h4>
     </b-col>
     <b-col class="text-right">
-      <h4>{{getTargetAddr}}</h4>
+      <h4>{{ getTargetAddr }}</h4>
     </b-col>
   </b-row>
 </template>
 
 <script>
-  import {mapGetters} from "vuex";
+import { mapGetters } from "vuex";
 
-  export default {
+export default {
   props: {
     list: Array
   },
@@ -24,9 +24,7 @@
     routeRecords() {
       return this.list.filter(route => route.name || route.meta.label);
     },
-    ...mapGetters([
-      'getTargetAddr'
-    ])
+    ...mapGetters(["getTargetAddr"])
   },
   methods: {
     getName(item) {

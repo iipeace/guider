@@ -31,13 +31,20 @@ class Network(db.EmbeddedDocument):
     outbound = db.IntField(default=0)
 
 
-class Data(db.Document):
+class Datas(db.Document):
     timestamp = db.DateTimeField(default=datetime.utcnow)
     mac_addr = db.StringField()
     cpu = db.EmbeddedDocumentField(CPU)
     memory = db.EmbeddedDocumentField(Memory)
     storage = db.EmbeddedDocumentField(Storage)
     network = db.EmbeddedDocumentField(Network)
+
+
+class Devices(db.Document):
+    mac_addr = db.StringField()
+    start = db.DateTimeField()
+    end = db.DateTimeField()
+    count = db.IntField()
 
 
 def spread_data(data):

@@ -3,7 +3,8 @@ import sys
 
 from common.guider import GuiderInstance, RequestManager
 from flask_socketio import emit
-from monitoring.models import CPU, Memory, Network, Storage, Data
+from monitoring.models import CPU, Memory, Network, Storage, Datas, Devices
+from datetime import datetime
 
 
 def save_database(msg):
@@ -25,10 +26,24 @@ def save_database(msg):
                           usage=msg['storage']['usage'],
                           total=msg['storage']['total'])
 
-        data = Data(cpu=cpu, memory=memory, network=network,
-                    storage=storage, mac_addr=msg['mac_addr'])
+        data = Datas(cpu=cpu, memory=memory, network=network,
+                     storage=storage, mac_addr=msg['mac_addr'])
         data.save()
-
+        # refreshing Devices
+        devices = Devices.objects(mac_addr=msg['mac_addr'])
+        if len(devices) >= 1:
+            for device in devices:
+                device.update(
+                    set__end=datetime.utcnow(),
+                    set__count=device['count']+1
+                )
+        else:
+            Devices(
+                start=datetime.utcnow(),
+                end=datetime.utcnow(),
+                mac_addr=msg['mac_addr'],
+                count=1
+            ).save()
         print('database saved in mongodb!')
     except Exception as e:
         print('failed to save instance in MongoDB', e)

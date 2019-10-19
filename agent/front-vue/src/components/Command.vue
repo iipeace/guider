@@ -99,9 +99,9 @@
 </template>
 
 <script>
-  import {HotCommandDataSet} from "../model/hot-command-data-set";
+import { HotCommandDataSet } from "../model/hot-command-data-set";
 
-  export default {
+export default {
   props: {
     index: Number
   },

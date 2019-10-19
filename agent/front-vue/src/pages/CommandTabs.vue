@@ -37,9 +37,9 @@
 </template>
 
 <script>
-  import Command from "../components/Command";
+import Command from "../components/Command";
 
-  const MAX_TAB_COUNT = 5;
+const MAX_TAB_COUNT = 5;
 
 export default {
   components: {
