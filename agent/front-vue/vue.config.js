@@ -2,7 +2,8 @@ const webpack = require("webpack");
 
 module.exports = {
   outputDir: "../static",
-  lintOnSave: false,
+  lintOnSave: process.env.NODE_ENV !== 'production',
+  productionSourceMap: false,
   devServer: {
     compress: true,
     port: 3000,
