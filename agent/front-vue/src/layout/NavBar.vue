@@ -35,26 +35,12 @@
 </template>
 
 <script>
-import SocketIo from "../components/SocketIO.vue";
+  import SocketIo from "../components/SocketIO.vue";
 
-export default {
+  export default {
   name: "NavBar",
   components: {
     SocketIo
-  },
-  computed: {
-    routeName() {
-      const { name } = this.$route;
-      return this.capitalizeFirstLetter(name);
-    }
-  },
-  methods: {
-    capitalizeFirstLetter(name) {
-      if (!name) {
-        return "";
-      }
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
   }
 };
 </script>
