@@ -159,7 +159,16 @@
       if (this.requestId !== "") {
         this.stopCommandRun();
       }
-      this.requestId = "command" + String(new Date());
+      this.requestId = `command ${new Date().getTime()}`;
+
+      this.sockets.subscribe(this.requestId, data => {
+        if (data.result === 0) {
+          this.data = data.data;
+        } else if (data.result < 0) {
+          alert(data.errorMsg);
+        }
+      });
+
       this.$socket.emit(
         "get_data_by_command",
         this.$store.getters.getTargetAddr,
@@ -170,6 +179,7 @@
       this.$store.commit("startRun");
     },
     stopCommandRun() {
+      this.sockets.unsubscribe(this.requestId);
       this.$socket.emit("stop_command_run", this.requestId);
       this.requestId = "";
       this.$store.commit("stopRun");
@@ -177,15 +187,6 @@
   },
   beforeDestroy() {
     this.stopCommandRun();
-  },
-  sockets: {
-    set_command_data: function(data) {
-      if (data.result === 0) {
-        this.data = data.data;
-      } else if (data.result < 0) {
-        alert(data.errorMsg);
-      }
-    }
   }
 };
 </script>
