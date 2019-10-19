@@ -99,10 +99,10 @@
 </template>
 
 <script>
-  import {HotCommandDataSet} from "../model/hot-command-data-set";
-  import {mapGetters} from "vuex";
+import { HotCommandDataSet } from "../model/hot-command-data-set";
+import { mapGetters } from "vuex";
 
-  export default {
+export default {
   data() {
     return {
       command: "",

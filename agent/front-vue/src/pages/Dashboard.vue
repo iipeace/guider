@@ -53,11 +53,11 @@
   </div>
 </template>
 <script>
-  import {EventBus} from "../event-bus";
-  import VueApexCharts from "vue-apexcharts";
-  import GuiderGraphDataSet from "../model/guider-graph-data-set";
+import { EventBus } from "../event-bus";
+import VueApexCharts from "vue-apexcharts";
+import GuiderGraphDataSet from "../model/guider-graph-data-set";
 
-  export default {
+export default {
   components: {
     VueApexCharts
   },

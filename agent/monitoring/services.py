@@ -35,7 +35,6 @@ def save_database(msg):
 
 
 def get_data_by_command(target_addr, request_id, cmd):
-    print('request in', request_id)
     result = dict(result=0, data=dict(), errMsg='')
     if cmd is None or cmd is '' or target_addr is None or target_addr is '':
         result['result'] = -1
@@ -51,8 +50,8 @@ def get_data_by_command(target_addr, request_id, cmd):
             str_pipe = pipe.getData()
             if not str_pipe:
                 break
-            result['data'] = str_pipe
-            emit(request_id, result)
+            result['data'] = str_pipe.replace('\n', '</br>')
+            emit('set_command_data', result)
         pipe.close()
         RequestManager.stop_request(request_id)
     except Exception as e:
