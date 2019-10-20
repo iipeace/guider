@@ -19,10 +19,12 @@ const state = {
 const mutations = {
   setServer(state, server) {
     if (this.state.server) {
-      this.state.server.close();
+      if (this.state.server instanceof Server) {
+        this.state.server.clear();
+      }
     }
     this.state.server = server;
-    sessionStorage.setItem("server", server);
+    sessionStorage.setItem("server", JSON.stringify(server));
   }
 };
 
@@ -33,7 +35,7 @@ const actions = {};
 // getters are functions
 const getters = {
   getServer: state => {
-    const server = sessionStorage.getItem("server");
+    const server = JSON.parse(sessionStorage.getItem("server"));
     if (server) {
       return server;
     }

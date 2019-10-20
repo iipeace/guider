@@ -64,7 +64,7 @@ export class Server {
     this.retryCount++;
     this.status = Status.SUSPEND;
     if (this.retryCount > 5) {
-      this.close();
+      this.clear();
     }
   }
 
@@ -75,7 +75,7 @@ export class Server {
     }
   }
 
-  close() {
+  clear() {
     if (this.requestId) {
       this.sockets.unsubscribe(this.requestId);
       this.sockets.unsubscribe(`${this.requestId}_stop`);
