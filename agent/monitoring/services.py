@@ -177,7 +177,6 @@ def get_dashboard_data(request_id, target_addr):
 
 
 def stop_command_run(request_id):
-    print("request_stop")
     result = dict(result=0, data='stop success', errMsg='')
     stop_event = request_id + '_stop';
     if RequestManager.get_request_status(request_id):
@@ -190,6 +189,5 @@ def stop_command_run(request_id):
 
 
 def health_check(target_addr, request_id):
-    print("health check")
     get_data_by_command(target_addr, request_id, 'GUIDER list')
 

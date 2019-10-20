@@ -21,10 +21,10 @@
 </template>
 
 <script>
-  import {mapState} from "vuex";
-  import {Server} from "../model/server";
+import { mapState } from "vuex";
+import { Server } from "../model/server";
 
-  export default {
+export default {
   data() {
     return {
       targetAddr: "",

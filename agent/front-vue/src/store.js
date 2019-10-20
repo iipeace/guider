@@ -1,7 +1,7 @@
 import Vue from "vue";
 import Vuex from "vuex";
 import createLogger from "vuex/dist/logger";
-import {Server, Status} from "./model/server";
+import { Server, Status } from "./model/server";
 
 Vue.use(Vuex);
 
