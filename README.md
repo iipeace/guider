@@ -825,9 +825,10 @@ Output
        
     # ./guider.py draw guider.out
 
-![guider-graph-image](https://cloud.githubusercontent.com/assets/15862689/23285445/a03e0bf0-fa74-11e6-9f5a-872a3f10fe48.png)    
-![guider-chart-image](https://cloud.githubusercontent.com/assets/15862689/24597375/67f31f22-1880-11e7-8290-64554ed2859c.png)
-![guider-web-image](https://user-images.githubusercontent.com/15862689/60395898-24a85000-9b75-11e9-857b-991bcae731bc.png)
+![guider-graph](https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png)
+![guider-chart](https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png)
+![guider-web-dashboard](https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png)
+![guider-web-commandtab](https://user-images.githubusercontent.com/15862689/67160180-03b87480-f389-11e9-8a91-033f74d103dc.png)
 
 How to use
 =======
