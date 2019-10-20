@@ -21,19 +21,35 @@
 </template>
 
 <script>
-export default {
-  name: "socket-io",
+  import {mapState} from "vuex";
+  import {Server} from "../model/server";
+
+  export default {
   data() {
     return {
-      targetAddr: ""
+      targetAddr: "",
+      healthCheckInterval: null,
+      interval: 10000,
+      retry: 0
     };
   },
+  computed: {
+    ...mapState(["server"])
+  },
   created() {
-    this.targetAddr = this.$store.getters.getTargetAddr;
+    if (this.server) {
+      this.targetAddr = this.server.targetAddr;
+    }
   },
   methods: {
     setTargetAddr: function() {
-      this.$store.commit("setTargetAddr", this.targetAddr);
+      if (!this.targetAddr) {
+        alert("this value must not empty");
+        return;
+      }
+      const server = new Server(this.targetAddr);
+      this.$store.commit("setServer", server);
+      server.healthCheck(this.sockets, this.$socket);
     }
   }
 };

@@ -99,9 +99,10 @@
 </template>
 
 <script>
-import { HotCommandDataSet } from "../model/hot-command-data-set";
+  import {HotCommandDataSet} from "../model/hot-command-data-set";
+  import {mapState} from "vuex";
 
-export default {
+  export default {
   props: {
     index: Number
   },
@@ -129,7 +130,8 @@ export default {
       }
 
       return `GUIDER ${this.command} ${detailCommand}`;
-    }
+    },
+    ...mapState(["server"])
   },
   created() {
     this.init();
@@ -153,7 +155,7 @@ export default {
       });
     },
     sendCommand() {
-      if (!this.$store.getters.hasTargetAddr) {
+      if (!this.server.hasTargetAddr()) {
         alert("please set target address");
         return false;
       }
@@ -170,23 +172,35 @@ export default {
         }
       });
 
+      this.sockets.subscribe(`${this.requestId}_stop`, data => {
+        if (data.result === 0) {
+          this.close();
+        } else if (data.result < 0) {
+          alert(data.errorMsg);
+        }
+      });
+
       this.$socket.emit(
         "get_data_by_command",
-        this.$store.getters.getTargetAddr,
+        this.server.targetAddr,
         this.requestId,
         this.fullCommand
       );
       this.commandHistory.push(this.fullCommand);
     },
     stopCommandRun() {
-      this.sockets.unsubscribe(this.requestId);
+      this.close();
       this.$socket.emit("stop_command_run", this.requestId);
+    },
+    close() {
+      this.sockets.unsubscribe(this.requestId);
+      this.sockets.unsubscribe(`${this.requestId}_stop`);
       this.requestId = "";
     }
   },
   beforeDestroy() {
     if (this.requestId) {
-      this.sockets.unsubscribe(this.requestId);
+      this.close();
     }
     this.stopCommandRun();
   }
