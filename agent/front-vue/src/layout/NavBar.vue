@@ -35,9 +35,9 @@
 </template>
 
 <script>
-  import Setting from "../components/Setting.vue";
+import Setting from "../components/Setting.vue";
 
-  export default {
+export default {
   name: "NavBar",
   components: {
     Setting

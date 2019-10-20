@@ -56,6 +56,7 @@
 import { EventBus } from "../event-bus";
 import VueApexCharts from "vue-apexcharts";
 import GuiderGraphDataSet from "../model/guider-graph-data-set";
+import { mapState } from "vuex";
 
 export default {
   components: {
@@ -67,6 +68,9 @@ export default {
       isRun: false,
       requestId: ""
     };
+  },
+  computed: {
+    ...mapState(["server"])
   },
   sockets: {
     set_dashboard_data: function(data) {
@@ -81,7 +85,7 @@ export default {
   },
   methods: {
     getDashboardData() {
-      if (!this.$store.getters.hasTargetAddr) {
+      if (!this.server.hasTargetAddr()) {
         alert("please set target address");
         return false;
       }
@@ -97,7 +101,7 @@ export default {
         this.$socket.emit(
           "get_dashboard_data",
           this.requestId,
-          this.$store.getters.getTargetAddr
+          this.server.targetAddr
         );
       } catch (e) {
         this.isRun = false;

@@ -99,10 +99,10 @@
 </template>
 
 <script>
-  import {HotCommandDataSet} from "../model/hot-command-data-set";
-  import {mapState} from "vuex";
+import { HotCommandDataSet } from "../model/hot-command-data-set";
+import { mapState } from "vuex";
 
-  export default {
+export default {
   props: {
     index: Number
   },
