@@ -7,16 +7,30 @@
     >
       <h4 class="active">{{ getName(routeObject) }}</h4>
     </b-col>
-    <b-col class="text-right">
-      <h4>{{ getTargetAddr }}</h4>
+    <b-col class="text-right" v-if="server">
+      <h4>
+        {{ server.targetAddr }}
+        <font-awesome-icon v-if="isStart" icon="circle" style="color:#00CC6A" />
+        <font-awesome-icon
+          v-if="isRunning"
+          icon="circle"
+          style="color:#0208CC"
+        />
+        <font-awesome-icon
+          v-if="isSuspend"
+          icon="circle"
+          style="color:#FFFC0B"
+        />
+        <font-awesome-icon v-if="isStop" icon="circle" style="color:#FF0000" />
+      </h4>
     </b-col>
   </b-row>
 </template>
 
 <script>
-import { mapGetters } from "vuex";
+  import {mapState} from "vuex";
 
-export default {
+  export default {
   props: {
     list: Array
   },
@@ -24,7 +38,19 @@ export default {
     routeRecords() {
       return this.list.filter(route => route.name || route.meta.label);
     },
-    ...mapGetters(["getTargetAddr"])
+    ...mapState(["server"]),
+    isStart() {
+      return this.server.targetAddr && this.server.status === 0;
+    },
+    isRunning() {
+      return this.server.targetAddr && this.server.status === 1;
+    },
+    isSuspend() {
+      return this.server.targetAddr && this.server.status === 2;
+    },
+    isStop() {
+      return this.server.targetAddr && this.server.status === 9;
+    }
   },
   methods: {
     getName(item) {
