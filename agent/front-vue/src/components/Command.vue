@@ -189,8 +189,8 @@ export default {
       this.commandHistory.push(this.fullCommand);
     },
     stopCommandRun() {
-      this.close();
       this.$socket.emit("stop_command_run", this.requestId);
+      this.close();
     },
     close() {
       this.sockets.unsubscribe(this.requestId);
@@ -200,9 +200,8 @@ export default {
   },
   beforeDestroy() {
     if (this.requestId) {
-      this.close();
+      this.stopCommandRun();
     }
-    this.stopCommandRun();
   }
 };
 </script>
