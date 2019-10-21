@@ -18506,7 +18506,8 @@ Copyright:
                         "input number in COLS:ROWS format")
                     sys.exit(0)
 
-            elif option == 'b':
+            elif option == 'b' and \
+                not SystemManager.isRecordMode():
                 try:
                     bsize = int(value)
                     if bsize >= 0:
