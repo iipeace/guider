@@ -3934,8 +3934,8 @@ class NetworkManager(object):
                 NetworkManager.setRemoteServer(addr, tcp=True)
         # set server address again #
         elif SystemManager.remoteServObj:
-            SystemManager.remoteServObj.close()
             servObj = SystemManager.remoteServObj
+            servObj.close()
             NetworkManager.setRemoteServer(\
                 '%s:%s' % (servObj.ip, servObj.port), tcp=True)
 
@@ -3958,8 +3958,24 @@ class NetworkManager(object):
         # do connect to server #
         try:
             connObj = SystemManager.remoteServObj
+
             connObj.timeout()
-            connObj.connect()
+
+            # connect with handling CLOSE_WAIT #
+            while 1:
+                try:
+                    connObj.connect()
+                    break
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printWarn(\
+                        "Fail to connect to %s:%s because %s" % \
+                            (ip, port, err))
+                    if err.startswith('99'):
+                        time.sleep(0.1)
+                        continue
+                    break
+
             return connObj
         except:
             err = SystemManager.getErrReason()
@@ -5681,6 +5697,8 @@ class FunctionAnalyzer(object):
 
         # get connection with server #
         self.connObj = NetworkManager.getServerConn()
+        if not self.connObj:
+            return None
 
         # request download command #
         NetworkManager.requestCmd(self.connObj, req)
