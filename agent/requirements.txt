@@ -5,7 +5,6 @@ bson==0.5.8
 Click==7.0
 Flask==1.1.1
 Flask-Cors==3.0.8
-flask-mongoengine==0.9.5
 Flask-PyMongo==2.3.0
 Flask-RESTful==0.3.7
 Flask-Script==2.0.6

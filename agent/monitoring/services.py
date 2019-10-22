@@ -8,6 +8,10 @@ from monitoring.models import CPU, Memory, Network, Storage, Datas, Devices
 
 
 def save_database(msg):
+    from app import is_connected
+    if not is_connected:
+        print('Failed to connect mongodb. so messages would not be saved on database.')
+        return
     try:
         cpu = CPU(kernel=msg['cpu']['kernel'], user=msg['cpu']['user'],
                   irq=msg['cpu']['irq'], nrCore=msg['cpu']['nrCore'],
@@ -178,7 +182,7 @@ def get_dashboard_data(request_id, target_addr):
 
 def stop_command_run(request_id):
     result = dict(result=0, data='stop success', errMsg='')
-    stop_event = request_id + '_stop';
+    stop_event = request_id + '_stop'
     if RequestManager.get_request_status(request_id):
         RequestManager.stop_request(request_id)
         emit(stop_event, result)
@@ -190,4 +194,3 @@ def stop_command_run(request_id):
 
 def health_check(target_addr, request_id):
     get_data_by_command(target_addr, request_id, 'GUIDER list')
-

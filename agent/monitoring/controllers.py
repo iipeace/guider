@@ -22,6 +22,10 @@ class Devices(Resource):
         pass
 
     def get(self):
+        from app import is_connected
+        if not is_connected:
+            return jsonify(dict(status="failed", msg="failed to connect mongoDB"))
+
         from monitoring.models import Devices
         if Devices.objects.count() == 0:
             find_devices_from_db()
@@ -44,6 +48,9 @@ class Dataset(Resource):
         pass
 
     def get(self):
+        from app import is_connected
+        if not is_connected:
+            return jsonify(dict(status="failed", msg="failed to connect mongoDB"))
         args = request.args
         start = args.get('start', None)
         end = args.get('end', None)
@@ -77,7 +84,7 @@ class Dataset(Resource):
             num = int(num)
         except Exception as e:
             print('Failed to parse start, end ', e)
-            return jsonify(dict(status="failed", data=[], msg="Failed to parse start, end"))
+            return jsonify(dict(status="failed", msg="Failed to parse start, end"))
         datas = list(Datas.objects().order_by('+timestamp').all())
         print(len(datas), start, end)
         # TODO: Quering Database in range, Not processing everything.
@@ -155,6 +162,7 @@ def find_devices_from_db():
                 count=1,
                 mac_addr=data.mac_addr
             )
+    from monitoring.models import Devices
     results = list(devices.values())
     for result in results:
         Devices(**result).save()
