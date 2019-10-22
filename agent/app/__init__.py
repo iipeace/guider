@@ -3,9 +3,11 @@ from flask import Flask
 from flask_cors import CORS
 from flask_restful import Api
 from flask_socketio import SocketIO
+from pymongo.errors import ConnectionFailure
+from pymongo import MongoClient
 from monitoring.controllers import Main, Slack, Devices, Dataset
-from monitoring.models import db
 from monitoring.services import get_dashboard_data, stop_command_run, get_data_by_command, health_check
+is_connected = False
 
 
 def create_app(config_name):
@@ -24,11 +26,17 @@ def create_app(config_name):
 
     socket = SocketIO(app)
     socket.init_app(app, cors_allowed_origins="*")
-
+    print('Attempt to connect to MongoDB...')
+    global is_connected
+    client = MongoClient()
     try:
-        db.init_app(app)
-    except Exception as e:
-        print('Failed to connect MongoDB', e)
+        # The ismaster command is cheap and does not require auth.
+        client.admin.command('ismaster')
+        is_connected = True
+        print('Connected to MongoDB!')
+    except ConnectionFailure:
+        print('Failed to connect to MongoDB. You should restart server to reconnect!')
+        is_connected = False
 
     api = Api(app)
 
@@ -42,3 +50,4 @@ def create_app(config_name):
     socket.on_event('stop_command_run', stop_command_run)
     socket.on_event('health_check', health_check)
     return app, socket
+

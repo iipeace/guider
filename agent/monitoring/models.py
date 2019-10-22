@@ -1,50 +1,52 @@
-from flask_mongoengine import MongoEngine
+#from flask_mongoengine import MongoEngine
+from mongoengine import EmbeddedDocumentField, Document, IntField, \
+    StringField, DateTimeField, EmbeddedDocument, connect
 from datetime import datetime
 
-db = MongoEngine()
+connect('guider')
 
 
-class CPU(db.EmbeddedDocument):
-    kernel = db.IntField(default=0)
-    user = db.IntField(default=0)
-    irq = db.IntField(default=0)
-    nrCore = db.IntField(default=0)
-    total = db.IntField(default=0)
+class CPU(EmbeddedDocument):
+    kernel = IntField(default=0)
+    user = IntField(default=0)
+    irq = IntField(default=0)
+    nrCore = IntField(default=0)
+    total = IntField(default=0)
 
 
-class Memory(db.EmbeddedDocument):
-    kernel = db.IntField(default=0)
-    cache = db.IntField(default=0)
-    free = db.IntField(default=0)
-    anon = db.IntField(default=0)
-    total = db.IntField(default=0)
+class Memory(EmbeddedDocument):
+    kernel = IntField(default=0)
+    cache = IntField(default=0)
+    free = IntField(default=0)
+    anon = IntField(default=0)
+    total = IntField(default=0)
 
 
-class Storage(db.EmbeddedDocument):
-    free = db.IntField(default=0)
-    usage = db.IntField(default=0)
-    total = db.IntField(default=0)
+class Storage(EmbeddedDocument):
+    free = IntField(default=0)
+    usage = IntField(default=0)
+    total = IntField(default=0)
 
 
-class Network(db.EmbeddedDocument):
-    inbound = db.IntField(default=0)
-    outbound = db.IntField(default=0)
+class Network(EmbeddedDocument):
+    inbound = IntField(default=0)
+    outbound = IntField(default=0)
 
 
-class Datas(db.Document):
-    timestamp = db.DateTimeField(default=datetime.utcnow)
-    mac_addr = db.StringField()
-    cpu = db.EmbeddedDocumentField(CPU)
-    memory = db.EmbeddedDocumentField(Memory)
-    storage = db.EmbeddedDocumentField(Storage)
-    network = db.EmbeddedDocumentField(Network)
+class Datas(Document):
+    timestamp = DateTimeField(default=datetime.utcnow)
+    mac_addr = StringField()
+    cpu = EmbeddedDocumentField(CPU)
+    memory = EmbeddedDocumentField(Memory)
+    storage = EmbeddedDocumentField(Storage)
+    network = EmbeddedDocumentField(Network)
 
 
-class Devices(db.Document):
-    mac_addr = db.StringField()
-    start = db.DateTimeField()
-    end = db.DateTimeField()
-    count = db.IntField()
+class Devices(Document):
+    mac_addr = StringField()
+    start = DateTimeField()
+    end = DateTimeField()
+    count = IntField()
 
 
 def spread_data(data):

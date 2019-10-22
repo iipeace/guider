@@ -101,7 +101,7 @@ export default {
       device: null,
       count: -1,
       db_start: null,
-      options: [{ value: null, option: "Loading.." }],
+      options: [{ value: null, text: "Loading.." }],
       db_end: null
     };
   },
@@ -116,20 +116,27 @@ export default {
       return Date.parse(date) / 1000;
     },
     async getDevices() {
-      const response = await fetch("http://localhost:8000/devices");
-      const responseOK = response && response.status == 200;
-      if (responseOK) {
-        const body = await response.json();
-        if (body && body.status == "ok") {
-          const devices = body.devices || body.data;
-          this.options = [{ value: null, text: "Select Device" }];
-          for (let device of devices) {
-            this.options.push({
-              value: device,
-              text: `${device.mac_addr}(${device.count})`
-            });
+      try {
+        const response = await fetch("http://localhost:8000/devices");
+        const responseOK = response && response.status == 200;
+        if (responseOK) {
+          const body = await response.json();
+          if (body && body.status == "ok") {
+            const devices = body.devices || body.data;
+            this.options = [{ value: null, text: "Select Device" }];
+            for (let device of devices) {
+              this.options.push({
+                value: device,
+                text: `${device.mac_addr}(${device.count})`
+              });
+            }
           }
+          else throw Error(body.msg || "Internal Server Error");
         }
+      }
+      catch(e){
+        this.options = [{ value:null, text: e}]
+        this.errMsg = e
       }
     },
     getMetaData() {
@@ -139,23 +146,6 @@ export default {
       this.db_end = this.tsToPrettyDate(this.device.end);
       this.end = this.tsToISOString(this.device.end);
       this.sampleNum = this.count < 80 ? this.count : 80;
-      // const response = await fetch("http://localhost:8000/dataset");select
-      // const responseOK = response && response.status == 200;
-      // if (responseOK) {
-      //   const body = await response.json();
-      //   if (body && body.status == "ok") {
-      //     const { data, meta } = body;
-      //     if (data.length) {
-      //       this.count = meta.count || 0;
-      //       this.db_start = this.tsToPrettyDate(meta.start);
-      //       this.start = this.tsToISOString(meta.start);
-      //       this.db_end = this.tsToPrettyDate(meta.end);
-      //       this.end = this.tsToISOString(meta.end);
-      //     } else {
-      //       this.count = 0;
-      //     }
-      //   }
-      // }
     },
     async getData() {
       // init values
@@ -185,7 +175,7 @@ export default {
               .forEach(x => {
                 this.dataSet.setGuiderData(x);
               });
-          } else throw Error("Internal Server Error");
+          } else throw Error( body.msg || "Internal Server Error");
         } else throw Error("Failed to load body");
       } catch (e) {
         this.errMsg = e;
