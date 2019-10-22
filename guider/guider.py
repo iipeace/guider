@@ -6040,7 +6040,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def saveEventStack(self, targetEvent, targetCnt, targetArg, time):
+    def saveEventStack(self, targetEvent, targetCnt, targetArg):
         kpos = self.nowCtx['kerLastPos']
         upos = self.nowCtx['userLastPos']
 
@@ -6057,6 +6057,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
+            time = targetArg[2]
             targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'PAGE_FREE':
@@ -6065,6 +6066,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
+            time = targetArg[2]
             targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'BLK_READ':
@@ -6249,7 +6251,7 @@ class FunctionAnalyzer(object):
 
             # Save full stack of previous event #
             self.saveEventStack(\
-                targetEvent, targetCnt, targetArg, self.finishTime)
+                targetEvent, targetCnt, targetArg)
 
             # Recover previous kernel stack after handling nested event #
             if nowCtx['prevMode'] == nowCtx['curMode'] == 'user' and \
@@ -8775,7 +8777,12 @@ class FunctionAnalyzer(object):
             if not item:
                 continue
 
-            lifeTime = float(self.finishTime) - float(item['time'])
+            # calculate time #
+            time = float(item['time'])
+            if time > 0:
+                lifeTime = float(self.finishTime) - time
+            else:
+                lifeTime = 0
 
             # Set user page lifetime #
             self.userSymData[item['sym']]['pageRemainTotal'] += lifeTime
