@@ -2,10 +2,10 @@
   <div class="container-fluid">
     <b-row>
       <b-col sm="12">
-        <b-btn v-if="isRun" @click="StopCommandRun" style="float: right;"
+        <b-btn v-if="isRun" @click="stopCommandRun" style="float: right;"
           >STOP</b-btn
         >
-        <b-btn v-else @click="GetDashboardData" style="float: right;"
+        <b-btn v-else @click="getDashboardData" style="float: right;"
           >START</b-btn
         >
       </b-col>
@@ -56,6 +56,7 @@
 import { EventBus } from "../event-bus";
 import VueApexCharts from "vue-apexcharts";
 import GuiderGraphDataSet from "../model/guider-graph-data-set";
+import { mapState } from "vuex";
 
 export default {
   components: {
@@ -67,6 +68,9 @@ export default {
       isRun: false,
       requestId: ""
     };
+  },
+  computed: {
+    ...mapState(["server"])
   },
   sockets: {
     set_dashboard_data: function(data) {
@@ -80,8 +84,8 @@ export default {
     }
   },
   methods: {
-    GetDashboardData() {
-      if (!this.$store.getters.hasTargetAddr) {
+    getDashboardData() {
+      if (!this.server.hasTargetAddr()) {
         alert("please set target address");
         return false;
       }
@@ -97,7 +101,7 @@ export default {
         this.$socket.emit(
           "get_dashboard_data",
           this.requestId,
-          this.$store.getters.getTargetAddr
+          this.server.targetAddr
         );
       } catch (e) {
         this.isRun = false;

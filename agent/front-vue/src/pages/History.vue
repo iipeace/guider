@@ -2,7 +2,15 @@
   <div class="container-fluid">
     <b-row>
       <b-col sm="12">
-        <b-card style="background: white; ">
+        <b-card style="background: white;">
+          <b-form-select
+            class="text-dark"
+            v-model="device"
+            :options="options"
+            @change="getMetaData"
+          ></b-form-select>
+        </b-card>
+        <b-card style="background: white; " v-if="device">
           <b-card v-if="count != -1">
             <b-card-text v-if="count != 0">
               There are {{ count }} pieces of information from {{ db_start }} to
@@ -12,9 +20,9 @@
               There are 0 pieces of information.
             </b-card-text>
           </b-card>
-          <h3 style="color: black;">
+          <h4 style="color: black;">
             Browse the stored database.
-          </h3>
+          </h4>
           <b-row>
             <b-col sm="6">
               From <br />
@@ -87,10 +95,13 @@ export default {
     return {
       dataSet: new GuiderGraphDataSet(),
       start: null,
+      end: null,
       sampleNum: 40,
       errMsg: "",
+      device: null,
       count: -1,
       db_start: null,
+      options: [{ value: null, option: "Loading.." }],
       db_end: null
     };
   },
@@ -104,66 +115,86 @@ export default {
     dateToTS(date) {
       return Date.parse(date) / 1000;
     },
-    async getMetaData() {
-      const response = await fetch("http://localhost:8000/dataset");
+    async getDevices() {
+      const response = await fetch("http://localhost:8000/devices");
       const responseOK = response && response.status == 200;
       if (responseOK) {
         const body = await response.json();
         if (body && body.status == "ok") {
-          const { data, meta } = body;
-          if (data.length) {
-            this.count = meta.count || 0;
-            this.db_start = this.tsToPrettyDate(meta.start);
-            this.start = this.tsToISOString(meta.start);
-            this.db_end = this.tsToPrettyDate(meta.end);
-            this.end = this.tsToISOString(meta.end);
-          } else {
-            this.count = 0;
+          const devices = body.devices || body.data;
+          this.options = [{ value: null, text: "Select Device" }];
+          for (let device of devices) {
+            this.options.push({
+              value: device,
+              text: `${device.mac_addr}(${device.count})`
+            });
           }
         }
       }
     },
+    getMetaData() {
+      this.count = this.device.count || 0;
+      this.db_start = this.tsToPrettyDate(this.device.start);
+      this.start = this.tsToISOString(this.device.start);
+      this.db_end = this.tsToPrettyDate(this.device.end);
+      this.end = this.tsToISOString(this.device.end);
+      this.sampleNum = this.count < 80 ? this.count : 80;
+      // const response = await fetch("http://localhost:8000/dataset");select
+      // const responseOK = response && response.status == 200;
+      // if (responseOK) {
+      //   const body = await response.json();
+      //   if (body && body.status == "ok") {
+      //     const { data, meta } = body;
+      //     if (data.length) {
+      //       this.count = meta.count || 0;
+      //       this.db_start = this.tsToPrettyDate(meta.start);
+      //       this.start = this.tsToISOString(meta.start);
+      //       this.db_end = this.tsToPrettyDate(meta.end);
+      //       this.end = this.tsToISOString(meta.end);
+      //     } else {
+      //       this.count = 0;
+      //     }
+      //   }
+      // }
+    },
     async getData() {
       // init values
-      this.errMsg = "";
-      this.dataSet = new GuiderGraphDataSet();
-      let url = "http://localhost:8000/dataset";
-      let hasQuery = false;
-      if (this.start) {
-        let timestamp = this.dateToTS(this.start);
-        url += `?start=${timestamp}`;
-        hasQuery = true;
+      try {
+        this.errMsg = "";
+        this.dataSet = new GuiderGraphDataSet();
+        let url = `http://localhost:8000/dataset?mac_addr=${this.device.mac_addr}`;
+        if (this.start) {
+          let timestamp = this.dateToTS(this.start);
+          url += `&start=${timestamp}`;
+        }
+        if (this.end) {
+          let timestamp = this.dateToTS(this.end);
+          url += `&end=${timestamp}`;
+        }
+        if (this.sampleNum >= 1 && this.sampleNum <= 150) {
+          url += `&num=${this.sampleNum}`;
+        } else throw Error("Sample Number should be in range 1~150");
+        const response = await fetch(url);
+        const responseOK = response && response.status == 200;
+        if (responseOK) {
+          const body = await response.json();
+          if (body && body.status == "ok") {
+            const { data } = body;
+            data
+              .map(x => Object({ timestamp: x.timestamp, ...x.data }))
+              .forEach(x => {
+                this.dataSet.setGuiderData(x);
+              });
+          } else throw Error("Internal Server Error");
+        } else throw Error("Failed to load body");
+      } catch (e) {
+        this.errMsg = e;
       }
-      if (this.end) {
-        let timestamp = this.dateToTS(this.end);
-        url += (hasQuery ? "&" : "?") + `end=${timestamp}`;
-        hasQuery = true;
-      }
-      if (this.sampleNum >= 20 && this.sampleNum <= 100) {
-        url += (hasQuery ? "&" : "?") + `num=${this.sampleNum}`;
-      } else throw Error("Sample Number should be in range 20~100");
-      const response = await fetch(url);
-      const responseOK = response && response.status == 200;
-      if (responseOK) {
-        const body = await response.json();
-        if (body && body.status == "ok") {
-          const { data } = body;
-          data
-            .map(x => Object({ timestamp: x.timestamp, ...x.data }))
-            .forEach(x => {
-              this.dataSet.setGuiderData(x);
-            });
-        } else throw Error("Internal Server Error");
-      } else throw Error("Failed to load body");
     }
   },
   async mounted() {
-    try {
-      await this.getMetaData();
-      await this.getData();
-    } catch (e) {
-      this.errMsg = e;
-    }
+    await this.getDevices();
+    await this.getData();
   },
   beforeDestroy() {}
 };
@@ -171,5 +202,8 @@ export default {
 <style scoped>
 input {
   margin: 3px 0px;
+}
+b-form-select {
+  margin: 5px 0px;
 }
 </style>

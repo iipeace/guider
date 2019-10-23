@@ -1,13 +1,14 @@
 import Vue from "vue";
 import Vuex from "vuex";
 import createLogger from "vuex/dist/logger";
+import { Server, Status } from "./model/server";
 
 Vue.use(Vuex);
 
 // root state object.
 // each Vuex instance is just a single state tree.
 const state = {
-  run: false
+  server: new Server("", Status.STOP)
 };
 
 // mutations are operations that actually mutates the state.
@@ -16,14 +17,14 @@ const state = {
 // mutations must be synchronous and can be recorded by plugins
 // for debugging purposes.
 const mutations = {
-  setTargetAddr(state, addr) {
-    sessionStorage.setItem("targetAddr", addr);
-  },
-  stopRun(state) {
-    state.run = false;
-  },
-  startRun(state) {
-    state.run = true;
+  setServer(state, server) {
+    if (this.state.server) {
+      if (this.state.server instanceof Server) {
+        this.state.server.clear();
+      }
+    }
+    this.state.server = server;
+    sessionStorage.setItem("server", JSON.stringify(server));
   }
 };
 
@@ -33,19 +34,12 @@ const actions = {};
 
 // getters are functions
 const getters = {
-  getTargetAddr: () => {
-    const targetAddr = sessionStorage.getItem("targetAddr");
-    if (targetAddr) {
-      return targetAddr;
+  getServer: state => {
+    const server = JSON.parse(sessionStorage.getItem("server"));
+    if (server) {
+      return server;
     }
-    return "";
-  },
-  hasTargetAddr: () => {
-    const targetAddr = sessionStorage.getItem("targetAddr");
-    return !!targetAddr;
-  },
-  isRunning: state => {
-    return state.run;
+    return state.server;
   }
 };
 
@@ -58,6 +52,11 @@ export default new Vuex.Store({
   getters,
   actions,
   mutations,
-  strict: debug,
+  /*
+   FIXME : "[vuex] do not mutate vuex store state outside mutation handlers." in server.js
+           this issue occur because vuex using 'server'
+           change strict mode false to debug
+   */
+  strict: false,
   plugins: debug ? [createLogger()] : []
 });

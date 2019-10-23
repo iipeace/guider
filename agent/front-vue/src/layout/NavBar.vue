@@ -13,13 +13,13 @@
 
       <!-- Right aligned nav items -->
       <b-navbar-nav class="ml-auto">
-        <b-nav-item @click="$bvModal.show('bv-modal-example')">
+        <b-nav-item @click="$bvModal.show('bv-modal-setting')">
           Setting
         </b-nav-item>
       </b-navbar-nav>
     </b-navbar>
     <b-modal
-      id="bv-modal-example"
+      id="bv-modal-setting"
       size="lg"
       hide-footer
       title="Setting"
@@ -29,32 +29,18 @@
       <template slot="modal-title">
         <h4>Setting</h4>
       </template>
-      <socket-io></socket-io>
+      <setting></setting>
     </b-modal>
   </div>
 </template>
 
 <script>
-import SocketIo from "../components/SocketIO.vue";
+import Setting from "../components/Setting.vue";
 
 export default {
   name: "NavBar",
   components: {
-    SocketIo
-  },
-  computed: {
-    routeName() {
-      const { name } = this.$route;
-      return this.capitalizeFirstLetter(name);
-    }
-  },
-  methods: {
-    capitalizeFirstLetter(name) {
-      if (!name) {
-        return "";
-      }
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
+    Setting
   }
 };
 </script>

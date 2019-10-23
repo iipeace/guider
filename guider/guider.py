@@ -3304,15 +3304,6 @@ class NetworkManager(object):
             return None
 
         try:
-            if mode == 'server':
-                if not ip:
-                    self.ip = '0.0.0.0'
-                else:
-                    self.ip = ip
-            elif mode == 'client':
-                self.ip = ip
-                self.port = port
-
             # set socket type #
             if tcp:
                 self.socket = socket(AF_INET, SOCK_STREAM)
@@ -3341,23 +3332,28 @@ class NetworkManager(object):
             self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
             '''
 
+            # set IP & PORT #
+            self.ip = ip
+            self.port = port
+
             if mode == 'server':
-                # decision port #
+                # IP #
+                if not ip:
+                    self.ip = '0.0.0.0'
+
+                # PORT #
                 if anyPort:
                     self.port = 0
                 elif not port:
                     self.port = SystemManager.defaultPort
-                else:
-                    self.port = port
 
                 # bind #
                 try:
                     self.socket.bind((self.ip, self.port))
                 except:
-                    self.port = 0
                     self.socket.bind((self.ip, self.port))
 
-                # get binded port #
+                # get bind port #
                 self.port = self.socket.getsockname()[1]
 
             if not blocking:
@@ -3938,9 +3934,8 @@ class NetworkManager(object):
                 NetworkManager.setRemoteServer(addr, tcp=True)
         # set server address again #
         elif SystemManager.remoteServObj:
-            if not SystemManager.remoteServObj.tcp:
-                SystemManager.remoteServObj.close()
             servObj = SystemManager.remoteServObj
+            servObj.close()
             NetworkManager.setRemoteServer(\
                 '%s:%s' % (servObj.ip, servObj.port), tcp=True)
 
@@ -3949,11 +3944,38 @@ class NetworkManager(object):
             printErr()
             return None
 
+        # bind local socket #
+        try:
+            ip = SystemManager.localServObj.ip
+            port = SystemManager.localServObj.port
+            SystemManager.remoteServObj.socket.bind((ip, port))
+        except:
+            err = SystemManager.getErrReason()
+            SystemManager.printErr(\
+                "Fail to bind client socket to %s:%s for connection because %s" % \
+                    (ip, port, err))
+
         # do connect to server #
         try:
             connObj = SystemManager.remoteServObj
+
             connObj.timeout()
-            connObj.connect()
+
+            # connect with handling CLOSE_WAIT #
+            while 1:
+                try:
+                    connObj.connect()
+                    break
+                except:
+                    err = SystemManager.getErrReason()
+                    SystemManager.printWarn(\
+                        "Fail to connect to %s:%s because %s" % \
+                            (ip, port, err))
+                    if err.startswith('99'):
+                        time.sleep(0.1)
+                        continue
+                    break
+
             return connObj
         except:
             err = SystemManager.getErrReason()
@@ -4100,7 +4122,8 @@ class NetworkManager(object):
                         '|'.join(ThreadAnalyzer.requestType))
 
         SystemManager.printInfo(\
-            "use %s:%d as remote address to request %s" % (ip, port, service))
+            "use %s:%d as remote address to request %s" % \
+                (ip, port, service))
 
 
 
@@ -4121,8 +4144,7 @@ class NetworkManager(object):
             iplist = sorted(NetworkManager.getUsingIps())
             if len(iplist) > 0:
                 SystemManager.printWarn(\
-                    'available IP list [%s]' % \
-                    ', '.join(iplist))
+                    'available IP list [%s]' % ', '.join(iplist))
         except:
             pass
 
@@ -4138,7 +4160,8 @@ class NetworkManager(object):
             return
 
         # create a new server setting #
-        networkObject = NetworkManager('server', ip, port, blocking, tcp, anyPort)
+        networkObject = NetworkManager(\
+            'server', ip, port, blocking, tcp, anyPort)
         if not networkObject.ip:
             SystemManager.printWarn(\
                 "Fail to set server IP", True)
@@ -4173,24 +4196,20 @@ class NetworkManager(object):
         if servAddr:
             NetworkManager.setRemoteServer(servAddr)
 
-        try:
+        # set client address #
+        if SystemManager.localServObj:
             cliIp = SystemManager.localServObj.ip
-        except:
-            cliIp = None
-
-        try:
             cliPort = SystemManager.localServObj.port
-        except:
+        else:
+            cliIp = None
             cliPort = None
 
-        try:
+        # set server address #
+        if SystemManager.remoteServObj.ip:
             servIp = SystemManager.remoteServObj.ip
-        except:
-            servIp = None
-
-        try:
             servPort = SystemManager.remoteServObj.port
-        except:
+        else:
+            servIp = None
             servPort = None
 
         return (cliIp, cliPort), (servIp, servPort)
@@ -5678,6 +5697,8 @@ class FunctionAnalyzer(object):
 
         # get connection with server #
         self.connObj = NetworkManager.getServerConn()
+        if not self.connObj:
+            return None
 
         # request download command #
         NetworkManager.requestCmd(self.connObj, req)
@@ -6019,7 +6040,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def saveEventStack(self, targetEvent, targetCnt, targetArg, time):
+    def saveEventStack(self, targetEvent, targetCnt, targetArg):
         kpos = self.nowCtx['kerLastPos']
         upos = self.nowCtx['userLastPos']
 
@@ -6036,6 +6057,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
+            time = targetArg[2]
             targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'PAGE_FREE':
@@ -6044,6 +6066,7 @@ class FunctionAnalyzer(object):
 
             pageType = targetArg[0]
             pfn = targetArg[1]
+            time = targetArg[2]
             targetArg = [pageType, pfn, time]
 
         elif targetEvent == 'BLK_READ':
@@ -6228,7 +6251,7 @@ class FunctionAnalyzer(object):
 
             # Save full stack of previous event #
             self.saveEventStack(\
-                targetEvent, targetCnt, targetArg, self.finishTime)
+                targetEvent, targetCnt, targetArg)
 
             # Recover previous kernel stack after handling nested event #
             if nowCtx['prevMode'] == nowCtx['curMode'] == 'user' and \
@@ -8754,7 +8777,12 @@ class FunctionAnalyzer(object):
             if not item:
                 continue
 
-            lifeTime = float(self.finishTime) - float(item['time'])
+            # calculate time #
+            time = float(item['time'])
+            if time > 0:
+                lifeTime = float(self.finishTime) - time
+            else:
+                lifeTime = 0
 
             # Set user page lifetime #
             self.userSymData[item['sym']]['pageRemainTotal'] += lifeTime
@@ -12758,9 +12786,9 @@ Description:
 OPTIONS:
     [collect]
         -e  <CHARACTER>             enable options
-                b:block | e:encode | g:graph | i:irq
-                L:lock | m:memory | n:net | p:pipe
-                r:reset | P:power
+                b:block | c:cgroup | e:encode | g:graph
+                i:irq | L:lock | m:memory | n:net
+                p:pipe | r:reset | P:power
         -d  <CHARACTER>             disable options
                 a:all | c:cpu | C:compress | e:encode
         -s  <DIR|FILE>              save trace data
@@ -16787,7 +16815,8 @@ Copyright:
             SystemManager.pipeForPrint:
             return
 
-        if sys.platform.startswith('linux'):
+        if sys.platform.startswith('linux') and \
+            not 'REMOTERUN' in os.environ:
             sys.stdout.write("\x1b[2J\x1b[H")
         elif sys.platform.startswith('win'):
             os.system('cls')
@@ -18484,7 +18513,8 @@ Copyright:
                         "input number in COLS:ROWS format")
                     sys.exit(0)
 
-            elif option == 'b':
+            elif option == 'b' and \
+                not SystemManager.isRecordMode():
                 try:
                     bsize = int(value)
                     if bsize >= 0:
@@ -18526,10 +18556,7 @@ Copyright:
             elif option == 'X':
                 if not SystemManager.findOption('x'):
                     service, ip, port = NetworkManager.parseAddr(value)
-                    if port == SystemManager.defaultPort:
-                        NetworkManager.setServerNetwork(None, None, anyPort=True)
-                    else:
-                        NetworkManager.setServerNetwork(None, None)
+                    NetworkManager.setServerNetwork(None, None)
 
                 NetworkManager.setRemoteServer(value)
 
@@ -20626,7 +20653,10 @@ Copyright:
                 # build string #
                 netList = ''
                 for addr, stat in netDict.items():
-                    netList = '%s%s/%s,' % (netList, addr, '/'.join(stat))
+                    if stat:
+                        netList = '%s%s/%s,' % (netList, addr, '/'.join(stat))
+                    else:
+                        netList = '%s%s,' % (netList, addr)
                 if len(netList) > 0:
                     network = '(%s)' % netList[:-1]
                 else:
@@ -21348,6 +21378,8 @@ Copyright:
         # set address #
         connMan = NetworkManager.setServerNetwork(\
             ip, port, force=True, blocking=True, tcp=True)
+        if not connMan:
+            return
 
         SystemManager.printStat(\
             "run process %s as server" % SystemManager.pid)
@@ -21422,12 +21454,20 @@ Copyright:
             sys.stdout.write('Input command to request service...\n=> ')
             sys.stdout.flush()
 
-            return(sys.stdin.readline()[:-1])
+            return sys.stdin.readline()[:-1]
 
 
 
         # start client mode #
         SystemManager.printInfo("CLIENT MODE")
+
+        # get address info #
+        '''
+        localAddr = SystemManager.getOption('x')
+        remoteAddr = SystemManager.getOption('X')
+        local, remote = \
+            NetworkManager.prepareServerConn(localAddr, remoteAddr)
+        '''
 
         # run mainloop #
         hlist = list()
@@ -33819,15 +33859,14 @@ class ThreadAnalyzer(object):
                             "only specific threads that are involved "
                             "in process group including [ %s ] are shown") % \
                                 taskList)
+                elif SystemManager.processEnable:
+                    SystemManager.printInfo(\
+                        "only specific processes including [ %s ] are shown" % \
+                        taskList)
                 else:
-                    if SystemManager.processEnable:
-                        SystemManager.printInfo(\
-                            "only specific processes including [ %s ] are shown" % \
-                            taskList)
-                    else:
-                        SystemManager.printInfo(\
-                            "only specific threads including [ %s ] are shown" % \
-                            taskList)
+                    SystemManager.printInfo(\
+                        "only specific threads including [ %s ] are shown" % \
+                        taskList)
 
             # set network configuration #
             if not SystemManager.findOption('x'):

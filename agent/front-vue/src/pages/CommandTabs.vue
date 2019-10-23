@@ -16,7 +16,7 @@
           >
             Close tab
           </b-button>
-          <command></command>
+          <command :index="i"></command>
         </b-tab>
 
         <!-- New Tab Button (Using tabs-end slot) -->

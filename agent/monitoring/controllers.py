@@ -1,7 +1,7 @@
 from flask import make_response, render_template, request, jsonify
 from flask_restful import Resource
 from datetime import datetime
-from monitoring.models import Data, spread_data, deserialize_data
+from monitoring.models import Datas, spread_data, deserialize_data
 
 
 class Main(Resource):
@@ -17,6 +17,28 @@ class Main(Resource):
         )
 
 
+class Devices(Resource):
+    def __init__(self):
+        pass
+
+    def get(self):
+        from monitoring.models import Devices
+        if Devices.objects.count() == 0:
+            find_devices_from_db()
+        devices = list(Devices.objects)
+        results = []
+        from_utc = 9 * 60 * 60
+        for device in devices:
+            results.append(dict(
+                start=int(datetime.timestamp(device['start'])+from_utc),
+                end=int(datetime.timestamp(device['end'])+from_utc),
+                count=device['count'],
+                mac_addr=device['mac_addr']
+            ))
+        print(results)
+        return jsonify(dict(status="ok", data=results))
+
+
 class Dataset(Resource):
     def __init__(self):
         pass
@@ -26,16 +48,20 @@ class Dataset(Resource):
         start = args.get('start', None)
         end = args.get('end', None)
         num = args.get('num', 20)
-        count = Data.objects.count()
+        mac_addr = args.get('mac_addr', None)
+        count = Datas.objects(mac_addr=mac_addr).count()
         from_utc = 9 * 60 * 60
         # check if database exists
+
+        if mac_addr is None:
+            jsonify(dict(status="failed", data=[], msg="We need mac_addr"))
         if count == 0:
             return jsonify(dict(status="ok", data=[]))
         else:
-            db_start = (Data.objects.order_by('+timestamp').limit(1))
+            db_start = (Datas.objects(mac_addr=mac_addr).order_by('+timestamp').limit(1))
             db_start = int(datetime.timestamp(db_start[0]['timestamp'])) + \
                 from_utc
-            db_end = (Data.objects.order_by('-timestamp').limit(1))
+            db_end = (Datas.objects(mac_addr=mac_addr).order_by('-timestamp').limit(1))
             db_end = int(datetime.timestamp(db_end[0]['timestamp'])) + from_utc
         # validate query string
         try:
@@ -51,8 +77,8 @@ class Dataset(Resource):
             num = int(num)
         except Exception as e:
             print('Failed to parse start, end ', e)
-            return jsonify(dict(status="failed", data=[]))
-        datas = list(Data.objects().order_by('+timestamp').all())
+            return jsonify(dict(status="failed", data=[], msg="Failed to parse start, end"))
+        datas = list(Datas.objects().order_by('+timestamp').all())
         print(len(datas), start, end)
         # TODO: Quering Database in range, Not processing everything.
         # TODO: only fetch data in a certain mac_address.
@@ -106,3 +132,30 @@ class Slack(Resource):
         #     return Response(
         #         'Hello', content_type='application/json;charset=utf-8')
         pass
+
+
+def find_devices_from_db():
+    # fetch new data from dbs
+    datas = list(Datas.objects)
+
+    print('%d datas are found at mongoDB' % (len(datas)))
+    devices = dict()
+    for data in datas:
+        timestamp = data.timestamp
+        if data.mac_addr in devices:
+            if timestamp < devices[data.mac_addr]['start']:
+                devices[data.mac_addr]['start'] = timestamp
+            if timestamp > devices[data.mac_addr]['end']:
+                devices[data.mac_addr]['end'] = timestamp
+            devices[data.mac_addr]['count'] += 1
+        else:
+            devices[data.mac_addr] = dict(
+                start=timestamp,
+                end=timestamp,
+                count=1,
+                mac_addr=data.mac_addr
+            )
+    results = list(devices.values())
+    for result in results:
+        Devices(**result).save()
+    print('saved %d new devices info' % (len(results)))

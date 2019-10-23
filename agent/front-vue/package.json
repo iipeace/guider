@@ -5,11 +5,11 @@
   "description": "Web UI for guider",
   "author": "Peace Lee <iipeace5@gmail.com>",
   "scripts": {
-    "serve": "vue-cli-service serve --open",
+    "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "e2e": "node test/e2e/runner.js",
     "lint": "vue-cli-service lint",
-    "dev": "vue-cli-service serve --open",
+    "dev": "vue-cli-service serve",
     "lint-fix": "vue-cli-service lint --fix"
   },
   "dependencies": {

@@ -21,6 +21,12 @@ export default {
         route => route.name || route.meta.label
       );
     }
+  },
+  mounted() {
+    const server = JSON.parse(sessionStorage.getItem("server"));
+    if (server) {
+      this.$store.commit("setServer", server);
+    }
   }
 };
 </script>

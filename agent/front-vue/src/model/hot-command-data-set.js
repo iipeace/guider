@@ -1,4 +1,4 @@
-export class Option {
+class Option {
   name = "";
   hasInput = false;
   description = "";
@@ -10,7 +10,7 @@ export class Option {
     this.description = description;
   }
 }
-export class Command {
+class Command {
   name = "";
   helpOptions = [];
 

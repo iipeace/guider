@@ -1,9 +1,10 @@
 import json
 import sys
+from datetime import datetime
 
 from common.guider import GuiderInstance, RequestManager
 from flask_socketio import emit
-from monitoring.models import CPU, Memory, Network, Storage, Data
+from monitoring.models import CPU, Memory, Network, Storage, Datas, Devices
 
 
 def save_database(msg):
@@ -25,10 +26,24 @@ def save_database(msg):
                           usage=msg['storage']['usage'],
                           total=msg['storage']['total'])
 
-        data = Data(cpu=cpu, memory=memory, network=network,
-                    storage=storage, mac_addr=msg['mac_addr'])
+        data = Datas(cpu=cpu, memory=memory, network=network,
+                     storage=storage, mac_addr=msg['mac_addr'])
         data.save()
-
+        # refreshing Devices
+        devices = Devices.objects(mac_addr=msg['mac_addr'])
+        if len(devices) >= 1:
+            for device in devices:
+                device.update(
+                    set__end=datetime.utcnow(),
+                    set__count=device['count']+1
+                )
+        else:
+            Devices(
+                start=datetime.utcnow(),
+                end=datetime.utcnow(),
+                mac_addr=msg['mac_addr'],
+                count=1
+            ).save()
         print('database saved in mongodb!')
     except Exception as e:
         print('failed to save instance in MongoDB', e)
@@ -51,15 +66,15 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe.replace('\n', '</br>')
-            emit('set_command_data', result)
+            emit(request_id, result)
         pipe.close()
-        RequestManager.stop_request(request_id)
+        stop_command_run(request_id)
     except Exception as e:
         print(e)
         if pipe:
             pipe.close()
-        RequestManager.stop_request(request_id)
-        emit('set_command_data', result)
+        stop_command_run(request_id)
+        emit(request_id, result)
 
 
 def parse_to_dashboard_data(data):
@@ -162,9 +177,17 @@ def get_dashboard_data(request_id, target_addr):
 
 
 def stop_command_run(request_id):
-    print("request_stop")
+    result = dict(result=0, data='stop success', errMsg='')
+    stop_event = request_id + '_stop';
     if RequestManager.get_request_status(request_id):
         RequestManager.stop_request(request_id)
-        emit('request_stop_result', 'stop success : ' + request_id)
+        emit(stop_event, result)
     else:
-        emit('request_stop_result', 'stop failed : ' + request_id)
+        result['result'] = -1
+        result['errMsg'] = 'stop failed'
+        emit(stop_event, result)
+
+
+def health_check(target_addr, request_id):
+    get_data_by_command(target_addr, request_id, 'GUIDER list')
+
