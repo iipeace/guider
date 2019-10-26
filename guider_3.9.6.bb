@@ -6,12 +6,12 @@ AUTHOR = "Peace Lee <ipeace5@gmail.com>"
 LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=2c1c00f9d3ed9e24fa69b932b7e7aff2"
 
-PV = "3.9.5+git${SRCPV}"
+PV = "3.9.6+git${SRCPV}"
 PR = "r0"
 
 SRC_URI = "git://github.com/iipeace/${BPN}"
 #SRCREV = "${AUTOREV}"
-SRCREV = "534f385a86b6be105a6519f4c87f230e1a10d408"
+SRCREV = "fef25c41efb9bde0614ea477d0b90bd9565ae0b4"
 
 S = "${WORKDIR}/git"
 R = "${RECIPE_SYSROOT}"
