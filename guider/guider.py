@@ -28254,6 +28254,8 @@ struct msghdr {
 
             SystemManager.syscall('tkill', pid, signal.SIGSTOP)
             return 0
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -28862,9 +28864,9 @@ struct msghdr {
 
         SystemManager.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[NrSymbols: %s] [CPU: %.1f%%(Usr:%.1f%%/Sys:%.1f%%)]%s \n%s\n') % \
+            '[Comm: %s] [CPU: %d%%(Usr:%d%%/Sys:%d%%)]%s \n%s\n') % \
                 (ctype, SystemManager.uptime, diff, \
-                convert(self.totalCall), len(self.callTable), \
+                convert(self.totalCall), self.comm, \
                 ttime, utime, stime, sampleStr, twoLine), newline=2)
 
         SystemManager.addPrint(\
@@ -30060,6 +30062,7 @@ struct msghdr {
         self.stimeIdx = ConfigManager.STAT_ATTR.index("STIME")
         sigTrapFlag = signal.SIGTRAP | \
             ConfigManager.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
+        self.comm = SystemManager.getComm(pid)
 
         # context variables #
         self.start = 0
@@ -30503,9 +30506,9 @@ struct msghdr {
             sampleRateStr = ''
 
         SystemManager.printPipe((\
-            '\n[%s %s Info] [Time: %f] %s '
+            '\n[%s %s Info] [Time: %f] %s [Comm: %s] '
             '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]%s') % \
-                (mtype, ctype, elapsed, samplingStr, \
+                (mtype, ctype, elapsed, samplingStr, instance.comm, \
                 convert(long(nrTotal)), sampleRateStr, \
                 convert(len(callTable)), instance.sampleTime, suffix))
 
