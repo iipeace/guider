@@ -9739,7 +9739,7 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.printPipe(\
-                "{0:^7} | {1:^7} | {2:^7} |{3:^46} | {4:^74} |".\
+                "{0:>7} | {1:>7} | {2:>7} |{3:^46} | {4:<74} |".\
                     format(convertFunc(val['lastPosSize']), val['count'], \
                     convertFunc(int(val['lastPosSize'] / val['count'])), \
                     sym, val['path']))
@@ -9778,7 +9778,7 @@ class LeakAnalyzer(object):
                 break
 
             SystemManager.printPipe(\
-                "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".format(\
+                "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(\
                     convertFunc(val['lastPosSize']), val['count'], \
                     convertFunc(int(val['lastPosSize'] / val['count'])), file))
 
