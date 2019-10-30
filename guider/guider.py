@@ -10959,6 +10959,7 @@ class SystemManager(object):
         TICK = int((1 / float(HZ)) * 1000)
 
     arch = None
+    origArgs = None
     kernelVersion = None
     wordSize = 4
     isLinux = True
@@ -36872,6 +36873,12 @@ class ThreadAnalyzer(object):
         try:
             if SystemManager.systemInfoBuffer and \
                 len(SystemManager.systemInfoBuffer) > 0:
+                # add draw command #
+                drawCmdStr = "{0:20} # {1:<100}".\
+                    format('DrawCmd', ' '.join(SystemManager.origArgs))
+                SystemManager.systemInfoBuffer = \
+                    SystemManager.systemInfoBuffer[:-1] + drawCmdStr
+
                 self.figure.text(\
                     0, 1, SystemManager.systemInfoBuffer,\
                         va='top', ha='left', size=2)
@@ -49280,6 +49287,9 @@ def main(args=None):
     # update arguments #
     if UtilManager.isString(args):
         sys.argv = ['guider'] + args.split()
+
+    # save original args #
+    SystemManager.origArgs = copy.deepcopy(sys.argv)
 
     # register exit handler #
     atexit.register(SystemManager.doExit)
