@@ -35519,7 +35519,7 @@ class ThreadAnalyzer(object):
                         maxBlkPer = str(blkUsage[maxIdx])
                     else:
                         maxBlkPer = '0'
-                    maxPer = '[max:%s+%s/avg:%s]' % \
+                    maxPer = '[max: %s%%+%s%% / avg: %s%%]' % \
                         (maxCpuPer, maxBlkPer, avgUsage)
 
                     ilabel = '%s%s %s' % (prefix, idx, maxPer)
@@ -35556,6 +35556,7 @@ class ThreadAnalyzer(object):
                 inc = 1
             yticks(xrange(0, ymax + inc, inc), fontsize=5)
 
+            # add % unit to each value #
             try:
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(int, ytickLabel))
@@ -38071,18 +38072,41 @@ class ThreadAnalyzer(object):
         # prepare to draw graph #
         if not SystemManager.isRecordMode() and \
             SystemManager.graphEnable:
-            # get pylab object #
-            pylab = SystemManager.getPkg('pylab')
-            from pylab import rc, rcParams
-
-            if SystemManager.intervalEnable > 0:
-                os.environ['DISPLAY'] = 'localhost:0'
-                rc('legend', fontsize=5)
-                rcParams.update({'font.size': 8})
-            else:
+            # check interval value #
+            if SystemManager.intervalEnable == 0:
                 SystemManager.printErr(\
                     "use -i option if you want to draw graph")
                 SystemManager.graphEnable = False
+                return
+
+            # get matplotlib object #
+            matplotlib = SystemManager.getPkg('matplotlib', False)
+            if not matplotlib:
+                SystemManager.printWarn((\
+                    "Try to enter %s command to install the package") % \
+                        ("'pip install matplotlib'"), True)
+                sys.exit(0)
+            from matplotlib.ticker import MaxNLocator
+
+            SystemManager.matplotlibVersion = \
+                float('.'.join(matplotlib.__version__.split('.')[:2]))
+
+            # set dpi #
+            matplotlib.rcParams['figure.dpi'] = 500
+
+            # set backend #
+            matplotlib.use('Agg')
+
+            # get pylab object #
+            pylab = SystemManager.getPkg('pylab')
+            from pylab import \
+                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
+                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
+                ticklabel_format, suptitle, grid, yticks, xticks, \
+                locator_params, subplot2grid, ylim, xlim, tick_params
+
+            rc('legend', fontsize=5)
+            rcParams.update({'font.size': 8})
         else:
             SystemManager.graphEnable = False
 
@@ -39207,7 +39231,6 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe(twoLine)
 
         # graph list #
-        cpuLabelList = []
         cpuUsageList = []
         cpuThrLabelList = []
         cpuThrUsageList = []
@@ -39299,7 +39322,6 @@ class ThreadAnalyzer(object):
                 timeLine = timeLine.replace('F', '')
                 timeLineData = [int(n) for n in timeLine.split()]
                 cpuUsageList.append(timeLineData)
-                cpuLabelList.append('[' + value['comm'] + ']')
 
         # total memory usage on timeline #
         timeLine = ''
@@ -39536,8 +39558,8 @@ class ThreadAnalyzer(object):
                     color = 'green'
 
                 plot(range(intervalEnable,\
-                    (timelen+1)*intervalEnable,\
-                    intervalEnable), item, '-', c=color)
+                        (timelen+1)*intervalEnable, intervalEnable),\
+                    item, '-', c=color)
 
                 ytick = yticks()[0]
                 if len(ytick) > 1:
@@ -39554,17 +39576,30 @@ class ThreadAnalyzer(object):
                     text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=5,\
                         color=color, fontweight='bold')
 
-            ylabel('MEMORY(MB)', fontsize=8)
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), \
                     fontsize=3.5, loc='upper right')
             else:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
 
+            # add % unit to each value #
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                convertNum = UtilManager.convertSize2Unit
+                ytickLabel = \
+                    [convertNum(val << 20, True) for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
+            except:
+                pass
+
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 5)
             xticks(fontsize = 4)
-            ticklabel_format(useOffset=False)
+            #ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
             figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.05)
@@ -39649,11 +39684,18 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
             # cpu total usage #
+            totalCpuUsage = None
             for item in cpuUsageList:
-                plot(range(intervalEnable,\
-                    (timelen+1)*intervalEnable,\
-                    intervalEnable), item, '.-',\
-                    linewidth=3, solid_capstyle='round')
+                if totalCpuUsage is None:
+                    totalCpuUsage = item
+                    continue
+
+                totalCpuUsage = list(map(int.__add__, totalCpuUsage, item))
+
+            avgCpuUsage = [x / len(cpuUsageList) for x in totalCpuUsage]
+            plot(range(intervalEnable,\
+                    (timelen+1)*intervalEnable, intervalEnable),\
+                avgCpuUsage, '.-', linewidth=3, solid_capstyle='round')
 
             # cpu usage of threads #
             for idx, item in enumerate(cpuThrUsageList):
@@ -39670,23 +39712,39 @@ class ThreadAnalyzer(object):
                     margin = 0
 
                 maxCpuPer = str(item[maxIdx])
-                label = '[' + maxCpuPer + '%]' + cpuThrLabelList[idx]
+                label = '%s[max: %s%%]' % \
+                    (cpuThrLabelList[idx], maxCpuPer)
                 text(maxIdx + 1, item[maxIdx] + margin, label,\
                     fontsize=3, color=color, fontweight='bold')
 
             # draw cpu graph #
-            ylabel('CPU(%)', fontsize=8)
-            totalLabel = cpuLabelList + cpuThrLabelList
+            totalLabel = [' CPU Average '] + cpuThrLabelList
             if SystemManager.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),\
                     fontsize=3.5, loc='upper right')
             else:
-                legend(totalLabel, bbox_to_anchor=(1.12, 1), loc='upper right')
+                legend(totalLabel, \
+                bbox_to_anchor=(1.12, 1), loc='upper right')
+
+            # add % unit to each value #
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(int, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    ['%s%%' % val for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
+            except:
+                pass
+
+            suptitle('Guider Graph', fontsize=8)
 
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize = 7)
             xticks(fontsize = 5)
-            ticklabel_format(useOffset=False)
+            #ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
             figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.05)
