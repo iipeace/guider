@@ -35102,7 +35102,7 @@ class ThreadAnalyzer(object):
             seq += 1
 
         # draw image #
-        figure(num=1, figsize=(10, 10), dpi=1000, facecolor='b', edgecolor='k').\
+        figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
             subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
@@ -35570,8 +35570,7 @@ class ThreadAnalyzer(object):
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             self.figure = \
-                figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k')
+                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
@@ -36168,8 +36167,7 @@ class ThreadAnalyzer(object):
 
             locator_params(axis = 'x', nbins=30)
             self.figure = \
-                figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k')
+                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             # convert tick type to integer #
@@ -36724,8 +36722,7 @@ class ThreadAnalyzer(object):
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
             self.figure = \
-                figure(num=1, figsize=(10, 10), dpi=2000, \
-                facecolor='b', edgecolor='k')
+                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
             drawBottom(xtype, ax)
@@ -36755,6 +36752,9 @@ class ThreadAnalyzer(object):
             pie, axis, subplots_adjust, legend, figure, savefig, clf, \
             ticklabel_format, suptitle, grid, yticks, xticks, \
             locator_params, subplot2grid, ylim, xlim, tick_params
+
+        # set dpi #
+        matplotlib.rcParams['figure.dpi'] = 500
 
         '''
         initialize list that count the number of process
@@ -36926,7 +36926,7 @@ class ThreadAnalyzer(object):
 
         try:
             # save graph #
-            savefig(outputFile, dpi=(300))
+            savefig(outputFile)
             clf()
 
             # get output size #
@@ -39559,7 +39559,7 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 4)
             ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', edgecolor='k').\
+            figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
                 subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         # CPU usage on timeline #
@@ -39681,8 +39681,8 @@ class ThreadAnalyzer(object):
             xticks(fontsize = 5)
             ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
-            figure(num=1, figsize=(10, 10), dpi=2000, facecolor='b', \
-                edgecolor='k').subplots_adjust(left=0.06, top=0.95, bottom=0.05)
+            figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
+                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         if SystemManager.cpuEnable:
             SystemManager.printPipe("%s# %s\n" % ('', 'CPU(%)'))
