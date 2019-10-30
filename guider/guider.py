@@ -3935,25 +3935,27 @@ class NetworkManager(object):
         # set server address again #
         elif SystemManager.remoteServObj:
             servObj = SystemManager.remoteServObj
-            servObj.close()
-            NetworkManager.setRemoteServer(\
-                '%s:%s' % (servObj.ip, servObj.port), tcp=True)
+            ip = servObj.ip
+            port = servObj.port
+            NetworkManager.setRemoteServer('%s:%s' % (ip, port), tcp=True)
 
         # check server address #
         if not SystemManager.remoteServObj:
             printErr()
             return None
 
-        # bind local socket #
+        # bind local socket for UDP #
         try:
-            ip = SystemManager.localServObj.ip
-            port = SystemManager.localServObj.port
-            SystemManager.remoteServObj.socket.bind((ip, port))
+            if not SystemManager.remoteServObj.tcp and \
+                SystemManager.localServObj:
+                lip = SystemManager.localServObj.ip
+                lport = SystemManager.localServObj.port
+                SystemManager.remoteServObj.socket.bind((lip, lport))
         except:
             err = SystemManager.getErrReason()
             SystemManager.printErr(\
-                "Fail to bind client socket to %s:%s for connection because %s" % \
-                    (ip, port, err))
+                "Fail to bind socket to %s:%s for connection because %s" % \
+                    (lip, lport, err))
 
         # do connect to server #
         try:
