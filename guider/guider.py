@@ -22136,25 +22136,25 @@ Copyright:
                 sys.exit(0)
         else:
             try:
-                totalLoad = load = int(value[0])
-                if load > 100:
-                    nrTask = int(load / 100) + 1
-                    load = int(load / nrTask)
-                else:
-                    nrTask = 1
+                totalLoad = int(value[0])
+                nrTask = totalLoad / 100
+                modLoad = totalLoad % 100
+
+                if modLoad > 0:
+                    nrTask += 1
+
+                load = int(totalLoad / nrTask)
             except:
                 SystemManager.printErr(\
-                    ("wrong option value, "
-                    "input number in integer format"))
+                    ("wrong option value because %s, "
+                    "input number in integer format") % \
+                        SystemManager.getErrReason())
                 sys.exit(0)
 
         if nrTask > 1:
             taskstr = '%d processes' % nrTask
         else:
             taskstr = 'a process'
-
-        SystemManager.printInfo(\
-            "started to create %s" % taskstr)
 
         # run tasks #
         limitInfo = dict()
