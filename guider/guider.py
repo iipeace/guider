@@ -12361,8 +12361,9 @@ class SystemManager(object):
                 SystemManager.printSigError(\
                     SystemManager.pid, 'SIGINT', 'warning')
 
-        UtilManager.printProgress(\
-            SystemManager.progressCnt, SystemManager.repeatCount)
+        if SystemManager.repeatCount > 1:
+            UtilManager.printProgress(\
+                SystemManager.progressCnt, SystemManager.repeatCount)
 
         SystemManager.progressCnt += 1
 
@@ -17954,9 +17955,15 @@ Copyright:
         convertNum = UtilManager.convertNumber
 
         # split params #
-        repeatParams = value.split(':')
+        if value:
+            repeatParams = value.split(':')
+        else:
+            repeatParams = 0
 
-        if len(repeatParams) == 2 or len(repeatParams) == 3:
+        if repeatParams == 0:
+            SystemManager.intervalEnable = 1
+            SystemManager.repeatCount = 1
+        elif len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
                 # get interval #
                 interval = UtilManager.convertUnit2Time(repeatParams[0])
