@@ -28911,8 +28911,15 @@ struct msghdr {
                 break
 
             if self.mode == 'syscall':
-                addVal = "Cnt: %s, Err: %s" % (
-                    convert(value['cnt']), convert(value['err']))
+                try:
+                    total = self.syscallTotTime[sym]
+                    average = total / value['cnt']
+                except:
+                    total = average = 0
+
+                addVal = "Cnt: %s, Total: %.6f, Avg: %.6f, Err: %s" % \
+                    (convert(value['cnt']), \
+                        total, average, convert(value['err']))
             else:
                 addVal = value['path']
 
@@ -28949,6 +28956,9 @@ struct msghdr {
             SystemManager.addPrint('\tNone\n')
 
         SystemManager.addPrint('%s\n' % oneLine)
+
+        # initialize syscall timetable #
+        self.syscallTotTime = dict()
 
         finishPrint()
 
@@ -29855,9 +29865,12 @@ struct msghdr {
                 return
 
             args = []
+            current = time.time()
 
             # convert args except for top mode #
-            if not self.isRealtime:
+            if self.isRealtime:
+                self.syscallTime[name] = current
+            else:
                 if self.isDeferrableCall(name):
                     self.status = 'deferrable'
 
@@ -29865,7 +29878,6 @@ struct msghdr {
                         return
 
                     # get diff time #
-                    current = time.time()
                     diff = current - self.start
 
                     # build call string #
@@ -29893,6 +29905,22 @@ struct msghdr {
         elif self.status == 'exit':
             # set next status #
             self.status = 'enter'
+
+            # get diff time #
+            if self.isRealtime:
+                current = time.time()
+
+                # get diff #
+                try:
+                    diff = current - self.syscallTime[name]
+                except:
+                    diff = 0
+
+                # apply diff #
+                try:
+                    self.syscallTotTime[name] += diff
+                except:
+                    self.syscallTotTime[name] = diff
 
             # set return value from register #
             retval = regs[self.retreg]
@@ -30115,6 +30143,8 @@ struct msghdr {
         self.prevCallString = ''
         self.callList = list()
         self.callPrint = list()
+        self.syscallTime = dict()
+        self.syscallTotTime = dict()
 
         # disable extended ascii #
         SystemManager.encodeEnable = False
