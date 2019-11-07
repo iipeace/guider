@@ -14029,7 +14029,7 @@ Examples:
                 elif SystemManager.isCpuTestMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <NRTASK:LOAD> [OPTIONS] [--help]
+    # {0:1} {1:1} <LOAD:NRTASK> [OPTIONS] [--help]
 
 Description:
     Create tasks using cpu
@@ -14041,8 +14041,8 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Create 10 threads using 50% of a core each other
-        # {0:1} {1:1} 10:50
+    - Create 10 processes using 5% of a core each other
+        # {0:1} {1:1} 50:10
 
     - Create threads using 250% totally
         # {0:1} {1:1} 250
@@ -22109,33 +22109,21 @@ Copyright:
             while 1:
                 pass
 
-        # parse options #
-        if len(sys.argv) < 3:
-            SystemManager.printErr(\
-                ("wrong option value to test cpu load, "
-                "input in the format {THREAD:}LOAD"))
-            sys.exit(0)
-
         # get the number of task and load #
-        value = sys.argv[2].split(':')
-        if len(value) > 2:
-            SystemManager.printErr(\
-                ("wrong option value to test cpu load, "
-                "input in the format {THREAD:}LOAD"))
-            sys.exit(0)
-        elif len(value) == 2:
-            try:
-                nrTask, load = list(map(int, value))
-                totalLoad = nrTask * load
+        try:
+            if len(sys.argv) < 3:
+                raise Exception()
+
+            # parse values #
+            value = sys.argv[2].split(':')
+            if len(value) > 2:
+                raise Exception()
+            elif len(value) == 2:
+                totalLoad, nrTask = list(map(int, value))
                 if nrTask == 0:
                     nrTask = 1
-            except:
-                SystemManager.printErr(\
-                    ("wrong option value, "
-                    "input number in integer format"))
-                sys.exit(0)
-        else:
-            try:
+                load = totalLoad / nrTask
+            else:
                 totalLoad = int(value[0])
                 nrTask = totalLoad / 100
                 modLoad = totalLoad % 100
@@ -22144,12 +22132,14 @@ Copyright:
                     nrTask += 1
 
                 load = int(totalLoad / nrTask)
-            except:
-                SystemManager.printErr(\
-                    ("wrong option value because %s, "
-                    "input number in integer format") % \
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SystemManager.printErr(\
+                ("wrong option value because %s, "
+                    "input number in the format LOAD{:NRTASK}") % \
                         SystemManager.getErrReason())
-                sys.exit(0)
+            sys.exit(0)
 
         if nrTask > 1:
             taskstr = '%d processes' % nrTask
