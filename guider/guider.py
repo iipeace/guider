@@ -20469,9 +20469,9 @@ Copyright:
         procList = SystemManager.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%6s\t%6s\t%16s\t%14s\t%s\n%s\n' % \
+        bgStr = '%s%s\n%6s\t%6s\t%16s\t%8s\t%14s\t%s\n%s\n' % \
             (bgStr, twoLine, "PID", "PPID", "COMM", \
-                "RUNTIME", "COMMAND", oneLine)
+                "STATE", "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
 
         return bgStr
@@ -20629,6 +20629,13 @@ Copyright:
 
                 # ppid #
                 ppid = statList[gstatList.index("PPID")]
+
+                # ppid #
+                try:
+                    state = ConfigManager.PROC_STAT_TYPE[\
+                        statList[gstatList.index("STATE")]]
+                except:
+                    state = 'N/A'
             except:
                 pass
 
@@ -20682,13 +20689,15 @@ Copyright:
                 printDict[pid] = {
                     'comm': comm,
                     'ppid': ppid,
+                    'state': state,
                     'runtime': runtime,
                     'cmdline': cmdline,
                     'network': network
                 }
             else:
-                printBuf = '%s%6s\t%6s\t%16s\t%14s\t%s %s\n' % \
-                    (printBuf, pid, ppid, comm, runtime, cmdline, network)
+                printBuf = '%s%6s\t%6s\t%16s\t%8s\t%14s\t%s %s\n' % \
+                    (printBuf, pid, ppid, comm, \
+                        state, runtime, cmdline, network)
 
         if isJson:
             return printDict
