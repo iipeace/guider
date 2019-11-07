@@ -20469,8 +20469,9 @@ Copyright:
         procList = SystemManager.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%6s\t%16s\t%14s\t%s\n%s\n' % \
-            (bgStr, twoLine, "PID", "COMM", "RUNTIME", "COMMAND", oneLine)
+        bgStr = '%s%s\n%6s\t%6s\t%16s\t%14s\t%s\n%s\n' % \
+            (bgStr, twoLine, "PID", "PPID", "COMM", \
+                "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
 
         return bgStr
@@ -20621,10 +20622,13 @@ Copyright:
                         if ')' in tmpStr:
                             break
 
+                # runtime #
                 procStart = \
                     float(statList[gstatList.index("STARTTIME")]) / 100
-
                 runtime = int(SystemManager.uptime - procStart)
+
+                # ppid #
+                ppid = statList[gstatList.index("PPID")]
             except:
                 pass
 
@@ -20677,13 +20681,14 @@ Copyright:
             if isJson:
                 printDict[pid] = {
                     'comm': comm,
+                    'ppid': ppid,
                     'runtime': runtime,
                     'cmdline': cmdline,
                     'network': network
                 }
             else:
-                printBuf = '%s%6s\t%16s\t%14s\t%s %s\n' % \
-                    (printBuf, pid, comm, runtime, cmdline, network)
+                printBuf = '%s%6s\t%6s\t%16s\t%14s\t%s %s\n' % \
+                    (printBuf, pid, ppid, comm, runtime, cmdline, network)
 
         if isJson:
             return printDict
@@ -22160,7 +22165,7 @@ Copyright:
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
-                    "Failed to start process because %s" % err)
+                    "Failed to create process because %s" % err)
                 sys.exit(0)
 
         if len(limitInfo) > 1:
@@ -22189,6 +22194,8 @@ Copyright:
             # allocate memory #
             try:
                 buffer = bytearray(size)
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
@@ -22229,6 +22236,8 @@ Copyright:
             size = UtilManager.convertUnit2Size(size)
             if not size:
                 raise Exception()
+        except SystemExit:
+            sys.exit(0)
         except:
             errMsg = ("wrong option value because %s, "
                 "input integer number in the format SIZE{:INTERVAL:COUNT}") % \
