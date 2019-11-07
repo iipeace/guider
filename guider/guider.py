@@ -20469,9 +20469,9 @@ Copyright:
         procList = SystemManager.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%6s\t%6s\t%16s\t%8s\t%14s\t%s\n%s\n' % \
+        bgStr = '%s%s\n%6s\t%6s\t%16s\t%8s\t%5s\t%14s\t%s\n%s\n' % \
             (bgStr, twoLine, "PID", "PPID", "COMM", \
-                "STATE", "RUNTIME", "COMMAND", oneLine)
+                "STATE", "RSS", "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
 
         return bgStr
@@ -20630,12 +20630,16 @@ Copyright:
                 # ppid #
                 ppid = statList[gstatList.index("PPID")]
 
-                # ppid #
+                # state #
                 try:
                     state = ConfigManager.PROC_STAT_TYPE[\
                         statList[gstatList.index("STATE")]]
                 except:
                     state = 'N/A'
+
+                # rss #
+                rss = long(statList[gstatList.index("RSS")])
+                rss = UtilManager.convertSize2Unit(rss << 12, True)
             except:
                 pass
 
@@ -20690,14 +20694,15 @@ Copyright:
                     'comm': comm,
                     'ppid': ppid,
                     'state': state,
+                    'rss': rss,
                     'runtime': runtime,
                     'cmdline': cmdline,
                     'network': network
                 }
             else:
-                printBuf = '%s%6s\t%6s\t%16s\t%8s\t%14s\t%s %s\n' % \
+                printBuf = '%s%6s\t%6s\t%16s\t%8s\t%5s\t%14s\t%s %s\n' % \
                     (printBuf, pid, ppid, comm, \
-                        state, runtime, cmdline, network)
+                        state, rss, runtime, cmdline, network)
 
         if isJson:
             return printDict
@@ -21900,7 +21905,7 @@ Copyright:
         else:
             pid = int(pids[0])
 
-        # ignore sigchld #
+        # ignore SIGCHLD #
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
         # start tracing #
@@ -22187,6 +22192,9 @@ Copyright:
             "and %d%% respectively") % \
                 (taskstr, totalLoad, load))
 
+        # ignore SIGCHLD #
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
         # limit CPU usage of tasks #
         SystemManager.doLimitCpu(limitInfo, verbose=False)
 
@@ -22213,9 +22221,9 @@ Copyright:
 
             SystemManager.printInfo((\
                 'allocated %s of physical memory, '
-                'used %s of additional physical memory for execution') % \
-                (UtilManager.convertSize2Unit(len(buffer), True), \
-                UtilManager.convertSize2Unit(rssSize, True)))
+                'used %s of additional physical memory for run') % \
+                    (UtilManager.convertSize2Unit(len(buffer), True), \
+                        UtilManager.convertSize2Unit(rssSize, True)))
 
             SystemManager.waitEvent()
 
@@ -22491,6 +22499,8 @@ Copyright:
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, signal.SIGSTOP)
+                                except SystemExit:
+                                    raise Exception()
                                 except:
                                     SystemManager.printSigError(tid, 'SIGSTOP')
                             val['running'] = False
@@ -22501,6 +22511,8 @@ Copyright:
                             for tid in val['group']:
                                 try:
                                     os.kill(tid, signal.SIGCONT)
+                                except SystemExit:
+                                    raise Exception()
                                 except:
                                     SystemManager.printSigError(tid, 'SIGCONT')
 
@@ -22512,6 +22524,8 @@ Copyright:
                 for tid in val['group']:
                     try:
                         os.kill(tid, signal.SIGCONT)
+                    except SystemExit:
+                        pass
                     except:
                         SystemManager.printSigError(tid, 'SIGCONT')
 
