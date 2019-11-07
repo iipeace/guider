@@ -22137,7 +22137,7 @@ Copyright:
         except:
             SystemManager.printErr(\
                 ("wrong option value because %s, "
-                    "input number in the format LOAD{:NRTASK}") % \
+                    "input integer number in the format LOAD{:NRTASK}") % \
                         SystemManager.getErrReason())
             sys.exit(0)
 
@@ -22205,45 +22205,35 @@ Copyright:
 
             sys.exit(0)
 
-        # parse option #
-        value = sys.argv[2].split(':')
-        if len(value) == 3:
-            size, interval, count = value
-        elif len(value) == 2:
-            size, interval = value
-            count = 0
-        elif len(value) == 1:
-            size = value[0]
-            interval = count = 0
-        else:
-            SystemManager.printErr(\
-                ("wrong option value to test memory allocation, "
-                "input SIZE{:INTERVAL:COUNT} in the format"))
-            sys.exit(0)
-
         # convert time #
         try:
+            # parse option #
+            value = sys.argv[2].split(':')
+            if len(value) == 3:
+                size, interval, count = value
+            elif len(value) == 2:
+                size, interval = value
+                count = 0
+            elif len(value) == 1:
+                size = value[0]
+                interval = count = 0
+            elif '.' in size:
+                raise Exception()
+            else:
+                raise Exception()
+
             interval = UtilManager.convertUnit2Time(interval)
             count = int(count)
+
+            # convert memory size #
+            size = UtilManager.convertUnit2Size(size)
+            if not size:
+                raise Exception()
         except:
-            SystemManager.printErr(\
-                ("wrong option value to test memory allocation, "
-                "input SIZE{:INTERVAL:COUNT} in the format"))
-            sys.exit(0)
-
-        # check size type #
-        if '.' in size:
-            SystemManager.printErr(\
-                ("wrong option value, "
-                "input number in integer format"))
-            sys.exit(0)
-
-        # convert memory size #
-        size = UtilManager.convertUnit2Size(size)
-        if not size:
-            SystemManager.printErr(\
-                ("wrong option value to test memory allocation, "
-                "input size to allocate memory"))
+            errMsg = ("wrong option value because %s, "
+                "input integer number in the format SIZE{:INTERVAL:COUNT}") % \
+                    SystemManager.getErrReason()
+            SystemManager.printErr(errMsg)
             sys.exit(0)
 
         # get self memory usage #
