@@ -28908,12 +28908,13 @@ struct msghdr {
                 try:
                     total = self.syscallTotTime[sym]
                     average = total / value['cnt']
+                    tmax = self.syscallMaxTime[sym]
                 except:
-                    total = average = 0
+                    total = average = tmax = 0
 
-                addVal = "Cnt: %s, Total: %.6f, Avg: %.6f, Err: %s" % \
+                addVal = "Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s" % \
                     (convert(value['cnt']), \
-                        total, average, convert(value['err']))
+                        total, average, tmax, convert(value['err']))
             else:
                 addVal = value['path']
 
@@ -28953,6 +28954,7 @@ struct msghdr {
 
         # initialize syscall timetable #
         self.syscallTotTime = dict()
+        self.syscallMaxTime = dict()
 
         finishPrint()
 
@@ -29913,8 +29915,12 @@ struct msghdr {
                 # apply diff #
                 try:
                     self.syscallTotTime[name] += diff
+
+                    if self.syscallMaxTime[name] < diff:
+                        self.syscallMaxTime[name] = diff
                 except:
                     self.syscallTotTime[name] = diff
+                    self.syscallMaxTime[name] = diff
 
             # set return value from register #
             retval = regs[self.retreg]
@@ -30139,6 +30145,7 @@ struct msghdr {
         self.callPrint = list()
         self.syscallTime = dict()
         self.syscallTotTime = dict()
+        self.syscallMaxTime = dict()
 
         # disable extended ascii #
         SystemManager.encodeEnable = False
