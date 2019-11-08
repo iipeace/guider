@@ -11022,6 +11022,7 @@ class SystemManager(object):
     libdbusPath = 'libdbus-1.so.3'
     libcppPath = 'libstdc++.so.6'
     matplotlibVersion = 0
+    matplotlibDpi = 500
 
     localServObj = None
     remoteServObj = None
@@ -36807,7 +36808,7 @@ class ThreadAnalyzer(object):
             locator_params, subplot2grid, ylim, xlim, tick_params
 
         # set dpi #
-        matplotlib.rcParams['figure.dpi'] = 500
+        matplotlib.rcParams['figure.dpi'] = SystemManager.matplotlibDpi
 
         '''
         initialize list that count the number of process
@@ -36985,7 +36986,7 @@ class ThreadAnalyzer(object):
 
         try:
             # save graph #
-            savefig(outputFile)
+            savefig(outputFile, dpi=SystemManager.matplotlibDpi)
             clf()
 
             # get output size #
@@ -38143,7 +38144,7 @@ class ThreadAnalyzer(object):
                 float('.'.join(matplotlib.__version__.split('.')[:2]))
 
             # set dpi #
-            matplotlib.rcParams['figure.dpi'] = 500
+            matplotlib.rcParams['figure.dpi'] = SystemManager.matplotlibDpi
 
             # set backend #
             matplotlib.use('Agg')
