@@ -17958,12 +17958,11 @@ Copyright:
         # split params #
         if value:
             repeatParams = value.split(':')
-        else:
-            repeatParams = 0
 
-        if repeatParams == 0:
+        if not value:
             SystemManager.intervalEnable = 1
             SystemManager.repeatCount = 1
+            repeatParams = None
         elif len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
                 # get interval #
@@ -17976,19 +17975,6 @@ Copyright:
                     SystemManager.repeatCount = sys.maxsize
                 else:
                     SystemManager.repeatCount = int(repeatParams[1])
-
-                # get termination flag #
-                if len(repeatParams) == 3:
-                    SystemManager.isTerm = False
-                    SystemManager.printInfo(\
-                        "run every %s sec %s time" % \
-                        (convertNum(SystemManager.intervalEnable), \
-                        convertNum(SystemManager.repeatCount)))
-                else:
-                    SystemManager.printInfo(\
-                        "run only %s sec %s time" % \
-                        (convertNum(SystemManager.intervalEnable), \
-                        convertNum(SystemManager.repeatCount)))
             except:
                 SystemManager.printErr(\
                     "wrong option value with -R, input integer values")
@@ -18010,11 +17996,6 @@ Copyright:
                     SystemManager.repeatCount = 1
                     SystemManager.repeatInterval = interval
                     SystemManager.intervalEnable = interval
-
-                SystemManager.printInfo(\
-                    "run only %s sec %s time" % \
-                    (convertNum(SystemManager.intervalEnable), \
-                    convertNum(SystemManager.repeatCount)))
             except:
                 SystemManager.printErr(\
                     "wrong option value with -R, input a integer value")
@@ -18031,6 +18012,18 @@ Copyright:
             SystemManager.printErr(\
                 "wrong option value with -R, input values bigger than 0")
             sys.exit(0)
+
+        # get termination flag #
+        if repeatParams and len(repeatParams) == 3:
+            SystemManager.isTerm = False
+            SystemManager.printInfo(\
+                "run every %s sec %s time" % \
+                (convertNum(SystemManager.intervalEnable), \
+                convertNum(SystemManager.repeatCount)))
+        else:
+            SystemManager.printInfo("run only %s sec %s time" % \
+                (convertNum(SystemManager.intervalEnable), \
+                    convertNum(SystemManager.repeatCount)))
 
 
 
