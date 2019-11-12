@@ -2845,7 +2845,7 @@ class UtilManager(object):
         base64 = SystemManager.getPkg('base64', False)
 
         try:
-            return base64.standard_b64encode(value)
+            return base64.b64encode(value)
         except:
             return value
 
@@ -2856,7 +2856,7 @@ class UtilManager(object):
         base64 = SystemManager.getPkg('base64', False)
 
         try:
-            return value.encode()
+            return base64.b64decode(value)
         except:
             return value
 
@@ -26676,7 +26676,10 @@ class DbusAnalyzer(object):
                 for name, msg in msgList.items():
                     # get message info #
                     length = msg['len']
-                    call = msg['data']
+                    ecall = msg['data']
+
+                    # decode from base64 #
+                    call = UtilManager.decodeBase64(ecall)
 
                     # update message size #
                     if length == 0:
@@ -26737,12 +26740,9 @@ class DbusAnalyzer(object):
                     if length == 16:
                         continue
 
-                    # convert special characters #
-                    call = call.replace('!', '\"')
-                    call = call.replace('#', "\'")
-
                     # cast bytes to void_p #
-                    buf = c_char_p(call.encode('latin-1'))
+                    #buf = c_char_p(call.encode('latin-1'))
+                    buf = c_char_p(call)
 
                     # create GDBusMessage from bytes #
                     errp = POINTER(DbusAnalyzer.errObj)()
@@ -28639,18 +28639,14 @@ struct msghdr {
                 iovobjlen = int(iovobj.contents.iov_len)
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
-                iovobjdata = iovobjdata.decode('latin-1')
 
+                # encode to base64 #
+                #iovobjdata = iovobjdata.decode('latin-1')
+                iovobjdata = UtilManager.encodeBase64(iovobjdata)
+
+                # save size and data #
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
-
-                # convert ' and " to "" for JSON converting #
-                try:
-                    msginfo['msg_iov'][idx]['data'] = \
-                        iovobjdata.replace('\"', '~')
-                    msginfo['msg_iov'][idx]['data'] = \
-                        iovobjdata.replace("\'", '#')
-                except:
-                    msginfo['msg_iov'][idx]['data'] = iovobjdata
+                msginfo['msg_iov'][idx]['data'] = iovobjdata
 
         # get msg_flags #
         flag = header.contents.msg_flags
