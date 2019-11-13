@@ -3874,12 +3874,20 @@ class NetworkManager(object):
 
 
     @staticmethod
+    def requestPing():
+        return NetworkManager.execRemoteCmd("PING:PING")
+
+
+
+    @staticmethod
     def getCmdPipe(connObj, cmd):
         if not cmd:
             return None
 
         # add command prefix #
-        if not cmd.startswith('run:'):
+        if cmd.upper().startswith('PING'):
+            pass
+        elif not cmd.startswith('run:'):
             cmd = 'run:%s' % cmd
 
         # send request to server #
@@ -3887,6 +3895,8 @@ class NetworkManager(object):
 
         # receive reply from server #
         reply = connObj.recvfrom()
+        if reply[0] == 'PONG':
+            return True
 
         # handle reply from server #
         try:
@@ -21352,7 +21362,8 @@ Copyright:
             # check request type #
             if request != 'DOWNLOAD' and \
                 request != 'UPLOAD' and \
-                request != 'RUN':
+                request != 'RUN' and \
+                request != 'PING':
                 SystemManager.printWarn(\
                     "Fail to recognize the request '%s'" % message, True)
                 sendErrMsg(connObj, "No support request '%s'" % message)
@@ -21370,6 +21381,7 @@ Copyright:
             # close listen socket of parent #
             connMan.close()
 
+            # handle request #
             if request == 'DOWNLOAD':
                 onDownload(connObj, value, response)
 
@@ -21378,6 +21390,12 @@ Copyright:
 
             elif request == 'RUN':
                 onRun(connObj, value, response)
+
+            elif request == 'PING':
+                try:
+                    connObj.write('PONG')
+                except:
+                    pass
 
             sys.exit(0)
 
@@ -21464,9 +21482,29 @@ Copyright:
                 '- UPLOAD:LocalPath,RemotePath\n'
                 '- RUN:Command\n'
                 '- HISTORY\n'
+                '- PING\n'
                 '- EXIT\n'
                 '\n'
             )
+
+        def doPing(uinput):
+            # get addrs from string #
+            addrs = uinput[4:].strip()
+            if addrs and not addrs[0].isdigit():
+                addrs = addrs[1:]
+
+            # classify ip and port #
+            if addrs:
+                service, ip, port = NetworkManager.parseAddr(addrs)
+                if service == ip == port == None:
+                    SystemManager.printErr(\
+                        "Fail to recognize command %s because %s" % \
+                            (uinput, SystemManager.getErrReason()))
+                    return
+                else:
+                    NetworkManager.setRemoteServer(addrs, tcp=True)
+
+            NetworkManager.requestPing()
 
         def printHistory(hlist):
             for idx, cmd in enumerate(hlist):
@@ -21512,6 +21550,9 @@ Copyright:
                     continue
                 elif uinput == '!' or uinput.upper() == 'HISTORY':
                     printHistory(hlist)
+                    continue
+                elif uinput.upper().startswith('PING'):
+                    doPing(uinput)
                     continue
                 elif uinput.upper() == 'EXIT':
                     break
