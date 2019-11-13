@@ -3895,7 +3895,7 @@ class NetworkManager(object):
 
         # receive reply from server #
         reply = connObj.recvfrom()
-        if reply[0] == 'PONG':
+        if reply & reply[0].decode() == 'PONG':
             return True
 
         # handle reply from server #
@@ -21393,7 +21393,7 @@ Copyright:
 
             elif request == 'PING':
                 try:
-                    connObj.write('PONG')
+                    connObj.send('PONG')
                 except:
                     pass
 
