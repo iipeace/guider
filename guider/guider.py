@@ -32072,8 +32072,11 @@ class ElfAnalyzer(object):
 
             # create a new object #
             try:
+                raiseExcept = False
+
                 elfObj = ElfAnalyzer(path)
                 if not elfObj or not elfObj.ret:
+                    raiseExcept = True
                     raise Exception()
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
@@ -32082,9 +32085,14 @@ class ElfAnalyzer(object):
                 sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
+
                 SystemManager.printInfo("[Fail]", prefix=False, notitle=True)
+
+                err = SystemManager.getErrReason()
+                SystemManager.printWarn(\
+                    "Fail to load %s object because %s" % (path, err))
+
                 if raiseExcept:
-                    err = SystemManager.getErrReason()
                     raise Exception(err)
                 else:
                     return None
@@ -33597,7 +33605,7 @@ Section header string table index: %d
                 try:
                     symbol = self.attr['dynsymList'][rsym]
                 except:
-                    symbol = rsym
+                    continue
 
                 # convert manged string #
                 symbol = ElfAnalyzer.demangleSymbol(symbol)
