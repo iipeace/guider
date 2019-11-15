@@ -26927,7 +26927,7 @@ class DbusAnalyzer(object):
 
                     # print message #
                     '''
-                    print(mtype, interface, src, des, member, arg0)
+                    print(tid, direction, mtype, interface, src, des, member, arg0)
                     print(libgioObj.g_dbus_message_print(\
                         c_ulong(gdmsg), c_ulong(0)))
                     '''
