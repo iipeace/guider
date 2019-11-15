@@ -30213,7 +30213,7 @@ struct msghdr {
                     self.sampleTime = float(0.0001)
 
                 SystemManager.printInfo(\
-                    'Do sampling every %g second' % self.sampleTime)
+                    'Do sampling every {0:f} second'.format(self.sampleTime))
         # inst #
         elif SystemManager.isUtraceMode() and \
             SystemManager.funcDepth > 0:
