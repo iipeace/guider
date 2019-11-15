@@ -46796,10 +46796,9 @@ class ThreadAnalyzer(object):
                     gpuStats[idx] = totalGpuUsage
 
                     # set frequency info #
-                    coreFreq = ''
-                    if coreFreq:
+                    try:
                         coreFreq = '%d Mhz' % value['CUR_FREQ']
-                    else:
+                    except:
                         coreFreq = '? Mhz'
                     if 'MIN_FREQ' in value and 'MAX_FREQ' in value and \
                         value['MIN_FREQ'] > 0 and value['MAX_FREQ'] > 0:
@@ -46807,6 +46806,7 @@ class ThreadAnalyzer(object):
                             (coreFreq, value['MIN_FREQ'], value['MAX_FREQ'])
                     coreFreq = '%20s|' % coreFreq
 
+                    # set temperature info #
                     try:
                         coreFreq = '%3s C | %s' % (value['TEMP'], coreFreq)
                     except:
