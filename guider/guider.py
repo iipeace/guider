@@ -3795,7 +3795,7 @@ class NetworkManager(object):
 
 
 
-    def recvfrom(self, size=0, noTimeout=False):
+    def recvfrom(self, size=0, noTimeout=False, verbose=True):
         if self.ip is None or self.port is None:
             SystemManager.printErr(\
                 "Fail to use IP address for server because it is not set")
@@ -3828,9 +3828,10 @@ class NetworkManager(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SystemManager.printWarn(\
-                    "Fail to receive data from %s:%d as client because %s" % \
-                    (self.ip, self.port, SystemManager.getErrReason()))
+                if verbose:
+                    SystemManager.printWarn(\
+                        "Fail to receive data from %s:%d as client because %s" % \
+                            (self.ip, self.port, SystemManager.getErrReason()))
                 return None
 
 
@@ -48811,7 +48812,7 @@ class ThreadAnalyzer(object):
 
         while 1:
             # get message from clients #
-            ret = SystemManager.localServObj.recvfrom()
+            ret = SystemManager.localServObj.recvfrom(verbose=False)
 
             # verify request type #
             if ret is False:
