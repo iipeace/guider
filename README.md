@@ -20,7 +20,7 @@ Table of contents
 
 Guider
 =======
-Guider is a system-wide runtime performance analyzer.
+Guider is a system-wide runtime performance analyzer.   
 It is made to measure the amount of system resource usage and to trace system behavior.   
 You can analyze your performance issues effectively with this tool.   
 

@@ -3896,8 +3896,11 @@ class NetworkManager(object):
 
         # receive reply from server #
         reply = connObj.recvfrom()
-        if reply & reply[0].decode() == 'PONG':
-            return True
+        try:
+            if reply and reply[0].decode() == 'PONG':
+                return True
+        except:
+            pass
 
         # handle reply from server #
         try:
@@ -15655,7 +15658,12 @@ Copyright:
         except:
             return 'N/A'
 
-        return ' '.join(list(map(str, err.args)))
+        try:
+            code = '%s-' % errno.errorcode[err.args[0]]
+        except:
+            code = ''
+
+        return code + ' '.join(list(map(str, err.args)))
 
 
 
