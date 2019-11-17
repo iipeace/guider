@@ -4,7 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/guider.svg)](https://badge.fury.io/py/guider)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-![Guider_Logo_mini](https://user-images.githubusercontent.com/15862689/68951675-f19fe980-0801-11ea-81a4-7f424f0d80c6.png)
+![Guider_Logo](https://user-images.githubusercontent.com/15862689/69006365-883ee880-0971-11ea-87f8-98ea7c9af0e9.png)
 
 Table of contents
 =================
