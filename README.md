@@ -4,7 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/guider.svg)](https://badge.fury.io/py/guider)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-![Guider_Logo](https://user-images.githubusercontent.com/15862689/69006365-883ee880-0971-11ea-87f8-98ea7c9af0e9.png)
+![Guider_Logo_mini](https://user-images.githubusercontent.com/15862689/69008465-3062aa80-098e-11ea-8185-cfb8d7c4aafe.png)
 
 Table of contents
 =================
@@ -20,9 +20,16 @@ Table of contents
 
 Guider
 =======
-Guider is a system-wide runtime performance analyzer.   
-It is made to measure the amount of system resource usage and to trace system behavior.   
-You can analyze your performance issues effectively with this tool.   
+Guider is an integrated performance analyzer.   
+It provides most of the features needed for system performance measurement and analysis.   
+
+The features of Guider are as follows.
+* Monitoring
+* Profiling
+* Visualization
+* Control
+* Logging
+* Test
 
 Guider pursues characteristics as below.
 1. Easy to use: just run without any setting and package installation
@@ -36,16 +43,8 @@ It usually supports all platforms based on the Linux kernel as shown below.
 * webOS
 * ccOS
 * Tizen
-* Windows (Some features only)
-* macOS (Some features only)
-
-The features of Guider are as follows.
-* Monitoring
-* Profiling
-* Visualization
-* Control
-* Logging
-* Test
+* Windows (Limited)
+* macOS (Limited)
 
 Output
 =======
