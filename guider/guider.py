@@ -26335,9 +26335,9 @@ class DbusAnalyzer(object):
     errObj = None
     sentData = {}
     recvData = {}
-    lastSentInterface = {}
-    lastRecvInterface = {}
     previousData = {}
+    msgSentTable = {}
+    msgRecvTable = {}
 
     G_IO_ERROR_TYPE = [
         'G_IO_ERROR_FAILED',
@@ -26483,10 +26483,13 @@ class DbusAnalyzer(object):
         gioObj.g_dbus_message_get_error_name.restype = c_char_p
 
         gioObj.g_dbus_message_get_serial.argtypes = [c_ulong]
-        gioObj.g_dbus_message_get_serial.restype = c_char_p
+        gioObj.g_dbus_message_get_serial.restype = c_ulong
 
         gioObj.g_dbus_message_print.argtypes = [c_ulong, c_ulong]
         gioObj.g_dbus_message_print.restype = c_char_p
+
+        gioObj.g_dbus_message_get_reply_serial.argtypes = [c_ulong]
+        gioObj.g_dbus_message_get_reply_serial.restype = c_ulong
 
         '''
         # define dbus methods #
@@ -26841,42 +26844,49 @@ class DbusAnalyzer(object):
                         DbusAnalyzer.recvData[tid] = dict()
                         DbusAnalyzer.recvData[tid]['last'] = 0
 
+                    # print message #
+                    '''
+                    print(tid, direction, mtype)
+                    print(libgioObj.g_dbus_message_print(\
+                        c_ulong(gdmsg), c_ulong(0)))
+                    '''
+
                     # return check #
                     if mtype == 'METHOD_RETURN' or \
                         mtype == 'INVALID' or \
                         mtype == 'ERROR':
 
+                        # get reply-serial #
+                        repSerial = \
+                            libgioObj.g_dbus_message_get_reply_serial(\
+                                c_ulong(gdmsg))
+
                         # INBOUND #
                         if direction == 'IN':
-                            lastInterface = DbusAnalyzer.lastSentInterface
                             data = DbusAnalyzer.sentData
+                            msgTable = DbusAnalyzer.msgSentTable
                         # OUTBOUND #
                         else:
-                            lastInterface = DbusAnalyzer.lastRecvInterface
                             data = DbusAnalyzer.recvData
+                            msgTable = DbusAnalyzer.msgRecvTable
 
-                        if tid in lastInterface:
-                            lastIf = lastInterface[tid]
+                        if repSerial in msgTable:
+                            targetIf = msgTable[repSerial]
                         else:
-                            lastIf = None
+                            targetIf = None
 
-                        # check signal return error by message drop #
-                        if direction == 'IN' and \
-                            lastIf is not None and \
-                            'SIGNAL' in lastIf:
-                            pass
                         # update elapsed time #
-                        elif lastIf in data[tid] and \
-                            data[tid][lastIf]['time'] > 0:
-                            lastData = data[tid][lastIf]
+                        if targetIf in data[tid] and \
+                            data[tid][targetIf]['time'] > 0:
+                            lastData = data[tid][targetIf]
                             elapsed = jsonData['time'] - lastData['time']
 
                             if lastData['min'] == 0 or \
                                 elapsed < lastData['min']:
-                                data[tid][lastIf]['min'] = elapsed
+                                data[tid][targetIf]['min'] = elapsed
 
                             if elapsed > lastData['max']:
-                                data[tid][lastIf]['max'] = elapsed
+                                data[tid][targetIf]['max'] = elapsed
 
                             # check error return #
                             if mtype == 'INVALID' or \
@@ -26884,12 +26894,10 @@ class DbusAnalyzer(object):
                                 errstr = \
                                     libgioObj.g_dbus_message_get_error_name(addr)
                                 if errstr:
-                                    data[tid][lastIf]['err'] += 1
+                                    data[tid][targetIf]['err'] += 1
 
-                            data[tid][lastIf]['total'] += elapsed
-                            data[tid][lastIf]['time'] = 0
-
-                            lastInterface[tid] = None
+                            data[tid][targetIf]['total'] += elapsed
+                            data[tid][targetIf]['time'] = 0
 
                         libgObj.g_object_unref(gdmsg)
 
@@ -26902,43 +26910,45 @@ class DbusAnalyzer(object):
                     member = libgioObj.g_dbus_message_get_member(addr)
                     #path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
+                    serial = libgioObj.g_dbus_message_get_serial(addr)
 
                     # save message info #
                     mname = '%3s %s(%s) [%s]' % \
                         (direction, interface.decode(), member.decode(), mtype)
-                    if mname not in mlist:
-                        mlist[mname] = {'count': 0}
 
                     # define data type #
                     if direction == 'OUT':
                         data = DbusAnalyzer.sentData
-                        lastInterface = DbusAnalyzer.lastSentInterface
+                        msgTable = DbusAnalyzer.msgSentTable
                     else:
                         data = DbusAnalyzer.recvData
-                        lastInterface = DbusAnalyzer.lastRecvInterface
+                        msgTable = DbusAnalyzer.msgRecvTable
+
+                    if mtype != 'SIGNAL':
+                        msgTable[serial] = mname
 
                     # initialize new interface #
                     if not mname in data[tid]:
-                        data[tid][mname] = dict()
-                        data[tid][mname]['min'] = 0
-                        data[tid][mname]['max'] = 0
-                        data[tid][mname]['err'] = 0
-                        data[tid][mname]['total'] = 0
-
-                    # save timestamp #
-                    data[tid][mname]['time'] = jsonData['time']
-                    lastInterface[tid] = mname
+                        data[tid][mname] = {
+                            'min': 0,
+                            'max': 0,
+                            'err': 0,
+                            'total': 0
+                        }
 
                     # increase count #
                     cnt += 1
-                    mlist[mname]['count'] += 1
+                    if mname not in mlist:
+                        mlist[mname] = {'count': 1}
+                    else:
+                        mlist[mname]['count'] += 1
 
-                    # print message #
-                    '''
-                    print(tid, direction, mtype, interface, src, des, member, arg0)
-                    print(libgioObj.g_dbus_message_print(\
-                        c_ulong(gdmsg), c_ulong(0)))
-                    '''
+                    # save timestamp #
+                    data[tid][mname]['time'] = jsonData['time']
+
+                    # save last interface except for signal #
+                    if mtype != 'SIGNAL':
+                        pass
 
                     # free object #
                     libgObj.g_object_unref(gdmsg)
@@ -26952,12 +26962,11 @@ class DbusAnalyzer(object):
 
                 # increase count #
                 if tid not in ThreadAnalyzer.dbusData:
-                    ThreadAnalyzer.dbusData[tid] = dict()
-                    ThreadAnalyzer.dbusData[tid]['totalCnt'] = 1
+                    ThreadAnalyzer.dbusData[tid] = {'totalCnt': cnt}
                 else:
-                    ThreadAnalyzer.dbusData[tid]['totalCnt'] += 1
+                    ThreadAnalyzer.dbusData[tid]['totalCnt'] += cnt
 
-                ThreadAnalyzer.dbusData['totalCnt'] += 1
+                ThreadAnalyzer.dbusData['totalCnt'] += cnt
 
                 # merge D-Bus interface #
                 for name, value in mlist.items():
@@ -27053,18 +27062,23 @@ class DbusAnalyzer(object):
                         val, isThread=True, withSibling=True)
 
                     if len(tempList) > 0:
-                        taskList.append(sorted(tempList)[0])
+                        taskList += sorted(tempList)
                         for tid in tempList:
                             comm = SystemManager.getComm(tid)
                             if comm == 'gdbus':
                                 taskList.append(tid)
         if len(taskList) == 0:
             SystemManager.printErr(\
-                "Fail to find task to analyze dbus message")
+                "Fail to find task to analyze D-Bus message")
             sys.exit(0)
 
         # remove redundant tasks #
         taskList = SystemManager.clearList(taskList)
+        taskList.sort(key=int)
+        SystemManager.printInfo((\
+            "only specific processes that are involved "
+            "in process group including [ %s ] are shown") % \
+                ', '.join(taskList))
 
         # define common list #
         pipeList = []
@@ -27072,6 +27086,7 @@ class DbusAnalyzer(object):
         SystemManager.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
         SystemManager.processEnable = False
+        SystemManager.cmdlineEnable = True
         SystemManager.sort = 'd'
 
         # set target syscalls #
