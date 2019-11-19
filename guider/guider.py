@@ -11744,6 +11744,20 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getTgid(pid):
+        statusPath = \
+            '%s/%s/status' % (SystemManager.procPath, pid)
+        try:
+            with open(statusPath, 'r') as fd:
+                for line in fd.readlines():
+                    if line.startswith('Tgid'):
+                        return line.split(':')[1].split()[0]
+        except:
+            return None
+
+
+
+    @staticmethod
     def getComm(pid):
         commPath = \
             '%s/%s/comm' % (SystemManager.procPath, pid)
@@ -13711,6 +13725,27 @@ Examples:
         # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
+                # printdbus #
+                elif SystemManager.isPrintDbusMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1}
+
+Description:
+    Print D-Bus messages in real-time
+
+OPTIONS:
+        -g  <STRING>                set filter
+        -X  <REQ@IP:PORT>           set request address
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print D-Bus messages for main thread and gdbus threads in dbus-client process in real-time
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
                 # printkmsg #
                 elif SystemManager.isPrintKmsgMode():
                     helpStr = '''
@@ -14226,6 +14261,7 @@ COMMAND:
                 sym2line    <addr>
                 leaktrace   <leak>
                 printcgrp   <cgroup>
+                printdbus   <D-Bus>
 
     [log]       printkmsg   <KMSG>
                 printdlt    <DLT>
@@ -19690,6 +19726,16 @@ Copyright:
 
             DltAnalyzer.runDltReceiver(mode='print')
 
+        # PRINTDBUS MODE #
+        elif SystemManager.isPrintDbusMode():
+            # set console info #
+            SystemManager.ttyCols = 0
+            SystemManager.printStreamEnable = True
+
+            SystemManager.printLogo(big=True, onlyFile=True)
+
+            DbusAnalyzer.runDbusSnooper(mode='print')
+
         # PRINTKMSG MODE #
         elif SystemManager.isPrintKmsgMode():
             # set console info #
@@ -19928,6 +19974,15 @@ Copyright:
     @staticmethod
     def isPrintDltMode():
         if sys.argv[1] == 'printdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintDbusMode():
+        if sys.argv[1] == 'printdbus':
             return True
         else:
             return False
@@ -26513,7 +26568,7 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def runDbusSnooper():
+    def runDbusSnooper(mode='top'):
         def updateTaskInfo(dbusData, sentData, recvData):
             try:
                 taskManager.saveSystemStat()
@@ -26648,7 +26703,8 @@ class DbusAnalyzer(object):
                     os.kill(os.getpid(), signal.SIGINT)
 
             # enable alarm #
-            signal.signal(signal.SIGALRM, printSummary)
+            if mode == 'top':
+                signal.signal(signal.SIGALRM, printSummary)
 
             # reset timer #
             SystemManager.updateTimer()
@@ -26735,6 +26791,7 @@ class DbusAnalyzer(object):
                     length = msg['len']
                     ecall = msg['data']
 
+                    # free gdbus message object #
                     if gdmsg != 0:
                         libgObj.g_object_unref(gdmsg)
                         gdmsg = 0
@@ -26843,21 +26900,22 @@ class DbusAnalyzer(object):
                     else:
                         direction = 'OUT'
 
+                    # print message #
+                    if SystemManager.isPrintDbusMode():
+                        msgStr = "Tid: %s(%s)\nDirection: %s\nDiff: %f\n%s" % \
+                            (tid, jsonData['comm'], \
+                                direction, jsonData['timediff'], \
+                                libgioObj.g_dbus_message_print(\
+                                    c_ulong(gdmsg), c_ulong(0)))
+                        SystemManager.printPipe(msgStr)
+                        continue
+
                     # check sent data #
                     if tid not in DbusAnalyzer.sentData:
                         DbusAnalyzer.sentData[tid] = dict()
-                        DbusAnalyzer.sentData[tid]['last'] = 0
                     # check recv data #
                     if tid not in DbusAnalyzer.recvData:
                         DbusAnalyzer.recvData[tid] = dict()
-                        DbusAnalyzer.recvData[tid]['last'] = 0
-
-                    # print message #
-                    '''
-                    print(tid, direction, mtype)
-                    print(libgioObj.g_dbus_message_print(\
-                        c_ulong(gdmsg), c_ulong(0)))
-                    '''
 
                     # return check #
                     if mtype == 'METHOD_RETURN' or \
@@ -26987,6 +27045,7 @@ class DbusAnalyzer(object):
                     "Fail to handle %s because %s" % \
                         ([jsonData], SystemManager.getErrReason()))
             finally:
+                # free gdbus message object #
                 if gdmsg != 0:
                     libgObj.g_object_unref(gdmsg)
 
@@ -27069,10 +27128,14 @@ class DbusAnalyzer(object):
                     tempList = SystemManager.getPids(\
                         val, isThread=True, withSibling=True)
 
-                    for tid in tempList:
-                        comm = SystemManager.getComm(tid)
-                        if comm == 'gdbus' or comm == val:
-                            taskList.append(tid)
+                    if len(tempList) > 0:
+                        taskList.append(\
+                            SystemManager.getTgid(tempList[0]))
+
+                        for tid in tempList:
+                            comm = SystemManager.getComm(tid)
+                            if comm == 'gdbus':
+                                taskList.append(tid)
 
         if len(taskList) == 0:
             SystemManager.printErr(\
@@ -27108,6 +27171,7 @@ class DbusAnalyzer(object):
             rd, wr = os.pipe()
 
             pid = SystemManager.createProcess()
+
             # parent #
             if pid > 0:
                 os.close(wr)
@@ -27133,7 +27197,8 @@ class DbusAnalyzer(object):
                 sys.argv[1] = 'strace'
                 SystemManager.showAll = True
                 SystemManager.intervalEnable = 0
-                SystemManager.printFile = None
+                SystemManager.printFile = \
+                    SystemManager.fileForPrint = None
                 SystemManager.logEnable = False
                 SystemManager.filterGroup = [tid]
                 SystemManager.jsonPrintEnable = True
@@ -27141,6 +27206,10 @@ class DbusAnalyzer(object):
                 # execute strace mode #
                 SystemManager.doTrace('syscall')
 
+                sys.exit(0)
+
+            # error #
+            else:
                 sys.exit(0)
 
         # start worker threads #
@@ -27266,7 +27335,8 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if SystemManager.isPrintDltMode():
+        if SystemManager.isPrintDltMode() or \
+            SystemManager.isPrintDbusMode():
             SystemManager.progressCnt += 1
             if SystemManager.repeatCount <= SystemManager.progressCnt:
                 sys.exit(0)
@@ -29776,6 +29846,7 @@ struct msghdr {
             jsonData["timediff"] = diff
             jsonData["name"] = self.syscall
             jsonData["tid"] = self.pid
+            jsonData["comm"] = self.comm
             jsonData["args"] = {}
 
             for idx, arg in enumerate(self.args):
@@ -34026,7 +34097,7 @@ class ThreadAnalyzer(object):
             elif SystemManager.dltTopEnable:
                 DltAnalyzer.runDltReceiver(mode='top')
             elif SystemManager.dbusTopEnable:
-                DbusAnalyzer.runDbusSnooper()
+                DbusAnalyzer.runDbusSnooper(mode='top')
 
             # request service to remote server #
             self.requestService()
