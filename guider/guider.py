@@ -26559,12 +26559,12 @@ class DbusAnalyzer(object):
                         else:
                             continue
 
+                        # get complete count and status #
+                        cnt = data['cnt']
                         if data['time'] > 0:
                             wstat = '/WAIT'
-                            cnt = value['cnt'] - 1
                         else:
                             wstat = ''
-                            cnt = value['cnt']
 
                         # get complete call count #
                         if cnt > 0:
@@ -26578,7 +26578,8 @@ class DbusAnalyzer(object):
                             errstr = ''
 
                         if data['max'] > 0:
-                            name = '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
+                            name = \
+                                '%s {Min: %.3f, Avr: %.3f, Max: %.3f%s} %s' % \
                                 (name, data['min'], avr, data['max'], \
                                     errstr, wstat)
 
@@ -26609,6 +26610,8 @@ class DbusAnalyzer(object):
             prevSentData = DbusAnalyzer.sentData
             DbusAnalyzer.sentData = {}
             DbusAnalyzer.recvData = {}
+            DbusAnalyzer.msgSentTable = {}
+            DbusAnalyzer.msgRecvTable = {}
             prevDbusData = ThreadAnalyzer.dbusData
             ThreadAnalyzer.dbusData = {'totalCnt': 0, 'totalErr': 0}
 
@@ -26695,6 +26698,18 @@ class DbusAnalyzer(object):
             except:
                 return
 
+            # get ctypes object #
+            ctypes = SystemManager.getPkg('ctypes')
+            from ctypes import c_char_p,  c_ulong, c_void_p, \
+                cast, addressof, byref, c_int, POINTER
+
+            libgioObj = SystemManager.libgioObj
+            libgObj = SystemManager.libgObj
+
+            cnt = 0
+            mlist = {}
+            gdmsg = 0
+
             try:
                 ctype = jsonData["name"]
 
@@ -26715,21 +26730,14 @@ class DbusAnalyzer(object):
                 if type(msgList) is not dict:
                     return
 
-                # get ctypes object #
-                ctypes = SystemManager.getPkg('ctypes')
-                from ctypes import c_char_p,  c_ulong, c_void_p, \
-                    cast, addressof, byref, c_int, POINTER
-
-                libgioObj = SystemManager.libgioObj
-                libgObj = SystemManager.libgObj
-
-                cnt = 0
-                mlist = {}
-
                 for name, msg in msgList.items():
                     # get message info #
                     length = msg['len']
                     ecall = msg['data']
+
+                    if gdmsg != 0:
+                        libgObj.g_object_unref(gdmsg)
+                        gdmsg = 0
 
                     # decode from base64 #
                     call = UtilManager.decodeBase64(ecall)
@@ -26871,15 +26879,14 @@ class DbusAnalyzer(object):
                             msgTable = DbusAnalyzer.msgRecvTable
 
                         if repSerial in msgTable:
-                            targetIf = msgTable[repSerial]
+                            targetIf, prevTime = msgTable[repSerial]
                         else:
-                            targetIf = None
+                            targetIf = prevTime = None
 
                         # update elapsed time #
-                        if targetIf in data[tid] and \
-                            data[tid][targetIf]['time'] > 0:
+                        if targetIf in data[tid] and prevTime:
                             lastData = data[tid][targetIf]
-                            elapsed = jsonData['time'] - lastData['time']
+                            elapsed = jsonData['time'] - prevTime
 
                             if lastData['min'] == 0 or \
                                 elapsed < lastData['min']:
@@ -26897,9 +26904,8 @@ class DbusAnalyzer(object):
                                     data[tid][targetIf]['err'] += 1
 
                             data[tid][targetIf]['total'] += elapsed
+                            data[tid][targetIf]['cnt'] += 1
                             data[tid][targetIf]['time'] = 0
-
-                        libgObj.g_object_unref(gdmsg)
 
                         continue
 
@@ -26924,8 +26930,9 @@ class DbusAnalyzer(object):
                         data = DbusAnalyzer.recvData
                         msgTable = DbusAnalyzer.msgRecvTable
 
+                    # save serial number except for signal #
                     if mtype != 'SIGNAL':
-                        msgTable[serial] = mname
+                        msgTable[serial] = (mname, jsonData['time'])
 
                     # initialize new interface #
                     if not mname in data[tid]:
@@ -26933,6 +26940,7 @@ class DbusAnalyzer(object):
                             'min': 0,
                             'max': 0,
                             'err': 0,
+                            'cnt': 0,
                             'total': 0
                         }
 
@@ -26949,9 +26957,6 @@ class DbusAnalyzer(object):
                     # save last interface except for signal #
                     if mtype != 'SIGNAL':
                         pass
-
-                    # free object #
-                    libgObj.g_object_unref(gdmsg)
 
                 if cnt == 0:
                     return
@@ -26982,6 +26987,9 @@ class DbusAnalyzer(object):
                     "Fail to handle %s because %s" % \
                         ([jsonData], SystemManager.getErrReason()))
             finally:
+                if gdmsg != 0:
+                    libgObj.g_object_unref(gdmsg)
+
                 # release lock #
                 if lock and lock.locked():
                     try:
@@ -27061,12 +27069,11 @@ class DbusAnalyzer(object):
                     tempList = SystemManager.getPids(\
                         val, isThread=True, withSibling=True)
 
-                    if len(tempList) > 0:
-                        taskList += sorted(tempList)
-                        for tid in tempList:
-                            comm = SystemManager.getComm(tid)
-                            if comm == 'gdbus':
-                                taskList.append(tid)
+                    for tid in tempList:
+                        comm = SystemManager.getComm(tid)
+                        if comm == 'gdbus' or comm == val:
+                            taskList.append(tid)
+
         if len(taskList) == 0:
             SystemManager.printErr(\
                 "Fail to find task to analyze D-Bus message")
