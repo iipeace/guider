@@ -17648,6 +17648,8 @@ Copyright:
                 SystemManager.encodeEnable = False
 
                 SystemManager.setPipeHandler()
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printWarn(\
@@ -17717,6 +17719,8 @@ Copyright:
                     os.rename(SystemManager.inputFile, backupFile)
                     SystemManager.printInfo('%s is renamed to %s' % \
                         (SystemManager.inputFile, backupFile))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printWarn(\
                         "Fail to backup %s" % SystemManager.inputFile)
@@ -17731,6 +17735,8 @@ Copyright:
                     SystemManager.printInfo(\
                         "ready for writing statistics to %s" % \
                         SystemManager.inputFile)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printOpenErr(SystemManager.inputFile)
                 sys.exit(0)
@@ -17745,6 +17751,8 @@ Copyright:
 
                 if flush:
                     SystemManager.fileForPrint.flush()
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SystemManager.getErrReason()
                 SystemManager.printErr(\
@@ -21006,7 +21014,7 @@ Copyright:
 
 
     @staticmethod
-    def createProcess(cmd=None, isDaemon=False, mute=False):
+    def createProcess(cmd=None, isDaemon=False, mute=False, changePgid=False):
         pid = os.fork()
 
         # parent #
@@ -21018,6 +21026,9 @@ Copyright:
         elif pid == 0:
             # initialize child list #
             SystemManager.childList = {}
+
+            if changePgid:
+                os.setpgid(0, 0)
 
             # Guider #
             if not cmd:
@@ -26572,6 +26583,8 @@ class DbusAnalyzer(object):
         def updateTaskInfo(dbusData, sentData, recvData):
             try:
                 taskManager.saveSystemStat()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printErr(\
                     "Fail to update system stat because %s" % \
@@ -26601,6 +26614,8 @@ class DbusAnalyzer(object):
 
                         try:
                             per = int((value['cnt'] / float(dbusCnt)) * 100)
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             per = 0
 
@@ -26644,6 +26659,8 @@ class DbusAnalyzer(object):
                     # add D-Bus usage #
                     taskManager.procData[pid]['dbusList'] = dbusList
                     taskManager.procData[pid]['dbusCnt'] = dbusCnt
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printWarn(\
                         "Fail to update task info because %s" % \
@@ -26673,6 +26690,8 @@ class DbusAnalyzer(object):
             if lock and lock.locked():
                 try:
                     lock.release()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -26730,6 +26749,9 @@ class DbusAnalyzer(object):
                 SystemManager.updateTimer()
 
             while 1:
+                if len(rdPipeList) == 0:
+                    return
+
                 # multi-threaded loop #
                 if len(threadingList) > 0:
                     # sibling thread #
@@ -26737,7 +26759,10 @@ class DbusAnalyzer(object):
                         updateDataFromPipe(rdPipeList)
                     # main thread #
                     else:
-                        signal.pause()
+                        try:
+                            signal.pause()
+                        except:
+                            os._exit(0)
                 # single-threaded loop #
                 else:
                     updateDataFromPipe(rdPipeList)
@@ -26751,6 +26776,8 @@ class DbusAnalyzer(object):
                 jsonData = UtilManager.convertStr2Dict(params)
                 if not jsonData:
                     return
+            except SystemExit:
+                sys.exit(0)
             except:
                 return
 
@@ -26765,6 +26792,7 @@ class DbusAnalyzer(object):
             cnt = 0
             mlist = {}
             gdmsg = 0
+            errp = POINTER(DbusAnalyzer.errObj)()
 
             try:
                 ctype = jsonData["name"]
@@ -26822,6 +26850,8 @@ class DbusAnalyzer(object):
 
                     try:
                         prevData = DbusAnalyzer.previousData[tid][ctype]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         prevData = ''
 
@@ -26863,9 +26893,8 @@ class DbusAnalyzer(object):
                     buf = c_char_p(call)
 
                     # create GDBusMessage from bytes #
-                    errp = POINTER(DbusAnalyzer.errObj)()
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(\
-                        buf, c_ulong(len(call)), c_ulong(0), byref(errp))
+                        buf, c_ulong(len(call)), 0, byref(errp))
 
                     # check error #
                     if not gdmsg and errp:
@@ -26887,6 +26916,8 @@ class DbusAnalyzer(object):
                     try:
                         nrType = libgioObj.g_dbus_message_get_message_type(addr)
                         mtype = DbusAnalyzer.GDBusMessageType[nrType]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SystemManager.printWarn(\
                             "Fail to get type of GDbusMessage because %s" % \
@@ -27036,10 +27067,14 @@ class DbusAnalyzer(object):
                     try:
                         ThreadAnalyzer.dbusData[tid][name]['cnt'] += \
                             value['count']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         ThreadAnalyzer.dbusData[tid][name] = dict()
                         ThreadAnalyzer.dbusData[tid][name]['cnt'] = \
                             value['count']
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printWarn(\
                     "Fail to handle %s because %s" % \
@@ -27053,6 +27088,8 @@ class DbusAnalyzer(object):
                 if lock and lock.locked():
                     try:
                         lock.release()
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -27068,6 +27105,8 @@ class DbusAnalyzer(object):
                     # get tid of target #
                     try:
                         tid = taskList[pipeList.index(robj)]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         tid = '?'
 
@@ -27076,10 +27115,19 @@ class DbusAnalyzer(object):
                         output = robj.readline()
                         if output == '\n':
                             continue
+                        elif output == '':
+                            try:
+                                rdPipeList.remove(robj)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                pass
                         elif output and len(output) > 0:
                             updateData((tid, output))
 
                         break
+            except SystemExit:
+                sys.exit(0)
             except:
                 return
 
@@ -27170,7 +27218,7 @@ class DbusAnalyzer(object):
             # create pipe #
             rd, wr = os.pipe()
 
-            pid = SystemManager.createProcess()
+            pid = SystemManager.createProcess(changePgid=False)
 
             # parent #
             if pid > 0:
@@ -27182,6 +27230,7 @@ class DbusAnalyzer(object):
                 if threadObj:
                     tobj = threadObj.Thread(\
                         target=executeLoop, args=[[rdPipe]])
+                    tobj.setdaemon = True
                     threadingList.append(tobj)
             # child #
             elif pid == 0:
@@ -29858,6 +29907,8 @@ struct msghdr {
             try:
                 SystemManager.printPipe(\
                     str(UtilManager.convertDict2Str(jsonData)))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printErr(\
                     "Fail to convert %s to JSON for marshalling because %s" % \
