@@ -22649,7 +22649,7 @@ Copyright:
 
 
     @staticmethod
-    def terminateTasks(targetList):
+    def terminateTasks(targetList, sig=signal.SIGKILL):
         for pid in targetList:
             # check task #
             try:
@@ -22658,7 +22658,7 @@ Copyright:
                 continue
 
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, sig)
             except:
                 SystemManager.printSigError(pid, 'SIGKILL', 'warning')
 
@@ -23718,8 +23718,9 @@ Copyright:
 
 
     @staticmethod
-    def killChilds():
-        SystemManager.terminateTasks(list(SystemManager.childList.keys()))
+    def killChilds(sig=signal.SIGKILL):
+        SystemManager.terminateTasks(\
+            list(SystemManager.childList.keys()), sig)
 
 
 
@@ -26667,6 +26668,16 @@ class DbusAnalyzer(object):
                             SystemManager.getErrReason(), True)
 
         def printSummary(signum, frame):
+            def checkRepeatCnt():
+                if SystemManager.repeatCount > 0:
+                    SystemManager.progressCnt += 1
+                    if SystemManager.repeatCount <= SystemManager.progressCnt:
+                        sys.exit(0)
+
+            if SystemManager.isPrintDbusMode():
+                checkRepeatCnt()
+                return
+
             # disable alarm #
             signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
@@ -26716,14 +26727,10 @@ class DbusAnalyzer(object):
             SystemManager.printTopStats()
 
             # check repeat count #
-            if SystemManager.repeatCount > 0:
-                SystemManager.progressCnt += 1
-                if SystemManager.repeatCount <= SystemManager.progressCnt:
-                    os.kill(os.getpid(), signal.SIGINT)
+            checkRepeatCnt()
 
             # enable alarm #
-            if mode == 'top':
-                signal.signal(signal.SIGALRM, printSummary)
+            signal.signal(signal.SIGALRM, printSummary)
 
             # reset timer #
             SystemManager.updateTimer()
@@ -26761,8 +26768,10 @@ class DbusAnalyzer(object):
                     else:
                         try:
                             signal.pause()
+                        except SystemExit:
+                            sys.exit(0)
                         except:
-                            os._exit(0)
+                            break
                 # single-threaded loop #
                 else:
                     updateDataFromPipe(rdPipeList)
@@ -27226,11 +27235,11 @@ class DbusAnalyzer(object):
                 rdPipe = os.fdopen(rd)
                 pipeList.append(rdPipe)
 
-                # run a new worker thread #
+                # create a new worker thread #
                 if threadObj:
                     tobj = threadObj.Thread(\
                         target=executeLoop, args=[[rdPipe]])
-                    tobj.setdaemon = True
+                    tobj.daemon = True
                     threadingList.append(tobj)
             # child #
             elif pid == 0:
@@ -27384,8 +27393,7 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if SystemManager.isPrintDltMode() or \
-            SystemManager.isPrintDbusMode():
+        if SystemManager.isPrintDltMode():
             SystemManager.progressCnt += 1
             if SystemManager.repeatCount <= SystemManager.progressCnt:
                 sys.exit(0)
