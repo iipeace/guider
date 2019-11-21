@@ -22649,7 +22649,7 @@ Copyright:
 
 
     @staticmethod
-    def terminateTasks(targetList, sig=signal.SIGKILL):
+    def terminateTasks(targetList, sig=ConfigManager.SIG_LIST.index('SIGKILL')):
         for pid in targetList:
             # check task #
             try:
@@ -23718,7 +23718,7 @@ Copyright:
 
 
     @staticmethod
-    def killChilds(sig=signal.SIGKILL):
+    def killChilds(sig=ConfigManager.SIG_LIST.index('SIGKILL')):
         SystemManager.terminateTasks(\
             list(SystemManager.childList.keys()), sig)
 
