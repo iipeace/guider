@@ -2897,6 +2897,33 @@ class UtilManager(object):
 
 
     @staticmethod
+    def getLines(file):
+        buf = []
+
+        try:
+            fd = open(file, 'r', encoding='utf-8')
+        except:
+            fd = open(file, 'r')
+
+        while 1:
+            try:
+                data = fd.readline()
+                if len(data) == 0:
+                    break
+                buf.append(data)
+            except:
+                break
+
+        try:
+            fd.close()
+        except:
+            pass
+
+        return buf
+
+
+
+    @staticmethod
     def convertPath(value, retStr=True, isExit=False, separator=' '):
         glob = SystemManager.getPkg('glob', False)
         if glob:
@@ -33922,7 +33949,7 @@ class ThreadAnalyzer(object):
                     continue
 
             # check inclusion condition #
-            if idx in comm > -1 or pid == idx:
+            if idx in comm or pid == idx:
                 found = True
                 break
 
@@ -34575,8 +34602,7 @@ class ThreadAnalyzer(object):
             r"start loading %s..." % logFile)
 
         try:
-            with open(logFile, 'r') as fd:
-                logBuf = fd.readlines()
+            logBuf = UtilManager.getLines(logFile)
         except:
             SystemManager.printErr("Fail to read %s\n" % logFile)
             return
@@ -42092,7 +42118,7 @@ class ThreadAnalyzer(object):
             if compressor and fd:
                 try:
                     buf = list()
-                    tbuf = fd.read().decode().split('\n')
+                    tbuf = fd.read().decode('utf-8').split('\n')
                     for item in tbuf:
                         if len(item) == 0:
                             buf[-1] = '%s\n' % buf[-1]
@@ -42103,8 +42129,7 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
             else:
                 try:
-                    with open(file, 'r') as fd:
-                        buf = fd.readlines(nrLine)
+                    buf = UtilManager.getLines(file)
                 except:
                     SystemManager.printOpenErr(file)
                     sys.exit(0)
@@ -49857,7 +49882,7 @@ def main(args=None):
             SystemManager.printFile = \
                 '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
 
-    # draw graph and chart #
+    #---------------- VISUALIZATION MODE ----------------#
     if SystemManager.isDrawMode():
         if len(sys.argv) <= 2:
             sys.argv.append('guider.out')
@@ -49930,7 +49955,7 @@ def main(args=None):
         SystemManager.graphEnable:
         ThreadAnalyzer(SystemManager.inputFile)
 
-    #-------------------- REALTIME MODE --------------------
+    #-------------------- REALTIME MODE --------------------#
     if SystemManager.isTopMode():
         # check background processes #
         SystemManager.checkBgProcs()
