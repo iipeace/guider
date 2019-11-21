@@ -13764,13 +13764,17 @@ Description:
 OPTIONS:
         -g  <STRING>                set filter
         -X  <REQ@IP:PORT>           set request address
+        -H  <LEVEL>                 set function depth level
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Print D-Bus messages for main thread and gdbus threads in dbus-client process in real-time
-        # {0:1} {1:1}
+    - Print D-Bus messages for main thread and gdbus threads in a.out process in real-time
+        # {0:1} {1:1} -g a.out
+
+    - Print D-Bus messages with backtrace for main thread and gdbus threads in a.out process in real-time
+        # {0:1} {1:1} -g a.out -H
                     '''.format(cmd, mode)
 
                 # printkmsg #
@@ -26979,13 +26983,21 @@ class DbusAnalyzer(object):
 
                     # print message #
                     if SystemManager.isPrintDbusMode():
+                        if len(jsonData['backtrace']) > 2:
+                            backtrace = \
+                                'Backtrace: %s\n' % jsonData['backtrace'][2:]
+                        else:
+                            backtrace = ''
+
                         msgStr = \
-                            "Tid: %s(%s) / Direction: %s / Time: %f\n%s" % \
+                            "Tid: %s(%s) / Direction: %s / Time: %f\n%s%s" % \
                             (tid, jsonData['comm'], \
                                 direction, jsonData['timediff'], \
                                 libgioObj.g_dbus_message_print(\
-                                    c_ulong(gdmsg), c_ulong(0)))
+                                    c_ulong(gdmsg), c_ulong(0)),\
+                                backtrace)
                         SystemManager.printPipe(msgStr)
+
                         continue
 
                     # check sent data #
@@ -29934,6 +29946,14 @@ struct msghdr {
         current = time.time()
         diff = current - self.start
 
+        # get backtrace #
+        if SystemManager.funcDepth > 0:
+            backtrace = self.getBacktrace(SystemManager.funcDepth)
+            bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+        else:
+            backtrace = None
+            bts = ''
+
         # print call info in JSON format #
         if SystemManager.jsonPrintEnable:
             jsonData = {}
@@ -29943,6 +29963,7 @@ struct msghdr {
             jsonData["name"] = self.syscall
             jsonData["tid"] = self.pid
             jsonData["comm"] = self.comm
+            jsonData["backtrace"] = bts
             jsonData["args"] = {}
 
             for idx, arg in enumerate(self.args):
@@ -29967,14 +29988,6 @@ struct msghdr {
             argText = ', '.join(str(arg) for arg in args)
         else:
             argText = ', '.join(str(arg[2]) for arg in self.args)
-
-        # get backtrace #
-        if SystemManager.funcDepth > 0:
-            backtrace = self.getBacktrace(SystemManager.funcDepth)
-            bts = '\n\t%s ' % self.getBacktraceString(backtrace)
-        else:
-            backtrace = None
-            bts = ''
 
         # build call string #
         if deferrable:
