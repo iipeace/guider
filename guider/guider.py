@@ -26979,7 +26979,8 @@ class DbusAnalyzer(object):
 
                     # print message #
                     if SystemManager.isPrintDbusMode():
-                        msgStr = "Tid: %s(%s)\nDirection: %s\nDiff: %f\n%s" % \
+                        msgStr = \
+                            "Tid: %s(%s) / Direction: %s / Time: %f\n%s" % \
                             (tid, jsonData['comm'], \
                                 direction, jsonData['timediff'], \
                                 libgioObj.g_dbus_message_print(\
