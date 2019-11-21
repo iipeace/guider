@@ -48431,17 +48431,17 @@ class ThreadAnalyzer(object):
                 try:
                     etc = value['wchan']
                 except:
-                    etc = ''
+                    etc = '-'
             elif SystemManager.affinityEnable:
                 try:
                     etc = SystemManager.getAffinity(int(idx))
                 except:
-                    etc = ''
+                    etc = '-'
             elif SystemManager.oomEnable:
                 try:
                     etc = str(value['oomScore'])
                 except:
-                    etc = ''
+                    etc = '-'
             elif SystemManager.sigHandlerEnable:
                 try:
                     etc = value['status']['SigCgt'].lstrip('0')
@@ -48454,7 +48454,7 @@ class ThreadAnalyzer(object):
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
-                    etc = ''
+                    etc = '-'
             else:
                 # parent name #
                 try:
@@ -48462,7 +48462,7 @@ class ThreadAnalyzer(object):
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
                 except:
-                    etc = ''
+                    etc = '-'
 
             try:
                 mems = long(stat[self.rssIdx])
@@ -48805,6 +48805,31 @@ class ThreadAnalyzer(object):
                 readSize = '-'
                 writeSize = '-'
 
+            # get common dataset for tasks #
+            if idx in self.prevProcData:
+                dataset = self.prevProcData
+            elif idx in self.procData:
+                dataset = self.procData
+            else:
+                dataset = None
+
+            if not SystemManager.processEnable:
+                # process name #
+                try:
+                    pgid = dataset[idx]['mainID']
+                    etc = '%s(%s)' % \
+                        (dataset[pgid]['stat'][self.commIdx][1:-1], pgid)
+                except:
+                    etc = '-'
+            else:
+                # parent name #
+                try:
+                    pgid = dataset[idx]['stat'][self.ppidIdx]
+                    etc = '%s(%s)' % \
+                        (dataset[pgid]['stat'][self.commIdx][1:-1], pgid)
+                except:
+                    etc = '-'
+
             # print thread information #
             SystemManager.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
@@ -48818,7 +48843,7 @@ class ThreadAnalyzer(object):
                 value['stime'], '-', long(stat[self.vssIdx]) >> 20, \
                 long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
                 value['btime'], readSize, writeSize, value['majflt'],\
-                '-', '-', '-', lifeTime[:9], '-', cl=cl, pd=pd))
+                '-', '-', '-', lifeTime[:9], etc[:21], cl=cl, pd=pd))
             procCnt += 1
 
         if procCnt > 0:
