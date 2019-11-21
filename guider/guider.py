@@ -26547,6 +26547,10 @@ class DbusAnalyzer(object):
             [c_char_p, c_ulong, c_ulong, c_void_p]
         gioObj.g_dbus_message_new_from_blob.restype = c_ulong
 
+        gioObj.g_dbus_message_bytes_needed.argtypes = \
+            [c_char_p, c_ulong, c_void_p]
+        gioObj.g_dbus_message_bytes_needed.restype = c_ulong
+
         gioObj.g_error_free.argtypes = [c_void_p]
 
         gioObj.g_dbus_message_get_message_type.argtypes = [c_ulong]
@@ -26928,6 +26932,12 @@ class DbusAnalyzer(object):
                     #buf = c_char_p(call.encode('latin-1'))
                     buf = c_char_p(call)
 
+                    # check message size in header #
+                    hsize = libgioObj.g_dbus_message_bytes_needed(\
+                        buf, c_ulong(len(call)), byref(errp))
+                    if hsize > len(call):
+                        continue
+
                     # create GDBusMessage from bytes #
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(\
                         buf, c_ulong(len(call)), 0, byref(errp))
@@ -27027,6 +27037,7 @@ class DbusAnalyzer(object):
                                     libgioObj.g_dbus_message_get_error_name(addr)
                                 if errstr:
                                     data[tid][targetIf]['err'] += 1
+                                    ThreadAnalyzer.dbusData['totalErr'] += 1
 
                             data[tid][targetIf]['total'] += elapsed
                             data[tid][targetIf]['cnt'] += 1
