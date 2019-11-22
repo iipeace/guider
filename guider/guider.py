@@ -12437,6 +12437,109 @@ class SystemManager(object):
 
 
     @staticmethod
+    def getCmdString():
+        cmdList = SystemManager.getCmdList()
+
+        cmdbuf = ''
+        for ctype, tvalue in sorted(cmdList.items()):
+            prefix = ctype
+            for cmd, cvalue in sorted(tvalue.items()):
+                if len(prefix) > 0:
+                    types = '[%s]' % prefix
+                else:
+                    types = ' '
+
+                cmdbuf = '%s%4s%-12s%4s%-12s%4s<%-s>\n' % \
+                    (cmdbuf, ' ', types, ' ', cmd, ' ', cvalue)
+                prefix = ''
+            cmdbuf = '%s\n' % cmdbuf
+
+        return cmdbuf[:-1]
+
+
+
+    @staticmethod
+    def getCmdList():
+        return {
+            'monitor': {
+                'top': 'process',
+                'threadtop': 'thread',
+                'systemtop': 'system',
+                'bgtop': 'background',
+                'stacktop': 'stack',
+                'perftop': 'PMU',
+                'memtop': 'memory',
+                'disktop': 'storage',
+                'nettop': 'network',
+                'wsstop': 'memory',
+                'reptop': 'JSON',
+                'filetop': 'file',
+                'systop': 'syscall',
+                'usertop': 'usercall',
+                'strace': 'syscall',
+                'utrace': 'usercall',
+                'dlttop': 'DLT',
+                'dbustop': 'D-Bus',
+                },
+            'profile': {
+                'rec': 'thread',
+                'funcrec': 'function',
+                'filerec': 'file',
+                'sysrec': 'syscall',
+                'genrec': 'system',
+                'report': 'report',
+                'mem': 'page',
+                },
+            'visual': {
+                'draw': 'image',
+                'cpudraw': 'cpu',
+                'memdraw': 'memory',
+                'vssdraw': 'vss',
+                'rssdraw': 'rss',
+                'leakdraw': 'leak',
+                'iodraw': 'I/O',
+                'convert': 'text',
+                },
+            'util': {
+                'kill': 'signal',
+                'pause': 'thread',
+                'limitcpu': 'cpu',
+                'setcpu': 'clock',
+                'setsched': 'priority',
+                'getafnt': 'affinity',
+                'setafnt': 'affinity',
+                'pstree': 'tree',
+                'printenv': 'env',
+                'printinfo': 'system',
+                'readelf': 'file',
+                'addr2line': 'symbol',
+                'sym2line': 'addr',
+                'leaktrace': 'leak',
+                'printcrp': 'cgroup',
+                'printdbus': 'D-Bus',
+                },
+            'log': {
+                'printkmsg': 'KMSG',
+                'printdlt': 'DLT',
+                'logdlt': 'DLT',
+                },
+            'control': {
+                'list': 'list',
+                'start': 'signal',
+                'send': 'signal',
+                'event': 'event',
+                'server': 'server',
+                'client': 'client',
+                },
+            'test': {
+                'cputest': 'cpu',
+                'alloctest': 'mem',
+                },
+            }
+
+
+
+    @staticmethod
     def printHelp():
         printPipe = SystemManager.printPipe
 
@@ -14241,80 +14344,14 @@ OPTIONS:
                     helpStr = defStr + \
                         '''
 COMMAND:
-    [monitor]   top         <process>
-                threadtop   <thread>
-                systemtop   <system>
-                bgtop       <background>
-                stacktop    <stack>
-                perftop     <PMU>
-                memtop      <memory>
-                disktop     <storage>
-                nettop      <network>
-                wsstop      <memory>
-                reptop      <JSON>
-                filetop     <file>
-                systop      <syscall>
-                usertop     <usercall>
-                strace      <syscall>
-                utrace      <usercall>
-                dlttop      <DLT>
-                dbustop     <D-Bus>
-
-    [profile]   rec         <thread>
-                funcrec     <function>
-                filerec     <file>
-                sysrec      <syscall>
-                genrec      <system>
-                report      <report>
-                mem         <page>
-
-    [visual]    draw        <image>
-                cpudraw     <cpu>
-                memdraw     <memory>
-                vssdraw     <vss>
-                rssdraw     <rss>
-                leakdraw    <leak>
-                iodraw      <I/O>
-                convert     <text>
-
-    [util]      kill        <signal>
-                pause       <thread>
-                limitcpu    <cpu>
-                setcpu      <clock>
-                setsched    <priority>
-                getafnt     <affinity>
-                setafnt     <affinity>
-                pstree      <tree>
-                printenv    <env>
-                printinfo   <system>
-                readelf     <file>
-                addr2line   <symbol>
-                sym2line    <addr>
-                leaktrace   <leak>
-                printcrp    <cgroup>
-                printdbus   <D-Bus>
-
-    [log]       printkmsg   <KMSG>
-                printdlt    <DLT>
-                logdlt      <DLT>
-
-    [control]   list        <list>
-                start       <signal>
-                send        <signal>
-                event       <event>
-                server      <server>
-                client      <client>
-
-    [test]      cputest     <cpu>
-                alloctest   <mem>
-
+{0:1}
 FILE:
     Profile file (e.g. guider.dat)
     Report  file (e.g. guider.out)
 
 OPTIONS:
-    Check COMMAND with --help (e.g. {0:1} top --help)
-                    '''.format(cmd)
+    Check COMMAND with --help (e.g. {1:1} top --help)
+                    '''.format(SystemManager.getCmdString(), cmd)
 
                 # wrong command #
                 else:
