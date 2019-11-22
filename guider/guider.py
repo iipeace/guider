@@ -13846,7 +13846,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printcgroup #
-                elif SystemManager.isPrintcgroupMode():
+                elif SystemManager.isPrintCgroupMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -14291,7 +14291,7 @@ COMMAND:
                 addr2line   <symbol>
                 sym2line    <addr>
                 leaktrace   <leak>
-                printcgrp   <cgroup>
+                printcrp    <cgroup>
                 printdbus   <D-Bus>
 
     [log]       printkmsg   <KMSG>
@@ -19732,7 +19732,7 @@ Copyright:
             SystemManager.doSym2line()
 
         # PRINTCGROUP MODE #
-        elif SystemManager.isPrintcgroupMode():
+        elif SystemManager.isPrintCgroupMode():
             SystemManager.cgroupEnable = True
             SystemManager().printCgroupInfo(printTitle=False)
             SystemManager.printInfoBuffer()
@@ -20002,8 +20002,8 @@ Copyright:
 
 
     @staticmethod
-    def isPrintcgroupMode():
-        if sys.argv[1] == 'printcgrp':
+    def isPrintCgroupMode():
+        if sys.argv[1] == 'printcrp':
             return True
         else:
             return False
