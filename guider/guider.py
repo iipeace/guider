@@ -11123,6 +11123,7 @@ class SystemManager(object):
     disableAll = False
     intervalNow = 0
     recordStatus = False
+    bgStatus = False
     condExit = False
     sort = None
 
@@ -11187,7 +11188,6 @@ class SystemManager(object):
     cmdEnable = False
     perfEnable = False
     perfGroupEnable = False
-    backgroundEnable = False
     resetEnable = False
     warningEnable = False
     logEnable = True
@@ -16427,6 +16427,27 @@ Copyright:
 
 
     @staticmethod
+    def fgHandler(signum, frame):
+        SystemManager.bgStatus = False
+
+
+
+    @staticmethod
+    def bgHandler(signum, frame):
+        SystemManager.bgStatus = True
+
+        if signum == signal.SIGTSTP:
+            os.kill(SystemManager.pid, signal.SIGSTOP)
+
+
+
+    @staticmethod
+    def winchHandler(signum, frame):
+        SystemManager.getTty(update=True)
+
+
+
+    @staticmethod
     def stopHandler(signum, frame):
         if SystemManager.isFileMode() or \
             SystemManager.isSystemMode():
@@ -18700,7 +18721,6 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'u':
-                SystemManager.backgroundEnable = True
                 SystemManager.runBackgroundMode()
 
             elif option == 'Q':
@@ -18778,7 +18798,6 @@ Copyright:
                 SystemManager.forceEnable = True
 
             elif option == 'u':
-                SystemManager.backgroundEnable = True
                 SystemManager.runBackgroundMode()
 
             elif option == 'y':
@@ -20866,7 +20885,7 @@ Copyright:
     def waitUserInput(wait=0, msg=None, newline=True):
         # check condition #
         if SystemManager.printFile or \
-            SystemManager.backgroundEnable or \
+            SystemManager.bgStatus or \
             SystemManager.isReportTopMode() or \
             not SystemManager.selectEnable or \
             'REMOTERUN' in os.environ:
@@ -21170,6 +21189,8 @@ Copyright:
             # terminate parent process #
             sys.exit(0)
         else:
+            SystemManager.bgStatus = True
+
             # continue child process #
             SystemManager.printStat(\
                 "background running as process %s" % SystemManager.pid)
@@ -21193,9 +21214,10 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
+        SystemManager.setCommonSignal()
+
         signal.signal(signal.SIGINT, SystemManager.exitHandler)
         signal.signal(signal.SIGQUIT, SystemManager.exitHandler)
-        signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
@@ -21207,6 +21229,20 @@ Copyright:
             return
 
         signal.signal(signal.SIGPIPE, SystemManager.exitHandler)
+
+
+
+    @staticmethod
+    def setCommonSignal():
+        if not sys.platform.startswith('linux'):
+            return
+
+        signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
+        signal.signal(signal.SIGWINCH, SystemManager.winchHandler)
+        signal.signal(signal.SIGCONT, SystemManager.fgHandler)
+        signal.signal(signal.SIGTSTP, SystemManager.bgHandler)
+        #signal.signal(signal.SIGTTIN, SystemManager.bgHandler)
+        #signal.signal(signal.SIGTTOU, SystemManager.bgHandler)
 
 
 
@@ -21227,10 +21263,11 @@ Copyright:
         if not sys.platform.startswith('linux'):
             return
 
+        SystemManager.setCommonSignal()
+
         signal.signal(signal.SIGALRM, SystemManager.alarmHandler)
         signal.signal(signal.SIGINT, SystemManager.stopHandler)
         signal.signal(signal.SIGQUIT, SystemManager.newHandler)
-        signal.signal(signal.SIGCHLD, SystemManager.chldHandler)
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
@@ -23310,30 +23347,14 @@ Copyright:
 
 
     @staticmethod
-    def updateTty():
+    def getTty(update=False):
         if not SystemManager.isLinux:
             return
 
-        # get fcntl object #
-        fcntlObj = SystemManager.getPkg('fcntl', False)
-
-        if not SystemManager.termGetId or not fcntlObj:
+        if update and not SystemManager.termGetId:
             return
 
-        try:
-            SystemManager.ttyRows, SystemManager.ttyCols = \
-                struct.unpack('hh', fcntlObj.ioctl(\
-                    sys.stdout.fileno(), SystemManager.termGetId, '1234'))
-        except:
-            pass
-
-
-
-    @staticmethod
-    def getTty():
-        if not SystemManager.isLinux:
-            return
-
+        # update tty info by ioctl #
         try:
             if not SystemManager.termGetId:
                 termios = SystemManager.getPkg('termios', False)
@@ -23346,10 +23367,16 @@ Copyright:
                 struct.unpack('hh', fcntlObj.ioctl(\
                     sys.stdout.fileno(), SystemManager.termGetId, '1234'))
 
+            # update encoding option #
+            if SystemManager.encodeEnable and \
+                SystemManager.ttyCols < SystemManager.lineLength:
+                SystemManager.encodeEnable = False
+
             return
         except:
             pass
 
+        # update tty info by stty #
         try:
             if not UtilManager.which('stty'):
                 raise Exception("No stty")
@@ -29122,10 +29149,6 @@ struct msghdr {
         SystemManager.waitUserInput(\
             wait=0.000001, msg="Press enter key...")
 
-        # update terminal size #
-        if not SystemManager.printFile:
-            SystemManager.updateTty()
-
         SystemManager.updateUptime()
 
         # set time #
@@ -34494,9 +34517,6 @@ class ThreadAnalyzer(object):
             # save timestamp #
             prevTime = time.time()
 
-            # update terminal size #
-            SystemManager.updateTty()
-
             # update proc and file filter #
             if prevFilter != SystemManager.filterGroup:
                 nowFilter = getFilter()
@@ -34562,9 +34582,6 @@ class ThreadAnalyzer(object):
 
             # save timestamp #
             prevTime = time.time()
-
-            # update terminal size #
-            SystemManager.updateTty()
 
             if self.prevCpuData != {}:
                 # print system status #
@@ -50142,7 +50159,6 @@ def main(args=None):
         # background #
         elif SystemManager.isBgTopMode():
             if SystemManager.checkBgTopCond():
-                SystemManager.backgroundEnable = True
                 SystemManager.runBackgroundMode()
             else:
                 sys.exit(0)
