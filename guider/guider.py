@@ -2803,6 +2803,25 @@ class UtilManager(object):
 
 
     @staticmethod
+    def getFileList(flist, verbose=False):
+        rlist  = list()
+        for item in flist:
+            if item.startswith('-'):
+                break
+
+            # apply regular expression for path #
+            ilist = UtilManager.convertPath(item, retStr=False)
+            if UtilManager.isString(ilist):
+                rlist.append(ilist)
+            elif type(ilist) is list:
+                rlist += ilist
+
+        # remove redundant files #
+        return sorted(list(set(rlist)))
+
+
+
+    @staticmethod
     def decodeArg(value):
         try:
             text = repr(value.decode())
@@ -12501,6 +12520,7 @@ class SystemManager(object):
                 'convert': 'text',
                 },
             'util': {
+                'topdiff': 'diff',
                 'kill': 'signal',
                 'pause': 'thread',
                 'limitcpu': 'cpu',
@@ -13741,6 +13761,25 @@ Examples:
 
     - Draw graphs of system resource usage including only cpu and I/O and memory chart
         # {0:1} {1:1} guider.out -L cpu, io
+                    '''.format(cmd, mode)
+
+                # topdiff #
+                elif SystemManager.isTopDiffMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
+
+Description:
+    Diff top report files
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Diff top report files
+        # {0:1} {1:1} tc1.out tc2.out
+
+    - Diff top report files
+        # {0:1} {1:1} tc*.out
                     '''.format(cmd, mode)
 
                 # kill / send #
@@ -19752,6 +19791,16 @@ Copyright:
 
             SystemManager.sendSignalArgs(argList)
 
+        # TOPDIFF MODE #
+        elif SystemManager.isTopDiffMode():
+            # make list of arguments #
+            if len(sys.argv) > 2:
+                argList = sys.argv[2:]
+            else:
+                argList = None
+
+            ThreadAnalyzer.doDiffReports(argList)
+
         # PAUSE MODE #
         elif SystemManager.isPauseMode():
             # convert comm to pid #
@@ -19988,6 +20037,15 @@ Copyright:
     @staticmethod
     def isIoDrawMode():
         if sys.argv[1] == 'iodraw':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isTopDiffMode():
+        if sys.argv[1] == 'topdiff':
             return True
         else:
             return False
@@ -34039,6 +34097,53 @@ class ThreadAnalyzer(object):
                 break
 
         return found
+
+
+
+    @staticmethod
+    def doDiffReports(flist):
+        inputFiles = UtilManager.getFileList(flist)
+        if len(inputFiles) < 2:
+            SystemManager.printErr(\
+                "Fail to get file list to diff, "
+                "input at least two effective file paths")
+            sys.exit(0)
+
+        # define variable and table #
+        nrFiles = len(inputFiles)
+        unionCpuList = dict()
+        unionGpuList = dict()
+        unionRssList = dict()
+        statFileList = dict()
+
+        # define initial data #
+        initCpuData = {
+            'min': 0,
+            'max': 0,
+            'avr': 0
+            }
+
+        # parse stats from multiple files #
+        for lfile in flist:
+            try:
+                gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
+            except:
+                continue
+
+            statFileList[lfile] = gstats
+
+            # get total cpu info #
+            cpuUsage = gstats['cpuUsage']
+            cpuMax = max(cpuUsage)
+            cpuMin = min(cpuUsage)
+            cpuAvr = sum(cpuUsage) / float(len(cpuUsage))
+
+            unionCpuList.setdefault('TOTAL', dict(initCpuData))
+
+            cpuProcUsage = gstats['cpuProcUsage']
+
+        for fname, value in statFileList.items():
+            pass
 
 
 
@@ -50034,21 +50139,8 @@ def main(args=None):
             # modify args for drawing multiple input files #
             sys.argv[1] = 'top'
             args = sys.argv[2:]
-            SystemManager.sourceFile = list()
-            for item in args:
-                if item.startswith('-'):
-                    break
-
-                # apply regular expression for path #
-                ilist = UtilManager.convertPath(item, retStr=False)
-                if UtilManager.isString(ilist):
-                    SystemManager.sourceFile.append(ilist)
-                elif type(ilist) is list:
-                    SystemManager.sourceFile += ilist
-
-            # remove redundant files #
             SystemManager.sourceFile = \
-                list(set(SystemManager.sourceFile))
+                UtilManager.getFileList(args)
 
     # parse analysis option #
     SystemManager.parseAnalOption()
