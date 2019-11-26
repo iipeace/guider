@@ -2803,7 +2803,7 @@ class UtilManager(object):
 
 
     @staticmethod
-    def getFileList(flist, verbose=False):
+    def getFileList(flist, sort=False):
         rlist  = list()
         for item in flist:
             if item.startswith('-'):
@@ -2817,7 +2817,10 @@ class UtilManager(object):
                 rlist += ilist
 
         # remove redundant files #
-        return sorted(list(set(rlist)))
+        if sort:
+            return sorted(list(set(rlist)))
+        else:
+            return list(set(rlist))
 
 
 
@@ -11169,7 +11172,7 @@ class SystemManager(object):
     latEnable = cpuEnable
     gpuEnable = True
     memEnable = False
-    rssEnable = False
+    rssEnable = True
     pssEnable = False
     ussEnable = False
     vssEnable = False
@@ -34116,34 +34119,160 @@ class ThreadAnalyzer(object):
         unionRssList = dict()
         statFileList = dict()
 
-        # define initial data #
-        initCpuData = {
-            'min': 0,
-            'max': 0,
-            'avr': 0
-            }
+        # define total key #
+        unionCpuList.setdefault('TOTAL', 0)
+        unionGpuList.setdefault('TOTAL', 0)
+        unionRssList.setdefault('FREE', 0)
 
         # parse stats from multiple files #
-        for lfile in flist:
+        for idx, lfile in enumerate(flist):
             try:
                 gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
             except:
                 continue
 
+            # save all stats in a file #
             statFileList[lfile] = gstats
+
+            # define proc usage #
+            cpuProcUsage = gstats['cpuProcUsage']
+            memProcUsage = gstats['memProcUsage']
+            gpuProcUsage = gstats['gpuProcUsage'] = {}
 
             # get total cpu info #
             cpuUsage = gstats['cpuUsage']
-            cpuMax = max(cpuUsage)
-            cpuMin = min(cpuUsage)
-            cpuAvr = sum(cpuUsage) / float(len(cpuUsage))
+            cpuProcUsage['TOTAL'] = {
+                'usage': cpuUsage,
+                'average': sum(cpuUsage) / float(len(cpuUsage)),
+                'minimum': min(cpuUsage),
+                'maximum': max(cpuUsage),
+                }
 
-            unionCpuList.setdefault('TOTAL', dict(initCpuData))
+            # get total gpu info #
+            gpuUsage = gstats['gpuUsage']
+            if len(gpuUsage) > 0:
+                gpuProcUsage['TOTAL'] = {
+                    'usage': gpuUsage,
+                    'average': sum(gpuUsage) / float(len(gpuUsage)),
+                    'minimum': min(gpuUsage),
+                    'maximum': max(gpuUsage),
+                    }
 
-            cpuProcUsage = gstats['cpuProcUsage']
+            # get total free info #
+            memFree = gstats['memFree']
+            memProcUsage['FREE'] = {
+                'usage': memFree,
+                'minimum': min(memFree),
+                'maximum': max(memFree),
+                }
 
-        for fname, value in statFileList.items():
-            pass
+            # iterate cpu list #
+            for pinfo, value in cpuProcUsage.items():
+                pname = pinfo.split('(')[0]
+
+                # register comm #
+                unionCpuList.setdefault(pname, 0)
+
+                # save diff itself #
+                if idx > 0:
+                    key = '%s(' % pname
+                    targetList = dict()
+                    prevProcList = statFileList[flist[idx-1]]['cpuProcUsage']
+
+                    for proc, pval in prevProcList.items():
+                        if proc.startswith(key):
+                            targetList.setdefault(proc, pval)
+
+                    # get diff by average #
+                    if len(targetList) == 0:
+                        value['diff'] = value['average']
+                    elif len(targetList) == 1:
+                        target = targetList.popitem()[1]
+                        value['diff'] = value['average'] - target['average']
+                    else:
+                        pass
+
+                # set diff to the union list if this file is lastest one #
+                if idx == len(flist)-1:
+                    unionCpuList[pname] = value['diff']
+
+            # iterate gpu list #
+            for pinfo, value in gpuProcUsage.items():
+                pname = pinfo.split('(')[0]
+
+                # register comm #
+                unionGpuList.setdefault(pname, 0)
+
+                # save diff itself #
+                if idx > 0:
+                    key = '%s(' % pname
+                    targetList = dict()
+                    prevProcList = statFileList[flist[idx-1]]['gpuProcUsage']
+
+                    for proc, pval in prevProcList.items():
+                        if proc.startswith(key):
+                            targetList.setdefault(proc, pval)
+
+                    # get diff by average #
+                    if len(targetList) == 0:
+                        value['diff'] = value['average']
+                    elif len(targetList) == 1:
+                        target = targetList.popitem()[1]
+                        value['diff'] = value['average'] - target['average']
+                    else:
+                        pass
+
+                # set diff to the union list if this file is lastest one #
+                if idx == len(flist)-1:
+                    unionGpuList[pname] = value['diff']
+
+            # iterate rss list #
+            for pinfo, value in memProcUsage.items():
+                pname = pinfo.split('(')[0]
+
+                # register comm #
+                unionRssList.setdefault(pname, 0)
+
+                # save diff itself #
+                if idx > 0:
+                    key = '%s(' % pname
+                    targetList = dict()
+                    prevProcList = statFileList[flist[idx-1]]['memProcUsage']
+
+                    for proc, pval in prevProcList.items():
+                        if proc.startswith(key):
+                            targetList.setdefault(proc, pval)
+
+                    # get diff by average #
+                    if len(targetList) == 0:
+                        if 'maxRss' in value:
+                            value['diff'] = value['maxRss']
+                    elif len(targetList) == 1:
+                        target = targetList.popitem()[1]
+                        if 'maxRss' in value:
+                            value['diff'] = value['maxRss'] - target['maxRss']
+                    else:
+                        pass
+
+                # set diff to the union list if this file is lastest one #
+                if idx == len(flist)-1:
+                    if 'maxRss' in value:
+                        unionRssList[pname] = value['diff']
+
+        # print cpu diff #
+        for pname, value in sorted(\
+            unionCpuList.items(), key=lambda e:e[1], reverse=True):
+            print(pname, value)
+
+        # print gpu diff #
+        for pname, value in sorted(\
+            unionGpuList.items(), key=lambda e:e[1], reverse=True):
+            print(pname, value)
+
+        # print rss diff #
+        for pname, value in sorted(\
+            unionRssList.items(), key=lambda e:e[1], reverse=True):
+            print(pname, value)
 
 
 
