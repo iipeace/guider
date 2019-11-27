@@ -34161,9 +34161,9 @@ class ThreadAnalyzer(object):
             # get total free info #
             memFree = gstats['memFree']
             memProcUsage['FREE'] = {
-                'usage': memFree,
-                'minimum': min(memFree),
-                'maximum': max(memFree),
+                'rssUsage': memFree,
+                'minRss': min(memFree),
+                'maxRss': max(memFree),
                 }
 
             # remove * characters #
@@ -34181,7 +34181,7 @@ class ThreadAnalyzer(object):
                 # convert usage string to list #
                 try:
                     cpuProcUsage[pinfo]['usage'] = list(map(int, \
-                            cpuProcUsage[pinfo]['usage'].split()))
+                        cpuProcUsage[pinfo]['usage'].split()))
                 except:
                     pass
 
@@ -34190,7 +34190,7 @@ class ThreadAnalyzer(object):
                     prevTask = pname
 
                     target = cpuProcUsage[pinfo]
-                    cpuProcUsage.setdefault(pname, cpuProcUsage[pinfo])
+                    cpuProcUsage.setdefault(pname, target)
                     target['cnt'] = 1
                     target['average'] = \
                         sum(target['usage']) / float(len(target['usage']))
@@ -34302,7 +34302,7 @@ class ThreadAnalyzer(object):
                 # convert usage string to list #
                 try:
                     memProcUsage[pinfo]['rssUsage'] = list(map(int, \
-                            memProcUsage[pinfo]['rssUsage'].split()))
+                        memProcUsage[pinfo]['rssUsage'].split()))
                 except:
                     pass
 
@@ -34310,8 +34310,9 @@ class ThreadAnalyzer(object):
                 if prevTask != pname:
                     prevTask = pname
 
-                    memProcUsage.setdefault(pname, memProcUsage[pinfo])
-                    memProcUsage[pinfo]['cnt'] = 1
+                    target = memProcUsage[pinfo]
+                    memProcUsage.setdefault(pname, target)
+                    target['cnt'] = 1
                     if '(' in pinfo:
                         memProcUsage.pop(pinfo)
 
@@ -34326,8 +34327,6 @@ class ThreadAnalyzer(object):
                 target['cnt'] += 1
                 target['minimum'] = min(target['rssUsage'])
                 target['maximum'] = max(target['rssUsage'])
-                target['average'] = \
-                    sum(target['rssUsage']) / float(len(target['rssUsage']))
 
                 # pop this task #
                 if '(' in pinfo:
@@ -34361,10 +34360,22 @@ class ThreadAnalyzer(object):
                     else:
                         pass
 
-                # set diff to the union list if this file is lastest one #
-                if idx == len(flist)-1:
-                    if 'maxRss' in value:
-                        unionRssList[pname] = value['diff']
+            # set diff to the union list if this file is lastest one #
+            if idx == len(flist)-1:
+                prevProcList = statFileList[flist[-2]]['memProcUsage']
+                lastProcList = statFileList[flist[-1]]['memProcUsage']
+                for pname, value in unionRssList.items():
+                    if pname in lastProcList:
+                        try:
+                            unionRssList[pname] = \
+                                lastProcList[pname]['maxRss'] - \
+                                    prevProcList[pname]['maxRss']
+                        except:
+                            unionRssList[pname] = \
+                                lastProcList[pname]['maxRss']
+                    elif pname in prevProcList:
+                        unionRssList[pname] = \
+                            -(prevProcList[pname]['maxRss'])
 
         # print cpu diff #
         print('--- CPU ---')
