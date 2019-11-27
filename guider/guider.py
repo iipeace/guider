@@ -34166,8 +34166,57 @@ class ThreadAnalyzer(object):
                 'maximum': max(memFree),
                 }
 
+            # remove * characters #
+            for pinfo in sorted(cpuProcUsage.keys()):
+                if pinfo.startswith('*'):
+                    cpuProcUsage[pinfo[1:]] = cpuProcUsage.pop(pinfo)
+                else:
+                    break
+
+            # merge tasks having same name #
+            prevTask = None
+            for pinfo in sorted(cpuProcUsage.keys()):
+                pname = pinfo.split('(')[0]
+
+                # convert usage string to list #
+                try:
+                    cpuProcUsage[pinfo]['usage'] = list(map(int, \
+                            cpuProcUsage[pinfo]['usage'].split()))
+                except:
+                    pass
+
+                # register the first task #
+                if prevTask != pname:
+                    prevTask = pname
+
+                    target = cpuProcUsage[pinfo]
+                    cpuProcUsage.setdefault(pname, cpuProcUsage[pinfo])
+                    target['cnt'] = 1
+                    target['average'] = \
+                        sum(target['usage']) / float(len(target['usage']))
+                    if '(' in pinfo:
+                        cpuProcUsage.pop(pinfo)
+
+                    continue
+
+                # merge tasks #
+                target = cpuProcUsage[pname]
+                target['usage'] = list(map(sum, \
+                    zip(*[target['usage'], cpuProcUsage[pinfo]['usage']])))
+
+                # update stats #
+                target['cnt'] += 1
+                target['minimum'] = min(target['usage'])
+                target['maximum'] = max(target['usage'])
+                target['average'] = \
+                    sum(target['usage']) / float(len(target['usage']))
+
+                # pop this task #
+                if '(' in pinfo:
+                    cpuProcUsage.pop(pinfo)
+
             # iterate cpu list #
-            for pinfo, value in cpuProcUsage.items():
+            for pinfo, value in sorted(cpuProcUsage.items()):
                 pname = pinfo.split('(')[0]
 
                 # register comm #
@@ -34175,12 +34224,11 @@ class ThreadAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    key = '%s(' % pname
                     targetList = dict()
                     prevProcList = statFileList[flist[idx-1]]['cpuProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.startswith(key):
+                        if proc.startswith(pinfo):
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
@@ -34192,9 +34240,22 @@ class ThreadAnalyzer(object):
                     else:
                         pass
 
-                # set diff to the union list if this file is lastest one #
-                if idx == len(flist)-1:
-                    unionCpuList[pname] = value['diff']
+            # set diff to the union list if this file is lastest one #
+            if idx == len(flist)-1:
+                prevProcList = statFileList[flist[-2]]['cpuProcUsage']
+                lastProcList = statFileList[flist[-1]]['cpuProcUsage']
+                for pname, value in unionCpuList.items():
+                    if pname in lastProcList:
+                        try:
+                            unionCpuList[pname] = \
+                                lastProcList[pname]['average'] - \
+                                    prevProcList[pname]['average']
+                        except:
+                            unionCpuList[pname] = \
+                                lastProcList[pname]['average']
+                    elif pname in prevProcList:
+                        unionCpuList[pname] = \
+                            -(prevProcList[pname]['average'])
 
             # iterate gpu list #
             for pinfo, value in gpuProcUsage.items():
@@ -34225,6 +34286,52 @@ class ThreadAnalyzer(object):
                 # set diff to the union list if this file is lastest one #
                 if idx == len(flist)-1:
                     unionGpuList[pname] = value['diff']
+
+            # remove * characters #
+            for pinfo in sorted(memProcUsage.keys()):
+                if pinfo.startswith('*'):
+                    memProcUsage[pinfo[1:]] = memProcUsage.pop(pinfo)
+                else:
+                    break
+
+            # merge tasks having same name #
+            prevTask = None
+            for pinfo in sorted(memProcUsage.keys()):
+                pname = pinfo.split('(')[0]
+
+                # convert usage string to list #
+                try:
+                    memProcUsage[pinfo]['rssUsage'] = list(map(int, \
+                            memProcUsage[pinfo]['rssUsage'].split()))
+                except:
+                    pass
+
+                # register the first task #
+                if prevTask != pname:
+                    prevTask = pname
+
+                    memProcUsage.setdefault(pname, memProcUsage[pinfo])
+                    memProcUsage[pinfo]['cnt'] = 1
+                    if '(' in pinfo:
+                        memProcUsage.pop(pinfo)
+
+                    continue
+
+                # merge tasks #
+                target = memProcUsage[pname]
+                target['rssUsage'] = list(map(sum, \
+                    zip(*[target['rssUsage'], memProcUsage[pinfo]['rssUsage']])))
+
+                # update stats #
+                target['cnt'] += 1
+                target['minimum'] = min(target['rssUsage'])
+                target['maximum'] = max(target['rssUsage'])
+                target['average'] = \
+                    sum(target['rssUsage']) / float(len(target['rssUsage']))
+
+                # pop this task #
+                if '(' in pinfo:
+                    memProcUsage.pop(pinfo)
 
             # iterate rss list #
             for pinfo, value in memProcUsage.items():
@@ -34260,15 +34367,18 @@ class ThreadAnalyzer(object):
                         unionRssList[pname] = value['diff']
 
         # print cpu diff #
+        print('--- CPU ---')
         for pname, value in sorted(\
             unionCpuList.items(), key=lambda e:e[1], reverse=True):
             print(pname, value)
 
+        print('--- GPU ---')
         # print gpu diff #
         for pname, value in sorted(\
             unionGpuList.items(), key=lambda e:e[1], reverse=True):
             print(pname, value)
 
+        print('--- RSS ---')
         # print rss diff #
         for pname, value in sorted(\
             unionRssList.items(), key=lambda e:e[1], reverse=True):
