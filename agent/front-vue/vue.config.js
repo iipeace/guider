@@ -1,4 +1,6 @@
 const webpack = require("webpack");
+const htmlWebpackPlugin = require("html-webpack-plugin");
+const path = require("path");
 
 module.exports = {
   outputDir: "../static",
@@ -26,6 +28,11 @@ module.exports = {
     plugins: [
       new webpack.optimize.LimitChunkCountPlugin({
         maxChunks: 6
+      }),
+      new htmlWebpackPlugin({
+        template: path.join(__dirname, "public/index.html"),
+        inject: true,
+        filename: path.join(__dirname, "../static/index.html")
       })
     ]
   },

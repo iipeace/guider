@@ -30,10 +30,16 @@ Vue.use(RouterPrefetch);
 
 Vue.config.productionTip = false;
 
+const serverAddr =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:8000"
+    : document.getElementById("serverAddr").value;
+
+
 Vue.use(
   new VueSocketIO({
     debug: process.env.NODE_ENV !== "production",
-    connection: "http://localhost:8000"
+    connection: serverAddr
   })
 );
 
