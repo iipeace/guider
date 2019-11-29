@@ -10,11 +10,9 @@ class Main(Resource):
 
     def get(self):
         headers = {'Content-Type': 'text/html'}
-        return make_response(
-            render_template('index.html', server_addr=request.host_url),
-            200,
-            headers
-        )
+        response = make_response(render_template("index.html", server_addr=request.host_url))
+        response.headers = headers
+        return response
 
 
 class Devices(Resource):
