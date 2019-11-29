@@ -34378,12 +34378,48 @@ class ThreadAnalyzer(object):
                             -(prevProcList[pname]['maxRss'])
 
         # print cpu diff #
-        print('--- CPU ---')
+        SystemManager.printPipe('\n[CPU Diff Info]\n%s' % twoLine)
+
+        emptyCpuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
+            ('-', '-', '-', '-', '-')
+        lenCpuStat = len(emptyCpuStat)
+
+        printBuf = "{0:^16} | ".format('Name')
+        for fname in flist:
+            printBuf = \
+                ('{0:1} {1:^%d}' % len(emptyCpuStat)).format(printBuf, fname)
+        printBuf = "%s\n%s" % (printBuf, twoLine)
+        SystemManager.printPipe(printBuf)
+
         for pname, value in sorted(\
             unionCpuList.items(), key=lambda e:e[1], reverse=True):
-            print(pname, value)
+            printBuf = "%16s | " % pname
+            for fname in flist:
+                cpuProcList = statFileList[fname]['cpuProcUsage']
 
-        print('--- GPU ---')
+                # no target process in this file #
+                if not pname in cpuProcList:
+                    printBuf = '%s %s' % (printBuf, emptyCpuStat)
+                    continue
+
+                cpuProcStat = cpuProcList[pname]
+                if not 'diff' in cpuProcStat:
+                    newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                        ('-', cpuProcStat['cnt'], \
+                            cpuProcStat['minimum'], cpuProcStat['average'], \
+                            cpuProcStat['maximum'])
+                else:
+                    newStat = "%6.1f%%(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                        (cpuProcStat['diff'], cpuProcStat['cnt'], \
+                            cpuProcStat['minimum'], cpuProcStat['average'], \
+                            cpuProcStat['maximum'])
+
+                printBuf = '%s %s' % (printBuf, newStat)
+
+            SystemManager.printPipe(printBuf)
+
+        SystemManager.printPipe(oneLine)
+
         # print gpu diff #
         for pname, value in sorted(\
             unionGpuList.items(), key=lambda e:e[1], reverse=True):
@@ -50362,7 +50398,7 @@ def main(args=None):
                 SystemManager.printFile = \
                     '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
             del sys.argv[2]
-        # top mode #
+        # draw mode #
         else:
             # cpu graph #
             if SystemManager.isCpuDrawMode():
