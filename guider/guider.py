@@ -16934,11 +16934,14 @@ Copyright:
 
 
     @staticmethod
-    def doPrint():
+    def doPrint(newline=True, clear=False):
         if len(SystemManager.bufferString) == 0:
             return
 
-        SystemManager.printPipe(SystemManager.bufferString)
+        SystemManager.printPipe(SystemManager.bufferString, newline)
+
+        if clear:
+            SystemManager.clearPrint()
 
 
 
@@ -34162,6 +34165,7 @@ class ThreadAnalyzer(object):
             memFree = gstats['memFree']
             memProcUsage['FREE'] = {
                 'rssUsage': memFree,
+                'average': sum(memFree) / len(memFree),
                 'minRss': min(memFree),
                 'maxRss': max(memFree),
                 }
@@ -34313,6 +34317,10 @@ class ThreadAnalyzer(object):
                     target = memProcUsage[pinfo]
                     memProcUsage.setdefault(pname, target)
                     target['cnt'] = 1
+                    target['minRss'] = min(target['rssUsage'])
+                    target['maxRss'] = max(target['rssUsage'])
+                    target['avgRss'] = \
+                        sum(target['rssUsage']) / len(target['rssUsage'])
                     if '(' in pinfo:
                         memProcUsage.pop(pinfo)
 
@@ -34325,8 +34333,10 @@ class ThreadAnalyzer(object):
 
                 # update stats #
                 target['cnt'] += 1
-                target['minimum'] = min(target['rssUsage'])
-                target['maximum'] = max(target['rssUsage'])
+                target['minRss'] = min(target['rssUsage'])
+                target['maxRss'] = max(target['rssUsage'])
+                target['avgRss'] = \
+                    sum(target['rssUsage']) / len(target['rssUsage'])
 
                 # pop this task #
                 if '(' in pinfo:
@@ -34341,12 +34351,11 @@ class ThreadAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    key = '%s(' % pname
                     targetList = dict()
                     prevProcList = statFileList[flist[idx-1]]['memProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.startswith(key):
+                        if proc.startswith(pname):
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
@@ -34377,13 +34386,14 @@ class ThreadAnalyzer(object):
                         unionRssList[pname] = \
                             -(prevProcList[pname]['maxRss'])
 
-        # print cpu diff #
+        # print CPU diff #
         SystemManager.printPipe('\n[CPU Diff Info]\n%s' % twoLine)
 
         emptyCpuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
             ('-', '-', '-', '-', '-')
         lenCpuStat = len(emptyCpuStat)
 
+        totalBuf = ""
         printBuf = "{0:^16} | ".format('Name')
         for fname in flist:
             printBuf = \
@@ -34416,20 +34426,118 @@ class ThreadAnalyzer(object):
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
-            SystemManager.printPipe(printBuf)
+            if pname == 'TOTAL':
+                totalBuf = printBuf
+            else:
+                SystemManager.addPrint(printBuf + '\n')
+
+        SystemManager.printPipe(totalBuf)
+
+        SystemManager.doPrint(newline=False, clear=True)
 
         SystemManager.printPipe(oneLine)
 
-        # print gpu diff #
+        # print GPU diff #
+        SystemManager.printPipe('\n[GPU Diff Info]\n%s' % twoLine)
+
+        emptyGpuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
+            ('-', '-', '-', '-', '-')
+        lenGpuStat = len(emptyCpuStat)
+
+        totalBuf = ""
+        printBuf = "{0:^16} | ".format('Name')
+        for fname in flist:
+            printBuf = \
+                ('{0:1} {1:^%d}' % len(emptyGpuStat)).format(printBuf, fname)
+        printBuf = "%s\n%s" % (printBuf, twoLine)
+        SystemManager.printPipe(printBuf)
+
         for pname, value in sorted(\
             unionGpuList.items(), key=lambda e:e[1], reverse=True):
-            print(pname, value)
+            printBuf = "%16s | " % pname
+            for fname in flist:
+                gpuProcList = statFileList[fname]['gpuProcUsage']
 
-        print('--- RSS ---')
-        # print rss diff #
+                # no target process in this file #
+                if not pname in gpuProcList:
+                    printBuf = '%s %s' % (printBuf, emptyGpuStat)
+                    continue
+
+                gpuProcStat = gpuProcList[pname]
+                if not 'diff' in gpuProcStat:
+                    newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                        ('-', gpuProcStat['cnt'], \
+                            gpuProcStat['minimum'], gpuProcStat['average'], \
+                            gpuProcStat['maximum'])
+                else:
+                    newStat = "%6.1f%%(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                        (gpuProcStat['diff'], gpuProcStat['cnt'], \
+                            gpuProcStat['minimum'], gpuProcStat['average'], \
+                            gpuProcStat['maximum'])
+
+                printBuf = '%s %s' % (printBuf, newStat)
+
+            if pname == 'TOTAL':
+                totalBuf = printBuf
+            else:
+                SystemManager.addPrint(printBuf + '\n')
+
+        SystemManager.printPipe(totalBuf)
+
+        SystemManager.doPrint(newline=False, clear=True)
+
+        SystemManager.printPipe(oneLine)
+
+        # print RSS diff #
+        SystemManager.printPipe('\n[RSS Diff Info]\n%s' % twoLine)
+
+        emptyRssStat = "%7s(%2s)(%7s/%7s/%7s)" % \
+            ('-', '-', '-', '-', '-')
+        lenRssStat = len(emptyRssStat)
+
+        totalBuf = ""
+        printBuf = "{0:^16} | ".format('Name')
+        for fname in flist:
+            printBuf = \
+                ('{0:1} {1:^%d}' % len(emptyRssStat)).format(printBuf, fname)
+        printBuf = "%s\n%s" % (printBuf, twoLine)
+        SystemManager.printPipe(printBuf)
+
         for pname, value in sorted(\
             unionRssList.items(), key=lambda e:e[1], reverse=True):
-            print(pname, value)
+            printBuf = "%16s | " % pname
+            for fname in flist:
+                rssProcList = statFileList[fname]['memProcUsage']
+
+                # no target process in this file #
+                if not pname in rssProcList:
+                    printBuf = '%s %s' % (printBuf, emptyRssStat)
+                    continue
+
+                rssProcStat = rssProcList[pname]
+                if not 'diff' in rssProcStat:
+                    newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
+                        ('-', rssProcStat['cnt'], \
+                            rssProcStat['minRss'], rssProcStat['avgRss'], \
+                            rssProcStat['maxRss'])
+                else:
+                    newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
+                        (rssProcStat['diff'], rssProcStat['cnt'], \
+                            rssProcStat['minRss'], rssProcStat['avgRss'], \
+                            rssProcStat['maxRss'])
+
+                printBuf = '%s %s' % (printBuf, newStat)
+
+            if pname == 'FREE':
+                totalBuf = printBuf
+            else:
+                SystemManager.addPrint(printBuf + '\n')
+
+        SystemManager.printPipe(totalBuf)
+
+        SystemManager.doPrint(newline=False, clear=True)
+
+        SystemManager.printPipe(oneLine)
 
 
 
