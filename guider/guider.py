@@ -18280,6 +18280,24 @@ Copyright:
 
 
     @staticmethod
+    def removeOptionArgs():
+        if len(sys.argv) < 3:
+            return
+
+        # find first option args #
+        firstOptIdx = None
+        for idx, item in enumerate(sys.argv):
+            if item.startswith('-'):
+                firstOptIdx = idx
+                break
+
+        # update args #
+        if firstOptIdx:
+            sys.argv = sys.argv[:firstOptIdx]
+
+
+
+    @staticmethod
     def parseAnalOption(option=None):
         # check call history #
         if not option and SystemManager.parsedAnalOption:
@@ -19799,11 +19817,16 @@ Copyright:
 
         # TOPDIFF MODE #
         elif SystemManager.isTopDiffMode():
+            # remove option args #
+            SystemManager.removeOptionArgs()
+
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
             else:
                 argList = None
+
+            SystemManager.printLogo(big=True, onlyFile=True)
 
             ThreadAnalyzer.doDiffReports(argList)
 
