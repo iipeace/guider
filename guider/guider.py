@@ -34147,7 +34147,6 @@ class ThreadAnalyzer(object):
 
         # define total key #
         unionCpuList.setdefault('TOTAL', 0)
-        unionGpuList.setdefault('TOTAL', 0)
         unionRssList.setdefault('FREE', 0)
 
         # parse stats from multiple files #
@@ -34175,14 +34174,7 @@ class ThreadAnalyzer(object):
                 }
 
             # get total gpu info #
-            gpuUsage = gstats['gpuUsage']
-            if len(gpuUsage) > 0:
-                gpuProcUsage['TOTAL'] = {
-                    'usage': gpuUsage,
-                    'average': sum(gpuUsage) / float(len(gpuUsage)),
-                    'minimum': min(gpuUsage),
-                    'maximum': max(gpuUsage),
-                    }
+            gpuProcUsage = gstats['gpuUsage']
 
             # get total free info #
             memFree = gstats['memFree']
@@ -34255,8 +34247,8 @@ class ThreadAnalyzer(object):
                     prevProcList = statFileList[flist[idx-1]]['cpuProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.startswith(pinfo):
-                            targetList.setdefault(proc, pval)
+                        if proc.split('(')[0] == pname:
+                            targetList.setdefault(pname, pval)
 
                     # get diff by average #
                     if len(targetList) == 0:
@@ -34284,6 +34276,62 @@ class ThreadAnalyzer(object):
                         unionCpuList[pname] = \
                             -(prevProcList[pname]['average'])
 
+            # remove * characters #
+            for pinfo in sorted(gpuProcUsage.keys()):
+                if pinfo.startswith('*'):
+                    gpuProcUsage[pinfo[1:]] = gpuProcUsage.pop(pinfo)
+                else:
+                    break
+
+            # merge tasks having same name #
+            prevTask = None
+            for pinfo in sorted(gpuProcUsage.keys()):
+                pname = pinfo.split('(')[0]
+
+                # convert usage string to list #
+                try:
+                    gusage = list(map(int, gpuProcUsage[pinfo].split()))
+                    gpuProcUsage[pinfo] = {
+                        'usage': gusage,
+                        }
+                    gstats['gpuProcUsage'][pinfo] = gpuProcUsage[pinfo]
+                except:
+                    pass
+
+                # register the first task #
+                if prevTask != pname:
+                    prevTask = pname
+
+                    target = gpuProcUsage[pinfo]
+                    target['cnt'] = 1
+                    target['minimum'] = min(target['usage'])
+                    target['maximum'] = max(target['usage'])
+                    target['average'] = \
+                        sum(target['usage']) / float(len(target['usage']))
+
+                    gpuProcUsage.setdefault(pname, target)
+
+                    if '(' in pinfo:
+                        gpuProcUsage.pop(pinfo)
+
+                    continue
+
+                # merge tasks #
+                target = gpuProcUsage[pname]
+                target['usage'] = list(map(sum, \
+                    zip(*[target['usage'], gpuProcUsage[pinfo]['usage']])))
+
+                # update stats #
+                target['cnt'] += 1
+                target['minimum'] = min(target['usage'])
+                target['maximum'] = max(target['usage'])
+                target['average'] = \
+                    sum(target['usage']) / float(len(target['usage']))
+
+                # pop this task #
+                if '(' in pinfo:
+                    gpuProcUsage.pop(pinfo)
+
             # iterate gpu list #
             for pinfo, value in gpuProcUsage.items():
                 pname = pinfo.split('(')[0]
@@ -34293,12 +34341,11 @@ class ThreadAnalyzer(object):
 
                 # save diff itself #
                 if idx > 0:
-                    key = '%s(' % pname
                     targetList = dict()
                     prevProcList = statFileList[flist[idx-1]]['gpuProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.startswith(key):
+                        if proc.split('(')[0] == pname:
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
@@ -34384,7 +34431,7 @@ class ThreadAnalyzer(object):
                     prevProcList = statFileList[flist[idx-1]]['memProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.startswith(pname):
+                        if proc.split('(')[0] == pname:
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
@@ -34443,9 +34490,9 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe(printBuf)
 
         for pname, value in sorted(\
-            unionCpuList.items(), key=lambda e:e[1], reverse=True):
+            unionCpuList.items(), key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
-            for fname in flist:
+            for idx, fname in enumerate(flist):
                 cpuProcList = statFileList[fname]['cpuProcUsage']
 
                 # no target process in this file #
@@ -34455,15 +34502,20 @@ class ThreadAnalyzer(object):
 
                 cpuProcStat = cpuProcList[pname]
                 if not 'diff' in cpuProcStat:
-                    newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
-                        ('-', cpuProcStat['cnt'], \
-                            cpuProcStat['minimum'], cpuProcStat['average'], \
-                            cpuProcStat['maximum'])
+                    diff = '-'
+                elif cpuProcStat['diff'] > 0:
+                    diff = '{0:>6}%'.format(\
+                        '%6s' % ('+%.1f' % cpuProcStat['diff']))
+                elif cpuProcStat['diff'] < 0:
+                    diff = '{0:>6}%'.format(\
+                        '%6s' % ('-%.1f' % abs(cpuProcStat['diff'])))
                 else:
-                    newStat = "%6.1f%%(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
-                        (cpuProcStat['diff'], cpuProcStat['cnt'], \
-                            cpuProcStat['minimum'], cpuProcStat['average'], \
-                            cpuProcStat['maximum'])
+                    diff = '0'
+
+                newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                    (diff, cpuProcStat['cnt'], \
+                        cpuProcStat['minimum'], cpuProcStat['average'], \
+                        cpuProcStat['maximum'])
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
@@ -34472,7 +34524,7 @@ class ThreadAnalyzer(object):
             else:
                 SystemManager.addPrint(printBuf + '\n')
 
-        SystemManager.printPipe(totalBuf)
+        SystemManager.printPipe('%s\n%s' % (totalBuf, oneLine))
 
         SystemManager.doPrint(newline=False, clear=True)
 
@@ -34487,7 +34539,6 @@ class ThreadAnalyzer(object):
             ('Diff', 'Nr', 'Min', 'Avg', 'Max')
         lenGpuStat = len(emptyCpuStat)
 
-        totalBuf = ""
         menuBuf = "{0:^16} | ".format('Task')
         printBuf = "{0:^16} | ".format('File')
         for fname in flist:
@@ -34499,7 +34550,7 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe(printBuf)
 
         for pname, value in sorted(\
-            unionGpuList.items(), key=lambda e:e[1], reverse=True):
+            unionGpuList.items(), key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for fname in flist:
                 gpuProcList = statFileList[fname]['gpuProcUsage']
@@ -34511,24 +34562,24 @@ class ThreadAnalyzer(object):
 
                 gpuProcStat = gpuProcList[pname]
                 if not 'diff' in gpuProcStat:
-                    newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
-                        ('-', gpuProcStat['cnt'], \
-                            gpuProcStat['minimum'], gpuProcStat['average'], \
-                            gpuProcStat['maximum'])
+                    diff = '-'
+                elif gpuProcStat['diff'] > 0:
+                    diff = '{0:>6}%'.format(\
+                        '%6s' % ('+%.1f' % gpuProcStat['diff']))
+                elif gpuProcStat['diff'] < 0:
+                    diff = '{0:>6}%'.format(\
+                        '%6s' % ('-%.1f' % abs(gpuProcStat['diff'])))
                 else:
-                    newStat = "%6.1f%%(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
-                        (gpuProcStat['diff'], gpuProcStat['cnt'], \
-                            gpuProcStat['minimum'], gpuProcStat['average'], \
-                            gpuProcStat['maximum'])
+                    diff = '0'
+
+                newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                    (diff, gpuProcStat['cnt'], \
+                        gpuProcStat['minimum'], gpuProcStat['average'], \
+                        gpuProcStat['maximum'])
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
-            if pname == 'TOTAL':
-                totalBuf = printBuf
-            else:
-                SystemManager.addPrint(printBuf + '\n')
-
-        SystemManager.printPipe(totalBuf)
+            SystemManager.addPrint(printBuf + '\n')
 
         SystemManager.doPrint(newline=False, clear=True)
 
@@ -34555,7 +34606,7 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe(printBuf)
 
         for pname, value in sorted(\
-            unionRssList.items(), key=lambda e:e[1], reverse=True):
+            unionRssList.items(), key=lambda e:long(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for fname in flist:
                 rssProcList = statFileList[fname]['memProcUsage']
@@ -34567,15 +34618,18 @@ class ThreadAnalyzer(object):
 
                 rssProcStat = rssProcList[pname]
                 if not 'diff' in rssProcStat:
-                    newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
-                        ('-', rssProcStat['cnt'], \
-                            rssProcStat['minRss'], rssProcStat['avgRss'], \
-                            rssProcStat['maxRss'])
+                    diff = '-'
+                elif rssProcStat['diff'] > 0:
+                    diff = '{0:>6}M'.format('+%s' % rssProcStat['diff'])
+                elif rssProcStat['diff'] < 0:
+                    diff = '{0:>6}M'.format('-%s' % abs(rssProcStat['diff']))
                 else:
-                    newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
-                        (rssProcStat['diff'], rssProcStat['cnt'], \
-                            rssProcStat['minRss'], rssProcStat['avgRss'], \
-                            rssProcStat['maxRss'])
+                    diff = '0'
+
+                newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
+                    (diff, rssProcStat['cnt'], \
+                        rssProcStat['minRss'], rssProcStat['avgRss'], \
+                        rssProcStat['maxRss'])
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
@@ -34584,7 +34638,7 @@ class ThreadAnalyzer(object):
             else:
                 SystemManager.addPrint(printBuf + '\n')
 
-        SystemManager.printPipe(totalBuf)
+        SystemManager.printPipe('%s\n%s' % (totalBuf, oneLine))
 
         SystemManager.doPrint(newline=False, clear=True)
 
