@@ -16491,6 +16491,9 @@ Copyright:
 
     @staticmethod
     def stopHandler(signum, frame):
+        # masking signal #
+        signal.signal(signum, signal.SIG_IGN)
+
         if SystemManager.isFileMode() or \
             SystemManager.isSystemMode():
             SystemManager.condExit = True
@@ -16528,6 +16531,9 @@ Copyright:
 
             SystemManager.releaseResource()
 
+            # enable signal again #
+            signal.signal(signum, SystemManager.stopHandler)
+
             if not SystemManager.isTerm:
                 SystemManager.progressCnt = 0
                 return
@@ -16552,6 +16558,9 @@ Copyright:
         SystemManager.printStat(\
             'ready to save and analyze... [ STOP(Ctrl+c) ]')
 
+        # enable signal again #
+        signal.signal(signum, SystemManager.stopHandler)
+
         raise Exception()
 
 
@@ -16568,6 +16577,9 @@ Copyright:
             # check silent mode #
             if not SystemManager.printFile:
                 return
+
+            # masking signal #
+            signal.signal(signum, signal.SIG_IGN)
 
             # reload data written to file #
             if SystemManager.pipeEnable:
@@ -16602,6 +16614,9 @@ Copyright:
                 "save results based monitoring into "
                 "%s [%s] successfully" % \
                     (SystemManager.inputFile, fsize))
+
+            # enable signal again #
+            signal.signal(signum, SystemManager.newHandler)
         elif SystemManager.resetEnable:
             SystemManager.writeEvent("EVENT_START")
         else:
