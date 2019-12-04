@@ -34704,11 +34704,21 @@ class ThreadAnalyzer(object):
             unionCpuList.items(), key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
+                try:
+                    prevCpuProcList = statFileList[flist[idx-1]]['cpuProcUsage']
+                except:
+                    prevCpuProcList = None
+
                 cpuProcList = statFileList[fname]['cpuProcUsage']
 
                 # no target process in this file #
                 if not pname in cpuProcList:
-                    printBuf = '%s %s' % (printBuf, emptyCpuStat)
+                    if idx > 0 and prevCpuProcList and pname in prevCpuProcList:
+                        printBuf = '%s %6.1f%%%s' % \
+                            (printBuf, -(prevCpuProcList[pname]['average']), \
+                                emptyCpuStat[7:])
+                    else:
+                        printBuf = '%s %s' % (printBuf, emptyCpuStat)
                     continue
 
                 cpuProcStat = cpuProcList[pname]
@@ -34763,12 +34773,22 @@ class ThreadAnalyzer(object):
         for pname, value in sorted(\
             unionGpuList.items(), key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
-            for fname in flist:
+            for idx, fname in enumerate(flist):
+                try:
+                    prevGpuProcList = statFileList[flist[idx-1]]['gpuProcUsage']
+                except:
+                    prevGpuProcList = None
+
                 gpuProcList = statFileList[fname]['gpuProcUsage']
 
                 # no target process in this file #
                 if not pname in gpuProcList:
-                    printBuf = '%s %s' % (printBuf, emptyGpuStat)
+                    if idx > 0 and prevGpuProcList and pname in prevGpuProcList:
+                        printBuf = '%s %6.1f%%%s' % \
+                            (printBuf, -(prevGpuProcList[pname]['average']), \
+                                emptyGpuStat[7:])
+                    else:
+                        printBuf = '%s %s' % (printBuf, emptyGpuStat)
                     continue
 
                 gpuProcStat = gpuProcList[pname]
@@ -34819,12 +34839,22 @@ class ThreadAnalyzer(object):
         for pname, value in sorted(\
             unionRssList.items(), key=lambda e:long(e[1]), reverse=True):
             printBuf = "%16s | " % pname
-            for fname in flist:
+            for idx, fname in enumerate(flist):
+                try:
+                    prevRssProcList = statFileList[flist[idx-1]]['memProcUsage']
+                except:
+                    prevRssProcList = None
+
                 rssProcList = statFileList[fname]['memProcUsage']
 
                 # no target process in this file #
                 if not pname in rssProcList:
-                    printBuf = '%s %s' % (printBuf, emptyRssStat)
+                    if idx > 0 and prevRssProcList and pname in prevRssProcList:
+                        printBuf = '%s %6dM%s' % \
+                            (printBuf, -(prevRssProcList[pname]['maxRss']), \
+                                emptyRssStat[7:])
+                    else:
+                        printBuf = '%s %s' % (printBuf, emptyRssStat)
                     continue
 
                 rssProcStat = rssProcList[pname]
