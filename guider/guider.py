@@ -2966,6 +2966,20 @@ class UtilManager(object):
 
 
     @staticmethod
+    def compareSyscallSuperset():
+        superset = {}
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_X86})
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_X64})
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_ARM})
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_AARCH64})
+        supersetlist = set(superset.keys())
+        protolist = set(['sys_%s' % name for name in ConfigManager.SYSCALL_PROTOTYPES.keys()])
+        print(supersetlist - protolist)
+        print(protolist - supersetlist)
+
+
+
+    @staticmethod
     def printSyscalls(systable):
         bufstring = ''
         for idx, syscall in enumerate(systable):
