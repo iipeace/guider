@@ -3134,6 +3134,10 @@ class UtilManager(object):
 
     @staticmethod
     def getFileList(flist, sort=False):
+        if not flist or \
+            type(flist) is not list:
+            return []
+
         rlist  = list()
         for item in flist:
             if item.startswith('-'):
