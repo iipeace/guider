@@ -425,6 +425,10 @@ class ConfigManager(object):
             ("int *", "ctid"),
             ("unsigned long", "regs"),
         )),
+        "clone3": ("long", (
+            ("struct clone_args *", "uargs"),
+            ("size_t", "size"),
+        )),
         "close": ("long", (
             ("unsigned int", "fd"),
         )),
@@ -614,12 +618,33 @@ class ConfigManager(object):
             ("int", "fd"),
             ("const char *", "name"),
         )),
+        "fsconfig": ("long", (
+            ("int", "fs_fd"),
+            ("unsigned int", "cmd"),
+            ("const char *", "key"),
+            ("const void *", "value"),
+            ("int", "aux"),
+        )),
         "fsetxattr": ("long", (
             ("int", "fd"),
             ("const char *", "name"),
             ("const void *", "value"),
             ("size_t", "size"),
             ("int", "flags"),
+        )),
+        "fsmount": ("long", (
+            ("int", "fs_fd"),
+            ("unsigned int", "flags"),
+            ("unsigned int", "ms_flags"),
+        )),
+        "fsopen": ("long", (
+            ("const char *", "fs_name"),
+            ("unsigned int", "flags"),
+        )),
+        "fspick": ("long", (
+            ("int", "dfd"),
+            ("const char *", "path"),
+            ("unsigned int", "flags"),
         )),
         "fstat": ("long", (
             ("unsigned int", "fd"),
@@ -843,6 +868,14 @@ class ConfigManager(object):
             ("struct io_event *", "events"),
             ("struct timespec *", "timeout"),
         )),
+        "io_pgetevents": ("long", (
+            ("aio_context_t", "ctx_id"),
+            ("long", "min_nr"),
+            ("long", "nr"),
+            ("struct io_event *", "events"),
+            ("struct _kernel_timespec *", "timeout"),
+            ("const struct __aio_sigset *", "sig"),
+        )),
         "io_setup": ("long", (
             ("unsigned", "nr_reqs"),
             ("aio_context_t *", "ctx"),
@@ -851,6 +884,24 @@ class ConfigManager(object):
             ("aio_context_t", "ctx_id"),
             ("long", "nr"),
             ("struct iocb * *", "iocbpp"),
+        )),
+        "io_uring_enter": ("long", (
+            ("unsigned int", "fd"),
+            ("u32", "to_submit"),
+            ("u32", "min_complete"),
+            ("u32", "flags"),
+            ("const sigset_t *", "sig"),
+            ("size_t", "sigsz"),
+        )),
+        "io_uring_register": ("long", (
+            ("unsigned int", "fd"),
+            ("unsigned int", "op"),
+            ("void *", "arg"),
+            ("unsigned int", "nr_args"),
+        )),
+        "io_uring_setup": ("long", (
+            ("u32", "entries"),
+            ("struct io_uring_params *", "p"),
         )),
         "ioctl": ("long", (
             ("unsigned int", "fd"),
@@ -1075,6 +1126,13 @@ class ConfigManager(object):
             ("unsigned long", "fd"),
             ("unsigned long", "pgoff"),
         )),
+        "move_mount": ("long", (
+            ("int", "from_dfd"),
+            ("const char *", "from_path"),
+            ("int", "to_dfd"),
+            ("const char *", "to_path"),
+            ("unsigned int", "ms_flags"),
+        )),
         "arch_prctl": ("int", (
             ("int", "code"),
             ("unsigned long", "addr"),
@@ -1243,6 +1301,11 @@ class ConfigManager(object):
             ("struct file_handle *", "handle"),
             ("int", "flags"),
         )),
+        "open_tree": ("long", (
+            ("int", "dfd"),
+            ("const char *", "path"),
+            ("unsigned", "flags"),
+        )),
         "openat": ("long", (
             ("int", "dfd"),
             ("const char *", "filename"),
@@ -1280,6 +1343,16 @@ class ConfigManager(object):
         "personality": ("long", (
             ("unsigned int", "personality"),
         )),
+        "pidfd_open": ("long", (
+            ("pid_t", "pid"),
+            ("unsigned int", "flags"),
+        )),
+        "pidfd_send_signal": ("long", (
+            ("int", "pidfd"),
+            ("int", "sig"),
+            ("siginfo_t *", "info"),
+            ("unsigned int", "flags"),
+        )),
         "pipe": ("long", (
             ("int *", "fildes"),
         )),
@@ -1290,6 +1363,19 @@ class ConfigManager(object):
         "pivot_root": ("long", (
             ("const char *", "new_root"),
             ("const char *", "put_old"),
+        )),
+        "pkey_alloc": ("long", (
+            ("unsigned long", "flags"),
+            ("unsigned long", "init_val"),
+        )),
+        "pkey_free": ("long", (
+            ("int", "pkey"),
+        )),
+        "pkey_mprotect": ("long", (
+            ("unsigned long", "start"),
+            ("size_t", "len"),
+            ("unsigned long", "prot"),
+            ("int", "pkey"),
         )),
         "poll": ("long", (
             ("struct pollfd *", "ufds"),
@@ -1322,6 +1408,14 @@ class ConfigManager(object):
             ("unsigned long", "vlen"),
             ("unsigned long", "pos_l"),
             ("unsigned long", "pos_h"),
+        )),
+        "preadv2": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+            ("unsigned long", "pos_l"),
+            ("unsigned long", "pos_h"),
+            ("rwf_t", "flags"),
         )),
         "prlimit64": ("long", (
             ("pid_t", "pid"),
@@ -1371,6 +1465,14 @@ class ConfigManager(object):
             ("unsigned long", "vlen"),
             ("unsigned long", "pos_l"),
             ("unsigned long", "pos_h"),
+        )),
+        "pwritev2": ("long", (
+            ("unsigned long", "fd"),
+            ("const struct iovec *", "vec"),
+            ("unsigned long", "vlen"),
+            ("unsigned long", "pos_l"),
+            ("unsigned long", "pos_h"),
+            ("rwf_t", "flags"),
         )),
         "quotactl": ("long", (
             ("unsigned int", "cmd"),
@@ -1868,6 +1970,13 @@ class ConfigManager(object):
             ("const char *", "filename"),
             ("struct stat64 *", "statbuf"),
         )),
+        "statx": ("long", (
+            ("int", "dfd"),
+            ("const char *", "path"),
+            ("unsigned", "flags"),
+            ("unsigned", "mask"),
+            ("struct statx *", "buf"),
+        )),
         "statfs": ("long", (
             ("const char *", "path"),
             ("struct statfs *", "buf"),
@@ -2028,7 +2137,7 @@ class ConfigManager(object):
             ("char *", "filename"),
             ("struct utimbuf *", "times"),
         )),
-        "utimensa": ("long", (
+        "utimensat": ("long", (
             ("int", "dfd"),
             ("const char *", "filename"),
             ("struct timespec *", "utimes"),
@@ -2114,18 +2223,18 @@ class ConfigManager(object):
 
     # Define common syscalls from 424 ~ 435 #
     SYSCALL_COMMON = [
-        'pidfd_send_signal',
-        'io_uring_setup',
-        'io_uring_enter',
-        'io_uring_register',
-        'open_tree',
-        'move_mount',
-        'fsopen',
-        'fsconfig',
-        'fsmount',
-        'fspick',
-        'pidfd_open',
-        'clone3',
+        'sys_pidfd_send_signal',
+        'sys_io_uring_setup',
+        'sys_io_uring_enter',
+        'sys_io_uring_register',
+        'sys_open_tree',
+        'sys_move_mount',
+        'sys_fsopen',
+        'sys_fsconfig',
+        'sys_fsmount',
+        'sys_fspick',
+        'sys_pidfd_open',
+        'sys_clone3',
     ]
 
     # Define syscall for ARM #
@@ -2165,9 +2274,9 @@ class ConfigManager(object):
 	'sys_init_module', 'sys_delete_module', 'sys_get_kernel_syms', 'sys_quotactl',
 	'sys_getpgid', 'sys_fchdir', 'sys_bdflush', 'sys_sysfs',
 	'sys_personality', 'sys_afs_syscall', 'sys_setfsuid', 'sys_setfsgid',
-	'sys__llseek', 'sys_getdents', 'sys__newselect', 'sys_flock',
+	'sys_llseek', 'sys_getdents', 'sys_newselect', 'sys_flock',
 	'sys_msync', 'sys_readv', 'sys_writev', 'sys_getsid',
-	'sys_fdatasync', 'sys__sysctl', 'sys_mlock', 'sys_munlock',
+	'sys_fdatasync', 'sys_sysctl', 'sys_mlock', 'sys_munlock',
 	'sys_mlockall', 'sys_munlockall', 'sys_sched_setparam', 'sys_sched_getparam',
 	'sys_sched_setscheduler', 'sys_sched_getscheduler', 'sys_sched_yield',
         'sys_sched_get_priority_max',
@@ -2351,9 +2460,9 @@ class ConfigManager(object):
         'sys_init_module', 'sys_delete_module', 'sys_get_kernel_syms', 'sys_quotactl',
         'sys_getpgid', 'sys_fchdir', 'sys_bdflush', 'sys_sysfs',
         'sys_personality', 'sys_afs_syscall', 'sys_setfsuid', 'sys_setfsgid',
-        'sys__llseek', 'sys_getdents', 'sys__newselect', 'sys_flock',
+        'sys_llseek', 'sys_getdents', 'sys_newselect', 'sys_flock',
         'sys_msync', 'sys_readv', 'sys_writev', 'sys_getsid',
-        'sys_fdatasync', 'sys__sysctl', 'sys_mlock', 'sys_munlock',
+        'sys_fdatasync', 'sys_sysctl', 'sys_mlock', 'sys_munlock',
         'sys_mlockall', 'sys_munlockall', 'sys_sched_setparam', 'sys_sched_getparam',
         'sys_sched_setscheduler', 'sys_sched_getscheduler', 'sys_sched_yield',
         'sys_sched_get_priority_max',
@@ -2462,7 +2571,7 @@ class ConfigManager(object):
         'sys_sched_get_priority_min',
         'sys_sched_rr_get_interval', 'sys_mlock', 'sys_munlock', 'sys_mlockall',
         'sys_munlockall', 'sys_vhangup', 'sys_modify_ldt', 'sys_pivot_root',
-        'sys__sysctl', 'sys_prctl', 'sys_arch_prctl', 'sys_adjtimex',
+        'sys_sysctl', 'sys_prctl', 'sys_arch_prctl', 'sys_adjtimex',
         'sys_setrlimit', 'sys_chroot', 'sys_sync', 'sys_acct',
         'sys_settimeofday', 'sys_mount', 'sys_umount2', 'sys_swapon',
         'sys_swapoff', 'sys_reboot', 'sys_sethostname', 'sys_setdomainname',
@@ -2967,15 +3076,32 @@ class UtilManager(object):
 
     @staticmethod
     def compareSyscallSuperset():
+        # initialize ignore list #
+        ignorelist = set([
+            'sys_ppoll_time64', 'sys_nfsservctl', 'sys_null',
+            'sys_setfsgid32', 'sys_ftime', 'sys_geteuid32',
+            'sys_clock_adjtime64', 'sys_timerfd_settime64',
+            'sys_epoll_ctl_old', 'sys_setfsuid32', 'sys_getresgid32',
+            'sys_iopl', 'sys_chown32', 'sys_rt_sigtimedwait_time64',
+            'sys_gtty', 'sys_setresgid32', 'sys_reserved', 'sys_unused',
+        ])
+
         superset = {}
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_COMMON})
+        superset.update({ i:0 for i in ConfigManager.SYSCALL_COMMON32})
         superset.update({ i:0 for i in ConfigManager.SYSCALL_X86})
         superset.update({ i:0 for i in ConfigManager.SYSCALL_X64})
         superset.update({ i:0 for i in ConfigManager.SYSCALL_ARM})
         superset.update({ i:0 for i in ConfigManager.SYSCALL_AARCH64})
         supersetlist = set(superset.keys())
         protolist = set(['sys_%s' % name for name in ConfigManager.SYSCALL_PROTOTYPES.keys()])
-        print(supersetlist - protolist)
-        print(protolist - supersetlist)
+
+        # print final diff list #
+        print("--- no prototype ---")
+        print(list(supersetlist - protolist - ignorelist))
+
+        print("\n--- no define ---")
+        print(list(protolist - supersetlist))
 
 
 
