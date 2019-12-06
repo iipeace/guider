@@ -34883,7 +34883,7 @@ class ThreadAnalyzer(object):
             if pname == 'TOTAL':
                 totalBuf = printBuf
             else:
-                SystemManager.addPrint(printBuf + '\n')
+                SystemManager.addPrint(printBuf + '\n', force=True)
 
         SystemManager.printPipe('%s\n%s' % (totalBuf, oneLine))
 
@@ -34950,7 +34950,7 @@ class ThreadAnalyzer(object):
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
-            SystemManager.addPrint(printBuf + '\n')
+            SystemManager.addPrint(printBuf + '\n', force=True)
 
         SystemManager.doPrint(newline=False, clear=True)
 
@@ -35017,7 +35017,7 @@ class ThreadAnalyzer(object):
             if pname == 'FREE':
                 totalBuf = printBuf
             else:
-                SystemManager.addPrint(printBuf + '\n')
+                SystemManager.addPrint(printBuf + '\n', force=True)
 
         SystemManager.printPipe('%s\n%s' % (totalBuf, oneLine))
 
