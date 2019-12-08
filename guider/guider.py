@@ -6817,11 +6817,15 @@ class FunctionAnalyzer(object):
                     self.customEventTable[cmd[0]] = cmd[1]
                 else:
                     self.customEventTable[cmd[0]] = None
+
+        # make kernel event table #
         if SystemManager.kernelCmd:
             for cmd in SystemManager.kernelCmd:
                 cmd = cmd.split(':')
                 self.customEventTable[cmd[0]+'_enter'] = None
                 self.customEventTable[cmd[0]+'_exit'] = None
+
+        # make user event table #
         if SystemManager.userCmd:
             for cmd in SystemManager.userCmd:
                 cmd = cmd.split(':')
@@ -16185,13 +16189,6 @@ Copyright:
             else:
                 origFilter = cmdFormat[1]
                 cmdFormat[1] = pidFilter + " && " + cmdFormat[1]
-
-            if SystemManager.isThreadMode() and \
-                cmdFormat[0] in SystemManager.cmdList:
-                SystemManager.printErr(\
-                    "Fail to use a default event '%s' as a custom event" % \
-                    cmdFormat[0])
-                sys.exit(0)
 
             # check effective event #
             if SystemManager.writeCmd(cmdFormat[0] + '/enable', '0') < 0:
@@ -45780,9 +45777,11 @@ class ThreadAnalyzer(object):
 
             self.handleUserEvent(d['event'], time)
 
+        else:
+            handleSpecialEvents = True
+
         # custom event #
-        elif func in SystemManager.customEventList or \
-            True in [True for event in SystemManager.customEventList if not '/' in event]:
+        if True in [True for event in SystemManager.customEventList if func.startswith(event)]:
             # add data into list #
             ntime = float(time) - float(SystemManager.startTime)
             self.customEventData.append(\
@@ -45825,7 +45824,6 @@ class ThreadAnalyzer(object):
 
             self.threadData[thread]['customEvent'][func]['start'] = float(time)
 
-        else:
             handleSpecialEvents = True
 
         # check special event flag #
