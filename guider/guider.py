@@ -11544,7 +11544,7 @@ class SystemManager(object):
     latEnable = cpuEnable
     gpuEnable = True
     memEnable = False
-    rssEnable = True
+    rssEnable = False
     pssEnable = False
     ussEnable = False
     vssEnable = False
@@ -35703,8 +35703,9 @@ class ThreadAnalyzer(object):
         storageUsage = {}
         networkUsage = {}
 
+        # get file handle #
         try:
-            logBuf = UtilManager.getTextLines(logFile, True)
+            fd = UtilManager.getTextLines(logFile, retfd=True)
         except:
             SystemManager.printErr("Fail to read %s\n" % logFile)
             sys.exit(0)
@@ -35717,11 +35718,16 @@ class ThreadAnalyzer(object):
         context = None
         totalRam = None
 
-        while 1:
-            UtilManager.printProgress(finalLine, len(logBuf))
+        # get total size #
+        try:
+            totalSize = os.stat(logFile).st_size
+        except:
+            totalSize = 0
 
-            line = logBuf[finalLine]
-            finalLine += 1
+        curSize = 0
+        for idx, line in enumerate(fd):
+            curSize += len(line)
+            UtilManager.printProgress(curSize, totalSize)
 
             # get system info #
             if len(SystemManager.systemInfoBuffer) == 0 and \
@@ -35774,10 +35780,6 @@ class ThreadAnalyzer(object):
 
                 # change context #
                 context = contextlist[1]
-
-            # EOF #
-            if finalLine >= len(logBuf):
-                break
 
             # Summary #
             if context == 'Summary':
@@ -38278,6 +38280,9 @@ class ThreadAnalyzer(object):
             SystemManager.printWarn(\
                 "Fail to write system info because %s" % \
                     SystemManager.getErrReason(), True)
+
+        # remove stats to free memory #
+        graphStats.clear()
 
         # save to file #
         self.saveImage(logFile, 'graph')
