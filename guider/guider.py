@@ -13052,6 +13052,9 @@ Examples:
     - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
         # {0:1} {1:1} -R 3s:5 -o .
 
+    - Report analysis results of processes collected every 10 seconds for 60 minutes to ./guider.out
+        # {0:1} {1:1} -i 10 -R 60m -o .
+
     - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5: -o .
 
@@ -18561,16 +18564,21 @@ Copyright:
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
-                interval = UtilManager.convertUnit2Time(repeatParams[0])
-
-                # check interval type #
-                int(interval)
+                interval = long(UtilManager.convertUnit2Time(repeatParams[0]))
 
                 # top mode #
                 if SystemManager.isTopMode():
-                    SystemManager.repeatCount = interval
-                    SystemManager.repeatInterval = interval
-                    SystemManager.intervalEnable = 1
+                    ival = SystemManager.getOption('i')
+                    if ival:
+                        ival = long(ival)
+                        interval = long(interval / ival)
+                        SystemManager.repeatCount = interval
+                        SystemManager.repeatInterval = interval
+                        SystemManager.intervalEnable = ival
+                    else:
+                        SystemManager.repeatCount = interval
+                        SystemManager.repeatInterval = interval
+                        SystemManager.intervalEnable = 1
                 # record mode #
                 else:
                     SystemManager.repeatCount = 1
@@ -20045,6 +20053,18 @@ Copyright:
 
 
     @staticmethod
+    def isProcTopMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'top':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isThreadTopMode():
         if len(sys.argv) == 1:
             return False
@@ -20096,9 +20116,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'top':
-            return True
-        elif SystemManager.isFileTopMode() or \
+        if SystemManager.isProcTopMode() or \
+            SystemManager.isFileTopMode() or \
             SystemManager.isThreadTopMode() or \
             SystemManager.isStackTopMode() or \
             SystemManager.isPerfTopMode() or \
