@@ -3138,11 +3138,8 @@ class UtilManager(object):
             type(flist) is not list:
             return []
 
-        rlist  = list()
+        rlist = list()
         for item in flist:
-            if item.startswith('-'):
-                break
-
             # apply regular expression for path #
             ilist = UtilManager.convertPath(item, retStr=False)
             if UtilManager.isString(ilist):
@@ -12774,6 +12771,7 @@ class SystemManager(object):
                 not SystemManager.isReadelfMode() and \
                 not SystemManager.isAddr2lineMode() and \
                 not SystemManager.isSym2lineMode() and \
+                not SystemManager.isTopDiffMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -34510,15 +34508,15 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def doDiffReports(flist):
-        inputFiles = UtilManager.getFileList(flist)
-        if len(inputFiles) < 2:
+        flist = UtilManager.getFileList(flist)
+        if len(flist) < 2:
             SystemManager.printErr(\
                 "Fail to get file list to diff, "
                 "input at least two effective file paths")
             sys.exit(0)
 
         # define variable and table #
-        nrFiles = len(inputFiles)
+        nrFiles = len(flist)
         unionCpuList = dict()
         unionGpuList = dict()
         unionRssList = dict()
@@ -34917,6 +34915,9 @@ class ThreadAnalyzer(object):
 
         SystemManager.doPrint(newline=False, clear=True)
 
+        if len(unionCpuList) == 0:
+            SystemManager.printPipe('\tNone')
+
         SystemManager.printPipe(oneLine)
 
         # print GPU diff #
@@ -34981,6 +34982,9 @@ class ThreadAnalyzer(object):
             SystemManager.addPrint(printBuf + '\n', force=True)
 
         SystemManager.doPrint(newline=False, clear=True)
+
+        if len(unionGpuList) == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
 
@@ -35050,6 +35054,9 @@ class ThreadAnalyzer(object):
         SystemManager.printPipe('%s\n%s' % (totalBuf, oneLine))
 
         SystemManager.doPrint(newline=False, clear=True)
+
+        if len(unionRssList) == 0:
+            SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
 
