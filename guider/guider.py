@@ -3250,12 +3250,16 @@ class UtilManager(object):
 
 
     @staticmethod
-    def getLines(file, verbose=False, retfd=False):
+    def getTextLines(file, verbose=False, retfd=False):
         buf = []
 
         if verbose:
-            SystemManager.printStat(\
-                r"start loading %s..." % file)
+            if retfd:
+                SystemManager.printStat(\
+                    r"start checking %s..." % file)
+            else:
+                SystemManager.printStat(\
+                    r"start loading %s..." % file)
 
         # open a file #
         try:
@@ -35700,7 +35704,7 @@ class ThreadAnalyzer(object):
         networkUsage = {}
 
         try:
-            logBuf = UtilManager.getLines(logFile, True)
+            logBuf = UtilManager.getTextLines(logFile, True)
         except:
             SystemManager.printErr("Fail to read %s\n" % logFile)
             sys.exit(0)
@@ -43212,52 +43216,45 @@ class ThreadAnalyzer(object):
 
         while 1:
             start = end = -1
-            buf = None
 
             # make delay for some logs not written immediately #
             if SystemManager.isRecordMode():
                 try:
                     time.sleep(0.1)
-                except SystemExit:
-                    sys.exit(0)
                 except:
                     return 0
 
-            if compressor and fd:
-                try:
-                    if not SystemManager.isRecordMode():
+            # update fd #
+            try:
+                if SystemManager.isRecordMode():
+                    verbose = False
+                else:
+                    verbose = True
+
+                if compressor and fd:
+                    if verbose:
                         SystemManager.printStat(\
-                            r"start loading %s..." % file)
-
-                    buf = list()
-                    tbuf = fd.read().decode('utf-8').split('\n')
-                    for item in tbuf:
-                        if len(item) == 0:
-                            buf[-1] = '%s\n' % buf[-1]
-                            continue
-                        buf.append('%s\n' % item)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SystemManager.printOpenErr(file)
-                    sys.exit(0)
-            else:
-                try:
-                    if SystemManager.isRecordMode():
-                        verbose = False
-                    else:
-                        verbose = True
-
-                    buf = UtilManager.getLines(file, verbose, True)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SystemManager.printOpenErr(file)
-                    sys.exit(0)
+                            r"start checking %s..." % file)
+                else:
+                    fd = UtilManager.getTextLines(file, verbose, retfd=True)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SystemManager.printOpenErr(file)
+                sys.exit(0)
 
             # verify log buffer #
-            for idx, line in enumerate(buf):
+            buf = []
+            for idx, line in enumerate(fd):
+                # decode line #
+                try:
+                    line = line.decode('utf-8')
+                except:
+                    pass
+
                 # check system info #
+                if end == -1:
+                    buf.append(line)
                 if not SystemManager.recordStatus:
                     if line.startswith(SystemManager.magicString):
                         if start == -1:
