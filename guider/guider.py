@@ -12772,6 +12772,7 @@ class SystemManager(object):
                 not SystemManager.isAddr2lineMode() and \
                 not SystemManager.isSym2lineMode() and \
                 not SystemManager.isTopDiffMode() and \
+                not SystemManager.isReportMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -13282,6 +13283,7 @@ OPTIONS:
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
+        -I  <DIR|FILE>              set input path
         -E  <DIR>                   set cache dir path
         -v                          verbose
                     '''
@@ -51022,7 +51024,11 @@ def main(args=None):
 
     #-------------------- REPORT MODE --------------------#
     if SystemManager.isReportMode():
-        SystemManager.inputFile = 'guider.dat'
+        if not SystemManager.sourceFile:
+            SystemManager.inputFile = 'guider.dat'
+        else:
+            SystemManager.inputFile = SystemManager.sourceFile
+
         if not SystemManager.printFile:
             SystemManager.printFile = \
                 '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
