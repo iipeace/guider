@@ -3253,22 +3253,47 @@ class UtilManager(object):
 
 
     @staticmethod
-    def getLines(file):
+    def getLines(file, verbose=False, retfd=False):
         buf = []
 
+        if verbose:
+            SystemManager.printStat(\
+                r"start loading %s..." % file)
+
+        # open a file #
         try:
             fd = open(file, 'r', encoding='utf-8')
         except:
             fd = open(file, 'r')
 
+        # just return fd #
+        if retfd:
+            return fd
+
+        # get total size #
+        try:
+            totalSize = os.stat(file).st_size
+        except:
+            totalSize = 0
+
+        # read data from a file #
         while 1:
             try:
                 data = fd.readline()
+                curSize = fd.tell()
                 if len(data) == 0:
                     break
                 buf.append(data)
+            except SystemExit:
+                sys.exit(0)
             except:
                 break
+
+            if verbose:
+                UtilManager.printProgress(curSize, totalSize)
+
+        if verbose:
+            UtilManager.deleteProgress()
 
         try:
             fd.close()
@@ -3580,6 +3605,8 @@ class UtilManager(object):
 
         try:
             div = round((current / float(dest)) * 100, 1)
+        except SystemExit:
+            sys.exit(0)
         except:
             div = 0
 
@@ -33799,7 +33826,7 @@ Section header string table index: %d
             self.attr['progHeader'].append([\
                 ElfAnalyzer.PT_TYPE[p_type] \
                     if p_type in ElfAnalyzer.PT_TYPE else p_type, \
-                p_offset, p_vaddr, p_paddr, p_filesz, \
+                p_offset, p_vaddr, p_paddr, p_filez, \
                 p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
 
             # print program header #
@@ -35663,14 +35690,14 @@ class ThreadAnalyzer(object):
         storageUsage = {}
         networkUsage = {}
 
-        SystemManager.printStat(\
-            r"start loading %s..." % logFile)
-
         try:
-            logBuf = UtilManager.getLines(logFile)
+            logBuf = UtilManager.getLines(logFile, True)
         except:
             SystemManager.printErr("Fail to read %s\n" % logFile)
-            return
+            sys.exit(0)
+
+        SystemManager.printStat(\
+            r"start processing %s..." % logFile)
 
         # context varaible #
         finalLine = 0
@@ -36245,6 +36272,8 @@ class ThreadAnalyzer(object):
             for lfile in flist:
                 try:
                     gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -43145,6 +43174,8 @@ class ThreadAnalyzer(object):
 
             try:
                 fd = open(file, 'rb')
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printOpenErr(file)
                 sys.exit(0)
@@ -43175,13 +43206,20 @@ class ThreadAnalyzer(object):
             buf = None
 
             # make delay for some logs not written immediately #
-            try:
-                time.sleep(0.1)
-            except:
-                return 0
+            if SystemManager.isRecordMode():
+                try:
+                    time.sleep(0.1)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return 0
 
             if compressor and fd:
                 try:
+                    if not SystemManager.isRecordMode():
+                        SystemManager.printStat(\
+                            r"start loading %s..." % file)
+
                     buf = list()
                     tbuf = fd.read().decode('utf-8').split('\n')
                     for item in tbuf:
@@ -43189,12 +43227,21 @@ class ThreadAnalyzer(object):
                             buf[-1] = '%s\n' % buf[-1]
                             continue
                         buf.append('%s\n' % item)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printOpenErr(file)
                     sys.exit(0)
             else:
                 try:
-                    buf = UtilManager.getLines(file)
+                    if SystemManager.isRecordMode():
+                        verbose = False
+                    else:
+                        verbose = True
+
+                    buf = UtilManager.getLines(file, verbose, True)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SystemManager.printOpenErr(file)
                     sys.exit(0)
