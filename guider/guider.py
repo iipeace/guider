@@ -11631,7 +11631,7 @@ class SystemManager(object):
     # flag for using Elastic Stack
     elasticEnable = False
 
-    isTerm = True
+    termFlag = True
     repeatInterval = 0
     repeatCount = 0
     progressCnt = 0
@@ -12836,9 +12836,13 @@ class SystemManager(object):
             return
 
         if SystemManager.progressCnt >= SystemManager.repeatCount:
+            # remove progress #
             UtilManager.deleteProgress()
+
             try:
                 os.kill(SystemManager.pid, signal.SIGINT)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SystemManager.printSigError(\
                     SystemManager.pid, 'SIGINT', 'warning')
@@ -13023,7 +13027,7 @@ Usage:
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
         -i  <SEC>                   set interval
-        -R  <INTERVAL:COUNT:TERM>   set repeat count
+        -R  <INTERVAL:TIME:TERM>    set repeat count
         -Q                          print all rows in a stream
         -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
@@ -13079,14 +13083,14 @@ Examples:
     - Report analysis results of processes to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out
-        # {0:1} {1:1} -R 3s:5 -o .
+    - Report analysis results of processes collected every 3 seconds for 5 minutes to ./guider.out
+        # {0:1} {1:1} -R 3s:5m -o .
 
     - Report analysis results of processes collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - Report analysis results of processes collected 5 times every 3 seconds to ./guider.out continuously
-        # {0:1} {1:1} -R 3s:5: -o .
+    - Report analysis results of processes collected every 3 seconds for 5 minutes to ./guider.out continuously
+        # {0:1} {1:1} -R 3s:5m: -o .
 
     - Monitor status of processes including memory(USS)
         # {0:1} {1:1} -e u
@@ -13162,7 +13166,7 @@ OPTIONS:
     [common]
         -a                          show all stats and events
         -g  <COMM|TID{:FILE}>       set filter
-        -R  <INTERVAL:COUNT:TERM>   set repeat count
+        -R  <INTERVAL:TIME:TERM>    set repeat count
         -Q                          print all rows in a stream
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
@@ -13396,7 +13400,7 @@ OPTIONS:
         -w  <TIME:FILE{:VALUE}>     set additional command
         -U  <NAME:FUNC|ADDR:FILE>   set user event
         -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
-        -R  <INTERVAL:COUNT:TERM>   set repeat count
+        -R  <INTERVAL:TIME:TERM>    set repeat count
 
     [report]
         -a                          show all stats and events
@@ -13907,7 +13911,7 @@ OPTIONS:
         -a                          show all stats including registers
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
-        -R  <TIME:INTERVAL>         set timer
+        -R  <TIME>                  set timer
         -c  <EVENT>                 set breakpoint
         -H  <SKIP>                  set instrunction sampling rate
         -o  <DIR|FILE>              save output data
@@ -16905,7 +16909,8 @@ Copyright:
             # enable signal again #
             signal.signal(signum, SystemManager.stopHandler)
 
-            if not SystemManager.isTerm:
+            # quit to avoid termination #
+            if not SystemManager.termFlag:
                 SystemManager.progressCnt = 0
                 return
 
@@ -17022,7 +17027,7 @@ Copyright:
     @staticmethod
     def alarmHandler(signum, frame):
         if SystemManager.repeatCount <= SystemManager.progressCnt and \
-            SystemManager.isTerm:
+            SystemManager.termFlag:
             UtilManager.deleteProgress()
             sys.exit(0)
 
@@ -17044,7 +17049,7 @@ Copyright:
                 SystemManager.recordStatus = False
             signal.alarm(repeatInterval)
         elif SystemManager.outputFile:
-            if repeatCount == 1 and SystemManager.isTerm:
+            if repeatCount == 1 and SystemManager.termFlag:
                 output = SystemManager.outputFile
             else:
                 output = '%s.%ds_%ds' % (SystemManager.outputFile, \
@@ -18208,7 +18213,7 @@ Copyright:
                     SystemManager.inputFile = SystemManager.printFile
 
                 # append uptime to the output file #
-                if not SystemManager.isTerm:
+                if not SystemManager.termFlag:
                     SystemManager.inputFile = '%s.%s' % \
                         (SystemManager.inputFile, int(SystemManager.uptime))
             # analysis #
@@ -18537,6 +18542,7 @@ Copyright:
     def parseRuntimeOption(value):
         SystemManager.countEnable = True
         convertNum = UtilManager.convertNumber
+        convertTime = UtilManager.convertUnit2Time
 
         # split params #
         if value:
@@ -18549,7 +18555,12 @@ Copyright:
         elif len(repeatParams) == 2 or len(repeatParams) == 3:
             try:
                 # get interval #
-                interval = UtilManager.convertUnit2Time(repeatParams[0])
+                interval = SystemManager.getOption('i')
+                if interval:
+                    interval = long(interval)
+                else:
+                    interval = convertTime(repeatParams[0])
+
                 SystemManager.intervalEnable = interval
                 SystemManager.repeatInterval = interval
 
@@ -18557,7 +18568,8 @@ Copyright:
                 if repeatParams[1] == '':
                     SystemManager.repeatCount = sys.maxsize
                 else:
-                    SystemManager.repeatCount = int(repeatParams[1])
+                    SystemManager.repeatCount = \
+                        long(convertTime(repeatParams[1]) / interval)
             except:
                 SystemManager.printErr((\
                     "wrong option value with -R because %s, "
@@ -18565,7 +18577,7 @@ Copyright:
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
-                interval = long(UtilManager.convertUnit2Time(repeatParams[0]))
+                interval = long(convertTime(repeatParams[0]))
 
                 # top mode #
                 if SystemManager.isTopMode():
@@ -18607,15 +18619,20 @@ Copyright:
 
         # get termination flag #
         if repeatParams and len(repeatParams) == 3:
-            SystemManager.isTerm = False
+            SystemManager.termFlag = False
             SystemManager.printInfo(\
                 "run every %s sec %s time" % \
                 (convertNum(SystemManager.intervalEnable), \
                 convertNum(SystemManager.repeatCount)))
         else:
-            SystemManager.printInfo("run only %s sec %s time" % \
-                (convertNum(SystemManager.intervalEnable), \
-                    convertNum(SystemManager.repeatCount)))
+            interval = SystemManager.intervalEnable
+            repeat = SystemManager.repeatCount
+            totalSec = convertNum(interval)
+            totalCnt = convertNum(repeat)
+            totalTime = convertNum(long(interval * repeat))
+            SystemManager.printInfo(\
+                "run only %s times in %s sec for a total of %s sec" %
+                    (totalCnt, totalSec, totalTime))
 
 
 
@@ -20999,22 +21016,27 @@ Copyright:
 
 
     @staticmethod
-    def updateUptime():
+    def getUptime():
         try:
             SystemManager.uptimeFd.seek(0)
-            SystemManager.prevUptime = SystemManager.uptime
-            SystemManager.uptime = \
-                float(SystemManager.uptimeFd.readlines()[0].split()[0])
-            SystemManager.uptimeDiff = \
-                SystemManager.uptime - SystemManager.prevUptime
+            return float(SystemManager.uptimeFd.readlines()[0].split()[0])
         except:
             try:
                 uptimePath = "%s/%s" % (SystemManager.procPath, 'uptime')
                 SystemManager.uptimeFd = open(uptimePath, 'r')
-                SystemManager.uptime = \
-                    float(SystemManager.uptimeFd.readlines()[0].split()[0])
+                return float(SystemManager.uptimeFd.readlines()[0].split()[0])
             except:
                 SystemManager.printOpenWarn(uptimePath)
+                return -1
+
+
+
+    @staticmethod
+    def updateUptime():
+        SystemManager.prevUptime = SystemManager.uptime
+        SystemManager.uptime = SystemManager.getUptime()
+        SystemManager.uptimeDiff = \
+            SystemManager.uptime - SystemManager.prevUptime
 
 
 
@@ -51010,7 +51032,7 @@ def main(args=None):
 
             # check counter #
             if SystemManager.repeatCount <= SystemManager.progressCnt and \
-                SystemManager.isTerm:
+                SystemManager.termFlag:
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
