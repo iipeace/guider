@@ -2900,6 +2900,36 @@ class ConfigManager(object):
         'FUTEX_CMP_REQUEUE_PI',
         ]
 
+    # Define fcntl command flags #
+    FCNTL_TYPE = [
+        'F_DUPFD',
+        'F_GETFD',
+        'F_SETFD',
+        'F_GETFL',
+        'F_SETFL',
+        'F_GETOWN',
+        'F_SETOWN',
+        'F_GETLK',
+        'F_SETLK',
+        'F_SETLKW',
+        ]
+
+    # Define ipc call flags #
+    IPC_TYPE = {
+        1: "SEMOP",
+        2: "SEMGET",
+        3: "SEMCTL",
+        4: "SEMTIMEDOP",
+        11: "MSGSND",
+        12: "MSGRCV",
+        13: "MSGGET",
+        14: "MSGCTL",
+        21: "SHMAT",
+        22: "SHMDT",
+        23: "SHMGET",
+        24: "SHMCTL",
+        }
+
     # Define ptrace request type #
     PTRACE_TYPE = [
         'PTRACE_TRACEME',           #0#
@@ -29511,6 +29541,10 @@ struct msghdr {
                     value, ConfigManager.PROT_TYPE)
             elif argname == 'flags':
                 pass
+
+        if syscall.startswith('fcntl'):
+            if argname == 'cmd':
+                return ConfigManager.FCNTL_TYPE[value]
 
         if syscall == 'open':
             if argname == 'flags':
