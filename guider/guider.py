@@ -13454,37 +13454,7 @@ Examples:
 
                 # file top #
                 elif SystemManager.isFileTopMode():
-                    fileTopStr = '''
-OPTIONS:
-        -e  <CHARACTER>             enable options
-                p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-                e:encode | p:print
-
-        -o  <DIR|FILE>              save output data
-        -u                          run in the background
-        -W                          wait for signal
-        -b  <SIZE:KB>               set buffer size
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -x  <IP:PORT>               set local address
-        -X  <REQ@IP:PORT>           set request address
-        -N  <REQ@IP:PORT>           set report address
-        -S  <c:cpu/m:memory/p:pid/  sort by key
-             b:block/w:wfc/n:new/
-             r:runtime/f:file>
-        -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -i  <SEC>                   set interval
-        -R  <INTERVAL:COUNT:TERM>   set repeat count
-        -Q                          print all rows in a stream
-        -E  <DIR>                   set cache dir path
-        -k  <COMM|TID{:CONT}>       set kill list
-        -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched priority list
-             {:TID|ALL:CONT}>
-        -v                          verbose
-                '''
+                    fileTopStr = topCommonStr
 
                     helpStr = '''
 Usage:
@@ -13580,8 +13550,8 @@ Examples:
     - Monitor usercalls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor usercalls for a specific thread every 2 second with 1ms sampling
-        # {0:1} {1:1} -g 1234 -i 1000 -R 2:
+    - Monitor usercalls for a specific thread every 2 second for 1 minute with 1 ms sampling
+        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
     - Monitor CPU usage on whole system of usercalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
@@ -13592,7 +13562,7 @@ Examples:
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += topCommonStr + examStr
 
                 # system top #
                 elif SystemManager.isSystemTopMode():
@@ -13612,7 +13582,7 @@ Examples:
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += topCommonStr + examStr
 
                 # stack top #
                 elif SystemManager.isStackTopMode():
@@ -18559,8 +18529,9 @@ Copyright:
                 else:
                     SystemManager.repeatCount = int(repeatParams[1])
             except:
-                SystemManager.printErr(\
-                    "wrong option value with -R, input integer values")
+                SystemManager.printErr((\
+                    "wrong option value with -R because %s, "
+                    "input integer values") % SystemManager.getErrReason())
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
@@ -18585,15 +18556,18 @@ Copyright:
                     SystemManager.repeatInterval = interval
                     SystemManager.intervalEnable = interval
             except:
-                SystemManager.printErr(\
-                    "wrong option value with -R, input a integer value")
+                SystemManager.printErr((\
+                    "wrong option value with -R because %s, "
+                    "input integer values") % SystemManager.getErrReason())
                 sys.exit(0)
         else:
             SystemManager.printErr((\
-                "wrong option value with -R, "
-                "input in the format INTERVAL:REPEAT"))
+                "wrong option value with -R because %s, "
+                "input in the format INTERVAL:REPEAT") % \
+                    SystemManager.getErrReason())
             sys.exit(0)
 
+        # check variables #
         if not SystemManager.intervalEnable or \
             SystemManager.intervalEnable < 1 or \
             SystemManager.repeatCount < 1:
@@ -19037,7 +19011,7 @@ Copyright:
             elif option == 'T':
                 if SystemManager.isConvertMode():
                     SystemManager.fontPath = value
-                else:
+                elif SystemManager.isDrawMode():
                     try:
                         SystemManager.nrTop = int(value)
                     except:
@@ -29753,6 +29727,11 @@ struct msghdr {
 
         finishPrint()
 
+        # print progress #
+        if SystemManager.repeatCount > 0:
+            UtilManager.printProgress(\
+                SystemManager.progressCnt, SystemManager.repeatCount)
+
 
 
     def addArg(self, type, name, value):
@@ -30967,10 +30946,17 @@ struct msghdr {
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
 
             if mode == 'sample':
-                # set sampling rate to 100us #
-                if SystemManager.findOption('i'):
-                    self.sampleTime = \
-                        long(SystemManager.getOption('i')) / float(1000000)
+                # set sampling rate to 100 us #
+                sampleTime = SystemManager.getOption('T')
+                if sampleTime:
+                    try:
+                        self.sampleTime = \
+                            long(sampleTime) / float(1000000)
+                    except:
+                        SystemManager.printErr(\
+                            "Fail to set sampling time because %s" % \
+                                SystemManager.getErrReason())
+                        sys.exit(0)
                 else:
                     self.sampleTime = float(0.0001)
 
