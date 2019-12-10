@@ -7,6 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
+__revision__ = "191210"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -57,8 +58,8 @@ class ConfigManager(object):
  | |  __ _   _ _  __| | ___ _ __
  | | |_ | | | | |/ _` |/ _ \ '__|
  | |__| | |_| | | (_| |  __/ |
-  \_____|\__,_|_|\__,_|\___|_|  ver.%s
-''' % __version__
+  \_____|\__,_|_|\__,_|\___|_|  ver.%s_%s
+''' % (__version__, __revision__)
 
     # Define color #
     if (sys.platform.startswith('linux') or \
