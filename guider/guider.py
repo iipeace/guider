@@ -33158,10 +33158,10 @@ class ElfAnalyzer(object):
 
             # check similar list #
             if type(offset) is list and len(offset) > 0:
-                SystemManager.printErr((\
+                SystemManager.printWarn((\
                     "Fail to find %s in %s, "
                     "\n\tbut similar symbols [ %s ] are exist") % \
-                    (symbol, binPath, ', '.join(offset)))
+                    (symbol, binPath, ', '.join(offset)), True)
                 sys.exit(0)
 
             return offset
@@ -33222,10 +33222,10 @@ class ElfAnalyzer(object):
         if len(syms) == 0:
             return None
         else:
-            SystemManager.printErr((\
+            SystemManager.printWarn((\
                 "Fail to find %s in %s, "
                 "\n\tbut similar symbols [ %s ] are exist") % \
-                (symbol, binPath, ', '.join(syms)))
+                (symbol, binPath, ', '.join(syms)), True)
             sys.exit(0)
 
 
@@ -34013,7 +34013,7 @@ Section header string table index: %d
             self.attr['progHeader'].append([\
                 ElfAnalyzer.PT_TYPE[p_type] \
                     if p_type in ElfAnalyzer.PT_TYPE else p_type, \
-                p_offset, p_vaddr, p_paddr, p_filez, \
+                p_offset, p_vaddr, p_paddr, p_filesz, \
                 p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
 
             # print program header #
