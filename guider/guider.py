@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191210"
+__revision__ = "191211"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12807,6 +12807,7 @@ class SystemManager(object):
                 not SystemManager.isAddr2lineMode() and \
                 not SystemManager.isSym2lineMode() and \
                 not SystemManager.isTopDiffMode() and \
+                not SystemManager.isPrintDirMode() and \
                 not SystemManager.isReportMode() and \
                 not SystemManager.isHelpMode():
                 if len(sys.argv) == 1:
@@ -12940,7 +12941,7 @@ class SystemManager(object):
                 'setsched': 'priority',
                 'getafnt': 'affinity',
                 'setafnt': 'affinity',
-                'pstree': 'tree',
+                'pstree': 'proc',
                 'printenv': 'env',
                 'printinfo': 'system',
                 'readelf': 'file',
@@ -12948,6 +12949,7 @@ class SystemManager(object):
                 'sym2line': 'addr',
                 'leaktrace': 'leak',
                 'printcrp': 'cgroup',
+                'printdir': 'dir',
                 'printdbus': 'D-Bus',
                 },
             'log': {
@@ -14394,6 +14396,33 @@ Examples:
 
     - Print system cgroup tree with the name of processes
         # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
+                # printdir #
+                elif SystemManager.isPrintDirMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show directory structure
+
+OPTIONS:
+        -v                          verbose
+        -I  <DIR>                   set input path
+        -H  <LEVEL>                 set function depth level
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print directory structure from current working directory
+        # {0:1} {1:1}
+
+    - Print directory structure from / dir
+        # {0:1} {1:1} -I /
+
+    - Print directory structure in 2-depth from / dir
+        # {0:1} {1:1} -I / -H 2
                     '''.format(cmd, mode)
 
                 # leaktracer #
@@ -20289,6 +20318,20 @@ Copyright:
         elif SystemManager.isSym2lineMode():
             SystemManager.doSym2line()
 
+        # PRINTDIR MODE #
+        elif SystemManager.isPrintDirMode():
+            if not SystemManager.sourceFile:
+                root = '.'
+            else:
+                root = SystemManager.sourceFile
+
+            if not SystemManager.funcDepth:
+                maxLevel = -1
+            else:
+                maxLevel = SystemManager.funcDepth
+
+            SystemManager.printDirs(root, maxLevel)
+
         # PRINTCGROUP MODE #
         elif SystemManager.isPrintCgroupMode():
             SystemManager.cgroupEnable = True
@@ -20571,6 +20614,15 @@ Copyright:
     @staticmethod
     def isPrintCgroupMode():
         if sys.argv[1] == 'printcrp':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintDirMode():
+        if sys.argv[1] == 'printdir':
             return True
         else:
             return False
@@ -22744,6 +22796,66 @@ Copyright:
 
 
     @staticmethod
+    def printDirs(path='.', maxLevel=-1):
+        def recurse(parentPath, fileList, prefix, buf, level, maxLevel):
+            if len(fileList) == 0 or \
+                (maxLevel != -1 and maxLevel <= level):
+                return
+
+            # sort by dir #
+            fileList.sort(\
+                key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
+
+            for idx, subPath in enumerate(fileList):
+                fullPath = os.path.join(parentPath, subPath)
+                idc = "|-"
+                if idx == len(fileList) - 1:
+                    idc = "--"
+
+                if os.path.isdir(fullPath):
+                    string = "%s%s[%s]" % (prefix, idc, subPath)
+                    if buf:
+                        buf.append(string)
+                    else:
+                        SystemManager.printPipe(string)
+
+                    if len(fileList) > 1 and idx != len(fileList) - 1:
+                        tmpPrefix = prefix + "|  "
+                    else:
+                        tmpPrefix = prefix + "    "
+
+                    recurse(\
+                        fullPath, os.listdir(fullPath), \
+                            tmpPrefix, buf, level + 1, maxLevel)
+                elif os.path.isfile(fullPath):
+                    string = "%s%s%s" % (prefix, idc, subPath)
+                    if buf:
+                        buf.append(string)
+                    else:
+                        SystemManager.printPipe(string)
+
+        buf = []
+        buf = None
+        pathParts = path.rsplit(os.path.sep, 1)
+
+        if len(pathParts[-1]) > 0:
+            string = "[%s]" % (pathParts[-1],)
+        else:
+            string = "[%s]" % (path)
+        if buf:
+            buf.append(string)
+        else:
+            SystemManager.printPipe(string)
+
+        recurse(path, os.listdir(path), "", buf, 0, maxLevel)
+
+        if buf:
+            output = "\n".join(buf)
+            SystemManager.printPipe(output)
+
+
+
+    @staticmethod
     def doSym2line():
         SystemManager.printLogo(big=True, onlyFile=True)
 
@@ -24730,8 +24842,7 @@ Copyright:
             # enable segmentation fault events #
             customCmd = SystemManager.customCmd
             if not customCmd or \
-                True not in [True for evt in customCmd \
-                if evt.startswith('signal')]:
+                not any([True for evt in customCmd if evt.startswith('signal')]):
                 sigCmd = "sig == %d" % signal.SIGSEGV
                 SystemManager.writeCmd('signal/filter', sigCmd)
 
@@ -45911,7 +46022,7 @@ class ThreadAnalyzer(object):
             handleSpecialEvents = True
 
         # custom event #
-        if True in [True for event in SystemManager.customEventList if func.startswith(event)]:
+        if any([True for event in SystemManager.customEventList if func.startswith(event)]):
             # add data into list #
             ntime = float(time) - float(SystemManager.startTime)
             self.customEventData.append(\
