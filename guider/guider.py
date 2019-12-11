@@ -14410,6 +14410,7 @@ Description:
 OPTIONS:
         -v                          verbose
         -I  <DIR>                   set input path
+        -a                          show all attributes
         -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
@@ -14423,6 +14424,9 @@ Examples:
 
     - Print directory structure in 2-depth from / dir
         # {0:1} {1:1} -I / -H 2
+
+    - Print directory structure with attributes from / dir
+        # {0:1} {1:1} -I / -a
                     '''.format(cmd, mode)
 
                 # leaktracer #
@@ -22806,6 +22810,11 @@ Copyright:
             fileList.sort(\
                 key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
 
+            if SystemManager.showAll:
+                fileList = \
+                    sorted(fileList, key=lambda name: os.path.getsize(\
+                        '%s/%s' % (parentPath, name)), reverse=True)
+
             for idx, subPath in enumerate(fileList):
                 fullPath = os.path.join(parentPath, subPath)
                 idc = "|-"
@@ -22813,7 +22822,17 @@ Copyright:
                     idc = "--"
 
                 if os.path.isdir(fullPath):
-                    string = "%s%s[%s]" % (prefix, idc, subPath)
+                    if SystemManager.showAll:
+                        try:
+                            size = ' <%s>' % \
+                                UtilManager.convertNumber(\
+                                    len(os.listdir(fullPath)))
+                        except:
+                            size = ''
+                    else:
+                        size = ''
+
+                    string = "%s%s[%s]%s" % (prefix, idc, subPath, size)
                     if buf:
                         buf.append(string)
                     else:
@@ -22824,11 +22843,22 @@ Copyright:
                     else:
                         tmpPrefix = prefix + "    "
 
+                    subdirs = os.listdir(fullPath)
+
                     recurse(\
-                        fullPath, os.listdir(fullPath), \
-                            tmpPrefix, buf, level + 1, maxLevel)
+                        fullPath, subdirs, tmpPrefix, buf, level + 1, maxLevel)
                 elif os.path.isfile(fullPath):
-                    string = "%s%s%s" % (prefix, idc, subPath)
+                    if SystemManager.showAll:
+                        try:
+                            size = ' <%s>' % \
+                                UtilManager.convertSize2Unit(\
+                                    os.stat(fullPath).st_size)
+                        except:
+                            size = ''
+                    else:
+                        size = ''
+
+                    string = "%s%s%s%s" % (prefix, idc, subPath, size)
                     if buf:
                         buf.append(string)
                     else:
