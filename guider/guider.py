@@ -19076,7 +19076,7 @@ Copyright:
                 if SystemManager.isDrawMode():
                     SystemManager.boundaryLine = value.split(',')
                     SystemManager.printInfo(\
-                        "set %s as boundary line" % \
+                        "set %s as a boundary line" % \
                         ', '.join(SystemManager.boundaryLine))
                 elif SystemManager.isSendMode():
                     pass
@@ -36599,8 +36599,8 @@ class ThreadAnalyzer(object):
         from pylab import \
             rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
             pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-            ticklabel_format, suptitle, grid, yticks, xticks, \
-            locator_params, subplot2grid, ylim, xlim, tick_params
+            ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
+            axvline, locator_params, subplot2grid, ylim, xlim, tick_params
 
         seq = 0
         height = \
@@ -36788,6 +36788,10 @@ class ThreadAnalyzer(object):
                         text(timeline[tm], yticks()[0][-1], evtbox, fontsize=3,\
                             verticalalignment='top', style='italic',\
                             bbox={'facecolor':'green', 'alpha': 1, 'pad': 1})
+
+                        axvline(\
+                            x=timeline[tm], linewidth=1, \
+                                linestyle='--', color='green')
                     except:
                         pass
 
@@ -36836,9 +36840,9 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        def drawBoundary(ymax, labelList, gtype='cpu'):
+        def drawBoundary(gtype, labelList):
             if not SystemManager.boundaryLine:
-                return ymax
+                return
 
             try:
                 boundaryList = \
@@ -36853,23 +36857,22 @@ class ThreadAnalyzer(object):
             # draw boundary graph #
             for boundary in boundaryList:
                 if gtype == 'io':
-                    bl = [boundary >> 10] * len(timeline)
+                    bl = boundary >> 10
                 elif gtype == 'mem':
-                    bl = [boundary >> 20] * len(timeline)
+                    bl = boundary >> 20
                 else:
-                    bl = [boundary] * len(timeline)
+                    bl = boundary
 
-                # update the maximum ytick #
-                if ymax < boundary:
-                    ymax = boundary
+                try:
+                    axhline(y=bl, linewidth=1, linestyle='--', color='black')
 
-                plot(timeline, bl, '-', linestyle='-',\
-                    linewidth=2, solid_capstyle='round')
-
-                labelList.append(\
-                    '[ Boundary %s ]' % UtilManager.convertSize2Unit(boundary))
-
-            return ymax
+                    labelList.append(\
+                        '[ Boundary %s ]' % \
+                            UtilManager.convertSize2Unit(boundary))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
 
         def drawCpu(graphStats, xtype, pos, size):
             # draw title #
@@ -36925,7 +36928,7 @@ class ThreadAnalyzer(object):
                     isVisibleTotal = False
 
                 # add boundary line #
-                ymax = drawBoundary(ymax, labelList)
+                ymax = drawBoundary('cpu', labelList)
 
                 #-------------------- Total GPU usage --------------------#
                 if isVisibleTotal:
@@ -37236,7 +37239,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            ymax = drawBoundary(0, labelList, 'io')
+            ymax = drawBoundary('io', labelList)
 
             # start loop #
             for key, val in graphStats.items():
@@ -37865,7 +37868,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            ymax = drawBoundary(0, labelList, 'mem')
+            ymax = drawBoundary('mem', labelList)
 
             # define top variable #
             if SystemManager.nrTop:
@@ -38387,8 +38390,8 @@ class ThreadAnalyzer(object):
         from pylab import \
             rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
             pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-            ticklabel_format, suptitle, grid, yticks, xticks, \
-            locator_params, subplot2grid, ylim, xlim, tick_params
+            ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
+            axvline, locator_params, subplot2grid, ylim, xlim, tick_params
 
         # set dpi #
         matplotlib.rcParams['figure.dpi'] = SystemManager.matplotlibDpi
@@ -39740,8 +39743,8 @@ class ThreadAnalyzer(object):
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
                 pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-                ticklabel_format, suptitle, grid, yticks, xticks, \
-                locator_params, subplot2grid, ylim, xlim, tick_params
+                ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
+                axvline, locator_params, subplot2grid, ylim, xlim, tick_params
 
             rc('legend', fontsize=5)
             rcParams.update({'font.size': 8})
@@ -41174,8 +41177,8 @@ class ThreadAnalyzer(object):
             from pylab import \
                 rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
                 pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-                ticklabel_format, suptitle, grid, yticks, xticks, \
-                locator_params, subplot2grid, ylim, xlim, tick_params
+                ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
+                axvline, locator_params, subplot2grid, ylim, xlim, tick_params
 
         # draw io graph #
         if SystemManager.graphEnable and len(ioUsageList) > 0:
