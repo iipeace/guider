@@ -11471,6 +11471,7 @@ class SystemManager(object):
     perfEventData = {}
 
     impPkg = {}
+    impGlbPkg = {}
     skipImpPkg = {}
     exitFuncList = []
     dltObj = None
@@ -11962,6 +11963,28 @@ class SystemManager(object):
         SystemManager.parseAffinityOption(value, isProcess)
 
         sys.exit(0)
+
+
+
+    @staticmethod
+    def importPackageItems(pkg):
+        if pkg in SystemManager.impGlbPkg:
+            return
+
+        module = SystemManager.getPkg(pkg)
+	moduleDict = module.__dict__
+
+	try:
+	    importList = module.__all__
+        except SystemExit:
+            sys.exit(0)
+	except AttributeError:
+	    importList = \
+                [name for name in moduleDict if not name.startswith('_')]
+
+	globals().update({name: moduleDict[name] for name in importList})
+
+        SystemManager.impGlbPkg[pkg] = True
 
 
 
@@ -36523,12 +36546,7 @@ class ThreadAnalyzer(object):
         matplotlib.use('Agg')
 
         # get pylab object #
-        pylab = SystemManager.getPkg('pylab')
-        from pylab import \
-            rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
-            pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-            ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
-            axvline, locator_params, subplot2grid, ylim, xlim, tick_params
+        SystemManager.importPackageItems('pylab')
 
         seq = 0
         height = \
@@ -38314,12 +38332,7 @@ class ThreadAnalyzer(object):
         matplotlib.use('Agg')
 
         # get pylab object #
-        pylab = SystemManager.getPkg('pylab')
-        from pylab import \
-            rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
-            pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-            ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
-            axvline, locator_params, subplot2grid, ylim, xlim, tick_params
+        SystemManager.importPackageItems('pylab')
 
         # set dpi #
         matplotlib.rcParams['figure.dpi'] = SystemManager.matplotlibDpi
@@ -38498,8 +38511,7 @@ class ThreadAnalyzer(object):
                 "Fail to backup %s because %s" % (outputFile, err))
 
         # get pylab object #
-        pylab = SystemManager.getPkg('pylab')
-        from pylab import savefig, clf
+        SystemManager.importPackageItems('pylab')
 
         try:
             # save graph #
@@ -39667,12 +39679,7 @@ class ThreadAnalyzer(object):
             matplotlib.use('Agg')
 
             # get pylab object #
-            pylab = SystemManager.getPkg('pylab')
-            from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
-                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-                ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
-                axvline, locator_params, subplot2grid, ylim, xlim, tick_params
+            SystemManager.importPackageItems('pylab')
 
             rc('legend', fontsize=5)
             rcParams.update({'font.size': 8})
@@ -41101,12 +41108,7 @@ class ThreadAnalyzer(object):
             matplotlib.pyplot.switch_backend('agg')
 
             # get pylab object #
-            pylab = SystemManager.getPkg('pylab')
-            from pylab import \
-                rc, rcParams, subplot, plot, title, xlabel, ylabel, text, \
-                pie, axis, subplots_adjust, legend, figure, savefig, clf, \
-                ticklabel_format, suptitle, grid, yticks, xticks, axhline, \
-                axvline, locator_params, subplot2grid, ylim, xlim, tick_params
+            SystemManager.importPackageItems('pylab')
 
         # draw io graph #
         if SystemManager.graphEnable and len(ioUsageList) > 0:
