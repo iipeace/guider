@@ -8265,7 +8265,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.printPipe(oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print syscall file #
         SystemManager.printPipe(\
@@ -8293,7 +8293,7 @@ class FunctionAnalyzer(object):
         if self.periodicEventCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print syscall history #
         if not SystemManager.showAll or len(self.sysCallData) == 0:
@@ -8428,7 +8428,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.printPipe(oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
             # Print custom event file in user space #
             SystemManager.printPipe(\
@@ -8457,7 +8457,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print custom event in kernel space #
         SystemManager.clearPrint()
@@ -8513,7 +8513,7 @@ class FunctionAnalyzer(object):
 
             SystemManager.printPipe(oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print custom call history #
         if not SystemManager.showAll or len(self.customCallData) == 0:
@@ -8698,7 +8698,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
             # Print per-symbol #
             title = 'Function CPU-Tick Symbol Info'
@@ -8733,7 +8733,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
             # Print tick per-file #
             title = 'Function CPU-Tick File Info'
@@ -8767,7 +8767,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print cpu usage in kernel space #
         title = 'Function CPU-Tick Info'
@@ -8937,7 +8937,7 @@ class FunctionAnalyzer(object):
             if self.pageUnknownFreeCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print memory reduce by page free in kernel space #
         SystemManager.clearPrint()
@@ -9107,7 +9107,7 @@ class FunctionAnalyzer(object):
             if self.pageAllocCnt - self.pageUsageCnt <= 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print page alloc-free pair in kernel space #
         SystemManager.clearPrint()
@@ -9219,7 +9219,7 @@ class FunctionAnalyzer(object):
         if self.pageAllocCnt - self.pageUsageCnt <= 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
 
 
@@ -9339,7 +9339,7 @@ class FunctionAnalyzer(object):
             if self.pageUsageCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print memory usage by page allocation in kernel space #
         SystemManager.clearPrint()
@@ -9413,7 +9413,7 @@ class FunctionAnalyzer(object):
         if self.pageUsageCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         self.printKnownMemFreeInfo()
 
@@ -9491,7 +9491,7 @@ class FunctionAnalyzer(object):
         if len(self.heapTable) == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print remaining heap history #
         if not SystemManager.showAll or len(self.heapTable) == 0:
@@ -9672,7 +9672,7 @@ class FunctionAnalyzer(object):
         if self.lockTryEventCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print lock per-file #
         title = 'Function Lock-Try File Info'
@@ -9699,7 +9699,7 @@ class FunctionAnalyzer(object):
         if self.periodicEventCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print unlock #
         title = 'Function Unlock Info'
@@ -9749,7 +9749,7 @@ class FunctionAnalyzer(object):
         if self.unlockEventCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print unlock per-file #
         title = 'Function Unlock File Info'
@@ -9776,7 +9776,7 @@ class FunctionAnalyzer(object):
         if self.periodicEventCnt == 0:
             SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         # Print lock history #
         if not SystemManager.showAll or len(self.lockCallData) == 0:
@@ -9909,7 +9909,7 @@ class FunctionAnalyzer(object):
             if self.blockWrUsageCnt == 0:
                 SystemManager.printPipe('\tNone\n%s' % oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print block write in kernel space #
         SystemManager.clearPrint()
@@ -10060,7 +10060,7 @@ class FunctionAnalyzer(object):
 
                 SystemManager.printPipe(oneLine)
 
-            SystemManager.printPipe('')
+            SystemManager.printPipe()
 
         # Print block read in kernel space #
         SystemManager.clearPrint()
@@ -18157,7 +18157,7 @@ Copyright:
 
 
     @staticmethod
-    def printPipe(line, newline=True, flush=False):
+    def printPipe(line='', newline=True, flush=False):
         if SystemManager.dltEnable:
             DltAnalyzer.doLogDlt(msg=line)
 
@@ -18360,6 +18360,7 @@ Copyright:
         try:
             newline = line.replace('-------', '───────')
             newline = newline.replace('=', '═')
+            newline = newline.replace('|-', '├─')
             newline = newline.replace('|', '│')
 
             if sys.version_info < (3, 0) and not SystemManager.encoding:
@@ -20324,6 +20325,8 @@ Copyright:
 
         # PRINTDIR MODE #
         elif SystemManager.isPrintDirMode():
+            SystemManager.printLogo(big=True, onlyFile=True)
+
             if not SystemManager.sourceFile:
                 root = '.'
             else:
@@ -21526,7 +21529,7 @@ Copyright:
     @staticmethod
     def procUserInput(uinput):
         def printHelp():
-            SystemManager.printPipe("")
+            SystemManager.printPipe()
 
             SystemManager.printPipe("[Filter]   {COMM|PID}")
             SystemManager.printPipe("  exam) f init, 1234\n")
@@ -22629,12 +22632,12 @@ Copyright:
         if not envs:
             sys.exit(0)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         for env in envs:
             SystemManager.printPipe(env)
 
-        SystemManager.printPipe('')
+        SystemManager.printPipe()
 
         sys.exit(0)
 
@@ -22802,86 +22805,112 @@ Copyright:
     @staticmethod
     def printDirs(path='.', maxLevel=-1):
         def recurse(parentPath, fileList, prefix, buf, level, maxLevel):
+            totalSize = 0
+            totalFile = 0
+            totalDir = 0
+
             if len(fileList) == 0 or \
                 (maxLevel != -1 and maxLevel <= level):
-                return
+                return (0, 0, 0)
 
-            # sort by dir #
-            fileList.sort(\
-                key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
-
+            # sort by size #
             if SystemManager.showAll:
-                fileList = \
-                    sorted(fileList, key=lambda name: os.path.getsize(\
+                fileList.sort(\
+                    key=lambda name: os.path.getsize(\
                         '%s/%s' % (parentPath, name)), reverse=True)
+            # sort by type #
+            else:
+                fileList.sort(\
+                    key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
 
             for idx, subPath in enumerate(fileList):
-                fullPath = os.path.join(parentPath, subPath)
                 idc = "|-"
-                if idx == len(fileList) - 1:
-                    idc = "--"
 
+                fullPath = os.path.join(parentPath, subPath)
+
+                # check link #
+                if os.path.islink(fullPath):
+                    pass
+
+                # check dir #
                 if os.path.isdir(fullPath):
-                    if SystemManager.showAll:
-                        try:
-                            size = ' <%s>' % \
-                                UtilManager.convertNumber(\
-                                    len(os.listdir(fullPath)))
-                        except:
-                            size = ''
-                    else:
-                        size = ''
+                    totalDir += 1
 
-                    string = "%s%s[%s]%s" % (prefix, idc, subPath, size)
-                    if buf:
-                        buf.append(string)
-                    else:
-                        SystemManager.printPipe(string)
+                    string = "%s%s[%s]" % (prefix, idc, subPath)
+                    buf.append(string)
 
-                    if len(fileList) > 1 and idx != len(fileList) - 1:
-                        tmpPrefix = prefix + "|  "
-                    else:
-                        tmpPrefix = prefix + "    "
+                    # update prefix #
+                    tmpPrefix = prefix + "|  "
 
                     subdirs = os.listdir(fullPath)
 
-                    recurse(\
+                    rlist = recurse(\
                         fullPath, subdirs, tmpPrefix, buf, level + 1, maxLevel)
+
+                    totalSize += rlist[0]
+                    totalDir += rlist[1]
+                    totalFile += rlist[2]
+                # check file #
                 elif os.path.isfile(fullPath):
-                    if SystemManager.showAll:
-                        try:
-                            size = ' <%s>' % \
-                                UtilManager.convertSize2Unit(\
-                                    os.stat(fullPath).st_size)
-                        except:
-                            size = ''
-                    else:
+                    totalFile += 1
+
+                    try:
+                        size = os.stat(fullPath).st_size
+                        totalSize += size
+                        size = ' <%s>' % \
+                            UtilManager.convertSize2Unit(size)
+                    except:
+                        SystemManager.printWarn(\
+                            'Fail to get size of %s because %s' % (
+                                fullPath, SystemManager.getErrReason()))
                         size = ''
 
+                    if not SystemManager.showAll:
+                        continue
+
                     string = "%s%s%s%s" % (prefix, idc, subPath, size)
-                    if buf:
-                        buf.append(string)
-                    else:
-                        SystemManager.printPipe(string)
+                    buf.append(string)
+
+            if totalSize:
+                tsize = 'SIZE: %s, ' % \
+                    UtilManager.convertSize2Unit(totalSize)
+            else:
+                tsize = ''
+
+            summary = " <%sFILE: %s, DIR: %s>" % \
+                (tsize, UtilManager.convertNumber(totalFile),
+                    UtilManager.convertNumber(totalDir))
+
+            # add summary by reverse traverse #
+            if level == 0:
+                buf[0] += summary
+            else:
+                tprefix = '%s-[%s]' % \
+                    (prefix[:-2], os.path.basename(parentPath))
+                for i, val in enumerate(reversed(buf)):
+                    if not val.startswith(tprefix):
+                        continue
+                    buf[-(i)-1] += summary
+                    break
+
+            return (totalSize, totalDir, totalFile)
 
         buf = []
-        buf = None
         pathParts = path.rsplit(os.path.sep, 1)
 
-        if len(pathParts[-1]) > 0:
-            string = "[%s]" % (pathParts[-1],)
-        else:
-            string = "[%s]" % (path)
-        if buf:
-            buf.append(string)
-        else:
-            SystemManager.printPipe(string)
+        # print start path #
+        string = "[%s]" % (os.path.abspath(path))
+        buf.append(string)
 
-        recurse(path, os.listdir(path), "", buf, 0, maxLevel)
+        SystemManager.printStat(\
+            r"start traversing dirs from %s..." % string)
 
-        if buf:
-            output = "\n".join(buf)
-            SystemManager.printPipe(output)
+        # traverse dirs #
+        totalSize, totalDir, totalFile = \
+            recurse(path, os.listdir(path), "  ", buf, 0, maxLevel)
+
+        output = "\n".join(buf)
+        SystemManager.printPipe(output)
 
 
 
@@ -38839,7 +38868,7 @@ class ThreadAnalyzer(object):
                 self.customEventInfo.items(), key=lambda e: e[1]['count'], \
                 reverse=True):
                 if newLine:
-                    SystemManager.printPipe("")
+                    SystemManager.printPipe()
                 else:
                     newLine = True
 
@@ -38914,7 +38943,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 if newLine:
-                    SystemManager.printPipe("")
+                    SystemManager.printPipe()
                 else:
                     newLine = True
                 SystemManager.printPipe(\
@@ -39005,7 +39034,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 if newLine:
-                    SystemManager.printPipe("")
+                    SystemManager.printPipe()
                 else:
                     newLine = True
                 SystemManager.printPipe(\
@@ -40528,7 +40557,7 @@ class ThreadAnalyzer(object):
                 seqString = '%s(%5s)' % (seqSize, seqPer)
 
                 if tcnt > 0:
-                    SystemManager.printPipe('')
+                    SystemManager.printPipe()
 
                 SystemManager.printPipe(\
                     "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:<20}".\
