@@ -13124,6 +13124,24 @@ Examples:
 
                 '''.format(cmd, mode)
 
+                drawExamStr = '''
+Examples:
+    - Draw graphs of resource usage and memory chart
+        # {0:1} {1:1} guider.out
+
+    - Draw graphs of resource usage excluding chrome process and memory chart
+        # {0:1} {1:1} guider.out -g ^chrome
+
+    - Draw graphs of resource usage with some boundary lines
+        # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
+
+    - Draw graphs of resource usage of top 5 processes
+        # {0:1} {1:1} guider.out worstcase.out -T 5
+
+    - Draw graphs of resource usage with multiple files for comparison
+        # {0:1} {1:1} guider*.out worstcase.out
+                '''.format(cmd, mode)
+
                 # function record #
                 if SystemManager.isFuncRecordMode():
                     helpStr = '''
@@ -13987,25 +14005,7 @@ Description:
     Draw cpu graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of cpu usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of cpu usage excluding chrome process and memory chart
-        # {0:1} {1:1} guider.out -g ^chrome
-
-    - Draw graphs of cpu usage with some boundary lines
-        # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
-
-    - Draw graphs of cpu usage of top 5 processes
-        # {0:1} {1:1} guider.out worstcase.out -T 5
-
-    - Draw graphs of cpu usage with multiple files for comparison
-        # {0:1} {1:1} guider*.out worstcase.out
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # memory draw #
                 elif SystemManager.isMemDrawMode():
@@ -14017,16 +14017,7 @@ Description:
     Draw system memory graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of memory usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of memory usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # vss draw #
                 elif SystemManager.isVssDrawMode():
@@ -14038,22 +14029,7 @@ Description:
     Draw process memory(VSS) graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of memory(VSS) usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of memory(VSS) usage excluding chrome process and memory chart
-        # {0:1} {1:1} guider.out -g ^chrome
-
-    - Draw graphs of memory(VSS) usage of top 5 processes
-        # {0:1} {1:1} guider.out -T 5
-
-    - Draw graphs of memory(VSS) usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # rss draw #
                 elif SystemManager.isRssDrawMode():
@@ -14065,19 +14041,7 @@ Description:
     Draw process memory(RSS) graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of memory(RSS) usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of memory(RSS) usage of top 5 processes
-        # {0:1} {1:1} guider.out -T 5
-
-    - Draw graphs of memory(RSS) usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # leak draw #
                 elif SystemManager.isLeakDrawMode():
@@ -14089,19 +14053,7 @@ Description:
     Draw memory(VSS) graphs of processes suspected memory leak and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of memory(VSS) usage of processes suspected memory leak and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of memory(VSS) usage of processes suspected memory leak excluding chrome and memory chart
-        # {0:1} {1:1} guider.out -g ^chrome
-
-    - Draw graphs of memory(VSS) usage of processes suspected memory leak with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # I/O draw #
                 elif SystemManager.isIoDrawMode():
@@ -14113,19 +14065,7 @@ Description:
     Draw system I/O graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of I/O usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of I/O usage and memory chart
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of I/O usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # draw #
                 elif SystemManager.isDrawMode():
@@ -14137,19 +14077,7 @@ Description:
     Draw system resource graphs and memory chart
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr
-
-                    helpStr +=  '''
-Examples:
-    - Draw graphs of system resource usage
-        # {0:1} {1:1} guider.out
-
-    - Draw graphs of system resource usage with multiple files for comparison
-        # {0:1} {1:1} guider.out guider.out2 guider.out3
-
-    - Draw graphs of system resource usage including only cpu and I/O and memory chart
-        # {0:1} {1:1} guider.out -L cpu, io
-                    '''.format(cmd, mode)
+                    helpStr += drawSubStr + drawExamStr
 
                 # topdiff #
                 elif SystemManager.isTopDiffMode():
