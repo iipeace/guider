@@ -12877,7 +12877,7 @@ class SystemManager(object):
             prefix = ctype
             for cmd, cvalue in sorted(tvalue.items()):
                 if len(prefix) > 0:
-                    types = '[%s]' % prefix
+                    types = '[%s]' % prefix.upper()
                 else:
                     types = ' '
 
@@ -12924,7 +12924,7 @@ class SystemManager(object):
                 },
             'visual': {
                 'draw': 'image',
-                'cpudraw': 'cpu',
+                'cpudraw': 'CPU',
                 'memdraw': 'memory',
                 'vssdraw': 'vss',
                 'rssdraw': 'rss',
@@ -12936,12 +12936,12 @@ class SystemManager(object):
                 'topdiff': 'diff',
                 'kill': 'signal',
                 'pause': 'thread',
-                'limitcpu': 'cpu',
+                'limitcpu': 'CPU',
                 'setcpu': 'clock',
                 'setsched': 'priority',
                 'getafnt': 'affinity',
                 'setafnt': 'affinity',
-                'pstree': 'proc',
+                'pstree': 'process',
                 'printenv': 'env',
                 'printinfo': 'system',
                 'readelf': 'file',
@@ -12953,7 +12953,7 @@ class SystemManager(object):
                 'printdbus': 'D-Bus',
                 },
             'log': {
-                'printkmsg': 'KMSG',
+                'printkmsg': 'kernel',
                 'printdlt': 'DLT',
                 'logdlt': 'DLT',
                 },
@@ -12966,8 +12966,8 @@ class SystemManager(object):
                 'client': 'client',
                 },
             'test': {
-                'cputest': 'cpu',
-                'alloctest': 'mem',
+                'cputest': 'CPU',
+                'alloctest': 'memory',
                 },
             }
 
