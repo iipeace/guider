@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191211"
+__revision__ = "191213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11972,17 +11972,17 @@ class SystemManager(object):
             return
 
         module = SystemManager.getPkg(pkg)
-	moduleDict = module.__dict__
+        moduleDict = module.__dict__
 
-	try:
-	    importList = module.__all__
+        try:
+            importList = module.__all__
         except SystemExit:
             sys.exit(0)
-	except AttributeError:
-	    importList = \
+        except AttributeError:
+            importList = \
                 [name for name in moduleDict if not name.startswith('_')]
 
-	globals().update({name: moduleDict[name] for name in importList})
+        globals().update({name: moduleDict[name] for name in importList})
 
         SystemManager.impGlbPkg[pkg] = True
 
@@ -13160,6 +13160,9 @@ Examples:
 
     - Draw graphs of resource usage of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
+
+    - Draw graphs of resource usage with ylimit 100
+        # {0:1} {1:1} guider.out worstcase.out -H 100
 
     - Draw graphs of resource usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
@@ -18348,6 +18351,7 @@ Copyright:
 
     @staticmethod
     def printErr(line):
+        #SystemManager.printBacktrace()
         if not SystemManager.logEnable:
             return
 
@@ -36874,7 +36878,7 @@ class ThreadAnalyzer(object):
                     isVisibleTotal = False
 
                 # add boundary line #
-                ymax = drawBoundary('cpu', labelList)
+                drawBoundary('cpu', labelList)
 
                 #-------------------- Total GPU usage --------------------#
                 if isVisibleTotal:
@@ -37130,9 +37134,13 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # update ymax #
+            if SystemManager.funcDepth > 0:
+                ymax = SystemManager.funcDepth
+
             # set yticks attributes #
             xticks(fontsize=4)
-            ylim([0, ymax+1])
+            ylim([0, ymax+int(ymax/10)])
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
             inc = int(ymax / 10)
@@ -37162,7 +37170,55 @@ class ThreadAnalyzer(object):
             drawBottom(xtype, ax)
 
         def drawIo(graphStats, xtype, pos, size):
+            def drawSystemIo(statList, color, ymax):
+                usage = list(map(int, statList))[:lent]
+
+                # update the maximum ytick #
+                maxUsage = max(usage)
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+
+                minval = '%s%s' % \
+                    (prefix, convertSize2Unit(usage[minIdx] << 10))
+                maxsize = convertSize2Unit(usage[maxIdx] << 10)
+                totalsize = convertSize2Unit(sum(usage) << 10)
+                maxval = '%s%s' % (prefix, maxsize)
+                lastval = '%s%s' % \
+                    (prefix, convertSize2Unit(usage[-1] << 10))
+
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], minval,\
+                        fontsize=5, color=color, fontweight='bold')
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], maxval,\
+                        fontsize=5, color=color, fontweight='bold')
+                if usage[-1] > 0:
+                    try:
+                        unit = (timeline[-1]-timeline[-2]) / 10
+                    except:
+                        unit = 0
+                    text(timeline[-1]+unit, usage[-1], lastval,\
+                        fontsize=5, color=color, fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    rcolor = None
+                else:
+                    rcolor = color
+
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    plot(timeline, statList, '-', c=rcolor, \
+                        linewidth=1, alpha=0.1)
+                else:
+                    plot(timeline, statList, '-', c=rcolor, linewidth=1)
+
+                return totalsize, ymax
+
             # define common label list #
+            ymax = 0
             labelList = []
 
             # set convert size #
@@ -37185,7 +37241,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            ymax = drawBoundary('io', labelList)
+            drawBoundary('io', labelList)
 
             # start loop #
             for key, val in graphStats.items():
@@ -37211,256 +37267,34 @@ class ThreadAnalyzer(object):
                 networkUsage = graphStats['%snetworkUsage' % fname]
 
                 # System Block Read #
-                usage = list(map(int, blkRead))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(blkRead, 'skyblue', ymax)
                 labelList.append(\
                     '%sBlock Read - %s' % (prefix, totalsize))
 
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='skyblue', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='skyblue', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    rcolor = None
-                else:
-                    rcolor = 'skyblue'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, blkRead, '-', c=rcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, blkRead, '-', c=rcolor, linewidth=1)
-
                 # System Block Write #
-                usage = list(map(int, blkWrite))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(blkWrite, 'green', ymax)
                 labelList.append(\
                     '%sBlock Write - %s' % (prefix, totalsize))
 
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='green', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='green', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='green', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    wcolor = None
-                else:
-                    wcolor = 'green'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, blkWrite, '-', c=wcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, blkWrite, '-', c=wcolor, linewidth=1)
-
                 # System Background Reclaim #
-                usage = list(map(int, reclaimBg))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(reclaimBg, 'pink', ymax)
                 labelList.append(\
                     '%sReclaim BG - %s' % (prefix, totalsize))
 
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='pink', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='pink', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='pink', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    bcolor = None
-                else:
-                    bcolor = 'pink'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, reclaimBg, '-', c=bcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, reclaimBg, '-', c=bcolor, linewidth=1)
-
                 # System Direct Reclaim #
-                usage = list(map(int, reclaimDr))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(reclaimDr, 'red', ymax)
                 labelList.append(\
                     '%sReclaim FG - %s' % (prefix, totalsize))
 
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='red', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='red', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='red', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    dcolor = None
-                else:
-                    dcolor = 'red'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, reclaimDr, '-', c=dcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, reclaimDr, '-', c=dcolor, linewidth=1)
-
                 # System Network Inbound #
-                usage = list(map(int, netRead))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(netRead, 'purple', ymax)
                 labelList.append(\
                     '%sNetwork In - %s' % (prefix, totalsize))
 
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='purple', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='purple', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='purple', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    rcolor = None
-                else:
-                    rcolor = 'purple'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, netRead, '-', c=rcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, netRead, '-', c=rcolor, linewidth=1)
-
                 # System Network Outbound #
-                usage = list(map(int, netWrite))[:lent]
-                minIdx = usage.index(min(usage))
-                maxIdx = usage.index(max(usage))
-
-                minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(sum(usage) << 10)
-                maxval = '%s%s' % (prefix, maxsize)
-                lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
-
+                totalsize, ymax = drawSystemIo(netWrite, 'cyan', ymax)
                 labelList.append(\
                     '%sNetwork Out - %s' % (prefix, totalsize))
-
-                if usage[minIdx] > 0:
-                    text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color='cyan', fontweight='bold')
-                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                    text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color='cyan', fontweight='bold')
-                if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = 0
-                    text(timeline[-1]+unit, usage[-1], lastval,\
-                        fontsize=5, color='cyan', fontweight='bold')
-
-                # set color #
-                if len(prefix) > 0:
-                    wcolor = None
-                else:
-                    wcolor = 'cyan'
-
-                if usage[minIdx] == usage[maxIdx] == 0:
-                    plot(timeline, netWrite, '-', c=wcolor, \
-                        linewidth=1, alpha=0.1)
-                else:
-                    plot(timeline, netWrite, '-', c=wcolor, linewidth=1)
 
                 # System Network Usage #
                 for idx, item in networkUsage.items():
@@ -37481,6 +37315,11 @@ class ThreadAnalyzer(object):
                     # Network Transfer #
                     minIdx = wrUsage.index(min(wrUsage))
                     maxIdx = wrUsage.index(max(wrUsage))
+
+                    # update the maximum ytick #
+                    maxUsage = max(wrUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
 
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(wrUsage) << 10)
@@ -37513,6 +37352,11 @@ class ThreadAnalyzer(object):
                     # Network Receive #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
+
+                    # update the maximum ytick #
+                    maxUsage = max(rdUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(rdUsage) << 10)
@@ -37563,6 +37407,11 @@ class ThreadAnalyzer(object):
                     minIdx = wrUsage.index(min(wrUsage))
                     maxIdx = wrUsage.index(max(wrUsage))
 
+                    # update the maximum ytick #
+                    maxUsage = max(wrUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
+
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(wrUsage) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
@@ -37594,6 +37443,11 @@ class ThreadAnalyzer(object):
                     # Storage Read #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
+
+                    # update the maximum ytick #
+                    maxUsage = max(rdUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(rdUsage) << 10)
@@ -37654,6 +37508,11 @@ class ThreadAnalyzer(object):
                     minIdx = wrUsage.index(min(wrUsage))
                     maxIdx = wrUsage.index(max(wrUsage))
 
+                    # update the maximum ytick #
+                    maxUsage = max(wrUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
+
                     maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(wrUsage) << 10)
                     maxval = '%s[%s]%s' % (prefix, maxsize, idx)
@@ -37685,6 +37544,11 @@ class ThreadAnalyzer(object):
                     # Block Read of process #
                     minIdx = rdUsage.index(min(rdUsage))
                     maxIdx = rdUsage.index(max(rdUsage))
+
+                    # update the maximum ytick #
+                    maxUsage = max(rdUsage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
 
                     maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
                     totalsize = convertSize2Unit(sum(rdUsage) << 10)
@@ -37731,12 +37595,19 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
+            # update ymax #
+            if SystemManager.funcDepth > 0:
+                ylim([0, SystemManager.funcDepth])
+            else:
+                ylim([0, ymax+int(ymax/10)])
+
             # adjust yticks #
             ylist = ax.get_yticks().tolist()
             ymin = int(min(ylist))
             if ymin < 0:
                 ymin = 0
-            ymax = int(max(ylist))
+
+            #ymax = int(max(ylist))
             inc = int(ymax / 10)
             if inc == 0:
                 inc = 1
@@ -37791,7 +37662,49 @@ class ThreadAnalyzer(object):
             drawBottom(xtype, ax)
 
         def drawMem(graphStats, xtype, pos, size):
+            def drawSystemMem(statList, color, ymax):
+                usage = list(map(int, statList))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    return None, ymax
+
+                # update the maximum ytick #
+                maxusage = max(usage)
+                if ymax < maxusage:
+                    ymax = maxusage
+
+                minval = '%s%s' % \
+                    (prefix, convertSize2Unit(usage[minIdx] << 20))
+                maxsize = convertSize2Unit(usage[maxIdx] << 20)
+                maxval = '%s%s' % (prefix, maxsize)
+                lastsize = convertSize2Unit(usage[-1] << 20)
+                lastval = '%s%s' % (prefix, lastsize)
+
+                if usage[minIdx] > 0:
+                    text(timeline[minIdx], usage[minIdx], minval,\
+                        fontsize=5, color=color, fontweight='bold')
+                if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
+                    text(timeline[maxIdx], usage[maxIdx], maxval,\
+                        fontsize=5, color=color, fontweight='bold')
+                if usage[-1] > 0:
+                    text(timeline[-1], usage[-1], lastval,\
+                        fontsize=5, color=color, fontweight='bold')
+
+                # set color #
+                if len(prefix) > 0:
+                    fcolor = None
+                else:
+                    fcolor = color
+
+                plot(timeline, usage, '-', c=fcolor, \
+                    linewidth=1, solid_capstyle='round')
+
+                return lastsize, ymax
+
             # define common label list #
+            ymax = 0
             labelList = []
 
             # set convert size #
@@ -37814,7 +37727,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            ymax = drawBoundary('mem', labelList)
+            drawBoundary('mem', labelList)
 
             # define top variable #
             if SystemManager.nrTop:
@@ -37842,15 +37755,15 @@ class ThreadAnalyzer(object):
                 totalSwap = graphStats['%stotalSwap' % fname]
                 swapUsage = graphStats['%sswapUsage' % fname][:lent]
 
+                # get margin #
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = 0
+
                 # Process VSS #
                 if SystemManager.vssEnable:
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = 0
-
                     for key, item in sorted(memProcUsage.items(), \
                         key=lambda e: 0 \
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
@@ -37863,6 +37776,11 @@ class ThreadAnalyzer(object):
                                 tcnt += 1
 
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
+
+                        # update the maximum ytick #
+                        maxusage = max(usage)
+                        if ymax < maxusage:
+                            ymax = maxusage
 
                         try:
                             minIdx = usage.index(min(usage))
@@ -37906,19 +37824,17 @@ class ThreadAnalyzer(object):
 
                 # Process Leak #
                 elif SystemManager.leakEnable:
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = 0
-
                     # get VSS diffs #
                     for key, item in sorted(memProcUsage.items(), \
                         key=lambda e: 0 \
                         if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
+
+                        # update the maximum ytick #
+                        maxusage = max(usage)
+                        if ymax < maxusage:
+                            ymax = maxusage
 
                         # get maximum value #
                         try:
@@ -37966,6 +37882,11 @@ class ThreadAnalyzer(object):
 
                         usage = list(map(int, item['vssUsage'].split()))[:lent]
 
+                        # update the maximum ytick #
+                        maxusage = max(usage)
+                        if ymax < maxusage:
+                            ymax = maxusage
+
                         # get minimum value #
                         try:
                             minIdx = usage.index(min(usage))
@@ -38009,13 +37930,6 @@ class ThreadAnalyzer(object):
                 elif SystemManager.rssEnable or \
                     SystemManager.pssEnable or \
                     SystemManager.ussEnable:
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = 0
-
                     for key, item in sorted(memProcUsage.items(), \
                         key=lambda e: 0 \
                         if not 'maxRss' in e[1] else e[1]['maxRss'], \
@@ -38033,6 +37947,11 @@ class ThreadAnalyzer(object):
                                 list(map(int, item['rssUsage'].split()))[:lent]
                         except:
                             continue
+
+                        # update the maximum ytick #
+                        maxusage = max(usage)
+                        if ymax < maxusage:
+                            ymax = maxusage
 
                         try:
                             minIdx = usage.index(min(usage))
@@ -38085,153 +38004,32 @@ class ThreadAnalyzer(object):
                 # System #
                 else:
                     # System Free Memory #
-                    usage = list(map(int, memFree))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(max(usage))
-
-                    minval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[minIdx] << 20))
-                    maxsize = convertSize2Unit(usage[maxIdx] << 20)
-                    maxval = '%s%s' % (prefix, maxsize)
-                    lastsize = convertSize2Unit(usage[-1] << 20)
-                    lastval = '%s%s' % (prefix, lastsize)
-
-                    if usage[minIdx] > 0:
-                        text(timeline[minIdx], usage[minIdx], minval,\
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                        text(timeline[maxIdx], usage[maxIdx], maxval,\
-                            fontsize=5, color='blue', fontweight='bold')
-                    if usage[-1] > 0:
-                        text(timeline[-1], usage[-1], lastval,\
-                            fontsize=5, color='blue', fontweight='bold')
-
-                    # set color #
-                    if len(prefix) > 0:
-                        fcolor = None
-                    else:
-                        fcolor = 'blue'
-
-                    plot(timeline, usage, '-', c=fcolor, \
-                        linewidth=1, solid_capstyle='round')
-
-                    if totalRam:
-                        label = \
-                            '%s[ RAM Total ] - %s\nRAM Available - %s' % \
-                                (prefix, convertSize2Unit(totalRam), lastsize)
-                        labelList.append(label)
-                    else:
-                        labelList.append(\
-                            '%sRAM Available - %s' % (prefix, lastsize))
+                    lastsize, ymax = drawSystemMem(memFree, 'blue', ymax)
+                    if lastsize is not None:
+                        if totalRam:
+                            label = \
+                                '%s[ RAM Total ] - %s\nRAM Available - %s' % \
+                                    (prefix, convertSize2Unit(totalRam), lastsize)
+                            labelList.append(label)
+                        else:
+                            labelList.append(\
+                                '%sRAM Available - %s' % (prefix, lastsize))
 
                     # System Anon Memory #
-                    usage = list(map(int, memAnon))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(max(usage))
-
-                    minval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[minIdx] << 20))
-                    maxval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[maxIdx] << 20))
-                    lastsize = convertSize2Unit(usage[-1] << 20)
-                    lastval = '%s%s' % (prefix, lastsize)
-
-                    # set color #
-                    if len(prefix) > 0:
-                        ucolor = None
-                    else:
-                        ucolor = 'skyblue'
-
-                    if usage[minIdx] == usage[maxIdx] == 0:
-                        pass
-                    else:
-                        if usage[minIdx] > 0:
-                            text(timeline[minIdx], usage[minIdx], minval,\
-                                fontsize=5, color='skyblue', fontweight='bold')
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                            text(timeline[maxIdx], usage[maxIdx], maxval,\
-                                fontsize=5, color='skyblue', fontweight='bold')
-                        if usage[-1] > 0:
-                            text(timeline[-1], usage[-1], lastval,\
-                                fontsize=5, color='skyblue', fontweight='bold')
-
-                        plot(timeline, usage, '-', c=ucolor, \
-                            linewidth=1, solid_capstyle='round')
-
+                    lastsize, ymax = drawSystemMem(memAnon, 'skyblue', ymax)
+                    if lastsize is not None:
                         labelList.append(\
                             '%sRAM User - %s' % (prefix, lastsize))
 
                     # System Cache Memory #
-                    usage = list(map(int, memCache))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(max(usage))
-
-                    minval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[minIdx] << 20))
-                    maxval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[maxIdx] << 20))
-                    lastsize = convertSize2Unit(usage[-1] << 20)
-                    lastval = '%s%s' % (prefix, lastsize)
-
-                    # set color #
-                    if len(prefix) > 0:
-                        ccolor = None
-                    else:
-                        ccolor = 'darkgray'
-
-                    if usage[minIdx] == usage[maxIdx] == 0:
-                        pass
-                    else:
-                        if usage[minIdx] > 0:
-                            text(timeline[minIdx], usage[minIdx], minval,\
-                                fontsize=5, color='darkgray', fontweight='bold')
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                            text(timeline[maxIdx], usage[maxIdx], maxval,\
-                                fontsize=5, color='darkgray', fontweight='bold')
-                        if usage[-1] > 0:
-                            text(timeline[-1], usage[-1], lastval,\
-                                fontsize=5, color='darkgray', fontweight='bold')
-
-                        plot(timeline, usage, '-', c=ccolor, \
-                            linewidth=1, solid_capstyle='round')
-
+                    lastsize, ymax = drawSystemMem(memCache, 'darkgray', ymax)
+                    if lastsize is not None:
                         labelList.append(\
                             '%sRAM Cache - %s' % (prefix, lastsize))
 
                     # System Swap Memory #
-                    usage = list(map(int, swapUsage))
-                    minIdx = usage.index(min(usage))
-                    maxIdx = usage.index(max(usage))
-
-                    minval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[minIdx] << 20))
-                    maxval = '%s%s' % \
-                        (prefix, convertSize2Unit(usage[maxIdx] << 20))
-                    lastsize = convertSize2Unit(usage[-1] << 20)
-                    lastval = '%s%s' % (prefix, lastsize)
-
-                    # set color #
-                    if len(prefix) > 0:
-                        scolor = None
-                    else:
-                        scolor = 'orange'
-
-                    if usage[minIdx] == usage[maxIdx] == 0:
-                        pass
-                    else:
-                        if usage[minIdx] > 0:
-                            text(timeline[minIdx], usage[minIdx], minval,\
-                                fontsize=5, color='orange', fontweight='bold')
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
-                            text(timeline[maxIdx], usage[maxIdx], maxval,\
-                                fontsize=5, color='orange', fontweight='bold')
-                        if usage[-1] > 0:
-                            text(timeline[-1], usage[-1], lastval,\
-                                fontsize=5, color='orange', fontweight='bold')
-
-                        plot(timeline, swapUsage, '-', c=scolor, \
-                            linewidth=1, solid_capstyle='round')
-
+                    lastsize, ymax = drawSystemMem(swapUsage, 'orange', ymax)
+                    if lastsize is not None:
                         if totalSwap:
                             label = \
                                 '%s[ Swap Total ] - %s\nSwap Usage - %s' % \
@@ -38269,8 +38067,13 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-            # set ymax #
-            ymax = int(max(ylist))
+            # update ymax #
+            if SystemManager.funcDepth > 0:
+                ymax = SystemManager.funcDepth
+
+            # update yticks #
+            ylim([ymin, ymax+int(ymax/10)])
+
             inc = int(ymax / 10)
             if inc == 0:
                 inc = 1
