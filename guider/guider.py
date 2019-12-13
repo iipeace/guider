@@ -16166,20 +16166,21 @@ Copyright:
 
     @staticmethod
     def getErrReason():
-        err = sys.exc_info()[1]
+        et, err, to = sys.exc_info()
 
         try:
             if len(err.args) == 0 or err.args[0] == 0:
-                return sys.exc_info()[0].__name__
+                return '%s@%s' % (sys.exc_info()[0].__name__, to.tb_lineno)
         except:
-            return 'N/A'
+            return 'N/A at %s' % to.tb_lineno
 
         try:
             code = '%s-' % errno.errorcode[err.args[0]]
         except:
             code = ''
 
-        return code + ' '.join(list(map(str, err.args)))
+        errstr = ' '.join(list(map(str, err.args)))
+        return '%s%s at %s' % (code, errstr, to.tb_lineno)
 
 
 
