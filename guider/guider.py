@@ -11967,11 +11967,14 @@ class SystemManager(object):
 
 
     @staticmethod
-    def importPackageItems(pkg):
+    def importPackageItems(pkg, isExit=True):
         if pkg in SystemManager.impGlbPkg:
             return
 
-        module = SystemManager.getPkg(pkg)
+        module = SystemManager.getPkg(pkg, isExit)
+        if not module:
+            return False
+
         moduleDict = module.__dict__
 
         try:
@@ -11985,6 +11988,8 @@ class SystemManager(object):
         globals().update({name: moduleDict[name] for name in importList})
 
         SystemManager.impGlbPkg[pkg] = True
+
+        return True
 
 
 
@@ -17430,13 +17435,13 @@ Copyright:
                     level = UtilManager.convertColor(level, 'BOLD')
 
                 # time #
-                time = str(meta[2])
-                if len(time) < 7:
-                    time = '0.%s' % time
+                ltime = str(meta[2])
+                if len(ltime) < 7:
+                    ltime = '0.%s' % ltime
                 else:
-                    time = '%s.%s' % (time[:-6], time[-6:])
+                    ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
                 if not SystemManager.printFile:
-                    time = UtilManager.convertColor(time, 'GREEN')
+                    ltime = UtilManager.convertColor(ltime, 'GREEN')
 
                 # name & log #
                 log = log[pos+1:]
@@ -17449,7 +17454,7 @@ Copyright:
                 else:
                     log = log[npos+1:]
 
-                log = '[%s] (%s) %s: %s' % (time, level, name, log)
+                log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
 
             # apply filter #
             if len(SystemManager.filterGroup) > 0:
@@ -17515,17 +17520,17 @@ Copyright:
 
         for item in cmdList:
             sitem = item.split(':')
-            time = sitem[0]
+            ltime = sitem[0]
 
             if len(sitem) < 2 or len(sitem) > 3 or \
-                (time != 'BEFORE' and time != 'AFTER' and time != 'STOP'):
+                (ltime != 'BEFORE' and ltime != 'AFTER' and ltime != 'STOP'):
                 SystemManager.printErr(\
                     "wrong format used, BEFORE|AFTER|STOP:file:value")
                 sys.exit(0)
             elif len(sitem) == 2:
-                tempList[time].append([sitem[1]])
+                tempList[ltime].append([sitem[1]])
             elif len(sitem) == 3:
-                tempList[time].append([sitem[1], sitem[2]])
+                tempList[ltime].append([sitem[1], sitem[2]])
 
         return tempList
 
@@ -17911,19 +17916,21 @@ Copyright:
         textwrap = SystemManager.getPkg('textwrap', False)
         if not textwrap:
             SystemManager.printWarn((\
-                "\tTry to enter %s command to install the package") % \
-                    ("'pip install textwrap3'"), True)
+                "Fail to import python package: %s\n"
+                "\t\tTry to enter %s command to install the package") % \
+                    ('textwrap', "'pip install textwrap3'"), True)
             sys.exit(0)
 
         # get PIL object #
         PIL = SystemManager.getPkg('PIL', False)
         if not PIL:
             SystemManager.printWarn((\
-                "\tTry to enter %s command to install the package") % \
-                    ("'pip install pillow'"), True)
+                "Fail to import python package: %s\n"
+                "\t\tTry to enter %s command to install the package") % \
+                    ('PIL', "'pip install pillow'"), True)
             sys.exit(0)
 
-        from PIL import Image, ImageFont, ImageDraw
+	from PIL import Image, ImageFont, ImageDraw
 
         # load jpeg plugin #
         try:
@@ -17966,8 +17973,9 @@ Copyright:
                 # load default font #
                 imageFont = ImageFont.load_default().font
             except:
-                SystemManager.printErr(\
-                    "Fail to load default font, try to use -T option")
+                SystemManager.printErr((\
+                    "Fail to load default font because %s, "
+                    "try to use -T option") % SystemManager.getErrReason())
                 return
 
         # get default font size and image length #
@@ -19048,6 +19056,11 @@ Copyright:
 
             elif option == 'T':
                 if SystemManager.isConvertMode():
+                    if not value:
+                        SystemManager.printErr(\
+                            "wrong option value with -T option, "
+                            "input path for font")
+                        sys.exit(0)
                     SystemManager.fontPath = value
                 elif SystemManager.isDrawMode():
                     try:
@@ -22339,6 +22352,9 @@ Copyright:
 
     @staticmethod
     def doConvert():
+        # remove option args #
+        SystemManager.removeOptionArgs()
+
         # parse options #
         value = ' '.join(sys.argv[2:])
         if len(value) == 0:
@@ -22348,7 +22364,7 @@ Copyright:
             sys.exit(0)
         elif not os.path.isfile(value):
             SystemManager.printErr(\
-                "Wrong path %s to convert file" % value)
+                "wrong path %s to convert file" % value)
             sys.exit(0)
 
         # set output file name #
@@ -31493,7 +31509,6 @@ struct msghdr {
                 except:
                     fileTable[filename] = dict()
                     fileTable[filename]['cnt'] = 1
-
             except SystemExit:
                 UtilManager.deleteProgress()
                 return
@@ -31576,7 +31591,7 @@ struct msghdr {
 
         SystemManager.printPipe('%s%s' % (oneLine, suffix))
 
-        if len(fileTable) == 0:
+        if len(fileTable) > 0:
             # print file table #
             SystemManager.printPipe((\
                 '\n[%s File Info] [Time: %f] %s '
