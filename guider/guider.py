@@ -35231,8 +35231,17 @@ class ThreadAnalyzer(object):
 
         SystemManager.printPipe(oneLine)
 
-        # print RSS diff #
-        SystemManager.printPipe('\n[Diff RSS Info]\n%s' % twoLine)
+        # check memory type #
+        if SystemManager.pssEnable:
+            mtype = 'PSS'
+        elif SystemManager.ussEnable:
+            mtype = 'USS'
+        else:
+            mtype = 'RSS'
+
+        # print memory diff #
+        SystemManager.printPipe(\
+            '\n[Diff %s Info]\n%s' % (mtype, twoLine))
 
         emptyRssStat = "%7s(%2s)(%7s/%7s/%7s)" % \
             ('-', '-', '-', '-', '-')
