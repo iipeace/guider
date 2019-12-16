@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191213"
+__revision__ = "191216"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17795,6 +17795,16 @@ Copyright:
             if 'n' in filterList:
                 SystemManager.networkEnable = True
 
+            # memory type #
+            if 'S' in filterList:
+                SystemManager.pssEnable = True
+            elif 'u' in filterList:
+                SystemManager.ussEnable = True
+            else:
+                SystemManager.rssEnable = True
+        else:
+            SystemManager.rssEnable = True
+
         # apply custom option #
         launchPosStart = SystemManager.launchBuffer.find(' -c')
         if launchPosStart > -1:
@@ -34727,6 +34737,15 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def doDiffReports(flist):
+        def getProcName(pinfo):
+            namelist = pinfo.split('(')
+            if len(namelist) <= 2:
+                if namelist[0] == '':
+                    return '(%s' % namelist[1]
+                return namelist[0]
+            else:
+                return '(%s' % ''.join(namelist[:-1])
+
         flist = UtilManager.getFileList(flist)
         if len(flist) < 2:
             SystemManager.printErr(\
@@ -34791,7 +34810,7 @@ class ThreadAnalyzer(object):
             # merge tasks having same name #
             prevTask = None
             for pinfo in sorted(cpuProcUsage.keys()):
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # convert usage string to list #
                 try:
@@ -34832,7 +34851,7 @@ class ThreadAnalyzer(object):
 
             # iterate cpu list #
             for pinfo, value in sorted(cpuProcUsage.items()):
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # register comm #
                 unionCpuList.setdefault(pname, 0)
@@ -34843,7 +34862,7 @@ class ThreadAnalyzer(object):
                     prevProcList = statFileList[flist[idx-1]]['cpuProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.split('(')[0] == pname:
+                        if getProcName(proc) == pname:
                             targetList.setdefault(pname, pval)
 
                     # get diff by average #
@@ -34882,7 +34901,7 @@ class ThreadAnalyzer(object):
             # merge tasks having same name #
             prevTask = None
             for pinfo in sorted(gpuProcUsage.keys()):
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # convert usage string to list #
                 try:
@@ -34930,7 +34949,7 @@ class ThreadAnalyzer(object):
 
             # iterate gpu list #
             for pinfo, value in gpuProcUsage.items():
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # register comm #
                 unionGpuList.setdefault(pname, 0)
@@ -34941,7 +34960,7 @@ class ThreadAnalyzer(object):
                     prevProcList = statFileList[flist[idx-1]]['gpuProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.split('(')[0] == pname:
+                        if getProcName(proc) == pname:
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
@@ -34967,14 +34986,16 @@ class ThreadAnalyzer(object):
             # merge tasks having same name #
             prevTask = None
             for pinfo in sorted(memProcUsage.keys()):
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # convert usage string to list #
                 try:
-                    memProcUsage[pinfo]['rssUsage'] = list(map(int, \
-                        memProcUsage[pinfo]['rssUsage'].split()))
+                    rssList = memProcUsage[pinfo]['rssUsage']
+                    if type(rssList) is str:
+                        rssList = rssList.split()
+                    memProcUsage[pinfo]['rssUsage'] = list(map(int, rssList))
                 except:
-                    pass
+                    continue
 
                 # register the first task #
                 if prevTask != pname:
@@ -35010,7 +35031,7 @@ class ThreadAnalyzer(object):
 
             # iterate rss list #
             for pinfo, value in memProcUsage.items():
-                pname = pinfo.split('(')[0]
+                pname = getProcName(pinfo)
 
                 # register comm #
                 unionRssList.setdefault(pname, 0)
@@ -35027,19 +35048,22 @@ class ThreadAnalyzer(object):
                     prevProcList = statFileList[flist[idx-1]]['memProcUsage']
 
                     for proc, pval in prevProcList.items():
-                        if proc.split('(')[0] == pname:
+                        if getProcName(proc) == pname:
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
-                    if len(targetList) == 0:
-                        if stat in value:
-                            value['diff'] = value[stat]
-                    elif len(targetList) == 1:
-                        target = targetList.popitem()[1]
-                        if stat in value:
-                            value['diff'] = value[stat] - target[stat]
-                    else:
-                        pass
+                    try:
+                        if len(targetList) == 0:
+                            if stat in value:
+                                value['diff'] = value[stat]
+                        elif len(targetList) == 1:
+                            target = targetList.popitem()[1]
+                            if stat in value:
+                                value['diff'] = value[stat] - target[stat]
+                        else:
+                            pass
+                    except:
+                        continue
 
             # set diff to the union list if this file is lastest one #
             if idx == len(flist)-1:
@@ -35134,7 +35158,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.doPrint(newline=False, clear=True)
 
-        if len(unionCpuList) == 0:
+        if len(unionCpuList) < 2:
             SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
@@ -35274,7 +35298,7 @@ class ThreadAnalyzer(object):
 
         SystemManager.doPrint(newline=False, clear=True)
 
-        if len(unionRssList) == 0:
+        if len(unionRssList) < 2:
             SystemManager.printPipe('\tNone')
 
         SystemManager.printPipe(oneLine)
@@ -35949,6 +35973,7 @@ class ThreadAnalyzer(object):
             elif infoBuf is not None:
                 if line.startswith('['):
                     SystemManager.systemInfoBuffer = infoBuf
+                    SystemManager.applyLaunchOption()
                     infoBuf = None
                     continue
                 elif line.startswith('=') or line.startswith(' '):
@@ -36264,15 +36289,6 @@ class ThreadAnalyzer(object):
                 (context == 'RSS' or \
                     context == 'PSS' or \
                     context == 'USS'):
-
-                # check memory type #
-                if context == 'RSS':
-                    SystemManager.rssEnable = True
-                elif context == 'PSS':
-                    SystemManager.pssEnable = True
-                elif context == 'USS':
-                    SystemManager.ussEnable = True
-
                 if slen == 3:
                     m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
@@ -42350,7 +42366,7 @@ class ThreadAnalyzer(object):
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
+            format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -42480,7 +42496,7 @@ class ThreadAnalyzer(object):
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
-            format('[FREE]', '-', '-', '-', '-', value['maxMem'], cl=cl, pd=pd)
+            format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
 
@@ -51102,7 +51118,6 @@ def main(args=None):
             # rss graph #
             elif SystemManager.isRssDrawMode():
                 SystemManager.layout = 'MEM'
-                SystemManager.rssEnable = True
             # leak graph #
             elif SystemManager.isLeakDrawMode():
                 SystemManager.layout = 'MEM'
