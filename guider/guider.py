@@ -17692,7 +17692,7 @@ Copyright:
             recVer = infoBuf[verPosStart:verPosEnd].split()[1]
             if recVer != __version__:
                 SystemManager.printWarn(\
-                    "Data version (%s) is different from current one (%s)" % \
+                    "Data version (%s) is different from current software (%s)" % \
                     (__version__, recVer), True)
         except:
             pass
@@ -17800,9 +17800,9 @@ Copyright:
                 SystemManager.pssEnable = True
             elif 'u' in filterList:
                 SystemManager.ussEnable = True
-            else:
+            elif not SystemManager.isDrawMode():
                 SystemManager.rssEnable = True
-        else:
+        elif not SystemManager.isDrawMode():
             SystemManager.rssEnable = True
 
         # apply custom option #
@@ -36957,8 +36957,9 @@ class ThreadAnalyzer(object):
                             if idx != 0 and stat[idx] == stat[idx-1]:
                                 continue
                             text(timeline[idx], stat[maxIdx], \
-                                'max: %d%% / avg: %d%%' % (maxUsage, avgUsage),\
-                                fontsize=5, color='olive', fontweight='bold',\
+                                '%s max: %d%% / avg: %d%%' % \
+                                    (prefix, maxUsage, avgUsage),\
+                                fontsize=4, color='olive', fontweight='bold',\
                                 bbox=dict(boxstyle='round', facecolor='wheat',\
                                 alpha=0.3),\
                                 ha=getTextAlign(idx, timeline))
@@ -37003,7 +37004,7 @@ class ThreadAnalyzer(object):
                             text(timeline[idx], blkWait[maxIdx], \
                                 '%s max: %d%% / avg: %.1f%%' % \
                                     (prefix, maxUsage, avgUsage),\
-                                fontsize=5, color='pink', fontweight='bold',\
+                                fontsize=4, color='pink', fontweight='bold',\
                                 bbox=dict(boxstyle='round', facecolor='wheat',\
                                 alpha=0.3),\
                                 ha=getTextAlign(idx, timeline))
@@ -37042,7 +37043,7 @@ class ThreadAnalyzer(object):
                         text(timeline[idx], cpuUsage[maxIdx], \
                             '%smax: %d%% / avg: %.1f%%' % \
                             (prefix, maxUsage, avgUsage),\
-                            fontsize=5, color='red', fontweight='bold',\
+                            fontsize=4, color='red', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat',\
                             alpha=0.3),\
                             ha=getTextAlign(idx, timeline))
@@ -37082,7 +37083,7 @@ class ThreadAnalyzer(object):
                         text(timeline[idx], totalUsage[maxIdx], \
                             '%s max: %d%% / avg: %.1f%%' % \
                                 (prefix, maxUsage, avgUsage),\
-                            fontsize=5, color='green', fontweight='bold',\
+                            fontsize=4, color='green', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat',\
                             alpha=0.3),\
                             ha=getTextAlign(idx, timeline))
@@ -37236,11 +37237,11 @@ class ThreadAnalyzer(object):
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha=getTextAlign(minIdx, timeline))
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha=getTextAlign(maxIdx, timeline))
                 if usage[-1] > 0:
                     try:
@@ -37248,7 +37249,7 @@ class ThreadAnalyzer(object):
                     except:
                         unit = 0
                     text(timeline[-1], usage[-1], lastval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha='right')
 
                 # set color #
@@ -37384,7 +37385,7 @@ class ThreadAnalyzer(object):
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx], \
                                 wrUsage[maxIdx] + margin, maxval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha=getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
                             try:
@@ -37393,7 +37394,7 @@ class ThreadAnalyzer(object):
                                 unit = 0
                             text(timeline[-1],\
                                 wrUsage[-1] + margin, lastval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha='right')
 
                         labelList.append(\
@@ -37423,7 +37424,7 @@ class ThreadAnalyzer(object):
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx], \
                                 rdUsage[maxIdx] + margin, maxval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha=getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
                             try:
@@ -37432,7 +37433,7 @@ class ThreadAnalyzer(object):
                                 unit = 0
                             text(timeline[-1], \
                                 rdUsage[-1] + margin, lastval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha='right')
 
                         labelList.append(\
@@ -37479,7 +37480,7 @@ class ThreadAnalyzer(object):
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx], \
                                 wrUsage[maxIdx] + margin, maxval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha=getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
                             try:
@@ -37487,7 +37488,7 @@ class ThreadAnalyzer(object):
                             except:
                                 unit = 0
                             text(timeline[-1], wrUsage[-1] + margin, lastval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha='right')
 
                         labelList.append(\
@@ -37517,7 +37518,7 @@ class ThreadAnalyzer(object):
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],\
                                 rdUsage[maxIdx] + margin, maxval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha=getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
                             try:
@@ -37525,7 +37526,7 @@ class ThreadAnalyzer(object):
                             except:
                                 unit = 0
                             text(timeline[-1], rdUsage[-1] + margin, lastval,\
-                                fontsize=5, color=color, fontweight='bold',\
+                                fontsize=4, color=color, fontweight='bold',\
                                 ha='right')
 
                         labelList.append(\
@@ -37671,7 +37672,7 @@ class ThreadAnalyzer(object):
                 inc = 1
             yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
 
-            xticks(fontsize = 4)
+            xticks(fontsize=4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -37742,15 +37743,15 @@ class ThreadAnalyzer(object):
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha=getTextAlign(minIdx, timeline))
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], maxval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha=getTextAlign(maxIdx, timeline))
                 if usage[-1] > 0:
                     text(timeline[-1], usage[-1], lastval,\
-                        fontsize=5, color=color, fontweight='bold',\
+                        fontsize=4, color=color, fontweight='bold',\
                         ha='right')
 
                 # set color #
@@ -38172,8 +38173,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            yticks(fontsize = 5)
-            xticks(fontsize = 4)
+            xticks(fontsize=4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
@@ -41012,11 +41012,11 @@ class ThreadAnalyzer(object):
 
                 if minIdx > 0:
                     minUsage = str(item[minIdx])
-                    text(minIdx + 1, item[minIdx] - margin, minUsage, fontsize=5,\
+                    text(minIdx + 1, item[minIdx] - margin, minUsage, fontsize=4,\
                         color=color, fontweight='bold')
                 if maxIdx > 0:
                     maxUsage = str(item[maxIdx])
-                    text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=5,\
+                    text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=4,\
                         color=color, fontweight='bold')
 
             if SystemManager.matplotlibVersion >= 1.2:
@@ -41040,8 +41040,8 @@ class ThreadAnalyzer(object):
                 pass
 
             grid(which='both', linestyle=':', linewidth=0.2)
-            yticks(fontsize = 5)
-            xticks(fontsize = 4)
+            yticks(fontsize=5)
+            xticks(fontsize=4)
             #ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
             figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
@@ -41185,8 +41185,8 @@ class ThreadAnalyzer(object):
             suptitle('Guider Graph', fontsize=8)
 
             grid(which='both', linestyle=':', linewidth=0.2)
-            yticks(fontsize = 7)
-            xticks(fontsize = 5)
+            yticks(fontsize=5)
+            xticks(fontsize=4)
             #ticklabel_format(useOffset=False)
             locator_params(axis='x', nbins=30)
             figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
@@ -51118,6 +51118,7 @@ def main(args=None):
             # rss graph #
             elif SystemManager.isRssDrawMode():
                 SystemManager.layout = 'MEM'
+                SystemManager.rssEnable = True
             # leak graph #
             elif SystemManager.isLeakDrawMode():
                 SystemManager.layout = 'MEM'
