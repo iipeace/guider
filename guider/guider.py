@@ -16177,7 +16177,10 @@ Copyright:
             if len(err.args) == 0 or err.args[0] == 0:
                 return '%s@%s' % (sys.exc_info()[0].__name__, to.tb_lineno)
         except:
-            return 'N/A at %s' % to.tb_lineno
+            if to:
+                return 'N/A at %s' % to.tb_lineno
+            else:
+                return 'N/A'
 
         try:
             code = '%s-' % errno.errorcode[err.args[0]]
@@ -17919,28 +17922,31 @@ Copyright:
 
 
     @staticmethod
+    def printPipWarn(name, pkg):
+        SystemManager.printWarn((\
+            "Fail to import python package: %s, "
+            "Try to enter 'pip%s install %s'") % \
+                (name, sys.version_info[0], pkg), True)
+
+
+
+    @staticmethod
     def drawText(lines):
         imageType = None
 
         # get textwrap object #
         textwrap = SystemManager.getPkg('textwrap', False)
         if not textwrap:
-            SystemManager.printWarn((\
-                "Fail to import python package: %s\n"
-                "\t\tTry to enter %s command to install the package") % \
-                    ('textwrap', "'pip install textwrap3'"), True)
+            SystemManager.printPipWarn('textwrap', 'textwrap3')
             sys.exit(0)
 
         # get PIL object #
         PIL = SystemManager.getPkg('PIL', False)
         if not PIL:
-            SystemManager.printWarn((\
-                "Fail to import python package: %s\n"
-                "\t\tTry to enter %s command to install the package") % \
-                    ('PIL', "'pip install pillow'"), True)
+            SystemManager.printPipWarn('PIL', 'pillow')
             sys.exit(0)
 
-	from PIL import Image, ImageFont, ImageDraw
+        from PIL import Image, ImageFont, ImageDraw
 
         # load jpeg plugin #
         try:
@@ -36579,9 +36585,7 @@ class ThreadAnalyzer(object):
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
         if not matplotlib:
-            SystemManager.printWarn((\
-                "Try to enter %s command to install the package") % \
-                    ("'pip install matplotlib'"), True)
+            SystemManager.printPipWarn('matplotlib', 'matplotlib')
             sys.exit(0)
         from matplotlib.ticker import MaxNLocator
 
@@ -38201,9 +38205,7 @@ class ThreadAnalyzer(object):
         # get matplotlib object #
         matplotlib = SystemManager.getPkg('matplotlib', False)
         if not matplotlib:
-            SystemManager.printWarn((\
-                "Try to enter %s command to install the package") % \
-                    ("'pip install matplotlib'"), True)
+            SystemManager.printPipWarn('matplotlib', 'matplotlib')
             sys.exit(0)
         from matplotlib.ticker import MaxNLocator
 
@@ -39544,9 +39546,7 @@ class ThreadAnalyzer(object):
             # get matplotlib object #
             matplotlib = SystemManager.getPkg('matplotlib', False)
             if not matplotlib:
-                SystemManager.printWarn((\
-                    "Try to enter %s command to install the package") % \
-                        ("'pip install matplotlib'"), True)
+                SystemManager.printPipWarn('matplotlib', 'matplotlib')
                 sys.exit(0)
             from matplotlib.ticker import MaxNLocator
 
@@ -40976,9 +40976,7 @@ class ThreadAnalyzer(object):
             # get matplotlib object #
             matplotlib = SystemManager.getPkg('matplotlib', False)
             if not matplotlib:
-                SystemManager.printWarn((\
-                    "Try to enter %s command to install the package") % \
-                        ("'pip install matplotlib'"), True)
+                SystemManager.printPipWarn('matplotlib', 'matplotlib')
                 sys.exit(0)
             from matplotlib.ticker import MaxNLocator
 
