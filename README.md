@@ -923,74 +923,74 @@ Usage:
     $ ./guider.py COMMAND|FILE [OPTIONS] [--help] [--version]
                 
 COMMAND:
-    [CONTROL]       client          <client>
-                    event           <event>
-                    list            <list>
-                    send            <signal>
-                    server          <server>
-                    start           <signal>
+    [CONTROL]       client          <Client>
+                    event           <Event>
+                    list            <List>
+                    send            <Signal>
+                    server          <Server>
+                    start           <Signal>
 
     [LOG]           logdlt          <DLT>
                     printdlt        <DLT>
-                    printkmsg       <kernel>
+                    printkmsg       <Kernel>
 
-    [MONITOR]       bgtop           <background>
+    [MONITOR]       bgtop           <Background>
                     dbustop         <D-Bus>
-                    disktop         <storage>
+                    disktop         <Storage>
                     dlttop          <DLT>
-                    filetop         <file>
-                    memtop          <memory>
-                    nettop          <network>
+                    filetop         <File>
+                    memtop          <Memory>
+                    nettop          <Network>
                     perftop         <PMU>
                     reptop          <JSON>
-                    stacktop        <stack>
-                    strace          <syscall>
-                    systemtop       <system>
+                    stacktop        <Stack>
+                    strace          <Syscall>
+                    systemtop       <System>
                     systop          <syscall>
-                    threadtop       <thread>
-                    top             <process>
-                    usertop         <usercall>
-                    utrace          <usercall>
-                    wsstop          <memory>
+                    threadtop       <Thread>
+                    top             <Process>
+                    usertop         <Function>
+                    utrace          <Function>
+                    wsstop          <Memory>
 
-    [PROFILE]       filerec         <file>
-                    funcrec         <function>
-                    genrec          <system>
-                    mem             <page>
-                    rec             <thread>
-                    report          <report>
-                    sysrec          <syscall>
+    [PROFILE]       filerec         <File>
+                    funcrec         <Function>
+                    genrec          <System>
+                    mem             <Page>
+                    rec             <Thread>
+                    report          <Report>
+                    sysrec          <Syscall>
 
-    [TEST]          alloctest       <memory>
+    [TEST]          alloctest       <Memory>
                     cputest         <CPU>
 
-    [UTIL]          addr2line       <symbol>
-                    getafnt         <affinity>
-                    kill            <signal>
-                    leaktrace       <leak>
+    [UTIL]          addr2line       <Symbol>
+                    getafnt         <Affinity>
+                    kill            <Signal>
+                    leaktrace       <Leak>
                     limitcpu        <CPU>
-                    pause           <thread>
-                    printcrp        <cgroup>
+                    pause           <Thread>
+                    printcrp        <Cgroup>
                     printdbus       <D-Bus>
-                    printdir        <dir>
-                    printenv        <env>
-                    printinfo       <system>
-                    pstree          <process>
-                    readelf         <file>
-                    setafnt         <affinity>
-                    setcpu          <clock>
-                    setsched        <priority>
-                    sym2line        <addr>
-                    topdiff         <diff>
+                    printdir        <Dir>
+                    printenv        <Env>
+                    printinfo       <System>
+                    pstree          <Process>
+                    readelf         <File>
+                    setafnt         <Affinity>
+                    setcpu          <Clock>
+                    setsched        <Priority>
+                    sym2line        <Address>
+                    topdiff         <Diff>
 
-    [VISUAL]        convert         <text>
+    [VISUAL]        convert         <Text>
                     cpudraw         <CPU>
-                    draw            <image>
+                    draw            <System>
                     iodraw          <I/O>
-                    leakdraw        <leak>
-                    memdraw         <memory>
-                    rssdraw         <rss>
-                    vssdraw         <vss>
+                    leakdraw        <Leak>
+                    memdraw         <Memory>
+                    rssdraw         <RSS>
+                    vssdraw         <VSS>
 
 FILE:
     Profile file (e.g. guider.dat)
