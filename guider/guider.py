@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191217"
+__revision__ = "191218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17111,8 +17111,13 @@ Copyright:
         else:
             compressor = None
 
+        size = 0
+        for line in lines:
+            size += len(line)
+
         SystemManager.printInfo(\
-            "wait for writing data to %s" % outputFile)
+            "wait for writing data to %s [%s] " % \
+                (outputFile, UtilManager.convertSize2Unit(size)))
 
         try:
             if compressor:
@@ -18271,8 +18276,8 @@ Copyright:
                 # print output file name #
                 if SystemManager.printFile:
                     SystemManager.printInfo(\
-                        "ready for writing statistics to %s" % \
-                        SystemManager.inputFile)
+                        "start writing statistics to %s" % \
+                            SystemManager.inputFile)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -22897,7 +22902,7 @@ Copyright:
         totalSize, totalDir, totalFile = \
             recurse(path, os.listdir(path), "  ", buf, 0, maxLevel)
 
-        output = "\n".join(buf)
+        output = "\n%s\n" % "\n".join(buf)
         SystemManager.printPipe(output)
 
 
