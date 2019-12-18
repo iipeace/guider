@@ -3442,9 +3442,16 @@ class UtilManager(object):
             m, s = divmod(time, 60)
             h, m = divmod(m, 60)
 
-            if h > 24:
-                d = '%dd:' % (h / 24)
-                h = h % 24
+            # hour #
+            if h >= 24:
+                d, h = divmod(h, 24)
+
+                # year #
+                if d >= 365:
+                    y, d = divmod(d, 365)
+                    d = '%dy:%dd:' % (y, d)
+                else:
+                    d = '%dd:' % d
             else:
                 d = ''
 
