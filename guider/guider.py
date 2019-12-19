@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191218"
+__revision__ = "191219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35999,6 +35999,7 @@ class ThreadAnalyzer(object):
                 infoBuf = ''
             elif infoBuf is not None:
                 if line.startswith('['):
+                    # apply launch option #
                     SystemManager.systemInfoBuffer = infoBuf
                     SystemManager.applyLaunchOption()
                     infoBuf = None
@@ -51114,15 +51115,23 @@ def main(args=None):
             len(flist) > 0:
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
 
-        # thread mode #
+        # thread draw mode #
         if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
+            # apply launch option #
+            SystemManager.applyLaunchOption()
+
+            if not SystemManager.isThreadMode():
+                SystemManager.printErr(\
+                    "Fail to draw because this data is not supported")
+                sys.exit(0)
+
             SystemManager.inputFile = sys.argv[1] = sys.argv[2]
             SystemManager.intervalEnable = 1
             if not SystemManager.printFile:
                 SystemManager.printFile = \
                     '%s.out' % os.path.splitext(SystemManager.inputFile)[0]
             del sys.argv[2]
-        # draw mode #
+        # top draw mode #
         else:
             # cpu graph #
             if SystemManager.isCpuDrawMode():
