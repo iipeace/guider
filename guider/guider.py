@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191219"
+__revision__ = "191220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42211,7 +42211,7 @@ class ThreadAnalyzer(object):
 
         # Print total cpu usage #
         procInfo = \
-            "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^12} |".\
+            "{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^12} |".\
             format('[CPU]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -42385,7 +42385,7 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
             format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
@@ -42515,7 +42515,7 @@ class ThreadAnalyzer(object):
 
         # Print total free memory #
         value = ThreadAnalyzer.procTotData['total']
-        procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:>6} |".\
+        procInfo = "{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
             format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SystemManager.lineLength
