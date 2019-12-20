@@ -17732,8 +17732,10 @@ Copyright:
                 (infoBuf[:archPosEnd], analOption, infoBuf[archPosEnd+1:])
 
         # apply mode option #
-        if ' funcrec' in SystemManager.launchBuffer or \
-            ' funcrecord' in SystemManager.launchBuffer:
+        if SystemManager.isDrawMode():
+            SystemManager.printInfo("DRAW MODE")
+        elif ' funcrec ' in SystemManager.launchBuffer or \
+            ' funcrecord ' in SystemManager.launchBuffer:
             SystemManager.threadEnable = False
             SystemManager.functionEnable = True
             SystemManager.printInfo("FUNCTION MODE")
