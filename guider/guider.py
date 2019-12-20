@@ -36103,8 +36103,8 @@ class ThreadAnalyzer(object):
                     reclaimBg.append(int(reclaim[0]) << 2)
                     reclaimDr.append(int(reclaim[1]) << 2)
                 except:
-                    netRead.append(0)
-                    netWrite.append(0)
+                    reclaimBg.append(0)
+                    reclaimDr.append(0)
 
                 try:
                     blkUsage = sline[4].split('/')
@@ -37680,11 +37680,14 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
-            # update ymax #
+            # update and set ymax #
             if SystemManager.funcDepth > 0:
-                ylim([0, SystemManager.funcDepth])
+                ymaxval = SystemManager.funcDepth
             else:
-                ylim([0, ymax+int(ymax/10)])
+                ymaxval = ymax+int(ymax/10)
+            if ymaxval == 0:
+                ymaxval = 1
+            ylim([0, ymaxval])
 
             # adjust yticks #
             ylist = ax.get_yticks().tolist()
@@ -37734,7 +37737,7 @@ class ThreadAnalyzer(object):
 
                 # hide yticks #
                 if ytickLabel[-1] == '0':
-                    ax.set_ylim(top=0)
+                    ax.set_ylim(top=1)
                     ax.get_yaxis().set_visible(False)
                 else:
                     try:
