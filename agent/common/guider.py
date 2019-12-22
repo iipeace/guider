@@ -3,7 +3,7 @@ import os
 
 curDir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, '%s/../../guider' % curDir)
-from guider import NetworkManager
+from guider import NetworkMgr
 
 
 class SingleTonInstance(object):
@@ -38,7 +38,7 @@ class GuiderInstance(SingleTonInstance):
 
     @classmethod
     def set_network_manager(cls, target_addr):
-        network_mgr = NetworkManager(mode=None, ip=None, port=None)
+        network_mgr = NetworkMgr(mode=None, ip=None, port=None)
         network_mgr.prepareServerConn(None, target_addr)
         if target_addr not in cls.instances:
             cls.instances[target_addr] = network_mgr
