@@ -29211,13 +29211,13 @@ struct msghdr {
         if addr not in self.breakList:
             SysMgr.printWarn(\
                 'No breakpoint registered with addr %s' % addr, True)
-            return False
+            return None
 
         self.writeMem(addr, self.breakList[addr]['data'])
 
-        self.breakList.pop(addr, None)
+        sym = self.breakList.pop(addr, None)['symbol']
 
-        return True
+        return (addr, sym)
 
 
 
@@ -30467,6 +30467,9 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             return
 
+        # Wait on all children, regardless of type #
+        __WALL = 0x40000000
+
         # read args #
         args = self.readArgValues()
 
@@ -30480,11 +30483,32 @@ struct msghdr {
             sys.exit(0)
 
         # remove breakpoint #
-        self.removeBreakpoint(addr)
+        ret = self.removeBreakpoint(addr)
+        if ret is None:
+            return
+        else:
+            addr, sym = ret
 
-        # apply new register set #
-        self.setPC(addr)
+        # apply register set to rewind thread #
+        self.setPC(addr - ConfigMgr.wordSize)
         self.setRegs()
+
+        while 1:
+            # continue a instruction #
+            ret = self.ptrace(self.singlestepCmd, 0, 0)
+
+            # wait process #
+            ret = self.waitpid(long(self.pid), __WALL)
+
+            self.updateRegs()
+
+            if self.pc >= addr + ConfigMgr.wordSize:
+                break
+
+        # register breakpoint again #
+        ret = self.addBreakpoint(addr, sym)
+
+        self.cont(check=True)
 
 
 
@@ -31290,10 +31314,10 @@ struct msghdr {
                 addr = self.getAddrBySymbol(value)
                 if not addr:
                     SysMgr.printErr(\
-                        "Fail to find adress of %s" % value)
+                        "Fail to find address for %s" % value)
                     sys.exit(0)
 
-                self.addBreakpoint(addr, value)
+                ret = self.addBreakpoint(addr, value)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
