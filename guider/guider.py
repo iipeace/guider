@@ -29215,18 +29215,19 @@ struct msghdr {
 
         self.writeMem(addr, self.breakList[addr]['data'])
 
-        sym = self.breakList.pop(addr, None)['symbol']
+        ret = self.breakList.pop(addr, None)
 
-        return (addr, sym)
+        return (addr, ret['symbol'], ret['reinstall'])
 
 
 
-    def addBreakpoint(self, addr, sym=None):
+    def addBreakpoint(self, addr, sym=None, reinstall=False):
         # convert addr to aligned value #
         addr -= addr % ConfigMgr.wordSize
 
         if addr in self.breakBackupList:
             origWord = self.breakBackupList[addr]['data']
+            self.breakBackupList[addr]['reinstall'] = reinstall
         else:
             origWord = self.readMem(addr)
 
@@ -29234,8 +29235,10 @@ struct msghdr {
             self.breakBackupList[addr] = dict()
             self.breakBackupList[addr]['data'] = origWord
             self.breakBackupList[addr]['symbol'] = sym
+            self.breakBackupList[addr]['reinstall'] = reinstall
 
-        ret = self.writeMem(addr, b'\xCC' * ConfigMgr.wordSize)
+        inst = origWord[:-2] + b'\xCC'
+        ret = self.writeMem(addr, inst)
         if ret < 0:
             SysMgr.printWarn(\
                 'Fail to add breakpoint with addr %s' % addr, True)
@@ -29244,6 +29247,7 @@ struct msghdr {
         self.breakList[addr] = dict()
         self.breakList[addr]['data'] = origWord
         self.breakList[addr]['symbol'] = sym
+        self.breakList[addr]['reinstall'] = reinstall
 
         return True
 
@@ -30487,26 +30491,45 @@ struct msghdr {
         if ret is None:
             return
         else:
-            addr, sym = ret
+            addr, sym, reinstall = ret
 
         # apply register set to rewind thread #
-        self.setPC(addr - ConfigMgr.wordSize)
+        self.setPC(addr)
         self.setRegs()
+
+        # check reinstall option #
+        if not reinstall:
+            self.cont(check=True)
+            return
+
+        # set release condition #
+        condAddr = addr + ConfigMgr.wordSize
 
         while 1:
             # continue a instruction #
             ret = self.ptrace(self.singlestepCmd, 0, 0)
+            if ret != 0:
+                SysMgr.printErr('Fail to continue thread %s' % self.pid)
+                return -1
 
             # wait process #
             ret = self.waitpid(long(self.pid), __WALL)
+            stat = Debugger.getStatus(ret[1])
+            if stat == signal.SIGKILL or \
+                stat == signal.SIGSEGV or \
+                stat == -1:
+                SysMgr.printErr('Fail to continue thread %s' % self.pid)
+                return -1
 
+            # get register set #
             self.updateRegs()
 
-            if self.pc >= addr + ConfigMgr.wordSize:
+            # check condition #
+            if self.pc >= condAddr:
                 break
 
         # register breakpoint again #
-        ret = self.addBreakpoint(addr, sym)
+        ret = self.addBreakpoint(addr, sym, reinstall)
 
         self.cont(check=True)
 
@@ -31317,7 +31340,7 @@ struct msghdr {
                         "Fail to find address for %s" % value)
                     sys.exit(0)
 
-                ret = self.addBreakpoint(addr, value)
+                ret = self.addBreakpoint(addr, value, reinstall=True)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
