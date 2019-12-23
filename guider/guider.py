@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191222"
+__revision__ = "191223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11702,9 +11702,10 @@ class SysMgr(object):
 
         # update starttime #
         SysMgr.updateUptime()
-        SysMgr.startTime = \
-            SysMgr.startRunTime = \
-                SysMgr.uptime
+        if SysMgr.startTime == 0:
+            SysMgr.startTime = \
+                SysMgr.startRunTime = \
+                    SysMgr.uptime
 
         # resource update time #
         self.netUpdate = None
@@ -30384,10 +30385,23 @@ struct msghdr {
 
 
     def getBacktrace_X64(self, limit=sys.maxsize):
-        SysMgr.printErr(\
-            '%s platform is not supported yet for backtrace' % \
-            SysMgr.arch)
-        sys.exit(0)
+        nextFp = self.fp
+        btList = []
+        wordSize = ConfigMgr.wordSize
+
+        while 1:
+            if not nextFp or \
+                nextFp < self.sp:
+                break
+
+            # check max length #
+            if len(btList) >= limit:
+                break
+
+            btList.append(self.accessMem(self.peekIdx, nextFp+wordSize))
+            nextFp = self.accessMem(self.peekIdx, nextFp)
+
+        return self.convertAddrList(btList)
 
 
 
@@ -30428,6 +30442,11 @@ struct msghdr {
             # add address to list #
             btList.append(nextLr)
 
+        return self.convertAddrList(btList)
+
+
+
+    def convertAddrList(self, btList):
         # get symbol and file from address #
         clist = []
         for addr in btList:
@@ -31478,11 +31497,12 @@ struct msghdr {
         except:
             elapsed = instance.last - instance.start
 
+        nrLine = UtilMgr.convertNumber(len(instance.callPrint))
+        callStr = '\n'.join(instance.callPrint)
+
         SysMgr.printPipe(\
             '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
-                (elapsed, \
-                    UtilMgr.convertNumber(len(instance.callPrint)), \
-                    twoLine, '\n'.join(instance.callPrint), oneLine))
+                (elapsed, nrLine, twoLine, callStr, oneLine))
 
 
 
@@ -31507,9 +31527,6 @@ struct msghdr {
 
         SysMgr.printInfo(\
             "Start analyze call samples...")
-
-        if len(instance.callList) == 0:
-            return
 
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
@@ -31563,9 +31580,12 @@ struct msghdr {
             suffix = ''
 
         # print call table #
-        nrTotal = float(len(instance.callList))
-        elapsed = instance.callList[-1][1] - instance.start
         convert = UtilMgr.convertNumber
+        nrTotal = float(len(instance.callList))
+        try:
+            elapsed = instance.callList[-1][1] - instance.start
+        except:
+            elapsed = instance.last - instance.start
 
         # get sample info #
         try:
