@@ -30208,9 +30208,11 @@ struct msghdr {
 
         # print backtrace #
         if bt:
-            backtrace = self.getBacktrace()
+            backtrace = self.getBacktrace(cur=True)
+            SysMgr.printPipe()
             for item in backtrace:
-                SysMgr.printPipe(item)
+                SysMgr.printPipe(\
+                    '%s(%s)[%s]' % (hex(item[0]), item[1], item[2]))
 
         SysMgr.printPipe(oneLine)
 
@@ -30396,9 +30398,9 @@ struct msghdr {
 
 
 
-    def getBacktrace(self, limit=sys.maxsize):
+    def getBacktrace(self, limit=sys.maxsize, cur=False):
         try:
-            return self.backtrace[SysMgr.arch](limit)
+            return self.backtrace[SysMgr.arch](limit, cur)
         except SystemExit:
             sys.exit(0)
         except:
@@ -30406,7 +30408,7 @@ struct msghdr {
 
 
 
-    def getBacktrace_X86(self, limit=sys.maxsize):
+    def getBacktrace_X86(self, limit=sys.maxsize, cur=False):
         SysMgr.printErr(\
             '%s platform is not supported yet for backtrace' % \
             SysMgr.arch)
@@ -30414,10 +30416,13 @@ struct msghdr {
 
 
 
-    def getBacktrace_X64(self, limit=sys.maxsize):
+    def getBacktrace_X64(self, limit=sys.maxsize, cur=False):
         nextFp = self.fp
         btList = []
         wordSize = ConfigMgr.wordSize
+
+        if cur:
+            btList.insert(0, self.pc)
 
         while 1:
             if not nextFp or \
@@ -30435,7 +30440,7 @@ struct msghdr {
 
 
 
-    def getBacktrace_ARM(self, limit=sys.maxsize):
+    def getBacktrace_ARM(self, limit=sys.maxsize, cur=False):
         SysMgr.printErr(\
             '%s platform is not supported yet for backtrace' % \
             SysMgr.arch)
@@ -30443,11 +30448,14 @@ struct msghdr {
 
 
 
-    def getBacktrace_AARCH64(self, limit=sys.maxsize):
+    def getBacktrace_AARCH64(self, limit=sys.maxsize, cur=False):
         nextFp = self.fp
         nextLr = self.lr
         btList = [nextLr]
         wordSize = ConfigMgr.wordSize
+
+        if cur:
+            btList.insert(0, self.pc)
 
         while 1:
             if not nextLr or \
@@ -30520,7 +30528,7 @@ struct msghdr {
             addr, sym, reinstall = ret
 
         # apply register set to rewind IP #
-        self.setPC(self.pc-1)
+        self.setPC(self.pc - 1)
         self.setRegs()
 
         # check reinstall option #
