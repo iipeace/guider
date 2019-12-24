@@ -30183,7 +30183,7 @@ struct msghdr {
 
 
 
-    def printRegs(self, newline=False, derefm=True):
+    def printRegs(self, newline=False, derefm=True, bt=True):
         if newline:
             prefix = '\n'
         else:
@@ -30205,6 +30205,12 @@ struct msghdr {
 
             SysMgr.printPipe(\
                 '%s: %x [%s]' % (reg, val, deref))
+
+        # print backtrace #
+        if bt:
+            backtrace = self.getBacktrace()
+            for item in backtrace:
+                SysMgr.printPipe(item)
 
         SysMgr.printPipe(oneLine)
 
@@ -31475,8 +31481,9 @@ struct msghdr {
 
                     continue
 
-                # kill signal #
+                # kill / segv signal #
                 elif stat == signal.SIGKILL or stat == signal.SIGSEGV:
+                    self.printRegs()
                     SysMgr.printErr(\
                         'Terminated thread %s because of %s' % \
                         (pid, ConfigMgr.SIG_LIST[stat]))
