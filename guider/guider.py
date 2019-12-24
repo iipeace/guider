@@ -13860,6 +13860,9 @@ Description:
 
                     examStr = '''
 Examples:
+    - Monitor D-Bus messages
+        # {0:1} {1:1}
+
     - Monitor D-Bus messages for main thread and gdbus threads in dbus-client process
         # {0:1} {1:1} -g dbus-client
 
@@ -14268,6 +14271,9 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
+    - Print D-Bus messages
+        # {0:1} {1:1}
+
     - Print D-Bus messages for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out
 
@@ -27956,6 +27962,22 @@ class DbusAnalyzer(object):
             except:
                 return
 
+        def getDefaultTasks(comm):
+            taskList = []
+            tempList = SysMgr.getPids(\
+                comm, isThread=True, withSibling=True)
+
+            if len(tempList) > 0:
+                taskList.append(\
+                    SysMgr.getTgid(tempList[0]))
+
+                for tid in tempList:
+                    comm = SysMgr.getComm(tid)
+                    if comm == 'gdbus':
+                        taskList.append(tid)
+
+            return taskList
+
         # check root permission #
         if not SysMgr.isRoot():
             SysMgr.printErr(\
@@ -27963,10 +27985,9 @@ class DbusAnalyzer(object):
             sys.exit(0)
 
         # check filter #
+        taskList = []
         if len(SysMgr.filterGroup) == 0:
-            SysMgr.printErr(\
-                "Input comm or tid for target with -g option")
-            sys.exit(0)
+            taskList += getDefaultTasks('dbus-daemon')
 
         # prepare D-Bus methods to analyze BLOB data #
         DbusAnalyzer.prepareDbusMethods()
@@ -27981,7 +28002,6 @@ class DbusAnalyzer(object):
         else:
             lock = None
 
-        taskList = []
         # get pids of gdbus threads #
         for val in SysMgr.filterGroup:
             # by TID #
@@ -27998,17 +28018,7 @@ class DbusAnalyzer(object):
                     taskList += SysMgr.getPids(\
                         val, isThread=True, withSibling=True)
                 else:
-                    tempList = SysMgr.getPids(\
-                        val, isThread=True, withSibling=True)
-
-                    if len(tempList) > 0:
-                        taskList.append(\
-                            SysMgr.getTgid(tempList[0]))
-
-                        for tid in tempList:
-                            comm = SysMgr.getComm(tid)
-                            if comm == 'gdbus':
-                                taskList.append(tid)
+                    taskList += getDefaultTasks(val)
 
         if len(taskList) == 0:
             SysMgr.printErr(\
