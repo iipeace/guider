@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191223"
+__revision__ = "191224"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29221,9 +29221,9 @@ struct msghdr {
 
 
 
-    def addBreakpoint(self, addr, sym=None, reinstall=False):
+    def addBreakpoint(self, addr, sym=None, size=1, reinstall=False):
         # convert addr to aligned value #
-        addr -= addr % ConfigMgr.wordSize
+        addr -= (addr % ConfigMgr.wordSize)
 
         if addr in self.breakBackupList:
             origWord = self.breakBackupList[addr]['data']
@@ -29237,12 +29237,15 @@ struct msghdr {
             self.breakBackupList[addr]['symbol'] = sym
             self.breakBackupList[addr]['reinstall'] = reinstall
 
-        inst = origWord[:-2] + b'\xCC'
+        # inject trap code #
+        inst = b'\xCC' * size
         ret = self.writeMem(addr, inst)
         if ret < 0:
             SysMgr.printWarn(\
                 'Fail to add breakpoint with addr %s' % addr, True)
             return False
+        elif ret == 0:
+            SysMgr.printWarn("Added new breakpoint at %s" % hex(addr))
 
         self.breakList[addr] = dict()
         self.breakList[addr]['data'] = origWord
@@ -30170,22 +30173,29 @@ struct msghdr {
 
 
 
-    def printRegs(self, newline=False):
+    def printRegs(self, newline=False, derefm=True):
         if newline:
             prefix = '\n'
         else:
             prefix = ''
 
         SysMgr.printPipe('%s%s' % (prefix, oneLine))
+
         for reg, val in sorted(self.regsDict.items()):
-            deref = self.readMem(val)
+            if derefm:
+                deref = self.readMem(val)
+            else:
+                deref = '?'
+
             try:
                 deref = '"%s"' % deref.decode("utf-8")
                 deref = re.sub('\W+','', deref)
             except:
                 deref = hex(UtilMgr.convertBstring2Word(deref))
+
             SysMgr.printPipe(\
                 '%s: %x [%s]' % (reg, val, deref))
+
         SysMgr.printPipe(oneLine)
 
 
@@ -30493,17 +30503,14 @@ struct msghdr {
         else:
             addr, sym, reinstall = ret
 
-        # apply register set to rewind thread #
-        self.setPC(addr)
+        # apply register set to rewind IP #
+        self.setPC(self.pc-1)
         self.setRegs()
 
         # check reinstall option #
         if not reinstall:
             self.cont(check=True)
             return
-
-        # set release condition #
-        condAddr = addr + ConfigMgr.wordSize
 
         while 1:
             # continue a instruction #
@@ -30525,11 +30532,16 @@ struct msghdr {
             self.updateRegs()
 
             # check condition #
-            if self.pc >= condAddr:
+            if self.pc >= addr + ConfigMgr.wordSize or \
+                self.pc <= addr - ConfigMgr.wordSize:
                 break
 
         # register breakpoint again #
-        ret = self.addBreakpoint(addr, sym, reinstall)
+        ret = self.addBreakpoint(addr, sym, reinstall=reinstall)
+        if not ret:
+            SysMgr.printErr(\
+                "Fail to add breakpoint for %s(%s)" % (sym, addr))
+            sys.exit(0)
 
         self.cont(check=True)
 
@@ -31169,7 +31181,7 @@ struct msghdr {
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
                 offset = fcache.getOffsetBySymbol(symbol)
-                if offset:
+                if type(offset) is str:
                     offset = long(offset, 16)
                     if ElfAnalyzer.isRelocFile(mfile):
                         return self.pmap[mfile]['vstart'] + offset
@@ -31313,6 +31325,7 @@ struct msghdr {
 
             # handle current user symbol #
             if mode != 'syscall' and \
+                mode != 'break' and \
                 not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
@@ -31341,6 +31354,10 @@ struct msghdr {
                     sys.exit(0)
 
                 ret = self.addBreakpoint(addr, value, reinstall=True)
+                if not ret:
+                    SysMgr.printErr(\
+                        "Fail to add breakpoint for %s(%s)" % (value, addr))
+                    sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -33084,10 +33101,26 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def getCachedFilename(path):
+        return '%s/%s' % \
+            (SysMgr.cacheDirPath, path.replace('/', '_'))
+
+
+
+    @staticmethod
     def loadObject(path):
         # build cache path #
-        cpath = '%s/%s' % \
-            (SysMgr.cacheDirPath, path.replace('/', '_'))
+        cpath = ElfAnalyzer.getCachedFilename(path)
+
+        # check modified time #
+        try:
+            otime = os.stat(path).st_mtime
+            ctime = os.stat(cpath).st_mtime
+
+            if otime > ctime:
+                return None
+        except:
+            return None
 
         # load object from file #
         obj = UtilMgr.loadObjectFromFile(cpath)
@@ -33105,6 +33138,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(path, raiseExcept=False):
+        # load files #
         if path not in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
@@ -33152,8 +33186,8 @@ class ElfAnalyzer(object):
 
         # save object cache to file #
         if not ElfAnalyzer.cachedFiles[path].saved:
-            ElfAnalyzer.cachedFiles[path].saved = True
             ElfAnalyzer.saveObject(ElfAnalyzer.cachedFiles[path], path)
+            ElfAnalyzer.cachedFiles[path].saved = True
 
         return ElfAnalyzer.cachedFiles[path]
 
