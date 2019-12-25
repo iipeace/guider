@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191224"
+__revision__ = "191225"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29232,9 +29232,6 @@ struct msghdr {
 
 
     def addBreakpoint(self, addr, sym=None, size=1, reinstall=False):
-        # convert addr to aligned value #
-        addr -= (addr % ConfigMgr.wordSize)
-
         if addr in self.breakBackupList:
             origWord = self.breakBackupList[addr]['data']
             self.breakBackupList[addr]['reinstall'] = reinstall
@@ -30512,7 +30509,7 @@ struct msghdr {
         args = self.readArgValues()
 
         # get aligned address #
-        addr = self.pc - (self.pc % ConfigMgr.wordSize)
+        addr = self.pc - 1
 
         # get breakpoint addr #
         if addr not in self.breakList:
@@ -30528,7 +30525,7 @@ struct msghdr {
             addr, sym, reinstall = ret
 
         # apply register set to rewind IP #
-        self.setPC(self.pc - 1)
+        self.setPC(addr)
         self.setRegs()
 
         # check reinstall option #
@@ -31376,6 +31373,8 @@ struct msghdr {
                     SysMgr.printErr(\
                         "Fail to find address for %s" % value)
                     sys.exit(0)
+
+                addr += 4
 
                 ret = self.addBreakpoint(addr, value, reinstall=True)
                 if not ret:
