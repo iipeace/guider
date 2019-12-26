@@ -12945,10 +12945,13 @@ class SysMgr(object):
                 'filetop': 'File',
                 'systop': 'syscall',
                 'usertop': 'Function',
-                'strace': 'Syscall',
-                'utrace': 'Function',
                 'dlttop': 'DLT',
                 'dbustop': 'D-Bus',
+                },
+            'trace': {
+                'strace': 'Syscall',
+                'utrace': 'Function',
+                'btrace': 'Function',
                 },
             'profile': {
                 'rec': 'Thread',
@@ -13962,7 +13965,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Trace usercalls
+    Trace all usercalls
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -14006,6 +14009,50 @@ Examples:
 
     - Trace usercalls and pause when catching PLT function call
         # {0:1} {1:1} -I "ls -al" -c PLT
+                    '''.format(cmd, mode)
+
+                # btrace #
+                elif SysMgr.isBtraceMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Trace specific usercalls
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+OPTIONS:
+        -e  <CHARACTER>             enable options
+              p:pipe | e:encode
+        -d  <CHARACTER>             disable options
+              e:encode
+        -u                          run in the background
+        -a                          show all stats including registers
+        -g  <COMM|TID{:FILE}>       set filter
+        -I  <COMMAND>               set command
+        -R  <TIME>                  set timer
+        -c  <EVENT>                 set breakpoint
+        -H  <LEVEL>                 set function depth level
+        -o  <DIR|FILE>              save output data
+        -m  <ROWS:COLS>             set terminal size
+        -E  <DIR>                   set cache dir path
+        -v                          verbose
+                    '''
+
+                    helpStr +=  '''
+Examples:
+    - Trace printPeace function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c printPeace
+
+    - Trace printPeace function calls with backtrace for a specific thread
+        # {0:1} {1:1} -g 1234 -c printPeace -H 10
+
+    - Trace printPeace function calls for a specific thread and save summary tables, call history to ./guider.out
+        # {0:1} {1:1} -g 1234 -c printPeace -o . -a
+
+    - Trace printPeace function calls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g 1234 -c printPeace -R 2s
                     '''.format(cmd, mode)
 
                 # mem #
