@@ -31301,7 +31301,7 @@ struct msghdr {
                 if type(offset) is str:
                     offset = long(offset, 16)
                     if ElfAnalyzer.isRelocFile(mfile):
-                        return self.pmap[mfile]['vstart'] + offset
+                        return self.pmap[mfile]['vstart'] + offset, mfile
                     else:
                         return offset, mfile
 
