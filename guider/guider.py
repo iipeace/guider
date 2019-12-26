@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191225"
+__revision__ = "191226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29231,17 +29231,22 @@ struct msghdr {
 
 
 
-    def addBreakpoint(self, addr, sym=None, size=1, reinstall=False):
-        if addr in self.breakBackupList:
-            origWord = self.breakBackupList[addr]['data']
-            self.breakBackupList[addr]['reinstall'] = reinstall
-        else:
+    def addBreakpoint(self, addr, sym=None, size=1, reinstall=False, cache=False):
+        # backup data #
+        if not cache or \
+            not addr in self.breakBackupList:
+            # read data #
             origWord = self.readMem(addr)
 
             # backup data #
-            self.breakBackupList[addr] = dict()
-            self.breakBackupList[addr]['data'] = origWord
-            self.breakBackupList[addr]['symbol'] = sym
+            self.breakBackupList[addr] = {
+                'data': origWord,
+                'symbol': sym,
+                'reinstall': reinstall
+            }
+        # reuse data #
+        else:
+            origWord = self.breakBackupList[addr]['data']
             self.breakBackupList[addr]['reinstall'] = reinstall
 
         # inject trap code #
@@ -29252,7 +29257,12 @@ struct msghdr {
                 'Fail to add breakpoint with addr %s' % addr, True)
             return False
         elif ret == 0:
-            SysMgr.printWarn("Added new breakpoint at %s" % hex(addr))
+            if sym:
+                symbol = '(%s)' % sym
+            else:
+                symbol = ''
+            SysMgr.printWarn(\
+                'Added a new breakpoint at %s%s' % (hex(addr), symbol))
 
         self.breakList[addr] = dict()
         self.breakList[addr]['data'] = origWord
@@ -30495,7 +30505,7 @@ struct msghdr {
 
 
 
-    def handleBreakcall(self):
+    def handleBreakpoint(self):
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -30508,7 +30518,7 @@ struct msghdr {
         # read args #
         args = self.readArgValues()
 
-        # get aligned address #
+        # set rewind address #
         addr = self.pc - 1
 
         # get breakpoint addr #
@@ -30516,6 +30526,10 @@ struct msghdr {
             SysMgr.printErr(\
                 "Fail to get address %s in breakpoint list" % addr)
             sys.exit(0)
+
+        # print backtrace #
+        if SysMgr.funcDepth > 0:
+            self.printRegs()
 
         # remove breakpoint #
         ret = self.removeBreakpoint(addr)
@@ -30530,7 +30544,6 @@ struct msghdr {
 
         # check reinstall option #
         if not reinstall:
-            self.cont(check=True)
             return
 
         while 1:
@@ -30563,8 +30576,6 @@ struct msghdr {
             SysMgr.printErr(\
                 "Fail to add breakpoint for %s(%s)" % (sym, addr))
             sys.exit(0)
-
-        self.cont(check=True)
 
 
 
@@ -31374,8 +31385,6 @@ struct msghdr {
                         "Fail to find address for %s" % value)
                     sys.exit(0)
 
-                addr += 4
-
                 ret = self.addBreakpoint(addr, value, reinstall=True)
                 if not ret:
                     SysMgr.printErr(\
@@ -31457,7 +31466,7 @@ struct msghdr {
                         self.status = mode
 
                         # interprete function call #
-                        self.handleBreakcall()
+                        self.handleBreakpoint()
 
                         self.status = previous
 
