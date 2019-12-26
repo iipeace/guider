@@ -19397,6 +19397,7 @@ Copyright:
                         SysMgr.funcDepth = sys.maxsize
                     else:
                         SysMgr.funcDepth = long(value)
+
                     if SysMgr.funcDepth < 0:
                         raise Exception()
                 except:
@@ -29227,11 +29228,12 @@ struct msghdr {
 
         ret = self.breakList.pop(addr, None)
 
-        return (addr, ret['symbol'], ret['reinstall'])
+        return (addr, ret['symbol'], ret['filename'], ret['reinstall'])
 
 
 
-    def addBreakpoint(self, addr, sym=None, size=1, reinstall=False, cache=False):
+    def addBreakpoint(\
+        self, addr, sym=None, fname=None, size=1, reinstall=False, cache=False):
         # backup data #
         if not cache or \
             not addr in self.breakBackupList:
@@ -29267,6 +29269,7 @@ struct msghdr {
         self.breakList[addr] = dict()
         self.breakList[addr]['data'] = origWord
         self.breakList[addr]['symbol'] = sym
+        self.breakList[addr]['filename'] = fname
         self.breakList[addr]['reinstall'] = reinstall
 
         return True
@@ -30190,38 +30193,49 @@ struct msghdr {
 
 
 
-    def printRegs(self, newline=False, derefm=True, bt=True):
+    def printContext(self, regs=True, bt=True, deref=True, newline=False):
+        if not regs and not bt:
+            return
+
         if newline:
             prefix = '\n'
         else:
             prefix = ''
 
-        SysMgr.printPipe('%s%s' % (prefix, oneLine))
+        SysMgr.printPipe('%s%s' % (prefix, twoLine))
 
-        for reg, val in sorted(self.regsDict.items()):
-            if derefm:
-                deref = self.readMem(val)
-            else:
-                deref = '?'
-
-            try:
-                deref = '"%s"' % deref.decode("utf-8")
-                deref = re.sub('\W+','', deref)
-            except:
-                deref = hex(UtilMgr.convertBstring2Word(deref))
-
+        if regs:
             SysMgr.printPipe(\
-                '%s: %x [%s]' % (reg, val, deref))
+                '\tRegister Info\n%s' % oneLine)
+
+            for reg, val in sorted(self.regsDict.items()):
+                if deref:
+                    rvalue = self.readMem(val)
+                else:
+                    rvalue = '?'
+
+                try:
+                    rvalue = '"%s"' % rvalue.decode("utf-8")
+                    rvalue = re.sub('\W+','', rvalue)
+                except:
+                    rvalue = hex(UtilMgr.convertBstring2Word(rvalue))
+
+                SysMgr.printPipe(\
+                    '%s: %x [%s]' % (reg, val, rvalue))
+
+            SysMgr.printPipe(twoLine)
 
         # print backtrace #
         if bt:
+            SysMgr.printPipe(\
+                '\tBacktrace Info\n%s' % oneLine)
+
             backtrace = self.getBacktrace(cur=True)
-            SysMgr.printPipe()
             for item in backtrace:
                 SysMgr.printPipe(\
                     '%s(%s)[%s]' % (hex(item[0]), item[1], item[2]))
 
-        SysMgr.printPipe(oneLine)
+            SysMgr.printPipe(twoLine)
 
 
 
@@ -30351,7 +30365,7 @@ struct msghdr {
 
             if SysMgr.showAll:
                 # print register set #
-                self.printRegs(newline)
+                self.printContext(newline=newline)
 
                 # print backtrace #
                 try:
@@ -30505,7 +30519,7 @@ struct msghdr {
 
 
 
-    def handleBreakpoint(self):
+    def handleBreakpoint(self, printStat=False):
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -30527,16 +30541,27 @@ struct msghdr {
                 "Fail to get address %s in breakpoint list" % addr)
             sys.exit(0)
 
-        # print backtrace #
-        if SysMgr.funcDepth > 0:
-            self.printRegs()
-
         # remove breakpoint #
         ret = self.removeBreakpoint(addr)
         if ret is None:
             return
         else:
-            addr, sym, reinstall = ret
+            addr, sym, filename, reinstall = ret
+
+        # build call string #
+        if printStat:
+            # get diff time #
+            current = time.time()
+            diff = current - self.start
+
+            callString = '%3.6f %s(%s) [%s]' % \
+                (diff, sym, hex(addr).rstrip('L'), filename)
+
+            SysMgr.printPipe(callString)
+
+        # print backtrace #
+        if SysMgr.funcDepth > 0:
+            self.printContext(regs=False)
 
         # apply register set to rewind IP #
         self.setPC(addr)
@@ -30571,7 +30596,8 @@ struct msghdr {
                 break
 
         # register breakpoint again #
-        ret = self.addBreakpoint(addr, sym, reinstall=reinstall)
+        ret = self.addBreakpoint(\
+            addr, sym, filename=filename, reinstall=reinstall)
         if not ret:
             SysMgr.printErr(\
                 "Fail to add breakpoint for %s(%s)" % (sym, addr))
@@ -30579,12 +30605,15 @@ struct msghdr {
 
 
 
-    def doHandleUsercall(self, mode):
+    def handleTrapEvent(self, mode):
         previous = self.status
         self.status = mode
 
         # interprete user function call #
-        self.handleUsercall()
+        if mode == 'inst':
+            self.handleUsercall()
+        elif mode == 'break':
+            self.handleBreakpoint(printStat=True)
 
         self.status = previous
 
@@ -31207,7 +31236,7 @@ struct msghdr {
                 offset = fcache.getOffsetBySymbol(symbol)
                 if offset:
                     offset = long(offset, 16)
-                    return self.pmap[binary]['vstart'] + offset
+                    return self.pmap[binary]['vstart'] + offset, binary
 
         for mfile in list(self.pmap.keys()):
             fcache = ElfAnalyzer.getObject(mfile)
@@ -31218,7 +31247,7 @@ struct msghdr {
                     if ElfAnalyzer.isRelocFile(mfile):
                         return self.pmap[mfile]['vstart'] + offset
                     else:
-                        return offset
+                        return offset, mfile
 
 
 
@@ -31379,13 +31408,16 @@ struct msghdr {
             self.cmd = None
         elif mode == 'break':
             for value in SysMgr.customCmd:
-                addr = self.getAddrBySymbol(value)
-                if not addr:
+                ret = self.getAddrBySymbol(value)
+                if not ret:
                     SysMgr.printErr(\
                         "Fail to find address for %s" % value)
                     sys.exit(0)
 
-                ret = self.addBreakpoint(addr, value, reinstall=True)
+                addr, filename = ret
+
+                ret = self.addBreakpoint(\
+                    addr, value, filename=filename, reinstall=True)
                 if not ret:
                     SysMgr.printErr(\
                         "Fail to add breakpoint for %s(%s)" % (value, addr))
@@ -31458,17 +31490,11 @@ struct msghdr {
 
                     # usercall #
                     elif mode == 'inst':
-                        self.doHandleUsercall(mode)
+                        self.handleTrapEvent(mode)
 
                     # breakcall #
                     elif mode == 'break':
-                        previous = self.status
-                        self.status = mode
-
-                        # interprete function call #
-                        self.handleBreakpoint()
-
-                        self.status = previous
+                        self.handleTrapEvent(mode)
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
@@ -31482,7 +31508,7 @@ struct msghdr {
                 # stop signal #
                 elif stat == signal.SIGSTOP:
                     if mode == 'sample':
-                        self.doHandleUsercall(mode)
+                        self.handleTrapEvent(mode)
                         continue
 
                     self.status = 'stop'
@@ -31499,7 +31525,7 @@ struct msghdr {
 
                 # kill / segv signal #
                 elif stat == signal.SIGKILL or stat == signal.SIGSEGV:
-                    self.printRegs()
+                    self.printContext()
                     SysMgr.printErr(\
                         'Terminated thread %s because of %s' % \
                         (pid, ConfigMgr.SIG_LIST[stat]))
@@ -31530,7 +31556,7 @@ struct msghdr {
                         (pid, ConfigMgr.SIG_LIST[stat]))
 
                     if mode == 'sample':
-                        self.doHandleUsercall(mode)
+                        self.handleTrapEvent(mode)
 
                     # continue target from signal stop #
                     if mode != 'syscall':
