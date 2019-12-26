@@ -29145,7 +29145,9 @@ struct msghdr {
         if self.checkPid(pid) >= 0:
             self.pid = pid
             if attach:
-                self.attach()
+                ret = self.attach(verb=True)
+                if ret < 0:
+                    sys.exit(0)
             self.isRunning = True
         # execute #
         elif execCmd:
@@ -29321,13 +29323,13 @@ struct msghdr {
 
 
 
-    def attach(self, pid=None):
+    def attach(self, pid=None, verb=False):
         if not pid:
             pid = self.pid
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to attach wrong thread %s' % pid)
+                'Fail to attach wrong thread %s' % pid, verb)
             return -1
 
         # attach to the thread #
@@ -29335,7 +29337,7 @@ struct msghdr {
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd, 0, 0)
         if ret != 0:
-            SysMgr.printWarn('Fail to attach thread %s' % pid)
+            SysMgr.printWarn('Fail to attach thread %s' % pid, verb)
             return -1
         else:
             SysMgr.printInfo('Attached to thread %d' % pid)
