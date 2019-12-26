@@ -30614,7 +30614,13 @@ struct msghdr {
             callString = '%3.6f %s(%s%s) [%s]' % \
                 (diff, sym, hex(addr).rstrip('L'), argstr, fname)
 
-            SysMgr.printPipe(callString)
+            if SysMgr.printFile:
+                self.addSample(sym, fname, current)
+
+                if SysMgr.showAll:
+                    self.callPrint.append(callString)
+            else:
+                SysMgr.printPipe(callString)
 
         # print backtrace #
         if SysMgr.funcDepth > 0:
