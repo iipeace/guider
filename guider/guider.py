@@ -3275,6 +3275,14 @@ class UtilMgr(object):
         if type(value) is int or \
             type(value) is long:
             return True
+        elif type(value) is str:
+            if value.isdigit():
+                return True
+            try:
+                long(value, 16)
+                return True
+            except:
+                return False
         else:
             return False
 
@@ -22997,7 +23005,7 @@ Copyright:
             for sym in SysMgr.filterGroup:
                 # create ELF object #
                 try:
-                    resInfo[sym] = \
+                    resInfo['%s|%s' % (sym, filePath)] = \
                         (ElfAnalyzer.getSymOffset(sym, inputArg), filePath)
                 except:
                     sys.exit(0)
@@ -23027,7 +23035,7 @@ Copyright:
                     try:
                         res = ElfAnalyzer.getSymOffset(sym, filePath)
                         if res:
-                            resInfo[sym] = (res, filePath)
+                            resInfo['%s|%s' % (sym, filePath)] = (res, filePath)
                     except:
                         continue
 
@@ -23039,13 +23047,14 @@ Copyright:
 
         # print symbols from offset list #
         for sym, val in resInfo.items():
+            symbol = sym.split('|')[0]
             addr, filePath = val
 
             if addr is None:
                 addr = 'N/A'
 
             SysMgr.printPipe(\
-                "{0:<48} {1:<52} {2:<18}".format(sym, filePath, addr))
+                "{0:<48} {1:<52} {2:<18}".format(symbol, filePath, addr))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -30122,9 +30131,12 @@ struct msghdr {
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
 
         for mfile in list(self.pmap.keys()):
-            eobj = ElfAnalyzer.getObject(mfile)
-            if eobj:
-                eobj.mergeSymTable()
+            try:
+                eobj = ElfAnalyzer.getObject(mfile)
+                if eobj:
+                    eobj.mergeSymTable()
+            except:
+                pass
 
 
 
@@ -31307,6 +31319,7 @@ struct msghdr {
                     offset = long(offset, 16)
                     return self.pmap[binary]['vstart'] + offset, binary
 
+        addrList = []
         for mfile in list(self.pmap.keys()):
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
@@ -31314,9 +31327,21 @@ struct msghdr {
                 if type(offset) is str:
                     offset = long(offset, 16)
                     if ElfAnalyzer.isRelocFile(mfile):
-                        return self.pmap[mfile]['vstart'] + offset, mfile
+                        addrList.append([self.pmap[mfile]['vstart'] + offset, mfile])
                     else:
-                        return offset, mfile
+                        addrList.append([offset, mfile])
+
+        # return address #
+        if len(addrList) == 1:
+            return addrList[0]
+        elif len(addrList) == 0:
+            return None
+        else:
+            listString = \
+                ', '.join(['%s@%s' % (hex(item[0]), item[1]) for item in addrList])
+            SysMgr.printWarn((\
+                "Found multiple %s symbols [ %s ]") % \
+                    (symbol, listString), True)
 
 
 
@@ -31477,14 +31502,25 @@ struct msghdr {
             self.cmd = None
         elif mode == 'break':
             for value in SysMgr.customCmd:
-                ret = self.getAddrBySymbol(value)
-                if not ret:
-                    SysMgr.printErr(\
-                        "Fail to find address for %s" % value)
-                    sys.exit(0)
+                # address #
+                if UtilMgr.isNumber(value):
+                    try:
+                        addr = long(value, 16)
+                    except:
+                        addr = long(value)
+                    ret = self.getSymbolInfo(addr)
+                    value, fname = ret[:2]
+                # symbol #
+                else:
+                    ret = self.getAddrBySymbol(value)
+                    if not ret:
+                        SysMgr.printErr(\
+                            "Fail to find address for %s" % value)
+                        sys.exit(0)
+                    else:
+                        addr, fname = ret
 
-                addr, fname = ret
-
+                # add a new breakpoint #
                 ret = self.addBreakpoint(\
                     addr, value, fname=fname, reins=True)
                 if not ret:
@@ -31940,18 +31976,23 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 "Fail to recognize tids, use -g option")
             return
 
+        # ignore SIGCHLD #
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
         dlist = []
         lastTid = long(0)
         try:
             for tid in tlist:
                 lastTid = long(tid)
-                ret = SysMgr.createProcess(mute=True)
+                #ret = SysMgr.createProcess(mute=True)
+                ret = SysMgr.createProcess(mute=False)
                 if ret > 0:
                     dlist.append(long(ret))
                     SysMgr.printInfo("paused thread %s" % lastTid)
                 elif ret == 0:
                     dobj = Debugger(pid=lastTid)
                     SysMgr.waitEvent()
+                    del dobj
                     sys.exit(0)
                 else:
                     SysMgr.printErr(\
@@ -33292,7 +33333,7 @@ class ElfAnalyzer(object):
                 elfObj = ElfAnalyzer(path)
                 if not elfObj or not elfObj.ret:
                     raiseExcept = True
-                    raise Exception()
+                    raise Exception('not ELF file')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
                 SysMgr.printInfo("[Done]", prefix=False, notitle=True)
@@ -33301,7 +33342,8 @@ class ElfAnalyzer(object):
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
-                SysMgr.printInfo("[Fail]", prefix=False, notitle=True)
+                failLog = UtilMgr.convertColor("[Fail]", 'RED')
+                SysMgr.printInfo(failLog, prefix=False, notitle=True)
 
                 err = SysMgr.getErrReason()
                 SysMgr.printWarn(\
@@ -33450,7 +33492,7 @@ class ElfAnalyzer(object):
                 SysMgr.printWarn((\
                     "Fail to find %s in %s, "
                     "\n\tbut similar symbols [ %s ] are exist") % \
-                    (symbol, binPath, ', '.join(offset)), True)
+                        (symbol, binPath, ', '.join(offset)), True)
                 sys.exit(0)
 
             return offset
@@ -33514,7 +33556,7 @@ class ElfAnalyzer(object):
             SysMgr.printWarn((\
                 "Fail to find %s in %s, "
                 "\n\tbut similar symbols [ %s ] are exist") % \
-                (symbol, binPath, ', '.join(syms)), True)
+                    (symbol, binPath, ', '.join(syms)), True)
             sys.exit(0)
 
 
@@ -34110,7 +34152,7 @@ class ElfAnalyzer(object):
             ei_mag3 != ord('F'):
             SysMgr.printWarn((\
                 "Fail to recognize '%s', "
-                "check it is elf-format object") % path, True)
+                "check it is elf-format object") % path, debug)
             self.ret = None
             return None
 
