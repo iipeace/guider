@@ -30250,11 +30250,15 @@ struct msghdr {
         else:
             prefix = ''
 
-        SysMgr.printPipe('%s%s' % (prefix, twoLine))
+        origStreamStat = SysMgr.printStreamEnable
+        SysMgr.printStreamEnable = False
 
+        SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
+
+        # print register #
         if regs:
-            SysMgr.printPipe(\
-                '\tRegister Info\n%s' % oneLine)
+            SysMgr.addPrint(\
+                '\tRegister Info\n%s\n' % oneLine)
 
             for reg, val in sorted(self.regsDict.items()):
                 if deref:
@@ -30268,23 +30272,32 @@ struct msghdr {
                 except:
                     rvalue = hex(UtilMgr.convertBstring2Word(rvalue))
 
-                SysMgr.printPipe(\
-                    '%s: %x [%s]' % (reg, val, rvalue))
+                SysMgr.addPrint(\
+                    '%s: %x [%s]\n' % (reg, val, rvalue))
 
-            SysMgr.printPipe(twoLine)
+            SysMgr.addPrint('%s\n' % twoLine)
 
         # print backtrace #
         if bt:
-            SysMgr.printPipe(\
-                '\tBacktrace Info\n%s' % oneLine)
+            SysMgr.addPrint(\
+                '\tBacktrace Info\n%s\n' % oneLine)
 
             backtrace = self.getBacktrace(cur=True)
             for item in backtrace:
-                SysMgr.printPipe(\
-                    '%s(%s)[%s]' % \
+                SysMgr.addPrint(\
+                    '%s(%s)[%s]\n' % \
                         (hex(item[0]).rstrip('L'), item[1], item[2]))
 
-            SysMgr.printPipe(twoLine)
+            SysMgr.addPrint('%s\n' % twoLine)
+
+        SysMgr.printStreamEnable = origStreamStat
+
+        if SysMgr.printFile:
+            self.callPrint.append(SysMgr.bufferString)
+        else:
+            SysMgr.doPrint(clear=True)
+
+        SysMgr.clearPrint()
 
 
 
@@ -31404,7 +31417,7 @@ struct msghdr {
 
             SysMgr.printInfo(\
                 'Do sampling every %s instrunctions' % \
-                    SysMgr.funcDepth)
+                    UtilMgr.convertNumber(SysMgr.funcDepth))
 
         # check the process is running #
         try:
