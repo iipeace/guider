@@ -49937,6 +49937,13 @@ class ThreadAnalyzer(object):
             if len(lifeTime.split(':')) > 3:
                 lifeTime = lifeTime[:lifeTime.rfind(':')]
 
+            if SysMgr.floatEnable:
+                ttime = '%.1f' % value['ttime']
+                btime = '%.1f' % value['btime']
+            else:
+                ttime = value['ttime']
+                btime = value['btime']
+
             # print stats of a process #
             SysMgr.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
@@ -49945,9 +49952,9 @@ class ThreadAnalyzer(object):
                 "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                sched, value['ttime'], value['utime'], value['stime'], \
+                sched, ttime, value['utime'], value['stime'], \
                 dtime, vss, mems, codeSize, shr, swapSize, \
-                value['btime'], readSize, writeSize, value['majflt'], \
+                btime, readSize, writeSize, value['majflt'], \
                 yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], \
                 cl=cl, pd=pd))
 
@@ -50090,10 +50097,8 @@ class ThreadAnalyzer(object):
                 SysMgr.addPrint("%s\n" % oneLine)
 
         if procCnt > 0:
-            if SysMgr.floatEnable:
-                totalTime = round(totalStats['ttime'], 1)
-            else:
-                totalTime = totalStats['ttime']
+            totalTime = '%.1f' % totalStats['ttime']
+            totalBtime = '%.1f' % totalStats['btime']
 
             if totalStats['read'] != '-':
                 totalStats['read'] = totalStats['read'] >> 20
@@ -50111,7 +50116,7 @@ class ThreadAnalyzer(object):
                 totalStats['utime'], totalStats['stime'], mem, \
                 convertFunc(totalStats['mem'] << 20, True), \
                 'Swp', convertFunc(totalStats['swap'], True), \
-                round(totalStats['btime'], 1), totalStats['read'], \
+                totalBtime, totalStats['read'], \
                 totalStats['write'], totalStats['majflt'], \
                 'Yld: %s' % convertNum(totalStats['yld']), \
                 'Prmt: %s' % convertNum(totalStats['prtd']), \
