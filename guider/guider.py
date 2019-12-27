@@ -23006,7 +23006,7 @@ Copyright:
                 # create ELF object #
                 try:
                     resInfo['%s|%s' % (sym, filePath)] = \
-                        (ElfAnalyzer.getSymOffset(sym, inputArg), filePath)
+                        (ElfAnalyzer.getSymOffset(sym, inputArg), filePath, None)
                 except:
                     sys.exit(0)
         # check process #
@@ -23027,34 +23027,38 @@ Copyright:
                 sys.exit(0)
 
             # get file list on memorymap #
-            fileList = list(FileAnalyzer.getProcMapInfo(pids[0]).keys())
-
-            for filePath in fileList:
+            fileList = FileAnalyzer.getProcMapInfo(pids[0])
+            for filePath, attr in fileList.items():
                 for sym in SysMgr.filterGroup:
                     # create elf object #
                     try:
                         res = ElfAnalyzer.getSymOffset(sym, filePath)
                         if res:
-                            resInfo['%s|%s' % (sym, filePath)] = (res, filePath)
+                            addr = hex(attr['vstart'] + long(res, 16))
+                            resInfo['%s|%s' % (sym, filePath)] = \
+                                (res, filePath, addr.rstrip('L'))
                     except:
-                        continue
+                        SysMgr.printWarn(\
+                            "Fail to save offset info because %s" % \
+                                SysMgr.getErrReason(), True)
 
         SysMgr.printPipe("\n[Symbol Info]\n%s" % twoLine)
 
         SysMgr.printPipe(\
-            "{0:<48} {1:<52} {2:<18}\n{3:1}".format(\
-                'Symbol', 'PATH', 'Offset', twoLine))
+            "{0:<48} {1:<52} {2:<18} {3:<18}\n{4:1}".format(\
+                'Symbol', 'PATH', 'Offset', 'Address', twoLine))
 
         # print symbols from offset list #
         for sym, val in resInfo.items():
             symbol = sym.split('|')[0]
-            addr, filePath = val
+            offset, filePath, addr = val
 
-            if addr is None:
-                addr = 'N/A'
+            if offset is None:
+                offset = 'N/A'
 
             SysMgr.printPipe(\
-                "{0:<48} {1:<52} {2:<18}".format(symbol, filePath, addr))
+                "{0:<48} {1:<52} {2:<18} {3:<18}".format(\
+                    symbol, filePath, offset, addr))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -29283,6 +29287,8 @@ struct msghdr {
         self.writeMem(addr, self.breakList[addr]['data'])
 
         ret = self.breakList.pop(addr, None)
+        if not ret:
+            return None
 
         return (addr, ret['symbol'], ret['filename'], ret['reins'])
 
@@ -31317,7 +31323,7 @@ struct msghdr {
                 offset = fcache.getOffsetBySymbol(symbol)
                 if offset:
                     offset = long(offset, 16)
-                    return self.pmap[binary]['vstart'] + offset, binary
+                    return [[self.pmap[binary]['vstart'] + offset, binary]]
 
         addrList = []
         for mfile in list(self.pmap.keys()):
@@ -31327,21 +31333,23 @@ struct msghdr {
                 if type(offset) is str:
                     offset = long(offset, 16)
                     if ElfAnalyzer.isRelocFile(mfile):
-                        addrList.append([self.pmap[mfile]['vstart'] + offset, mfile])
+                        addrList.append(\
+                            [self.pmap[mfile]['vstart'] + offset, mfile])
                     else:
                         addrList.append([offset, mfile])
 
         # return address #
-        if len(addrList) == 1:
-            return addrList[0]
-        elif len(addrList) == 0:
+        if len(addrList) == 0:
             return None
-        else:
-            listString = \
-                ', '.join(['%s@%s' % (hex(item[0]), item[1]) for item in addrList])
+        elif len(addrList) > 1:
+            addrString = \
+                ['%s@%s' % (hex(item[0]), item[1]) for item in addrList]
+            listString = ', '.join(addrString)
             SysMgr.printWarn((\
                 "Found multiple %s symbols [ %s ]") % \
                     (symbol, listString), True)
+
+        return addrList
 
 
 
@@ -31509,7 +31517,7 @@ struct msghdr {
                     except:
                         addr = long(value)
                     ret = self.getSymbolInfo(addr)
-                    value, fname = ret[:2]
+                    addrList = [[addr, ret[0], ret[1]]]
                 # symbol #
                 else:
                     ret = self.getAddrBySymbol(value)
@@ -31518,15 +31526,25 @@ struct msghdr {
                             "Fail to find address for %s" % value)
                         sys.exit(0)
                     else:
-                        addr, fname = ret
+                        addrList = ret
 
-                # add a new breakpoint #
-                ret = self.addBreakpoint(\
-                    addr, value, fname=fname, reins=True)
-                if not ret:
-                    SysMgr.printErr(\
-                        "Fail to add breakpoint for %s(%s)" % (value, addr))
-                    sys.exit(0)
+                # add new breakpoints #
+                for item in addrList:
+                    if len(item) == 3:
+                        addr, symbol, fname = item
+                    elif len(item) == 2:
+                        addr, fname = item
+                        symbol = value
+                    else:
+                        continue
+
+                    ret = self.addBreakpoint(\
+                        addr, symbol, fname=fname, reins=True)
+                    if not ret:
+                        SysMgr.printErr(\
+                            "Fail to add breakpoint for %s(%s)" % \
+                                (value, addr))
+                        sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
