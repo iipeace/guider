@@ -12953,13 +12953,14 @@ class SysMgr(object):
                 'filetop': 'File',
                 'systop': 'syscall',
                 'usertop': 'Function',
+                'brktop': 'Breakpoint',
                 'dlttop': 'DLT',
                 'dbustop': 'D-Bus',
                 },
             'trace': {
                 'strace': 'Syscall',
                 'utrace': 'Function',
-                'btrace': 'Function',
+                'btrace': 'Breakpoint',
                 },
             'profile': {
                 'rec': 'Thread',
@@ -13664,6 +13665,35 @@ Examples:
 
     - Monitor usercalls with breakpoint for peace including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c peace -a
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topCommonStr + examStr
+
+                # break top #
+                elif SysMgr.isBrkTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor breakpoints for a specific thread
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor printPeace function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c printPeace
+
+    - Monitor printPeace function calls with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -H
+
+    - Monitor printPeace function calls for a specific thread and save summary to ./guider.out
+        # {0:1} {1:1} -g 1234 -c printPeace -o . -a
+
+    - Monitor printPeace function calls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g 1234 -c printPeace -R 2s
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -22773,6 +22803,8 @@ Copyright:
                     "No TID with -g option or command with -I option")
             else:
                 SysMgr.printErr("No TID with -g option")
+            SysMgr.printFile = \
+                SysMgr.fileForPrint = None
             sys.exit(0)
         elif len(pids) > 1:
             SysMgr.printErr(\
@@ -22791,7 +22823,7 @@ Copyright:
                 Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
             elif mode == 'usercall':
                 # tracing #
-                if SysMgr.isUtraceMode():
+                if SysMgr.isTraceMode():
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='inst', wait=wait)
                 # monitoring #
@@ -29304,6 +29336,46 @@ struct msghdr {
 
 
 
+    def addBreakpointList(self, blist):
+        for value in blist:
+            # address #
+            if UtilMgr.isNumber(value):
+                try:
+                    addr = long(value, 16)
+                except:
+                    addr = long(value)
+                ret = self.getSymbolInfo(addr)
+                addrList = [[addr, ret[0], ret[1]]]
+            # symbol #
+            else:
+                ret = self.getAddrBySymbol(value)
+                if not ret:
+                    SysMgr.printErr(\
+                        "Fail to find address for %s" % value)
+                    sys.exit(0)
+                else:
+                    addrList = ret
+
+            # add new breakpoints #
+            for item in addrList:
+                if len(item) == 3:
+                    addr, symbol, fname = item
+                elif len(item) == 2:
+                    addr, fname = item
+                    symbol = value
+                else:
+                    continue
+
+                ret = self.addBreakpoint(\
+                    addr, symbol, fname=fname, reins=True)
+                if not ret:
+                    SysMgr.printErr(\
+                        "Fail to add breakpoint for %s(%s)" % \
+                            (value, addr))
+                    sys.exit(0)
+
+
+
     def addBreakpoint(\
         self, addr, sym=None, fname=None, size=1, reins=False, cache=False):
         # backup data #
@@ -29966,6 +30038,10 @@ struct msghdr {
             ctype = 'Syscall'
             addInfo = 'Count'
             sampleStr = ''
+        elif self.mode == 'break':
+            ctype = 'Breakpoint'
+            addInfo = 'Path'
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
@@ -30026,6 +30102,9 @@ struct msghdr {
                 addVal = "Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s" % \
                     (convert(value['cnt']), \
                         total, average, tmax, convert(value['err']))
+            elif self.mode == 'break':
+                addVal = 'Path: %s, Cnt: %s' % (\
+                    value['path'], convert(value['cnt']))
             else:
                 addVal = value['path']
 
@@ -30655,7 +30734,13 @@ struct msghdr {
             callString = '%3.6f %s(%s%s) [%s]' % \
                 (diff, sym, hex(addr).rstrip('L'), argstr, fname)
 
-            if SysMgr.printFile:
+            if self.isRealtime:
+                if SysMgr.funcDepth > 0:
+                    backtrace = self.getBacktrace(cur=True)
+                else:
+                    backtrace = None
+                self.addSample(sym, fname, current, realtime=True, bt=backtrace)
+            elif SysMgr.printFile:
                 self.addSample(sym, fname, current)
 
                 if SysMgr.showAll:
@@ -30664,7 +30749,7 @@ struct msghdr {
                 SysMgr.printPipe(callString)
 
         # print backtrace #
-        if SysMgr.funcDepth > 0:
+        if not self.isRealtime and SysMgr.funcDepth > 0:
             self.printContext(regs=False)
 
         # apply register set to rewind IP #
@@ -30705,7 +30790,7 @@ struct msghdr {
         self.status = mode
 
         # interprete user function call #
-        if mode == 'inst':
+        if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
             self.handleBreakpoint(printStat=True)
@@ -31519,42 +31604,7 @@ struct msghdr {
         elif mode == 'sample':
             self.cmd = None
         elif mode == 'break':
-            for value in SysMgr.customCmd:
-                # address #
-                if UtilMgr.isNumber(value):
-                    try:
-                        addr = long(value, 16)
-                    except:
-                        addr = long(value)
-                    ret = self.getSymbolInfo(addr)
-                    addrList = [[addr, ret[0], ret[1]]]
-                # symbol #
-                else:
-                    ret = self.getAddrBySymbol(value)
-                    if not ret:
-                        SysMgr.printErr(\
-                            "Fail to find address for %s" % value)
-                        sys.exit(0)
-                    else:
-                        addrList = ret
-
-                # add new breakpoints #
-                for item in addrList:
-                    if len(item) == 3:
-                        addr, symbol, fname = item
-                    elif len(item) == 2:
-                        addr, fname = item
-                        symbol = value
-                    else:
-                        continue
-
-                    ret = self.addBreakpoint(\
-                        addr, symbol, fname=fname, reins=True)
-                    if not ret:
-                        SysMgr.printErr(\
-                            "Fail to add breakpoint for %s(%s)" % \
-                                (value, addr))
-                        sys.exit(0)
+            self.addBreakpointList(SysMgr.customCmd)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -31824,6 +31874,9 @@ struct msghdr {
         if instance.mode == 'syscall':
             ctype = 'Syscall'
             addInfo = 'Count'
+        elif instance.mode == 'break':
+            ctype = 'Breakpoint'
+            addInfo = 'Path'
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
@@ -31848,7 +31901,7 @@ struct msghdr {
             maxSample = elapsed / instance.sampleTime
             perSample = '%.1f' % (nrTotal / maxSample * 100)
         except:
-            perSample = '0'
+            perSample = '100'
 
         if instance.sampleTime > 0:
             samplingStr = '[Sampling: %g]' % instance.sampleTime
@@ -31883,6 +31936,9 @@ struct msghdr {
 
             if instance.mode == 'syscall':
                 addVal = convert(value['cnt'])
+            elif instance.mode == 'break':
+                addVal = 'Path: %s, Cnt: %s' % (\
+                    value['path'], convert(value['cnt']))
             else:
                 addVal = value['path']
 
