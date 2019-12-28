@@ -12849,8 +12849,8 @@ class SysMgr(object):
                 not SysMgr.isDrawMode() and \
                 not SysMgr.isConvertMode() and \
                 not SysMgr.isReadelfMode() and \
-                not SysMgr.isAddr2lineMode() and \
-                not SysMgr.isSym2lineMode() and \
+                not SysMgr.isAddr2symMode() and \
+                not SysMgr.isSym2addrMode() and \
                 not SysMgr.isTopDiffMode() and \
                 not SysMgr.isPrintDirMode() and \
                 not SysMgr.isReportMode() and \
@@ -12993,8 +12993,8 @@ class SysMgr(object):
                 'printenv': 'Env',
                 'printinfo': 'System',
                 'readelf': 'File',
-                'addr2line': 'Symbol',
-                'sym2line': 'Address',
+                'addr2sym': 'Symbol',
+                'sym2addr': 'Address',
                 'leaktrace': 'Leak',
                 'printcrp': 'Cgroup',
                 'printdir': 'Dir',
@@ -13015,7 +13015,7 @@ class SysMgr(object):
                 },
             'test': {
                 'cputest': 'CPU',
-                'alloctest': 'Memory',
+                'memtest': 'Memory',
                 },
             }
 
@@ -14362,8 +14362,8 @@ Examples:
         # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
-                # addr2line #
-                elif SysMgr.isAddr2lineMode():
+                # addr2sym #
+                elif SysMgr.isAddr2symMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -I <FILE> -g <OFFSET> [OPTIONS] [--help]
@@ -14383,8 +14383,8 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
                     '''.format(cmd, mode)
 
-                # sym2line #
-                elif SysMgr.isSym2lineMode():
+                # sym2addr#
+                elif SysMgr.isSym2addrMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
@@ -14723,8 +14723,8 @@ Examples:
         # {0:1} {1:1} 250
                     '''.format(cmd, mode)
 
-                # alloctest #
-                elif SysMgr.isAllocTestMode():
+                # memtest #
+                elif SysMgr.isMemTestMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <SIZE:INTERVAL:COUNT> [OPTIONS] [--help]
@@ -16248,7 +16248,8 @@ Copyright:
 
         try:
             if len(err.args) == 0 or err.args[0] == 0:
-                return '%s@%s' % (sys.exc_info()[0].__name__, to.tb_lineno)
+                return '%s at %s' % \
+                    (sys.exc_info()[0].__name__, to.tb_lineno)
         except:
             if to:
                 return 'N/A at %s' % to.tb_lineno
@@ -19839,11 +19840,11 @@ Copyright:
 
 
     @staticmethod
-    def isAllocTestMode():
+    def isMemTestMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'alloctest':
+        if sys.argv[1] == 'memtest':
             return True
         else:
             return False
@@ -20381,13 +20382,13 @@ Copyright:
         elif SysMgr.isLeaktraceMode():
             SysMgr.doLeaktrace()
 
-        # ADDR2LINE MODE #
-        elif SysMgr.isAddr2lineMode():
-            SysMgr.doAddr2line()
+        # ADDR2SYM MODE #
+        elif SysMgr.isAddr2symMode():
+            SysMgr.doAddr2sym()
 
-        # SYM2LINE MODE #
-        elif SysMgr.isSym2lineMode():
-            SysMgr.doSym2line()
+        # SYM2ADDR MODE #
+        elif SysMgr.isSym2addrMode():
+            SysMgr.doSym2addr()
 
         # PRINTDIR MODE #
         elif SysMgr.isPrintDirMode():
@@ -20487,9 +20488,9 @@ Copyright:
         elif SysMgr.isCpuTestMode():
             SysMgr.doCpuTest()
 
-        # ALLOCTEST MODE #
-        elif SysMgr.isAllocTestMode():
-            SysMgr.doAllocTest()
+        # MEMTEST MODE #
+        elif SysMgr.isMemTestMode():
+            SysMgr.doMemTest()
 
         # SETCPU MODE #
         elif SysMgr.isSetCpuMode():
@@ -20667,8 +20668,8 @@ Copyright:
 
 
     @staticmethod
-    def isAddr2lineMode():
-        if sys.argv[1] == 'addr2line':
+    def isAddr2symMode():
+        if sys.argv[1] == 'addr2sym':
             return True
         else:
             return False
@@ -20676,8 +20677,8 @@ Copyright:
 
 
     @staticmethod
-    def isSym2lineMode():
-        if sys.argv[1] == 'sym2line':
+    def isSym2addrMode():
+        if sys.argv[1] == 'sym2addr':
             return True
         else:
             return False
@@ -22692,7 +22693,7 @@ Copyright:
             sys.exit(0)
         elif len(SysMgr.filterGroup) > 1:
             SysMgr.printErr(\
-                "wrong option with -g, input only one tid")
+                "wrong option value with -g, input only one tid")
             sys.exit(0)
 
         pid = long(SysMgr.filterGroup[0])
@@ -22814,7 +22815,7 @@ Copyright:
 
 
     @staticmethod
-    def doAddr2line():
+    def doAddr2sym():
         SysMgr.printLogo(big=True, onlyFile=True)
 
         SysMgr.warningEnable = True
@@ -22848,6 +22849,12 @@ Copyright:
 
         # print symbols from offset list #
         for offset in SysMgr.filterGroup:
+            if not UtilMgr.isNumber(offset):
+                SysMgr.printErr((\
+                    "wrong option value '%s', "
+                    "input address in the number format") % offset)
+                sys.exit(0)
+
             try:
                 symbol = binObj.getSymbolByOffset(offset)
             except SystemExit:
@@ -22984,7 +22991,7 @@ Copyright:
 
 
     @staticmethod
-    def doSym2line():
+    def doSym2addr():
         SysMgr.printLogo(big=True, onlyFile=True)
 
         if not SysMgr.sourceFile:
@@ -23124,7 +23131,7 @@ Copyright:
         # get the number of task and load #
         try:
             if len(sys.argv) < 3:
-                raise Exception()
+                raise Exception("no value")
 
             # parse values #
             value = sys.argv[2].split(':')
@@ -23197,7 +23204,7 @@ Copyright:
 
 
     @staticmethod
-    def doAllocTest():
+    def doMemTest():
         def allocMemory(rssSize, size):
             SysMgr.setDefaultSignal()
 
@@ -23214,7 +23221,7 @@ Copyright:
 
             SysMgr.printInfo((\
                 'allocated %s of physical memory, '
-                'used %s of additional physical memory for run') % \
+                'used %s of additional physical memory for runtime') % \
                     (UtilMgr.convertSize2Unit(len(buffer), True), \
                         UtilMgr.convertSize2Unit(rssSize, True)))
 
@@ -23224,6 +23231,9 @@ Copyright:
 
         # convert time #
         try:
+            if len(sys.argv) < 3:
+                raise Exception("no value")
+
             # parse option #
             value = sys.argv[2].split(':')
             if len(value) == 3:
