@@ -935,6 +935,7 @@ COMMAND:
                     printkmsg       <Kernel>
 
     [MONITOR]       bgtop           <Background>
+                    brktop          <Breakpoint>
                     dbustop         <D-Bus>
                     disktop         <Storage>
                     dlttop          <DLT>
@@ -944,13 +945,11 @@ COMMAND:
                     perftop         <PMU>
                     reptop          <JSON>
                     stacktop        <Stack>
-                    strace          <Syscall>
                     systemtop       <System>
                     systop          <syscall>
                     threadtop       <Thread>
                     top             <Process>
                     usertop         <Function>
-                    utrace          <Function>
                     wsstop          <Memory>
 
     [PROFILE]       filerec         <File>
@@ -961,10 +960,14 @@ COMMAND:
                     report          <Report>
                     sysrec          <Syscall>
 
-    [TEST]          alloctest       <Memory>
-                    cputest         <CPU>
+    [TEST]          cputest         <CPU>
+                    memtest         <Memory>
 
-    [UTIL]          addr2line       <Symbol>
+    [TRACE]         btrace          <Breakpoint>
+                    strace          <Syscall>
+                    utrace          <Function>
+
+    [UTIL]          addr2sym        <Symbol>
                     getafnt         <Affinity>
                     kill            <Signal>
                     leaktrace       <Leak>
@@ -980,7 +983,7 @@ COMMAND:
                     setafnt         <Affinity>
                     setcpu          <Clock>
                     setsched        <Priority>
-                    sym2line        <Address>
+                    sym2addr        <Address>
                     topdiff         <Diff>
 
     [VISUAL]        convert         <Text>
