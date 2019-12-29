@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191226"
+__revision__ = "191229"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29570,7 +29570,7 @@ struct msghdr {
             SysMgr.printErr((\
                 "Fail to access %s memory "
                 "because of unaligned address") % addr)
-            return
+            return None
 
         return self.ptrace(cmd, addr, data)
 
@@ -29709,7 +29709,7 @@ struct msghdr {
                 riov.iov_base = c_void_p(addr)
                 riov.iov_len = size
             except:
-                return ''
+                return None
 
             # do syscall #
             ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
@@ -29738,7 +29738,7 @@ struct msghdr {
             if word < 0:
                 SysMgr.printErr(\
                     "Fail to read memory %x of thread %s" % (addr, self.pid))
-                return
+                return None
 
             if retWord:
                 return word
@@ -29746,7 +29746,7 @@ struct msghdr {
             # convert a word to a byte string #
             word = UtilMgr.word2bstring(word)
             if not word:
-                return
+                return None
 
             if size < wordSize:
                 data += word[:size]
@@ -29771,7 +29771,8 @@ struct msghdr {
             except SystemExit:
                 sys.exit(0)
             except:
-                ret += string
+                if string:
+                    ret += string
 
                 if len(ret) > SysMgr.pageSize:
                     return ret
@@ -30623,8 +30624,33 @@ struct msghdr {
             if len(btList) >= limit:
                 break
 
-            btList.append(self.accessMem(self.peekIdx, nextFp+wordSize))
-            nextFp = self.accessMem(self.peekIdx, nextFp)
+            try:
+                targetAddr = nextFp+wordSize
+                if targetAddr % wordSize == 0:
+                    value = self.accessMem(self.peekIdx, targetAddr)
+                else:
+                    value = self.readMem(targetAddr)
+
+                # add call address #
+                if value:
+                    try:
+                        btList.append(long(value))
+                    except:
+                        pass
+
+                if nextFp % wordSize == 0:
+                    nextFp = self.accessMem(self.peekIdx, nextFp)
+                else:
+                    nextFp = self.readMem(nextFp)
+
+                if nextFp:
+                    nextFp = long(nextFp)
+                else:
+                    break
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
 
         return self.convertAddrList(btList)
 
