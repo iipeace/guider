@@ -40568,7 +40568,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Syscall History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((\
-            "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>17} {5:>3} "
+            "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>18} {5:>3} "
             "{6:>5} {7:>10} {8:>16} {9:<1}").format(\
             "Time", "Name", "Tid", "Core", "Syscall", \
             "Sid", "Type", "Elapsed", "Return", "Arguments"))
@@ -40695,7 +40695,7 @@ class ThreadAnalyzer(object):
                     core = nowData[3]
 
                 SysMgr.printPipe(\
-                    ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>17} {5:>3} "
+                    ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>18} {5:>3} "
                     "{6:>5} {7:>10} {8:>16} {9:<1}").\
                     format('%.6f' % eventTime, comm, tid,\
                     core, syscall[4:], nowData[4],\
