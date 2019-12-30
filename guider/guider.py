@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191229"
+__revision__ = "191230"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17103,7 +17103,7 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
-        SysMgr.printErr('Terminated by user\n')
+        SysMgr.printWarn('Terminated by user\n')
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
 
@@ -29021,6 +29021,14 @@ class Debugger(object):
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
 
+        plist = ConfigMgr.PTRACE_TYPE
+        self.contCmd = plist.index('PTRACE_CONT')
+        self.getregsCmd = plist.index('PTRACE_GETREGS')
+        self.setregsCmd = plist.index('PTRACE_SETREGS')
+        self.syscallCmd = plist.index('PTRACE_SYSCALL')
+        self.sysemuCmd = plist.index('PTRACE_SYSEMU')
+        self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
+
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
             raise Exception()
@@ -30554,17 +30562,25 @@ struct msghdr {
         prevSym = None
         prevFile = None
 
+        cnt = 0
         for item in bt:
             # remove redundant symbols #
-            if not SysMgr.showAll:
-                if prevSym == item[1] and prevFile == item[2]:
-                    continue
-                else:
-                    prevSym = item[1]
-                    prevFile = item[2]
+            if prevSym == item[1] and prevFile == item[2]:
+                cnt += 1
+                continue
+            else:
+                prevSym = item[1]
+                prevFile = item[2]
+
+            if cnt > 0:
+                cntStr = ' * %s' % (cnt+1)
+                cnt = 0
+            else:
+                cntStr = ''
 
             # add a symbol to backtrace #
-            btString = '%s <- %s[%s]' % (btString, item[1], item[2])
+            btString = '%s <- %s[%s]%s' % \
+                (btString, item[1], item[2], cntStr)
 
         if btString == '':
             return '??'
@@ -30657,14 +30673,6 @@ struct msghdr {
 
 
     def getBacktrace_ARM(self, limit=sys.maxsize, cur=False):
-        SysMgr.printErr(\
-            '%s platform is not supported yet for backtrace' % \
-            SysMgr.arch)
-        sys.exit(0)
-
-
-
-    def getBacktrace_AARCH64(self, limit=sys.maxsize, cur=False):
         nextFp = self.fp
         nextLr = self.lr
         btList = [nextLr]
@@ -30672,6 +30680,11 @@ struct msghdr {
 
         if cur:
             btList.insert(0, self.pc)
+
+        if nextLr:
+            btList.insert(0, nextLr)
+
+        savedLr = nextLr
 
         while 1:
             if not nextLr or \
@@ -30694,7 +30707,49 @@ struct msghdr {
                 break
 
             # add address to list #
-            btList.append(nextLr)
+            if savedLr != nextLr:
+                btList.append(nextLr)
+                savedLr = nextLr
+
+        return self.convertAddrList(btList)
+
+
+
+    def getBacktrace_AARCH64(self, limit=sys.maxsize, cur=False):
+        nextFp = self.fp
+        nextLr = self.lr
+        btList = [nextLr]
+        wordSize = ConfigMgr.wordSize
+
+        if cur:
+            btList.insert(0, self.pc)
+
+        savedLr = nextLr
+
+        while 1:
+            if not nextLr or \
+                not nextFp or \
+                nextLr & 0x1:
+                break
+
+            # check max length #
+            if len(btList) >= limit:
+                break
+
+            # get FP and LR #
+            try:
+                nextLr = self.accessMem(\
+                    self.peekIdx, nextFp + ConfigMgr.wordSize)
+                nextFp = self.accessMem(self.peekIdx, nextFp)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
+
+            # add address to list #
+            if savedLr != nextLr:
+                btList.append(nextLr)
+                savedLr = nextLr
 
         return self.convertAddrList(btList)
 
@@ -31485,7 +31540,6 @@ struct msghdr {
         # default variables #
         regs = None
         pid = self.pid
-        plist = ConfigMgr.PTRACE_TYPE
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
@@ -31508,12 +31562,6 @@ struct msghdr {
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.REG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
-        self.contCmd = plist.index('PTRACE_CONT')
-        self.getregsCmd = plist.index('PTRACE_GETREGS')
-        self.setregsCmd = plist.index('PTRACE_SETREGS')
-        self.syscallCmd = plist.index('PTRACE_SYSCALL')
-        self.sysemuCmd = plist.index('PTRACE_SYSEMU')
-        self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
         self.pbufsize = SysMgr.ttyCols >> 1
 
         # sampling variables #
@@ -31728,6 +31776,7 @@ struct msghdr {
                     # set up trap again #
                     if mode == 'syscall':
                         self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+
                     self.ptrace(self.cmd, 0, 0)
 
                     continue
@@ -32094,15 +32143,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             for tid in tlist:
                 lastTid = long(tid)
-                #ret = SysMgr.createProcess(mute=True)
-                ret = SysMgr.createProcess(mute=False)
+                ret = SysMgr.createProcess(mute=True)
                 if ret > 0:
                     dlist.append(long(ret))
                     SysMgr.printInfo("paused thread %s" % lastTid)
                 elif ret == 0:
                     dobj = Debugger(pid=lastTid)
                     SysMgr.waitEvent()
-                    del dobj
+                    dobj.__del__()
                     sys.exit(0)
                 else:
                     SysMgr.printErr(\
@@ -32182,12 +32230,17 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = PTRACE_SETREGSET = 0x4205
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
+
             ret = self.ptrace(\
                 cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+
+            if ret != 0:
+                raise Exception()
         except SystemExit:
             sys.exit(0)
         except:
             self.supportSetRegset = False
+
             cmd = self.setregsCmd
             ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
 
@@ -32217,17 +32270,23 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
             nrWords = ctypes.sizeof(self.regs) * wordSize
+
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
+
+            if ret != 0:
+                raise Exception()
         except SystemExit:
             sys.exit(0)
         except:
+            self.supportGetRegset = False
+
             if temp:
                 addr = ctypes.addressof(self.tempRegs)
             else:
                 addr = ctypes.addressof(self.regs)
 
-            self.supportGetRegset = False
             cmd = self.getregsCmd
+
             ret = self.ptrace(cmd, 0, addr)
 
         return ret
@@ -33423,7 +33482,9 @@ class ElfAnalyzer(object):
             if path in ElfAnalyzer.failedFiles:
                 return None
             elif path == 'vdso' or \
-                path == 'vsyscall':
+                path == 'vsyscall' or \
+                path == 'vectors' or \
+                path == 'heap':
                 return None
 
             SysMgr.printInfo(\
