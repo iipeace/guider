@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2019, Guider"
+__copyright__ = "Copyright 2015-2020, Guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "191230"
+__revision__ = "2020101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22783,7 +22783,8 @@ Copyright:
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
-            SysMgr.filterGroup, True, True)
+            SysMgr.filterGroup, isThread=True, \
+                withSibling=SysMgr.groupProcEnable)
 
         # check tid #
         if SysMgr.sourceFile:
@@ -22803,14 +22804,53 @@ Copyright:
                     "No TID with -g option or command with -I option")
             else:
                 SysMgr.printErr("No TID with -g option")
-            SysMgr.printFile = \
-                SysMgr.fileForPrint = None
+
+            SysMgr.printFile = SysMgr.fileForPrint = None
             sys.exit(0)
         elif len(pids) > 1:
-            SysMgr.printErr(\
-                "wrong target %s with -g, input only one tid" % \
-                    ', '.join(pids))
-            sys.exit(0)
+            parent = SysMgr.pid
+            SysMgr.printStreamEnable = True
+
+            SysMgr.printWarn(\
+                "multiple tasks including [ %s ] are traced" % \
+                    ', '.join(pids), True)
+
+            if mode != 'syscall' or SysMgr.funcDepth > 0:
+                # get pid list #
+                procList = {}
+                for tid in pids:
+                    try:
+                        procList.setdefault(SysMgr.getTgid(tid), None)
+                    except:
+                        pass
+
+                # merge map files #
+                mapList = []
+                for pid in list(procList.keys()):
+                    mapList += FileAnalyzer.getProcMapInfo(pid).keys()
+                mapList = list(set(mapList))
+
+                # load symbol cache at once #
+                for item in mapList:
+                    try:
+                        eobj = ElfAnalyzer.getObject(item)
+                        if len(procList) == 1 and eobj:
+                            eobj.mergeSymTable()
+                    except:
+                        pass
+
+            # create new worker processes #
+            for tid in pids:
+                ret = SysMgr.createProcess(isDaemon=True)
+                if ret == 0:
+                    pid = long(tid)
+                    break
+
+            # wait for childs as a parent #
+            if SysMgr.pid == parent:
+                SysMgr.waitEvent()
+                SysMgr.sendSignalProcs(signal.SIGINT, pids, verbose=False)
+                sys.exit(0)
         else:
             pid = long(pids[0])
 
@@ -23583,7 +23623,8 @@ Copyright:
 
 
     @staticmethod
-    def convertPidList(procList, isThread=False, exceptMe=False):
+    def convertPidList(procList, isThread=False, exceptMe=False, \
+        withSibling=False, withMain=False):
         targetList = []
 
         if not procList and not exceptMe:
@@ -23643,7 +23684,7 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalProcs(nrSig, pidList):
+    def sendSignalProcs(nrSig, pidList, verbose=True):
         myPid = str(SysMgr.pid)
         SIG_LIST = ConfigMgr.SIG_LIST
 
@@ -23665,15 +23706,16 @@ Copyright:
                 # send signal to a process #
                 try:
                     os.kill(long(pid), nrSig)
-                    SysMgr.printInfo(\
-                        "sent signal %s to %s process" % \
-                        (SIG_LIST[nrSig], pid))
+                    if verbose:
+                        SysMgr.printInfo(\
+                            "sent signal %s to %s process" % \
+                                (SIG_LIST[nrSig], pid))
 
                     nrProc += 1
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
 
-            if nrProc == 0:
+            if nrProc == 0 and verbose:
                 SysMgr.printInfo("No running process in the background")
 
             return
@@ -23727,30 +23769,33 @@ Copyright:
                 if SysMgr.isStartMode() and waitStatus:
                     try:
                         os.kill(long(pid), nrSig)
-                        SysMgr.printInfo(\
-                            "started %s process to profile" % pid)
+                        if verbose:
+                            SysMgr.printInfo(\
+                                "started %s process to profile" % pid)
                     except:
                         SysMgr.printSigError(pid, SIG_LIST[nrSig])
                 elif SysMgr.isStopMode():
                     try:
                         os.kill(long(pid), nrSig)
-                        SysMgr.printInfo(\
-                            "sent signal %s to %s process" % \
-                            (SIG_LIST[nrSig], pid))
+                        if verbose:
+                            SysMgr.printInfo(\
+                                "sent signal %s to %s process" % \
+                                    (SIG_LIST[nrSig], pid))
                     except:
                         SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
                     os.kill(long(pid), nrSig)
-                    SysMgr.printInfo(\
-                        "sent signal %s to %s process" % \
-                        (SIG_LIST[nrSig], pid))
+                    if verbose:
+                        SysMgr.printInfo(\
+                            "sent signal %s to %s process" % \
+                                (SIG_LIST[nrSig], pid))
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
 
             nrProc += 1
 
-        if nrProc == 0:
+        if nrProc == 0 and verbose:
             SysMgr.printInfo("No running process in the background")
 
 
@@ -30050,11 +30095,11 @@ struct msghdr {
         elif self.mode == 'break':
             ctype = 'Breakpoint'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ' [Sample: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ' [Sample: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convertNumber
@@ -30076,9 +30121,9 @@ struct msghdr {
 
         SysMgr.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[Comm: %s] [CPU: %d%%(Usr:%d%%/Sys:%d%%)]%s \n%s\n') % \
+            '[Target: %s(%s)] [CPU: %d%%(Usr:%d%%/Sys:%d%%)]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
-                convert(self.totalCall), self.comm, \
+                convert(self.totalCall), self.comm, self.pid, \
                 ttime, utime, stime, sampleStr, twoLine), newline=2)
 
         SysMgr.addPrint(\
@@ -31986,9 +32031,10 @@ struct msghdr {
             sampleRateStr = ''
 
         SysMgr.printPipe((\
-            '\n[%s %s Info] [Time: %f] %s [Comm: %s] '
-            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]%s') % \
-                (mtype, ctype, elapsed, samplingStr, instance.comm, \
+            '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] '
+            '[NrSamples: %s%s] [NrSymbols: %s] [Sample: %g]%s') % \
+                (mtype, ctype, elapsed, samplingStr, \
+                instance.comm, instance.pid, \
                 convert(long(nrTotal)), sampleRateStr, \
                 convert(len(callTable)), instance.sampleTime, suffix))
 
