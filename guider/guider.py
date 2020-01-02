@@ -29461,7 +29461,7 @@ struct msghdr {
             self.breakBackupList[addr]['reins'] = reins
 
         # inject trap code #
-        inst = b'\xCC' * size
+        inst = self.brkInst * size
         ret = self.writeMem(addr, inst)
         if ret < 0:
             SysMgr.printWarn(\
@@ -30107,11 +30107,11 @@ struct msghdr {
         elif self.mode == 'break':
             ctype = 'Breakpoint'
             addInfo = 'Path'
-            sampleStr = ' [Sample: %g]' % self.sampleTime
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
-            sampleStr = ' [Sample: %g]' % self.sampleTime
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convertNumber
@@ -30157,6 +30157,7 @@ struct msghdr {
                 not SysMgr.showAll:
                 break
 
+            # stat #
             if self.mode == 'syscall':
                 try:
                     total = self.syscallTotTime[sym]
@@ -30180,6 +30181,7 @@ struct msghdr {
 
             cnt += 1
 
+            # backtrace #
             quitLoop = False
             if len(value['backtrace']) > 0:
                 for bt, cnt in sorted(\
@@ -30837,7 +30839,7 @@ struct msghdr {
         __WALL = 0x40000000
 
         # set rewind address #
-        addr = self.pc - 1
+        addr = self.pc - self.prevInstOffset
 
         # get breakpoint addr #
         if addr not in self.breakList:
@@ -31622,6 +31624,15 @@ struct msghdr {
         self.retreg = ConfigMgr.RET_LIST[self.arch]
         self.pbufsize = SysMgr.ttyCols >> 1
 
+        # set breakpoint variables #
+        if self.arch == 'arm' or \
+            self.arch == 'aarch64':
+            self.brkInst = b'\xFE\xDE\xFF\xE7'
+            self.prevInstOffset = 0
+        else:
+            self.brkInst = b'\xCC'
+            self.prevInstOffset = 1
+
         # sampling variables #
         self.sampleTime = long(0)
         self.getRegsCost = long(0)
@@ -31810,6 +31821,11 @@ struct msghdr {
                     # breakcall #
                     elif mode == 'break':
                         self.handleTrapEvent(mode)
+
+                # breakpoint event for ARM #
+                elif stat == signal.SIGILL and \
+                    mode == 'break':
+                    self.handleTrapEvent(mode)
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
@@ -32045,7 +32061,7 @@ struct msghdr {
 
         SysMgr.printPipe((\
             '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] '
-            '[NrSamples: %s%s] [NrSymbols: %s] [Sample: %g]%s') % \
+            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]%s') % \
                 (mtype, ctype, elapsed, samplingStr, \
                 instance.comm, instance.pid, \
                 convert(long(nrTotal)), sampleRateStr, \
