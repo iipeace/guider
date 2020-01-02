@@ -27742,6 +27742,17 @@ class DbusAnalyzer(object):
             except:
                 return
 
+            # check message type #
+            try:
+                ctype = jsonData["name"]
+
+                # check syscall #
+                if (ctype != "recvmsg" or jsonData["type"] != "enter") and \
+                    (ctype != "sendmsg" or jsonData["type"] != "enter"):
+                    return
+            except:
+                return
+
             # get ctypes object #
             ctypes = SysMgr.getPkg('ctypes')
             from ctypes import c_char_p,  c_ulong, c_void_p, \
@@ -27750,20 +27761,14 @@ class DbusAnalyzer(object):
             libgioObj = SysMgr.libgioObj
             libgObj = SysMgr.libgObj
 
-            cnt = long(0)
             mlist = {}
+            cnt = long(0)
             gdmsg = long(0)
             errp = POINTER(DbusAnalyzer.errObj)()
 
             try:
-                ctype = jsonData["name"]
-
-                # check syscall #
-                if (ctype != "recvmsg" or jsonData["type"] != "enter") and \
-                    (ctype != "sendmsg" or jsonData["type"] != "enter"):
-                    return
                 # check args #
-                elif "args" not in jsonData or \
+                if "args" not in jsonData or \
                     type(jsonData["args"]) is not dict or \
                     "msg" not in jsonData["args"] or \
                     type(jsonData["args"]["msg"]) is not dict or \
@@ -28184,6 +28189,8 @@ class DbusAnalyzer(object):
         threadingList = []
         SysMgr.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
+
+        # set attribute #
         SysMgr.processEnable = False
         SysMgr.cmdlineEnable = True
         SysMgr.sort = 'd'
@@ -29252,6 +29259,11 @@ struct msghdr {
         # running #
         if self.checkPid(pid) >= 0:
             self.pid = pid
+
+            if self.isInRun() is None:
+                SysMgr.printErr('Fail to find %s thread' % pid)
+                sys.exit(0)
+
             if attach:
                 ret = self.attach(verb=True)
                 if ret < 0:
@@ -31430,7 +31442,8 @@ struct msghdr {
                     "err": err,
                 }
 
-                SysMgr.printPipe(str(jsonData))
+                SysMgr.printPipe(\
+                    str(UtilMgr.convertDict2Str(jsonData)))
 
                 self.clearArgs()
 
@@ -40016,7 +40029,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[tid]
             except:
-                SysMgr.printErr("Fail to find \"%s\" thread" % tid)
+                SysMgr.printErr('Fail to find "%s" thread' % tid)
                 continue
 
             SysMgr.clearPrint()
