@@ -4985,14 +4985,14 @@ class PageAnalyzer(object):
 
             isFile = PageAnalyzer.isFilePage(entry)
 
-            bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip('L')
+            bflags = hex(PageAnalyzer.getPageFlags(pfn))
 
             sflags = PageAnalyzer.getFlagTypes(bflags)
 
             SysMgr.printPipe((\
                 "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"\
                 "{6:^8}|{7:^7}| {8}({9} )").format(\
-                hex(addr), hex(pfn).rstrip('L'), isPresent,\
+                hex(addr), hex(pfn), isPresent,\
                 isSwapped, isFile,PageAnalyzer.getPagecount(pfn),\
                 isSoftdirty, isExmapped, bflags, sflags))
 
@@ -5015,9 +5015,9 @@ class PageAnalyzer(object):
             SysMgr.printOpenErr(fpath)
             sys.exit(0)
 
-        start = hex(start).rstrip('L')
-        end = hex(end).rstrip('L')
-        all = hex(-1).rstrip('L')
+        start = hex(start)
+        end = hex(end)
+        all = hex(-1)
 
         # print menu #
         menuStr = ''
@@ -5051,8 +5051,8 @@ class PageAnalyzer(object):
             if start == end == all:
                 switch = long(0)
             elif '-' in line:
-                soffset = hex(long(soffset, base=16)).rstrip('L')
-                eoffset = hex(long(eoffset, base=16)).rstrip('L')
+                soffset = hex(long(soffset, base=16))
+                eoffset = hex(long(eoffset, base=16))
 
                 if (start >= soffset and start < eoffset):
                     switch = 1
@@ -12169,7 +12169,7 @@ class SysMgr(object):
                 long(pid), size, ctypes.pointer(cpuset))
 
             if ret >= 0:
-                return hex(cpuset.value).rstrip('L')
+                return hex(cpuset.value)
             else:
                 raise Exception()
         except:
@@ -16145,7 +16145,7 @@ Copyright:
             else:
                 addr = cmdFormat[1]
                 try:
-                    hex(long(addr, base=16)).rstrip('L')
+                    hex(long(addr, base=16))
                 except:
                     SysMgr.printErr(\
                         "Fail to recognize address %s" % addr)
@@ -23115,7 +23115,7 @@ Copyright:
                         if res:
                             addr = hex(attr['vstart'] + long(res, 16))
                             resInfo['%s|%s' % (sym, filePath)] = \
-                                (res, filePath, addr.rstrip('L'))
+                                (res, filePath, addr)
                     except:
                         SysMgr.printWarn(\
                             "Fail to save offset info because %s" % \
@@ -29436,8 +29436,8 @@ struct msghdr {
                 if not ret:
                     SysMgr.printErr(\
                         "Fail to add breakpoint for %s(%s)" % \
-                            (value, addr))
-                    sys.exit(0)
+                            (value, hex(addr)))
+                    continue
 
 
 
@@ -29460,12 +29460,23 @@ struct msghdr {
             origWord = self.breakBackupList[addr]['data']
             self.breakBackupList[addr]['reins'] = reins
 
-        # inject trap code #
+        # build trap instruction #
         inst = self.brkInst * size
+
+        # check code whether it is already injected #
+        if origWord[:len(inst)] == inst:
+            SysMgr.printWarn((\
+                'Fail to add breakpoint with addr %s '
+                'because it is already injected') % \
+                    hex(addr), True)
+            return False
+
+        # inject trap code #
         ret = self.writeMem(addr, inst)
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to add breakpoint with addr %s' % addr, True)
+                'Fail to add breakpoint with addr %s' % \
+                    hex(addr), True)
             return False
         elif ret == 0:
             if sym:
@@ -29473,7 +29484,8 @@ struct msghdr {
             else:
                 symbol = ''
             SysMgr.printWarn(\
-                'Added a new breakpoint at %s%s' % (hex(addr), symbol))
+                'Added a new breakpoint at %s%s' % \
+                    (hex(addr), symbol))
 
         self.breakList[addr] = dict()
         self.breakList[addr]['data'] = origWord
@@ -29555,7 +29567,8 @@ struct msghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printSigError(pid, '0', 'warning')
+            SysMgr.printWarn(\
+                'Fail to continue terminated thread %s' % pid)
             return -1
 
         # check target status #
@@ -30368,7 +30381,7 @@ struct msghdr {
 
         try:
             sym = fcache.getSymbolByOffset(offset)
-            return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
+            return [sym, fname, hex(offset), vstart, vend]
         except SystemExit:
             sys.exit(0)
         except:
@@ -30425,15 +30438,24 @@ struct msghdr {
         else:
             prefix = ''
 
+        try:
+            taskInfo = '%s(%s)' % (self.comm, self.pid)
+        except:
+            taskInfo = '??(%s)' % self.pid
+
         origStreamStat = SysMgr.printStreamEnable
         SysMgr.printStreamEnable = False
 
-        SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
+        isPrinted = False
 
         # print register #
-        if regs:
+        if regs and self.regsDict:
+            if not isPrinted:
+                SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
+                isPrinted = True
+
             SysMgr.addPrint(\
-                '\tRegister Info\n%s\n' % oneLine)
+                '\tRegister Info [%s]\n%s\n' % (taskInfo, oneLine))
 
             for reg, val in sorted(self.regsDict.items()):
                 if deref:
@@ -30454,16 +30476,21 @@ struct msghdr {
 
         # print backtrace #
         if bt:
-            SysMgr.addPrint(\
-                '\tBacktrace Info\n%s\n' % oneLine)
-
             backtrace = self.getBacktrace(cur=True)
-            for item in backtrace:
-                SysMgr.addPrint(\
-                    '%s(%s)[%s]\n' % \
-                        (hex(item[0]).rstrip('L'), item[1], item[2]))
+            if len(backtrace) > 0:
+                if not isPrinted:
+                    SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
+                    isPrinted = True
 
-            SysMgr.addPrint('%s\n' % twoLine)
+                SysMgr.addPrint(\
+                    '\tBacktrace Info [%s]\n%s\n' % (taskInfo, oneLine))
+
+                for item in backtrace:
+                    SysMgr.addPrint(\
+                        '%s(%s)[%s]\n' % \
+                            (hex(item[0]), item[1], item[2]))
+
+                SysMgr.addPrint('%s\n' % twoLine)
 
         SysMgr.printStreamEnable = origStreamStat
 
@@ -30687,7 +30714,7 @@ struct msghdr {
         btList = []
         wordSize = ConfigMgr.wordSize
 
-        if cur:
+        if cur and self.pc:
             btList.insert(0, self.pc)
 
         while 1:
@@ -30844,7 +30871,7 @@ struct msghdr {
         # get breakpoint addr #
         if addr not in self.breakList:
             SysMgr.printErr(\
-                "Fail to get address %s in breakpoint list" % addr)
+                "Fail to get address %s in breakpoint list" % hex(addr))
             sys.exit(0)
 
         # remove breakpoint #
@@ -30872,7 +30899,7 @@ struct msghdr {
             diff = current - self.start
 
             callString = '%3.6f %s(%s%s) [%s]' % \
-                (diff, sym, hex(addr).rstrip('L'), argstr, fname)
+                (diff, sym, hex(addr), argstr, fname)
 
             if self.isRealtime:
                 if SysMgr.funcDepth > 0:
@@ -31050,7 +31077,7 @@ struct msghdr {
         # build call string #
         callString = '%3.6f %s %s [%s + %s] [%s]' % \
             (diff, symstr , direction, fname, \
-                offset, hex(self.sp).rstrip('L'))
+                offset, hex(self.sp))
 
         # backup callString #
         self.prevCallString = callString
@@ -31578,8 +31605,8 @@ struct msghdr {
         if len(addrList) == 0:
             return None
         elif len(addrList) > 1:
-            addrString = \
-                ['%s@%s' % (hex(item[0]), item[1]) for item in addrList]
+            addrString = ['%s(%s)' % \
+                    (hex(item[0]), item[1]) for item in addrList]
             listString = ', '.join(addrString)
             SysMgr.printWarn((\
                 "Found multiple %s symbols [ %s ]") % \
@@ -32373,6 +32400,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             start = time.time()
 
         ret = self.getRegs()
+        if ret > 0:
+            return False
 
         # set registers #
         if self.arch == 'arm':
