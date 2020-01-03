@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020103"
+__revision__ = "2020104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22870,7 +22870,7 @@ Copyright:
 
             # create new worker processes #
             for tid in pids:
-                ret = SysMgr.createProcess(isDaemon=True)
+                ret = SysMgr.createProcess(changePgid=True)
                 if ret == 0:
                     pid = long(tid)
                     break
@@ -22879,6 +22879,7 @@ Copyright:
             if SysMgr.pid == parent:
                 SysMgr.waitEvent()
                 SysMgr.killChilds(signal.SIGINT)
+                SysMgr.clearChildList()
                 sys.exit(0)
         else:
             pid = long(pids[0])
@@ -24703,6 +24704,12 @@ Copyright:
                 ret = "%s/tracing/events/" % d['dir']
 
         return ret
+
+
+
+    @staticmethod
+    def clearChildList():
+        SysMgr.childList = {}
 
 
 
@@ -29345,6 +29352,9 @@ struct msghdr {
         if not self.attached:
             return
 
+        if not self.isAlive():
+            return
+
         # continue target if it is stopped #
         if self.cont() < 0:
             return
@@ -29583,11 +29593,13 @@ struct msghdr {
                 'Added a new breakpoint at %s%s' % \
                     (hex(addr), symbol))
 
-        self.breakList[addr] = dict()
-        self.breakList[addr]['data'] = origWord
-        self.breakList[addr]['symbol'] = sym
-        self.breakList[addr]['filename'] = fname
-        self.breakList[addr]['reins'] = reins
+        # update breakpoint list #
+        self.breakList[addr] = {
+            'data': origWord,
+            'symbol': sym,
+            'filename': fname,
+            'reins': reins,
+        }
 
         return True
 
@@ -31045,7 +31057,7 @@ struct msghdr {
             return -1
 
         # wait process #
-        ret = self.waitpid(long(self.pid), __WALL)
+        ret = self.waitpid(self.pid, __WALL)
         stat = Debugger.getStatus(ret[1])
         if stat == signal.SIGKILL or \
             stat == signal.SIGSEGV or \
@@ -31871,7 +31883,7 @@ struct msghdr {
             "Start profiling thread %d" % pid)
 
         # set start time #
-        self.start = self.last = time.time()
+        #self.start = self.last = time.time()
 
         # prepare environment for profiling #
         if self.isRunning:
@@ -31958,7 +31970,7 @@ struct msghdr {
 
             try:
                 # wait process #
-                ret = self.waitpid(long(pid), __WALL)
+                ret = self.waitpid(pid, __WALL)
 
                 # get status of process #
                 stat = Debugger.getStatus(ret[1])
@@ -32063,7 +32075,7 @@ struct msghdr {
             except:
                 # check whether the process is alive #
                 try:
-                    ret = self.waitpid(long(pid), __WALL)
+                    ret = self.waitpid(pid, __WALL)
 
                     ereason = SysMgr.getErrReason()
                 except SystemExit:
@@ -32090,9 +32102,10 @@ struct msghdr {
         Debugger.lastInstance = None
 
         # remove breakpoints #
-        for brk in list(instance.breakList.keys()):
-            instance.stop()
-            instance.removeBreakpoint(brk)
+        if instance.isAlive():
+            for brk in list(instance.breakList.keys()):
+                instance.stop()
+                instance.removeBreakpoint(brk)
 
         '''
         below code will not be effective because
@@ -32623,7 +32636,22 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             SysMgr.libcObj.waitpid.restype = c_int
 
             status = c_uint(0)
-            ret = SysMgr.libcObj.waitpid(pid, pointer(status), options)
+
+            while 1:
+                try:
+                    ret = SysMgr.libcObj.waitpid(\
+                        pid, pointer(status), options)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                if ret == -1:
+                    if not self.isAlive():
+                        break
+                    continue
+                break
+
             return ret, status.value
         except SystemExit:
             sys.exit(0)
