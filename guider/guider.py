@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020101"
+__revision__ = "2020103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18516,8 +18516,11 @@ Copyright:
             prefix = ''
 
         if suffix:
-            print('%s%s%s%s%s' % \
-                (prefix, ConfigMgr.BOLD, title, line, ConfigMgr.ENDC))
+            try:
+                print('%s%s%s%s%s' % \
+                    (prefix, ConfigMgr.BOLD, title, line, ConfigMgr.ENDC))
+            except:
+                return
         else:
             sys.stdout.write('%s%s%s%s%s' % \
                 (prefix, ConfigMgr.BOLD, title, line, ConfigMgr.ENDC))
@@ -22779,12 +22782,15 @@ Copyright:
 
         # define wait syscall #
         wait = None
+        multi = False
         execCmd = None
+        breakBackupList = {}
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
             SysMgr.filterGroup, isThread=True, \
-                withSibling=SysMgr.groupProcEnable)
+                withSibling=SysMgr.groupProcEnable, \
+                withMain=SysMgr.groupProcEnable)
 
         # check tid #
         if SysMgr.sourceFile:
@@ -22808,6 +22814,7 @@ Copyright:
             SysMgr.printFile = SysMgr.fileForPrint = None
             sys.exit(0)
         elif len(pids) > 1:
+            multi = True
             parent = SysMgr.pid
             SysMgr.printStreamEnable = True
 
@@ -22820,13 +22827,16 @@ Copyright:
                 procList = {}
                 for tid in pids:
                     try:
-                        procList.setdefault(SysMgr.getTgid(tid), None)
+                        pid = SysMgr.getTgid(tid)
+                        procList.setdefault(pid, list())
+                        procList[pid].append(tid)
                     except:
                         pass
+                pidList = list(map(long, procList.keys()))
 
                 # merge map files #
                 mapList = []
-                for pid in list(procList.keys()):
+                for pid in pidList:
                     mapList += FileAnalyzer.getProcMapInfo(pid).keys()
                 mapList = list(set(mapList))
 
@@ -22834,10 +22844,29 @@ Copyright:
                 for item in mapList:
                     try:
                         eobj = ElfAnalyzer.getObject(item)
-                        if len(procList) == 1 and eobj:
+                        if len(pidList) == 1 and eobj:
                             eobj.mergeSymTable()
                     except:
                         pass
+
+                # save original data to be injected for multi-threaded process #
+                if mode == 'breakcall':
+                    for pid in pidList:
+                        breakBackupList.setdefault(pid, dict())
+
+                        procObj = Debugger(pid=pid, execCmd=execCmd)
+                        if not procObj:
+                            continue
+
+                        procObj.loadSymbols()
+
+                        addrList = procObj.getBreakpointAddr(SysMgr.customCmd)
+                        for addr in addrList:
+                            breakBackupList[pid][addr] = \
+                                procObj.readMem(addr, len(procObj.brkInst))
+
+                        procObj.detach()
+                        del procObj
 
             # create new worker processes #
             for tid in pids:
@@ -22849,7 +22878,7 @@ Copyright:
             # wait for childs as a parent #
             if SysMgr.pid == parent:
                 SysMgr.waitEvent()
-                SysMgr.sendSignalProcs(signal.SIGINT, pids, verbose=False)
+                SysMgr.killChilds(signal.SIGINT)
                 sys.exit(0)
         else:
             pid = long(pids[0])
@@ -22860,19 +22889,26 @@ Copyright:
         # start tracing #
         try:
             if mode == 'syscall':
-                Debugger(pid=pid, execCmd=execCmd).trace(wait=wait)
+                Debugger(pid=pid, execCmd=execCmd).\
+                    trace(wait=wait, multi=multi)
             elif mode == 'usercall':
                 # tracing #
                 if SysMgr.isTraceMode():
                     Debugger(pid=pid, execCmd=execCmd).\
-                        trace(mode='inst', wait=wait)
+                        trace(mode='inst', wait=wait, multi=multi)
                 # monitoring #
                 else:
                     Debugger(pid=pid, execCmd=execCmd).\
-                        trace(mode='sample', wait=wait)
+                        trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
+                try:
+                    ppid = long(SysMgr.getTgid(pid))
+                    brkData = breakBackupList[ppid]
+                except:
+                    brkData = {}
+
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait)
+                    trace(mode='break', wait=wait, brkData=brkData, multi=multi)
             else:
                 pass
         except SystemExit:
@@ -29081,6 +29117,15 @@ class Debugger(object):
         self.sysemuCmd = plist.index('PTRACE_SYSEMU')
         self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
 
+        # set breakpoint variables #
+        if self.arch == 'arm' or \
+            self.arch == 'aarch64':
+            self.brkInst = b'\xFE\xDE\xFF\xE7'
+            self.prevInstOffset = 0
+        else:
+            self.brkInst = b'\xCC'
+            self.prevInstOffset = 1
+
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
             raise Exception()
@@ -29301,7 +29346,8 @@ struct msghdr {
             return
 
         # continue target if it is stopped #
-        self.cont()
+        if self.cont() < 0:
+            return
 
         # stop target for detaching #
         try:
@@ -29391,13 +29437,52 @@ struct msghdr {
                 'No breakpoint registered with addr %s' % addr, True)
             return None
 
-        self.writeMem(addr, self.breakList[addr]['data'])
+        if not self.breakList[addr]['data'].startswith(self.brkInst):
+            self.writeMem(addr, self.breakList[addr]['data'])
 
         ret = self.breakList.pop(addr, None)
         if not ret:
             return None
 
         return (addr, ret['symbol'], ret['filename'], ret['reins'])
+
+
+
+    def getBreakpointAddr(self, blist):
+        addrData = {}
+
+        for value in blist:
+            # address #
+            if UtilMgr.isNumber(value):
+                try:
+                    addr = long(value, 16)
+                except:
+                    addr = long(value)
+                ret = self.getSymbolInfo(addr)
+                addrList = [[addr, ret[0], ret[1]]]
+            # symbol #
+            else:
+                ret = self.getAddrBySymbol(value)
+                if not ret:
+                    SysMgr.printErr(\
+                        "Fail to find address for %s" % value)
+                    sys.exit(0)
+                else:
+                    addrList = ret
+
+            # add new breakpoints #
+            for item in addrList:
+                if len(item) == 3:
+                    addr, symbol, fname = item
+                    addrData.setdefault(addr, None)
+                elif len(item) == 2:
+                    addr, fname = item
+                    symbol = value
+                    addrData.setdefault(addr, None)
+                else:
+                    continue
+
+        return list(addrData.keys())
 
 
 
@@ -29442,7 +29527,14 @@ struct msghdr {
 
 
     def addBreakpoint(\
-        self, addr, sym=None, fname=None, size=1, reins=False, cache=False):
+        self, addr, sym=None, fname=None, size=1, reins=False, cache=True):
+        # check address in breakpoint table #
+        if addr in self.breakList:
+            SysMgr.printWarn((\
+                'Fail to add breakpoint with addr %s '
+                'because it is already injected by myself') % \
+                    hex(addr), True)
+
         # backup data #
         if not cache or \
             not addr in self.breakBackupList:
@@ -29464,12 +29556,16 @@ struct msghdr {
         inst = self.brkInst * size
 
         # check code whether it is already injected #
-        if origWord[:len(inst)] == inst:
-            SysMgr.printWarn((\
-                'Fail to add breakpoint with addr %s '
-                'because it is already injected') % \
-                    hex(addr), True)
-            return False
+        if origWord.startswith(inst):
+            if addr in self.breakBackupList and \
+                self.breakBackupList[addr]['data'] != inst:
+                    origWord = self.breakBackupList[addr]['data']
+            else:
+                SysMgr.printWarn((\
+                    'Fail to add breakpoint with addr %s '
+                    'because it is already injected by another task') % \
+                        hex(addr), True)
+                return False
 
         # inject trap code #
         ret = self.writeMem(addr, inst)
@@ -29573,9 +29669,15 @@ struct msghdr {
 
         # check target status #
         if check:
+            cnt = 30
             while 1:
                 ret = self.ptrace(self.contCmd, 0, sig)
                 if ret != 0:
+                    cnt -= 1
+                    if cnt < 0 and not self.isAlive():
+                        SysMgr.printErr(\
+                            'Fail to continue terminated thread %s' % pid)
+                        return -1
                     continue
                 return 0
 
@@ -29584,7 +29686,7 @@ struct msghdr {
         if ret != 0:
             err = SysMgr.getErrReason()
             SysMgr.printWarn(\
-                'Fail to continue thread %s because %s' % (pid, err))
+                'Fail to continue %s thread because %s' % (pid, err))
             return -1
 
         return 0
@@ -30677,7 +30779,8 @@ struct msghdr {
 
     def checkInterval(self):
         # continue target thread #
-        self.cont(check=True)
+        if self.cont(check=True) < 0:
+            sys.exit(0)
 
         # wait for sampling time #
         time.sleep(self.sampleTime)
@@ -30898,15 +31001,21 @@ struct msghdr {
             current = time.time()
             diff = current - self.start
 
-            callString = '%3.6f %s(%s%s) [%s]' % \
-                (diff, sym, hex(addr), argstr, fname)
+            if self.multi:
+                tinfo = '%s(%s) ' % (self.comm, self.pid)
+            else:
+                tinfo = ''
+
+            callString = '%3.6f %s%s(%s%s) [%s]' % \
+                (diff, tinfo, sym, hex(addr), argstr, fname)
 
             if self.isRealtime:
                 if SysMgr.funcDepth > 0:
                     backtrace = self.getBacktrace(cur=True)
                 else:
                     backtrace = None
-                self.addSample(sym, fname, current, realtime=True, bt=backtrace)
+                self.addSample(\
+                    sym, fname, current, realtime=True, bt=backtrace)
             elif SysMgr.printFile:
                 self.addSample(sym, fname, current)
 
@@ -30930,7 +31039,9 @@ struct msghdr {
         # continue a instruction #
         ret = self.ptrace(self.singlestepCmd, 0, 0)
         if ret != 0:
-            SysMgr.printErr('Fail to continue thread %s' % self.pid)
+            SysMgr.printErr(\
+                'Fail to continue %s thread to reinstall a breakpoint' % \
+                    self.pid)
             return -1
 
         # wait process #
@@ -30939,7 +31050,9 @@ struct msghdr {
         if stat == signal.SIGKILL or \
             stat == signal.SIGSEGV or \
             stat == -1:
-            SysMgr.printErr('Fail to continue thread %s' % self.pid)
+            SysMgr.printErr(\
+                'Fail to wait for %s thread to reinstall a breakpoint' % \
+                    self.pid)
             return -1
 
         # register this breakpoint again #
@@ -31499,7 +31612,7 @@ struct msghdr {
 
 
 
-    def isInRun(self):
+    def getStatList(self):
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
@@ -31515,10 +31628,31 @@ struct msghdr {
                 sys.exit(0)
             except:
                 SysMgr.printOpenWarn(statPath)
-                return
+                return None
 
         # convert string to list #
         statList = stat.split(')')[1].split()
+
+        return statList
+
+
+
+    def isAlive(self):
+        statList = self.getStatList()
+        if not statList:
+            return False
+
+        if statList[0] == 'Z':
+            return False
+        else:
+            return True
+
+
+
+    def isInRun(self):
+        statList = self.getStatList()
+        if not statList:
+            return None
 
         # check status #
         if statList[0] == 'R' or \
@@ -31616,7 +31750,7 @@ struct msghdr {
 
 
 
-    def trace(self, mode='syscall', wait=None):
+    def trace(self, mode='syscall', wait=None, multi=False, brkData={}):
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
         # Wait on all children, regardless of type #
@@ -31649,16 +31783,8 @@ struct msghdr {
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.REG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
+        self.multi = multi
         self.pbufsize = SysMgr.ttyCols >> 1
-
-        # set breakpoint variables #
-        if self.arch == 'arm' or \
-            self.arch == 'aarch64':
-            self.brkInst = b'\xFE\xDE\xFF\xE7'
-            self.prevInstOffset = 0
-        else:
-            self.brkInst = b'\xCC'
-            self.prevInstOffset = 1
 
         # sampling variables #
         self.sampleTime = long(0)
@@ -31774,6 +31900,15 @@ struct msghdr {
         elif mode == 'sample':
             self.cmd = None
         elif mode == 'break':
+            # register breakpoint data #
+            for addr, data in brkData.items():
+                self.breakBackupList[addr] = {
+                    'data': data,
+                    'symbol': None,
+                    'reins': False,
+                }
+
+            # add breakpoint #
             self.addBreakpointList(SysMgr.customCmd)
         else:
             SysMgr.printErr(\
@@ -31815,7 +31950,8 @@ struct msghdr {
                 elif mode == 'sample':
                     self.checkInterval()
                 elif mode == 'break':
-                    self.cont(check=True)
+                    if self.cont(check=True) < 0:
+                        sys.exit(0)
                 # setup trap #
                 else:
                     ret = self.ptrace(self.cmd, 0, 0)
@@ -31919,7 +32055,8 @@ struct msghdr {
 
                     # continue target from signal stop #
                     if mode != 'syscall':
-                        self.cont(check=True, sig=stat)
+                        if self.cont(check=True, sig=stat) < 0:
+                            sys.exit(0)
 
             except SystemExit:
                 return
@@ -43860,7 +43997,11 @@ class ThreadAnalyzer(object):
                         SysMgr.printStat(\
                             r"start checking %s..." % file)
                 else:
-                    fd = UtilMgr.getTextLines(file, verbose, retfd=True)
+                    try:
+                        fd = UtilMgr.getTextLines(file, verbose, retfd=True)
+                    except:
+                        SysMgr.printErr("Fail to read %s\n" % file)
+                        sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
