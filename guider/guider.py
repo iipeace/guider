@@ -30291,18 +30291,25 @@ struct msghdr {
             # stat #
             if self.mode == 'syscall':
                 try:
-                    total = self.syscallTotTime[sym]
+                    total, tmax = self.syscallTimeStat[sym]
                     average = total / value['cnt']
-                    tmax = self.syscallMaxTime[sym]
                 except:
                     total = average = tmax = long(0)
 
-                addVal = "Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s" % \
-                    (convert(value['cnt']), \
-                        total, average, tmax, convert(value['err']))
+                addVal = \
+                    "Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s" % \
+                        (convert(value['cnt']), \
+                            total, average, tmax, convert(value['err']))
             elif self.mode == 'break':
-                addVal = 'Path: %s, Cnt: %s' % (\
-                    value['path'], convert(value['cnt']))
+                try:
+                    prev, total, tmin, tmax = self.breakcallTimeStat[sym]
+                    avg = total / value['cnt']
+                except:
+                    prev = total = tmin = tmax = avg = long(0)
+
+                addVal = \
+                    'Path: %s, Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f' % \
+                        (value['path'], convert(value['cnt']), avg, tmin, tmax)
             else:
                 addVal = value['path']
 
@@ -30342,8 +30349,8 @@ struct msghdr {
         SysMgr.addPrint('%s\n' % oneLine)
 
         # initialize syscall timetable #
-        self.syscallTotTime = dict()
-        self.syscallMaxTime = dict()
+        self.syscallTimeStat = dict()
+        self.breakcallTimeStat = dict()
 
         finishPrint()
 
@@ -30689,7 +30696,7 @@ struct msghdr {
                     break
 
             # check wait status #
-            if self.mode != 'syscall' and \
+            if self.mode == 'sample' and \
                 not self.runStatus:
                 sym = 'WAIT(%s)' % sym
 
@@ -30975,6 +30982,9 @@ struct msghdr {
 
 
     def handleBreakpoint(self, printStat=False, checkArg=None):
+        # get current time #
+        current = time.time()
+
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -31014,7 +31024,6 @@ struct msghdr {
         # build call string #
         if printStat:
             # get diff time #
-            current = time.time()
             diff = current - self.start
 
             if self.multi:
@@ -31032,6 +31041,28 @@ struct msghdr {
                     backtrace = None
                 self.addSample(\
                     sym, fname, current, realtime=True, bt=backtrace)
+
+                # apply stat #
+                try:
+                    prev, ttotal, tmin, tmax = self.breakcallTimeStat[sym]
+
+                    tdiff = current - prev
+
+                    ttotal += tdiff
+
+                    if tmax < tdiff:
+                        tmax = tdiff
+
+                    if tmin == 0 or \
+                        tmin > tdiff:
+                        tmin = tdiff
+
+                    self.breakcallTimeStat[sym] = \
+                        [current, ttotal, tmin, tmax]
+                except:
+                    self.breakcallTimeStat[sym] = \
+                        [current, 0, 0, 0]
+
             elif SysMgr.printFile:
                 self.addSample(sym, fname, current)
 
@@ -31547,13 +31578,15 @@ struct msghdr {
 
                 # apply diff #
                 try:
-                    self.syscallTotTime[name] += diff
+                    ttotal, tmax = self.syscallTimeStat[name]
+                    ttotal += diff
 
-                    if self.syscallMaxTime[name] < diff:
-                        self.syscallMaxTime[name] = diff
+                    if tmax < diff:
+                        tmax = diff
+
+                    self.syscallTimeStat[name] = [ttotal, tmax]
                 except:
-                    self.syscallTotTime[name] = diff
-                    self.syscallMaxTime[name] = diff
+                    self.syscallTimeStat[name] = [diff, diff]
 
             # set return value from register #
             retval = regs[self.retreg]
@@ -31809,8 +31842,8 @@ struct msghdr {
         self.callList = list()
         self.callPrint = list()
         self.syscallTime = dict()
-        self.syscallTotTime = dict()
-        self.syscallMaxTime = dict()
+        self.syscallTimeStat = dict()
+        self.breakcallTimeStat = dict()
 
         # disable extended ascii #
         SysMgr.encodeEnable = False
