@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020104"
+__revision__ = "2020105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29577,6 +29577,14 @@ struct msghdr {
                         hex(addr), True)
                 return False
 
+        # update breakpoint list #
+        self.breakList[addr] = {
+            'data': origWord,
+            'symbol': sym,
+            'filename': fname,
+            'reins': reins,
+        }
+
         # inject trap code #
         ret = self.writeMem(addr, inst)
         if ret < 0:
@@ -29592,14 +29600,6 @@ struct msghdr {
             SysMgr.printWarn(\
                 'Added a new breakpoint at %s%s' % \
                     (hex(addr), symbol))
-
-        # update breakpoint list #
-        self.breakList[addr] = {
-            'data': origWord,
-            'symbol': sym,
-            'filename': fname,
-            'reins': reins,
-        }
 
         return True
 
@@ -29875,6 +29875,8 @@ struct msghdr {
                 if not SysMgr.libcObj:
                     SysMgr.libcObj = \
                         cdll.LoadLibrary(SysMgr.libcPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 raise Exception()
 
@@ -29900,6 +29902,8 @@ struct msghdr {
                 riov = (self.iovec*1)()[0]
                 riov.iov_base = c_void_p(addr)
                 riov.iov_len = size
+            except SystemExit:
+                sys.exit(0)
             except:
                 return None
 
@@ -32102,10 +32106,23 @@ struct msghdr {
         Debugger.lastInstance = None
 
         # remove breakpoints #
-        if instance.isAlive():
-            for brk in list(instance.breakList.keys()):
-                instance.stop()
-                instance.removeBreakpoint(brk)
+        if instance.isAlive() and \
+            len(instance.breakList) > 0:
+            # stop target #
+            instance.stop()
+
+            # get current register set #
+            ret = instance.updateRegs()
+            if ret:
+                addr = instance.pc - instance.prevInstOffset
+
+                for brk in list(instance.breakList.keys()):
+                    instance.removeBreakpoint(brk)
+
+                    # apply register set to rewind IP #
+                    if addr == brk:
+                        instance.setPC(addr)
+                        instance.setRegs()
 
         '''
         below code will not be effective because
