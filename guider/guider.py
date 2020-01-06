@@ -22770,6 +22770,54 @@ Copyright:
 
     @staticmethod
     def doTrace(mode):
+        def loadCommonCaches(pids):
+            # get pid list #
+            procList = {}
+            for tid in pids:
+                try:
+                    pid = SysMgr.getTgid(tid)
+                    procList.setdefault(pid, list())
+                    procList[pid].append(tid)
+                except:
+                    pass
+            pidList = list(map(long, procList.keys()))
+
+            # merge map files #
+            mapList = []
+            for pid in pidList:
+                mapList += FileAnalyzer.getProcMapInfo(pid).keys()
+            mapList = list(set(mapList))
+
+            # load symbol caches at once #
+            for item in mapList:
+                try:
+                    eobj = ElfAnalyzer.getObject(item)
+                    if len(pidList) == 1 and eobj:
+                        eobj.mergeSymTable()
+                except:
+                    pass
+
+            # save original data to be injected for multi-threaded process #
+            if mode == 'breakcall':
+                for pid in pidList:
+                    breakBackupList.setdefault(pid, dict())
+
+                    # create object #
+                    procObj = Debugger(pid=pid, execCmd=execCmd)
+                    if not procObj:
+                        continue
+
+                    # load common ELF cache files #
+                    procObj.loadSymbols()
+
+                    addrList = procObj.getBreakpointAddr(SysMgr.customCmd)
+                    for addr in addrList:
+                        breakBackupList[pid][addr] = \
+                            procObj.readMem(addr, len(procObj.brkInst))
+
+                    procObj.detach()
+                    del procObj
+
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # no use pager #
@@ -22784,6 +22832,7 @@ Copyright:
         wait = None
         multi = False
         execCmd = None
+        lockObj = None
         breakBackupList = {}
 
         # convert comm to pid #
@@ -22822,51 +22871,19 @@ Copyright:
                 "multiple tasks including [ %s ] are traced" % \
                     ', '.join(pids), True)
 
+            # load symbol caches and addresses for breakpoint in advance #
             if mode != 'syscall' or SysMgr.funcDepth > 0:
-                # get pid list #
-                procList = {}
-                for tid in pids:
-                    try:
-                        pid = SysMgr.getTgid(tid)
-                        procList.setdefault(pid, list())
-                        procList[pid].append(tid)
-                    except:
-                        pass
-                pidList = list(map(long, procList.keys()))
+                loadCommonCaches(pids)
 
-                # merge map files #
-                mapList = []
-                for pid in pidList:
-                    mapList += FileAnalyzer.getProcMapInfo(pid).keys()
-                mapList = list(set(mapList))
-
-                # load symbol cache at once #
-                for item in mapList:
-                    try:
-                        eobj = ElfAnalyzer.getObject(item)
-                        if len(pidList) == 1 and eobj:
-                            eobj.mergeSymTable()
-                    except:
-                        pass
-
-                # save original data to be injected for multi-threaded process #
-                if mode == 'breakcall':
-                    for pid in pidList:
-                        breakBackupList.setdefault(pid, dict())
-
-                        procObj = Debugger(pid=pid, execCmd=execCmd)
-                        if not procObj:
-                            continue
-
-                        procObj.loadSymbols()
-
-                        addrList = procObj.getBreakpointAddr(SysMgr.customCmd)
-                        for addr in addrList:
-                            breakBackupList[pid][addr] = \
-                                procObj.readMem(addr, len(procObj.brkInst))
-
-                        procObj.detach()
-                        del procObj
+            # create lock for tracer processes #
+            if mode == 'breakcall':
+                try:
+                    SysMgr.importPackageItems('fcntl')
+                    lockObj = open('/tmp/guiderlock', 'w')
+                except:
+                    SysMgr.printErr(\
+                        "Fail to create file for lock because %s" % \
+                            SysMgr.getErrReason())
 
             # create new worker processes #
             for tid in pids:
@@ -22909,7 +22926,8 @@ Copyright:
                     brkData = {}
 
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait, brkData=brkData, multi=multi)
+                    trace(mode='break', wait=wait, brkData=brkData, \
+                        multi=multi, lock=lockObj)
             else:
                 pass
         except SystemExit:
@@ -29587,6 +29605,7 @@ struct msghdr {
 
         # inject trap code #
         ret = self.writeMem(addr, inst)
+
         if ret < 0:
             SysMgr.printWarn(\
                 'Fail to add breakpoint with addr %s' % \
@@ -31799,7 +31818,22 @@ struct msghdr {
 
 
 
-    def trace(self, mode='syscall', wait=None, multi=False, brkData={}):
+    def lock(self):
+        if self.lockObj:
+            return lockf(self.lockObj, LOCK_EX)
+        return None
+
+
+
+    def unlock(self):
+        if self.lockObj:
+            return lockf(self.lockObj, LOCK_UN)
+        return None
+
+
+
+    def trace(\
+        self, mode='syscall', wait=None, multi=False, lock=None, brkData={}):
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
         # Wait on all children, regardless of type #
@@ -31816,6 +31850,7 @@ struct msghdr {
         sigTrapFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
         self.comm = SysMgr.getComm(pid)
+        self.lockObj = lock
 
         # context variables #
         self.start = long(0)
