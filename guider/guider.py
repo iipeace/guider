@@ -29460,13 +29460,22 @@ struct msghdr {
 
 
     def removeBreakpoint(self, addr):
-        if addr not in self.breakList:
+        if addr in self.breakList:
+            savedData = self.breakList[addr]['data']
+        elif not self.multi:
             SysMgr.printWarn(\
-                'No breakpoint registered with addr %s' % addr, True)
+                'No breakpoint registered with addr %s' % addr)
+            return None
+        elif addr in self.breakBackupList:
+            savedData = self.breakBackupList[addr]['data']
+        else:
+            SysMgr.printWarn(\
+                'No breakpoint registered with addr %s' % addr)
             return None
 
-        if not self.breakList[addr]['data'].startswith(self.brkInst):
-            self.writeMem(addr, self.breakList[addr]['data'])
+        # write original data #
+        if not savedData.startswith(self.brkInst):
+            self.writeMem(addr, savedData)
 
         ret = self.breakList.pop(addr, None)
         if not ret:
@@ -31030,7 +31039,7 @@ struct msghdr {
             addr, sym, fname, reins = ret
 
         # read args #
-        args = self.readArgValues()
+        #args = self.readArgValues()
 
         # build arguments string #
         if SysMgr.showAll:
@@ -31820,15 +31829,17 @@ struct msghdr {
 
     def lock(self):
         if self.lockObj:
-            return lockf(self.lockObj, LOCK_EX)
-        return None
+            lockf(self.lockObj, LOCK_EX)
+            return True
+        return False
 
 
 
     def unlock(self):
         if self.lockObj:
-            return lockf(self.lockObj, LOCK_UN)
-        return None
+            lockf(self.lockObj, LOCK_UN)
+            return True
+        return False
 
 
 
@@ -32175,7 +32186,7 @@ struct msghdr {
 
         # remove breakpoints #
         if instance.isAlive() and \
-            len(instance.breakList) > 0:
+            len(instance.breakBackupList) > 0:
             # stop target #
             instance.stop()
 
@@ -32184,7 +32195,7 @@ struct msghdr {
             if ret:
                 addr = instance.pc - instance.prevInstOffset
 
-                for brk in list(instance.breakList.keys()):
+                for brk in list(instance.breakBackupList.keys()):
                     instance.removeBreakpoint(brk)
 
                     # apply register set to rewind IP #
@@ -34018,7 +34029,7 @@ class ElfAnalyzer(object):
                     "Fail to find %s in %s, "
                     "\n\tbut similar symbols [ %s ] are exist") % \
                         (symbol, binPath, ', '.join(offset)), True)
-                sys.exit(0)
+                return None
 
             return offset
 
