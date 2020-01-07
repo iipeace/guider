@@ -3153,9 +3153,11 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def word2bstring(word):
+    def word2bstr(word):
         try:
             return struct.pack('L', word)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "Fail to convert word %s to string" % word)
@@ -3371,9 +3373,11 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertBstring2Word(bstring):
+    def bstr2word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "Fail to convert string %s to word" % bstring)
@@ -3385,6 +3389,8 @@ class UtilMgr(object):
     def convertNumber(number):
         try:
             return format(long(number),",")
+        except SystemExit:
+            sys.exit(0)
         except:
             return number
 
@@ -29105,6 +29111,7 @@ class Debugger(object):
         self.needRescan = True
         self.initPtrace = False
         self.initPvr = False
+        self.initPvw = False
 
         self.args = []
         self.values = []
@@ -29130,6 +29137,7 @@ class Debugger(object):
         self.fp = None
         self.prevsp = None
         self.prevCallInfo = None
+        self.lockObj = None
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -29160,6 +29168,16 @@ class Debugger(object):
         from ctypes import cdll, Structure, sizeof, c_void_p, \
             addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
             c_size_t, c_int, POINTER, sizeof, cast
+
+        try:
+            # load standard libc library #
+            if not SysMgr.libcObj:
+                SysMgr.libcObj = \
+                    cdll.LoadLibrary(SysMgr.libcPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            raise Exception()
 
         # define member classes #
         '''
@@ -29475,7 +29493,7 @@ struct msghdr {
 
         # write original data #
         if not savedData.startswith(self.brkInst):
-            self.writeMem(addr, savedData)
+            self.writeMem(addr, savedData, skipCheck=True)
 
         ret = self.breakList.pop(addr, None)
         if not ret:
@@ -29576,7 +29594,8 @@ struct msghdr {
         if not cache or \
             not addr in self.breakBackupList:
             # read data #
-            origWord = self.readMem(addr)
+            origWord = self.accessMem(self.peekIdx, addr)
+            origWord = UtilMgr.word2bstr(origWord)
 
             # backup data #
             self.breakBackupList[addr] = {
@@ -29613,7 +29632,7 @@ struct msghdr {
         }
 
         # inject trap code #
-        ret = self.writeMem(addr, inst)
+        ret = self.writeMem(addr, inst, skipCheck=True)
 
         if ret < 0:
             SysMgr.printWarn(\
@@ -29796,15 +29815,69 @@ struct msghdr {
 
 
 
-    def writeMem(self, addr, data, size=0):
+    def writeMem(self, addr, data, size=0, skipCheck=False):
         ret = long(0)
         wordSize = ConfigMgr.wordSize
+
+        # update size #
+        if size == 0 or size > len(data):
+            size = len(data)
+
+        class SkipException(Exception):
+            pass
+
+        try:
+            if not self.supportProcessVmWr:
+                raise SkipException()
+
+            # get ctypes object #
+            ctypes = self.ctypes
+            from ctypes import cdll, Structure, memmove, c_char, \
+                c_void_p, c_ulong, c_size_t, c_int, cast, byref
+
+            # prepare process_vm_writev syscall #
+            process_vm_writev = SysMgr.libcObj.process_vm_writev
+
+            if not self.initPvw:
+                SysMgr.libcObj.process_vm_writev.restype = c_size_t
+                SysMgr.libcObj.process_vm_writev.argtypes = \
+                    [c_int, self.iovec_ptr, c_size_t, \
+                        self.iovec_ptr, c_size_t, c_ulong]
+                self.initPvw = True
+
+            # create params #
+            pid = self.pid
+
+            try:
+                lbuf = (c_char*size)()
+                memmove(byref(lbuf), data, len(data))
+                liov = (self.iovec*1)()[0]
+                liov.iov_base = cast(lbuf, c_void_p)
+                liov.iov_len = size
+
+                riov = (self.iovec*1)()[0]
+                riov.iov_base = c_void_p(addr)
+                riov.iov_len = size
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return None
+
+            # do syscall #
+            ret = process_vm_writev(pid, liov, 1, riov, 1, 0)
+            return ret
+        except SkipException:
+            pass
+        except SystemExit:
+            sys.exit(0)
+        except:
+            self.supportProcessVmWr = False
 
         # check address alignment #
         offset = addr % wordSize
 
         # handle interger-type data #
-        if UtilMgr.isNumber(data):
+        if not skipCheck and UtilMgr.isNumber(data):
             if offset == 0:
                 if size == 0:
                     size = 1
@@ -29815,7 +29888,7 @@ struct msghdr {
                         break
                 return ret
             else:
-                data = UtilMgr.word2bstring(data)
+                data = UtilMgr.word2bstr(data)
                 if not data:
                     return -1
 
@@ -29827,17 +29900,14 @@ struct msghdr {
                     size *= wordSize
 
         # convert string to bytes #
-        if UtilMgr.isString(data):
-            data = UtilMgr.encodeStr(data)
-        elif type(data) is not bytes:
-            SysMgr.printErr((\
-                "Fail to recognize data to write because "
-                "%s type is not supported") % type(data))
-            return -1
-
-        # update size #
-        if size == 0 or size > len(data):
-            size = len(data)
+        if not skipCheck:
+            if UtilMgr.isString(data):
+                data = UtilMgr.encodeStr(data)
+            elif type(data) is not bytes:
+                SysMgr.printErr((\
+                    "Fail to recognize data to write because "
+                    "%s type is not supported") % type(data))
+                return -1
 
         # trim data #
         modWord = len(data) % wordSize
@@ -29869,7 +29939,7 @@ struct msghdr {
 
         # convert type from bytes to word #
         for idx in xrange(0, len(fdata), wordSize):
-            data = UtilMgr.convertBstring2Word(fdata[idx:idx+wordSize])
+            data = UtilMgr.bstr2word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret < 0:
@@ -29890,30 +29960,21 @@ struct msghdr {
             pass
 
         try:
-            if not self.supportProcessVmIO:
+            if size == wordSize or \
+                not self.supportProcessVmRd:
                 raise SkipException()
 
             # get ctypes object #
             ctypes = self.ctypes
-            from ctypes import cdll, Structure, c_void_p, c_char_p, \
-                c_ulong, c_size_t, c_int, POINTER, cast, c_char, byref
-
-            try:
-                # load standard libc library #
-                if not SysMgr.libcObj:
-                    SysMgr.libcObj = \
-                        cdll.LoadLibrary(SysMgr.libcPath)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                raise Exception()
+            from ctypes import cdll, Structure, c_void_p, \
+                c_ulong, c_size_t, c_int, cast, c_char, byref
 
             # prepare process_vm_readv syscall #
             process_vm_readv = SysMgr.libcObj.process_vm_readv
 
             if not self.initPvr:
-                process_vm_readv.restype = c_size_t
-                process_vm_readv.argtypes = \
+                SysMgr.libcObj.process_vm_readv.restype = c_size_t
+                SysMgr.libcObj.process_vm_readv.argtypes = \
                     [c_int, self.iovec_ptr, c_size_t, \
                         self.iovec_ptr, c_size_t, c_ulong]
                 self.initPvr = True
@@ -29944,7 +30005,7 @@ struct msghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            self.supportProcessVmIO = False
+            self.supportProcessVmRd = False
 
         # define return list #
         data = bytes()
@@ -29968,7 +30029,7 @@ struct msghdr {
                 return word
 
             # convert a word to a byte string #
-            word = UtilMgr.word2bstring(word)
+            word = UtilMgr.word2bstr(word)
             if not word:
                 return None
 
@@ -30620,7 +30681,7 @@ struct msghdr {
                     rvalue = '"%s"' % rvalue.decode("utf-8")
                     rvalue = re.sub('\W+','', rvalue)
                 except:
-                    rvalue = hex(UtilMgr.convertBstring2Word(rvalue))
+                    rvalue = hex(UtilMgr.bstr2word(rvalue))
 
                 SysMgr.addPrint(\
                     '%s: %x [%s]\n' % (reg, val, rvalue))
@@ -31038,11 +31099,10 @@ struct msghdr {
         else:
             addr, sym, fname, reins = ret
 
-        # read args #
-        #args = self.readArgValues()
-
         # build arguments string #
         if SysMgr.showAll:
+            # read args #
+            args = self.readArgValues()
             argstr = '/%s' % ','.join(list(map(str, args)))
         else:
             argstr = ''
@@ -31689,7 +31749,7 @@ struct msghdr {
 
 
 
-    def getStatList(self):
+    def getStatList(self, retstr=False):
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
@@ -31706,6 +31766,9 @@ struct msghdr {
             except:
                 SysMgr.printOpenWarn(statPath)
                 return None
+
+        if retstr:
+            return stat
 
         # convert string to list #
         statList = stat.split(')')[1].split()
@@ -31741,22 +31804,7 @@ struct msghdr {
 
 
     def getCpuUsage(self):
-        try:
-            self.statFd.seek(0)
-            stat = self.statFd.readlines()[0]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            try:
-                statPath = "%s/%s/task/%s/stat" % \
-                    (SysMgr.procPath, self.pid, self.pid)
-                self.statFd = open(statPath, 'r')
-                stat = self.statFd.readlines()[0]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(statPath)
-                return
+        stat = self.getStatList(retstr=True)
 
         # check stat change #
         if self.prevStat == stat:
@@ -31873,7 +31921,8 @@ struct msghdr {
         self.prevCpuStat = None
         self.supportGetRegset = True
         self.supportSetRegset = True
-        self.supportProcessVmIO = True
+        self.supportProcessVmRd = True
+        self.supportProcessVmWr = False
         self.cmd = None
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.REG_LIST[self.arch]
@@ -32721,11 +32770,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         from ctypes import cdll, c_int, c_ulong, pointer, POINTER, c_uint
 
         try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-
             # type converting #
             SysMgr.libcObj.waitpid.argtypes = \
                 (c_int, POINTER(None), c_int)
@@ -32775,11 +32819,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         ctypes = self.ctypes
 
         try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    ctypes.cdll.LoadLibrary(SysMgr.libcPath)
-
             # type converting #
             if not self.initPtrace:
                 SysMgr.libcObj.ptrace.argtypes = \
@@ -33821,9 +33860,11 @@ class ElfAnalyzer(object):
             ctime = os.stat(cpath).st_mtime
 
             if otime > ctime:
-                return None
+                SysMgr.printWarn(\
+                    "The modification time of %s is ahead of %s" % \
+                        (path, cpath), True)
         except:
-            return None
+            pass
 
         # load object from file #
         obj = UtilMgr.loadObjectFromFile(cpath)
