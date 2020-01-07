@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020105"
+__revision__ = "2020108"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29499,6 +29499,15 @@ struct msghdr {
         if not ret:
             return None
 
+        if 'symbol' in ret:
+            symbol = ret['symbol']
+        else:
+            symbol = '??'
+
+        SysMgr.printWarn(\
+            'Removed the breakpoint at %s(%s) for %s thread' % \
+                (hex(addr), symbol, self.pid))
+
         return (addr, ret['symbol'], ret['filename'], ret['reins'])
 
 
@@ -29645,8 +29654,8 @@ struct msghdr {
             else:
                 symbol = ''
             SysMgr.printWarn(\
-                'Added a new breakpoint at %s%s' % \
-                    (hex(addr), symbol))
+                'Added a new breakpoint at %s%s for %s thread' % \
+                    (hex(addr), symbol, self.pid))
 
         return True
 
@@ -31078,7 +31087,7 @@ struct msghdr {
         if not self.updateRegs():
             SysMgr.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
-            return
+            sys.exit(0)
 
         # Wait on all children, regardless of type #
         __WALL = 0x40000000
@@ -31219,7 +31228,7 @@ struct msghdr {
         if not self.updateRegs():
             SysMgr.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
-            return
+            sys.exit(0)
 
         # check previous function boundary #
         if self.prevCallInfo and \
@@ -31540,7 +31549,7 @@ struct msghdr {
         if self.getRegs(temp=True) != 0:
             SysMgr.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
-            return
+            sys.exit(0)
 
         # convert register set to dictionary #
         tempRegsDict = self.tempRegs.getdict()
@@ -31579,7 +31588,7 @@ struct msghdr {
         if not self.updateRegs():
             SysMgr.printErr(\
                 "Fail to get register values of thread %d" % self.pid)
-            return
+            sys.exit(0)
 
         # check SYSEMU condition #
         if len(SysMgr.syscallList) > 0 and \
@@ -32019,7 +32028,7 @@ struct msghdr {
 
         # prepare environment for profiling #
         if self.isRunning:
-            self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+            self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
 
             # handle current user symbol #
             if mode != 'syscall' and \
@@ -32033,7 +32042,7 @@ struct msghdr {
                     return
         # set trap event type #
         else:
-            self.ptraceEvent('PTRACE_O_TRACEEXEC')
+            self.ptraceEvent(['PTRACE_O_TRACEEXEC'])
             self.status = 'ready'
 
         # select trap command #
@@ -32115,7 +32124,7 @@ struct msghdr {
                 if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
-                        self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
                         if self.cmd:
                             self.ptrace(self.cmd, 0, 0)
                         self.status = 'enter'
@@ -32156,7 +32165,7 @@ struct msghdr {
 
                     # set up trap again #
                     if mode == 'syscall':
-                        self.ptraceEvent('PTRACE_O_TRACESYSGOOD')
+                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
 
                     self.ptrace(self.cmd, 0, 0)
 
@@ -32734,31 +32743,33 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def ptraceEvent(self, req):
+    def ptraceEvent(self, reqList):
         # define architect-independant constant #
         PTRACE_SETOPTIONS = 0x4200
         PTRACE_GETEVENTMSG = 0x4201
         PTRACE_GETSIGINFO = 0x4202
         PTRACE_SETSIGINFO = 0x4203
 
+        option = 0
         plist = ConfigMgr.PTRACE_EVENT_TYPE
 
-        if req == 'PTRACE_O_TRACESYSGOOD':
-            option = 1
-        elif req == 'PTRACE_O_TRACEFORK':
-            option = 1 << plist.index('PTRACE_EVENT_FORK')
-        elif req == 'PTRACE_O_TRACEVFORK':
-            option = 1 << plist.index('PTRACE_EVENT_VFORK')
-        elif req == 'PTRACE_O_TRACECLONE':
-            option = 1 << plist.index('PTRACE_EVENT_CLONE')
-        elif req == 'PTRACE_O_TRACEEXEC':
-            option = 1 << plist.index('PTRACE_EVENT_EXEC')
-        elif req == 'PTRACE_O_TRACEVFORKDONE':
-            option = 1 << plist.index('PTRACE_EVENT_VFORK_DONE')
-        elif req == 'PTRACE_O_TRACEEXIT':
-            option = 1 << plist.index('PTRACE_EVENT_EXIT')
-        elif req == 'PTRACE_O_TRACESECCOMP':
-            option = 1 << plist.index('PTRACE_EVENT_SECCOMP')
+        for req in reqList:
+            if req == 'PTRACE_O_TRACESYSGOOD':
+                option |= 1
+            elif req == 'PTRACE_O_TRACEFORK':
+                option |= 1 << plist.index('PTRACE_EVENT_FORK')
+            elif req == 'PTRACE_O_TRACEVFORK':
+                option |= 1 << plist.index('PTRACE_EVENT_VFORK')
+            elif req == 'PTRACE_O_TRACECLONE':
+                option |= 1 << plist.index('PTRACE_EVENT_CLONE')
+            elif req == 'PTRACE_O_TRACEEXEC':
+                option |= 1 << plist.index('PTRACE_EVENT_EXEC')
+            elif req == 'PTRACE_O_TRACEVFORKDONE':
+                option |= 1 << plist.index('PTRACE_EVENT_VFORK_DONE')
+            elif req == 'PTRACE_O_TRACEEXIT':
+                option |= 1 << plist.index('PTRACE_EVENT_EXIT')
+            elif req == 'PTRACE_O_TRACESECCOMP':
+                option |= 1 << plist.index('PTRACE_EVENT_SECCOMP')
 
         return self.ptrace(PTRACE_SETOPTIONS, 0, option)
 
