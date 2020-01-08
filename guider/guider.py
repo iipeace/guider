@@ -829,6 +829,8 @@ class ConfigMgr(object):
         )),
         "getuid16": ("long", (
         )),
+        "getuid32": ("long", (
+        )),
         "getxattr": ("long", (
             ("const char *", "path"),
             ("const char *", "name"),
@@ -29815,7 +29817,7 @@ struct msghdr {
         wordSize = ConfigMgr.wordSize
 
         if addr % wordSize:
-            SysMgr.printErr((\
+            SysMgr.printWarn((\
                 "Fail to access %s memory "
                 "because of unaligned address") % addr)
             return None
@@ -30284,7 +30286,8 @@ struct msghdr {
 
     @staticmethod
     def onAlarm(signum, frame):
-        Debugger.lastInstance.printIntervalSummary()
+        if Debugger.lastInstance:
+            Debugger.lastInstance.printIntervalSummary()
         SysMgr.updateTimer()
 
 
@@ -30316,6 +30319,9 @@ struct msghdr {
             self.totalCall = long(0)
             self.callTable = dict()
             SysMgr.clearPrint()
+
+        if self.multi and len(self.callTable) == 0:
+            return
 
         # check user input #
         SysMgr.waitUserInput(\
@@ -33873,7 +33879,7 @@ class ElfAnalyzer(object):
             if otime > ctime:
                 SysMgr.printWarn(\
                     "The modification time of %s is ahead of %s" % \
-                        (path, cpath), True)
+                        (path, cpath))
         except:
             pass
 
@@ -41023,7 +41029,10 @@ class ThreadAnalyzer(object):
             syscallInfo = ''
             for sysId, val in sorted(\
                 totalInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
-                syscall = ConfigMgr.sysList[int(sysId)][4:]
+                try:
+                    syscall = ConfigMgr.sysList[int(sysId)][4:]
+                except:
+                    continue
 
                 syscallInfo = \
                     ('{0:1} {1:>30}({2:>3}) {3:>12} '
@@ -47022,6 +47031,9 @@ class ThreadAnalyzer(object):
                     self.kernelEventInfo[name]['min'] == 0:
                     self.kernelEventInfo[name]['min'] = usage
 
+        # return time #
+        return time
+
 
 
     def compareThreadData(self):
@@ -50877,6 +50889,13 @@ class ThreadAnalyzer(object):
                 except:
                     etc = '-'
 
+            if SysMgr.floatEnable:
+                ttime = '%.1f' % value['ttime']
+                btime = '%.1f' % value['btime']
+            else:
+                ttime = value['ttime']
+                btime = value['btime']
+
             # print thread information #
             SysMgr.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
@@ -50886,10 +50905,10 @@ class ThreadAnalyzer(object):
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
                 ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                str(schedValue), value['ttime'], value['utime'], \
+                str(schedValue), ttime, value['utime'], \
                 value['stime'], '-', long(stat[self.vssIdx]) >> 20, \
                 long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
-                value['btime'], readSize, writeSize, value['majflt'],\
+                btime, readSize, writeSize, value['majflt'],\
                 '-', '-', '-', lifeTime[:9], etc[:21], cl=cl, pd=pd))
             procCnt += 1
 
