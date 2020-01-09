@@ -2625,7 +2625,7 @@ class ConfigMgr(object):
     sysList = None
 
     # Define systemcall register #
-    REG_LIST = {
+    SYSREG_LIST = {
         "powerpc": "gpr0",
         "arm": "r7",
         "aarch64": "r8",
@@ -17112,6 +17112,7 @@ Copyright:
     @staticmethod
     def exitHandler(signum, frame):
         SysMgr.printWarn('Terminated by user\n')
+        signal.alarm(0)
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
 
@@ -29128,7 +29129,7 @@ class Debugger(object):
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
-            'x64': self.getBacktrace_X64,
+            'x64': self.getBacktrace_X86,
             'arm': self.getBacktrace_ARM,
             'aarch64': self.getBacktrace_AARCH64,
         }
@@ -29816,19 +29817,34 @@ struct msghdr {
     def accessMem(self, cmd, addr, data=0):
         wordSize = ConfigMgr.wordSize
 
+        if addr < wordSize:
+            SysMgr.printWarn((\
+                "Fail to access %s memory "
+                "because of wrong address") % hex(addr))
+            return None
+
         if addr % wordSize:
             SysMgr.printWarn((\
                 "Fail to access %s memory "
-                "because of unaligned address") % addr)
+                "because of unaligned address") % hex(addr))
             return None
 
-        return self.ptrace(cmd, addr, data)
+        ret = self.ptrace(cmd, addr, data)
+        if ret == 0xffffffff:
+            return -1
+        return ret
 
 
 
     def writeMem(self, addr, data, size=0, skipCheck=False):
         ret = long(0)
         wordSize = ConfigMgr.wordSize
+
+        if addr < wordSize:
+            SysMgr.printWarn((\
+                "Fail to write to %s memory "
+                "because of wrong address") % hex(addr))
+            return None
 
         # update size #
         if size == 0 or size > len(data):
@@ -29963,6 +29979,12 @@ struct msghdr {
     def readMem(self, addr, size=0, retWord=False):
         wordSize = ConfigMgr.wordSize
 
+        if addr < wordSize:
+            SysMgr.printWarn((\
+                "Fail to read from %s memory "
+                "because of wrong address") % hex(addr))
+            return None
+
         # check size #
         if size == 0:
             size = wordSize
@@ -30033,7 +30055,8 @@ struct msghdr {
             word = self.accessMem(self.peekIdx, addr)
             if word < 0:
                 SysMgr.printErr(\
-                    "Fail to read memory %x of thread %s" % (addr, self.pid))
+                    "Fail to read memory %s of thread %s" % \
+                        (hex(addr), self.pid))
                 return None
 
             if retWord:
@@ -30342,11 +30365,11 @@ struct msghdr {
         elif self.mode == 'break':
             ctype = 'Breakpoint'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ' [SampleTime: %f]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ' [SampleTime: %f]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convertNumber
@@ -30678,7 +30701,11 @@ struct msghdr {
         isPrinted = False
 
         # print register #
-        if regs and self.regsDict:
+        if regs:
+            # set regsdict #
+            if not self.regsDict:
+                self.regsDict = self.regs.getdict()
+
             if not isPrinted:
                 SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
                 isPrinted = True
@@ -30732,9 +30759,19 @@ struct msghdr {
 
 
 
+    def getRetVal(self):
+        try:
+            return getattr(self.regs, self.retreg)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+
+
     def getNrSyscall(self):
         try:
-            return self.regsDict[self.sysreg]
+            return getattr(self.regs, self.sysreg)
         except SystemExit:
             sys.exit(0)
         except:
@@ -30932,14 +30969,6 @@ struct msghdr {
 
 
     def getBacktrace_X86(self, limit=sys.maxsize, cur=False):
-        SysMgr.printErr(\
-            '%s platform is not supported yet for backtrace' % \
-            SysMgr.arch)
-        sys.exit(0)
-
-
-
-    def getBacktrace_X64(self, limit=sys.maxsize, cur=False):
         nextFp = self.fp
         btList = []
         wordSize = ConfigMgr.wordSize
@@ -30961,7 +30990,7 @@ struct msghdr {
                 if targetAddr % wordSize == 0:
                     value = self.accessMem(self.peekIdx, targetAddr)
                 else:
-                    value = self.readMem(targetAddr)
+                    value = self.readMem(targetAddr, retWord=True)
 
                 # add call address #
                 if value:
@@ -30973,7 +31002,7 @@ struct msghdr {
                 if nextFp % wordSize == 0:
                     nextFp = self.accessMem(self.peekIdx, nextFp)
                 else:
-                    nextFp = self.readMem(nextFp)
+                    nextFp = self.readMem(nextFp, retWord=True)
 
                 if nextFp:
                     nextFp = long(nextFp)
@@ -31014,9 +31043,17 @@ struct msghdr {
 
             # get FP and LR #
             try:
-                nextLr = self.accessMem(\
-                    self.peekIdx, nextFp + ConfigMgr.wordSize)
-                nextFp = self.accessMem(self.peekIdx, nextFp)
+                nextAddr = nextFp + wordSize
+
+                if nextAddr % wordSize == 0:
+                    nextLr = self.accessMem(self.peekIdx, nextAddr)
+                else:
+                    nextLr = self.readMem(nextAddr, retWord=True)
+
+                if nextFp % wordSize == 0:
+                    nextFp = self.accessMem(self.peekIdx, nextFp)
+                else:
+                    nextFp = self.readMem(nextFp, retWord=True)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -31054,9 +31091,17 @@ struct msghdr {
 
             # get FP and LR #
             try:
-                nextLr = self.accessMem(\
-                    self.peekIdx, nextFp + ConfigMgr.wordSize)
-                nextFp = self.accessMem(self.peekIdx, nextFp)
+                nextAddr = nextFp + wordSize
+
+                if nextAddr % wordSize == 0:
+                    nextLr = self.accessMem(self.peekIdx, nextAddr)
+                else:
+                    nextLr = self.readMem(nextAddr, retWord=True)
+
+                if nextFp % wordSize == 0:
+                    nextFp = self.accessMem(self.peekIdx, nextFp)
+                else:
+                    nextFp = self.readMem(nextFp, retWord=True)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -31464,7 +31509,7 @@ struct msghdr {
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
-            backtrace = self.getBacktrace(SysMgr.funcDepth)
+            backtrace = self.getBacktrace(SysMgr.funcDepth, cur=True)
             bts = '\n\t%s ' % self.getBacktraceString(backtrace)
         else:
             backtrace = None
@@ -31557,11 +31602,8 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             sys.exit(0)
 
-        # convert register set to dictionary #
-        tempRegsDict = self.tempRegs.getdict()
-
         # set return value from register #
-        retval = tempRegsDict[self.retreg]
+        retval = getattr(self.regs, self.retreg)
 
         # convert unsigned long to long #
         retval = (retval & 0xffffffffffffffff)
@@ -31603,8 +31645,7 @@ struct msghdr {
             self.status = 'skip'
             return
 
-        regs = self.regsDict
-        nrSyscall = regs[self.sysreg]
+        nrSyscall = self.getNrSyscall()
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         try:
@@ -31692,7 +31733,7 @@ struct msghdr {
                     self.syscallTimeStat[name] = [diff, diff]
 
             # set return value from register #
-            retval = regs[self.retreg]
+            retval = self.getRetVal()
 
             # convert unsigned long to long #
             retval = (retval & 0xffffffffffffffff)
@@ -31940,7 +31981,7 @@ struct msghdr {
         self.supportProcessVmWr = False
         self.cmd = None
         self.arch = SysMgr.getArch()
-        self.sysreg = ConfigMgr.REG_LIST[self.arch]
+        self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
         self.multi = multi
         self.pbufsize = SysMgr.ttyCols >> 1
@@ -32390,7 +32431,7 @@ struct msghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = '[Sampling: %g]' % instance.sampleTime
+            samplingStr = '[Sampling: %f]' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
@@ -32398,7 +32439,7 @@ struct msghdr {
 
         SysMgr.printPipe((\
             '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] '
-            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %g]%s') % \
+            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %f]%s') % \
                 (mtype, ctype, elapsed, samplingStr, \
                 instance.comm, instance.pid, \
                 convert(long(nrTotal)), sampleRateStr, \
@@ -32733,9 +32774,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
-
-        # set regsdict #
-        self.regsDict = self.regs.getdict()
 
         # measure the cost for copying register set of the target process #
         if self.getRegsCost == 0:
