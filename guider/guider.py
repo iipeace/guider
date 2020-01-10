@@ -3155,7 +3155,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def word2bstr(word):
+    def convertWord2Bstr(word):
         try:
             return struct.pack('L', word)
         except SystemExit:
@@ -3375,7 +3375,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def bstr2word(bstring):
+    def convertBstr2Word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
         except SystemExit:
@@ -22852,6 +22852,11 @@ Copyright:
 
         # check tid #
         if SysMgr.sourceFile:
+            if mode == 'breakcall':
+                SysMgr.printErr(\
+                    "Fail to support launching file in this mode")
+                sys.exit(0)
+
             pid = None
             execCmd = SysMgr.sourceFile.split()
         elif not SysMgr.isRoot():
@@ -29607,7 +29612,7 @@ struct msghdr {
             not addr in self.breakBackupList:
             # read data #
             origWord = self.accessMem(self.peekIdx, addr)
-            origWord = UtilMgr.word2bstr(origWord)
+            origWord = UtilMgr.convertWord2Bstr(origWord)
 
             # backup data #
             self.breakBackupList[addr] = {
@@ -29627,7 +29632,7 @@ struct msghdr {
         if origWord.startswith(inst):
             if addr in self.breakBackupList and \
                 self.breakBackupList[addr]['data'] != inst:
-                    origWord = self.breakBackupList[addr]['data']
+                origWord = self.breakBackupList[addr]['data']
             else:
                 SysMgr.printWarn((\
                     'Fail to add breakpoint with addr %s '
@@ -29915,7 +29920,7 @@ struct msghdr {
                         break
                 return ret
             else:
-                data = UtilMgr.word2bstr(data)
+                data = UtilMgr.convertWord2Bstr(data)
                 if not data:
                     return -1
 
@@ -29966,7 +29971,7 @@ struct msghdr {
 
         # convert type from bytes to word #
         for idx in xrange(0, len(fdata), wordSize):
-            data = UtilMgr.bstr2word(fdata[idx:idx+wordSize])
+            data = UtilMgr.convertBstr2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret < 0:
@@ -30063,7 +30068,7 @@ struct msghdr {
                 return word
 
             # convert a word to a byte string #
-            word = UtilMgr.word2bstr(word)
+            word = UtilMgr.convertWord2Bstr(word)
             if not word:
                 return None
 
@@ -30723,7 +30728,7 @@ struct msghdr {
                     rvalue = '"%s"' % rvalue.decode("utf-8")
                     rvalue = re.sub('\W+','', rvalue)
                 except:
-                    rvalue = hex(UtilMgr.bstr2word(rvalue))
+                    rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
 
                 SysMgr.addPrint(\
                     '%s: %x [%s]\n' % (reg, val, rvalue))
