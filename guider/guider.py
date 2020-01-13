@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020113"
+__revision__ = "2020114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3719,6 +3719,15 @@ class UtilMgr(object):
             jsonStr = re.sub("\s", "", jsonStr) + "\n"
 
         return jsonStr
+
+
+
+    @staticmethod
+    def convertUlong2Long(retval):
+        retval = (retval & 0xffffffffffffffff)
+        if retval & 0x8000000000000000:
+            retval = retval - 0x10000000000000000
+        return retval
 
 
 
@@ -10652,7 +10661,7 @@ class FileAnalyzer(object):
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:>16}({1:>5}) |".format(threadVal['comm'], tid)
+                    "{0:>16}({1:>5}) |".format(threadVal['comm'][:16], tid)
 
                 linePos += threadLength
 
@@ -10926,11 +10935,12 @@ class FileAnalyzer(object):
                 pass
 
             printMsg = "{0:>16}({1:>5})|{2:>12} |".\
-                format(val['comm'], pid, convert(rsize))
+                format(val['comm'][:16], pid, convert(rsize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
-                threadInfo = "{0:^16}({1:^5}) |".format(threadVal['comm'], tid)
+                threadInfo = \
+                    "{0:^16}({1:^5}) |".format(threadVal['comm'][:16], tid)
 
                 linePos += threadLength
 
@@ -10997,7 +11007,7 @@ class FileAnalyzer(object):
                     linePos = indentLength + pidLength
                     pidInfo += '\n' + (' ' * indentLength) + '|'
 
-                pidInfo += " %16s (%5s) |" % (comm, pid)
+                pidInfo += " %16s (%5s) |" % (comm[:16], pid)
 
                 linePos += pidLength
 
@@ -11148,7 +11158,9 @@ class FileAnalyzer(object):
         self.profFailedCnt = long(0)
 
         for fileName, val in self.fileData.items():
-            if fileName.startswith('/dev'):
+            if not fileName.startswith('/'):
+                continue
+            elif fileName.startswith('/dev'):
                 SysMgr.printWarn(\
                     "Skip to analyze %s because it is device node" % fileName)
                 continue
@@ -22807,6 +22819,9 @@ Copyright:
 
             # load symbol caches at once #
             for item in mapList:
+                if not item.startswith('/'):
+                    continue
+
                 try:
                     eobj = ElfAnalyzer.getObject(item)
                     if len(pidList) == 1 and eobj:
@@ -23185,6 +23200,9 @@ Copyright:
             # get file list on memorymap #
             fileList = FileAnalyzer.getProcMapInfo(pids[0])
             for filePath, attr in fileList.items():
+                if not filePath.startswith('/'):
+                    continue
+
                 for sym in SysMgr.filterGroup:
                     # create elf object #
                     try:
@@ -29854,8 +29872,6 @@ struct msghdr {
             return None
 
         ret = self.ptrace(cmd, addr, data)
-        if ret == 0xffffffff:
-            return -1
         return ret
 
 
@@ -30017,8 +30033,7 @@ struct msghdr {
             pass
 
         try:
-            if size == wordSize or \
-                not self.supportProcessVmRd:
+            if not self.supportProcessVmRd:
                 raise SkipException()
 
             # get ctypes object #
@@ -30584,6 +30599,9 @@ struct msghdr {
 
         for mfile in list(self.pmap.keys()):
             try:
+                if not mfile.startswith('/'):
+                    continue
+
                 eobj = ElfAnalyzer.getObject(mfile)
                 if eobj:
                     eobj.mergeSymTable()
@@ -30593,7 +30611,7 @@ struct msghdr {
 
 
     def getSymbolInfo(self, vaddr):
-        if not vaddr:
+        if not vaddr or vaddr < 0:
             return None
 
         if not self.pid:
@@ -30642,8 +30660,8 @@ struct msghdr {
             self.needRescan = True
 
             SysMgr.printWarn(\
-                'Fail to get offset in %s via vaddr '
-                'because wrong memory map' % fname)
+                'Fail to get offset in %s via %s '
+                'because wrong memory map' % (fname, hex(vaddr)))
             return ['??', fname, '??', '??', '??']
 
         # get elf object #
@@ -31010,7 +31028,7 @@ struct msghdr {
                 break
 
             try:
-                targetAddr = nextFp+wordSize
+                targetAddr = nextFp + wordSize
                 if targetAddr % wordSize == 0:
                     value = self.accessMem(self.peekIdx, targetAddr)
                 else:
@@ -31629,9 +31647,7 @@ struct msghdr {
         retval = getattr(self.regs, self.retreg)
 
         # convert unsigned long to long #
-        retval = (retval & 0xffffffffffffffff)
-        if retval & 0x8000000000000000:
-            retval = retval - 0x10000000000000000
+        retval = UtilMgr.convertUlong2Long(retval)
 
         if retval < 0:
             args = []
@@ -31759,9 +31775,7 @@ struct msghdr {
             retval = self.getRetVal()
 
             # convert unsigned long to long #
-            retval = (retval & 0xffffffffffffffff)
-            if retval & 0x8000000000000000:
-                retval = retval - 0x10000000000000000
+            retval = UtilMgr.convertUlong2Long(retval)
 
             # check wait condition #
             if self.wait:
@@ -32905,7 +32919,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 SysMgr.libcObj.ptrace.restype = ctypes.c_ulong
                 self.initPtrace = True
 
-            return SysMgr.libcObj.ptrace(req, pid, addr, data)
+            ret = SysMgr.libcObj.ptrace(req, pid, addr, data)
+            return UtilMgr.convertUlong2Long(ret)
         except SystemExit:
             sys.exit(0)
         except:
@@ -33964,11 +33979,6 @@ class ElfAnalyzer(object):
         if path not in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
-                return None
-            elif path == 'vdso' or \
-                path == 'vsyscall' or \
-                path == 'vectors' or \
-                path == 'heap':
                 return None
 
             SysMgr.printInfo(\
