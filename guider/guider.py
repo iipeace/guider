@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020108"
+__revision__ = "2020113"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11508,12 +11508,14 @@ class SysMgr(object):
     libgObj = None
     guiderObj = None
     libcppObj = None
+    libdemangleObj = None
     dltPath = 'libdlt.so'
     libcPath = 'libc.so.6'
     libgobjPath = 'libgobject-2.0.so'
     libgioPath = 'libgio-2.0.so'
     libdbusPath = 'libdbus-1.so.3'
     libcppPath = 'libstdc++.so.6'
+    libdemanglePath = libcppPath
     matplotlibVersion = long(0)
     matplotlibDpi = 500
 
@@ -11776,6 +11778,9 @@ class SysMgr(object):
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
+
+            if not hasattr(SysMgr.libcObj, 'malloc_trim'):
+                raise Exception('no malloc_trim in %s' % SysMgr.libcPath)
 
             # int malloc_trim (size_t pad) #
             ret = SysMgr.libcObj.malloc_trim(0)
@@ -12849,6 +12854,9 @@ class SysMgr(object):
             if 'ANDROID_ROOT' in os.environ:
                 SysMgr.isAndroid = True
                 SysMgr.libcPath = 'libc.so'
+                SysMgr.libcppPath = 'libstdc++.so'
+                SysMgr.libdemanglePath = 'libgccdemangle.so'
+                SysMgr.cacheDirPath = '/data/log/guider'
         elif sys.platform.startswith('win') or \
             sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
@@ -23204,6 +23212,9 @@ Copyright:
             if offset is None:
                 offset = 'N/A'
 
+            if addr is None:
+                addr = 'N/A'
+
             SysMgr.printPipe(\
                 "{0:<48} {1:<52} {2:<18} {3:<18}".format(\
                     symbol, filePath, offset, addr))
@@ -23292,6 +23303,8 @@ Copyright:
                     nrTask += 1
 
                 load = long(totalLoad / nrTask)
+
+            nrTask = long(nrTask)
         except SystemExit:
             sys.exit(0)
         except:
@@ -23943,10 +23956,15 @@ Copyright:
                         if not threadList:
                             SysMgr.printErr(\
                                 "Fail to get thread list of %s task" % \
-                                schedSet[2])
+                                    schedSet[2])
                             sys.exit(0)
-                    else:
+                    elif schedSet[2].isdigit():
                         threadList = [int(schedSet[2])]
+                    else:
+                        SysMgr.printErr(\
+                            "Fail to get thread id from '%s' value" % \
+                                schedSet[2])
+                        sys.exit(0)
 
                     # change priority of a thread #
                     for tid in threadList:
@@ -23965,7 +23983,8 @@ Copyright:
                 elif len(schedSet) == 4:
                     # verify sched parameters #
                     if schedSet[3] != 'CONT':
-                        raise Exception()
+                        raise Exception(\
+                            "no recognizable '%s' parameter" % scehdSet[3])
 
                     policy = schedSet[0].upper()
                     ConfigMgr.SCHED_POLICY.index(policy)
@@ -23990,7 +24009,7 @@ Copyright:
                     for tid in threadList:
                         SysMgr.schedFilter.append([policy, pri, tid])
                 else:
-                    raise Exception()
+                    raise Exception("no recognizable parameters")
             except SystemExit:
                 sys.exit(0)
             except:
@@ -31459,8 +31478,7 @@ struct msghdr {
                     text = UtilMgr.decodeArg(arg[2])
 
                     # check output length #
-                    if not (SysMgr.printFile or \
-                        SysMgr.showAll) and \
+                    if not (SysMgr.printFile or SysMgr.showAll) and \
                         len(text) > self.pbufsize:
                         text = '"%s"...' % text[:self.pbufsize]
                     else:
@@ -34042,16 +34060,16 @@ class ElfAnalyzer(object):
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
 
-            # load standard libstdc++ library #
-            if not SysMgr.libcppObj:
-                SysMgr.libcppObj = \
-                    cdll.LoadLibrary(SysMgr.libcppPath)
+            # load demangle library #
+            if not SysMgr.libdemangleObj:
+                SysMgr.libdemangleObj = \
+                    cdll.LoadLibrary(SysMgr.libdemanglePath)
 
             # declare free() args #
             SysMgr.libcObj.free.argtypes = [c_void_p]
 
             # declare __cxa_demangle() function pointer #
-            funcp = getattr(SysMgr.libcppObj, '__cxa_demangle')
+            funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
             funcp.restype = c_char_p
 
             status = c_int()
@@ -40692,7 +40710,7 @@ class ThreadAnalyzer(object):
         outputCnt = long(0)
         SysMgr.printPipe(\
             '\n[Thread Futex Lock Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
-            float(self.totalTime))
+                float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((\
             '{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} {6:>8} {7:>10} '
@@ -40973,7 +40991,9 @@ class ThreadAnalyzer(object):
         convertNum = UtilMgr.convertNumber
 
         outputCnt = long(0)
-        SysMgr.printPipe('\n[Thread Syscall Info] (Unit: Sec/NR)')
+        SysMgr.printPipe(\
+            '\n[Thread Syscall Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
+                float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((\
             '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12} {5:>12} '
