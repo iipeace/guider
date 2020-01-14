@@ -15099,7 +15099,7 @@ Copyright:
                     nrSyscall, args[0], args[1], args[2], args[3], \
                         args[4], args[5])
 
-            return UtilMgr.convertUlong2Long(ret)
+            return ret
         except SystemExit:
             sys.exit(0)
         except:
@@ -22860,7 +22860,8 @@ Copyright:
                     procObj.detach()
                     del procObj
 
-                    SysMgr.sendSignalProcs(signal.SIGCONT, pid)
+                    SysMgr.sendSignalProcs(\
+                        signal.SIGCONT, [pid], verbose=False)
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -23544,8 +23545,7 @@ Copyright:
         taskList = {}
 
         def getThreadList(pid):
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
-            taskPath = "%s/task" % procPath
+            taskPath = "%s/%s/task" % (SysMgr.procPath, pid)
 
             try:
                 return list(map(long, os.listdir(taskPath)))
@@ -29533,7 +29533,8 @@ struct msghdr {
             return None
 
         # write original data #
-        if not savedData.startswith(self.brkInst):
+        if savedData and \
+            not savedData.startswith(self.brkInst):
             self.writeMem(addr, savedData, skipCheck=True)
 
         ret = self.breakList.pop(addr, None)
@@ -30008,7 +30009,7 @@ struct msghdr {
             data = UtilMgr.convertBstr2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
-            if ret < 0:
+            if ret == -1:
                 break
 
         return ret
@@ -30091,7 +30092,7 @@ struct msghdr {
         while size > 0:
             # read a word #
             word = self.accessMem(self.peekIdx, addr)
-            if word < 0:
+            if word == -1:
                 SysMgr.printErr(\
                     "Fail to read memory %s of thread %s" % \
                         (hex(addr), self.pid))
@@ -30757,12 +30758,14 @@ struct msghdr {
             for reg, val in sorted(self.regsDict.items()):
                 if deref and val:
                     rvalue = self.readMem(val)
-
-                    try:
-                        rvalue = '"%s"' % rvalue.decode("utf-8")
-                        rvalue = re.sub('\W+','', rvalue)
-                    except:
-                        rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
+                    if rvalue:
+                        try:
+                            rvalue = '"%s"' % rvalue.decode("utf-8")
+                            rvalue = re.sub('\W+','', rvalue)
+                        except:
+                            rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
+                    else:
+                        rvalue = '?'
                 else:
                     rvalue = '?'
 
@@ -31205,7 +31208,7 @@ struct msghdr {
         if SysMgr.showAll:
             # read args #
             args = self.readArgValues()
-            argstr = '/%s' % ','.join(list(map(str, args)))
+            argstr = '(%s)' % ','.join(list(map(str, args)))
         else:
             argstr = ''
 
@@ -31221,7 +31224,7 @@ struct msghdr {
             else:
                 tinfo = ''
 
-            callString = '%3.6f %s%s(%s%s) [%s]' % \
+            callString = '%3.6f %s%s@%s%s [%s]' % \
                 (diff, tinfo, sym, hex(addr), argstr, fname)
 
             if self.isRealtime:
@@ -31596,8 +31599,13 @@ struct msghdr {
         if deferrable:
             callString = '%s) %s' % (argText, bts)
         else:
-            callString = \
-                '%3.6f %s(%s) %s' % (diff, self.syscall, argText, bts)
+            if self.multi:
+                callString = \
+                    '%3.6f %s(%s) %s(%s) %s' % \
+                        (diff, self.comm, self.pid, self.syscall, argText, bts)
+            else:
+                callString = \
+                    '%3.6f %s(%s) %s' % (diff, self.syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -31645,10 +31653,6 @@ struct msghdr {
 
         # set return value from register #
         retval = getattr(self.regs, self.retreg)
-
-        # convert unsigned long to long #
-        retval = UtilMgr.convertUlong2Long(retval)
-
         if retval < 0:
             args = []
 
@@ -31724,7 +31728,11 @@ struct msghdr {
                     diff = current - self.start
 
                     # build call string #
-                    callString = '%3.6f %s(' % (diff, name)
+                    if self.multi:
+                        callString = '%3.6f %s(%s) %s(' % \
+                            (diff, self.comm, self.pid, name)
+                    else:
+                        callString = '%3.6f %s(' % (diff, name)
 
                     if SysMgr.printFile:
                         self.bufferedStr = callString
@@ -31773,9 +31781,6 @@ struct msghdr {
 
             # set return value from register #
             retval = self.getRetVal()
-
-            # convert unsigned long to long #
-            retval = UtilMgr.convertUlong2Long(retval)
 
             # check wait condition #
             if self.wait:
@@ -32639,7 +32644,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             for tid in tlist:
                 lastTid = long(tid)
-                ret = SysMgr.createProcess(mute=True)
+                ret = SysMgr.createProcess(mute=True, changePgid=True)
                 if ret > 0:
                     dlist.append(long(ret))
                     SysMgr.printInfo("paused thread %s" % lastTid)
@@ -32655,6 +32660,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             # wait for user event to continue threads #
             SysMgr.waitEvent()
+
+            SysMgr.killChilds(signal.SIGINT)
+            SysMgr.clearChildList()
         except SystemExit:
             return
         except:
@@ -32919,8 +32927,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 SysMgr.libcObj.ptrace.restype = ctypes.c_ulong
                 self.initPtrace = True
 
-            ret = SysMgr.libcObj.ptrace(req, pid, addr, data)
-            return UtilMgr.convertUlong2Long(ret)
+            return SysMgr.libcObj.ptrace(req, pid, addr, data)
         except SystemExit:
             sys.exit(0)
         except:
