@@ -1678,6 +1678,13 @@ class ConfigMgr(object):
             ("fd_set *", "exp"),
             ("struct timeval *", "tvp"),
         )),
+        "newselect": ("long", (
+            ("int", "n"),
+            ("fd_set *", "inp"),
+            ("fd_set *", "outp"),
+            ("fd_set *", "exp"),
+            ("struct timeval *", "tvp"),
+        )),
         "semctl": ("long", (
             ("int", "semid"),
             ("int", "semnum"),
@@ -3127,7 +3134,8 @@ class UtilMgr(object):
         superset.update({ i:0 for i in ConfigMgr.SYSCALL_ARM})
         superset.update({ i:0 for i in ConfigMgr.SYSCALL_AARCH64})
         supersetlist = set(superset.keys())
-        protolist = set(['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
+        protolist = \
+            set(['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
 
         # print final diff list #
         print("--- no prototype ---")
@@ -15069,27 +15077,29 @@ Copyright:
                 raise Exception()
 
             if nrParams == 0:
-                return SysMgr.libcObj.syscall(nrSyscall)
+                ret = SysMgr.libcObj.syscall(nrSyscall)
             elif nrParams == 1:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0])
             elif nrParams == 2:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0], args[1])
             elif nrParams == 3:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0], args[1], args[2])
             elif nrParams == 4:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0], args[1], args[2], args[3])
             elif nrParams == 5:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0], args[1], args[2], args[3], \
                         args[4])
             elif nrParams == 6:
-                return SysMgr.libcObj.syscall(\
+                ret = SysMgr.libcObj.syscall(\
                     nrSyscall, args[0], args[1], args[2], args[3], \
                         args[4], args[5])
+
+            return UtilMgr.convertUlong2Long(ret)
         except SystemExit:
             sys.exit(0)
         except:
@@ -22850,6 +22860,8 @@ Copyright:
                     procObj.detach()
                     del procObj
 
+                    SysMgr.sendSignalProcs(signal.SIGCONT, pid)
+
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # no use pager #
@@ -29436,22 +29448,6 @@ struct msghdr {
         if not self.isAlive():
             return
 
-        # continue target if it is stopped #
-        if self.cont() < 0:
-            return
-
-        # stop target for detaching #
-        try:
-            self.stop()
-        except:
-            return
-
-        # wait for target to be ready #
-        try:
-            self.waitpid(self.pid)
-        except:
-            pass
-
         # detach target #
         self.detach()
 
@@ -29645,11 +29641,13 @@ struct msghdr {
                     hex(addr), True)
 
         # backup data #
-        if not cache or \
-            not addr in self.breakBackupList:
+        if not cache or not addr in self.breakBackupList:
             # read data #
-            origWord = self.accessMem(self.peekIdx, addr)
-            origWord = UtilMgr.convertWord2Bstr(origWord)
+            if addr % ConfigMgr.wordSize:
+                origWord = self.readMem(addr)
+            else:
+                origWord = self.accessMem(self.peekIdx, addr)
+                origWord = UtilMgr.convertWord2Bstr(origWord)
 
             # backup data #
             self.breakBackupList[addr] = {
@@ -29741,12 +29739,13 @@ struct msghdr {
             if not thread:
                 raise Exception()
 
-            SysMgr.syscall('tkill', pid, signal.SIGSTOP)
-            return 0
+            return SysMgr.syscall('tkill', pid, signal.SIGSTOP)
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            SysMgr.printWarn(\
+                "Fail to stop %s thread because %s" % \
+                    SysMgr.getErrReason())
 
         # send signal to a process #
         try:
@@ -30756,16 +30755,16 @@ struct msghdr {
                 '\tRegister Info [%s]\n%s\n' % (taskInfo, oneLine))
 
             for reg, val in sorted(self.regsDict.items()):
-                if deref:
+                if deref and val:
                     rvalue = self.readMem(val)
+
+                    try:
+                        rvalue = '"%s"' % rvalue.decode("utf-8")
+                        rvalue = re.sub('\W+','', rvalue)
+                    except:
+                        rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
                 else:
                     rvalue = '?'
-
-                try:
-                    rvalue = '"%s"' % rvalue.decode("utf-8")
-                    rvalue = re.sub('\W+','', rvalue)
-                except:
-                    rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
 
                 SysMgr.addPrint(\
                     '%s: %x [%s]\n' % (reg, val, rvalue))
@@ -31062,14 +31061,15 @@ struct msghdr {
     def getBacktrace_ARM(self, limit=sys.maxsize, cur=False):
         nextFp = self.fp
         nextLr = self.lr
-        btList = [nextLr]
         wordSize = ConfigMgr.wordSize
 
-        if cur:
-            btList.insert(0, self.pc)
-
         if nextLr:
-            btList.insert(0, nextLr)
+            btList = [nextLr]
+        else:
+            btList = []
+
+        if cur and self.pc:
+            btList.insert(0, self.pc)
 
         savedLr = nextLr
 
@@ -31102,7 +31102,7 @@ struct msghdr {
                 break
 
             # add address to list #
-            if savedLr != nextLr:
+            if nextLr and savedLr != nextLr:
                 btList.append(nextLr)
                 savedLr = nextLr
 
@@ -31942,6 +31942,9 @@ struct msghdr {
 
         addrList = []
         for mfile in list(self.pmap.keys()):
+            if not mfile.startswith('/'):
+                continue
+
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
                 offset = fcache.getOffsetBySymbol(symbol)
@@ -32257,10 +32260,13 @@ struct msghdr {
 
                 # kill / segv signal #
                 elif stat == signal.SIGKILL or stat == signal.SIGSEGV:
+                    # print context info #
                     self.printContext()
+
                     SysMgr.printErr(\
                         'Terminated thread %s because of %s' % \
-                        (pid, ConfigMgr.SIG_LIST[stat]))
+                            (pid, ConfigMgr.SIG_LIST[stat]))
+
                     sys.exit(0)
 
                 # exit #
@@ -32655,12 +32661,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
                 'Fail to pause thread %s because %s' % (lastTid, err))
-        finally:
-            for pid in dlist:
-                try:
-                    os.kill(pid, signal.SIGINT)
-                except:
-                    SysMgr.printSigError(pid, 'SIGINT')
 
 
 
