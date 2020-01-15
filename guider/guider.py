@@ -29496,7 +29496,7 @@ struct msghdr {
 
     def setTraceme(self):
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
-        self.ptrace(cmd, 0, 0)
+        return self.ptrace(cmd, 0, 0)
 
 
 
@@ -29863,16 +29863,15 @@ struct msghdr {
             SysMgr.printWarn((\
                 "Fail to access %s memory "
                 "because of wrong address") % hex(addr))
-            return None
+            return -1
 
         if addr % wordSize:
             SysMgr.printWarn((\
                 "Fail to access %s memory "
                 "because of unaligned address") % hex(addr))
-            return None
+            return -1
 
-        ret = self.ptrace(cmd, addr, data)
-        return ret
+        return self.ptrace(cmd, addr, data)
 
 
 
@@ -31030,6 +31029,7 @@ struct msghdr {
                 break
 
             try:
+                # read return address #
                 targetAddr = nextFp + wordSize
                 if targetAddr % wordSize == 0:
                     value = self.accessMem(self.peekIdx, targetAddr)
@@ -31043,14 +31043,13 @@ struct msghdr {
                     except:
                         pass
 
+                # read next FP #
                 if nextFp % wordSize == 0:
                     nextFp = self.accessMem(self.peekIdx, nextFp)
                 else:
                     nextFp = self.readMem(nextFp, retWord=True)
 
-                if nextFp:
-                    nextFp = long(nextFp)
-                else:
+                if nextFp <= 0:
                     break
             except SystemExit:
                 sys.exit(0)
@@ -31099,6 +31098,9 @@ struct msghdr {
                     nextFp = self.accessMem(self.peekIdx, nextFp)
                 else:
                     nextFp = self.readMem(nextFp, retWord=True)
+
+                if nextFp <= 0:
+                    break
             except SystemExit:
                 sys.exit(0)
             except:
@@ -31147,6 +31149,9 @@ struct msghdr {
                     nextFp = self.accessMem(self.peekIdx, nextFp)
                 else:
                     nextFp = self.readMem(nextFp, retWord=True)
+
+                if nextFp <= 0:
+                    break
             except SystemExit:
                 sys.exit(0)
             except:
@@ -32190,7 +32195,7 @@ struct msghdr {
                 # skip instructions for performance #
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst):
-                        ret = self.ptrace(self.cmd, 0, 0)
+                        self.ptrace(self.cmd, 0, 0)
                 # wait for sample calls #
                 elif mode == 'sample':
                     self.checkInterval()
@@ -32199,7 +32204,7 @@ struct msghdr {
                         sys.exit(0)
                 # setup trap #
                 else:
-                    ret = self.ptrace(self.cmd, 0, 0)
+                    self.ptrace(self.cmd, 0, 0)
 
             try:
                 # wait process #
@@ -32731,7 +32736,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             ret = self.ptrace(\
                 cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
-
             if ret != 0:
                 raise Exception()
         except SystemExit:
@@ -32770,7 +32774,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             nrWords = ctypes.sizeof(self.regs) * wordSize
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
-
             if ret != 0:
                 raise Exception()
         except SystemExit:
@@ -32927,7 +32930,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 SysMgr.libcObj.ptrace.restype = ctypes.c_ulong
                 self.initPtrace = True
 
-            return SysMgr.libcObj.ptrace(req, pid, addr, data)
+            ret = SysMgr.libcObj.ptrace(req, pid, addr, data)
+            if ctypes.c_long(ret).value == -1:
+                return -1
+            else:
+                return ret
         except SystemExit:
             sys.exit(0)
         except:
