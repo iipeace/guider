@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "2020114"
+__revision__ = "200114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3682,7 +3682,12 @@ class UtilMgr(object):
 
         sys.stdout.write('%3d%% %s%s' % \
             (percent, UtilMgr.progressChar[mod], '\b' * 6))
-        sys.stdout.flush()
+
+        # handle reentrant call exception #
+        try:
+            sys.stdout.flush()
+        except:
+            return
 
 
 
@@ -3692,7 +3697,12 @@ class UtilMgr(object):
             return
 
         sys.stdout.write(' ' * 6)
-        sys.stdout.flush()
+
+        # handle reentrant call exception #
+        try:
+            sys.stdout.flush()
+        except:
+            return
 
 
 
@@ -11502,6 +11512,7 @@ class SysMgr(object):
     outputFile = None
     sourceFile = None
     printFile = None
+    fileSuffix = None
     parsedAnalOption = False
     optionList = None
     customCmd = None
@@ -18374,6 +18385,11 @@ Copyright:
                 else:
                     SysMgr.inputFile = SysMgr.printFile
 
+                # append suffix to output file #
+                if SysMgr.fileSuffix:
+                    SysMgr.inputFile = \
+                        '%s_%s' % (SysMgr.inputFile, SysMgr.fileSuffix)
+
                 # append uptime to the output file #
                 if not SysMgr.termFlag:
                     SysMgr.inputFile = '%s_%s' % \
@@ -18810,7 +18826,7 @@ Copyright:
             SysMgr.fileForPrint.seek(0, 0)
             SysMgr.procBuffer = \
                 SysMgr.fileForPrint.read().replace(\
-                '\n\n', 'NEWSTAT\n\n')
+                    '\n\n', 'NEWSTAT\n\n')
             SysMgr.procBuffer = \
                 SysMgr.procBuffer.split('NEWSTAT')
             SysMgr.fileForPrint.seek(0, 0)
@@ -22940,6 +22956,9 @@ Copyright:
                 ret = SysMgr.createProcess(changePgid=True)
                 if ret == 0:
                     pid = long(tid)
+                    SysMgr.fileForPrint.close()
+                    SysMgr.fileForPrint = None
+                    SysMgr.fileSuffix = pid
                     break
 
             # wait for childs as a parent #
@@ -32125,7 +32144,7 @@ struct msghdr {
 
         # prepare environment for profiling #
         if self.isRunning:
-            self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
+            ret = self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
 
             # handle current user symbol #
             if mode != 'syscall' and \
