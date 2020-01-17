@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200114"
+__revision__ = "200117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22956,8 +22956,9 @@ Copyright:
                 ret = SysMgr.createProcess(changePgid=True)
                 if ret == 0:
                     pid = long(tid)
-                    SysMgr.fileForPrint.close()
-                    SysMgr.fileForPrint = None
+                    if SysMgr.fileForPrint:
+                        SysMgr.fileForPrint.close()
+                        SysMgr.fileForPrint = None
                     SysMgr.fileSuffix = pid
                     break
 
@@ -30823,7 +30824,8 @@ struct msghdr {
 
     def getRetVal(self):
         try:
-            return getattr(self.regs, self.retreg)
+            ret = getattr(self.regs, self.retreg)
+            return self.ctypes.c_int(ret).value
         except SystemExit:
             sys.exit(0)
         except:
@@ -47361,6 +47363,18 @@ class ThreadAnalyzer(object):
             del pids[pids.index(str(SysMgr.pid))]
         except:
             pass
+
+        # handle thread #
+        for item in SysMgr.filterGroup:
+            if item in pids:
+                continue
+
+            # add tid to list #
+            path = '%s/%s' % (SysMgr.procPath, item)
+            if os.path.isdir(path):
+                pid = SysMgr.getTgid(item)
+                if pid:
+                    SysMgr.filterGroup.append(pid)
 
         # get thread list #
         for pid in pids:
