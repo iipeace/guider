@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200117"
+__revision__ = "200119"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -272,6 +272,29 @@ class ConfigMgr(object):
         0x0: "SEEK_SET",
         0x1: "SEEK_CUR",
         0x2: "SEEK_END",
+    }
+
+    # Define clone flags type #
+    CLONE_TYPE = {
+        0x00000100: "CLONE_VM",
+        0x00000200: "CLONE_FS",
+        0x00000400: "CLONE_FILES",
+        0x00000800: "CLONE_SIGHAND",
+        0x00002000: "CLONE_PTRACE",
+        0x00004000: "CLONE_VFORK",
+        0x00008000: "CLONE_PARENT",
+        0x00010000: "CLONE_THREAD",
+        0x00020000: "CLONE_NEWNS",
+        0x00040000: "CLONE_SYSVSEM",
+        0x00080000: "CLONE_SETTLS",
+        0x00100000: "CLONE_PARENT_SETTID",
+        0x00200000: "CLONE_CHILD_CLEARTID",
+        0x00400000: "CLONE_DETACHED",
+        0x00800000: "CLONE_UNTRACED",
+        0x01000000: "CLONE_CHILD_SETTID",
+        0x02000000: "CLONE_STOPPED",
+        0x04000000: "CLONE_NEWUTS",
+        0x08000000: "CLONE_NEWIPC",
     }
 
     # Define open flags type #
@@ -29516,7 +29539,7 @@ struct msghdr {
 
     def setTraceme(self):
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
-        return self.ptrace(cmd, 0, 0)
+        return self.ptrace(cmd)
 
 
 
@@ -29737,7 +29760,7 @@ struct msghdr {
         # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_ATTACH')
-        ret = self.ptrace(cmd, 0, 0)
+        ret = self.ptrace(cmd)
         if ret != 0:
             SysMgr.printWarn('Fail to attach thread %s' % pid, verb)
             return -1
@@ -29826,7 +29849,26 @@ struct msghdr {
 
 
 
-    def detach(self):
+    def doDetach(self, pid):
+        if not pid:
+            pid = self.pid
+
+        plist = ConfigMgr.PTRACE_TYPE
+        cmd = plist.index('PTRACE_DETACH')
+        ret = self.ptrace(cmd, pid=pid)
+        if ret != 0:
+            SysMgr.printWarn('Fail to detach thread %s' % pid)
+            return -1
+        else:
+            SysMgr.printInfo('Detached from thread %d' % pid)
+            return 0
+
+
+
+    def detach(self, force=False, pid=None):
+        if force:
+            return self.doDetach(pid)
+
         if not self.attached:
             return
 
@@ -29851,16 +29893,7 @@ struct msghdr {
         except:
             return -1
 
-        # detach the thread #
-        plist = ConfigMgr.PTRACE_TYPE
-        cmd = plist.index('PTRACE_DETACH')
-        ret = self.ptrace(cmd, 0, 0)
-        if ret != 0:
-            SysMgr.printWarn('Fail to detach thread %s' % pid)
-            return -1
-        else:
-            SysMgr.printInfo('Detached from thread %d' % pid)
-            return 0
+        return self.doDetach(pid)
 
 
 
@@ -30316,6 +30349,11 @@ struct msghdr {
             if argname == 'mode':
                 return UtilMgr.getFlagString(\
                     value, ConfigMgr.PERM_TYPE)
+
+        if syscall == 'clone':
+            if argname == 'flags':
+                return UtilMgr.getFlagString(\
+                    value, ConfigMgr.CLONE_TYPE)
 
         if argname == 'behavior' and \
             syscall.startswith('madvise'):
@@ -30825,7 +30863,7 @@ struct msghdr {
     def getRetVal(self):
         try:
             ret = getattr(self.regs, self.retreg)
-            return self.ctypes.c_int(ret).value
+            return self.ctypes.c_long(ret).value
         except SystemExit:
             sys.exit(0)
         except:
@@ -31220,7 +31258,8 @@ struct msghdr {
         # get breakpoint addr #
         if addr not in self.breakList:
             SysMgr.printErr(\
-                "Fail to get address %s in breakpoint list" % hex(addr))
+                "Fail to get address %s in breakpoint list of %s thread" % \
+                    (hex(addr), self.pid))
             sys.exit(0)
 
         # remove breakpoint #
@@ -31303,7 +31342,7 @@ struct msghdr {
             return
 
         # continue a instruction #
-        ret = self.ptrace(self.singlestepCmd, 0, 0)
+        ret = self.ptrace(self.singlestepCmd)
         if ret != 0:
             SysMgr.printErr(\
                 'Fail to continue %s thread to reinstall a breakpoint' % \
@@ -31312,7 +31351,7 @@ struct msghdr {
 
         # wait process #
         ret = self.waitpid(self.pid, __WALL)
-        stat = Debugger.getStatus(ret[1])
+        stat = self.getStatus(ret[1])
         if stat == signal.SIGKILL or \
             stat == signal.SIGSEGV or \
             stat == -1:
@@ -31326,12 +31365,13 @@ struct msghdr {
             addr, sym, fname=fname, reins=reins)
         if not ret:
             SysMgr.printErr(\
-                "Fail to add breakpoint for %s(%s)" % (sym, addr))
+                "Fail to add breakpoint of %s thread for %s(%s)" % \
+                    (self.pid, sym, addr))
             sys.exit(0)
 
 
 
-    def handleTrapEvent(self, mode):
+    def handleTrapEvent(self, mode, stat):
         previous = self.status
         self.status = mode
 
@@ -31339,6 +31379,22 @@ struct msghdr {
         if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
+            # handle clone event #
+            if self.isCloned(stat):
+                # get tid of new task #
+                tid = self.getEventMsg()
+
+                # detach a new thread #
+                self.detach(force=True, pid=tid)
+
+                pid = SysMgr.createProcess()
+                if pid > 0:
+                    return
+                if pid == 0:
+                    self.pid = tid
+                    self.attach()
+                    return
+
             self.handleBreakpoint(printStat=True)
 
         self.status = previous
@@ -31818,11 +31874,14 @@ struct msghdr {
 
             # convert error code #
             if retval < 0:
-                err = '%s (%s)' % \
-                    (ConfigMgr.ERR_TYPE[abs(retval+1)], \
-                    os.strerror(abs(retval)))
+                try:
+                    err = '%s (%s)' % \
+                        (ConfigMgr.ERR_TYPE[abs(retval+1)], \
+                            os.strerror(abs(retval)))
 
-                self.addSample(name, '??', err=retval)
+                    self.addSample(name, '??', err=retval)
+                except:
+                    err = ''
             else:
                 err = ''
 
@@ -32029,14 +32088,27 @@ struct msghdr {
 
         # default variables #
         regs = None
-        pid = self.pid
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
-        sigTrapFlag = signal.SIGTRAP | \
+        self.sigTrapFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
-        self.comm = SysMgr.getComm(pid)
+        self.sigCloneFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
+        self.sigForkFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
+        self.sigVforkFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
+
+        # Process exited #
+        self.comm = SysMgr.getComm(self.pid)
         self.lockObj = lock
+        self.traceEventList = [\
+            'PTRACE_O_TRACESYSGOOD',\
+            'PTRACE_O_TRACECLONE',
+            'PTRACE_O_TRACEFORK',
+            'PTRACE_O_TRACEVFORK',
+        ]
 
         # context variables #
         self.start = long(0)
@@ -32116,14 +32188,15 @@ struct msghdr {
 
         # check the process is running #
         try:
-            os.kill(pid, 0)
+            os.kill(self.pid, 0)
         except SystemExit:
             sys.exit(0)
         except:
             ereason = SysMgr.getErrReason()
             if ereason != '0':
                 SysMgr.printErr(\
-                    'Fail to trace thread %s because %s' % (pid, ereason))
+                    'Fail to trace thread %s because %s' % \
+                        (self.pid, ereason))
             sys.exit(0)
 
         # load user symbols #
@@ -32139,14 +32212,14 @@ struct msghdr {
                 sys.exit(0)
 
         SysMgr.printInfo(\
-            "Start profiling thread %d" % pid)
+            "Start profiling thread %d" % self.pid)
 
         # set start time #
         #self.start = self.last = time.time()
 
         # prepare environment for profiling #
         if self.isRunning:
-            ret = self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
+            ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
             if mode != 'syscall' and \
@@ -32216,7 +32289,7 @@ struct msghdr {
                 # skip instructions for performance #
                 if mode == 'inst' and self.skipInst > 0:
                     for i in xrange(0, self.skipInst):
-                        self.ptrace(self.cmd, 0, 0)
+                        self.ptrace(self.cmd)
                 # wait for sample calls #
                 elif mode == 'sample':
                     self.checkInterval()
@@ -32225,41 +32298,37 @@ struct msghdr {
                         sys.exit(0)
                 # setup trap #
                 else:
-                    self.ptrace(self.cmd, 0, 0)
+                    self.ptrace(self.cmd)
 
             try:
                 # wait process #
-                ret = self.waitpid(pid, __WALL)
+                rid, ostat = self.waitpid(self.pid, __WALL)
 
                 # get status of process #
-                stat = Debugger.getStatus(ret[1])
+                stat = self.getStatus(ostat)
 
                 # check status of process #
                 if not UtilMgr.isNumber(stat):
-                    raise Exception()
+                    raise Exception("Unknown status type")
 
                 # trap #
                 if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
-                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
+                        self.ptraceEvent(self.traceEventList)
                         if self.cmd:
-                            self.ptrace(self.cmd, 0, 0)
+                            self.ptrace(self.cmd)
                         self.status = 'enter'
                         continue
 
-                    # usercall #
-                    elif mode == 'inst':
-                        self.handleTrapEvent(mode)
-
-                    # breakcall #
-                    elif mode == 'break':
-                        self.handleTrapEvent(mode)
+                    # usercall / breakcall #
+                    elif mode == 'inst' or mode == 'break':
+                        self.handleTrapEvent(mode, ostat)
 
                 # breakpoint event for ARM #
                 elif stat == signal.SIGILL and \
                     mode == 'break':
-                    self.handleTrapEvent(mode)
+                    self.handleTrapEvent(mode, ostat)
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
@@ -32273,19 +32342,19 @@ struct msghdr {
                 # stop signal #
                 elif stat == signal.SIGSTOP:
                     if mode == 'sample':
-                        self.handleTrapEvent(mode)
+                        self.handleTrapEvent(mode, ostat)
                         continue
 
                     self.status = 'stop'
                     SysMgr.printWarn(\
                         'Blocked thread %s because of %s' % \
-                        (pid, ConfigMgr.SIG_LIST[stat]))
+                        (self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # set up trap again #
                     if mode == 'syscall':
                         self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
 
-                    self.ptrace(self.cmd, 0, 0)
+                    self.ptrace(self.cmd)
 
                     continue
 
@@ -32296,7 +32365,7 @@ struct msghdr {
 
                     SysMgr.printErr(\
                         'Terminated thread %s because of %s' % \
-                            (pid, ConfigMgr.SIG_LIST[stat]))
+                            (self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     sys.exit(0)
 
@@ -32304,7 +32373,7 @@ struct msghdr {
                 elif stat == -1:
                     # check target is running #
                     try:
-                        os.kill(pid, 0)
+                        os.kill(self.pid, 0)
                         continue
                     except SystemExit:
                         sys.exit(0)
@@ -32315,17 +32384,17 @@ struct msghdr {
                         SysMgr.printPipe(' ')
 
                     SysMgr.printErr(\
-                        'Terminated thread %s' % pid)
+                        'Terminated thread %s' % self.pid)
                     sys.exit(0)
 
                 # other #
                 else:
                     SysMgr.printWarn(\
                         'Detected thread %s with %s' % \
-                        (pid, ConfigMgr.SIG_LIST[stat]))
+                        (self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if mode == 'sample':
-                        self.handleTrapEvent(mode)
+                        self.handleTrapEvent(mode, ostat)
 
                     # continue target from signal stop #
                     if mode != 'syscall':
@@ -32337,7 +32406,7 @@ struct msghdr {
             except:
                 # check whether the process is alive #
                 try:
-                    ret = self.waitpid(pid, __WALL)
+                    ret = self.waitpid(self.pid, __WALL)
 
                     ereason = SysMgr.getErrReason()
                 except SystemExit:
@@ -32353,7 +32422,7 @@ struct msghdr {
 
                 SysMgr.printErr(\
                     "Terminated tracing thread %s %s" % \
-                    (pid, ereason))
+                    (self.pid, ereason))
 
                 break
 
@@ -32670,6 +32739,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             for tid in tlist:
                 lastTid = long(tid)
+
                 ret = SysMgr.createProcess(mute=True, changePgid=True)
                 if ret > 0:
                     dlist.append(long(ret))
@@ -32698,11 +32768,42 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    @staticmethod
-    def getStatus(status):
+    def getSigInfo(self):
+        PTRACE_GETSIGINFO = 0x4202
+
+
+
+    def setSigInfo(self):
+        PTRACE_SETSIGINFO = 0x4203
+
+
+
+    def isForked(self, status):
+        stat = status >> 8
+        return (stat  == self.sigForkFlag or \
+            stat == self.sigVforkFlag)
+
+
+
+    def isCloned(self, status):
+        stat = status >> 8
+        return (stat  == self.sigCloneFlag)
+
+
+
+    def getEventMsg(self):
+        PTRACE_GETEVENTMSG = 0x4201
+        data = self.ctypes.c_long(0)
+        addr = self.ctypes.addressof(data)
+
+        ret = self.ptrace(PTRACE_GETEVENTMSG, data=addr)
+        return data.value
+
+
+
+    def getStatus(self, status):
         ret = None
 
-        # Process exited #
         if os.WIFEXITED(status):
             code = os.WEXITSTATUS(status)
             ret = -1
@@ -32859,9 +32960,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
     def ptraceEvent(self, reqList):
         # define architect-independant constant #
         PTRACE_SETOPTIONS = 0x4200
-        PTRACE_GETEVENTMSG = 0x4201
-        PTRACE_GETSIGINFO = 0x4202
-        PTRACE_SETSIGINFO = 0x4203
 
         option = 0
         plist = ConfigMgr.PTRACE_EVENT_TYPE
@@ -32923,11 +33021,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             SysMgr.printWarn(\
                 'Fail to call waitpid because %s' % \
                     SysMgr.getErrReason())
+            return 0, 0
 
 
 
-    def ptrace(self, req, addr=0, data=0):
-        pid = self.pid
+    def ptrace(self, req, addr=0, data=0, pid=None):
+        if not pid:
+            pid = self.pid
 
         '''
         # try to call native ptrace call #
@@ -50120,6 +50220,9 @@ class ThreadAnalyzer(object):
         # contextswitch #
         elif SysMgr.sort == 'C':
             try:
+                for idx, value in self.procData.items():
+                    self.saveProcStatusData(value['taskPath'], idx)
+
                 now = self.procData
                 prev = self.prevProcData
                 yld = 'voluntary_ctxt_switches'
@@ -50393,11 +50496,6 @@ class ThreadAnalyzer(object):
                     "Blk", "RD", "WR", "NrFlt",\
                     sidType, pgrpType, "FD", "LifeTime", etc, \
                     oneLine, twoLine, cl=cl, pd=pd), newline = 3)
-
-        # check sort option by context switch #
-        if SysMgr.sort == 'C':
-            for idx, value in self.procData.items():
-                self.saveProcStatusData(value['taskPath'], idx)
 
         # set sort value #
         sortedProcData = self.getSortedProcData()
