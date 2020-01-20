@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200119"
+__revision__ = "200120"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12841,7 +12841,7 @@ class SysMgr(object):
     @staticmethod
     def setSortValue(value):
         if value == 'c':
-            SysMgr.printInfo("sorted by CPU")
+            SysMgr.printInfo("sorted by COMM")
         elif value == 'm':
             SysMgr.printInfo("sorted by MEMORY")
         elif value == 'b':
@@ -13137,12 +13137,11 @@ Usage:
         -x  <IP:PORT>               set local address
         -X  <REQ@IP:PORT>           set request address
         -N  <REQ@IP:PORT>           set report address
-        -S  <c:cpu/m:memory/p:pid/  sort by key
-             b:block/w:wfc/n:new/
-             r:runtime/f:file/
-             P:priority/
-             o:oomScore/
-             C:contextswitch>
+        -S  <comm/memory/pid        sort by key
+             block/wfc/new
+             runtime/file
+             Priority/oomScore
+             Contextswitch>
         -P                          group threads in same process
         -I  <DIR|FILE>              set input path
         -m  <ROWS:COLS>             set terminal size
@@ -13297,9 +13296,9 @@ OPTIONS:
 
     [report]
         -o  <DIR|FILE>              save output data
-        -S  <c:cpu/m:memory/p:pid/  sort by key
-             b:block/w:wfc/n:new/
-             r:runtime/f:file>
+        -S  <cpu/memory/pid         sort by key
+             block/wfc/new
+             runtime/file>
         -P                          group threads in same process
         -O  <CORE>                  set core filter
         -l  <FILE>                  set addr2line path
@@ -13548,9 +13547,9 @@ OPTIONS:
     [report]
         -a                          show all stats and events
         -o  <DIR|FILE>              save output data
-        -S  <c:cpu/m:memory/p:pid/  sort by key
-             b:block/w:wfc/n:new/
-             r:runtime/f:file>
+        -S  <cpu/memory/pid         sort by key
+             block/wfc/new
+             runtime/file>
         -P                          group threads in same process
         -p  <TID>                   show preemption info
         -O  <CORE>                  set core filter
@@ -29828,7 +29827,7 @@ struct msghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to continue terminated thread %s' % pid)
+                'Fail to continue thread %s because it is terminated' % pid)
             return -1
 
         # check target status #
@@ -29839,8 +29838,9 @@ struct msghdr {
                 if ret != 0:
                     cnt -= 1
                     if cnt < 0 and not self.isAlive():
-                        SysMgr.printErr(\
-                            'Fail to continue terminated thread %s' % pid)
+                        SysMgr.printErr((\
+                            'Fail to continue thread %s '
+                            'because it is terminated') % pid)
                         return -1
                     continue
                 return 0
@@ -32070,14 +32070,15 @@ struct msghdr {
 
         # create a new process to trace a new task #
         pid = SysMgr.createProcess(isDaemon=True)
-        if pid == 0:
-            self.statFd = None
-            self.detach(tid)
-        elif pid > 0:
-            self.statFd = None
+        self.statFd = None
+        if pid > 0:
             self.detach(self.pid)
             self.pid = tid
             self.childList.append(pid)
+        elif pid == 0:
+            self.attach()
+            ret = self.ptraceEvent(self.traceEventList)
+            signal.alarm(SysMgr.intervalEnable)
 
 
 
@@ -50260,6 +50261,10 @@ class ThreadAnalyzer(object):
                 key=lambda e: \
                     long(e[1]['dbusCnt']) \
                         if 'dbusCnt' in e[1] else 0, reverse=True)
+        # comm #
+        elif SysMgr.sort == 'c':
+            sortedProcData = sorted(self.procData.items(), \
+                key=lambda e: e[1]['stat'][self.commIdx], reverse=False)
         # CPU #
         else:
             # set cpu usage as default #
@@ -50273,7 +50278,7 @@ class ThreadAnalyzer(object):
     def printProcUsage(self):
         def isBreakCond(value):
             # get focus value #
-            if SysMgr.sort == 'c' or not SysMgr.sort:
+            if not SysMgr.sort:
                 focusVal = value['ttime']
             elif SysMgr.sort == 'm':
                 focusVal = long(stat[self.rssIdx]) >> 8
