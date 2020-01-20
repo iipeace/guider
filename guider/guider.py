@@ -22968,7 +22968,9 @@ Copyright:
             if mode == 'breakcall':
                 try:
                     SysMgr.importPackageItems('fcntl')
-                    lockObj = open('/tmp/guiderlock', 'w')
+                    lockObj = open('%s/guiderlock' % SysMgr.cacheDirPath, 'w')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printErr(\
                         "Fail to create file for lock because %s" % \
@@ -22988,7 +22990,7 @@ Copyright:
             # wait for childs as a parent #
             if SysMgr.pid == parent:
                 SysMgr.waitEvent()
-                SysMgr.killChilds(signal.SIGINT)
+                SysMgr.killChilds(sig=signal.SIGINT)
                 SysMgr.clearChildList()
                 sys.exit(0)
         else:
@@ -23762,7 +23764,7 @@ Copyright:
 
 
     @staticmethod
-    def terminateTasks(targetList, sig=ConfigMgr.SIG_LIST.index('SIGKILL')):
+    def terminateTasks(targetList, sig=signal.SIGKILL):
         for pid in targetList:
             # check task #
             try:
@@ -24838,9 +24840,11 @@ Copyright:
 
 
     @staticmethod
-    def killChilds(sig=ConfigMgr.SIG_LIST.index('SIGKILL')):
-        SysMgr.terminateTasks(\
-            list(SysMgr.childList.keys()), sig)
+    def killChilds(sig=signal.SIGKILL, childs=None):
+        if childs is None:
+            childs = list(SysMgr.childList.keys())
+
+        SysMgr.terminateTasks(childs, sig)
 
 
 
@@ -29491,6 +29495,9 @@ struct msghdr {
         if not self.isAlive():
             return
 
+        # kill childs #
+        SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
+
         # detach target #
         self.detach()
 
@@ -29590,7 +29597,7 @@ struct msghdr {
             symbol = '??'
 
         SysMgr.printWarn(\
-            'Removed the breakpoint at %s(%s) for %s thread' % \
+            'Removed the breakpoint from %s(%s) for %s thread' % \
                 (hex(addr), symbol, self.pid))
 
         return (addr, ret['symbol'], ret['filename'], ret['reins'])
@@ -29669,9 +29676,10 @@ struct msghdr {
                     addr, symbol, fname=fname, reins=True)
                 if not ret:
                     SysMgr.printErr(\
-                        "Fail to add breakpoint for %s(%s)" % \
-                            (value, hex(addr)))
-                    continue
+                        "Fail to add breakpoint to %s(%s) for %s thread" % \
+                            (value, hex(addr), self.pid))
+                    return False
+        return True
 
 
 
@@ -29680,9 +29688,9 @@ struct msghdr {
         # check address in breakpoint table #
         if addr in self.breakList:
             SysMgr.printWarn((\
-                'Fail to add breakpoint with addr %s '
+                'Fail to add breakpoint to %s for %s thread '
                 'because it is already injected by myself') % \
-                    hex(addr), True)
+                    (hex(addr), self.pid), True)
 
         # backup data #
         if not cache or not addr in self.breakBackupList:
@@ -29714,9 +29722,9 @@ struct msghdr {
                 origWord = self.breakBackupList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to add breakpoint with addr %s '
+                    'Fail to add breakpoint to %s for %s thread '
                     'because it is already injected by another task') % \
-                        hex(addr), True)
+                        (hex(addr), self.pid), True)
                 return False
 
         # update breakpoint list #
@@ -29732,8 +29740,8 @@ struct msghdr {
 
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to add breakpoint with addr %s' % \
-                    hex(addr), True)
+                'Fail to add breakpoint to %s for %s thread' % \
+                    (hex(addr), self.pid), True)
             return False
         elif ret == 0:
             if sym:
@@ -29741,7 +29749,7 @@ struct msghdr {
             else:
                 symbol = ''
             SysMgr.printWarn(\
-                'Added a new breakpoint at %s%s for %s thread' % \
+                'Added a new breakpoint to %s%s for %s thread' % \
                     (hex(addr), symbol, self.pid))
 
         return True
@@ -30047,6 +30055,8 @@ struct msghdr {
         tempAddr = addr
         while size > 0:
             word = self.readMem(tempAddr)
+            if word is None:
+                return -1
 
             data += word
 
@@ -31379,22 +31389,6 @@ struct msghdr {
         if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
-            # handle clone event #
-            if self.isCloned(stat):
-                # get tid of new task #
-                tid = self.getEventMsg()
-
-                # detach a new thread #
-                self.detach(force=True, pid=tid)
-
-                pid = SysMgr.createProcess()
-                if pid > 0:
-                    return
-                if pid == 0:
-                    self.pid = tid
-                    self.attach()
-                    return
-
             self.handleBreakpoint(printStat=True)
 
         self.status = previous
@@ -31681,13 +31675,9 @@ struct msghdr {
         if deferrable:
             callString = '%s) %s' % (argText, bts)
         else:
-            if self.multi:
-                callString = \
-                    '%3.6f %s(%s) %s(%s) %s' % \
-                        (diff, self.comm, self.pid, self.syscall, argText, bts)
-            else:
-                callString = \
-                    '%3.6f %s(%s) %s' % (diff, self.syscall, argText, bts)
+            callString = \
+                '%3.6f %s(%s) %s(%s) %s' % \
+                    (diff, self.comm, self.pid, self.syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -31810,11 +31800,8 @@ struct msghdr {
                     diff = current - self.start
 
                     # build call string #
-                    if self.multi:
-                        callString = '%3.6f %s(%s) %s(' % \
-                            (diff, self.comm, self.pid, name)
-                    else:
-                        callString = '%3.6f %s(' % (diff, name)
+                    callString = '%3.6f %s(%s) %s(' % \
+                        (diff, self.comm, self.pid, name)
 
                     if SysMgr.printFile:
                         self.bufferedStr = callString
@@ -32077,6 +32064,23 @@ struct msghdr {
 
 
 
+    def handoverNewTarget(self):
+        # get tid of new task #
+        tid = self.getEventMsg()
+
+        # create a new process to trace a new task #
+        pid = SysMgr.createProcess(isDaemon=True)
+        if pid == 0:
+            self.statFd = None
+            self.detach(tid)
+        elif pid > 0:
+            self.statFd = None
+            self.detach(self.pid)
+            self.pid = tid
+            self.childList.append(pid)
+
+
+
     def trace(\
         self, mode='syscall', wait=None, multi=False, lock=None, brkData={}):
         # Don't wait on children of other threads in this group #
@@ -32133,6 +32137,7 @@ struct msghdr {
         self.sampleTime = long(0)
         self.getRegsCost = long(0)
         self.prevCallString = ''
+        self.childList = list()
         self.callList = list()
         self.callPrint = list()
         self.syscallTime = dict()
@@ -32253,7 +32258,9 @@ struct msghdr {
                 }
 
             # add breakpoint #
-            self.addBreakpointList(SysMgr.customCmd)
+            ret = self.addBreakpointList(SysMgr.customCmd)
+            if not ret:
+                sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -32306,6 +32313,16 @@ struct msghdr {
 
                 # get status of process #
                 stat = self.getStatus(ostat)
+
+                # handle clone event #
+                if self.isCloned(ostat):
+                    if mode == 'break':
+                        self.handoverNewTarget()
+                    continue
+
+                # handle fork event #
+                if self.isForked(ostat):
+                    continue
 
                 # check status of process #
                 if not UtilMgr.isNumber(stat):
@@ -32757,7 +32774,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # wait for user event to continue threads #
             SysMgr.waitEvent()
 
-            SysMgr.killChilds(signal.SIGINT)
+            SysMgr.killChilds(sig=signal.SIGINT)
             SysMgr.clearChildList()
         except SystemExit:
             return
