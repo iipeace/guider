@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200120"
+__revision__ = "200121"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20469,7 +20469,7 @@ Copyright:
         elif SysMgr.isPauseMode():
             # convert comm to pid #
             targetList = SysMgr.convertPidList(\
-                SysMgr.filterGroup, True, True)
+                SysMgr.filterGroup, isThread=True, exceptMe=True)
 
             Debugger.pauseThreads(targetList)
 
@@ -21447,6 +21447,10 @@ Copyright:
                         continue
 
                 return pidList
+            elif withMain:
+                return list(set([name, SysMgr.getTgid(tid)]))
+            else:
+                return [name]
 
         pids = os.listdir(SysMgr.procPath)
         for pid in pids:
@@ -21485,7 +21489,7 @@ Copyright:
                         pidList.append(tid)
 
                     # include main thread #
-                    if pid not in pidList:
+                    if withMain and pid not in pidList:
                         pidList.append(pid)
 
                 continue
@@ -22924,6 +22928,14 @@ Copyright:
                 withSibling=SysMgr.groupProcEnable, \
                 withMain=SysMgr.groupProcEnable)
 
+        # get pids of process groups #
+        if mode == 'breakcall':
+            allpids = SysMgr.convertPidList(\
+                SysMgr.filterGroup, isThread=True, \
+                    withSibling=True, withMain=True)
+        else:
+            allpids = pids
+
         # check tid #
         if SysMgr.sourceFile:
             if mode == 'breakcall':
@@ -22950,7 +22962,7 @@ Copyright:
 
             SysMgr.printFile = SysMgr.fileForPrint = None
             sys.exit(0)
-        elif len(pids) > 1:
+        elif len(allpids) > 1:
             multi = True
             parent = SysMgr.pid
             SysMgr.printStreamEnable = True
@@ -22976,13 +22988,17 @@ Copyright:
                             SysMgr.getErrReason())
 
             # create new worker processes #
-            for tid in pids:
+            for tid in allpids:
                 ret = SysMgr.createProcess(changePgid=True)
                 if ret == 0:
-                    pid = long(tid)
+                    if not tid in pids:
+                        SysMgr.printEnable = False
+
                     if SysMgr.fileForPrint:
                         SysMgr.fileForPrint.close()
                         SysMgr.fileForPrint = None
+
+                    pid = long(tid)
                     SysMgr.fileSuffix = pid
                     break
 
@@ -23318,8 +23334,7 @@ Copyright:
             sys.exit(0)
 
         # convert comm to pid #
-        pids = SysMgr.convertPidList(\
-            SysMgr.filterGroup, False, True)
+        pids = SysMgr.convertPidList(argList, exceptMe=True)
 
         if len(pids) == 0:
             SysMgr.printErr("No %s process" % \
@@ -23792,12 +23807,18 @@ Copyright:
         # get pids from comm #
         for pid in procList:
             if not pid.isdigit():
-                idlist = SysMgr.getPids(pid, isThread)
-                if len(idlist) > 0:
-                    uniqueList = set(idlist) - set(targetList)
-                    targetList += list(uniqueList)
+                isTid = False
             else:
-                targetList.append(pid)
+                isTid = True
+
+            # get pid list #
+            idlist = SysMgr.getPids(\
+                pid, isThread, isTid, withSibling, withMain)
+
+            # merge pid list #
+            if len(idlist) > 0:
+                uniqueList = set(idlist) - set(targetList)
+                targetList += list(uniqueList)
 
         return targetList
 
@@ -23832,7 +23853,7 @@ Copyright:
             pass
 
         # convert comm to pid #
-        targetList = SysMgr.convertPidList(argList, False, True)
+        targetList = SysMgr.convertPidList(argList, exceptMe=True)
 
         # send signal #
         SysMgr.sendSignalProcs(sig, targetList)
@@ -29495,7 +29516,8 @@ struct msghdr {
             return
 
         # kill childs #
-        SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
+        if hasattr(self, 'childList'):
+            SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
 
         # detach target #
         self.detach()
@@ -31279,18 +31301,18 @@ struct msghdr {
         else:
             addr, sym, fname, reins = ret
 
-        # build arguments string #
-        if SysMgr.showAll:
-            # read args #
-            args = self.readArgValues()
-            argstr = '(%s)' % ','.join(list(map(str, args)))
-        else:
-            argstr = ''
-
-        # toDo: check argument condition #
-
-        # build call string #
+        # print context info #
         if printStat:
+            # build arguments string #
+            if SysMgr.showAll:
+                # read args #
+                args = self.readArgValues()
+                argstr = '(%s)' % ','.join(list(map(str, args)))
+            else:
+                argstr = ''
+
+            # toDo: check argument condition #
+
             # get diff time #
             diff = current - self.start
 
@@ -31339,9 +31361,9 @@ struct msghdr {
             else:
                 SysMgr.printPipe(callString)
 
-        # print backtrace #
-        if not self.isRealtime and SysMgr.funcDepth > 0:
-            self.printContext(regs=False)
+            # print backtrace #
+            if not self.isRealtime and SysMgr.funcDepth > 0:
+                self.printContext(regs=False)
 
         # apply register set to rewind IP #
         self.setPC(addr)
@@ -31389,7 +31411,7 @@ struct msghdr {
         if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
-            self.handleBreakpoint(printStat=True)
+            self.handleBreakpoint(printStat=SysMgr.printEnable)
 
         self.status = previous
 
@@ -32069,7 +32091,7 @@ struct msghdr {
         tid = self.getEventMsg()
 
         # create a new process to trace a new task #
-        pid = SysMgr.createProcess(isDaemon=True)
+        pid = SysMgr.createProcess(changePgid=True, isDaemon=True)
         self.statFd = None
         if pid > 0:
             self.detach(self.pid)
