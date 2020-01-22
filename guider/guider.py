@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200121"
+__revision__ = "200122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11305,14 +11305,14 @@ class FileAnalyzer(object):
                     val['fd'] = fd
                 except:
                     self.profFailedCnt += 1
-                    if SysMgr.warningEnable:
+                    if SysMgr.warnEnable:
                         SysMgr.printOpenWarn(fileName)
                     continue
 
             # check file size whether it is readable or not #
             if val['totalSize'] <= 0:
                 self.profFailedCnt += 1
-                if SysMgr.warningEnable:
+                if SysMgr.warnEnable:
                     SysMgr.printWarn('Fail to mmap %s' % fileName)
                 continue
 
@@ -11698,7 +11698,7 @@ class SysMgr(object):
     perfEnable = False
     perfGroupEnable = False
     resetEnable = False
-    warningEnable = False
+    warnEnable = False
     logEnable = True
     ttyEnable = False
     selectEnable = True
@@ -12029,7 +12029,7 @@ class SysMgr(object):
     @staticmethod
     def doSetAffinity():
         isProcess = False
-        SysMgr.warningEnable = True
+        SysMgr.warnEnable = True
 
         # parse options #
         value = ' '.join(sys.argv[2:])
@@ -12082,7 +12082,7 @@ class SysMgr(object):
 
     @staticmethod
     def doGetAffinity():
-        SysMgr.warningEnable = True
+        SysMgr.warnEnable = True
 
         # parse options #
         value = ' '.join(sys.argv[2:])
@@ -16439,7 +16439,7 @@ Copyright:
             not SysMgr.isTopMode():
             # common options #
             enableStat += SysMgr.arch.upper() + ' '
-            if SysMgr.warningEnable:
+            if SysMgr.warnEnable:
                 enableStat += 'WARN '
 
         # function mode #
@@ -16688,7 +16688,7 @@ Copyright:
         # common options #
         enableStat += SysMgr.arch.upper() + ' '
 
-        if SysMgr.warningEnable:
+        if SysMgr.warnEnable:
             enableStat += 'WARN '
         else:
             disableStat += 'WARN '
@@ -18552,7 +18552,7 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        if not SysMgr.warningEnable and \
+        if not SysMgr.warnEnable and \
             not always:
             return
 
@@ -22775,7 +22775,7 @@ Copyright:
     @staticmethod
     def doSetSched():
         isProcess = False
-        SysMgr.warningEnable = True
+        SysMgr.warnEnable = True
 
         # parse options #
         value = ' '.join(sys.argv[2:])
@@ -22994,6 +22994,8 @@ Copyright:
                 ret = SysMgr.createProcess(changePgid=True)
                 if ret == 0:
                     if not tid in pids:
+                        if not SysMgr.warnEnable:
+                            SysMgr.logEnable = False
                         SysMgr.printEnable = False
 
                     if SysMgr.fileForPrint:
@@ -23057,7 +23059,7 @@ Copyright:
     def doAddr2sym():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr.warningEnable = True
+        SysMgr.warnEnable = True
 
         if not SysMgr.sourceFile:
             SysMgr.printErr(\
@@ -29042,7 +29044,7 @@ class DltAnalyzer(object):
             sys.exit(0)
 
         # define verbose #
-        if SysMgr.warningEnable:
+        if SysMgr.warnEnable:
             # set log level to DEBUG #
             dltObj.dlt_log_set_level(LOG_DEBUG)
 
@@ -29845,7 +29847,7 @@ struct msghdr {
             SysMgr.printWarn('Fail to attach thread %s' % pid, verb)
             return -1
         else:
-            SysMgr.printInfo('Attached to thread %d' % pid)
+            SysMgr.printWarn('Attached to thread %d' % pid)
             return 0
 
 
@@ -29941,7 +29943,7 @@ struct msghdr {
             SysMgr.printWarn('Fail to detach thread %s' % pid)
             return -1
         else:
-            SysMgr.printInfo('Detached from thread %d' % pid)
+            SysMgr.printWarn('Detached from thread %d' % pid)
             return 0
 
 
@@ -31797,7 +31799,7 @@ struct msghdr {
             sys.exit(0)
 
         # set return value from register #
-        retval = getattr(self.regs, self.retreg)
+        retval = self.getRetVal()
         if retval < 0:
             args = []
 
@@ -52064,7 +52066,7 @@ def main(args=None):
     SysMgr.outputFile = None
 
     # check log level #
-    SysMgr.warningEnable = SysMgr.findOption('v')
+    SysMgr.warnEnable = SysMgr.findOption('v')
 
     # set error logger #
     SysMgr.setErrorLogger()
