@@ -2683,6 +2683,7 @@ class ConfigMgr(object):
         'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
             [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
+    SIGKILL = SIG_LIST.index('SIGKILL')
 
     # stat list from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
@@ -23778,7 +23779,7 @@ Copyright:
 
 
     @staticmethod
-    def terminateTasks(targetList, sig=signal.SIGKILL):
+    def terminateTasks(targetList, sig=ConfigMgr.SIGKILL):
         for pid in targetList:
             # check task #
             try:
@@ -24860,7 +24861,7 @@ Copyright:
 
 
     @staticmethod
-    def killChilds(sig=signal.SIGKILL, childs=None):
+    def killChilds(sig=ConfigMgr.SIGKILL, childs=None):
         if childs is None:
             childs = list(SysMgr.childList.keys())
 
