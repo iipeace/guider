@@ -3646,7 +3646,7 @@ class UtilMgr(object):
         except:
             err = SysMgr.getErrReason()
             SysMgr.printWarn(\
-                "Fail to save elf cache to %s because %s" % \
+                "Fail to save ELF cache to %s because %s" % \
                 (path, err))
             return False
 
@@ -10246,7 +10246,7 @@ class LeakAnalyzer(object):
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Failed to analyze leakage because %s" % err)
+                "Fail to analyze leakage because %s" % err)
 
         SysMgr.printInfo("start resolving symbols...")
 
@@ -20483,7 +20483,7 @@ Copyright:
                     "No PATH with -I")
                 sys.exit(0)
 
-            # run elf analyzer #
+            # run ELF analyzer #
             try:
                 ElfAnalyzer(SysMgr.sourceFile, debug=True)
             except:
@@ -21435,7 +21435,8 @@ Copyright:
         pidList = []
 
         # check tasks by tid #
-        if isTid:
+        if isTid and \
+            os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
             if withSibling:
                 path = '%s/%s/task' % (SysMgr.procPath, name)
 
@@ -23067,50 +23068,96 @@ Copyright:
             SysMgr.printErr(\
                 "No offset with -g")
             sys.exit(0)
+        else:
+            addrList = list()
+            for idx, addr in enumerate(SysMgr.filterGroup):
+                if not UtilMgr.isNumber(addr):
+                    SysMgr.printErr(\
+                        "Fail to recognize '%s' as a number" % addr)
+                    sys.exit(0)
 
-        # create elf object #
-        try:
-            binObj = ElfAnalyzer.getObject(SysMgr.sourceFile, True)
-            if not binObj:
+                try:
+                    addrList.append(long(addr, 16))
+                except:
+                    addrList.append(long(addr))
+
+        resInfo = {}
+        inputArg = SysMgr.sourceFile
+
+        # check file #
+        if os.path.isfile(inputArg):
+            filePath = inputArg
+
+            # create ELF object #
+            try:
+                binObj = ElfAnalyzer.getObject(filePath, True)
+                if not binObj:
+                    err = SysMgr.getErrReason()
+                    raise Exception(err)
+            except SystemExit:
+                sys.exit(0)
+            except:
                 err = SysMgr.getErrReason()
-                raise Exception(err)
-        except:
-            err = SysMgr.getErrReason()
-            SysMgr.printErr(\
-                "Fail to load elf object because %s" % err)
-            sys.exit(0)
+                SysMgr.printErr(\
+                    "Fail to load ELF object because %s" % err)
+                sys.exit(0)
+
+            for addr in addrList:
+                try:
+                    resInfo[addr] = [binObj.getSymbolByOffset(addr), filePath]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    resInfo[addr] = ['??', filePath]
+        # check process #
+        else:
+            if inputArg.isdigit() and \
+                os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
+                pids = [inputArg]
+            else:
+                pids = SysMgr.getPids(inputArg)
+
+            if len(pids) == 0:
+                SysMgr.printErr(\
+                    "Fail to recognize %s as a file or a process" % inputArg)
+                sys.exit(0)
+            elif len(pids) > 1:
+                SysMgr.printErr((\
+                    "Fail to find a unique process because "
+                    "multiple processes [%s] are found") % ', '.join(pids))
+                sys.exit(0)
+
+            pid = pids[0]
+
+            try:
+                dobj = Debugger(pid=pid, attach=False)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to analyze %s process" % pid)
+                sys.exit(0)
+
+            for addr in addrList:
+                ret = dobj.getSymbolInfo(addr)
+                if type(ret) is list:
+                    resInfo[addr] = [ret[0], ret[1]]
+                else:
+                    resInfo[addr] = ['??', '??']
 
         SysMgr.printPipe("\n[Address Info]\n%s" % twoLine)
 
         SysMgr.printPipe(\
-            "{0:<18} {1:<1}\n{2:1}".format('Address', 'Symbol', twoLine))
+            "{0:<18} {1:<52} {2:<1}\n{3:1}".format(\
+                'Address', 'Symbol', 'File', twoLine))
 
         # print symbols from offset list #
-        for offset in SysMgr.filterGroup:
-            if not UtilMgr.isNumber(offset):
-                SysMgr.printErr((\
-                    "wrong option value '%s', "
-                    "input address in the number format") % offset)
-                sys.exit(0)
-
-            try:
-                symbol = binObj.getSymbolByOffset(offset)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-            if symbol == '??':
-                symbol = 'N/A'
-
-            soffset = str(offset)
-            if soffset.startswith('0x'):
-                offset = soffset
-            else:
-                offset = '0x%s' % soffset
-
+        for addr, val in resInfo.items():
             SysMgr.printPipe(\
-                "{0:<18} {1:<1}".format(offset, symbol))
+                "{0:<18} {1:<52} {2:<1}".format(\
+                    hex(addr), val[0], val[1]))
+
+        if len(resInfo) == 0:
+            SysMgr.printPipe('\tNone')
 
         SysMgr.printPipe(oneLine + '\n')
 
@@ -23261,6 +23308,7 @@ Copyright:
                 pids = [inputArg]
             else:
                 pids = SysMgr.getPids(inputArg)
+
             if len(pids) == 0:
                 SysMgr.printErr(\
                     "Fail to recognize %s as a file or a process" % inputArg)
@@ -23271,14 +23319,16 @@ Copyright:
                     "multiple processes [%s] are found") % ', '.join(pids))
                 sys.exit(0)
 
+            pid = pids[0]
+
             # get file list on memorymap #
-            fileList = FileAnalyzer.getProcMapInfo(pids[0])
+            fileList = FileAnalyzer.getProcMapInfo(pid)
             for filePath, attr in fileList.items():
                 if not filePath.startswith('/'):
                     continue
 
                 for sym in SysMgr.filterGroup:
-                    # create elf object #
+                    # create ELF object #
                     try:
                         res = ElfAnalyzer.getSymOffset(sym, filePath)
                         if res:
@@ -30634,7 +30684,7 @@ struct msghdr {
         vstart = self.pmap[fname]['vstart']
         vend = self.pmap[fname]['vend']
 
-        # get elf object #
+        # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return [0, 0]
@@ -30662,7 +30712,7 @@ struct msghdr {
         vstart = self.pmap[fname]['vstart']
         vend = self.pmap[fname]['vend']
 
-        # get elf object #
+        # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return [0, 0]
@@ -30722,7 +30772,7 @@ struct msghdr {
             # get process memory map #
             self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
             if not self.pmap:
-                return
+                return None
 
             # get sorted lists from process memory map #
             self.fileList, self.addrList = self.getAddrLists()
@@ -30754,7 +30804,7 @@ struct msghdr {
                 'because wrong memory map' % (fname, hex(vaddr)))
             return ['??', fname, '??', '??', '??']
 
-        # get elf object #
+        # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return ['??', fname, '??', '??', '??']
@@ -33214,7 +33264,7 @@ class EventAnalyzer(object):
 
 
 class ElfAnalyzer(object):
-    """ Analyzer for elf binaries """
+    """ Analyzer for ELF binaries """
 
     SHF_WRITE = 0x1
     SHF_ALLOC = 0x2
@@ -34980,7 +35030,7 @@ class ElfAnalyzer(object):
         e_type = e_class = 'dummpy'
         EI_NIDENT = 16
 
-        # parse elf header #
+        # parse ELF header #
         ei_ident = struct.unpack('16B', fd.read(EI_NIDENT))
         ei_mag0, ei_mag1,ei_mag2, ei_mag3, \
             ei_class, ei_data, ei_version, ei_pad = ei_ident[:8]
@@ -35076,12 +35126,12 @@ class ElfAnalyzer(object):
         else:
             e_version = str(ei_version)
 
-        # parse 32-bit elf header #
+        # parse 32-bit ELF header #
         if self.is32Bit:
             e_entry, e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
                 struct.unpack('IIIIHHHHHH', fd.read(28))
-        # parse 64-bit elf header #
+        # parse 64-bit ELF header #
         else:
             e_entry, e_phoff, e_shoff, e_flags, e_ehsize, e_phentsize, \
                 e_phnum, e_shentsize, e_shnum, e_shstrndx = \
