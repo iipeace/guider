@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200122"
+__revision__ = "200123"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -340,6 +340,52 @@ class ConfigMgr(object):
         18: "MADV_WIPEONFORK",  # Zero memory on fork, child only
         19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
         100: "MADV_HWPOISON",   # Poison a page for testing
+    }
+
+    # Define entry type #
+    AT_TYPE = {
+	"AT_IGNORE": 1, # Entry should be ignored
+	"AT_EXECFD": 2, # File descriptor of program
+	"AT_PHDR": 3, # Program headers for program
+	"AT_PHENT": 4, # Size of program header entry
+	"AT_PHNUM": 5, # Number of program headers
+	"AT_PAGESZ": 6, # System page size
+	"AT_BASE": 7, # Base address of interpreter
+	"AT_FLAGS": 8, # Flags
+	"AT_ENTRY": 9, # Entry point of program
+	"AT_NOTELF": 10, # Program is not ELF
+	"AT_UID": 11, # Real uid
+	"AT_EUID": 12, # Effective uid
+	"AT_GID": 13, # Real gid
+	"AT_EGID": 14, # Effective gid
+	"AT_CLKTCK": 17, # Frequency of times()
+	"AT_PLATFORM": 15, # String identifying platform
+	"AT_HWCAP": 16, # Machine-dependent hints about
+	"AT_FPUCW": 18, # Used FPU control word
+	"AT_DCACHEBSIZE": 19, # Data cache block size
+	"AT_ICACHEBSIZE": 20, # Instruction cache block size
+	"AT_UCACHEBSIZE": 21, # Unified cache block size
+	"AT_IGNOREPPC": 22, # Entry should be ignored
+	"AT_SECURE": 23, # Boolean, was exec setuid-like?
+	"AT_BASE_PLATFORM": 24, # String identifying real platforms
+	"AT_RANDOM": 25, # Address of 16 random bytes
+	"AT_HWCAP2": 26, # More machine-dependent hints about
+	"AT_EXECFN": 31, # Filename of executable
+	"AT_SYSINFO": 32,
+	"AT_SYSINFO_EHDR": 33,
+	"AT_L1I_CACHESHAPE": 34,
+	"AT_L1D_CACHESHAPE": 35,
+	"AT_L2_CACHESHAPE": 36,
+	"AT_L3_CACHESHAPE": 37,
+	"AT_L1I_CACHESIZE": 40,
+	"AT_L1I_CACHEGEOMETRY": 41,
+	"AT_L1D_CACHESIZE": 42,
+	"AT_L1D_CACHEGEOMETRY": 43,
+	"AT_L2_CACHESIZE": 44,
+	"AT_L2_CACHEGEOMETRY": 45,
+	"AT_L3_CACHESIZE": 46,
+	"AT_L3_CACHEGEOMETRY": 47,
+	"AT_MINSIGSTKSZ": 51, # Stack needed for signal delivery
     }
 
     # Define syscall prototypes #
@@ -10564,6 +10610,8 @@ class FileAnalyzer(object):
                 if not SysMgr.libcObj:
                     SysMgr.libcObj = \
                         cdll.LoadLibrary(SysMgr.libcPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.libcObj = None
                 SysMgr.printErr(\
@@ -11839,6 +11887,8 @@ class SysMgr(object):
 
             # int malloc_trim (size_t pad) #
             ret = SysMgr.libcObj.malloc_trim(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "Fail to shrink heap area because %s" % \
@@ -11911,6 +11961,8 @@ class SysMgr(object):
 
             SysMgr.maxFd = rlim.rlim_cur
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "Fail to get the maximum file descriptor because %s" % \
@@ -12190,6 +12242,8 @@ class SysMgr(object):
                     ret = SysMgr.libcObj.sched_setaffinity(\
                         long(pid), nrCore, \
                         byref(c_ulong(((0x1 << nrCore) - 1) & mask)))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     ret = -1
                     SysMgr.printWarn(\
@@ -12240,6 +12294,8 @@ class SysMgr(object):
                 return hex(cpuset.value)
             else:
                 raise Exception()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn((\
                 "Fail to get cpu affinity of tasks "
@@ -12401,8 +12457,11 @@ class SysMgr(object):
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
+
             SysMgr.libcObj.prctl(\
                 15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 'Fail to set comm because of prctl error in libc')
@@ -15199,6 +15258,8 @@ Copyright:
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.libcObj = None
             SysMgr.perfEnable = False
@@ -15575,6 +15636,8 @@ Copyright:
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.libcObj = None
             SysMgr.printWarn(\
@@ -16677,6 +16740,61 @@ Copyright:
                 cmds.append(':'.join(item))
             SysMgr.printInfo(\
                 "user custom commands on %s [ %s ]" % (idx, ', '.join(cmds)))
+
+
+
+    @staticmethod
+    def getVdso(debug=False):
+        # get address of vdso object #
+        addr = SysMgr.getauxval("AT_SYSINFO_EHDR")
+
+        # create a memory file #
+        fd = MemoryFile(addr)
+
+        # return vDSO #
+        obj = ElfAnalyzer(path='vdso', fd=fd, debug=debug)
+        if obj:
+            ElfAnalyzer.cachedFiles['vdso'] = obj
+
+        return obj
+
+
+
+    @staticmethod
+    def getauxval(attype):
+        if not SysMgr.isLinux:
+            return None
+
+        try:
+            nrType = ConfigMgr.AT_TYPE[attype]
+        except:
+            SysMgr.printErr(\
+                "Fail to get entry type %s because %s" % \
+                    (attype, SysMgr.getErrReason()))
+            return
+
+        # import ctypes #
+        ctypes = SysMgr.getPkg('ctypes')
+
+        from ctypes import cdll, c_ulong
+
+        try:
+            # load standard libc library #
+            if not SysMgr.libcObj:
+                SysMgr.libcObj = \
+                    cdll.LoadLibrary(SysMgr.libcPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(\
+                'Fail to find %s to call getauxval' % SysMgr.libcPath)
+            return
+
+        # declare syscalls #
+        SysMgr.libcObj.getauxval.restype = c_ulong
+        SysMgr.libcObj.getauxval.argtypes = [c_ulong]
+
+        return SysMgr.libcObj.getauxval(c_ulong(nrType))
 
 
 
@@ -20478,14 +20596,18 @@ Copyright:
         elif SysMgr.isReadelfMode():
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            if not SysMgr.sourceFile:
+            path = SysMgr.sourceFile
+            if not path:
                 SysMgr.printErr(\
                     "No PATH with -I")
                 sys.exit(0)
 
             # run ELF analyzer #
             try:
-                ElfAnalyzer(SysMgr.sourceFile, debug=True)
+                if path == 'vdso':
+                    SysMgr.getVdso(debug=True)
+                else:
+                    ElfAnalyzer(path, debug=True)
             except:
                 pass
 
@@ -22873,9 +22995,6 @@ Copyright:
 
             # load symbol caches at once #
             for item in mapList:
-                if not item.startswith('/'):
-                    continue
-
                 try:
                     eobj = ElfAnalyzer.getObject(item)
                     if len(pidList) == 1 and eobj:
@@ -23326,9 +23445,6 @@ Copyright:
             # get file list on memorymap #
             fileList = FileAnalyzer.getProcMapInfo(pid)
             for filePath, attr in fileList.items():
-                if not filePath.startswith('/'):
-                    continue
-
                 for sym in SysMgr.filterGroup:
                     # create ELF object #
                     try:
@@ -24200,6 +24316,8 @@ Copyright:
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.libcObj = None
             SysMgr.printWarn(\
@@ -30741,9 +30859,6 @@ struct msghdr {
 
         for mfile in list(self.pmap.keys()):
             try:
-                if not mfile.startswith('/'):
-                    continue
-
                 eobj = ElfAnalyzer.getObject(mfile)
                 if eobj:
                     eobj.mergeSymTable()
@@ -30939,7 +31054,7 @@ struct msghdr {
         if SysMgr.printFile:
             self.callPrint.append(SysMgr.bufferString)
         else:
-            SysMgr.doPrint(clear=True)
+            SysMgr.doPrint(newline=False, clear=True)
 
         SysMgr.clearPrint()
 
@@ -31091,8 +31206,14 @@ struct msghdr {
                 except:
                     pass
 
+            # disable timer #
+            signal.alarm(0)
+
             SysMgr.waitUserInput(wait=0, \
                 msg="%s() is detected! Press enter to continue..." % sym)
+
+            # enable timer #
+            SysMgr.updateTimer()
 
 
 
@@ -31374,7 +31495,7 @@ struct msghdr {
             else:
                 tinfo = ''
 
-            callString = '%3.6f %s%s@%s%s [%s]' % \
+            callString = '\n%3.6f %s%s@%s%s [%s]' % \
                 (diff, tinfo, sym, hex(addr), argstr, fname)
 
             if self.isRealtime:
@@ -32094,9 +32215,6 @@ struct msghdr {
 
         addrList = []
         for mfile in list(self.pmap.keys()):
-            if not mfile.startswith('/'):
-                continue
-
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
                 offset = fcache.getOffsetBySymbol(symbol)
@@ -33265,6 +33383,63 @@ class EventAnalyzer(object):
 
 
 
+class MemoryFile(object):
+    """ File for memory region """
+
+    def __init__(self, addr, size=4096):
+        self.pos = 0
+        self.addr = addr
+        self.size = size
+
+        self.resize(size)
+
+
+
+    def resize(self, size):
+        ctypes = SysMgr.getPkg('ctypes')
+
+        from ctypes import c_char, memmove
+
+        self.mem = bytearray(size)
+        ptr = (c_char * size).from_buffer(self.mem)
+
+        ret = memmove(ptr, self.addr, size)
+        if ret < 0:
+            SysMgr.printErr(\
+                "Fail to copy memory from %s" % addr)
+        else:
+            self.size = size
+
+        return ret
+
+
+
+    def read(self, size):
+        des = self.pos + size
+
+        if des > self.size:
+            self.resize(des)
+
+        segment = self.mem[self.pos:des]
+
+        self.pos += size
+
+        return bytes(segment)
+
+
+
+    def write(self, size):
+        pass
+
+
+
+    def seek(self, pos):
+        self.pos = pos
+
+
+
+
+
 class ElfAnalyzer(object):
     """ Analyzer for ELF binaries """
 
@@ -34209,8 +34384,22 @@ class ElfAnalyzer(object):
             if path in ElfAnalyzer.failedFiles:
                 return None
 
+            fobj = None
+
+            # check exception case #
+            if not path.startswith('/'):
+                if path == 'vdso':
+                    fobj = SysMgr.getVdso()
+                elif not os.path.exists(path):
+                    return None
+
             SysMgr.printInfo(\
                 "Start loading %s... " % path, suffix=False)
+
+            # return a exceptional file object #
+            if fobj:
+                SysMgr.printInfo("[Done]", prefix=False, notitle=True)
+                return fobj
 
             # try to load a object from a file #
             fobj = ElfAnalyzer.loadObject(path)
@@ -34716,7 +34905,7 @@ class ElfAnalyzer(object):
 
 
 
-    def __init__(self, path, debug=False, onlyHeader=False):
+    def __init__(self, path=None, debug=False, onlyHeader=False, fd=None, size=sys.maxsize):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -34996,37 +35185,40 @@ class ElfAnalyzer(object):
         self.sortedAddrTable = []
         self.mergedSymTable = {}
 
-        # check debug file #
-        filename = os.path.basename(path)
-        dirname = os.path.dirname(path)
-        debugPath = '%s/.debug/%s' % (dirname, filename)
-        if os.path.isfile(debugPath):
-            SysMgr.printWarn(\
-                'Use %s instead of %s for debug symbols\n' % \
-                (debugPath, path))
-            self.path = path = debugPath
-        else:
-            debugPath = '/usr/lib/debug%s' % path
+        self.fileSize = size
+
+        if fd is None:
+            # check debug file #
+            filename = os.path.basename(path)
+            dirname = os.path.dirname(path)
+            debugPath = '%s/.debug/%s' % (dirname, filename)
             if os.path.isfile(debugPath):
                 SysMgr.printWarn(\
                     'Use %s instead of %s for debug symbols\n' % \
                     (debugPath, path))
                 self.path = path = debugPath
-
-        # open file #
-        try:
-            fd = open(path, 'rb')
-        except:
-            if debug:
-                SysMgr.printOpenErr(path)
             else:
-                SysMgr.printOpenWarn(path)
+                debugPath = '/usr/lib/debug%s' % path
+                if os.path.isfile(debugPath):
+                    SysMgr.printWarn(\
+                        'Use %s instead of %s for debug symbols\n' % \
+                        (debugPath, path))
+                    self.path = path = debugPath
 
-            err = SysMgr.getErrReason()
-            raise Exception(err)
+            # open file #
+            try:
+                fd = open(path, 'rb')
+            except:
+                if debug:
+                    SysMgr.printOpenErr(path)
+                else:
+                    SysMgr.printOpenWarn(path)
 
-        # get file size #
-        self.fileSize = os.stat(path).st_size
+                err = SysMgr.getErrReason()
+                raise Exception(err)
+
+            # get file size #
+            self.fileSize = os.stat(path).st_size
 
         # define default file type #
         e_type = e_class = 'dummpy'
@@ -35144,7 +35336,7 @@ class ElfAnalyzer(object):
         self.attr['elfHeader']['magic'] = \
             ("%02x %02x %02x %02x %02x %02x %02x %02x" %
             (ei_mag0, ei_mag1, ei_mag2, ei_mag3, ei_class, ei_data,\
-            ei_version, ei_pad))
+                ei_version, ei_pad))
         self.attr['elfHeader']['class'] = e_class
         self.attr['elfHeader']['data'] = e_data
         self.attr['elfHeader']['type'] = e_type
