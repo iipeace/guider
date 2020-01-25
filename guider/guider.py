@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200123"
+__revision__ = "200125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5001,13 +5001,33 @@ class PageAnalyzer(object):
             SysMgr.printErr(\
                 "Fail to get root permission analyze pages")
             sys.exit(0)
-        elif len(pid) == 0:
-            SysMgr.printErr("Fail to recognize pid, use -g option")
-            sys.exit(0)
-        elif not vaddr:
-            PageAnalyzer.printMemoryArea(pid)
+
+        try:
+            if type(pid) is not list or len(pid) != 1:
+                raise Exception()
+
+            pid = pid[0]
+            if pid.isdigit():
+                if not os.path.exists('%s/%s' % (SysMgr.procPath, pid)):
+                    raise Exception()
+            else:
+                pid = SysMgr.getPids(pid)
+                if len(pid) == 0:
+                    raise Exception()
+                elif len(pid) > 1:
+                    SysMgr.printErr(\
+                        "Found multiple pids [ %s ]" % ', '.join(pid))
+                    raise Exception()
+                else:
+                    pid = pid[0]
+        except:
             SysMgr.printErr(\
-                "Fail to recognize address, use -I option")
+                "Fail to recognize pid, input only one PID with -g option")
+            sys.exit(0)
+
+        if not vaddr:
+            PageAnalyzer.printMemoryArea(pid)
+            SysMgr.printPipe(oneLine)
             sys.exit(0)
 
         vrange = vaddr.split('-')
@@ -14424,6 +14444,9 @@ OPTIONS:
 Examples:
     - Print ELF infomation of specific file
         # {0:1} {1:1} -I /usr/bin/yes
+
+    - Print vDSO infomation
+        # {0:1} {1:1} -I vdso
                     '''.format(cmd, mode)
 
                 # logdlt #
@@ -14528,28 +14551,7 @@ Usage:
     # {0:1} {1:1} -I <FILE> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
-    Show symbols of specific addresses in a file
-
-OPTIONS:
-        -I  <FILE>                  set input path
-        -g  <OFFSET>                set offset
-        -v                          verbose
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Print symbol infomation of specific addresses in a file
-        # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
-                    '''.format(cmd, mode)
-
-                # sym2addr#
-                elif SysMgr.isSym2addrMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
-
-Description:
-    Show file and offset of specific symbols in a file or a process
+    Show symbols of specific addresses in a file or a process memory map
 
 OPTIONS:
         -I  <FILE|COMM|PID>         set input path or process
@@ -14559,10 +14561,34 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
+    - Print symbol infomation of specific addresses in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
+
+    - Print symbol infomation of specific addresses in a process memory map
+        # {0:1} {1:1} -I yes -g ab1cf
+                    '''.format(cmd, mode)
+
+                # sym2addr#
+                elif SysMgr.isSym2addrMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
+
+Description:
+    Show files and offset of specific symbols in a file or a process memory map
+
+OPTIONS:
+        -I  <FILE|COMM|PID>         set input path or process
+        -g  <SYMBOL>                set offset
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
     - Print infomation of specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
 
-    - Print infomation of specific symbols in a process
+    - Print infomation of specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
                     '''.format(cmd, mode)
 
@@ -20698,7 +20724,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(\
-                ''.join(SysMgr.filterGroup), SysMgr.sourceFile)
+                SysMgr.filterGroup, SysMgr.sourceFile)
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
