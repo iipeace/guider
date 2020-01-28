@@ -3478,6 +3478,9 @@ class UtilMgr(object):
 
     @staticmethod
     def convertColor(string, color='LIGHT'):
+        if 'REMOTERUN' in os.environ:
+            return string
+
         return '%s%s%s' % \
             (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
 
@@ -11567,6 +11570,7 @@ class SysMgr(object):
     packetSize = 32767
     defaultPort = 5555
     bgProcList = None
+    waitDelay = 0.5
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -12496,6 +12500,27 @@ class SysMgr(object):
             if not pickle:
                 return None
         return pickle
+
+
+
+    @staticmethod
+    def isAlive(tid):
+        try:
+            statPath = "%s/%s/stat" % (SysMgr.procPath, tid)
+            with open(statPath, 'r') as fd:
+                stat = fd.readlines()[0]
+
+            # convert string to list #
+            statList = stat.split(')')[1].split()
+
+            if statList[0] == 'Z':
+                return False
+            else:
+                return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return False
 
 
 
@@ -20773,6 +20798,9 @@ Copyright:
 
         # BTRACE MODE #
         elif SysMgr.isBtraceMode():
+            # check background processes #
+            SysMgr.checkBgProcs()
+
             SysMgr.doTrace('breakcall')
 
         # PRINTENV MODE #
@@ -22401,6 +22429,13 @@ Copyright:
             finally:
                 try:
                     connObj.close()
+
+                    # send TERM signal first #
+                    os.killpg(procObj.pid, signal.SIGINT)
+
+                    time.sleep(SysMgr.waitDelay)
+
+                    # send KILL signal #
                     os.killpg(procObj.pid, signal.SIGKILL)
                 except:
                     pass
@@ -23009,6 +23044,8 @@ Copyright:
                     pid = SysMgr.getTgid(tid)
                     procList.setdefault(pid, list())
                     procList[pid].append(tid)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             pidList = list(map(long, procList.keys()))
@@ -23025,6 +23062,8 @@ Copyright:
                     eobj = ElfAnalyzer.getObject(item)
                     if len(pidList) == 1 and eobj:
                         eobj.mergeSymTable()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -23135,26 +23174,31 @@ Copyright:
                             SysMgr.getErrReason())
 
             # create new worker processes #
-            for tid in allpids:
-                ret = SysMgr.createProcess(changePgid=True)
-                if ret == 0:
-                    if not tid in pids:
-                        if not SysMgr.warnEnable:
-                            SysMgr.logEnable = False
-                        SysMgr.printEnable = False
+            try:
+                isFinished = True
+                for tid in allpids:
+                    ret = SysMgr.createProcess(changePgid=True)
+                    if ret == 0:
+                        if not tid in pids:
+                            if not SysMgr.warnEnable:
+                                SysMgr.logEnable = False
+                            SysMgr.printEnable = False
 
-                    if SysMgr.fileForPrint:
-                        SysMgr.fileForPrint.close()
-                        SysMgr.fileForPrint = None
+                        if SysMgr.fileForPrint:
+                            SysMgr.fileForPrint.close()
+                            SysMgr.fileForPrint = None
 
-                    pid = long(tid)
-                    SysMgr.fileSuffix = pid
-                    break
+                        pid = long(tid)
+                        SysMgr.fileSuffix = pid
+                        break
+            except:
+                isFinished = False
 
             # wait for childs as a parent #
             if SysMgr.pid == parent:
-                SysMgr.waitEvent()
-                SysMgr.killChilds(sig=signal.SIGINT)
+                if isFinished:
+                    SysMgr.waitEvent()
+                SysMgr.killChilds(sig=signal.SIGINT, check=True)
                 SysMgr.clearChildList()
                 sys.exit(0)
         else:
@@ -25057,11 +25101,25 @@ Copyright:
 
 
     @staticmethod
-    def killChilds(sig=ConfigMgr.SIGKILL, childs=None):
+    def killChilds(sig=ConfigMgr.SIGKILL, childs=None, check=False):
         if childs is None:
             childs = list(SysMgr.childList.keys())
 
-        SysMgr.terminateTasks(childs, sig)
+        while 1:
+            SysMgr.terminateTasks(childs, sig)
+
+            if not check:
+                break
+
+            cnt = 0
+            for tid in childs:
+                if SysMgr.isAlive(tid):
+                    cnt += 1
+
+            if cnt == 0:
+                break
+
+            time.sleep(SysMgr.waitDelay)
 
 
 
@@ -28152,7 +28210,6 @@ class DbusAnalyzer(object):
             mlist = {}
             cnt = long(0)
             gdmsg = long(0)
-            errp = POINTER(DbusAnalyzer.errObj)()
 
             try:
                 # check args #
@@ -28245,6 +28302,8 @@ class DbusAnalyzer(object):
                     # cast bytes to void_p #
                     #buf = c_char_p(call.encode('latin-1'))
                     buf = c_char_p(call)
+
+                    errp = POINTER(DbusAnalyzer.errObj)()
 
                     # check message size in header #
                     hsize = libgioObj.g_dbus_message_bytes_needed(\
@@ -29839,7 +29898,7 @@ struct msghdr {
                 ret = self.getAddrBySymbol(value)
                 if not ret:
                     SysMgr.printErr(\
-                        "Fail to find address for %s" % value)
+                        "Fail to find address for '%s'" % value)
                     sys.exit(0)
                 else:
                     addrList = ret
@@ -30518,12 +30577,12 @@ struct msghdr {
 
 
 
-    def convertValue(self, argtype, argname, value, seq=0):
+    def convertValue(self, argtype, argname, value, seq=0, ref=True):
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
 
-        if argname == "msg" and \
+        if ref and argname == "msg" and \
             (syscall == "sendmsg" or syscall == "recvmsg"):
             try:
                 return self.readMsgHdr(value)
@@ -30540,7 +30599,7 @@ struct msghdr {
                 # toDo: handle double pointer values #
                 return value
 
-        if argtype == "const char *" and \
+        if ref and argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
             # toDo: add more argnames #
             return self.readCString(self.values[seq])
@@ -30591,7 +30650,7 @@ struct msghdr {
             except:
                 return value
 
-        if argname == "buf" and \
+        if ref and argname == "buf" and \
             (syscall == "write" or syscall == "read"):
             if self.values[2] > self.pbufsize:
                 length = self.pbufsize
@@ -30603,7 +30662,10 @@ struct msghdr {
             if ret:
                 value = ret
 
-            return value
+            try:
+                return repr(value)[1:-1]
+            except:
+                return repr(value)
 
         if argname == "flags" and value:
             if syscall.startswith('send') or \
@@ -30622,11 +30684,11 @@ struct msghdr {
         pass
 
         # toDo: handle pointer data type #
-        if argtype.endswith("*"):
+        if argtype[-1] == '*':
             try:
-                return value
+                return str(hex(value))
             except:
-                return value
+                pass
 
         return value
 
@@ -31086,9 +31148,13 @@ struct msghdr {
 
 
 
-    def getRetVal(self):
+    def getRetVal(self, temp=False):
         try:
-            ret = getattr(self.regs, self.retreg)
+            if temp:
+                ret = getattr(self.tempRegs, self.retreg)
+            else:
+                ret = getattr(self.regs, self.retreg)
+
             return self.ctypes.c_long(ret).value
         except SystemExit:
             sys.exit(0)
@@ -31774,8 +31840,7 @@ struct msghdr {
             argtype, argname = format
 
             # convert argument value #
-            if ref:
-                value = self.convertValue(argtype, argname, value, seq)
+            value = self.convertValue(argtype, argname, value, seq, ref)
 
             # add argument #
             self.addArg(argtype, argname, value)
@@ -31787,6 +31852,7 @@ struct msghdr {
     def getConvertedArgs(self):
         args = []
 
+        # converting arguments #
         self.getRegArgs()
 
         # pick values from argument list #
@@ -31799,13 +31865,11 @@ struct msghdr {
                     # check output length #
                     if not (SysMgr.printFile or SysMgr.showAll) and \
                         len(text) > self.pbufsize:
-                        text = '"%s"...' % text[:self.pbufsize]
+                        text = r'"%s..."' % text[:self.pbufsize]
                     else:
-                        text = '"%s"' % text[:-1]
-                elif type(arg[2]) is dict:
-                    text = arg[2]
+                        text = r'"%s"' % text[:-1]
                 else:
-                    text = '0x{0:02x}'.format(arg[2])
+                    text = arg[2]
             elif arg[0].endswith('int') or arg[0].endswith('long'):
                 try:
                     text = long(arg[2])
@@ -31946,10 +32010,9 @@ struct msghdr {
             sys.exit(0)
 
         # set return value from register #
-        retval = self.getRetVal()
+        args = []
+        retval = self.getRetVal(temp=True)
         if retval < 0:
-            args = []
-
             # get argument values from previous register set #
             self.getRegArgs(ref=False)
         else:
@@ -32260,8 +32323,7 @@ struct msghdr {
                     (hex(item[0]), item[1]) for item in addrList]
             listString = ', '.join(addrString)
             SysMgr.printWarn((\
-                "Found multiple %s symbols [ %s ]") % \
-                    (symbol, listString), True)
+                "Found multiple %s symbols [ %s ]") % (symbol, listString))
 
         return addrList
 
@@ -32436,8 +32498,9 @@ struct msghdr {
                     "Fail to load symbols because %s" % err)
                 sys.exit(0)
 
-        SysMgr.printInfo(\
-            "Start profiling thread %d" % self.pid)
+        if not self.multi:
+            SysMgr.printInfo(\
+                "Start profiling thread %d" % self.pid)
 
         # set start time #
         #self.start = self.last = time.time()
@@ -52675,6 +52738,9 @@ def main(args=None):
                 SysMgr.printErr(\
                     "Input value for breakpoint with -c option")
                 sys.exit(0)
+
+            # check background processes #
+            SysMgr.checkBgProcs()
 
             SysMgr.doTrace('breakcall')
 
