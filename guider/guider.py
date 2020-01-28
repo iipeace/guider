@@ -23088,8 +23088,8 @@ Copyright:
                     procObj.detach()
                     del procObj
 
-                    SysMgr.sendSignalProcs(\
-                        signal.SIGCONT, [pid], verbose=False)
+                SysMgr.sendSignalProcs(\
+                    signal.SIGCONT, pidList, verbose=False)
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -32654,7 +32654,7 @@ struct msghdr {
                     if mode == 'syscall':
                         self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
 
-                    self.ptrace(self.cmd)
+                        self.ptrace(self.cmd)
 
                     continue
 
