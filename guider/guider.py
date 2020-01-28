@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200125"
+__revision__ = "200129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23036,7 +23036,7 @@ Copyright:
 
     @staticmethod
     def doTrace(mode):
-        def loadCommonCaches(pids):
+        def doCommonJobs(pids):
             # get pid list #
             procList = {}
             for tid in pids:
@@ -23069,7 +23069,12 @@ Copyright:
 
             # save original data to be injected for multi-threaded process #
             if mode == 'breakcall':
+                # stop all processes #
+                SysMgr.sendSignalProcs(\
+                    signal.SIGSTOP, pidList, verbose=False)
+
                 for pid in pidList:
+                    breakList.setdefault(pid, dict())
                     breakBackupList.setdefault(pid, dict())
 
                     # create object #
@@ -23080,16 +23085,18 @@ Copyright:
                     # load common ELF cache files #
                     procObj.loadSymbols()
 
-                    addrList = procObj.getBreakpointAddr(SysMgr.customCmd)
-                    for addr in addrList:
-                        breakBackupList[pid][addr] = \
-                            procObj.readMem(addr, len(procObj.brkInst))
+                    # add per-process breakpoints #
+                    ret = procObj.addBreakpointList(SysMgr.customCmd)
+                    if not ret:
+                        sys.exit(0)
+
+                    # save per-process breakpoint info #
+                    for addr, data in procObj.breakList.items():
+                        breakList[pid][addr] = copy.deepcopy(data)
+                        breakBackupList[pid][addr] = data['data']
 
                     procObj.detach()
                     del procObj
-
-                SysMgr.sendSignalProcs(\
-                    signal.SIGCONT, pidList, verbose=False)
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -23106,6 +23113,7 @@ Copyright:
         multi = False
         execCmd = None
         lockObj = None
+        breakList = {}
         breakBackupList = {}
 
         # convert comm to pid #
@@ -23159,7 +23167,7 @@ Copyright:
 
             # load symbol caches and addresses for breakpoint in advance #
             if mode != 'syscall' or SysMgr.funcDepth > 0:
-                loadCommonCaches(pids)
+                doCommonJobs(pids)
 
             # create lock for tracer processes #
             if mode == 'breakcall':
@@ -23224,13 +23232,15 @@ Copyright:
             elif mode == 'breakcall':
                 try:
                     ppid = long(SysMgr.getTgid(pid))
-                    brkData = breakBackupList[ppid]
+                    brkData = breakList[ppid]
+                    brkBackupData = breakBackupList[ppid]
                 except:
                     brkData = {}
+                    brkBackupData = {}
 
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='break', wait=wait, brkData=brkData, \
-                        multi=multi, lock=lockObj)
+                        brkBackupData=brkBackupData, multi=multi, lock=lockObj)
             else:
                 pass
         except SystemExit:
@@ -30110,12 +30120,13 @@ struct msghdr {
 
         # check target status #
         if check:
-            cnt = 30
+            cnt = 50
             while 1:
                 ret = self.ptrace(self.contCmd, 0, sig)
                 if ret != 0:
+                    time.sleep(0.001)
                     cnt -= 1
-                    if cnt < 0 and not self.isAlive():
+                    if cnt < 0 or not self.isAlive():
                         SysMgr.printErr((\
                             'Fail to continue thread %s '
                             'because it is terminated') % pid)
@@ -32364,7 +32375,8 @@ struct msghdr {
 
 
     def trace(\
-        self, mode='syscall', wait=None, multi=False, lock=None, brkData={}):
+        self, mode='syscall', wait=None, multi=False, lock=None, \
+            brkData={}, brkBackupData={}):
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
         # Wait on all children, regardless of type #
@@ -32532,18 +32544,21 @@ struct msghdr {
         elif mode == 'sample':
             self.cmd = None
         elif mode == 'break':
-            # register breakpoint data #
-            for addr, data in brkData.items():
-                self.breakBackupList[addr] = {
-                    'data': data,
-                    'symbol': None,
-                    'reins': False,
-                }
+            if len(brkData) > 0:
+                # register breakpoint data #
+                self.breakList = brkData
 
-            # add breakpoint #
-            ret = self.addBreakpointList(SysMgr.customCmd)
-            if not ret:
-                sys.exit(0)
+                # register breakpoint backup data #
+                for addr, data in brkBackupData.items():
+                    self.breakBackupList[addr] = {
+                        'data': data,
+                        'symbol': None,
+                        'reins': False,
+                    }
+            else:
+                ret = self.addBreakpointList(SysMgr.customCmd)
+                if not ret:
+                    sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -32584,6 +32599,10 @@ struct msghdr {
                 elif mode == 'sample':
                     self.checkInterval()
                 elif mode == 'break':
+                    # check stop status #
+                    if self.getStatList()[0] == 'S':
+                        SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+
                     if self.cont(check=True) < 0:
                         sys.exit(0)
                 # setup trap #
@@ -32601,6 +32620,7 @@ struct msghdr {
                 if self.isCloned(ostat):
                     if mode == 'break':
                         self.handoverNewTarget()
+
                     continue
 
                 # handle fork event #
@@ -32649,6 +32669,11 @@ struct msghdr {
                     SysMgr.printWarn(\
                         'Blocked thread %s because of %s' % \
                         (self.pid, ConfigMgr.SIG_LIST[stat]))
+
+                    if mode == 'break':
+                        if self.cont(check=True) < 0:
+                            sys.exit(0)
+                        continue
 
                     # set up trap again #
                     if mode == 'syscall':
@@ -52738,9 +52763,6 @@ def main(args=None):
                 SysMgr.printErr(\
                     "Input value for breakpoint with -c option")
                 sys.exit(0)
-
-            # check background processes #
-            SysMgr.checkBgProcs()
 
             SysMgr.doTrace('breakcall')
 
