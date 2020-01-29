@@ -12891,7 +12891,12 @@ class SysMgr(object):
 
 
     @staticmethod
-    def waitEvent():
+    def waitEvent(ignChldSig=True):
+        # ignore SIGCHLD #
+        if ignChldSig:
+            signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
+        # pause task #
         try:
             signal.pause()
         except:
@@ -22052,6 +22057,7 @@ Copyright:
         if pid > 0:
             if not isDaemon:
                 SysMgr.childList[pid] = True
+
             return pid
         # child #
         elif pid == 0:
@@ -23207,12 +23213,11 @@ Copyright:
                 if isFinished:
                     SysMgr.waitEvent()
                 SysMgr.killChilds(sig=signal.SIGINT, check=True)
-                SysMgr.clearChildList()
                 sys.exit(0)
         else:
             pid = long(pids[0])
 
-        # ignore SIGCHLD #
+        # recover SIGCHLD #
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
         # start tracing #
@@ -25114,6 +25119,9 @@ Copyright:
     def killChilds(sig=ConfigMgr.SIGKILL, childs=None, check=False):
         if childs is None:
             childs = list(SysMgr.childList.keys())
+
+        # remove child list #
+        SysMgr.clearChildList()
 
         while 1:
             SysMgr.terminateTasks(childs, sig)
@@ -29784,6 +29792,7 @@ struct msghdr {
         # kill childs #
         if hasattr(self, 'childList'):
             SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
+            del self.childList
 
         # detach target #
         self.detach()
@@ -30035,6 +30044,7 @@ struct msghdr {
                 symbol = '(%s)' % sym
             else:
                 symbol = ''
+
             SysMgr.printWarn(\
                 'Added a new breakpoint to %s%s for %s thread' % \
                     (hex(addr), symbol, self.pid))
@@ -30115,7 +30125,7 @@ struct msghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to continue thread %s because it is terminated' % pid)
+                'Fail to continue %s thread because it is terminated' % pid)
             return -1
 
         # check target status #
@@ -30162,8 +30172,8 @@ struct msghdr {
 
 
 
-    def detach(self, force=False, pid=None):
-        if force:
+    def detach(self, only=False, pid=None):
+        if only:
             return self.doDetach(pid)
 
         if not self.attached:
@@ -30709,6 +30719,7 @@ struct msghdr {
     def onAlarm(signum, frame):
         if Debugger.lastInstance:
             Debugger.lastInstance.printIntervalSummary()
+
         SysMgr.updateTimer()
 
 
@@ -32215,7 +32226,7 @@ struct msghdr {
 
 
 
-    def getStatList(self, retstr=False):
+    def getStatList(self, retstr=False, status=False):
         try:
             self.statFd.seek(0)
             stat = self.statFd.readlines()[0]
@@ -32238,6 +32249,12 @@ struct msghdr {
 
         # convert string to list #
         statList = stat.split(')')[1].split()
+
+        if status:
+            try:
+                return statList[0]
+            except:
+                return None
 
         return statList
 
@@ -32362,15 +32379,55 @@ struct msghdr {
 
         # create a new process to trace a new task #
         pid = SysMgr.createProcess(changePgid=True, isDaemon=True)
-        self.statFd = None
+        # child thread #
         if pid > 0:
             self.detach(self.pid)
+
             self.pid = tid
+
+            self.initValues()
             self.childList.append(pid)
+
+            signal.alarm(SysMgr.intervalEnable)
+        # parent thread #
         elif pid == 0:
             self.attach()
-            ret = self.ptraceEvent(self.traceEventList)
-            signal.alarm(SysMgr.intervalEnable)
+            self.ptraceEvent(self.traceEventList)
+
+
+
+    def initValues(self):
+        # default info #
+        self.traceEventList = [\
+            'PTRACE_O_TRACESYSGOOD',\
+            'PTRACE_O_TRACECLONE',
+            'PTRACE_O_TRACEFORK',
+            'PTRACE_O_TRACEVFORK',
+        ]
+
+        # stat variables #
+        self.comm = SysMgr.getComm(self.pid)
+        self.start = long(0)
+        self.last = long(0)
+        self.statFd = None
+        self.prevStat = None
+        self.prevCpuStat = None
+        self.supportGetRegset = True
+        self.supportSetRegset = True
+        self.supportProcessVmRd = True
+        self.supportProcessVmWr = False
+        self.arch = SysMgr.getArch()
+        self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
+        self.retreg = ConfigMgr.RET_LIST[self.arch]
+
+        self.prevCallString = ''
+        self.getRegsCost = long(0)
+        self.childList = list()
+        self.callList = list()
+        self.callPrint = list()
+        self.syscallTime = dict()
+        self.syscallTimeStat = dict()
+        self.breakcallTimeStat = dict()
 
 
 
@@ -32384,8 +32441,7 @@ struct msghdr {
         # Wait only on non-SIGCHLD children #
         __WCLONE = 0x80000000
 
-        # default variables #
-        regs = None
+        # index variables #
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
@@ -32398,45 +32454,19 @@ struct msghdr {
         self.sigVforkFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
 
-        # Process exited #
-        self.comm = SysMgr.getComm(self.pid)
-        self.lockObj = lock
-        self.traceEventList = [\
-            'PTRACE_O_TRACESYSGOOD',\
-            'PTRACE_O_TRACECLONE',
-            'PTRACE_O_TRACEFORK',
-            'PTRACE_O_TRACEVFORK',
-        ]
+        # initialize variables #
+        self.initValues()
 
         # context variables #
-        self.start = long(0)
-        self.last = long(0)
+        self.cmd = None
         self.wait = wait
         self.mode = mode
-        self.statFd = None
-        self.prevStat = None
-        self.prevCpuStat = None
-        self.supportGetRegset = True
-        self.supportSetRegset = True
-        self.supportProcessVmRd = True
-        self.supportProcessVmWr = False
-        self.cmd = None
-        self.arch = SysMgr.getArch()
-        self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
-        self.retreg = ConfigMgr.RET_LIST[self.arch]
         self.multi = multi
+        self.lockObj = lock
         self.pbufsize = SysMgr.ttyCols >> 1
 
         # sampling variables #
         self.sampleTime = long(0)
-        self.getRegsCost = long(0)
-        self.prevCallString = ''
-        self.childList = list()
-        self.callList = list()
-        self.callPrint = list()
-        self.syscallTime = dict()
-        self.syscallTimeStat = dict()
-        self.breakcallTimeStat = dict()
 
         # disable extended ascii #
         SysMgr.encodeEnable = False
@@ -32555,6 +32585,11 @@ struct msghdr {
                         'symbol': None,
                         'reins': False,
                     }
+
+                # check thread status #
+                stat = self.getStatList(status=True)
+                if stat == 'S':
+                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
             else:
                 ret = self.addBreakpointList(SysMgr.customCmd)
                 if not ret:
@@ -32600,11 +32635,10 @@ struct msghdr {
                     self.checkInterval()
                 elif mode == 'break':
                     # check stop status #
-                    if self.getStatList()[0] == 'S':
-                        SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
-
-                    if self.cont(check=True) < 0:
-                        sys.exit(0)
+                    stat = self.getStatList(status=True)
+                    if stat == 't':
+                        if self.cont(check=True) < 0:
+                            sys.exit(0)
                 # setup trap #
                 else:
                     self.ptrace(self.cmd)
@@ -32618,13 +32652,13 @@ struct msghdr {
 
                 # handle clone event #
                 if self.isCloned(ostat):
-                    if mode == 'break':
-                        self.handoverNewTarget()
-
+                    self.handoverNewTarget()
                     continue
 
                 # handle fork event #
                 if self.isForked(ostat):
+                    if mode == 'syscall':
+                        self.handoverNewTarget()
                     continue
 
                 # check status of process #
@@ -32710,6 +32744,7 @@ struct msghdr {
 
                     SysMgr.printErr(\
                         'Terminated thread %s' % self.pid)
+
                     sys.exit(0)
 
                 # other #
@@ -33056,9 +33091,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 "Fail to recognize tids, use -g option")
             return
 
-        # ignore SIGCHLD #
-        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-
         dlist = []
         lastTid = long(0)
         try:
@@ -33071,8 +33103,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     SysMgr.printInfo("paused thread %s" % lastTid)
                 elif ret == 0:
                     dobj = Debugger(pid=lastTid)
+
                     SysMgr.waitEvent()
+
                     dobj.__del__()
+
                     sys.exit(0)
                 else:
                     SysMgr.printErr(\
@@ -33083,7 +33118,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             SysMgr.waitEvent()
 
             SysMgr.killChilds(sig=signal.SIGINT)
-            SysMgr.clearChildList()
         except SystemExit:
             return
         except:
@@ -33326,6 +33360,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             while 1:
                 try:
+                    ret = 0
                     ret = SysMgr.libcObj.waitpid(\
                         pid, pointer(status), options)
                 except SystemExit:
