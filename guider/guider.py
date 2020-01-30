@@ -21329,7 +21329,7 @@ Copyright:
 
                     try:
                         stat = '/%s' % \
-                            ConfigMgr.TCP_STAT[int(tcp[stIdx],16)]
+                            ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
                     except:
                         stat = ''
 
@@ -30706,10 +30706,7 @@ struct msghdr {
 
         # toDo: handle pointer data type #
         if argtype[-1] == '*':
-            try:
-                return str(hex(value))
-            except:
-                pass
+            return value
 
         return value
 
@@ -31214,7 +31211,7 @@ struct msghdr {
 
 
     def addSample(\
-        self, sym, filename, current=None, realtime=False, bt=None, err=None):
+        self, sym, filename, realtime=False, bt=None, err=None):
         if err:
             # increase err count #
             try:
@@ -31294,10 +31291,7 @@ struct msghdr {
             if not SysMgr.printFile:
                 return
 
-        if not current:
-            current = time.time()
-
-        self.callList.append([sym, current, filename])
+        self.callList.append([sym, self.current, filename])
 
 
 
@@ -31560,9 +31554,6 @@ struct msghdr {
 
 
     def handleBreakpoint(self, printStat=False, checkArg=None):
-        # get current time #
-        current = time.time()
-
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -31602,7 +31593,7 @@ struct msghdr {
             # toDo: check argument condition #
 
             # get diff time #
-            diff = current - self.start
+            diff = self.current - self.start
 
             if self.multi:
                 tinfo = '%s(%s) ' % (self.comm, self.pid)
@@ -31618,13 +31609,13 @@ struct msghdr {
                 else:
                     backtrace = None
                 self.addSample(\
-                    sym, fname, current, realtime=True, bt=backtrace)
+                    sym, fname, realtime=True, bt=backtrace)
 
                 # apply stat #
                 try:
                     prev, ttotal, tmin, tmax = self.breakcallTimeStat[sym]
 
-                    tdiff = current - prev
+                    tdiff = self.current - prev
 
                     ttotal += tdiff
 
@@ -31636,13 +31627,13 @@ struct msghdr {
                         tmin = tdiff
 
                     self.breakcallTimeStat[sym] = \
-                        [current, ttotal, tmin, tmax]
+                        [self.current, ttotal, tmin, tmax]
                 except:
                     self.breakcallTimeStat[sym] = \
-                        [current, 0, 0, 0]
+                        [self.current, 0, 0, 0]
 
             elif SysMgr.printFile:
-                self.addSample(sym, fname, current)
+                self.addSample(sym, fname)
 
                 if SysMgr.showAll:
                     self.callPrint.append(callString)
@@ -31784,8 +31775,7 @@ struct msghdr {
         pass
 
         # get time diff #
-        current = time.time()
-        diff = current - self.start
+        diff = self.current - self.start
 
         # update callstack #
         if self.mode == 'inst':
@@ -31823,9 +31813,9 @@ struct msghdr {
 
         # print call info #
         if self.isRealtime:
-            self.addSample(sym, fname, current, realtime=True, bt=backtrace)
+            self.addSample(sym, fname, realtime=True, bt=backtrace)
         elif SysMgr.printFile:
-            self.addSample(sym, fname, current)
+            self.addSample(sym, fname)
 
             if SysMgr.showAll:
                 self.callPrint.append(callString)
@@ -31932,8 +31922,7 @@ struct msghdr {
 
     def handleSyscallOutput(self, args, deferrable=False):
         # get diff time #
-        current = time.time()
-        diff = current - self.start
+        diff = self.current - self.start
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
@@ -31947,7 +31936,7 @@ struct msghdr {
         if SysMgr.jsonOutputEnable:
             jsonData = {
                 "type": "enter",
-                "time": current,
+                "time": self.current,
                 "timediff": diff,
                 "name": self.syscall,
                 "tid": self.pid,
@@ -31990,9 +31979,9 @@ struct msghdr {
         # print call info #
         if self.isRealtime:
             self.addSample(\
-                self.syscall, '??', current, realtime=True, bt=backtrace)
+                self.syscall, '??', realtime=True, bt=backtrace)
         elif SysMgr.printFile:
-            self.addSample(self.syscall, '??', current, bt=backtrace)
+            self.addSample(self.syscall, '??', bt=backtrace)
         else:
             ttyColsOrig = SysMgr.ttyCols
 
@@ -32091,11 +32080,10 @@ struct msghdr {
                 return
 
             args = []
-            current = time.time()
 
             # convert args except for top mode #
             if self.isRealtime:
-                self.syscallTime[name] = current
+                self.syscallTime[name] = self.current
             else:
                 if self.isDeferrableCall(name):
                     self.status = 'deferrable'
@@ -32104,7 +32092,7 @@ struct msghdr {
                         return
 
                     # get diff time #
-                    diff = current - self.start
+                    diff = self.current - self.start
 
                     # build call string #
                     callString = '%3.6f %s(%s) %s(' % \
@@ -32135,11 +32123,9 @@ struct msghdr {
 
             # get diff time #
             if self.isRealtime:
-                current = time.time()
-
                 # get diff #
                 try:
-                    diff = current - self.syscallTime[name]
+                    diff = self.current - self.syscallTime[name]
                 except:
                     diff = long(0)
 
@@ -32459,6 +32445,7 @@ struct msghdr {
 
         # context variables #
         self.cmd = None
+        self.current = time.time()
         self.wait = wait
         self.mode = mode
         self.multi = multi
@@ -32646,6 +32633,9 @@ struct msghdr {
             try:
                 # wait process #
                 rid, ostat = self.waitpid(self.pid, __WALL)
+
+                # update time #
+                self.current = time.time()
 
                 # get status of process #
                 stat = self.getStatus(ostat)
