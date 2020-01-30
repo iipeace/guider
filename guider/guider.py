@@ -31690,7 +31690,9 @@ struct msghdr {
         if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
+            self.lock()
             self.handleBreakpoint(printStat=SysMgr.printEnable)
+            self.unlock()
 
         self.status = previous
 
