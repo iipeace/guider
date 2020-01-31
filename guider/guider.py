@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200129"
+__revision__ = "200201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13865,6 +13865,15 @@ Examples:
     - Monitor printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
 
+    - Monitor all function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c
+
+    - Monitor all function calls in specific files for a specific thread
+        # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
+
+    - Monitor specific function calls including specific word for a specific thread
+        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
+
     - Monitor printPeace function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
@@ -14246,6 +14255,7 @@ OPTIONS:
               e:encode
         -u                          run in the background
         -a                          show all stats including registers
+        -T  <FILE>                  set file
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
         -R  <TIME>                  set timer
@@ -14261,6 +14271,15 @@ OPTIONS:
 Examples:
     - Trace printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
+
+    - Trace all function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c
+
+    - Trace all function calls in specific files for a specific thread
+        # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
+
+    - Trace specific function calls including specific word for a specific thread
+        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
 
     - Trace printPeace function calls with argument values for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace -a
@@ -14617,6 +14636,12 @@ OPTIONS:
 Examples:
     - Print infomation of specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
+
+    - Print infomation of all symbols in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g
+
+    - Print infomation of specific symbols including specific word in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc\\*
 
     - Print infomation of specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
@@ -16347,6 +16372,9 @@ Copyright:
                     SysMgr.printErr(\
                         "redundant user event name '%s'" % item[0])
                     sys.exit(0)
+
+            if type(addr) is list:
+                addr = str(addr[0][0])
 
             effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
 
@@ -23091,8 +23119,12 @@ Copyright:
                     # load common ELF cache files #
                     procObj.loadSymbols()
 
+                    fileList = SysMgr.getOption('T')
+                    if fileList:
+                        fileList = set(fileList.split(','))
+
                     # add per-process breakpoints #
-                    ret = procObj.addBreakpointList(SysMgr.customCmd)
+                    ret = procObj.addBreakpointList(SysMgr.customCmd, fileList)
                     if not ret:
                         sys.exit(0)
 
@@ -23492,9 +23524,12 @@ Copyright:
                 "No PATH or COMM or PID with -I")
             sys.exit(0)
 
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.findOption('g'):
             SysMgr.printErr("No symbol with -g")
             sys.exit(0)
+
+        if len(SysMgr.filterGroup) == 0:
+            SysMgr.filterGroup.append('**')
 
         resInfo = {}
         inputArg = SysMgr.sourceFile
@@ -23505,9 +23540,19 @@ Copyright:
             for sym in SysMgr.filterGroup:
                 # create ELF object #
                 try:
-                    resInfo['%s|%s' % (sym, filePath)] = \
-                        (ElfAnalyzer.getSymOffset(sym, inputArg), filePath, None)
+                    offset = ElfAnalyzer.getSymOffset(sym, inputArg)
+                    if not offset:
+                        continue
+
+                    for item in offset:
+                        resInfo['%s|%s' % (item[1], filePath)] = \
+                            (hex(item[0]), filePath, None)
+                except SystemExit:
+                    sys.exit(0)
                 except:
+                    SysMgr.printErr(\
+                        "Fail to get '%s' info because %s" % \
+                            (sym, SysMgr.getErrReason()))
                     sys.exit(0)
         # check process #
         else:
@@ -23536,10 +23581,13 @@ Copyright:
                     # create ELF object #
                     try:
                         res = ElfAnalyzer.getSymOffset(sym, filePath)
-                        if res:
-                            addr = hex(attr['vstart'] + long(res, 16))
-                            resInfo['%s|%s' % (sym, filePath)] = \
-                                (res, filePath, addr)
+                        if not res:
+                            continue
+
+                        for item in res:
+                            addr = hex(attr['vstart'] + long(item[0]))
+                            resInfo['%s|%s' % (item[1], filePath)] = \
+                                (hex(item[0]), filePath, addr)
                     except:
                         SysMgr.printWarn(\
                             "Fail to save offset info because %s" % \
@@ -23552,7 +23600,7 @@ Copyright:
                 'Symbol', 'PATH', 'Offset', 'Address', twoLine))
 
         # print symbols from offset list #
-        for sym, val in resInfo.items():
+        for sym, val in sorted(resInfo.items()):
             symbol = sym.split('|')[0]
             offset, filePath, addr = val
 
@@ -29912,8 +29960,9 @@ struct msghdr {
 
 
 
-    def getBreakpointAddr(self, blist):
-        addrData = {}
+    def addBreakpointList(self, blist, binary=None):
+        if len(blist) == 0:
+            blist.append('**')
 
         for value in blist:
             # address #
@@ -29926,7 +29975,15 @@ struct msghdr {
                 addrList = [[addr, ret[0], ret[1]]]
             # symbol #
             else:
-                ret = self.getAddrBySymbol(value)
+                if value.startswith('*') and \
+                    value.endswith('*'):
+                    value = value.strip('*')
+                    similar = True
+                else:
+                    similar = False
+
+                ret = self.getAddrBySymbol(\
+                    value, binary=binary, similar=similar)
                 if not ret:
                     SysMgr.printErr(\
                         "Fail to find address for '%s'" % value)
@@ -29936,47 +29993,8 @@ struct msghdr {
 
             # add new breakpoints #
             for item in addrList:
-                if len(item) == 3:
+                if type(item) is list:
                     addr, symbol, fname = item
-                    addrData.setdefault(addr, None)
-                elif len(item) == 2:
-                    addr, fname = item
-                    symbol = value
-                    addrData.setdefault(addr, None)
-                else:
-                    continue
-
-        return list(addrData.keys())
-
-
-
-    def addBreakpointList(self, blist):
-        for value in blist:
-            # address #
-            if UtilMgr.isNumber(value):
-                try:
-                    addr = long(value, 16)
-                except:
-                    addr = long(value)
-                ret = self.getSymbolInfo(addr)
-                addrList = [[addr, ret[0], ret[1]]]
-            # symbol #
-            else:
-                ret = self.getAddrBySymbol(value)
-                if not ret:
-                    SysMgr.printErr(\
-                        "Fail to find address for %s" % value)
-                    sys.exit(0)
-                else:
-                    addrList = ret
-
-            # add new breakpoints #
-            for item in addrList:
-                if len(item) == 3:
-                    addr, symbol, fname = item
-                elif len(item) == 2:
-                    addr, fname = item
-                    symbol = value
                 else:
                     continue
 
@@ -29987,6 +30005,7 @@ struct msghdr {
                         "Fail to add breakpoint to %s(%s) for %s thread" % \
                             (value, hex(addr), self.pid))
                     return False
+
         return True
 
 
@@ -31612,7 +31631,7 @@ struct msghdr {
             else:
                 tinfo = ''
 
-            callString = '\n%3.6f %s%s@%s%s [%s]' % \
+            callString = '\n%3.6f %s%s/%s%s [%s]' % \
                 (diff, tinfo, sym, hex(addr), argstr, fname)
 
             if self.isRealtime:
@@ -32327,40 +32346,63 @@ struct msghdr {
 
 
 
-    def getAddrBySymbol(self, symbol, binary=None):
+    def getAddrBySymbol(self, symbol, binary=None, similar=False):
         if not self.pmap:
             self.loadSymbols()
 
-        if binary:
-            fcache = ElfAnalyzer.getObject(binary)
-            if fcache:
-                offset = fcache.getOffsetBySymbol(symbol)
-                if offset:
-                    offset = long(offset, 16)
-                    return [[self.pmap[binary]['vstart'] + offset, binary]]
-
         addrList = []
+        addrDict = {}
         for mfile in list(self.pmap.keys()):
+            if binary and not mfile in binary:
+                continue
+
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
-                offset = fcache.getOffsetBySymbol(symbol)
+                offset = fcache.getOffsetBySymbol(symbol, similar=similar)
                 if type(offset) is str:
                     offset = long(offset, 16)
+
                     if ElfAnalyzer.isRelocFile(mfile):
+                        if offset in addrDict:
+                            continue
                         addrList.append(\
-                            [self.pmap[mfile]['vstart'] + offset, mfile])
+                            [self.pmap[mfile]['vstart']+offset, symbol, mfile])
                     else:
-                        addrList.append([offset, mfile])
+                        if offset in addrDict:
+                            continue
+                        addrList.append([offset, symbol, mfile])
+
+                    addrDict[offset] = True
+                    continue
+                elif type(offset) is not list:
+                    continue
+
+                for item in offset:
+                    sym = item[0]
+                    offset = long(item[1], 16)
+                    if ElfAnalyzer.isRelocFile(mfile):
+                        if offset in addrDict:
+                            continue
+
+                        addrList.append(\
+                            [self.pmap[mfile]['vstart']+offset, sym, mfile])
+                    else:
+                        if offset in addrDict:
+                            continue
+
+                        addrList.append([offset, sym, mfile])
+
+                    addrDict[offset] = True
 
         # return address #
         if len(addrList) == 0:
             return None
         elif len(addrList) > 1:
-            addrString = ['%s(%s)' % \
-                    (hex(item[0]), item[1]) for item in addrList]
+            addrString = ['%s/%s(%s)' % \
+                    (item[2], hex(item[0]), item[1]) for item in addrList]
             listString = ', '.join(addrString)
-            SysMgr.printWarn((\
-                "Found multiple %s symbols [ %s ]") % (symbol, listString))
+            SysMgr.printWarn(\
+                "Found multiple symbols [ %s ]" % listString)
 
         return addrList
 
@@ -34726,6 +34768,8 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath=None):
+        syms = []
+
         if not objdumpPath:
             offset = None
 
@@ -34734,24 +34778,31 @@ class ElfAnalyzer(object):
                 if not binObj:
                     raise Exception()
 
-                offset = binObj.getOffsetBySymbol(symbol)
+                if symbol.startswith('*') and \
+                    symbol.endswith('*'):
+                    symbol = symbol.strip('*')
+                    similar = True
+                else:
+                    similar = False
+
+                offset = binObj.getOffsetBySymbol(symbol, similar=similar)
             except:
                 pass
 
-            # check similar list #
-            if type(offset) is list and len(offset) > 0:
-                SysMgr.printWarn((\
-                    "Fail to find %s in %s, "
-                    "\n\tbut similar symbols [ %s ] are exist") % \
-                        (symbol, binPath, ', '.join(offset)), True)
-                return None
+            if type(offset) is str:
+                offset = long(offset, 16)
+                syms.append([offset, symbol, binPath])
+            elif type(offset) is list:
+                for item in offset:
+                    sym = item[0]
+                    offset = long(item[1], 16)
+                    syms.append([offset, sym, binPath])
 
-            return offset
+            return syms
 
         # get subprocess object #
         subprocess = SysMgr.getPkg('subprocess')
 
-        syms = []
         args = [objdumpPath, "-C", "-F", "-d", binPath]
 
         SysMgr.printStat(\
@@ -34798,17 +34849,13 @@ class ElfAnalyzer(object):
                 proc.terminate()
                 return d['offset']
             elif symbol in d['symbol']:
-                syms.append('%s {%s}' % (d['symbol'], d['offset']))
+                syms.append([d['symbol'], d['offset']])
 
         # check similar list #
         if len(syms) == 0:
             return None
         else:
-            SysMgr.printWarn((\
-                "Fail to find %s in %s, "
-                "\n\tbut similar symbols [ %s ] are exist") % \
-                    (symbol, binPath, ', '.join(syms)), True)
-            sys.exit(0)
+            return syms
 
 
 
@@ -34843,7 +34890,7 @@ class ElfAnalyzer(object):
 
 
 
-    def mergeSymTable(self, force=False):
+    def mergeSymTable(self, force=False, onlyFunc=True):
         # check already merged #
         if len(self.mergedSymTable) > 0 and not force:
             return
@@ -34867,7 +34914,12 @@ class ElfAnalyzer(object):
         for idx, item in sorted(tempSymTable.items(),\
             key=lambda e: e[1]['value'], reverse=False):
 
+            # skip useless symbol #
             if item['size'] == 0:
+                continue
+
+            # skip symbols except for function #
+            if onlyFunc and item['type'] != 'FUNC':
                 continue
 
             self.sortedAddrTable.append(item['value'])
@@ -35000,7 +35052,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getOffsetBySymbol(self, symbol):
+    def getOffsetBySymbol(self, symbol, similar=False):
         # check symbol table #
         if len(self.sortedSymTable) == 0:
             self.mergeSymTable()
@@ -35010,12 +35062,10 @@ class ElfAnalyzer(object):
         # get offset or symbol list #
         try:
             for idx, val in enumerate(self.sortedSymTable):
-                if symbol == val[0] or \
-                    symbol == val[0].split('@')[0]:
+                if similar and symbol in val[0]:
+                    clist.append([val[0], hex(self.sortedAddrTable[idx])])
+                elif (symbol == val[0] or symbol == val[0].split('@')[0]):
                     return str(hex(self.sortedAddrTable[idx]))
-                elif symbol in val[0]:
-                    clist.append('%s {%s}' % \
-                        (val[0], hex(self.sortedAddrTable[idx])))
         except:
             return None
 
@@ -52813,10 +52863,9 @@ def main(args=None):
 
         # breakcall #
         elif SysMgr.isBrkTopMode():
-            if not SysMgr.customCmd or \
-                len(SysMgr.customCmd) == 0:
+            if SysMgr.customCmd is None:
                 SysMgr.printErr(\
-                    "Input value for breakpoint with -c option")
+                    "No value for breakpoint with -c option")
                 sys.exit(0)
 
             SysMgr.doTrace('breakcall')
