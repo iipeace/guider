@@ -23179,7 +23179,7 @@ Copyright:
             if mode == 'breakcall':
                 try:
                     SysMgr.importPackageItems('fcntl')
-                    lockObj = open('%s/guiderlock' % SysMgr.cacheDirPath, 'w')
+                    lockObj = open('%s/guider.lock' % SysMgr.cacheDirPath, 'w')
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -23212,7 +23212,9 @@ Copyright:
             if SysMgr.pid == parent:
                 if isFinished:
                     SysMgr.waitEvent()
+
                 SysMgr.killChilds(sig=signal.SIGINT, check=True)
+
                 sys.exit(0)
         else:
             pid = long(pids[0])
@@ -25316,12 +25318,15 @@ Copyright:
         stat = SysMgr.readCmdVal('../tracing_on')
         if not stat:
             sys.exit(0)
+        elif SysMgr.forceEnable:
+            # write command to stop tracing #
+            SysMgr.writeCmd('../tracing_on', '0')
         elif stat == '1':
             # no running Guider process except for myself #
             if SysMgr.getBgProcCount(cache=True) <= 1:
                 res = SysMgr.readCmdVal('enable')
                 # default status #
-                if res == '0' or SysMgr.forceEnable:
+                if res == '0':
                     pass
                 # tracing status #
                 else:
@@ -29799,7 +29804,8 @@ struct msghdr {
 
         # continue target #
         try:
-            os.kill(self.pid, signal.SIGCONT)
+            if self.isStopped():
+                os.kill(self.pid, signal.SIGCONT)
         except:
             SysMgr.printSigError(self.pid, 'SIGCONT', 'warning')
             return
@@ -29864,7 +29870,7 @@ struct msghdr {
 
 
 
-    def removeBreakpoint(self, addr):
+    def removeBreakpoint(self, addr, check=False):
         if addr in self.breakList:
             savedData = self.breakList[addr]['data']
         elif not self.multi:
@@ -29877,6 +29883,12 @@ struct msghdr {
             SysMgr.printWarn(\
                 'No breakpoint registered with addr %s' % addr)
             return None
+
+        if check:
+            actualData = self.readMem(addr)
+            if savedData == actualData:
+                self.breakList.pop(addr, None)
+                return None
 
         # write original data #
         if savedData and \
@@ -31661,7 +31673,7 @@ struct msghdr {
             return -1
 
         # wait process #
-        ret = self.waitpid(self.pid, __WALL)
+        ret = self.waitpid()
         stat = self.getStatus(ret[1])
         if stat == signal.SIGKILL or \
             stat == signal.SIGSEGV or \
@@ -32249,25 +32261,34 @@ struct msghdr {
 
 
     def isAlive(self):
-        statList = self.getStatList()
-        if not statList:
-            return False
-
-        if statList[0] == 'Z':
+        stat = self.getStatList(status=True)
+        if stat == 'Z':
             return False
         else:
             return True
 
 
 
-    def isInRun(self):
-        statList = self.getStatList()
-        if not statList:
+    def isStopped(self):
+        stat = self.getStatList(status=True)
+        if not stat:
             return None
 
         # check status #
-        if statList[0] == 'R' or \
-            statList[0] == 't':
+        if stat == 'T' or stat =='t':
+            return True
+        else:
+            return False
+
+
+
+    def isInRun(self):
+        stat = self.getStatList(status=True)
+        if not stat:
+            return None
+
+        # check status #
+        if stat == 'R' or stat == 't':
             return True
         else:
             return False
@@ -32422,13 +32443,6 @@ struct msghdr {
     def trace(\
         self, mode='syscall', wait=None, multi=False, lock=None, \
             brkData={}, brkBackupData={}):
-        # Don't wait on children of other threads in this group #
-        __WNOTHREAD = 0x20000000
-        # Wait on all children, regardless of type #
-        __WALL = 0x40000000
-        # Wait only on non-SIGCHLD children #
-        __WCLONE = 0x80000000
-
         # index variables #
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
@@ -32492,8 +32506,9 @@ struct msghdr {
                 else:
                     self.sampleTime = float(0.0001)
 
-                SysMgr.printInfo(\
-                    'Do sampling every {0:f} second'.format(self.sampleTime))
+                if not self.multi:
+                    SysMgr.printInfo(\
+                        'Do sampling every {0:f} second'.format(self.sampleTime))
         # inst #
         elif SysMgr.isUtraceMode() and \
             SysMgr.funcDepth > 0:
@@ -32634,7 +32649,7 @@ struct msghdr {
 
             try:
                 # wait process #
-                rid, ostat = self.waitpid(self.pid, __WALL)
+                rid, ostat = self.waitpid()
 
                 # update time #
                 self.current = time.time()
@@ -32758,7 +32773,7 @@ struct msghdr {
             except:
                 # check whether the process is alive #
                 try:
-                    ret = self.waitpid(self.pid, __WALL)
+                    ret = self.waitpid()
 
                     ereason = SysMgr.getErrReason()
                 except SystemExit:
@@ -32796,7 +32811,7 @@ struct msghdr {
                 addr = instance.pc - instance.prevInstOffset
 
                 for brk in list(instance.breakBackupList.keys()):
-                    instance.removeBreakpoint(brk)
+                    ret = instance.removeBreakpoint(brk, check=True)
 
                     # apply register set to rewind IP #
                     if addr == brk:
@@ -33337,10 +33352,23 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def waitpid(self, pid, options=0):
+    def waitpid(self, pid=None):
         # get ctypes object #
         ctypes = self.ctypes
         from ctypes import cdll, c_int, c_ulong, pointer, POINTER, c_uint
+
+        # Don't wait on children of other threads in this group #
+        __WNOTHREAD = 0x20000000
+        # Wait on all children, regardless of type #
+        __WALL = 0x40000000
+        # Wait only on non-SIGCHLD children #
+        __WCLONE = 0x80000000
+
+        # set default option #
+        options = __WALL
+
+        if pid is None:
+            pid = self.pid
 
         try:
             # type converting #
@@ -35620,7 +35648,7 @@ Section header string table index: %d
         if debug:
             SysMgr.printPipe(\
                 ("\n[Section Headers]\n%s\n"
-                "[NR] %32s%15s%10s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
+                "[NR] %50s%15s%10s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
                 (twoLine, "Name", "Type", "Address", "Offset", "Size", \
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
@@ -35656,7 +35684,7 @@ Section header string table index: %d
             # print section header #
             if debug:
                 SysMgr.printPipe(\
-                    "[%02d] %32s%15s%10s%10x%8d%8d%5s%5s%5s%6s" % \
+                    "[%02d] %50s%15s%10s%10x%8d%8d%5s%5s%5s%6s" % \
                     (i, symbol, \
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type), \
