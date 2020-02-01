@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200201"
+__revision__ = "200202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25204,7 +25204,14 @@ Copyright:
 
         # call functions registered #
         for func, args in SysMgr.exitFuncList:
-            func(args)
+            try:
+                func(args)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Fail to execute a exit handler because %s" % \
+                        SysMgr.getErrReason())
 
         # destroy objects registered #
         del SysMgr.exitFuncList
@@ -29956,7 +29963,7 @@ struct msghdr {
             'Removed the breakpoint from %s(%s) for %s thread' % \
                 (hex(addr), symbol, self.pid))
 
-        return (addr, ret['symbol'], ret['filename'], ret['reins'])
+        return (ret['symbol'], ret['filename'], ret['reins'])
 
 
 
@@ -31604,12 +31611,9 @@ struct msghdr {
                     (hex(addr), self.pid))
             sys.exit(0)
 
-        # remove breakpoint #
-        ret = self.removeBreakpoint(addr)
-        if ret is None:
-            return
-        else:
-            addr, sym, fname, reins = ret
+        # pick breakpoint info #
+        sym = self.breakList[addr]['symbol']
+        fname = self.breakList[addr]['filename']
 
         # print context info #
         if printStat:
@@ -31679,6 +31683,17 @@ struct msghdr {
         self.setPC(addr)
         self.setRegs()
 
+        # lock between processes #
+        self.lock()
+
+        # remove breakpoint #
+        ret = self.removeBreakpoint(addr)
+        if ret is None:
+            return
+
+        # pick breakpoint info #
+        sym, fname, reins = ret
+
         # check reinstall option #
         if not reins:
             return
@@ -31721,8 +31736,9 @@ struct msghdr {
         if mode == 'inst' or mode =='sample':
             self.handleUsercall()
         elif mode == 'break':
-            self.lock()
             self.handleBreakpoint(printStat=SysMgr.printEnable)
+
+            # unlock between processes #
             self.unlock()
 
         self.status = previous
@@ -32844,8 +32860,10 @@ struct msghdr {
         # remove breakpoints #
         if instance.isAlive() and \
             len(instance.breakBackupList) > 0:
+
             # stop target #
-            instance.stop()
+            if not instance.isStopped():
+                instance.stop()
 
             # get current register set #
             ret = instance.updateRegs()
@@ -32854,6 +32872,8 @@ struct msghdr {
 
                 for brk in list(instance.breakBackupList.keys()):
                     ret = instance.removeBreakpoint(brk, check=True)
+                    if ret is None:
+                        continue
 
                     # apply register set to rewind IP #
                     if addr == brk:
