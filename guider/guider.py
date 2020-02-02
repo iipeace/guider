@@ -29925,7 +29925,7 @@ struct msghdr {
 
 
 
-    def removeBreakpoint(self, addr, check=False):
+    def removeBreakpoint(self, addr):
         if addr in self.breakList:
             savedData = self.breakList[addr]['data']
         elif not self.multi:
@@ -29938,12 +29938,6 @@ struct msghdr {
             SysMgr.printWarn(\
                 'No breakpoint registered with addr %s' % addr)
             return None
-
-        if check:
-            actualData = self.readMem(addr)
-            if savedData == actualData:
-                self.breakList.pop(addr, None)
-                return None
 
         # write original data #
         if savedData and \
@@ -32866,14 +32860,18 @@ struct msghdr {
                 instance.stop()
 
             # get current register set #
-            ret = instance.updateRegs()
+            while 1:
+                ret = instance.updateRegs()
+                if not ret and instance.isAlive():
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                break
+
             if ret:
                 addr = instance.pc - instance.prevInstOffset
 
                 for brk in list(instance.breakBackupList.keys()):
-                    ret = instance.removeBreakpoint(brk, check=True)
-                    if ret is None:
-                        continue
+                    instance.removeBreakpoint(brk)
 
                     # apply register set to rewind IP #
                     if addr == brk:
@@ -33349,7 +33347,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             start = time.time()
 
         ret = self.getRegs()
-        if ret > 0:
+        if ret != 0:
             return False
 
         # set registers #
@@ -33377,11 +33375,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if self.getRegsCost == 0:
             self.getRegsCost = time.time() - start
 
-        # check ret value #
-        if ret >= 0:
-            return True
-        else:
-            return False
+        return True
 
 
 
