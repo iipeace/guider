@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200202"
+__revision__ = "200204"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11810,6 +11810,7 @@ class SysMgr(object):
     syscallList = []
     perCoreList = []
     childList = {}
+    urgentChildList = {}
     pidFilter = None
 
 
@@ -17380,6 +17381,7 @@ Copyright:
     @staticmethod
     def exitHandler(signum, frame):
         SysMgr.printWarn('Terminated by user\n')
+        SysMgr.killChilds(signal.SIGINT, urgent=True)
         signal.alarm(0)
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
@@ -22080,19 +22082,23 @@ Copyright:
 
 
     @staticmethod
-    def createProcess(cmd=None, isDaemon=False, mute=False, changePgid=False):
+    def createProcess(\
+        cmd=None, isDaemon=False, mute=False, changePgid=False, urgent=False):
         pid = os.fork()
 
         # parent #
         if pid > 0:
-            if not isDaemon:
+            if urgent:
+                SysMgr.urgentChildList[pid] = True
+
+            if not isDaemon and not urgent:
                 SysMgr.childList[pid] = True
 
             return pid
         # child #
         elif pid == 0:
             # initialize child list #
-            SysMgr.childList = {}
+            SysMgr.clearChildList()
 
             if changePgid:
                 os.setpgid(0, 0)
@@ -23209,7 +23215,7 @@ Copyright:
             if mode != 'syscall' or SysMgr.funcDepth > 0:
                 doCommonJobs(pids, procList)
 
-            # create lock for tracer processes #
+            # create a system-wide lock for tracer processes #
             if mode == 'breakcall':
                 try:
                     SysMgr.importPackageItems('fcntl')
@@ -23245,7 +23251,7 @@ Copyright:
             except:
                 isFinished = False
 
-            # wait for childs as a parent #
+            # wait for child tracers as their parent #
             if SysMgr.pid == parent:
                 if isFinished:
                     SysMgr.waitEvent()
@@ -23255,8 +23261,9 @@ Copyright:
                 # remove all progress files #
                 for pid in list(procList.keys()):
                     try:
-                        os.remove(\
-                            '%s/task_%s.done' % (SysMgr.cacheDirPath, pid))
+                        progressFile = \
+                            '%s/task_%s.done' % (SysMgr.cacheDirPath, pid)
+                        os.remove(progressFile)
                     except:
                         pass
 
@@ -25175,11 +25182,17 @@ Copyright:
     @staticmethod
     def clearChildList():
         SysMgr.childList = {}
+        SysMgr.urgentChildList = {}
 
 
 
     @staticmethod
-    def killChilds(sig=ConfigMgr.SIGKILL, childs=None, wait=False):
+    def killChilds(\
+        sig=ConfigMgr.SIGKILL, childs=None, wait=False, urgent=False):
+        if urgent:
+            SysMgr.terminateTasks(list(SysMgr.urgentChildList.keys()), sig)
+            return
+
         if childs is None:
             childs = list(SysMgr.childList.keys())
 
@@ -32456,7 +32469,8 @@ struct msghdr {
         tid = self.getEventMsg()
 
         # create a new process to trace a new task #
-        pid = SysMgr.createProcess(changePgid=True, isDaemon=True)
+        pid = SysMgr.createProcess(\
+            changePgid=True, isDaemon=True, urgent=True)
         # child thread #
         if pid > 0:
             self.detach(self.pid)
@@ -32464,7 +32478,6 @@ struct msghdr {
             self.pid = tid
 
             self.initValues()
-            self.childList.append(pid)
 
             signal.alarm(SysMgr.intervalEnable)
         # parent thread #
@@ -32896,8 +32909,14 @@ struct msghdr {
 
                 # remove all breakpoints #
                 if tgid == instance.pid:
-                    for brk in list(instance.breakBackupList.keys()):
-                        instance.removeBreakpoint(brk)
+                    SysMgr.printStat(\
+                        r"start removing breakpoints for %s(%s) process..." % \
+                            (SysMgr.getComm(tgid), tgid))
+
+                    brkList = list(instance.breakBackupList.keys())
+                    for idx, addr in enumerate(brkList):
+                        UtilMgr.printProgress(idx, len(brkList))
+                        instance.removeBreakpoint(addr)
 
                     # create a progress file #
                     os.open(progressPath, os.O_CREAT, 0o777)
