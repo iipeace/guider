@@ -3363,6 +3363,8 @@ class UtilMgr(object):
             try:
                 long(value, 16)
                 return True
+            except SystemExit:
+                sys.exit(0)
             except:
                 return False
         else:
@@ -23070,9 +23072,8 @@ Copyright:
 
     @staticmethod
     def doTrace(mode):
-        def doCommonJobs(pids):
+        def doCommonJobs(pids, procList):
             # get pid list #
-            procList = {}
             for tid in pids:
                 try:
                     pid = SysMgr.getTgid(tid)
@@ -23151,6 +23152,7 @@ Copyright:
         multi = False
         execCmd = None
         lockObj = None
+        procList = {}
         breakList = {}
         breakBackupList = {}
 
@@ -23205,7 +23207,7 @@ Copyright:
 
             # load symbol caches and addresses for breakpoint in advance #
             if mode != 'syscall' or SysMgr.funcDepth > 0:
-                doCommonJobs(pids)
+                doCommonJobs(pids, procList)
 
             # create lock for tracer processes #
             if mode == 'breakcall':
@@ -23218,6 +23220,9 @@ Copyright:
                     SysMgr.printErr(\
                         "Fail to create file for lock because %s" % \
                             SysMgr.getErrReason())
+
+                    if not SysMgr.forceEnable:
+                        sys.exit(0)
 
             # create new worker processes #
             try:
@@ -23245,7 +23250,15 @@ Copyright:
                 if isFinished:
                     SysMgr.waitEvent()
 
-                SysMgr.killChilds(sig=signal.SIGINT, check=True)
+                SysMgr.killChilds(sig=signal.SIGINT, wait=True)
+
+                # remove all progress files #
+                for pid in list(procList.keys()):
+                    try:
+                        os.remove(\
+                            '%s/task_%s.done' % (SysMgr.cacheDirPath, pid))
+                    except:
+                        pass
 
                 sys.exit(0)
         else:
@@ -25166,28 +25179,30 @@ Copyright:
 
 
     @staticmethod
-    def killChilds(sig=ConfigMgr.SIGKILL, childs=None, check=False):
+    def killChilds(sig=ConfigMgr.SIGKILL, childs=None, wait=False):
         if childs is None:
             childs = list(SysMgr.childList.keys())
 
         # remove child list #
         SysMgr.clearChildList()
 
+        SysMgr.terminateTasks(childs, sig)
+
+        if not wait:
+            return
+
         while 1:
-            SysMgr.terminateTasks(childs, sig)
+            isFinished = True
 
-            if not check:
-                break
-
-            cnt = 0
             for tid in childs:
                 if SysMgr.isAlive(tid):
-                    cnt += 1
+                    isFinished = False
+                    break
 
-            if cnt == 0:
+            if isFinished:
                 break
-
-            time.sleep(SysMgr.waitDelay)
+            else:
+                time.sleep(SysMgr.waitDelay)
 
 
 
@@ -31735,6 +31750,8 @@ struct msghdr {
             # unlock between processes #
             self.unlock()
 
+            self.cont(check=True)
+
         self.status = previous
 
 
@@ -32646,6 +32663,9 @@ struct msghdr {
                 stat = self.getStatList(status=True)
                 if stat == 'S':
                     SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+                elif stat == None:
+                    SysMgr.printErr(\
+                        'Terminated thread %s' % self.pid)
             else:
                 ret = self.addBreakpointList(SysMgr.customCmd)
                 if not ret:
@@ -32690,11 +32710,7 @@ struct msghdr {
                 elif mode == 'sample':
                     self.checkInterval()
                 elif mode == 'break':
-                    # check stop status #
-                    stat = self.getStatList(status=True)
-                    if stat == 't':
-                        if self.cont(check=True) < 0:
-                            sys.exit(0)
+                    pass
                 # setup trap #
                 else:
                     self.ptrace(self.cmd)
@@ -32823,27 +32839,21 @@ struct msghdr {
             except SystemExit:
                 return
             except:
-                # check whether the process is alive #
-                try:
-                    ret = self.waitpid()
+                if self.isAlive():
+                    SysMgr.printWarn(\
+                        'Detected thread %s with error because %s' % \
+                        (self.pid, SysMgr.getErrReason()))
 
-                    ereason = SysMgr.getErrReason()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    ereason = 'the thread is terminated'
+                    if mode == 'break':
+                        self.cont(check=True)
 
-                # check error reason #
-                if ereason != '0' and len(ereason) > 0:
-                    ereason = 'because %s' % ereason
-                else:
-                    ereason = ''
+                    continue
 
                 SysMgr.printErr(\
-                    "Terminated tracing thread %s %s" % \
-                    (self.pid, ereason))
+                    "Terminated tracing thread %s" % self.pid)
 
-                break
+                return
+
 
 
 
@@ -32858,11 +32868,14 @@ struct msghdr {
             # stop target #
             if not instance.isStopped():
                 instance.stop()
+                instance.waitpid()
 
             # get current register set #
             while 1:
                 ret = instance.updateRegs()
-                if not ret and instance.isAlive():
+                if not ret:
+                    if not instance.isAlive():
+                        return
                     time.sleep(SysMgr.waitDelay)
                     continue
                 break
@@ -32870,13 +32883,31 @@ struct msghdr {
             if ret:
                 addr = instance.pc - instance.prevInstOffset
 
-                for brk in list(instance.breakBackupList.keys()):
-                    instance.removeBreakpoint(brk)
+                # apply register set to rewind IP #
+                if addr in instance.breakBackupList:
+                    instance.setPC(addr)
+                    instance.setRegs()
 
-                    # apply register set to rewind IP #
-                    if addr == brk:
-                        instance.setPC(addr)
-                        instance.setRegs()
+                # check main thread #
+                tgid = long(SysMgr.getTgid(instance.pid))
+
+                # define progress file path #
+                progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
+
+                # remove all breakpoints #
+                if tgid == instance.pid:
+                    for brk in list(instance.breakBackupList.keys()):
+                        instance.removeBreakpoint(brk)
+
+                    # create a progress file #
+                    os.open(progressPath, os.O_CREAT, 0o777)
+                # wait for termination of tracer for main thread #
+                else:
+                    while 1:
+                        if not os.path.exists(progressPath):
+                            time.sleep(0.001)
+                            continue
+                        break
 
         '''
         below code will not be effective because
@@ -33498,6 +33529,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             err = SysMgr.getErrReason()
             SysMgr.printWarn(\
                 'Fail to call ptrace in libc because %s' % err)
+            return -1
 
 
 
