@@ -22878,9 +22878,9 @@ Copyright:
     @staticmethod
     def printBgProcs(cache=False, pager=False):
         if SysMgr.jsonOutputEnable:
-            jsonData = SysMgr.getBgProcList(isJson=True)
-            jsonStr = UtilMgr.convertDict2Str(jsonData)
-            SysMgr.printPipe(jsonStr, pager=False)
+            result = (SysMgr.getBgProcList(isJson=True))
+            json_result = UtilMgr.convertDict2Str(result)
+            SysMgr.printPipe(json_result)
             return
 
         SysMgr.updateBgProcs(cache)
@@ -24879,23 +24879,74 @@ Copyright:
 
     @staticmethod
     def printDirs(path='.', maxLevel=-1):
-        def recurse(parentPath, fileList, prefix, buf, level, maxLevel):
+        def get_dirs(result, parent_path, level, max_level):
+            file_list = os.listdir(parent_path)
+
+            if len(file_list) == 0 or \
+                    (max_level != -1 and max_level <= level):
+                return (0, 0, 0)
+
+            total_size = long(0)
+            total_file = long(0)
+            total_dir = long(0)
+
+            # sort by size #
+            if SysMgr.showAll:
+                file_list.sort( \
+                    key=lambda name: os.path.getsize( \
+                        '%s/%s' % (parent_path, name)), reverse=True)
+            # sort by type #
+            else:
+                file_list.sort( \
+                    key=lambda f: os.path.isfile(os.path.join(parent_path, f)))
+
+            for idx, sub_path in enumerate(file_list):
+
+                full_path = os.path.join(parent_path, sub_path)
+
+                if os.path.islink(full_path):
+                    continue
+
+                if os.path.isdir(full_path):
+                    total_dir += 1
+                    sub_abspath = "[%s]" % (os.path.abspath(sub_path))
+                    info = dict(parent_path=sub_abspath, sub_dirs=[])
+                    result['sub_dirs'].append(info)
+                    total_info = get_dirs(info, full_path, level + 1, max_level)
+
+                    total_size += total_info[0]
+                    total_dir += total_info[1]
+                    total_file += total_info[2]
+
+
+                elif os.path.isfile(full_path):
+                    total_file += 1
+                    size = os.stat(full_path).st_size
+                    total_size += size
+
+            result['size'] = UtilMgr.convertSize2Unit(total_size)
+            result['dir'] = UtilMgr.convertNumber(total_dir)
+            result['file'] = UtilMgr.convertNumber(total_file)
+
+            return (total_size, total_dir, total_file)
+
+        def recurse(parentPath, fileList, prefix, result, level, maxLevel):
             totalSize = long(0)
             totalFile = long(0)
             totalDir = long(0)
 
             if len(fileList) == 0 or \
-                (maxLevel != -1 and maxLevel <= level):
+                    (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
             # sort by size #
             if SysMgr.showAll:
-                fileList.sort(\
-                    key=lambda name: os.path.getsize(\
+                fileList.sort( \
+                    key=lambda name: os.path.getsize( \
                         '%s/%s' % (parentPath, name)), reverse=True)
             # sort by type #
             else:
-                fileList.sort(\
+                fileList.sort( \
                     key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
 
             for idx, subPath in enumerate(fileList):
@@ -24912,15 +24963,15 @@ Copyright:
                     totalDir += 1
 
                     string = "%s%s[%s]" % (prefix, idc, subPath)
-                    buf.append(string)
+                    result.append(string)
 
                     # update prefix #
                     tmpPrefix = prefix + "|  "
 
                     subdirs = os.listdir(fullPath)
 
-                    rlist = recurse(\
-                        fullPath, subdirs, tmpPrefix, buf, level + 1, maxLevel)
+                    rlist = recurse( \
+                        fullPath, subdirs, tmpPrefix, result, level + 1, maxLevel)
 
                     totalSize += rlist[0]
                     totalDir += rlist[1]
@@ -24933,9 +24984,9 @@ Copyright:
                         size = os.stat(fullPath).st_size
                         totalSize += size
                         size = ' <%s>' % \
-                            UtilMgr.convertSize2Unit(size)
+                               UtilMgr.convertSize2Unit(size)
                     except:
-                        SysMgr.printWarn(\
+                        SysMgr.printWarn( \
                             'Fail to get size of %s because %s' % (
                                 fullPath, SysMgr.getErrReason()))
                         size = ''
@@ -24944,48 +24995,48 @@ Copyright:
                         continue
 
                     string = "%s%s%s%s" % (prefix, idc, subPath, size)
-                    buf.append(string)
+                    result.append(string)
 
             if totalSize:
                 tsize = 'SIZE: %s, ' % \
-                    UtilMgr.convertSize2Unit(totalSize)
+                        UtilMgr.convertSize2Unit(totalSize)
             else:
                 tsize = ''
 
             summary = " <%sFILE: %s, DIR: %s>" % \
-                (tsize, UtilMgr.convertNumber(totalFile),
-                    UtilMgr.convertNumber(totalDir))
+                      (tsize, UtilMgr.convertNumber(totalFile),
+                       UtilMgr.convertNumber(totalDir))
 
             # add summary by reverse traverse #
             if level == 0:
-                buf[0] += summary
+                result[0] += summary
             else:
                 tprefix = '%s-[%s]' % \
-                    (prefix[:-2], os.path.basename(parentPath))
-                for i, val in enumerate(reversed(buf)):
+                          (prefix[:-2], os.path.basename(parentPath))
+                for i, val in enumerate(reversed(result)):
                     if not val.startswith(tprefix):
                         continue
-                    buf[-(i)-1] += summary
+                    result[-(i)-1] += summary
                     break
 
             return (totalSize, totalDir, totalFile)
 
-        buf = []
-        pathParts = path.rsplit(os.path.sep, 1)
-
+        abspath = "[%s]" % (os.path.abspath(path))
         # print start path #
-        string = "[%s]" % (os.path.abspath(path))
-        buf.append(string)
-
-        SysMgr.printStat(\
-            r"start traversing dirs from %s..." % string)
-
-        # traverse dirs #
-        totalSize, totalDir, totalFile = \
-            recurse(path, os.listdir(path), "  ", buf, 0, maxLevel)
-
-        output = "\n%s\n" % "\n".join(buf)
-        SysMgr.printPipe(output)
+        if SysMgr.jsonOutputEnable:
+            result = dict()
+            result['parent_path'] = abspath
+            result['sub_dirs'] = []
+            get_dirs(result, path, 0, -1)
+            json_result = UtilMgr.convertDict2Str(result)
+            SysMgr.printPipe(json_result)
+        else:
+            result = [abspath]
+            recurse(path, os.listdir(path), "  ", result, 0, maxLevel)
+            output = "\n%s\n" % "\n".join(result)
+            SysMgr.printStat( \
+                r"start traversing dirs from %s..." % abspath)
+            SysMgr.printPipe(output)
 
 
 
