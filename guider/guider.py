@@ -13165,7 +13165,7 @@ class SysMgr(object):
                 },
             'util': {
                 'topdiff': 'Diff',
-                'kill': 'Signal',
+                'kill/tkill': 'Signal',
                 'pause': 'Thread',
                 'limitcpu': 'CPU',
                 'setcpu': 'Clock',
@@ -14436,7 +14436,7 @@ Usage:
     # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
 
 Description:
-    Send specific signal to specific processes or all running Guider processes
+    Send specific signal to specific tasks or all running Guiders
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
@@ -14446,13 +14446,13 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Send the notification signal to all running Guider processes
+    - Send the notification signal to all running Guiders
         # {0:1} {1:1}
 
-    - Send SIGSTOP signal to a specific process
+    - Send SIGSTOP signal to a specific tasks
         # {0:1} {1:1} -stop 1234
 
-    - Send SIGKILL signal to a specific process
+    - Send SIGKILL signal to a specific tasks
         # {0:1} {1:1} -9 1234
                     '''.format(cmd, mode)
 
@@ -20131,12 +20131,27 @@ Copyright:
             return False
 
 
+
+    @staticmethod
+    def isTkillMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'tkill':
+            return True
+        else:
+            return False
+
+
+
     @staticmethod
     def isSendMode():
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'send' or sys.argv[1] == 'kill':
+        if sys.argv[1] == 'send' or \
+            sys.argv[1] == 'kill' or \
+            SysMgr.isTkillMode():
             return True
         else:
             return False
@@ -20654,7 +20669,10 @@ Copyright:
                         "{0:>2}) {1:<12}".format(idx, sig), newline=newline)
                 sys.exit(0)
 
-            SysMgr.sendSignalArgs(argList)
+            if SysMgr.isTkillMode():
+                SysMgr.sendSignalArgs(argList, isThread=True)
+            else:
+                SysMgr.sendSignalArgs(argList)
 
         # TOPDIFF MODE #
         elif SysMgr.isTopDiffMode():
@@ -24153,7 +24171,7 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalArgs(argList):
+    def sendSignalArgs(argList, isThread=False):
         sig = signal.SIGQUIT
         cSigList = ConfigMgr.SIG_LIST
         if argList:
@@ -24184,12 +24202,18 @@ Copyright:
         targetList = SysMgr.convertPidList(argList, exceptMe=True)
 
         # send signal #
-        SysMgr.sendSignalProcs(sig, targetList)
+        SysMgr.sendSignalProcs(sig, targetList, isThread)
 
 
 
     @staticmethod
-    def sendSignalProcs(nrSig, pidList, verbose=True):
+    def sendSignalProcs(nrSig, pidList, isThread=False, verbose=True):
+        def kill(pid, nrSig):
+            if isThread:
+                return SysMgr.syscall('tkill', pid, nrSig)
+            else:
+                return os.kill(pid, nrSig)
+
         myPid = str(SysMgr.pid)
         SIG_LIST = ConfigMgr.SIG_LIST
 
@@ -24210,7 +24234,7 @@ Copyright:
 
                 # send signal to a process #
                 try:
-                    os.kill(long(pid), nrSig)
+                    kill(long(pid), nrSig)
                     if verbose:
                         SysMgr.printInfo(\
                             "sent signal %s to %s process" % \
@@ -24273,7 +24297,7 @@ Copyright:
 
                 if SysMgr.isStartMode() and waitStatus:
                     try:
-                        os.kill(long(pid), nrSig)
+                        kill(long(pid), nrSig)
                         if verbose:
                             SysMgr.printInfo(\
                                 "started %s process to profile" % pid)
@@ -24281,7 +24305,7 @@ Copyright:
                         SysMgr.printSigError(pid, SIG_LIST[nrSig])
                 elif SysMgr.isStopMode():
                     try:
-                        os.kill(long(pid), nrSig)
+                        kill(long(pid), nrSig)
                         if verbose:
                             SysMgr.printInfo(\
                                 "sent signal %s to %s process" % \
@@ -24290,7 +24314,7 @@ Copyright:
                         SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
-                    os.kill(long(pid), nrSig)
+                    kill(long(pid), nrSig)
                     if verbose:
                         SysMgr.printInfo(\
                             "sent signal %s to %s process" % \
