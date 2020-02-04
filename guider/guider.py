@@ -24202,7 +24202,7 @@ Copyright:
         targetList = SysMgr.convertPidList(argList, exceptMe=True)
 
         # send signal #
-        SysMgr.sendSignalProcs(sig, targetList, isThread)
+        SysMgr.sendSignalProcs(sig, targetList, isThread=isThread)
 
 
 
@@ -30213,14 +30213,16 @@ struct msghdr {
                 'Fail to continue wrong thread %s' % pid)
             return -1
 
+        errMsg = \
+            'Fail to continue %s thread because it is terminated' % pid
+
         # check target is running #
         try:
             os.kill(pid, 0)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(\
-                'Fail to continue %s thread because it is terminated' % pid)
+            SysMgr.printWarn(errMsg)
             return -1
 
         # check target status #
@@ -30232,9 +30234,7 @@ struct msghdr {
                     time.sleep(0.001)
                     cnt -= 1
                     if cnt < 0 or not self.isAlive():
-                        SysMgr.printErr((\
-                            'Fail to continue thread %s '
-                            'because it is terminated') % pid)
+                        SysMgr.printErr(errMsg)
                         return -1
                     continue
                 return 0
@@ -31655,9 +31655,6 @@ struct msghdr {
                 "Fail to get register values of thread %d" % self.pid)
             sys.exit(0)
 
-        # Wait on all children, regardless of type #
-        __WALL = 0x40000000
-
         # set rewind address #
         addr = self.pc - self.prevInstOffset
 
@@ -31798,7 +31795,8 @@ struct msghdr {
             # unlock between processes #
             self.unlock()
 
-            self.cont(check=True)
+            if self.cont(check=True) < 0:
+                sys.exit(0)
 
         self.status = previous
 
@@ -32356,6 +32354,9 @@ struct msghdr {
 
     def isAlive(self):
         stat = self.getStatList(status=True)
+        if not stat:
+            return None
+
         if stat == 'Z':
             return False
         else:
@@ -32391,7 +32392,7 @@ struct msghdr {
 
     def getCpuUsage(self):
         stat = self.getStatList(retstr=True)
-        if stat is None:
+        if not stat:
             SysMgr.printErr(\
                 "Fail to get CPU usage for thread %s" % self.pid)
             return [0, 0, 0]
@@ -32713,15 +32714,20 @@ struct msghdr {
 
                 # check thread status #
                 stat = self.getStatList(status=True)
-                if stat == 'S':
-                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
-                elif stat == None:
+                if not stat:
                     SysMgr.printErr(\
                         'Terminated thread %s' % self.pid)
+                elif stat == 'S':
+                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
             else:
                 fileList = SysMgr.getOption('T')
                 if fileList:
                     fileList = set(fileList.split(','))
+
+                if SysMgr.customCmd is None:
+                    funcFilter = []
+                else:
+                    funcFilter = SysMgr.customCmd
 
                 ret = self.addBreakpointList(funcFilter, binary=fileList)
                 if not ret:
@@ -32901,7 +32907,8 @@ struct msghdr {
                         (self.pid, SysMgr.getErrReason()))
 
                     if mode == 'break':
-                        self.cont(check=True)
+                        if self.cont(check=True) < 0:
+                            sys.exit(0)
 
                     continue
 
@@ -32968,7 +32975,9 @@ struct msghdr {
                 else:
                     while 1:
                         if not os.path.exists(progressPath):
-                            time.sleep(0.001)
+                            if not SysMgr.isAlive(tgid):
+                                break
+                            time.sleep(0.01)
                             continue
                         break
 
@@ -33540,7 +33549,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
                 if ret == -1:
                     if not self.isAlive():
-                        break
+                        sys.exit(0)
                     continue
                 break
 
