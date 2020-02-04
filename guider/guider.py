@@ -3576,12 +3576,10 @@ class UtilMgr(object):
             ret = long(data[:-1]) * 60 * 60 * 24
         elif data.upper().endswith('W'):
             ret = long(data[:-1]) * 60 * 60 * 24 * 7
-        elif data.isdigit():
-            ret = data
         else:
-            ret = data
+            ret = 0
             SysMgr.printErr(\
-                "Fail to convert %s to seconds" % data)
+                "Fail to convert '%s' to seconds" % data)
 
         return ret
 
@@ -3738,7 +3736,8 @@ class UtilMgr(object):
 
     @staticmethod
     def printProgress(current, dest):
-        if not SysMgr.printEnable:
+        if not SysMgr.printEnable or \
+            dest == sys.maxsize:
             return
 
         try:
@@ -13865,11 +13864,11 @@ Description:
 
                     examStr = '''
 Examples:
+    - Monitor all function calls for a specific thread
+        # {0:1} {1:1} -g 1234
+
     - Monitor printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
-
-    - Monitor all function calls for a specific thread
-        # {0:1} {1:1} -g 1234 -c
 
     - Monitor all function calls in specific files for a specific thread
         # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
@@ -14272,11 +14271,11 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
+    - Trace all function calls for a specific thread
+        # {0:1} {1:1} -g 1234
+
     - Trace printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
-
-    - Trace all function calls for a specific thread
-        # {0:1} {1:1} -g 1234 -c
 
     - Trace all function calls in specific files for a specific thread
         # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
@@ -23130,8 +23129,13 @@ Copyright:
                     if fileList:
                         fileList = set(fileList.split(','))
 
+                    if SysMgr.customCmd is None:
+                        funcFilter = []
+                    else:
+                        funcFilter = SysMgr.customCmd
+
                     # add per-process breakpoints #
-                    ret = procObj.addBreakpointList(SysMgr.customCmd, fileList)
+                    ret = procObj.addBreakpointList(funcFilter, binary=fileList)
                     if not ret:
                         sys.exit(0)
 
@@ -30020,8 +30024,15 @@ struct msghdr {
                 else:
                     addrList = ret
 
+            tgid = SysMgr.getTgid(self.pid)
+            SysMgr.printStat(\
+                r"start adding breakpoints for %s(%s) process..." % \
+                    (SysMgr.getComm(tgid), tgid))
+
             # add new breakpoints #
-            for item in addrList:
+            for idx, item in enumerate(addrList):
+                UtilMgr.printProgress(idx, len(addrList))
+
                 if type(item) is list:
                     addr, symbol, fname = item
                 else:
@@ -31744,8 +31755,8 @@ struct msghdr {
             addr, sym, fname=fname, reins=reins)
         if not ret:
             SysMgr.printErr(\
-                "Fail to add breakpoint of %s thread for %s(%s)" % \
-                    (self.pid, sym, addr))
+                "Fail to add breakpoint to %s(%s) for %s thread" % \
+                    (sym, addr, self.pid))
             sys.exit(0)
 
 
@@ -32356,6 +32367,10 @@ struct msghdr {
 
     def getCpuUsage(self):
         stat = self.getStatList(retstr=True)
+        if stat is None:
+            SysMgr.printErr(\
+                "Fail to get CPU usage for thread %s" % self.pid)
+            return [0, 0, 0]
 
         # check stat change #
         if self.prevStat == stat:
@@ -32680,7 +32695,11 @@ struct msghdr {
                     SysMgr.printErr(\
                         'Terminated thread %s' % self.pid)
             else:
-                ret = self.addBreakpointList(SysMgr.customCmd)
+                fileList = SysMgr.getOption('T')
+                if fileList:
+                    fileList = set(fileList.split(','))
+
+                ret = self.addBreakpointList(funcFilter, binary=fileList)
                 if not ret:
                     sys.exit(0)
         else:
@@ -32916,6 +32935,7 @@ struct msghdr {
                     brkList = list(instance.breakBackupList.keys())
                     for idx, addr in enumerate(brkList):
                         UtilMgr.printProgress(idx, len(brkList))
+
                         instance.removeBreakpoint(addr)
 
                     # create a progress file #
@@ -52928,11 +52948,6 @@ def main(args=None):
 
         # breakcall #
         elif SysMgr.isBrkTopMode():
-            if SysMgr.customCmd is None:
-                SysMgr.printErr(\
-                    "No value for breakpoint with -c option")
-                sys.exit(0)
-
             SysMgr.doTrace('breakcall')
 
         # syscall #
