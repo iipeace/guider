@@ -17379,6 +17379,7 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
+        SysMgr.condExit = True
         SysMgr.printWarn('Terminated by user\n')
         SysMgr.killChilds(signal.SIGINT, urgent=True)
         signal.alarm(0)
@@ -17466,6 +17467,17 @@ Copyright:
 
         # set alarm again #
         signal.signal(signal.SIGALRM, SysMgr.alarmHandler)
+
+
+
+    @staticmethod
+    def isTermSignal(sig):
+        if sig == signal.SIGKILL or \
+            sig == signal.SIGSEGV or \
+            sig == signal.SIGABRT:
+            return True
+        else:
+            return False
 
 
 
@@ -22120,9 +22132,18 @@ Copyright:
             if changePgid:
                 os.setpgid(0, 0)
 
+            if SysMgr.fileForPrint:
+                try:
+                    SysMgr.fileForPrint.close()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+                SysMgr.fileForPrint = None
+
             # Guider #
             if not cmd:
-                SysMgr.pid = os.getpid()
+                SysMgr.fileSuffix = SysMgr.pid = os.getpid()
                 if mute:
                     SysMgr.closeStdFds(stderr=False)
                 return 0
@@ -23132,8 +23153,7 @@ Copyright:
                     signal.SIGSTOP, pidList, verbose=False)
 
                 for pid in pidList:
-                    breakList.setdefault(pid, dict())
-                    breakBackupList.setdefault(pid, dict())
+                    breakpointList.setdefault(pid, dict())
 
                     # create object #
                     procObj = Debugger(pid=pid, execCmd=execCmd)
@@ -23153,14 +23173,12 @@ Copyright:
                         funcFilter = SysMgr.customCmd
 
                     # add per-process breakpoints #
-                    ret = procObj.addBreakpointList(funcFilter, binary=fileList)
+                    ret = procObj.injectBreakpointList(funcFilter, binary=fileList)
                     if not ret:
                         sys.exit(0)
 
                     # save per-process breakpoint info #
-                    for addr, data in procObj.breakList.items():
-                        breakList[pid][addr] = copy.deepcopy(data)
-                        breakBackupList[pid][addr] = data['data']
+                    breakpointList[pid] = copy.deepcopy(procObj.breakpointList)
 
                     procObj.detach()
                     del procObj
@@ -23181,8 +23199,7 @@ Copyright:
         execCmd = None
         lockObj = None
         procList = {}
-        breakList = {}
-        breakBackupList = {}
+        breakpointList = {}
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
@@ -23225,9 +23242,11 @@ Copyright:
             SysMgr.printFile = SysMgr.fileForPrint = None
             sys.exit(0)
         elif len(allpids) > 1:
-            multi = True
             parent = SysMgr.pid
             SysMgr.printStreamEnable = True
+
+            if len(pids) > 1:
+                multi = True
 
             SysMgr.printWarn(\
                 "multiple tasks including [ %s ] are traced" % \
@@ -23259,16 +23278,14 @@ Copyright:
                     ret = SysMgr.createProcess(changePgid=True)
                     if ret == 0:
                         if not tid in pids:
-                            if not SysMgr.warnEnable:
-                                SysMgr.logEnable = False
                             SysMgr.printEnable = False
 
-                        if SysMgr.fileForPrint:
-                            SysMgr.fileForPrint.close()
-                            SysMgr.fileForPrint = None
+                            # mute tasks except for targets #
+                            if not SysMgr.warnEnable and \
+                                SysMgr.getTgid(tid) != tid:
+                                SysMgr.logEnable = False
 
                         pid = long(tid)
-                        SysMgr.fileSuffix = pid
                         break
             except:
                 isFinished = False
@@ -23276,8 +23293,20 @@ Copyright:
             # wait for child tracers as their parent #
             if SysMgr.pid == parent:
                 if isFinished:
-                    SysMgr.waitEvent()
+                    while 1:
+                        SysMgr.waitEvent(ignChldSig=False)
+                        if SysMgr.condExit:
+                            break
 
+                        # check childs #
+                        SysMgr.updateChilds()
+                        if SysMgr.isNoChild():
+                            break
+
+                # disable printing to file #
+                SysMgr.printFile = SysMgr.fileForPrint = None
+
+                # broadcast termination signal to childs #
                 SysMgr.killChilds(sig=signal.SIGINT, wait=True)
 
                 # remove all progress files #
@@ -23313,15 +23342,13 @@ Copyright:
             elif mode == 'breakcall':
                 try:
                     ppid = long(SysMgr.getTgid(pid))
-                    brkData = breakList[ppid]
-                    brkBackupData = breakBackupList[ppid]
+                    breakpointList = breakpointList[ppid]
                 except:
-                    brkData = {}
-                    brkBackupData = {}
+                    breakpointList = {}
 
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait, brkData=brkData, \
-                        brkBackupData=brkBackupData, multi=multi, lock=lockObj)
+                    trace(mode='break', wait=wait, \
+                        breakpointList=breakpointList, multi=multi, lock=lockObj)
             else:
                 pass
         except SystemExit:
@@ -25211,6 +25238,31 @@ Copyright:
     def clearChildList():
         SysMgr.childList = {}
         SysMgr.urgentChildList = {}
+
+
+
+    @staticmethod
+    def isNoChild():
+        if len(SysMgr.childList) == 0 and \
+            len(SysMgr.urgentChildList) == 0:
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def updateChilds():
+        childList = list(SysMgr.childList.keys())
+        urgentChildList = list(SysMgr.urgentChildList.keys())
+
+        for pid in childList:
+            if not SysMgr.isAlive(pid):
+                SysMgr.childList.pop(pid, None)
+
+        for pid in urgentChildList:
+            if not SysMgr.isAlive(pid):
+                SysMgr.urgentChildList.pop(pid, None)
 
 
 
@@ -29635,8 +29687,7 @@ class Debugger(object):
         self.totalCall = long(0)
         self.callTable = {}
         self.fileTable = {}
-        self.breakList = {}
-        self.breakBackupList = {}
+        self.breakpointList = {}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -29982,17 +30033,11 @@ struct msghdr {
 
 
     def removeBreakpoint(self, addr):
-        if addr in self.breakList:
-            savedData = self.breakList[addr]['data']
-        elif not self.multi:
-            SysMgr.printWarn(\
-                'No breakpoint registered with addr %s' % addr)
-            return None
-        elif addr in self.breakBackupList:
-            savedData = self.breakBackupList[addr]['data']
+        if addr in self.breakpointList:
+            savedData = self.breakpointList[addr]['data']
         else:
             SysMgr.printWarn(\
-                'No breakpoint registered with addr %s' % addr)
+                'No breakpoint with addr %s' % addr)
             return None
 
         # write original data #
@@ -30000,24 +30045,24 @@ struct msghdr {
             not savedData.startswith(self.brkInst):
             self.writeMem(addr, savedData, skipCheck=True)
 
-        ret = self.breakList.pop(addr, None)
-        if not ret:
-            return None
+        # change breakpoint status #
+        self.breakpointList[addr]['set'] = False
 
-        if 'symbol' in ret:
-            symbol = ret['symbol']
-        else:
-            symbol = '??'
+        data = self.breakpointList[addr]
+        symbol = data['symbol']
+        filename = data['filename']
+        reins = data['reins']
 
-        SysMgr.printWarn(\
-            'Removed the breakpoint from %s(%s) for %s thread' % \
-                (hex(addr), symbol, self.pid))
+        if SysMgr.warnEnable:
+            SysMgr.printWarn(\
+                'Removed the breakpoint from %s(%s) for %s thread' % \
+                    (hex(addr), symbol, self.pid))
 
-        return (ret['symbol'], ret['filename'], ret['reins'])
+        return (symbol, filename, reins)
 
 
 
-    def addBreakpointList(self, blist, binary=None):
+    def injectBreakpointList(self, blist, binary=None):
         if len(blist) == 0:
             blist.append('**')
 
@@ -30050,7 +30095,7 @@ struct msghdr {
 
             tgid = SysMgr.getTgid(self.pid)
             SysMgr.printStat(\
-                r"start adding breakpoints for %s(%s) process..." % \
+                r"start injecting breakpoints for %s(%s) process..." % \
                     (SysMgr.getComm(tgid), tgid))
 
             # add new breakpoints #
@@ -30062,29 +30107,37 @@ struct msghdr {
                 else:
                     continue
 
-                ret = self.addBreakpoint(\
+                ret = self.injectBreakpoint(\
                     addr, symbol, fname=fname, reins=True)
                 if not ret:
                     SysMgr.printErr(\
-                        "Fail to add breakpoint to %s(%s) for %s thread" % \
+                        "Fail to inject breakpoint to %s(%s) for %s thread" % \
                             (value, hex(addr), self.pid))
                     return False
+
+            UtilMgr.deleteProgress()
 
         return True
 
 
 
-    def addBreakpoint(\
-        self, addr, sym=None, fname=None, size=1, reins=False, cache=True):
-        # check address in breakpoint table #
-        if addr in self.breakList:
-            SysMgr.printWarn((\
-                'Fail to add breakpoint to %s for %s thread '
-                'because it is already injected by myself') % \
-                    (hex(addr), self.pid), True)
-
-        # backup data #
-        if not cache or not addr in self.breakBackupList:
+    def injectBreakpoint(\
+        self, addr, sym=None, fname=None, size=1, reins=False):
+        # get original instruction #
+        if addr in self.breakpointList:
+            if self.breakpointList[addr]['set']:
+                SysMgr.printWarn((\
+                    'Fail to inject breakpoint to %s for %s thread '
+                    'because it is already injected by myself') % \
+                        (hex(addr), self.pid), True)
+                return False
+            else:
+                origWord = self.breakpointList[addr]['data']
+                if self.breakpointList[addr]['reins'] != reins:
+                    self.breakpointList[addr]['reins'] = reins
+                self.breakpointList[addr]['set'] = True
+        # a new breakpoint #
+        else:
             # read data #
             if addr % ConfigMgr.wordSize:
                 origWord = self.readMem(addr)
@@ -30093,45 +30146,35 @@ struct msghdr {
                 origWord = UtilMgr.convertWord2Bstr(origWord)
 
             # backup data #
-            self.breakBackupList[addr] = {
+            self.breakpointList[addr] = {
                 'data': origWord,
                 'symbol': sym,
-                'reins': reins
+                'reins': reins,
+                'filename': fname,
+                'set': True
             }
-        # reuse data #
-        else:
-            origWord = self.breakBackupList[addr]['data']
-            self.breakBackupList[addr]['reins'] = reins
 
         # build trap instruction #
         inst = self.brkInst * size
 
-        # check code whether it is already injected #
+        # check instructions whether it is already injected #
         if origWord.startswith(inst):
-            if addr in self.breakBackupList and \
-                self.breakBackupList[addr]['data'] != inst:
-                origWord = self.breakBackupList[addr]['data']
+            if addr in self.breakpointList and \
+                self.breakpointList[addr]['data'] != inst:
+                origWord = self.breakpointList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to add breakpoint to %s for %s thread '
+                    'Fail to inject breakpoint to %s for %s thread '
                     'because it is already injected by another task') % \
                         (hex(addr), self.pid), True)
                 return False
-
-        # update breakpoint list #
-        self.breakList[addr] = {
-            'data': origWord,
-            'symbol': sym,
-            'filename': fname,
-            'reins': reins,
-        }
 
         # inject trap code #
         ret = self.writeMem(addr, inst, skipCheck=True)
 
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to add breakpoint to %s for %s thread' % \
+                'Fail to inject breakpoint to %s for %s thread' % \
                     (hex(addr), self.pid), True)
             return False
         elif ret == 0:
@@ -30140,9 +30183,10 @@ struct msghdr {
             else:
                 symbol = ''
 
-            SysMgr.printWarn(\
-                'Added a new breakpoint to %s%s for %s thread' % \
-                    (hex(addr), symbol, self.pid))
+            if SysMgr.warnEnable:
+                SysMgr.printWarn(\
+                    'Added a new breakpoint to %s%s for %s thread' % \
+                        (hex(addr), symbol, self.pid))
 
         return True
 
@@ -30858,6 +30902,9 @@ struct msghdr {
         diff = current - self.last
         self.last = current
 
+        # update comm #
+        self.comm = SysMgr.getComm(self.pid)
+
         # print summary table #
         if self.mode == 'syscall':
             ctype = 'Syscall'
@@ -31505,7 +31552,7 @@ struct msghdr {
                     value = self.readMem(targetAddr, retWord=True)
 
                 # add call address #
-                if value:
+                if value > 0:
                     try:
                         btList.append(long(value))
                     except:
@@ -31659,15 +31706,15 @@ struct msghdr {
         addr = self.pc - self.prevInstOffset
 
         # get breakpoint addr #
-        if addr not in self.breakList:
+        if addr not in self.breakpointList:
             SysMgr.printErr(\
                 "Fail to get address %s in breakpoint list of %s thread" % \
                     (hex(addr), self.pid))
             sys.exit(0)
 
         # pick breakpoint info #
-        sym = self.breakList[addr]['symbol']
-        fname = self.breakList[addr]['filename']
+        sym = self.breakpointList[addr]['symbol']
+        fname = self.breakpointList[addr]['filename']
 
         # print context info #
         if printStat:
@@ -31758,25 +31805,24 @@ struct msghdr {
             SysMgr.printErr(\
                 'Fail to continue %s thread to reinstall a breakpoint' % \
                     self.pid)
-            return -1
+            sys.exit(0)
 
         # wait process #
         ret = self.waitpid()
         stat = self.getStatus(ret[1])
-        if stat == signal.SIGKILL or \
-            stat == signal.SIGSEGV or \
+        if SysMgr.isTermSignal(stat) or \
             stat == -1:
             SysMgr.printErr(\
                 'Fail to wait for %s thread to reinstall a breakpoint' % \
                     self.pid)
-            return -1
+            sys.exit(0)
 
         # register this breakpoint again #
-        ret = self.addBreakpoint(\
+        ret = self.injectBreakpoint(\
             addr, sym, fname=fname, reins=reins)
         if not ret:
             SysMgr.printErr(\
-                "Fail to add breakpoint to %s(%s) for %s thread" % \
+                "Fail to inject breakpoint to %s(%s) for %s thread" % \
                     (sym, addr, self.pid))
             sys.exit(0)
 
@@ -32514,16 +32560,15 @@ struct msghdr {
         # child thread #
         if pid > 0:
             self.detach(self.pid)
-
             self.pid = tid
-
             self.initValues()
-
             signal.alarm(SysMgr.intervalEnable)
         # parent thread #
         elif pid == 0:
             self.attach()
             self.ptraceEvent(self.traceEventList)
+
+        self.multi = True
 
 
 
@@ -32539,7 +32584,7 @@ struct msghdr {
         # stat variables #
         self.comm = SysMgr.getComm(self.pid)
         self.start = long(0)
-        self.last = long(0)
+        self.last = time.time()
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
@@ -32563,8 +32608,9 @@ struct msghdr {
 
 
     def trace(\
-        self, mode='syscall', wait=None, multi=False, lock=None, \
-            brkData={}, brkBackupData={}):
+        self, mode='syscall', wait=None, \
+            multi=False, lock=None, breakpointList={}):
+
         # index variables #
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
@@ -32700,17 +32746,9 @@ struct msghdr {
         elif mode == 'sample':
             self.cmd = None
         elif mode == 'break':
-            if len(brkData) > 0:
+            if len(breakpointList) > 0:
                 # register breakpoint data #
-                self.breakList = brkData
-
-                # register breakpoint backup data #
-                for addr, data in brkBackupData.items():
-                    self.breakBackupList[addr] = {
-                        'data': data,
-                        'symbol': None,
-                        'reins': False,
-                    }
+                self.breakpointList = breakpointList
 
                 # check thread status #
                 stat = self.getStatList(status=True)
@@ -32729,7 +32767,7 @@ struct msghdr {
                 else:
                     funcFilter = SysMgr.customCmd
 
-                ret = self.addBreakpointList(funcFilter, binary=fileList)
+                ret = self.injectBreakpointList(funcFilter, binary=fileList)
                 if not ret:
                     sys.exit(0)
         else:
@@ -32743,18 +32781,19 @@ struct msghdr {
         # update time #
         self.last = time.time()
 
-        # set timer #
+        # set timer value #
         if self.isRealtime:
             # set default interval #
             if not SysMgr.findOption('R') or \
                 SysMgr.intervalEnable == 0:
                 SysMgr.intervalEnable = 1
-
-            signal.alarm(SysMgr.intervalEnable)
         else:
             if SysMgr.intervalEnable > 0:
                 signal.signal(signal.SIGALRM, SysMgr.exitHandler)
-                signal.alarm(SysMgr.intervalEnable)
+
+        # set timer #
+        if SysMgr.printEnable:
+            signal.alarm(SysMgr.intervalEnable)
 
         # enter trace loop #
         while 1:
@@ -32855,7 +32894,7 @@ struct msghdr {
                     continue
 
                 # kill / segv signal #
-                elif stat == signal.SIGKILL or stat == signal.SIGSEGV:
+                elif SysMgr.isTermSignal(stat):
                     # print context info #
                     self.printContext()
 
@@ -32926,7 +32965,7 @@ struct msghdr {
 
         # remove breakpoints #
         if instance.isAlive() and \
-            len(instance.breakBackupList) > 0:
+            len(instance.breakpointList) > 0:
 
             # stop target #
             if not instance.isStopped():
@@ -32947,7 +32986,7 @@ struct msghdr {
                 addr = instance.pc - instance.prevInstOffset
 
                 # apply register set to rewind IP #
-                if addr in instance.breakBackupList:
+                if addr in instance.breakpointList:
                     instance.setPC(addr)
                     instance.setRegs()
 
@@ -32960,14 +32999,15 @@ struct msghdr {
                 # remove all breakpoints #
                 if tgid == instance.pid:
                     SysMgr.printStat(\
-                        r"start removing breakpoints for %s(%s) process..." % \
+                        r"start removing all breakpoints from %s(%s) process..." % \
                             (SysMgr.getComm(tgid), tgid))
 
-                    brkList = list(instance.breakBackupList.keys())
+                    brkList = list(instance.breakpointList.keys())
                     for idx, addr in enumerate(brkList):
                         UtilMgr.printProgress(idx, len(brkList))
 
                         instance.removeBreakpoint(addr)
+                    UtilMgr.deleteProgress()
 
                     # create a progress file #
                     os.open(progressPath, os.O_CREAT, 0o777)
@@ -52802,7 +52842,6 @@ def main(args=None):
                     SysMgr.condExit = True
 
                     SysMgr.waitEvent()
-
                     if SysMgr.condExit:
                         break
                 else:
