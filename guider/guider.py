@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200204"
+__revision__ = "200206"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23323,6 +23323,10 @@ Copyright:
                     except:
                         pass
 
+                # continue a process #
+                SysMgr.sendSignalProcs(\
+                    signal.SIGCONT, list(procList.keys()), verbose=False)
+
                 sys.exit(0)
         else:
             pid = long(pids[0])
@@ -32976,80 +32980,73 @@ struct msghdr {
 
 
 
-
     @staticmethod
     def destroyDebugger(instance):
         Debugger.lastInstance = None
 
         # remove breakpoints #
-        if instance.isAlive() and \
-            len(instance.breakpointList) > 0:
-
-            # stop target #
-            if not instance.isStopped():
-                instance.stop()
-                instance.waitpid()
-
-            # get current register set #
-            while 1:
-                ret = instance.updateRegs()
-                if not ret:
-                    if not instance.isAlive():
-                        return
-                    time.sleep(SysMgr.waitDelay)
-                    continue
-                break
-
-            if ret:
-                addr = instance.pc - instance.prevInstOffset
-
-                # apply register set to rewind IP #
-                if addr in instance.breakpointList:
-                    instance.setPC(addr)
-                    instance.setRegs()
-
-                # check main thread #
-                tgid = long(SysMgr.getTgid(instance.pid))
-
-                # define progress file path #
-                progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
-
-                # the thread group leader #
-                if tgid == instance.pid:
-                    SysMgr.printStat(\
-                        r"start removing %s breakpoints from %s(%s) process..." % \
-                            (UtilMgr.convertNumber(len(instance.breakpointList)), \
-                                SysMgr.getComm(tgid), tgid))
-
-                    # remove all breakpoints #
-                    brkList = list(instance.breakpointList.keys())
-                    for idx, addr in enumerate(brkList):
-                        UtilMgr.printProgress(idx, len(brkList))
-                        instance.removeBreakpoint(addr)
-                    UtilMgr.deleteProgress()
-
-                    # create a progress file #
-                    os.open(progressPath, os.O_CREAT, 0o777)
-                # siblings #
-                else:
-                    # wait for termination of tracer for main thread #
-                    while 1:
-                        if not os.path.exists(progressPath):
-                            if not SysMgr.isAlive(tgid):
-                                break
-                            time.sleep(0.01)
-                            continue
-                        break
-
-        '''
-        below code will not be effective because
-        the instance also exists in exitFuncList
-        '''
-
-        try:
+        if not instance.isAlive() or \
+            len(instance.breakpointList) == 0:
             instance.__del__()
-        except:
-            pass
+            return
+
+        # stop target #
+        if not instance.isStopped():
+            instance.stop()
+            instance.waitpid()
+
+        # get current register set #
+        while 1:
+            ret = instance.updateRegs()
+            if not ret:
+                if not instance.isAlive():
+                    return
+                time.sleep(SysMgr.waitDelay)
+                continue
+            break
+
+        if ret:
+            addr = instance.pc - instance.prevInstOffset
+
+            # apply register set to rewind IP #
+            if addr in instance.breakpointList:
+                instance.setPC(addr)
+                instance.setRegs()
+
+            # check main thread #
+            tgid = long(SysMgr.getTgid(instance.pid))
+
+            # define progress file path #
+            progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
+
+            # the thread group leader #
+            if tgid == instance.pid:
+                SysMgr.printStat(\
+                    r"start removing %s breakpoints from %s(%s) process..." % \
+                        (UtilMgr.convertNumber(len(instance.breakpointList)), \
+                            SysMgr.getComm(tgid), tgid))
+
+                # remove all breakpoints #
+                brkList = list(instance.breakpointList.keys())
+                for idx, addr in enumerate(brkList):
+                    UtilMgr.printProgress(idx, len(brkList))
+                    instance.removeBreakpoint(addr)
+                UtilMgr.deleteProgress()
+
+                # create a progress file #
+                os.open(progressPath, os.O_CREAT, 0o777)
+            # siblings #
+            else:
+                # wait for termination of tracer for main thread #
+                while 1:
+                    if not os.path.exists(progressPath):
+                        if not SysMgr.isAlive(tgid):
+                            break
+                        time.sleep(0.01)
+                        continue
+                    break
+
+        instance.__del__()
 
 
 
