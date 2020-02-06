@@ -13337,8 +13337,11 @@ Examples:
     - Monitor status of processes involved in same process group with specific processes having name including system
         # {0:1} {1:1} -g system -P
 
-    - Monitor status of processes on the optimized-size terminal
+    - Monitor status of processes on the minimum-size terminal
         # {0:1} {1:1} -m
+
+    - Monitor status of processes on the optimized-size terminal
+        # {0:1} {1:1} -m:
 
     - Report analysis results of processes to ./guider.out and console
         # {0:1} {1:1} -o . -Q
@@ -17379,10 +17382,10 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
+        signal.alarm(0)
         SysMgr.condExit = True
         SysMgr.printWarn('Terminated by user\n')
         SysMgr.killChilds(signal.SIGINT, urgent=True)
-        signal.alarm(0)
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
 
@@ -18516,7 +18519,7 @@ Copyright:
         elif not SysMgr.printFile and \
             not SysMgr.jsonOutputEnable and \
             SysMgr.bufferRows + newline >= \
-            SysMgr.ttyRows - SysMgr.ttyRowsMargin and \
+                SysMgr.ttyRows - SysMgr.ttyRowsMargin and \
             not SysMgr.printFile and \
             not SysMgr.printStreamEnable:
             SysMgr.terminalOver = True
@@ -21897,6 +21900,7 @@ Copyright:
         if SysMgr.printFile or \
             SysMgr.bgStatus or \
             SysMgr.isReportTopMode() or \
+            SysMgr.isBrkTopMode() or \
             not SysMgr.selectEnable or \
             'REMOTERUN' in os.environ:
             return
@@ -23241,12 +23245,12 @@ Copyright:
 
             SysMgr.printFile = SysMgr.fileForPrint = None
             sys.exit(0)
-        elif len(allpids) > 1:
+        elif len(allpids) > 1 or mode == 'breakcall':
             parent = SysMgr.pid
-            SysMgr.printStreamEnable = True
 
             if len(pids) > 1:
                 multi = True
+                SysMgr.printStreamEnable = True
 
             SysMgr.printWarn(\
                 "multiple tasks including [ %s ] are traced" % \
@@ -23304,7 +23308,8 @@ Copyright:
                             break
 
                 # disable printing to file #
-                SysMgr.printFile = SysMgr.fileForPrint = None
+                SysMgr.printFile = \
+                    SysMgr.fileForPrint = None
 
                 # broadcast termination signal to childs #
                 SysMgr.killChilds(sig=signal.SIGINT, wait=True)
@@ -24190,10 +24195,9 @@ Copyright:
 
             # merge pid list #
             if len(idlist) > 0:
-                uniqueList = set(idlist) - set(targetList)
-                targetList += list(uniqueList)
+                targetList = list(set(idlist+targetList))
 
-        return targetList
+        return list(set(targetList))
 
 
 
@@ -28540,7 +28544,7 @@ class DbusAnalyzer(object):
                     if SysMgr.isPrintDbusMode():
                         if len(jsonData['backtrace']) > 2:
                             backtrace = \
-                                'Backtrace: %s\n' % jsonData['backtrace'][2:]
+                                'Backtrace: %s\n' % jsonData['backtrace']
                         else:
                             backtrace = ''
 
@@ -30066,6 +30070,8 @@ struct msghdr {
         if len(blist) == 0:
             blist.append('**')
 
+        addrList = []
+
         for value in blist:
             # address #
             if UtilMgr.isNumber(value):
@@ -30074,7 +30080,7 @@ struct msghdr {
                 except:
                     addr = long(value)
                 ret = self.getSymbolInfo(addr)
-                addrList = [[addr, ret[0], ret[1]]]
+                addrList += [addr, ret[0], ret[1]]
             # symbol #
             else:
                 if value.startswith('*') and \
@@ -30091,31 +30097,33 @@ struct msghdr {
                         "Fail to find address for '%s'" % value)
                     sys.exit(0)
                 else:
-                    addrList = ret
+                    addrList += ret
 
-            tgid = SysMgr.getTgid(self.pid)
-            SysMgr.printStat(\
-                r"start injecting breakpoints for %s(%s) process..." % \
-                    (SysMgr.getComm(tgid), tgid))
+        # print target process name #
+        tgid = SysMgr.getTgid(self.pid)
+        SysMgr.printStat(\
+            r"start injecting %s breakpoints for %s(%s) process..." % \
+                (UtilMgr.convertNumber(len(addrList)), \
+                    SysMgr.getComm(tgid), tgid))
 
-            # add new breakpoints #
-            for idx, item in enumerate(addrList):
-                UtilMgr.printProgress(idx, len(addrList))
+        # add new breakpoints #
+        for idx, item in enumerate(addrList):
+            UtilMgr.printProgress(idx, len(addrList))
 
-                if type(item) is list:
-                    addr, symbol, fname = item
-                else:
-                    continue
+            if type(item) is list:
+                addr, symbol, fname = item
+            else:
+                continue
 
-                ret = self.injectBreakpoint(\
-                    addr, symbol, fname=fname, reins=True)
-                if not ret:
-                    SysMgr.printErr(\
-                        "Fail to inject breakpoint to %s(%s) for %s thread" % \
-                            (value, hex(addr), self.pid))
-                    return False
+            ret = self.injectBreakpoint(\
+                addr, symbol, fname=fname, reins=True)
+            if not ret:
+                SysMgr.printErr(\
+                    "Fail to inject breakpoint to %s(%s) for %s thread" % \
+                        (value, hex(addr), self.pid))
+                return False
 
-            UtilMgr.deleteProgress()
+        UtilMgr.deleteProgress()
 
         return True
 
@@ -30861,6 +30869,16 @@ struct msghdr {
 
 
     def printIntervalSummary(self):
+        def resetStats():
+            # initialize syscall timetable #
+            self.syscallTimeStat = dict()
+            self.breakcallTimeStat = dict()
+
+            # reset data #
+            self.totalCall = long(0)
+            self.callTable = dict()
+            SysMgr.clearPrint()
+
         def checkInterval():
             if SysMgr.repeatCount == 0:
                 return
@@ -30883,12 +30901,10 @@ struct msghdr {
             # check and update repeat count #
             checkInterval()
 
-            # reset data #
-            self.totalCall = long(0)
-            self.callTable = dict()
-            SysMgr.clearPrint()
+            resetStats()
 
         if self.multi and len(self.callTable) == 0:
+            resetStats()
             return
 
         # check user input #
@@ -30988,6 +31004,9 @@ struct msghdr {
             else:
                 addVal = value['path']
 
+            if SysMgr.checkCutCond():
+                break
+
             SysMgr.addPrint(\
                 '{0:>7} | {1:<144}\n'.format(\
                     '%.1f%%' % per, '%s [%s]' % (sym, addVal)))
@@ -30995,7 +31014,6 @@ struct msghdr {
             cnt += 1
 
             # backtrace #
-            quitLoop = False
             if len(value['backtrace']) > 0:
                 for bt, cnt in sorted(\
                     value['backtrace'].items(), \
@@ -31006,26 +31024,19 @@ struct msghdr {
                         not SysMgr.showAll:
                         break
 
+                    nline = bt.count('\n') + 1
+                    if SysMgr.checkCutCond(nline):
+                        finishPrint()
+                        return
+
                     SysMgr.addPrint(\
-                        '{0:>17} | {1:<1}\n'.format('%.1f%%' % bper, bt))
-
-                    if SysMgr.checkCutCond():
-                        quitLoop = True
-                        break
-
-            if quitLoop or \
-                SysMgr.checkCutCond():
-                finishPrint()
-                return
+                        '{0:>17} | {1:<1}\n'.format(\
+                            '%.1f%%' % bper, bt), newline=nline)
 
         if cnt == 0:
             SysMgr.addPrint('\tNone\n')
 
         SysMgr.addPrint('%s\n' % oneLine)
-
-        # initialize syscall timetable #
-        self.syscallTimeStat = dict()
-        self.breakcallTimeStat = dict()
 
         finishPrint()
 
@@ -31398,7 +31409,7 @@ struct msghdr {
 
             # add backtrace #
             if bt:
-                btString = self.getBacktraceString(bt)
+                btString = self.getBacktraceString(bt, default=20)
             else:
                 btString = None
 
@@ -31467,12 +31478,22 @@ struct msghdr {
 
 
 
-    def getBacktraceString(self, bt):
+    def getBacktraceString(self, bt, default=0, maximum=0):
         btString = ''
         prevSym = None
         prevFile = None
 
         cnt = 0
+        pos = default
+
+        if maximum == 0:
+            maximum = len(oneLine)
+
+        if default == 0:
+            indentString = ''
+        else:
+            indentString = ' ' * default
+
         for item in bt:
             # remove redundant symbols #
             if prevSym == item[1] and prevFile == item[2]:
@@ -31482,15 +31503,23 @@ struct msghdr {
                 prevSym = item[1]
                 prevFile = item[2]
 
+            # check redundant symbols #
             if cnt > 0:
                 cntStr = ' * %s' % (cnt+1)
                 cnt = 0
             else:
                 cntStr = ''
 
+            # build a new string #
+            newString = ' <- %s[%s]%s' % (item[1], item[2], cntStr)
+            if len(newString) + pos > maximum:
+                newString = '\n%s%s' % (indentString, newString)
+                pos = default + len(newString)
+            else:
+                pos += len(newString)
+
             # add a symbol to backtrace #
-            btString = '%s <- %s[%s]%s' % \
-                (btString, item[1], item[2], cntStr)
+            btString = '%s%s' % (btString, newString)
 
         if btString == '':
             return '??'
@@ -32079,7 +32108,8 @@ struct msghdr {
         # get backtrace #
         if SysMgr.funcDepth > 0:
             backtrace = self.getBacktrace(SysMgr.funcDepth, cur=True)
-            bts = '\n\t%s ' % self.getBacktraceString(backtrace)
+            bts = '\n%s%s ' % \
+                (' ' * 20, self.getBacktraceString(backtrace, default=20))
         else:
             backtrace = None
             bts = ''
@@ -32137,7 +32167,7 @@ struct msghdr {
         else:
             ttyColsOrig = SysMgr.ttyCols
 
-            if SysMgr.showAll:
+            if SysMgr.showAll or SysMgr.funcDepth > 0:
                 SysMgr.ttyCols = long(0)
             else:
                 callString = '%s ' % callString[:self.pbufsize]
@@ -32568,7 +32598,9 @@ struct msghdr {
             self.attach()
             self.ptraceEvent(self.traceEventList)
 
+        # set multiprocess attributes #
         self.multi = True
+        SysMgr.printStreamEnable = True
 
 
 
@@ -32712,9 +32744,9 @@ struct msghdr {
                     "Fail to load symbols because %s" % err)
                 sys.exit(0)
 
-        if not self.multi:
+        if SysMgr.printEnable:
             SysMgr.printInfo(\
-                "Start profiling thread %d" % self.pid)
+                "Start profiling thread %s(%d)" % (self.comm, self.pid))
 
         # set start time #
         #self.start = self.last = time.time()
@@ -32746,30 +32778,16 @@ struct msghdr {
         elif mode == 'sample':
             self.cmd = None
         elif mode == 'break':
-            if len(breakpointList) > 0:
-                # register breakpoint data #
-                self.breakpointList = breakpointList
+            # register breakpoint data #
+            self.breakpointList = breakpointList
 
-                # check thread status #
-                stat = self.getStatList(status=True)
-                if not stat:
-                    SysMgr.printErr(\
-                        'Terminated thread %s' % self.pid)
-                elif stat == 'S':
-                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
-            else:
-                fileList = SysMgr.getOption('T')
-                if fileList:
-                    fileList = set(fileList.split(','))
-
-                if SysMgr.customCmd is None:
-                    funcFilter = []
-                else:
-                    funcFilter = SysMgr.customCmd
-
-                ret = self.injectBreakpointList(funcFilter, binary=fileList)
-                if not ret:
-                    sys.exit(0)
+            # check thread status #
+            stat = self.getStatList(status=True)
+            if not stat:
+                SysMgr.printErr(\
+                    'Terminated thread %s' % self.pid)
+            elif stat == 'S':
+                SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % mode)
@@ -32996,23 +33014,25 @@ struct msghdr {
                 # define progress file path #
                 progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
 
-                # remove all breakpoints #
+                # the thread group leader #
                 if tgid == instance.pid:
                     SysMgr.printStat(\
-                        r"start removing all breakpoints from %s(%s) process..." % \
-                            (SysMgr.getComm(tgid), tgid))
+                        r"start removing %s breakpoints from %s(%s) process..." % \
+                            (UtilMgr.convertNumber(len(instance.breakpointList)), \
+                                SysMgr.getComm(tgid), tgid))
 
+                    # remove all breakpoints #
                     brkList = list(instance.breakpointList.keys())
                     for idx, addr in enumerate(brkList):
                         UtilMgr.printProgress(idx, len(brkList))
-
                         instance.removeBreakpoint(addr)
                     UtilMgr.deleteProgress()
 
                     # create a progress file #
                     os.open(progressPath, os.O_CREAT, 0o777)
-                # wait for termination of tracer for main thread #
+                # siblings #
                 else:
+                    # wait for termination of tracer for main thread #
                     while 1:
                         if not os.path.exists(progressPath):
                             if not SysMgr.isAlive(tgid):
