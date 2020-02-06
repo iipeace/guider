@@ -31861,14 +31861,14 @@ struct msghdr {
 
 
 
-    def handleTrapEvent(self, mode, stat):
+    def handleTrapEvent(self, stat):
         previous = self.status
-        self.status = mode
+        self.status = self.mode
 
         # interprete user function call #
-        if mode == 'inst' or mode =='sample':
+        if self.mode == 'inst' or self.mode =='sample':
             self.handleUsercall()
-        elif mode == 'break':
+        elif self.mode == 'break':
             self.handleBreakpoint(printStat=SysMgr.printEnable)
 
             # unlock between processes #
@@ -32643,6 +32643,170 @@ struct msghdr {
 
 
 
+    def runEventLoop(self):
+        # enter trace loop #
+        while 1:
+            # set status #
+            if self.status == 'stop':
+                self.status = 'enter'
+            elif self.status == 'ready':
+                pass
+            else:
+                # skip instructions for performance #
+                if self.mode == 'inst' and self.skipInst > 0:
+                    for i in xrange(0, self.skipInst):
+                        self.ptrace(self.cmd)
+                # wait for sample calls #
+                elif self.mode == 'sample':
+                    self.checkInterval()
+                elif self.mode == 'break':
+                    pass
+                # setup trap #
+                else:
+                    self.ptrace(self.cmd)
+
+            try:
+                # wait process #
+                rid, ostat = self.waitpid()
+
+                # update time #
+                self.current = time.time()
+
+                # get status of process #
+                stat = self.getStatus(ostat)
+
+                # handle clone event #
+                if self.isCloned(ostat):
+                    self.handoverNewTarget()
+                    continue
+
+                # handle fork event #
+                if self.isForked(ostat):
+                    if self.mode == 'syscall':
+                        self.handoverNewTarget()
+                    continue
+
+                # check status of process #
+                if not UtilMgr.isNumber(stat):
+                    raise Exception("Unknown status type")
+
+                # trap #
+                if stat == signal.SIGTRAP:
+                    # after execve() #
+                    if self.status == 'ready':
+                        self.ptraceEvent(self.traceEventList)
+                        if self.cmd:
+                            self.ptrace(self.cmd)
+                        self.status = 'enter'
+                        continue
+
+                    # usercall / breakcall #
+                    elif self.mode == 'inst' or self.mode == 'break':
+                        self.handleTrapEvent(ostat)
+
+                # breakpoint event for ARM #
+                elif stat == signal.SIGILL and \
+                    self.mode == 'break':
+                    self.handleTrapEvent(ostat)
+
+                # syscall #
+                elif stat == signal.SIGTRAP | 0x80:
+                    # filter syscall #
+                    if self.mode != 'syscall':
+                        continue
+
+                    # interprete syscall context #
+                    self.handleSyscall()
+
+                # stop signal #
+                elif stat == signal.SIGSTOP:
+                    if self.mode == 'sample':
+                        self.handleTrapEvent(ostat)
+                        continue
+
+                    self.status = 'stop'
+                    SysMgr.printWarn(\
+                        'Blocked thread %s because of %s' % \
+                        (self.pid, ConfigMgr.SIG_LIST[stat]))
+
+                    if self.mode == 'break':
+                        if self.cont(check=True) < 0:
+                            sys.exit(0)
+                        continue
+
+                    # set up trap again #
+                    if self.mode == 'syscall':
+                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
+
+                        self.ptrace(self.cmd)
+
+                    continue
+
+                # kill / segv signal #
+                elif SysMgr.isTermSignal(stat):
+                    # print context info #
+                    self.printContext()
+
+                    SysMgr.printErr(\
+                        'Terminated thread %s because of %s' % \
+                            (self.pid, ConfigMgr.SIG_LIST[stat]))
+
+                    sys.exit(0)
+
+                # exit #
+                elif stat == -1:
+                    # check target is running #
+                    try:
+                        os.kill(self.pid, 0)
+                        continue
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+                    if self.status == 'exit':
+                        SysMgr.printPipe(' ')
+
+                    SysMgr.printErr(\
+                        'Terminated thread %s' % self.pid)
+
+                    sys.exit(0)
+
+                # other #
+                else:
+                    SysMgr.printWarn(\
+                        'Detected thread %s with %s' % \
+                        (self.pid, ConfigMgr.SIG_LIST[stat]))
+
+                    if self.mode == 'sample':
+                        self.handleTrapEvent(ostat)
+
+                    # continue target from signal stop #
+                    if self.mode != 'syscall':
+                        if self.cont(check=True, sig=stat) < 0:
+                            sys.exit(0)
+
+            except SystemExit:
+                return
+            except:
+                if self.isAlive():
+                    SysMgr.printWarn(\
+                        'Detected thread %s with error because %s' % \
+                        (self.pid, SysMgr.getErrReason()))
+
+                    if self.mode == 'break':
+                        if self.cont(check=True) < 0:
+                            sys.exit(0)
+
+                    continue
+
+                SysMgr.printErr(\
+                    "Terminated tracing thread %s" % self.pid)
+
+                return
+
+
+
     def trace(\
         self, mode='syscall', wait=None, \
             multi=False, lock=None, breakpointList={}):
@@ -32695,7 +32859,7 @@ struct msghdr {
             # set alarm handler #
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
 
-            if mode == 'sample':
+            if self.mode == 'sample':
                 # set sampling rate to 100 us #
                 sampleTime = SysMgr.getOption('T')
                 if sampleTime:
@@ -32737,7 +32901,7 @@ struct msghdr {
             sys.exit(0)
 
         # load user symbols #
-        if mode != 'syscall' or SysMgr.funcDepth > 0:
+        if self.mode != 'syscall' or SysMgr.funcDepth > 0:
             try:
                 self.loadSymbols()
             except SystemExit:
@@ -32760,8 +32924,8 @@ struct msghdr {
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
-            if mode != 'syscall' and \
-                mode != 'break' and \
+            if self.mode != 'syscall' and \
+                self.mode != 'break' and \
                 not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
@@ -32775,13 +32939,13 @@ struct msghdr {
             self.status = 'ready'
 
         # select trap command #
-        if mode == 'syscall':
+        if self.mode == 'syscall':
             self.cmd = self.syscallCmd
-        elif mode == 'inst':
+        elif self.mode == 'inst':
             self.cmd = self.singlestepCmd
-        elif mode == 'sample':
+        elif self.mode == 'sample':
             self.cmd = None
-        elif mode == 'break':
+        elif self.mode == 'break':
             # register breakpoint data #
             self.breakpointList = breakpointList
 
@@ -32794,7 +32958,7 @@ struct msghdr {
                 SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
         else:
             SysMgr.printErr(\
-                "Fail to recognize trace mode '%s'" % mode)
+                "Fail to recognize trace mode '%s'" % self.mode)
             sys.exit(0)
 
         # register summary function #
@@ -32817,166 +32981,7 @@ struct msghdr {
         if SysMgr.printEnable:
             signal.alarm(SysMgr.intervalEnable)
 
-        # enter trace loop #
-        while 1:
-            # set status #
-            if self.status == 'stop':
-                self.status = 'enter'
-            elif self.status == 'ready':
-                pass
-            else:
-                # skip instructions for performance #
-                if mode == 'inst' and self.skipInst > 0:
-                    for i in xrange(0, self.skipInst):
-                        self.ptrace(self.cmd)
-                # wait for sample calls #
-                elif mode == 'sample':
-                    self.checkInterval()
-                elif mode == 'break':
-                    pass
-                # setup trap #
-                else:
-                    self.ptrace(self.cmd)
-
-            try:
-                # wait process #
-                rid, ostat = self.waitpid()
-
-                # update time #
-                self.current = time.time()
-
-                # get status of process #
-                stat = self.getStatus(ostat)
-
-                # handle clone event #
-                if self.isCloned(ostat):
-                    self.handoverNewTarget()
-                    continue
-
-                # handle fork event #
-                if self.isForked(ostat):
-                    if mode == 'syscall':
-                        self.handoverNewTarget()
-                    continue
-
-                # check status of process #
-                if not UtilMgr.isNumber(stat):
-                    raise Exception("Unknown status type")
-
-                # trap #
-                if stat == signal.SIGTRAP:
-                    # after execve() #
-                    if self.status == 'ready':
-                        self.ptraceEvent(self.traceEventList)
-                        if self.cmd:
-                            self.ptrace(self.cmd)
-                        self.status = 'enter'
-                        continue
-
-                    # usercall / breakcall #
-                    elif mode == 'inst' or mode == 'break':
-                        self.handleTrapEvent(mode, ostat)
-
-                # breakpoint event for ARM #
-                elif stat == signal.SIGILL and \
-                    mode == 'break':
-                    self.handleTrapEvent(mode, ostat)
-
-                # syscall #
-                elif stat == signal.SIGTRAP | 0x80:
-                    # filter syscall #
-                    if mode != 'syscall':
-                        continue
-
-                    # interprete syscall context #
-                    self.handleSyscall()
-
-                # stop signal #
-                elif stat == signal.SIGSTOP:
-                    if mode == 'sample':
-                        self.handleTrapEvent(mode, ostat)
-                        continue
-
-                    self.status = 'stop'
-                    SysMgr.printWarn(\
-                        'Blocked thread %s because of %s' % \
-                        (self.pid, ConfigMgr.SIG_LIST[stat]))
-
-                    if mode == 'break':
-                        if self.cont(check=True) < 0:
-                            sys.exit(0)
-                        continue
-
-                    # set up trap again #
-                    if mode == 'syscall':
-                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
-
-                        self.ptrace(self.cmd)
-
-                    continue
-
-                # kill / segv signal #
-                elif SysMgr.isTermSignal(stat):
-                    # print context info #
-                    self.printContext()
-
-                    SysMgr.printErr(\
-                        'Terminated thread %s because of %s' % \
-                            (self.pid, ConfigMgr.SIG_LIST[stat]))
-
-                    sys.exit(0)
-
-                # exit #
-                elif stat == -1:
-                    # check target is running #
-                    try:
-                        os.kill(self.pid, 0)
-                        continue
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
-                    if self.status == 'exit':
-                        SysMgr.printPipe(' ')
-
-                    SysMgr.printErr(\
-                        'Terminated thread %s' % self.pid)
-
-                    sys.exit(0)
-
-                # other #
-                else:
-                    SysMgr.printWarn(\
-                        'Detected thread %s with %s' % \
-                        (self.pid, ConfigMgr.SIG_LIST[stat]))
-
-                    if mode == 'sample':
-                        self.handleTrapEvent(mode, ostat)
-
-                    # continue target from signal stop #
-                    if mode != 'syscall':
-                        if self.cont(check=True, sig=stat) < 0:
-                            sys.exit(0)
-
-            except SystemExit:
-                return
-            except:
-                if self.isAlive():
-                    SysMgr.printWarn(\
-                        'Detected thread %s with error because %s' % \
-                        (self.pid, SysMgr.getErrReason()))
-
-                    if mode == 'break':
-                        if self.cont(check=True) < 0:
-                            sys.exit(0)
-
-                    continue
-
-                SysMgr.printErr(\
-                    "Terminated tracing thread %s" % self.pid)
-
-                return
+        self.runEventLoop()
 
 
 
