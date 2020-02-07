@@ -23251,18 +23251,7 @@ Copyright:
 
             # create a system-wide lock for tracer processes #
             if mode == 'breakcall':
-                try:
-                    SysMgr.importPackageItems('fcntl')
-                    lockObj = open('%s/guider.lock' % SysMgr.cacheDirPath, 'w')
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(\
-                        "Fail to create file for lock because %s" % \
-                            SysMgr.getErrReason())
-
-                    if not SysMgr.forceEnable:
-                        sys.exit(0)
+                lockObj = Debugger.getGlobalLock()
 
             # create new worker processes #
             try:
@@ -23446,7 +23435,10 @@ Copyright:
 
             for addr in addrList:
                 ret = dobj.getSymbolInfo(addr)
-                if type(ret) is list:
+                if not ret:
+                    SysMgr.printErr("Fail to analyze %s process" % pid)
+                    sys.exit(0)
+                elif type(ret) is list:
                     resInfo[addr] = [ret[0], ret[1]]
                 else:
                     resInfo[addr] = ['??', '??']
@@ -23586,6 +23578,8 @@ Copyright:
     def doSym2addr():
         SysMgr.printLogo(big=True, onlyFile=True)
 
+        SysMgr.warnEnable = True
+
         if not SysMgr.sourceFile:
             SysMgr.printErr(\
                 "No PATH or COMM or PID with -I")
@@ -23643,6 +23637,10 @@ Copyright:
 
             # get file list on memorymap #
             fileList = FileAnalyzer.getProcMapInfo(pid)
+            if not fileList:
+                SysMgr.printErr("Fail to analyze %s process" % pid)
+                sys.exit(0)
+
             for filePath, attr in fileList.items():
                 for sym in SysMgr.filterGroup:
                     # create ELF object #
@@ -29658,6 +29656,7 @@ class DltAnalyzer(object):
 class Debugger(object):
     """ Debugger for ptrace """
 
+    gLockObj = None
     lastInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True):
@@ -29684,7 +29683,10 @@ class Debugger(object):
         self.totalCall = long(0)
         self.callTable = {}
         self.fileTable = {}
+        self.brkList = {}
         self.breakpointList = {}
+        self.defaultBrkFileList = {}
+        self.defaultBrkList = {'mmap': 0, 'mmap64': 0}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -29965,6 +29967,29 @@ struct msghdr {
 
 
 
+    @staticmethod
+    def getGlobalLock():
+        if Debugger.gLockObj:
+            return Debugger.gLockObj
+
+        try:
+            SysMgr.importPackageItems('fcntl')
+            Debugger.gLockObj = \
+                open('%s/guider.lock' % SysMgr.cacheDirPath, 'w')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "Fail to create file for global lock because %s" % \
+                    SysMgr.getErrReason())
+
+            if not SysMgr.forceEnable:
+                sys.exit(0)
+
+        return Debugger.gLockObj
+
+
+
     def readArgValues(self):
         arch = self.arch
         regs = self.regs
@@ -30059,6 +30084,11 @@ struct msghdr {
 
         addrList = []
 
+        # add mmap symbols #
+        for dsym in list(self.defaultBrkList.keys()):
+            if not dsym in blist:
+                blist.append(dsym)
+
         for value in blist:
             # address #
             if UtilMgr.isNumber(value):
@@ -30080,11 +30110,19 @@ struct msghdr {
                 ret = self.getAddrBySymbol(\
                     value, binary=binary, similar=similar)
                 if not ret:
+                    if value == '' or \
+                        value in self.defaultBrkList:
+                        continue
+
                     SysMgr.printErr(\
                         "Fail to find address for '%s'" % value)
+
                     sys.exit(0)
                 else:
                     addrList += ret
+
+        if len(addrList) == 0:
+            return
 
         # print target process name #
         tgid = SysMgr.getTgid(self.pid)
@@ -30109,7 +30147,6 @@ struct msghdr {
                 SysMgr.printWarn(\
                     "Fail to inject breakpoint to %s(%s) for %s thread" % \
                         (value, hex(addr), self.pid))
-                return False
 
         UtilMgr.deleteProgress()
 
@@ -30520,7 +30557,10 @@ struct msghdr {
         if SysMgr.customCmd is None:
             funcFilter = []
         else:
-            funcFilter = SysMgr.customCmd
+            funcFilter = list(SysMgr.customCmd)
+
+            # update list #
+            self.brkList.update(dict.fromkeys(funcFilter, 0))
 
         # add per-process breakpoints #
         self.injectBreakpointList(funcFilter, binary=fileList, verb=verb)
@@ -31119,6 +31159,13 @@ struct msghdr {
     def loadSymbols(self):
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
+
+        # register default libraries #
+        for fpath in list(self.pmap.keys()):
+            fname = os.path.basename(fpath)
+            if fname.startswith('libc-') or \
+                fname.startswith('ld-'):
+                self.defaultBrkFileList[fpath] = 0
 
         for mfile in list(self.pmap.keys()):
             try:
@@ -31760,7 +31807,8 @@ struct msghdr {
             self.needMapScan = True
 
         # print context info #
-        if printStat:
+        if printStat and \
+            (len(self.brkList) == 0 or sym in self.brkList):
             # build arguments string #
             if SysMgr.showAll:
                 # read args #
@@ -32522,6 +32570,7 @@ struct msghdr {
 
         addrList = []
         addrDict = {}
+
         for mfile in list(self.pmap.keys()):
             if binary and not mfile in binary:
                 continue
@@ -32598,6 +32647,14 @@ struct msghdr {
         # get tid of new task #
         tid = self.getEventMsg()
 
+        # check lock #
+        if not self.lockObj and \
+            self.mode == 'break':
+            self.lockObj = Debugger.getGlobalLock()
+
+        # stop the target #
+        self.stop()
+
         # create a new process to trace a new task #
         pid = SysMgr.createProcess(\
             changePgid=True, isDaemon=True, urgent=True)
@@ -32612,9 +32669,11 @@ struct msghdr {
             self.attach()
             self.ptraceEvent(self.traceEventList)
 
-        # set multiprocess attributes #
-        self.multi = True
-        SysMgr.printStreamEnable = True
+        # set tracer attributes #
+        if pid >= 0:
+            # set multiprocess attributes #
+            self.multi = True
+            SysMgr.printStreamEnable = True
 
 
 
@@ -32778,6 +32837,9 @@ struct msghdr {
                         'Terminated thread %s because of %s' % \
                             (self.pid, ConfigMgr.SIG_LIST[stat]))
 
+                    if SysMgr.isTopMode():
+                        signal.pause()
+
                     sys.exit(0)
 
                 # exit #
@@ -32796,6 +32858,9 @@ struct msghdr {
 
                     SysMgr.printErr(\
                         'Terminated thread %s' % self.pid)
+
+                    if SysMgr.isTopMode():
+                        signal.pause()
 
                     sys.exit(0)
 
@@ -32856,11 +32921,11 @@ struct msghdr {
 
         # context variables #
         self.cmd = None
-        self.current = time.time()
         self.wait = wait
         self.mode = mode
         self.multi = multi
         self.lockObj = lock
+        self.current = time.time()
         self.pbufsize = SysMgr.ttyCols >> 1
 
         # sampling variables #
