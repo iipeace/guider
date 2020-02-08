@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200207"
+__revision__ = "200208"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29684,6 +29684,7 @@ class Debugger(object):
         self.callTable = {}
         self.fileTable = {}
         self.brkList = {}
+        self.brkFileList = {}
         self.breakpointList = {}
         self.defaultBrkFileList = {}
         self.defaultBrkList = {'mmap': 0, 'mmap64': 0}
@@ -30084,10 +30085,15 @@ struct msghdr {
 
         addrList = []
 
-        # add mmap symbols #
-        for dsym in list(self.defaultBrkList.keys()):
-            if not dsym in blist:
-                blist.append(dsym)
+        # add default breakpoints such as mmap symbols #
+        for lib in (self.defaultBrkFileList.keys()):
+            for dsym in list(self.defaultBrkList.keys()):
+                ret = self.getAddrBySymbol(dsym, binary=lib)
+                if not ret:
+                    continue
+                addr = ret[0][0]
+                ret = self.injectBreakpoint(\
+                    addr, dsym, fname=lib, reins=True)
 
         for value in blist:
             # address #
@@ -30553,6 +30559,9 @@ struct msghdr {
         fileList = SysMgr.getOption('T')
         if fileList:
             fileList = set(fileList.split(','))
+
+            # update file list #
+            self.brkFileList.update(dict.fromkeys(fileList, 0))
 
         if SysMgr.customCmd is None:
             funcFilter = []
@@ -31808,7 +31817,8 @@ struct msghdr {
 
         # print context info #
         if printStat and \
-            (len(self.brkList) == 0 or sym in self.brkList):
+            (len(self.brkList) == 0 or sym in self.brkList) and \
+            (len(self.brkFileList) == 0 or fname in self.brkFileList):
             # build arguments string #
             if SysMgr.showAll:
                 # read args #
