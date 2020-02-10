@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200208"
+__revision__ = "200209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23171,9 +23171,8 @@ Copyright:
                         continue
 
                     # load common ELF cache files #
-                    procObj.loadSymbols()
-
-                    procObj.updateBreakpointList()
+                    if procObj.loadSymbols():
+                        procObj.updateBreakpointList()
 
                     # save per-process breakpoint info #
                     breakpointList[pid] = copy.deepcopy(procObj.breakpointList)
@@ -29670,6 +29669,7 @@ class Debugger(object):
         self.bufferedStr = ''
         self.mapFd = None
         self.pmap = None
+        self.prevPmap = None
         self.needMapScan = True
         self.initPtrace = False
         self.initPvr = False
@@ -29686,6 +29686,7 @@ class Debugger(object):
         self.brkList = {}
         self.brkFileList = {}
         self.breakpointList = {}
+        self.libcLoaded = False
         self.defaultBrkFileList = {}
         self.defaultBrkList = {'mmap': 0, 'mmap64': 0}
 
@@ -30079,9 +30080,9 @@ struct msghdr {
 
 
 
-    def injectBreakpointList(self, blist, binary=None, verb=True):
-        if len(blist) == 0:
-            blist.append('**')
+    def injectBreakpointList(self, symlist, binlist=None, verb=True):
+        if len(symlist) == 0:
+            symlist.append('**')
 
         addrList = []
 
@@ -30091,11 +30092,12 @@ struct msghdr {
                 ret = self.getAddrBySymbol(dsym, binary=lib)
                 if not ret:
                     continue
+
                 addr = ret[0][0]
                 ret = self.injectBreakpoint(\
                     addr, dsym, fname=lib, reins=True)
 
-        for value in blist:
+        for value in symlist:
             # address #
             if UtilMgr.isNumber(value):
                 try:
@@ -30114,7 +30116,7 @@ struct msghdr {
                     similar = False
 
                 ret = self.getAddrBySymbol(\
-                    value, binary=binary, similar=similar)
+                    value, binary=binlist, similar=similar)
                 if not ret:
                     if value == '' or \
                         value in self.defaultBrkList:
@@ -30556,23 +30558,22 @@ struct msghdr {
 
 
     def updateBreakpointList(self, verb=True):
+        # update file list #
         fileList = SysMgr.getOption('T')
         if fileList:
-            fileList = set(fileList.split(','))
-
-            # update file list #
+            fileList = list(set(fileList.split(',')))
             self.brkFileList.update(dict.fromkeys(fileList, 0))
 
+        # update symbol list #
         if SysMgr.customCmd is None:
             funcFilter = []
         else:
-            funcFilter = list(SysMgr.customCmd)
-
-            # update list #
+            funcFilter = list(set(SysMgr.customCmd))
             self.brkList.update(dict.fromkeys(funcFilter, 0))
 
         # add per-process breakpoints #
-        self.injectBreakpointList(funcFilter, binary=fileList, verb=verb)
+        self.injectBreakpointList(\
+            symlist=funcFilter, binlist=fileList, verb=verb)
 
 
 
@@ -31169,13 +31170,21 @@ struct msghdr {
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
 
+        if not self.pmap or \
+            self.pmap == self.prevPmap:
+            return False
+        else:
+            self.prevPmap = self.pmap
+
         # register default libraries #
         for fpath in list(self.pmap.keys()):
             fname = os.path.basename(fpath)
-            if fname.startswith('libc-') or \
-                fname.startswith('ld-'):
+            if fname.startswith('ld-'):
+                self.defaultBrkFileList[fpath] = 0
+            if fname.startswith('libc-'):
                 self.defaultBrkFileList[fpath] = 0
 
+        # load file-mapped objects #
         for mfile in list(self.pmap.keys()):
             try:
                 eobj = ElfAnalyzer.getObject(mfile)
@@ -31183,6 +31192,14 @@ struct msghdr {
                     eobj.mergeSymTable()
             except:
                 pass
+
+        # update file and addr lists from memory map #
+        self.fileList, self.addrList = self.getAddrLists()
+        if len(self.fileList) == 0:
+            SysMgr.printWarn(\
+                'Fail to get file list on memory map')
+
+        return True
 
 
 
@@ -31205,18 +31222,7 @@ struct msghdr {
 
         # scan process memory map #
         if self.needMapScan:
-            # get process memory map #
-            self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
-            if not self.pmap:
-                return None
-
-            # get sorted lists from process memory map #
-            self.fileList, self.addrList = self.getAddrLists()
-            if len(self.fileList) == 0:
-                SysMgr.printWarn(\
-                    'Fail to get file-mapped list')
-                return None
-
+            self.loadSymbols()
             self.needMapScan = False
 
         # get file name by address #
@@ -31805,9 +31811,10 @@ struct msghdr {
         fname = self.breakpointList[addr]['filename']
 
         # update memory map and load new objects #
-        if self.needMapScan:
-            self.loadSymbols()
-            self.updateBreakpointList(verb=False)
+        if self.needMapScan or \
+            (not self.libcLoaded and sym.startswith('__libc_')):
+            if self.loadSymbols():
+                self.updateBreakpointList(verb=False)
             self.needMapScan = False
 
         # check memory map calls #
@@ -31845,6 +31852,7 @@ struct msghdr {
                     backtrace = self.getBacktrace(cur=True)
                 else:
                     backtrace = None
+
                 self.addSample(\
                     sym, fname, realtime=True, bt=backtrace)
 
@@ -32791,6 +32799,10 @@ struct msghdr {
                         self.status = 'enter'
 
                         if self.mode == 'break':
+                            # load symbols again #
+                            if self.loadSymbols():
+                                self.updateBreakpointList()
+
                             if self.cont(check=True) < 0:
                                 sys.exit(0)
 
@@ -33059,11 +33071,6 @@ struct msghdr {
                         'Terminated thread %s' % self.pid)
                 elif stat == 'S':
                     SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
-            else:
-                # load common ELF cache files #
-                self.loadSymbols()
-
-                self.updateBreakpointList()
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % self.mode)
@@ -34876,14 +34883,12 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getObject(path, raiseExcept=False):
+    def getObject(path, raiseExcept=False, fobj=None):
         # load files #
         if path not in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
                 return None
-
-            fobj = None
 
             # check exception case #
             if not path.startswith('/'):
@@ -34904,6 +34909,7 @@ class ElfAnalyzer(object):
             fobj = ElfAnalyzer.loadObject(path)
             if fobj:
                 ElfAnalyzer.cachedFiles[path] = fobj
+                ElfAnalyzer.cachedFiles[path].saved = True
                 SysMgr.printInfo("[Cached]", prefix=False, notitle=True)
                 return fobj
 
@@ -35178,7 +35184,7 @@ class ElfAnalyzer(object):
 
 
 
-    def mergeSymTable(self, force=False, onlyFunc=True):
+    def mergeSymTable(self, force=False, onlyFunc=True, removeOrig=True):
         # check already merged #
         if len(self.mergedSymTable) > 0 and not force:
             return
@@ -35212,6 +35218,11 @@ class ElfAnalyzer(object):
 
             self.sortedAddrTable.append(item['value'])
             self.sortedSymTable.append([idx, item['size']])
+
+        # remove useless symbols after merge #
+        if removeOrig:
+            del self.attr['symTable']
+            del self.attr['dynsymTable']
 
 
 
