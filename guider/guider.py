@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200209"
+__revision__ = "200211"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13073,8 +13073,7 @@ class SysMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printSigError(\
-                    SysMgr.pid, 'SIGINT', 'warning')
+                SysMgr.printSigError(SysMgr.pid, 'SIGINT')
 
         if SysMgr.repeatCount > 1:
             UtilMgr.printProgress(\
@@ -16489,15 +16488,16 @@ Copyright:
 
 
     @staticmethod
-    def printSigError(tid, signal, level='error'):
+    def printSigError(tid, signal, warn=True):
         err = SysMgr.getErrReason()
-        if level == 'error':
-            SysMgr.printErr(
-                "Fail to send %s to %s because %s" % \
-                (signal, tid, err))
-        elif level == 'warning':
-            SysMgr.printWarn(
-                "Fail to send %s to %s because %s" % \
+
+        if warn:
+            printFunc = SysMgr.printWarn
+        else:
+            printFunc = Sysmgr.printErr
+
+        printFunc(\
+            "Fail to send %s to thread %s because %s" % \
                 (signal, tid, err))
 
 
@@ -23326,6 +23326,7 @@ Copyright:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
+                # set per-process convert breakpoint list #
                 try:
                     ppid = long(SysMgr.getTgid(pid))
                     breakpointList = breakpointList[ppid]
@@ -24148,16 +24149,10 @@ Copyright:
     @staticmethod
     def terminateTasks(targetList, sig=ConfigMgr.SIGKILL):
         for pid in targetList:
-            # check task #
-            try:
-                os.kill(pid, 0)
-            except:
-                continue
-
             try:
                 os.kill(pid, sig)
             except:
-                SysMgr.printSigError(pid, 'SIGKILL', 'warning')
+                SysMgr.printSigError(pid, 'SIGKILL')
 
 
 
@@ -25252,10 +25247,20 @@ Copyright:
 
         for pid in childList:
             if not SysMgr.isAlive(pid):
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except:
+                    pass
+
                 SysMgr.childList.pop(pid, None)
 
         for pid in urgentChildList:
             if not SysMgr.isAlive(pid):
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except:
+                    pass
+
                 SysMgr.urgentChildList.pop(pid, None)
 
 
@@ -29659,6 +29664,7 @@ class Debugger(object):
     lastInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True):
+        self.comm = None
         self.ctypes = None
         self.status = 'enter'
         self.runStatus = False
@@ -29964,7 +29970,7 @@ struct msghdr {
             if self.isStopped():
                 os.kill(self.pid, signal.SIGCONT)
         except:
-            SysMgr.printSigError(self.pid, 'SIGCONT', 'warning')
+            SysMgr.printSigError(self.pid, 'SIGCONT')
             return
 
 
@@ -30226,8 +30232,8 @@ struct msghdr {
 
             if SysMgr.warnEnable:
                 SysMgr.printWarn(\
-                    'Added a new breakpoint to %s%s for %s thread' % \
-                        (hex(addr), symbol, self.pid))
+                    'Added a new breakpoint to %s%s for %s(%s)' % \
+                        (hex(addr), symbol, self.comm, self.pid))
 
         return True
 
@@ -30239,7 +30245,8 @@ struct msghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to attach wrong thread %s' % pid, verb)
+                'Fail to attach %s(%s) because of wrong pid' % \
+                    (self.comm, pid), verb)
             return -1
 
         # attach to the thread #
@@ -30247,10 +30254,11 @@ struct msghdr {
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd)
         if ret != 0:
-            SysMgr.printWarn('Fail to attach thread %s' % pid, verb)
+            SysMgr.printWarn('Fail to attach %s(%s)' % \
+                (self.comm, pid), verb)
             return -1
         else:
-            SysMgr.printWarn('Attached to thread %d' % pid)
+            SysMgr.printWarn('Attached to %s(%s)' % (self.comm, pid))
             return 0
 
 
@@ -30260,7 +30268,9 @@ struct msghdr {
             pid = self.pid
 
         if self.checkPid(pid) < 0:
-            SysMgr.printWarn('Fail to stop wrong thread %s' % pid)
+            SysMgr.printWarn(\
+                'Fail to stop %s(%s) because of wrong pid' % \
+                    (self.comm, pid))
             return -1
 
         # send signal to a thread #
@@ -30273,15 +30283,15 @@ struct msghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to stop %s thread because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to stop %s(%s) because %s" % \
+                    (self.comm, pid, SysMgr.getErrReason()))
 
         # send signal to a process #
         try:
             os.kill(pid, signal.SIGSTOP)
             return 0
         except:
-            SysMgr.printSigError(pid, 'SIGSTOP', 'warning')
+            SysMgr.printSigError(pid, 'SIGSTOP')
             return -1
 
 
@@ -30295,11 +30305,13 @@ struct msghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to continue wrong thread %s' % pid)
+                'Fail to continue %s(%s) because of wrong pid' % \
+                    (self.comm, pid))
             return -1
 
         errMsg = \
-            'Fail to continue %s thread because it is terminated' % pid
+            'Fail to continue %s(%s) because it is terminated' % \
+                (self.comm, pid)
 
         # check target is running #
         try:
@@ -30329,7 +30341,8 @@ struct msghdr {
         if ret != 0:
             err = SysMgr.getErrReason()
             SysMgr.printWarn(\
-                'Fail to continue %s thread because %s' % (pid, err))
+                'Fail to continue %s(%s) because %s' % \
+                    (self.comm, pid, err))
             return -1
 
         return 0
@@ -30344,10 +30357,12 @@ struct msghdr {
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, pid=pid)
         if ret != 0:
-            SysMgr.printWarn('Fail to detach thread %s' % pid)
+            SysMgr.printWarn(\
+                'Fail to detach %s(%s)' % (self.comm, pid))
             return -1
         else:
-            SysMgr.printWarn('Detached from thread %d' % pid)
+            SysMgr.printWarn(\
+                'Detached from %s(%s)' % (self.comm, pid))
             return 0
 
 
@@ -30370,7 +30385,7 @@ struct msghdr {
                 try:
                     os.kill(self.pid, signal.SIGKILL)
                 except:
-                    SysMgr.printSigError(pid, 'SIGKILL', 'warning')
+                    SysMgr.printSigError(pid, 'SIGKILL')
 
                 return 0
 
@@ -30655,8 +30670,8 @@ struct msghdr {
             word = self.accessMem(self.peekIdx, addr)
             if word == -1:
                 SysMgr.printErr(\
-                    "Fail to read memory %s of thread %s" % \
-                        (hex(addr), self.pid))
+                    "Fail to read memory %s from %s(%s)" % \
+                        (hex(addr), self.comm, self.pid))
                 return None
 
             if retWord:
@@ -31169,7 +31184,6 @@ struct msghdr {
     def loadSymbols(self):
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(self.pid, self.mapFd)
-
         if not self.pmap or \
             self.pmap == self.prevPmap:
             return False
@@ -31793,7 +31807,8 @@ struct msghdr {
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
-                "Fail to get register values of thread %d" % self.pid)
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # set rewind address #
@@ -31912,8 +31927,8 @@ struct msghdr {
         ret = self.ptrace(self.singlestepCmd)
         if ret != 0:
             SysMgr.printErr(\
-                'Fail to continue %s thread to reinstall a breakpoint' % \
-                    self.pid)
+                'Fail to continue %s(%s) to reinstall a breakpoint' % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # wait process #
@@ -31922,8 +31937,8 @@ struct msghdr {
         if SysMgr.isTermSignal(stat) or \
             stat == -1:
             SysMgr.printErr(\
-                'Fail to wait for %s thread to reinstall a breakpoint' % \
-                    self.pid)
+                'Fail to wait for %s(%s) to reinstall a breakpoint' % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # register this breakpoint again #
@@ -31961,7 +31976,8 @@ struct msghdr {
         # get register set of target #
         if not self.updateRegs():
             SysMgr.printErr(\
-                "Fail to get register values of thread %d" % self.pid)
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # check previous function boundary #
@@ -32279,7 +32295,8 @@ struct msghdr {
 
         if self.getRegs(temp=True) != 0:
             SysMgr.printErr(\
-                "Fail to get register values of thread %d" % self.pid)
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # set return value from register #
@@ -32308,7 +32325,8 @@ struct msghdr {
         # get register set #
         if not self.updateRegs():
             SysMgr.printErr(\
-                "Fail to get register values of thread %d" % self.pid)
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
             sys.exit(0)
 
         # check SYSEMU condition #
@@ -32549,8 +32567,9 @@ struct msghdr {
     def getCpuUsage(self):
         stat = self.getStatList(retstr=True)
         if not stat:
-            SysMgr.printErr(\
-                "Fail to get CPU usage for thread %s" % self.pid)
+            SysMgr.printWarn(\
+                "Fail to get CPU usage for %s(%s)" % \
+                    (self.comm, self.pid))
             return [0, 0, 0]
 
         # check stat change #
@@ -32686,12 +32705,12 @@ struct msghdr {
         elif pid == 0:
             self.attach()
             self.ptraceEvent(self.traceEventList)
+        else:
+            return
 
-        # set tracer attributes #
-        if pid >= 0:
-            # set multiprocess attributes #
-            self.multi = True
-            SysMgr.printStreamEnable = True
+        # set multiprocess attributes #
+        self.multi = True
+        SysMgr.printStreamEnable = True
 
 
 
@@ -32834,8 +32853,8 @@ struct msghdr {
 
                     self.status = 'stop'
                     SysMgr.printWarn(\
-                        'Blocked thread %s because of %s' % \
-                        (self.pid, ConfigMgr.SIG_LIST[stat]))
+                        'Blocked %s(%s) because of %s' % \
+                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if self.mode == 'break':
                         if self.cont(check=True) < 0:
@@ -32856,11 +32875,11 @@ struct msghdr {
                     self.printContext()
 
                     SysMgr.printErr(\
-                        'Terminated thread %s because of %s' % \
-                            (self.pid, ConfigMgr.SIG_LIST[stat]))
+                        'Terminated %s(%s) because of %s' % \
+                            (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if SysMgr.isTopMode():
-                        signal.pause()
+                        SysMgr.waitEvent()
 
                     sys.exit(0)
 
@@ -32879,18 +32898,18 @@ struct msghdr {
                         SysMgr.printPipe(' ')
 
                     SysMgr.printErr(\
-                        'Terminated thread %s' % self.pid)
+                        'Terminated %s(%s)' % (self.comm, self.pid))
 
                     if SysMgr.isTopMode():
-                        signal.pause()
+                        SysMgr.waitEvent()
 
                     sys.exit(0)
 
                 # other #
                 else:
                     SysMgr.printWarn(\
-                        'Detected thread %s with %s' % \
-                        (self.pid, ConfigMgr.SIG_LIST[stat]))
+                        'Detected %s(%s) with %s' % \
+                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if self.mode == 'sample':
                         self.handleTrapEvent(ostat)
@@ -32905,8 +32924,8 @@ struct msghdr {
             except:
                 if self.isAlive():
                     SysMgr.printWarn(\
-                        'Detected thread %s with error because %s' % \
-                        (self.pid, SysMgr.getErrReason()))
+                        'Detected %s(%s) with error because %s' % \
+                        (self.comm, self.pid, SysMgr.getErrReason()))
 
                     if self.mode == 'break':
                         if self.cont(check=True) < 0:
@@ -32915,7 +32934,8 @@ struct msghdr {
                     continue
 
                 SysMgr.printErr(\
-                    "Terminated tracing thread %s" % self.pid)
+                    "Terminated tracing %s(%s)" % \
+                        (self.comm, self.pid))
 
                 return
 
@@ -33010,8 +33030,8 @@ struct msghdr {
             ereason = SysMgr.getErrReason()
             if ereason != '0':
                 SysMgr.printErr(\
-                    'Fail to trace thread %s because %s' % \
-                        (self.pid, ereason))
+                    'Fail to trace %s(%s) because %s' % \
+                        (self.comm, self.pid, ereason))
             sys.exit(0)
 
         # load user symbols #
@@ -33028,7 +33048,7 @@ struct msghdr {
 
         if SysMgr.printEnable:
             SysMgr.printInfo(\
-                "Start profiling thread %s(%d)" % (self.comm, self.pid))
+                "Start profiling %s(%d)" % (self.comm, self.pid))
 
         # set start time #
         #self.start = self.last = time.time()
@@ -33068,7 +33088,7 @@ struct msghdr {
                 stat = self.getStatList(status=True)
                 if not stat:
                     SysMgr.printErr(\
-                        'Terminated thread %s' % self.pid)
+                        'Terminated %s(%s)' % (self.comm, self.pid))
                 elif stat == 'S':
                     SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
         else:

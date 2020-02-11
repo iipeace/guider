@@ -132,37 +132,58 @@ Output
 
     # ./guider.py usertop -g yes -H
 
-	[Top Usercall Info] [Time: 69810.230000] [Interval: 1.000658] [NrSamples: 955] [NrSymbols: 9] [CPU: 26.0%(Usr:24.0%/Sys:2.0%)] [SampleTime: 0.0001]
+	[Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [Target: yes(7202)] [CPU: 28%(Usr:27%/Sys:0%)] [SampleTime: 0.000100] 
 	==========================================================================================================================================================
-	 Usage  |                                                                 Function [Path]
+	 Usage  |                                                                 Function [Path]                                                                 
 	==========================================================================================================================================================
-	  33.3% | _IO_file_xsputn@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	  16.9% | __libc_start_main@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- ??[/usr/bin/yes.coreutils]
-	  16.3% | fputs_unlocked@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	  12.6% | memcpy@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so] <- ?
-	  11.4% | strlen@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	   4.6% | _IO_file_write@GLIBC_2.17 [/lib/libc-2.24.so]
-			   100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin
-	   2.5% | ?? [/usr/bin/yes.coreutils]
-	   1.8% | PLT [/usr/bin/yes.coreutils]
-			   100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+	  35.6% | _IO_file_xsputn@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                  
+	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  17.8% | fputs_unlocked@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
+	           100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  16.1% | __libc_start_main@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                
+	  14.7% | memcpy@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
+	           100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  12.3% | strlen@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
+	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	   3.0% | _IO_file_write@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
+	           100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
+	                     <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
 	----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
 
 	# ./guider.py systop -g yes -H
 
-    [Top Syscall Info] [Time: 69913.860000] [Interval: 1.000497] [NrSamples: 454] [NrSymbols: 1] [CPU: 5.0%(Usr:4.0%/Sys:1.0%)]
+	[Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [Target: yes(7202)] [CPU: 5%(Usr:4%/Sys:0%)] 
 	==========================================================================================================================================================
-	 Usage  |                                                                 Function [Count]
+	 Usage  |                                                                 Function [Count]                                                                
 	==========================================================================================================================================================
-	 100.0% | write [Cnt: 454, Err: 0]
-			   100.0% |  <- _IO_file_write@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unloc
+	 100.0% | write [Cnt: 634, Tot: 0.830203, Avg: 0.001309, Max: 0.005875, Err: 0]                                                                           
+	           100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_file_write@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/lib/libc-2.24.so]
+	                     <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
+	                     <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+
+	# ./guider.py brktop -g yes -H
+
+	[Top Breakpoint Info] [Time: 81966.620000] [Interval: 1.002108] [NrSamples: 656] [Target: yes(7202)] [CPU: 2%(Usr:0%/Sys:2%)] [SampleTime: 0.000000] 
+	==========================================================================================================================================================
+	 Usage  |                                                                 Function [Path]                                                                 
+	==========================================================================================================================================================
+	  25.0% | _IO_file_xsputn@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006058, Min: 0.004348, Max: 0.016169]                                     
+	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  25.0% | fputs_unlocked@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006058, Min: 0.004346, Max: 0.016001]                                      
+	           100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  25.0% | strlen@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006075, Min: 0.004380, Max: 0.016195]                                              
+	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+	  25.0% | memcpy@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006056, Min: 0.004314, Max: 0.015648]                                              
+	           100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
 	----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -317,6 +338,50 @@ Output
                                   (5)[ANON] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  48K / NOPM:   0K|
                                             |  WSS: [  48K] ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K ->    4K
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+           
+    # ./guider.py btrace -g yes -H
+
+	1325484569.763112 memcpy@GLIBC_2.17/0x7facf2af50L [/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	        Backtrace Info [yes(7202)]
+	----------------------------------------------------------------------------------------------------------------------------------------------------------
+	0x7facf2af50L(memcpy@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x7facf1ca48L(_IO_file_xsputn@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x7facf1b488L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x40108cL(??)[/usr/bin/yes.coreutils]
+	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	
+	1325484569.765313 fputs_unlocked@GLIBC_2.17/0x7facf1b420L [/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	        Backtrace Info [yes(7202)]
+	----------------------------------------------------------------------------------------------------------------------------------------------------------
+	0x7facf1b420L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x40108cL(??)[/usr/bin/yes.coreutils]
+	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	
+	1325484569.766850 strlen@GLIBC_2.17/0x7facf291c0L [/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	        Backtrace Info [yes(7202)]
+	----------------------------------------------------------------------------------------------------------------------------------------------------------
+	0x7facf291c0L(strlen@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x7facf1b43cL(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x40108cL(??)[/usr/bin/yes.coreutils]
+	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	
+	1325484569.768377 _IO_file_xsputn@GLIBC_2.17/0x7facf1c9e0L [/lib/libc-2.24.so]
+	==========================================================================================================================================================
+	        Backtrace Info [yes(7202)]
+	----------------------------------------------------------------------------------------------------------------------------------------------------------
+	0x7facf1c9e0L(_IO_file_xsputn@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x7facf1b488L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
+	0x40108cL(??)[/usr/bin/yes.coreutils]
+	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
+	==========================================================================================================================================================
 
 >>>
            
