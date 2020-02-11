@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200211"
+__revision__ = "200212"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11809,7 +11809,6 @@ class SysMgr(object):
     syscallList = []
     perCoreList = []
     childList = {}
-    urgentChildList = {}
     pidFilter = None
 
 
@@ -17391,7 +17390,6 @@ Copyright:
         signal.alarm(0)
         SysMgr.condExit = True
         SysMgr.printWarn('Terminated by user\n')
-        SysMgr.killChilds(signal.SIGINT, urgent=True)
         signal.signal(signum, signal.SIG_DFL)
         sys.exit(0)
 
@@ -22122,15 +22120,12 @@ Copyright:
 
     @staticmethod
     def createProcess(\
-        cmd=None, isDaemon=False, mute=False, changePgid=False, urgent=False):
+        cmd=None, isDaemon=False, mute=False, changePgid=False):
         pid = os.fork()
 
         # parent #
         if pid > 0:
-            if urgent:
-                SysMgr.urgentChildList[pid] = True
-
-            if not isDaemon and not urgent:
+            if not isDaemon:
                 SysMgr.childList[pid] = True
 
             return pid
@@ -23289,7 +23284,11 @@ Copyright:
                     SysMgr.fileForPrint = None
 
                 # broadcast termination signal to childs #
-                SysMgr.killChilds(sig=signal.SIGINT, wait=True)
+                SysMgr.killChilds(\
+                    sig=signal.SIGINT, wait=True, group=True)
+
+                if mode != 'break':
+                    sys.exit(0)
 
                 # remove all progress files #
                 for pid in list(procList.keys()):
@@ -24147,10 +24146,15 @@ Copyright:
 
 
     @staticmethod
-    def terminateTasks(targetList, sig=ConfigMgr.SIGKILL):
+    def terminateTasks(targetList, sig=ConfigMgr.SIGKILL, group=False):
+        if group:
+            kill = os.killpg
+        else:
+            kill = os.kill
+
         for pid in targetList:
             try:
-                os.kill(pid, sig)
+                kill(pid, sig)
             except:
                 SysMgr.printSigError(pid, 'SIGKILL')
 
@@ -25226,14 +25230,12 @@ Copyright:
     @staticmethod
     def clearChildList():
         SysMgr.childList = {}
-        SysMgr.urgentChildList = {}
 
 
 
     @staticmethod
     def isNoChild():
-        if len(SysMgr.childList) == 0 and \
-            len(SysMgr.urgentChildList) == 0:
+        if len(SysMgr.childList) == 0:
             return True
         else:
             return False
@@ -25243,7 +25245,6 @@ Copyright:
     @staticmethod
     def updateChilds():
         childList = list(SysMgr.childList.keys())
-        urgentChildList = list(SysMgr.urgentChildList.keys())
 
         for pid in childList:
             if not SysMgr.isAlive(pid):
@@ -25254,23 +25255,12 @@ Copyright:
 
                 SysMgr.childList.pop(pid, None)
 
-        for pid in urgentChildList:
-            if not SysMgr.isAlive(pid):
-                try:
-                    os.waitpid(pid, os.WNOHANG)
-                except:
-                    pass
-
-                SysMgr.urgentChildList.pop(pid, None)
-
 
 
     @staticmethod
-    def killChilds(\
-        sig=ConfigMgr.SIGKILL, childs=None, wait=False, urgent=False):
-        if urgent:
-            SysMgr.terminateTasks(list(SysMgr.urgentChildList.keys()), sig)
-            return
+    def killChilds(sig=None, childs=None, wait=False, group=False):
+        if not sig:
+            sig = ConfigMgr.SIGKILL
 
         if childs is None:
             childs = list(SysMgr.childList.keys())
@@ -25278,7 +25268,7 @@ Copyright:
         # remove child list #
         SysMgr.clearChildList()
 
-        SysMgr.terminateTasks(childs, sig)
+        SysMgr.terminateTasks(childs, sig, group)
 
         if not wait:
             return
@@ -32690,11 +32680,11 @@ struct msghdr {
             self.lockObj = Debugger.getGlobalLock()
 
         # stop the target #
-        self.stop()
+        if self.mode == 'break':
+            self.stop()
 
         # create a new process to trace a new task #
-        pid = SysMgr.createProcess(\
-            changePgid=True, isDaemon=True, urgent=True)
+        pid = SysMgr.createProcess(isDaemon=True)
         # child thread #
         if pid > 0:
             self.detach(self.pid)
