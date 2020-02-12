@@ -23193,6 +23193,13 @@ Copyright:
         procList = {}
         breakpointList = {}
 
+        # check input #
+        if len(SysMgr.filterGroup) == 0 and \
+            not SysMgr.sourceFile:
+            SysMgr.printErr(\
+                "Input value for target with -g or -I option")
+            sys.exit(0)
+
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
             SysMgr.filterGroup, isThread=True, \
