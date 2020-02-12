@@ -23287,17 +23287,15 @@ Copyright:
                 SysMgr.killChilds(\
                     sig=signal.SIGINT, wait=True, group=True)
 
-                if mode != 'break':
-                    sys.exit(0)
-
                 # remove all progress files #
-                for pid in list(procList.keys()):
-                    try:
-                        progressFile = \
-                            '%s/task_%s.done' % (SysMgr.cacheDirPath, pid)
-                        os.remove(progressFile)
-                    except:
-                        pass
+                if mode == 'breakcall':
+                    for pid in list(procList.keys()):
+                        try:
+                            progressFile = \
+                                '%s/task_%s.done' % (SysMgr.cacheDirPath, pid)
+                            os.remove(progressFile)
+                        except:
+                            pass
 
                 # continue a process #
                 SysMgr.sendSignalProcs(\
@@ -25274,12 +25272,15 @@ Copyright:
             return
 
         while 1:
+            newChilds = list(childs)
             isFinished = True
 
-            for tid in childs:
+            for tid in newChilds:
                 if SysMgr.isAlive(tid):
                     isFinished = False
                     break
+
+                childs.remove(tid)
 
             if isFinished:
                 break
@@ -30069,8 +30070,8 @@ struct msghdr {
 
         if SysMgr.warnEnable:
             SysMgr.printWarn(\
-                'Removed the breakpoint from %s(%s) for %s thread' % \
-                    (hex(addr), symbol, self.pid))
+                'Removed the breakpoint %s(%s) from %s(%s)' % \
+                    (hex(addr), symbol, self.comm, self.pid))
 
         return (symbol, filename, reins)
 
@@ -30222,7 +30223,7 @@ struct msghdr {
 
             if SysMgr.warnEnable:
                 SysMgr.printWarn(\
-                    'Added a new breakpoint to %s%s for %s(%s)' % \
+                    'Added a new breakpoint %s%s to %s(%s)' % \
                         (hex(addr), symbol, self.comm, self.pid))
 
         return True
@@ -30235,8 +30236,8 @@ struct msghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to attach %s(%s) because of wrong pid' % \
-                    (self.comm, pid), verb)
+                'Fail to attach %s(%s) to guider(%s) because of wrong pid' % \
+                    (self.comm, pid, SysMgr.pid), verb)
             return -1
 
         # attach to the thread #
@@ -30244,11 +30245,12 @@ struct msghdr {
         cmd = plist.index('PTRACE_ATTACH')
         ret = self.ptrace(cmd)
         if ret != 0:
-            SysMgr.printWarn('Fail to attach %s(%s)' % \
-                (self.comm, pid), verb)
+            SysMgr.printWarn('Fail to attach %s(%s) to guider(%s)' % \
+                (self.comm, pid, SysMgr.pid), verb)
             return -1
         else:
-            SysMgr.printWarn('Attached to %s(%s)' % (self.comm, pid))
+            SysMgr.printWarn(\
+                'Attached %s(%s) to guider(%s)' % (self.comm, pid, SysMgr.pid))
             return 0
 
 
@@ -30348,11 +30350,11 @@ struct msghdr {
         ret = self.ptrace(cmd, pid=pid)
         if ret != 0:
             SysMgr.printWarn(\
-                'Fail to detach %s(%s)' % (self.comm, pid))
+                'Fail to detach %s(%s) from guider(%s)' % (self.comm, pid, SysMgr.pid))
             return -1
         else:
             SysMgr.printWarn(\
-                'Detached from %s(%s)' % (self.comm, pid))
+                'Detached %s(%s) from guider(%s)' % (self.comm, pid, SysMgr.pid))
             return 0
 
 
@@ -32674,27 +32676,29 @@ struct msghdr {
         # get tid of new task #
         tid = self.getEventMsg()
 
-        # check lock #
-        if not self.lockObj and \
-            self.mode == 'break':
-            self.lockObj = Debugger.getGlobalLock()
-
-        # stop the target #
         if self.mode == 'break':
+            # check lock #
+            if not self.lockObj:
+                self.lockObj = Debugger.getGlobalLock()
+
+            # stop the target #
             self.stop()
 
         # create a new process to trace a new task #
         pid = SysMgr.createProcess(isDaemon=True)
-        # child thread #
+        # original tracee #
         if pid > 0:
-            self.detach(self.pid)
-            self.pid = tid
-            self.initValues()
-            signal.alarm(SysMgr.intervalEnable)
-        # parent thread #
-        elif pid == 0:
+            self.detach(only=True)
+            self.detach(only=True, pid=tid)
             self.attach()
             self.ptraceEvent(self.traceEventList)
+        # new tracee #
+        elif pid == 0:
+            self.pid = tid
+            self.attach()
+            self.initValues()
+            self.ptraceEvent(self.traceEventList)
+            signal.alarm(SysMgr.intervalEnable)
         else:
             return
 
@@ -32800,6 +32804,8 @@ struct msghdr {
                 if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
+                        self.initValues()
+
                         self.ptraceEvent(self.traceEventList)
 
                         if self.cmd:
@@ -33151,6 +33157,8 @@ struct msghdr {
 
             # the thread group leader #
             if tgid == instance.pid:
+                SysMgr.printEnable = True
+
                 SysMgr.printStat(\
                     r"start removing %s breakpoints from %s(%s) process..." % \
                         (UtilMgr.convertNumber(len(instance.breakpointList)), \
