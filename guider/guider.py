@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200212"
+__revision__ = "200213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16493,7 +16493,7 @@ Copyright:
         if warn:
             printFunc = SysMgr.printWarn
         else:
-            printFunc = Sysmgr.printErr
+            printFunc = SysMgr.printErr
 
         printFunc(\
             "Fail to send %s to thread %s because %s" % \
@@ -18588,7 +18588,7 @@ Copyright:
                             os.popen('more', 'w')
                 else:
                     # no supported OS #
-                    SysMgr.pipeForPrint = False
+                    SysMgr.pipeForPrint = None
 
                 SysMgr.encodeEnable = False
 
@@ -21699,7 +21699,7 @@ Copyright:
 
                 return pidList
             elif withMain:
-                return list(set([name, SysMgr.getTgid(tid)]))
+                return list(set([name, SysMgr.getTgid(name)]))
             else:
                 return [name]
 
@@ -23200,6 +23200,8 @@ Copyright:
                 "Input value for target with -g or -I option")
             sys.exit(0)
 
+        sourceFile = str(SysMgr.sourceFile)
+
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
             SysMgr.filterGroup, isThread=True, \
@@ -23215,9 +23217,9 @@ Copyright:
             allpids = pids
 
         # check tid #
-        if SysMgr.sourceFile:
+        if sourceFile:
             pid = None
-            execCmd = SysMgr.sourceFile.split()
+            execCmd = sourceFile.split()
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
                 "Fail to get root permission to trace %s" % mode)
@@ -23227,7 +23229,7 @@ Copyright:
                 SysMgr.printErr(\
                     "No thread related to %s" % \
                     ', '.join(SysMgr.filterGroup))
-            elif not SysMgr.sourceFile:
+            elif not sourceFile:
                 SysMgr.printErr(\
                     "No TID with -g option or command with -I option")
             else:
@@ -23382,7 +23384,7 @@ Copyright:
                     addrList.append(long(addr))
 
         resInfo = {}
-        inputArg = SysMgr.sourceFile
+        inputArg = str(SysMgr.sourceFile)
 
         # check file #
         if os.path.isfile(inputArg):
@@ -23597,7 +23599,7 @@ Copyright:
             SysMgr.filterGroup.append('**')
 
         resInfo = {}
-        inputArg = SysMgr.sourceFile
+        inputArg = str(SysMgr.sourceFile)
 
         # check file #
         if os.path.isfile(inputArg):
@@ -23697,28 +23699,28 @@ Copyright:
                 "No PATH with -I")
             sys.exit(0)
 
-        if len(SysMgr.filterGroup) == 0:
+        targetList = SysMgr.filterGroup
+        if len(targetList) == 0:
             SysMgr.printErr(\
                 "No PID or COMM with -g")
             sys.exit(0)
-        elif len(SysMgr.filterGroup) > 1:
+        elif len(targetList) > 1:
             SysMgr.printErr(\
                 "Input only one PID or COMM")
             sys.exit(0)
 
         # convert comm to pid #
-        pids = SysMgr.convertPidList(argList, exceptMe=True)
+        pids = SysMgr.convertPidList(targetList, exceptMe=True)
 
         if len(pids) == 0:
             SysMgr.printErr("No %s process" % \
-                ', '.join(SysMgr.filterGroup))
+                ', '.join(targetList))
             sys.exit(0)
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to select a target process because "
                 "multiple %s processes are exist with PID [%s]") \
-                    % (', '.join(SysMgr.filterGroup), \
-                    ', '.join(pids)))
+                    % (', '.join(targetList), ', '.join(pids)))
             sys.exit(0)
         else:
             pid = pids[0]
