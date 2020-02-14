@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200213"
+__revision__ = "200214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6542,9 +6542,9 @@ class FunctionAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr((\
-                        "Fail to execute %s "
-                        "to pick symbols from binary") % path)
+                    SysMgr.printErr(\
+                        "Fail to execute %s to pick symbols from binary" % \
+                            path)
                     sys.exit(0)
 
                 # Increase offset count in address list #
@@ -23200,7 +23200,10 @@ Copyright:
                 "Input value for target with -g or -I option")
             sys.exit(0)
 
-        sourceFile = str(SysMgr.sourceFile)
+        if SysMgr.sourceFile:
+            sourceFile = str(SysMgr.sourceFile)
+        else:
+            sourceFile = None
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
@@ -23240,6 +23243,7 @@ Copyright:
         elif len(allpids) > 1 or mode == 'breakcall':
             parent = SysMgr.pid
 
+            # set multi-task attributes #
             if len(pids) > 1:
                 multi = True
                 SysMgr.printStreamEnable = True
@@ -24458,7 +24462,7 @@ Copyright:
                     # verify sched parameters #
                     if schedSet[3] != 'CONT':
                         raise Exception(\
-                            "no recognizable '%s' parameter" % scehdSet[3])
+                            "no recognizable '%s' parameter" % schedSet[3])
 
                     policy = schedSet[0].upper()
                     ConfigMgr.SCHED_POLICY.index(policy)
@@ -28902,6 +28906,22 @@ class DltAnalyzer(object):
     DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
     DLT_DAEMON_TEXTSIZE = 10024
 
+    # define log level #
+    LOG_EMERG     = 0
+    LOG_ALERT     = 1
+    LOG_CRIT      = 2
+    LOG_ERR       = 3
+    LOG_WARNING   = 4
+    LOG_NOTICE    = 5
+    LOG_INFO      = 6
+    LOG_DEBUG     = 7
+
+    # define message type #
+    MSGTYPE = \
+        ["log", "app_trace", "nw_trace", "control"]
+    LOGINFO = \
+        ["", "fatal", "error", "warn", "info", "debug", "verb"]
+
     # define list #
     pids = []
     procInfo = None
@@ -29099,7 +29119,7 @@ class DltAnalyzer(object):
                 (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
                     >> DLT_MSIN_MTIN_SHIFT
             try:
-                info = LOGINFO[subtype]
+                info = DltAnalyzer.LOGINFO[subtype]
             except:
                 info = ''
 
@@ -29200,22 +29220,6 @@ class DltAnalyzer(object):
         # define constant #
         DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
         DLT_ID_SIZE = DltAnalyzer.DLT_ID_SIZE
-
-        # define log level #
-        LOG_EMERG     = long(0)
-        LOG_ALERT     = 1
-        LOG_CRIT      = 2
-        LOG_ERR       = 3
-        LOG_WARNING   = 4
-        LOG_NOTICE    = 5
-        LOG_INFO      = 6
-        LOG_DEBUG     = 7
-
-        # define message type #
-        MSGTYPE = \
-            ["log", "app_trace", "nw_trace", "control"]
-        LOGINFO = \
-            ["", "fatal", "error", "warn", "info", "debug", "verb"]
 
         class DltContext(Structure):
             _fields_ = [
@@ -29434,7 +29438,7 @@ class DltAnalyzer(object):
         # define verbose #
         if SysMgr.warnEnable:
             # set log level to DEBUG #
-            dltObj.dlt_log_set_level(LOG_DEBUG)
+            dltObj.dlt_log_set_level(DltAnalyzer.LOG_DEBUG)
 
             verbose = 1
         else:
@@ -29980,6 +29984,7 @@ struct msghdr {
         if Debugger.gLockObj:
             return Debugger.gLockObj
 
+        # create a global lock based on file #
         try:
             SysMgr.importPackageItems('fcntl')
             Debugger.gLockObj = \
