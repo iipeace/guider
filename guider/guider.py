@@ -14317,7 +14317,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Trace signals 
+    Trace signals
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -23319,7 +23319,8 @@ Copyright:
                     ', '.join(pids), True)
 
             # load symbol caches and addresses for breakpoint in advance #
-            if mode != 'syscall' or SysMgr.funcDepth > 0:
+            if (mode != 'syscall' and mode != 'signal') \
+                or SysMgr.funcDepth > 0:
                 doCommonJobs(pids, procList)
 
             # create a system-wide lock for tracer processes #
@@ -29986,16 +29987,19 @@ struct msghdr {
         # running #
         if self.checkPid(pid) >= 0:
             self.pid = pid
+            self.isRunning = True
 
             if self.isInRun() is None:
                 SysMgr.printErr('Fail to find %s thread' % pid)
                 sys.exit(0)
 
+            # update comm #
+            self.comm = SysMgr.getComm(self.pid)
+
             if attach:
                 ret = self.attach(verb=True)
                 if ret < 0:
                     sys.exit(0)
-            self.isRunning = True
         # execute #
         elif execCmd:
             self.execute(execCmd)
@@ -30394,12 +30398,13 @@ struct msghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(errMsg)
-            return -1
+            if not self.isAlive():
+                SysMgr.printWarn(errMsg)
+                return -1
 
         # check target status #
         if check:
-            cnt = 50
+            cnt = 1000
             while 1:
                 ret = self.ptrace(self.contCmd, 0, sig)
                 if ret != 0:
@@ -33169,7 +33174,8 @@ struct msghdr {
             sys.exit(0)
 
         # load user symbols #
-        if self.mode != 'syscall' or SysMgr.funcDepth > 0:
+        if (mode != 'syscall' and mode != 'signal') \
+            or SysMgr.funcDepth > 0:
             try:
                 self.loadSymbols()
             except SystemExit:
