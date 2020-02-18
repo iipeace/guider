@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200214"
+__revision__ = "200218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3260,11 +3260,17 @@ class UtilMgr(object):
             elif type(ilist) is list:
                 rlist += ilist
 
+        # check redundant files #
+        if len(rlist) != len(set(rlist)):
+            SysMgr.printWarn(\
+                "Detected redundant files in [ %s ]" % \
+                    ', '.join(rlist), True)
+
         # remove redundant files #
         if sort:
-            return sorted(list(set(rlist)))
+            return sorted(rlist)
         else:
-            return list(set(rlist))
+            return rlist
 
 
 
@@ -13141,6 +13147,7 @@ class SysMgr(object):
                 'strace': 'Syscall',
                 'utrace': 'Function',
                 'btrace': 'Breakpoint',
+                'sigtrace': 'Signal',
                 },
             'profile': {
                 'rec': 'Thread',
@@ -14301,6 +14308,45 @@ Examples:
 
     - Trace printPeace function calls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g 1234 -c printPeace -R 2s
+                    '''.format(cmd, mode)
+
+                # sigtrace #
+                elif SysMgr.isSigtraceMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Trace signals 
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+OPTIONS:
+        -e  <CHARACTER>             enable options
+              p:pipe | e:encode
+        -d  <CHARACTER>             disable options
+              e:encode
+        -u                          run in the background
+        -g  <COMM|TID{:FILE}>       set filter
+        -I  <COMMAND>               set command
+        -R  <TIME>                  set timer
+        -H  <LEVEL>                 set function depth level
+        -o  <DIR|FILE>              save output data
+        -m  <ROWS:COLS>             set terminal size
+        -E  <DIR>                   set cache dir path
+        -v                          verbose
+                    '''
+
+                    helpStr +=  '''
+Examples:
+    - Trace all signals for a specific thread
+        # {0:1} {1:1} -g 1234
+
+    - Trace all signals for a specific command
+        # {0:1} {1:1} -I "ls"
+
+    - Trace the SIGINT signal for a specific thread
+        # {0:1} {1:1} -g 1234 -c SIGINT
                     '''.format(cmd, mode)
 
                 # mem #
@@ -20262,6 +20308,18 @@ Copyright:
 
 
     @staticmethod
+    def isSigtraceMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'sigtrace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintEnvMode():
         if len(sys.argv) == 1:
             return False
@@ -20621,7 +20679,8 @@ Copyright:
             return True
         elif SysMgr.isStraceMode() or \
             SysMgr.isUtraceMode() or \
-            SysMgr.isBtraceMode():
+            SysMgr.isBtraceMode() or \
+            SysMgr.isSigtraceMode():
             return True
         else:
             return False
@@ -20875,6 +20934,13 @@ Copyright:
             SysMgr.checkBgProcs()
 
             SysMgr.doTrace('breakcall')
+
+        # SIGTRACE MODE #
+        elif SysMgr.isSigtraceMode():
+            # check background processes #
+            SysMgr.checkBgProcs()
+
+            SysMgr.doTrace('signal')
 
         # PRINTENV MODE #
         elif SysMgr.isPrintEnvMode():
@@ -23346,6 +23412,9 @@ Copyright:
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='break', wait=wait, \
                         breakpointList=breakpointList, multi=multi, lock=lockObj)
+            elif mode == 'signal':
+                Debugger(pid=pid, execCmd=execCmd).\
+                    trace(mode='signal', wait=wait, multi=multi)
             else:
                 pass
         except SystemExit:
@@ -31978,6 +32047,51 @@ struct msghdr {
 
 
 
+    def handleSignal(self, sig):
+        if not SysMgr.printEnable:
+            return
+
+        # check signal filter #
+        if SysMgr.customCmd:
+            found = False
+            for signame in SysMgr.customCmd:
+                if signame.upper() == ConfigMgr.SIG_LIST[sig]:
+                    found = True
+                    break
+            if not found:
+                return
+
+        # get diff time #
+        diff = self.current - self.start
+
+        if self.multi:
+            tinfo = '%s(%s) ' % (self.comm, self.pid)
+        else:
+            tinfo = ''
+
+        try:
+            signame = ConfigMgr.SIG_LIST[sig]
+        except:
+            signame = 'UNKNOWN(%s)' % sig
+
+        callString = '\n%3.6f %s[%s]' % \
+            (diff, tinfo, signame)
+
+        SysMgr.printPipe(callString)
+
+        # print backtrace #
+        if not self.isRealtime and SysMgr.funcDepth > 0:
+            # get register set of target #
+            if not self.updateRegs():
+                SysMgr.printErr(\
+                    "Fail to get register values of %s(%s)" % \
+                        (self.comm, self.pid))
+                sys.exit(0)
+
+            self.printContext(regs=False)
+
+
+
     def handleUsercall(self):
         # get register set of target #
         if not self.updateRegs():
@@ -32783,7 +32897,8 @@ struct msghdr {
                 # wait for sample calls #
                 elif self.mode == 'sample':
                     self.checkInterval()
-                elif self.mode == 'break':
+                elif self.mode == 'break' or \
+                    self.mode == 'signal':
                     pass
                 # setup trap #
                 else:
@@ -32813,6 +32928,15 @@ struct msghdr {
                 # check status of process #
                 if not UtilMgr.isNumber(stat):
                     raise Exception("Unknown status type")
+
+                # handle signal #
+                if self.mode == 'signal':
+                    self.handleSignal(stat)
+
+                    self.cont(sig=stat)
+                    if self.cont(check=True, sig=stat) < 0:
+                        sys.exit(0)
+                    continue
 
                 # trap #
                 if stat == signal.SIGTRAP:
@@ -32986,14 +33110,14 @@ struct msghdr {
         # disable extended ascii #
         SysMgr.encodeEnable = False
 
+        # register my instance #
+        SysMgr.addExitFunc(Debugger.destroyDebugger, self)
+
         # check realtime mode #
         if SysMgr.isTopMode():
             self.isRealtime = True
         else:
             self.isRealtime = False
-
-        # register my instance #
-        SysMgr.addExitFunc(Debugger.destroyDebugger, self)
 
         # set tracing attribute #
         if self.isRealtime:
@@ -33056,6 +33180,7 @@ struct msghdr {
                     "Fail to load symbols because %s" % err)
                 sys.exit(0)
 
+        # print target task info #
         if SysMgr.printEnable:
             SysMgr.printInfo(\
                 "Start profiling %s(%d)" % (self.comm, self.pid))
@@ -33068,8 +33193,8 @@ struct msghdr {
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
-            if self.mode != 'syscall' and \
-                self.mode != 'break' and \
+            if (self.mode == 'inst' or \
+                self.mode == 'sample') and \
                 not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
@@ -33089,18 +33214,22 @@ struct msghdr {
             self.cmd = self.singlestepCmd
         elif self.mode == 'sample':
             self.cmd = None
-        elif self.mode == 'break':
-            if self.isRunning:
-                # register breakpoint data #
-                self.breakpointList = breakpointList
+        elif self.mode == 'break' and \
+            self.isRunning:
+            # register breakpoint data #
+            self.breakpointList = breakpointList
 
-                # check thread status #
-                stat = self.getStatList(status=True)
-                if not stat:
-                    SysMgr.printErr(\
-                        'Terminated %s(%s)' % (self.comm, self.pid))
-                elif stat == 'S':
-                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+            # check thread status #
+            stat = self.getStatList(status=True)
+            if not stat:
+                SysMgr.printErr(\
+                    'Terminated %s(%s)' % (self.comm, self.pid))
+            elif stat == 'S':
+                SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+        elif self.mode == 'signal' and \
+            self.isStopped():
+            if self.cont(check=True):
+                sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % self.mode)
