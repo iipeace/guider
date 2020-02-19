@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200218"
+__revision__ = "200219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17930,6 +17930,7 @@ Copyright:
     def printLogo(absolute=False, big=False, onlyFile=False, pager=True):
         # check print option and remote runner #
         if not SysMgr.printEnable or \
+            not "ISMAIN" in os.environ or \
             "REMOTERUN" in os.environ:
             return
 
@@ -20785,14 +20786,26 @@ Copyright:
                     "No PATH with -I")
                 sys.exit(0)
 
+            # set debug flag #
+            if SysMgr.jsonOutputEnable:
+                debug = False
+            else:
+                debug = True
+
             # run ELF analyzer #
             try:
                 if path == 'vdso':
-                    SysMgr.getVdso(debug=True)
+                    obj = SysMgr.getVdso(debug=debug)
                 else:
-                    ElfAnalyzer(path, debug=True)
+                    obj = ElfAnalyzer(path, debug)
+
+                if SysMgr.jsonOutputEnable:
+                    jsonStr = UtilMgr.convertDict2Str(obj.attr)
+                    SysMgr.printPipe(jsonStr)
             except:
-                pass
+                SysMgr.printErr(\
+                    "Fail to analyze %s because %s" % \
+                        (path, SysMgr.getErrReason()))
 
         # LEAKTRACE MODE #
         elif SysMgr.isLeaktraceMode():
@@ -36404,6 +36417,9 @@ Section header string table index: %d
 
                 # concatenate symbol with it's required version #
                 try:
+                    if len(symbol) == 0:
+                        continue
+
                     symIdx = len(self.attr['dynsymList'])
                     vsIdx = self.attr['versymList'][symIdx]
                     symbol = '%s@%s' % \
@@ -52922,6 +52938,9 @@ def main(args=None):
     # update arguments #
     if UtilMgr.isString(args):
         sys.argv = ['guider'] + args.split()
+
+    # set main environment #
+    os.environ["ISMAIN"] = "True"
 
     # save original args #
     SysMgr.origArgs = copy.deepcopy(sys.argv)
