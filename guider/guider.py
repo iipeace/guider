@@ -12002,6 +12002,368 @@ class SysMgr(object):
 
 
     @staticmethod
+    def setReportAttr():
+        if not SysMgr.sourceFile:
+            SysMgr.inputFile = 'guider.dat'
+        else:
+            SysMgr.inputFile = SysMgr.sourceFile
+
+        if not SysMgr.printFile:
+            SysMgr.printFile = \
+                '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
+
+
+
+    @staticmethod
+    def execSystemView():
+        # parse all options and make output file path #
+        SysMgr.parseAnalOption()
+
+        # wait for user input #
+        SysMgr.waitEvent()
+
+        SysMgr.printStat(\
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
+        # save system info #
+        SysMgr.sysInstance.saveSysStat()
+
+        # get and remove process tree from data file #
+        SysMgr.getProcTreeInfo()
+
+        SysMgr.printLogo(big=True)
+
+        # print system information #
+        SysMgr.printPipe(SysMgr.systemInfoBuffer)
+
+
+
+    @staticmethod
+    def setRecordAttr():
+        # function #
+        if SysMgr.isFuncRecordMode():
+            SysMgr.functionEnable = True
+
+        # file #
+        elif SysMgr.isFileRecordMode():
+            SysMgr.fileEnable = True
+
+        # syscall #
+        elif SysMgr.isSyscallRecordMode():
+            SysMgr.sysEnable = True
+            SysMgr.cpuEnable = False
+
+        # general #
+        elif SysMgr.isGeneralRecordMode():
+            SysMgr.systemEnable = True
+
+        # update record status #
+        SysMgr.recordStatus = True
+        SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
+
+        # change priority of process #
+        if not SysMgr.prio:
+            SysMgr.setPriority(SysMgr.pid, 'C', -20)
+
+        SysMgr.parseRecordOption()
+        SysMgr.printProfileOption()
+        SysMgr.printProfileCmd()
+
+
+
+    @staticmethod
+    def setVisualAttr():
+        if len(sys.argv) <= 2:
+            sys.argv.append('guider.out')
+
+        SysMgr.graphEnable = True
+
+        # apply regular expression for first path #
+        flist = UtilMgr.convertPath(sys.argv[2], retStr=False)
+        if type(flist) is list and \
+            len(flist) > 0:
+            sys.argv = sys.argv[:2] + flist + sys.argv[3:]
+
+        # thread draw mode #
+        if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
+            # apply launch option #
+            SysMgr.applyLaunchOption()
+
+            if not SysMgr.isThreadMode():
+                SysMgr.printErr(\
+                    "Fail to draw because this data is not supported")
+                sys.exit(0)
+
+            SysMgr.inputFile = sys.argv[1] = sys.argv[2]
+            SysMgr.intervalEnable = 1
+            if not SysMgr.printFile:
+                SysMgr.printFile = \
+                    '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
+            del sys.argv[2]
+        # top draw mode #
+        else:
+            # cpu graph #
+            if SysMgr.isCpuDrawMode():
+                SysMgr.layout = 'CPU'
+            # memory graph #
+            elif SysMgr.isMemDrawMode():
+                SysMgr.layout = 'MEM'
+            # vss graph #
+            elif SysMgr.isVssDrawMode():
+                SysMgr.layout = 'MEM'
+                SysMgr.vssEnable = True
+            # rss graph #
+            elif SysMgr.isRssDrawMode():
+                SysMgr.layout = 'MEM'
+                SysMgr.rssEnable = True
+            # leak graph #
+            elif SysMgr.isLeakDrawMode():
+                SysMgr.layout = 'MEM'
+                SysMgr.leakEnable = True
+            # io graph #
+            elif SysMgr.isIoDrawMode():
+                SysMgr.layout = 'IO'
+
+            # modify args for drawing multiple input files #
+            sys.argv[1] = 'top'
+            args = sys.argv[2:]
+            SysMgr.sourceFile = UtilMgr.getFileList(args)
+
+
+
+    @staticmethod
+    def execFileAnalysis():
+        # check permission #
+        if not SysMgr.isRoot():
+            SysMgr.printErr(\
+                "Fail to get root permission to analyze linked files")
+            sys.exit(0)
+
+        # parse analysis option #
+        SysMgr.parseAnalOption()
+
+        SysMgr.printStat(\
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
+        # start analyzing files #
+        pi = FileAnalyzer()
+
+        # save system info #
+        SysMgr.sysInstance.saveSysStat()
+
+        # get and remove process tree from data file #
+        SysMgr.getProcTreeInfo()
+
+        if SysMgr.intervalEnable == 0:
+            # print total file usage per process #
+            pi.printUsage()
+        else:
+            # print file usage per process on timeline #
+            pi.printIntervalInfo()
+
+
+
+    @staticmethod
+    def execRecordLoop():
+        while SysMgr.repeatInterval > 0:
+            signal.alarm(SysMgr.repeatInterval)
+
+            # get init time in buffer for verification #
+            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
+
+            # wait for timer #
+            try:
+                time.sleep(SysMgr.repeatInterval)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            if SysMgr.pipeEnable:
+                if SysMgr.outputFile:
+                    SysMgr.copyPipeToFile(\
+                        '%s%s' % (SysMgr.inputFile, '_pipe'), \
+                        SysMgr.outputFile)
+                else:
+                    SysMgr.printErr(\
+                        "wrong option used, "
+                        "use also -s option to save data")
+
+                sys.exit(0)
+
+            # check counter #
+            if SysMgr.repeatCount <= SysMgr.progressCnt and \
+                SysMgr.termFlag:
+                sys.exit(0)
+
+            # compare init time with now time for buffer verification #
+            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
+                SysMgr.printErr(\
+                    "buffer size is not enough (%sKB)" % \
+                    SysMgr.getBufferSize())
+                sys.exit(0)
+            else:
+                SysMgr.clearTraceBuffer()
+
+        # start writing logs to file through pipe #
+        if SysMgr.pipeEnable:
+            if SysMgr.outputFile:
+                pipePath = '%s%s' % (SysMgr.inputFile, '_pipe')
+                SysMgr.copyPipeToFile(pipePath, SysMgr.outputFile)
+            else:
+                SysMgr.printErr(\
+                    "wrong option used, use also -s option to save data")
+
+            sys.exit(0)
+
+        if not SysMgr.graphEnable:
+            # get init time from buffer for verification #
+            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
+
+            # wait for user input #
+            while 1:
+                if SysMgr.recordStatus:
+                    SysMgr.condExit = True
+
+                    SysMgr.waitEvent()
+                    if SysMgr.condExit:
+                        break
+                else:
+                    break
+
+            # compare init time with now time for buffer verification #
+            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
+                SysMgr.printErr("buffer size %sKB is not enough" % \
+                    SysMgr.getBufferSize())
+                sys.exit(0)
+
+            # save system info #
+            SysMgr.sysInstance.saveSysStat()
+
+
+
+    @staticmethod
+    def execTopCmd():
+        # check background processes #
+        SysMgr.checkBgProcs()
+
+        # set tty setting automatically #
+        if not SysMgr.ttyEnable:
+            SysMgr.setTtyAuto(True, False)
+
+        # write user command #
+        SysMgr.writeRecordCmd('BEFORE')
+
+        # thread #
+        if SysMgr.isThreadTopMode():
+            SysMgr.processEnable = False
+
+        # file #
+        elif SysMgr.isFileTopMode():
+            SysMgr.fileTopEnable = True
+
+        # stack #
+        elif SysMgr.isStackTopMode():
+            if SysMgr.checkStackTopCond():
+                SysMgr.processEnable = False
+                SysMgr.stackEnable = True
+            else:
+                sys.exit(0)
+
+        # perf #
+        elif SysMgr.isPerfTopMode():
+            if SysMgr.checkPerfTopCond():
+                SysMgr.perfEnable = True
+                if SysMgr.findOption('g'):
+                    SysMgr.processEnable = False
+                    SysMgr.perfGroupEnable = True
+            else:
+                sys.exit(0)
+
+        # mem #
+        elif SysMgr.isMemTopMode():
+            if SysMgr.checkMemTopCond():
+                SysMgr.memEnable = True
+                SysMgr.sort = 'm'
+            else:
+                sys.exit(0)
+
+        # wss (working set size) #
+        elif SysMgr.isWssTopMode():
+            if SysMgr.checkWssTopCond():
+                SysMgr.memEnable = True
+                SysMgr.wssEnable = True
+                SysMgr.sort = 'm'
+            else:
+                sys.exit(0)
+
+        # disk #
+        elif SysMgr.isDiskTopMode():
+            if SysMgr.checkDiskTopCond():
+                SysMgr.diskEnable = True
+                SysMgr.blockEnable = True
+                SysMgr.sort = 'b'
+            else:
+                sys.exit(0)
+
+        # dlt #
+        elif SysMgr.isDltTopMode():
+            SysMgr.dltTopEnable = True
+
+        # dbus #
+        elif SysMgr.isDbusTopMode():
+            SysMgr.dbusTopEnable = True
+            SysMgr.floatEnable = True
+
+            # set default interval to 3 for accuracy #
+            if not SysMgr.findOption('i') and \
+                not SysMgr.findOption('R'):
+                SysMgr.intervalEnable = 3
+
+        # usercall #
+        elif SysMgr.isUserTopMode():
+            SysMgr.doTrace('usercall')
+
+        # breakcall #
+        elif SysMgr.isBrkTopMode():
+            SysMgr.doTrace('breakcall')
+
+        # syscall #
+        elif SysMgr.isSysTopMode():
+            SysMgr.doTrace('syscall')
+
+        # network #
+        elif SysMgr.isNetTopMode():
+            SysMgr.networkEnable = True
+
+        # background #
+        elif SysMgr.isBgTopMode():
+            if SysMgr.checkBgTopCond():
+                SysMgr.runBackgroundMode()
+            else:
+                sys.exit(0)
+
+        # report #
+        elif SysMgr.isReportTopMode():
+            if SysMgr.checkReportTopCond():
+                SysMgr.printEnable = False
+            else:
+                sys.exit(0)
+
+        # print profile option #
+        if not SysMgr.isDrawMode():
+            SysMgr.printProfileOption()
+            SysMgr.printProfileCmd()
+
+        # set handler for exit #
+        SysMgr.setNormalSignal()
+
+        # run process / file monitoring #
+        ThreadAnalyzer()
+
+
+
+    @staticmethod
     def importNative():
         try:
             # do not use native library to improve initialization time #
@@ -17300,15 +17662,15 @@ Copyright:
         # masking signal #
         signal.signal(signum, signal.SIG_IGN)
 
+        # write user command #
+        SysMgr.writeRecordCmd('STOP')
+
         if SysMgr.isFileMode() or \
             SysMgr.isSystemMode():
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or \
             SysMgr.isTraceMode():
-            # run user custom command #
-            SysMgr.writeRecordCmd('STOP')
-
             if SysMgr.printFile:
                 # reload data written to file #
                 if SysMgr.pipeEnable:
@@ -25633,16 +25995,13 @@ Copyright:
                         'signal/signal_generate/filter', genFilter)
                 SysMgr.writeCmd('signal/enable', '1')
 
-        # run user command before recording #
-        SysMgr.writeRecordCmd('BEFORE')
-
         # mount debugfs #
         SysMgr.mountPath = SysMgr.getMountPath()
         if not SysMgr.mountPath:
             SysMgr.mountDebugfs()
 
         # check permission #
-        if os.path.isdir(SysMgr.mountPath) == False:
+        if not os.path.isdir(SysMgr.mountPath):
             if SysMgr.isRoot():
                 cmd = '/boot/config-$(uname -r)'
                 SysMgr.printErr((\
@@ -25653,6 +26012,9 @@ Copyright:
                     "Fail to get root permission to trace system")
 
             sys.exit(0)
+
+        # write user command #
+        SysMgr.writeRecordCmd('BEFORE')
 
         # set size of trace buffer per core #
         if SysMgr.bufferSize == -1:
@@ -25689,6 +26051,9 @@ Copyright:
         SysMgr.writeCmd('../trace_options', 'print-tgid')
         SysMgr.writeCmd('../trace_options', 'record-tgid')
         SysMgr.writeCmd('../current_tracer', 'nop')
+
+        SysMgr.printStat(\
+            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
         # start tracing #
         self.startTracing()
@@ -25744,6 +26109,9 @@ Copyright:
 
                 SysMgr.writeCmd('../tracing_on', '1')
 
+                # write user command #
+                SysMgr.writeRecordCmd('AFTER')
+
                 return
 
             # define initialized command variable #
@@ -25775,6 +26143,9 @@ Copyright:
             SysMgr.writeCmd('../options/stacktrace', '1')
 
             if SysMgr.disableAll:
+                # write user command #
+                SysMgr.writeRecordCmd('AFTER')
+
                 return
 
             # enable segmentation fault events #
@@ -25870,6 +26241,9 @@ Copyright:
 
             # enable special events #
             writeCommonCmd()
+
+            # write user command #
+            SysMgr.writeRecordCmd('AFTER')
 
             return
 
@@ -26157,6 +26531,9 @@ Copyright:
         # enable special events #
         writeCommonCmd()
 
+        # write user command #
+        SysMgr.writeRecordCmd('AFTER')
+
         return
 
 
@@ -26216,9 +26593,6 @@ Copyright:
                     % SysMgr.outputFile)
             except:
                 SysMgr.printErr("Fail to write save command")
-
-        # run user command after finishing recording #
-        SysMgr.writeRecordCmd('STOP')
 
 
 
@@ -33233,22 +33607,22 @@ struct msghdr {
             self.cmd = self.singlestepCmd
         elif self.mode == 'sample':
             self.cmd = None
-        elif self.mode == 'break' and \
-            self.isRunning:
-            # register breakpoint data #
-            self.breakpointList = breakpointList
+        elif self.mode == 'break':
+            if self.isRunning:
+                # register breakpoint data #
+                self.breakpointList = breakpointList
 
-            # check thread status #
-            stat = self.getStatList(status=True)
-            if not stat:
-                SysMgr.printErr(\
-                    'Terminated %s(%s)' % (self.comm, self.pid))
-            elif stat == 'S':
-                SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
-        elif self.mode == 'signal' and \
-            self.isStopped():
-            if self.cont(check=True):
-                sys.exit(0)
+                # check thread status #
+                stat = self.getStatList(status=True)
+                if not stat:
+                    SysMgr.printErr(\
+                        'Terminated %s(%s)' % (self.comm, self.pid))
+                elif stat == 'S':
+                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+        elif self.mode == 'signal':
+            if self.isStopped():
+                if self.cont(check=True):
+                    sys.exit(0)
         else:
             SysMgr.printErr(\
                 "Fail to recognize trace mode '%s'" % self.mode)
@@ -37886,6 +38260,9 @@ class ThreadAnalyzer(object):
             # reset system status #
             self.reinitStats()
 
+            # write user command #
+            SysMgr.writeRecordCmd('AFTER')
+
             # get delayed time #
             delayTime = time.time() - prevTime
             if delayTime > SysMgr.intervalEnable:
@@ -37911,9 +38288,6 @@ class ThreadAnalyzer(object):
         # import select package in the foreground #
         if not SysMgr.printFile:
             SysMgr.getPkg('select', False)
-
-        # run user custom command #
-        SysMgr.writeRecordCmd('BEFORE')
 
         # run loop #
         while 1:
@@ -37949,7 +38323,7 @@ class ThreadAnalyzer(object):
             # reset system status #
             self.reinitStats()
 
-            # run user custom command #
+            # write user command #
             SysMgr.writeRecordCmd('AFTER')
 
             # get delayed time #
@@ -52997,35 +53371,9 @@ def main(args=None):
     SysMgr()
 
     #==================== RECORD PART ====================#
+
     if SysMgr.isRecordMode():
-        # function #
-        if SysMgr.isFuncRecordMode():
-            SysMgr.functionEnable = True
-
-        # file #
-        elif SysMgr.isFileRecordMode():
-            SysMgr.fileEnable = True
-
-        # syscall #
-        elif SysMgr.isSyscallRecordMode():
-            SysMgr.sysEnable = True
-            SysMgr.cpuEnable = False
-
-        # general #
-        elif SysMgr.isGeneralRecordMode():
-            SysMgr.systemEnable = True
-
-        # update record status #
-        SysMgr.recordStatus = True
-        SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
-
-        # change priority of process #
-        if not SysMgr.prio:
-            SysMgr.setPriority(SysMgr.pid, 'C', -20)
-
-        SysMgr.parseRecordOption()
-        SysMgr.printProfileOption()
-        SysMgr.printProfileCmd()
+        SysMgr.setRecordAttr()
 
         # wait for signal #
         if SysMgr.waitEnable:
@@ -53037,352 +53385,48 @@ def main(args=None):
         # set normal signal #
         SysMgr.setNormalSignal()
 
-        #-------------------- SYSTEM MODE --------------------#
+        # SYSTEM MODE #
         if SysMgr.isSystemMode():
-            # parse all options and make output file path #
-            SysMgr.parseAnalOption()
-
-            # wait for user input #
-            SysMgr.waitEvent()
-
-            SysMgr.printStat(\
-                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
-
-            # save system info #
-            SysMgr.sysInstance.saveSysStat()
-
-            # get and remove process tree from data file #
-            SysMgr.getProcTreeInfo()
-
-            SysMgr.printLogo(big=True)
-
-            # print system information #
-            SysMgr.printPipe(SysMgr.systemInfoBuffer)
-
+            SysMgr.execSystemView()
+            sys.exit(0)
+        # FILE MODE #
+        elif SysMgr.isFileMode():
+            SysMgr.execFileAnalysis()
             sys.exit(0)
 
-        #-------------------- FILE MODE --------------------#
-        if SysMgr.isFileMode():
-            # check permission #
-            if not SysMgr.isRoot():
-                SysMgr.printErr(\
-                    "Fail to get root permission to analyze linked files")
-                sys.exit(0)
-
-            # parse analysis option #
-            SysMgr.parseAnalOption()
-
-            SysMgr.printStat(\
-                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
-
-            # start analyzing files #
-            pi = FileAnalyzer()
-
-            # save system info #
-            SysMgr.sysInstance.saveSysStat()
-
-            # get and remove process tree from data file #
-            SysMgr.getProcTreeInfo()
-
-            if SysMgr.intervalEnable == 0:
-                # print total file usage per process #
-                pi.printUsage()
-            else:
-                # print file usage per process on timeline #
-                pi.printIntervalInfo()
-
-            sys.exit(0)
-
-        #-------------------- THREAD & FUNCTION MODE --------------------
         # register exit handler #
         atexit.register(SysMgr.stopRecording)
 
         # start recording #
         SysMgr.sysInstance.startRecording()
 
-        SysMgr.printStat(\
-            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
-
-        # run user command after starting recording #
-        SysMgr.writeRecordCmd('AFTER')
-
-        # enter loop to record and save data periodically #
-        while SysMgr.repeatInterval > 0:
-            signal.alarm(SysMgr.repeatInterval)
-
-            # get init time in buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
-
-            # wait for timer #
-            try:
-                time.sleep(SysMgr.repeatInterval)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-            if SysMgr.pipeEnable:
-                if SysMgr.outputFile:
-                    SysMgr.copyPipeToFile(\
-                        '%s%s' % (SysMgr.inputFile, '_pipe'), \
-                        SysMgr.outputFile)
-                else:
-                    SysMgr.printErr(\
-                        "wrong option used, "
-                        "use also -s option to save data")
-
-                sys.exit(0)
-
-            # check counter #
-            if SysMgr.repeatCount <= SysMgr.progressCnt and \
-                SysMgr.termFlag:
-                sys.exit(0)
-
-            # compare init time with now time for buffer verification #
-            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
-                SysMgr.printErr(\
-                    "buffer size is not enough (%sKB)" % \
-                    SysMgr.getBufferSize())
-                sys.exit(0)
-            else:
-                SysMgr.clearTraceBuffer()
-
-        # start writing logs to file through pipe #
-        if SysMgr.pipeEnable:
-            if SysMgr.outputFile:
-                SysMgr.copyPipeToFile(\
-                    '%s%s' % (SysMgr.inputFile, '_pipe'), \
-                    SysMgr.outputFile)
-            else:
-                SysMgr.printErr(\
-                    "wrong option used, use also -s option to save data")
-
-            sys.exit(0)
-
-        if not SysMgr.graphEnable:
-            # get init time from buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
-
-            # wait for user input #
-            while 1:
-                if SysMgr.recordStatus:
-                    SysMgr.condExit = True
-
-                    SysMgr.waitEvent()
-                    if SysMgr.condExit:
-                        break
-                else:
-                    break
-
-            # compare init time with now time for buffer verification #
-            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
-                SysMgr.printErr("buffer size %sKB is not enough" % \
-                    SysMgr.getBufferSize())
-                sys.exit(0)
-
-            # save system info #
-            SysMgr.sysInstance.saveSysStat()
+        # THREAD & FUNCTION MODE #
+        SysMgr.execRecordLoop()
 
     #==================== ANALYSIS PART ====================#
+
     # register exit handler #
     atexit.register(SysMgr.doExit)
 
-    #-------------------- REPORT MODE --------------------#
+    # REPORT MODE #
     if SysMgr.isReportMode():
-        if not SysMgr.sourceFile:
-            SysMgr.inputFile = 'guider.dat'
-        else:
-            SysMgr.inputFile = SysMgr.sourceFile
-
-        if not SysMgr.printFile:
-            SysMgr.printFile = \
-                '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
-
-    #---------------- VISUALIZATION MODE ----------------#
-    if SysMgr.isDrawMode():
-        if len(sys.argv) <= 2:
-            sys.argv.append('guider.out')
-
-        SysMgr.graphEnable = True
-
-        # apply regular expression for first path #
-        flist = UtilMgr.convertPath(sys.argv[2], retStr=False)
-        if type(flist) is list and \
-            len(flist) > 0:
-            sys.argv = sys.argv[:2] + flist + sys.argv[3:]
-
-        # thread draw mode #
-        if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
-            # apply launch option #
-            SysMgr.applyLaunchOption()
-
-            if not SysMgr.isThreadMode():
-                SysMgr.printErr(\
-                    "Fail to draw because this data is not supported")
-                sys.exit(0)
-
-            SysMgr.inputFile = sys.argv[1] = sys.argv[2]
-            SysMgr.intervalEnable = 1
-            if not SysMgr.printFile:
-                SysMgr.printFile = \
-                    '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
-            del sys.argv[2]
-        # top draw mode #
-        else:
-            # cpu graph #
-            if SysMgr.isCpuDrawMode():
-                SysMgr.layout = 'CPU'
-            # memory graph #
-            elif SysMgr.isMemDrawMode():
-                SysMgr.layout = 'MEM'
-            # vss graph #
-            elif SysMgr.isVssDrawMode():
-                SysMgr.layout = 'MEM'
-                SysMgr.vssEnable = True
-            # rss graph #
-            elif SysMgr.isRssDrawMode():
-                SysMgr.layout = 'MEM'
-                SysMgr.rssEnable = True
-            # leak graph #
-            elif SysMgr.isLeakDrawMode():
-                SysMgr.layout = 'MEM'
-                SysMgr.leakEnable = True
-            # io graph #
-            elif SysMgr.isIoDrawMode():
-                SysMgr.layout = 'IO'
-
-            # modify args for drawing multiple input files #
-            sys.argv[1] = 'top'
-            args = sys.argv[2:]
-            SysMgr.sourceFile = \
-                UtilMgr.getFileList(args)
+        SysMgr.setReportAttr()
+    # VISUALIZATION MODE #
+    elif SysMgr.isDrawMode():
+        SysMgr.setVisualAttr()
 
     # parse analysis option #
     SysMgr.parseAnalOption()
 
-    # save kernel function_graph and terminate #
-    if SysMgr.isRecordMode() and \
+    # REALTIME MODE #
+    if SysMgr.isTopMode():
+        SysMgr.execTopCmd()
+        sys.exit(0)
+    # THREAD & FUNCTION MODE #
+    elif SysMgr.isRecordMode() and \
         SysMgr.isFunctionMode() and \
         SysMgr.graphEnable:
         ThreadAnalyzer(SysMgr.inputFile)
-
-    #-------------------- REALTIME MODE --------------------#
-    if SysMgr.isTopMode():
-        # check background processes #
-        SysMgr.checkBgProcs()
-
-        # set tty setting automatically #
-        if not SysMgr.ttyEnable:
-            SysMgr.setTtyAuto(True, False)
-
-        # thread #
-        if SysMgr.isThreadTopMode():
-            SysMgr.processEnable = False
-
-        # file #
-        elif SysMgr.isFileTopMode():
-            SysMgr.fileTopEnable = True
-
-        # stack #
-        elif SysMgr.isStackTopMode():
-            if SysMgr.checkStackTopCond():
-                SysMgr.processEnable = False
-                SysMgr.stackEnable = True
-            else:
-                sys.exit(0)
-
-        # perf #
-        elif SysMgr.isPerfTopMode():
-            if SysMgr.checkPerfTopCond():
-                SysMgr.perfEnable = True
-                if SysMgr.findOption('g'):
-                    SysMgr.processEnable = False
-                    SysMgr.perfGroupEnable = True
-            else:
-                sys.exit(0)
-
-        # mem #
-        elif SysMgr.isMemTopMode():
-            if SysMgr.checkMemTopCond():
-                SysMgr.memEnable = True
-                SysMgr.sort = 'm'
-            else:
-                sys.exit(0)
-
-        # wss (working set size) #
-        elif SysMgr.isWssTopMode():
-            if SysMgr.checkWssTopCond():
-                SysMgr.memEnable = True
-                SysMgr.wssEnable = True
-                SysMgr.sort = 'm'
-            else:
-                sys.exit(0)
-
-        # disk #
-        elif SysMgr.isDiskTopMode():
-            if SysMgr.checkDiskTopCond():
-                SysMgr.diskEnable = True
-                SysMgr.blockEnable = True
-                SysMgr.sort = 'b'
-            else:
-                sys.exit(0)
-
-        # dlt #
-        elif SysMgr.isDltTopMode():
-            SysMgr.dltTopEnable = True
-
-        # dbus #
-        elif SysMgr.isDbusTopMode():
-            SysMgr.dbusTopEnable = True
-            SysMgr.floatEnable = True
-
-            # set default interval to 3 for accuracy #
-            if not SysMgr.findOption('i') and \
-                not SysMgr.findOption('R'):
-                SysMgr.intervalEnable = 3
-
-        # usercall #
-        elif SysMgr.isUserTopMode():
-            SysMgr.doTrace('usercall')
-
-        # breakcall #
-        elif SysMgr.isBrkTopMode():
-            SysMgr.doTrace('breakcall')
-
-        # syscall #
-        elif SysMgr.isSysTopMode():
-            SysMgr.doTrace('syscall')
-
-        # network #
-        elif SysMgr.isNetTopMode():
-            SysMgr.networkEnable = True
-
-        # background #
-        elif SysMgr.isBgTopMode():
-            if SysMgr.checkBgTopCond():
-                SysMgr.runBackgroundMode()
-            else:
-                sys.exit(0)
-
-        # report #
-        elif SysMgr.isReportTopMode():
-            if SysMgr.checkReportTopCond():
-                SysMgr.printEnable = False
-            else:
-                sys.exit(0)
-
-        # print profile option #
-        if not SysMgr.isDrawMode():
-            SysMgr.printProfileOption()
-            SysMgr.printProfileCmd()
-
-        # set handler for exit #
-        SysMgr.setNormalSignal()
-
-        # run top mode #
-        ThreadAnalyzer()
-
-        sys.exit(0)
 
     # set handler for exit #
     signal.signal(signal.SIGINT, SysMgr.exitHandler)
@@ -53390,20 +53434,20 @@ def main(args=None):
     # check log file is recoginizable #
     ThreadAnalyzer.getInitTime(SysMgr.inputFile)
 
+    # apply launch option from data file #
     if not SysMgr.isRecordMode():
-        # apply launch option from data file #
         SysMgr.applyLaunchOption()
 
-    # get mount info from data file #
+    # get mount info from file #
     SysMgr.getMountInfo()
 
     # print analysis option #
     SysMgr.printAnalOption()
 
-    #-------------------- FUNCTION MODE --------------------#
+    # FUNCTION MODE #
     if SysMgr.isFunctionMode():
         FunctionAnalyzer(SysMgr.inputFile).printUsage()
-    #-------------------- THREAD MODE --------------------#
+    # THREAD MODE #
     else:
         ThreadAnalyzer(SysMgr.inputFile).printUsage()
 
