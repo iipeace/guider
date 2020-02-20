@@ -21164,6 +21164,8 @@ Copyright:
                 if SysMgr.jsonOutputEnable:
                     jsonStr = UtilMgr.convertDict2Str(obj.attr)
                     SysMgr.printPipe(jsonStr)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "Fail to analyze %s because %s" % \
@@ -21646,6 +21648,8 @@ Copyright:
                 os.rename(reportPath, backupFile)
                 SysMgr.printInfo('%s is renamed to %s' % \
                     (reportPath, backupFile))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(\
                     "Fail to backup %s" % reportPath)
@@ -21658,6 +21662,8 @@ Copyright:
                 perm = 'a'
 
             SysMgr.reportObject = open(reportPath, perm)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(reportPath)
             sys.exit(0)
