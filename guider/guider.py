@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200219"
+__revision__ = "200220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21159,7 +21159,7 @@ Copyright:
                 if path == 'vdso':
                     obj = SysMgr.getVdso(debug=debug)
                 else:
-                    obj = ElfAnalyzer(path, debug)
+                    obj = ElfAnalyzer(path, debug, incArg=True)
 
                 if SysMgr.jsonOutputEnable:
                     jsonStr = UtilMgr.convertDict2Str(obj.attr)
@@ -28512,7 +28512,7 @@ class DbusAnalyzer(object):
         from ctypes import cdll, POINTER, c_char_p, pointer, \
             c_ulong, c_void_p, c_int, c_uint32, Structure
 
-        # try to demangle symbol #
+        # try to load libraries #
         try:
             # load standard libgio library #
             if not SysMgr.libgioObj:
@@ -35505,7 +35505,7 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def demangleSymbol(symbol):
+    def demangleSymbol(symbol, incArg=False):
         origSym = symbol
         symbol = symbol.replace('@@', '@')
 
@@ -35537,7 +35537,8 @@ class ElfAnalyzer(object):
             SysMgr.demangleEnable = False
             return symbol
 
-        from ctypes import cdll, POINTER, c_char_p, pointer, c_int, c_void_p
+        from ctypes import cdll, POINTER, c_char_p, \
+            pointer, c_int, c_void_p, cast
 
         # try to demangle symbol #
         try:
@@ -35556,7 +35557,7 @@ class ElfAnalyzer(object):
 
             # declare __cxa_demangle() function pointer #
             funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
-            funcp.restype = c_char_p
+            funcp.restype = c_void_p
 
             status = c_int()
             mSymbol = c_char_p(UtilMgr.encodeStr(symbol))
@@ -35564,12 +35565,14 @@ class ElfAnalyzer(object):
             # call to demangle symbol #
             ret = funcp(mSymbol, None, None, pointer(status))
 
+            retc = cast(ret, c_char_p)
+
             # check return status and convert type from bytes to string #
             if status.value == 0:
                 try:
-                    dmSymbol = str(ret.decode())
+                    dmSymbol = str(retc.value.decode())
                 except:
-                    dmSymbol = str(ret)
+                    dmSymbol = str(retc.value)
             elif status.value == -1:
                 SysMgr.printWarn(\
                     "Fail to allocate memory to demangle symbol %s" % symbol)
@@ -35590,13 +35593,14 @@ class ElfAnalyzer(object):
                 dmSymbol = symbol
 
             # free demangled string array #
-            #SysMgr.libcObj.free(ret)
+            SysMgr.libcObj.free(ret)
 
-            # remove () #
-            try:
-                dmSymbol = dmSymbol.split('(', 1)[0]
-            except:
-                pass
+            # remove args info #
+            if not incArg:
+                try:
+                    dmSymbol = dmSymbol.split('(', 1)[0]
+                except:
+                    pass
 
             demangledSym = '%s%s' % (dmSymbol, version)
             ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
@@ -35977,7 +35981,9 @@ class ElfAnalyzer(object):
 
 
 
-    def __init__(self, path=None, debug=False, onlyHeader=False, fd=None, size=sys.maxsize):
+    def __init__(\
+        self, path=None, debug=False, onlyHeader=False, \
+        fd=None, size=sys.maxsize, incArg=False):
         # define struct Elf32_Ehdr #
         '''
         #define EI_NIDENT 16
@@ -36787,7 +36793,7 @@ Section header string table index: %d
                 symbol = self.getString(dynstr_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
 
                 # concatenate symbol with it's required version #
                 try:
@@ -36883,7 +36889,7 @@ Section header string table index: %d
                 symbol = self.getString(strtab_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
 
                 self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
@@ -36959,7 +36965,7 @@ Section header string table index: %d
                     symbol = rsym
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
@@ -37025,7 +37031,7 @@ Section header string table index: %d
                     continue
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
