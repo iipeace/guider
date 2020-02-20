@@ -35511,7 +35511,7 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def demangleSymbol(symbol, incArg=False):
+    def demangleSymbol(symbol, incArg=True):
         origSym = symbol
         symbol = symbol.replace('@@', '@')
 
@@ -36799,7 +36799,7 @@ Section header string table index: %d
                 symbol = self.getString(dynstr_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # concatenate symbol with it's required version #
                 try:
@@ -36895,7 +36895,7 @@ Section header string table index: %d
                 symbol = self.getString(strtab_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
@@ -36971,7 +36971,7 @@ Section header string table index: %d
                     symbol = rsym
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
@@ -37037,7 +37037,7 @@ Section header string table index: %d
                     continue
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol, incArg)
+                symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
