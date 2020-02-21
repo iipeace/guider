@@ -14249,6 +14249,18 @@ Examples:
     - Monitor specific function calls including specific word for a specific thread
         # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
 
+    - Monitor specific function calls including specific word for a specific thread and stop the thread
+        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
+
+    - Monitor all function calls with sleep for 0.1 seconds for a specific thread
+        # {0:1} {1:1} -g a.out -c |sleep:0.1
+
+    - Monitor write function calls with sleep for 0.1 seconds only one time for a specific thread
+        # {0:1} {1:1} -g a.out -c write|oneshot:sleep:0.1
+
+    - Monitor all function calls for a specific thread and execute specific commands
+        # {0:1} {1:1} -g a.out -c |exec:"ls -lha"
+
     - Monitor printPeace function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
@@ -14654,22 +14666,34 @@ Examples:
         # {0:1} {1:1} -g 1234 -c printPeace
 
     - Trace all function calls in specific files for a specific thread
-        # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
+        # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
     - Trace specific function calls including specific word for a specific thread
-        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
+        # {0:1} {1:1} -g a.out -c \\*printPeace\\*
+
+    - Trace specific function calls including specific word for a specific thread and stop the thread
+        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
+
+    - Trace all function calls with sleep for 3 seconds for a specific thread
+        # {0:1} {1:1} -g a.out -c |sleep:3
+
+    - Trace write function calls with sleep for 3 seconds only one time for a specific thread
+        # {0:1} {1:1} -g a.out -c write|oneshot:sleep:3
+
+    - Trace all function calls for a specific thread and execute specific commands
+        # {0:1} {1:1} -g a.out -c |exec:"ls -lha"
 
     - Trace printPeace function calls with argument values for a specific thread
-        # {0:1} {1:1} -g 1234 -c printPeace -a
+        # {0:1} {1:1} -g a.out -c printPeace -a
 
     - Trace printPeace function calls with backtrace for a specific thread
-        # {0:1} {1:1} -g 1234 -c printPeace -H 10
+        # {0:1} {1:1} -g a.out -c printPeace -H 10
 
     - Trace printPeace function calls for a specific thread and save summary tables, call history to ./guider.out
-        # {0:1} {1:1} -g 1234 -c printPeace -o . -a
+        # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
     - Trace printPeace function calls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g 1234 -c printPeace -R 2s
+        # {0:1} {1:1} -g a.out -c printPeace -R 2s
                     '''.format(cmd, mode)
 
                 # sigtrace #
@@ -30503,13 +30527,78 @@ struct msghdr {
 
 
 
+    def executeCmd(self, cmdList):
+        if type(cmdList) is not list:
+            return cmdList
+
+        newCmdList = list()
+        for cmdval in cmdList:
+            # parse cmd set #
+            repeat = True
+            cmdset = cmdval.split(':', 1)
+            cmd = cmdset[0]
+
+            # check repeat #
+            if cmd.upper() == 'ONESHOT':
+                repeat = False
+                if len(cmdset) == 1:
+                    continue
+                cmdset = cmdval.split(':', 2)[1:]
+                cmd = cmdset[0]
+
+            # execute a command #
+            try:
+                if cmd.upper().startswith('EXEC'):
+                    param = cmdset[1].split()
+                    self.execBgCmd(execCmd=param, mute=False)
+                elif cmd.upper().startswith('SLEEP'):
+                    if SysMgr.showAll:
+                        self.printContext()
+                    time.sleep(float(cmdset[1]))
+                elif cmd.upper() == 'STOP':
+                    if SysMgr.showAll:
+                        self.printContext()
+                    SysMgr.waitUserInput(0)
+                else:
+                    raise Exception("No command supported")
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Fail to handle %s command because %s" % \
+                        (cmdval, SysMgr.getErrReason()))
+                sys.exit(0)
+
+            # re-register command #
+            if repeat:
+                newCmdList.append(cmdval)
+
+        return newCmdList
+
+
+
     def setTraceme(self):
         cmd = ConfigMgr.PTRACE_TYPE.index('PTRACE_TRACEME')
         return self.ptrace(cmd)
 
 
 
-    def execute(self, execCmd):
+    def execBgCmd(self, execCmd, mute=True):
+        pid = SysMgr.createProcess()
+        if pid != 0:
+            return
+
+        self.pid = os.getpid()
+
+        # execute #
+        SysMgr.executeProcess(cmd=execCmd, mute=mute)
+
+        # execute fail #
+        os._exit(0)
+
+
+
+    def execute(self, execCmd, mute=True):
         pid = SysMgr.createProcess()
         if pid == 0:
             self.pid = os.getpid()
@@ -30518,7 +30607,7 @@ struct msghdr {
             self.setTraceme()
 
             # execute #
-            SysMgr.executeProcess(cmd=execCmd, mute=True)
+            SysMgr.executeProcess(cmd=execCmd, mute=mute)
 
             # execute fail #
             os._exit(0)
@@ -30560,8 +30649,17 @@ struct msghdr {
     def injectBreakpointList(self, symlist, binlist=None, verb=True):
         if len(symlist) == 0:
             symlist.append('**')
+        else:
+            oldlist = list(symlist)
+            symlist = list()
+            for sym in oldlist:
+                if sym.startswith('|'):
+                    symlist.append('**%s' % sym)
+                else:
+                    symlist.append(sym)
 
         addrList = []
+        cmdList = []
 
         # add default breakpoints such as mmap symbols #
         for lib in (self.defaultBrkFileList.keys()):
@@ -30574,7 +30672,16 @@ struct msghdr {
                 ret = self.injectBreakpoint(\
                     addr, dsym, fname=lib, reins=True)
 
+        # add breakpoints requested by user #
         for value in symlist:
+            # parse symbol and commands #
+            valueList = value.split('|')
+            value = valueList[0]
+            if len(valueList) > 1:
+                cmdSet = valueList[1:]
+            else:
+                cmdSet = None
+
             # address #
             if UtilMgr.isNumber(value):
                 try:
@@ -30583,6 +30690,7 @@ struct msghdr {
                     addr = long(value)
                 ret = self.getSymbolInfo(addr)
                 addrList += [addr, ret[0], ret[1]]
+                cmdList.append(cmdSet)
             # symbol #
             else:
                 if value.startswith('*') and \
@@ -30605,6 +30713,8 @@ struct msghdr {
                     sys.exit(0)
                 else:
                     addrList += ret
+                    for cnt in range(0, len(ret)):
+                        cmdList.append(cmdSet)
 
         if len(addrList) == 0:
             return
@@ -30627,7 +30737,7 @@ struct msghdr {
                 continue
 
             ret = self.injectBreakpoint(\
-                addr, symbol, fname=fname, reins=True)
+                addr, symbol, fname=fname, reins=True, cmd=cmdList[idx])
             if not ret:
                 SysMgr.printWarn(\
                     "Fail to inject breakpoint to %s(%s) for %s thread" % \
@@ -30640,7 +30750,7 @@ struct msghdr {
 
 
     def injectBreakpoint(\
-        self, addr, sym=None, fname=None, size=1, reins=False):
+        self, addr, sym=None, fname=None, size=1, reins=False, cmd=None):
         # get original instruction #
         if addr in self.breakpointList:
             if self.breakpointList[addr]['set']:
@@ -30669,7 +30779,8 @@ struct msghdr {
                 'symbol': sym,
                 'reins': reins,
                 'filename': fname,
-                'set': True
+                'cmd': cmd,
+                'set': True,
             }
 
         # build trap instruction #
@@ -32384,6 +32495,11 @@ struct msghdr {
         # apply register set to rewind IP #
         self.setPC(addr)
         self.setRegs()
+
+        # check command #
+        if self.breakpointList[addr]['cmd']:
+            self.breakpointList[addr]['cmd'] = \
+                self.executeCmd(self.breakpointList[addr]['cmd'])
 
         # lock between processes #
         self.lock()
