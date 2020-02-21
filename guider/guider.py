@@ -3113,6 +3113,8 @@ class ConfigMgr(object):
 
         try:
             f = open(path, 'r')
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(path)
             return None
@@ -3142,6 +3144,8 @@ class ConfigMgr(object):
 
         try:
             fd = open(path, 'w')
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(path)
             return None
@@ -3393,6 +3397,8 @@ class UtilMgr(object):
         # open a file #
         try:
             fd = open(file, 'r', encoding='utf-8')
+        except SystemExit:
+            sys.exit(0)
         except:
             fd = open(file, 'r')
 
@@ -3561,6 +3567,8 @@ class UtilMgr(object):
                 d = ''
 
             ctime = "%s%02d:%02d:%02d" % (d, h, m, s)
+        except SystemExit:
+            sys.exit(0)
         except:
             ctime = "%s%02d:%02s:%02s" % ('', '?', '?', '?')
 
@@ -3631,6 +3639,8 @@ class UtilMgr(object):
                 "Fail to convert %s to size" % value)
 
             raise Exception()
+        except SystemExit:
+            sys.exit(0)
         except:
             return value
 
@@ -3647,6 +3657,8 @@ class UtilMgr(object):
                 fd.write(jsonObj)
 
                 fd.flush()
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SysMgr.getErrReason()
                 SysMgr.printWarn(\
@@ -3663,6 +3675,8 @@ class UtilMgr(object):
         try:
             with open(path, perm) as fd:
                 fd.write(jsonObj)
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
@@ -3766,6 +3780,8 @@ class UtilMgr(object):
         # handle reentrant call exception #
         try:
             sys.stdout.flush()
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -3781,6 +3797,8 @@ class UtilMgr(object):
         # handle reentrant call exception #
         try:
             sys.stdout.flush()
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -4259,6 +4277,8 @@ class NetworkMgr(object):
             if self.status != 'ALWAYS':
                 self.status = 'SENT'
             return True
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
@@ -4285,6 +4305,8 @@ class NetworkMgr(object):
         try:
             self.socket.sendto(message, (ip, port))
             return True
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
@@ -4310,6 +4332,8 @@ class NetworkMgr(object):
 
         try:
             return self.socket.recv(size)
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SysMgr.getErrReason()
             SysMgr.printWarn(\
@@ -4810,6 +4834,8 @@ class NetworkMgr(object):
 
         try:
             devices = os.listdir(dirPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(dirPath)
             return
@@ -4823,6 +4849,8 @@ class NetworkMgr(object):
                 with open(target, 'r') as fd:
                     addr = fd.readline()[:-1]
                     return (dev, addr)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenErr(target)
 
@@ -5030,6 +5058,8 @@ class PageAnalyzer(object):
                     raise Exception()
                 else:
                     pid = pid[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "Fail to recognize pid, input only one PID with -g option")
@@ -5207,6 +5237,8 @@ class PageAnalyzer(object):
 
                 SysMgr.printPipe('%18s-%18s %s' % \
                     (soffset, eoffset, ' '.join(target[1:])))
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -10295,6 +10327,8 @@ class LeakAnalyzer(object):
         try:
             stat = os.stat(file)
             size = UtilMgr.convertSize2Unit(stat.st_size)
+        except SystemExit:
+            sys.exit(0)
         except:
             size = '??'
 
@@ -10305,6 +10339,8 @@ class LeakAnalyzer(object):
 
             with open(file, 'r') as fd:
                 lines = fd.readlines()[1:]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(file)
             sys.exit(0)
@@ -10454,6 +10490,8 @@ class LeakAnalyzer(object):
                 self.symData[sym]['size'] += val['size']
                 self.symData[sym]['lastPosCnt'] += val['lastPosCnt']
                 self.symData[sym]['lastPosSize'] += val['lastPosSize']
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.symData[sym] = dict(self.init_symData)
                 self.symData[sym]['offset'] = val['offset']
@@ -10483,6 +10521,8 @@ class LeakAnalyzer(object):
                 self.fileData[path]['size'] += val['size']
                 self.fileData[path]['lastPosCnt'] += val['lastPosCnt']
                 self.fileData[path]['lastPosSize'] += val['lastPosSize']
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.fileData[path] = dict(self.init_fileData)
                 self.fileData[path]['count'] = val['count']
@@ -10554,6 +10594,8 @@ class LeakAnalyzer(object):
             for content in items[1:]:
                 try:
                     name, body = content.split('=', 1)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -10570,6 +10612,8 @@ class LeakAnalyzer(object):
                 try:
                     self.posData[pos]['count'] += 1
                     self.posData[pos]['size'] += long(item['size'])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.posData[pos] = dict(self.init_posData)
                     self.posData[pos]['count'] = 1
@@ -10826,8 +10870,7 @@ class FileAnalyzer(object):
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
             try:
                 memSize = \
-                    self.intervalFileData[0][fileName]['pageCnt'] * \
-                        pageSize
+                    self.intervalFileData[0][fileName]['pageCnt'] * pageSize
             except:
                 memSize = long(0)
             try:
@@ -10968,6 +11011,8 @@ class FileAnalyzer(object):
                     dataObj[fileName]['size'] = newSize
 
                 dataObj[fileName]['offset'] = newOffset
+        except SystemExit:
+            sys.exit(0)
         except:
             dataObj[fileName] = dict(FileAnalyzer.init_mapData)
             dataObj[fileName]['offset'] = newOffset
@@ -11142,6 +11187,8 @@ class FileAnalyzer(object):
         # get process list in proc filesystem #
         try:
             pids = os.listdir(SysMgr.procPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.procPath)
             sys.exit(0)
@@ -11167,6 +11214,8 @@ class FileAnalyzer(object):
                     pidComm = fd.readline()
                     pidComm = pidComm[0:len(pidComm) - 1]
                     fd.close()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printOpenWarn(commPath)
                     continue
@@ -11176,6 +11225,8 @@ class FileAnalyzer(object):
 
             try:
                 tids = os.listdir(taskPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -11196,6 +11247,8 @@ class FileAnalyzer(object):
                     comm = fd.readline()
                     comm = comm[0:len(comm) - 1]
                     fd.close()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printOpenWarn(commPath)
                     continue
@@ -11297,6 +11350,8 @@ class FileAnalyzer(object):
                     val['totalSize'] = fileInfo['totalSize']
 
                     val['isRep'] = fileInfo['isRep']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -11381,6 +11436,8 @@ class FileAnalyzer(object):
 
                     fd = open(fileName, "r")
                     val['fd'] = fd
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.profFailedCnt += 1
                     if SysMgr.warnEnable:
@@ -11452,6 +11509,8 @@ class FileAnalyzer(object):
                     if SysMgr.maxKeepFd < fd:
                         val['fd'].close()
                         val['fd'] = None
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printWarn('Fail to access %s' % fileName)
                     val['fileMap'] = None
@@ -11495,6 +11554,8 @@ class LogMgr(object):
         if not os.path.exists(SysMgr.cacheDirPath):
             try:
                 os.mkdir(SysMgr.cacheDirPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 err = SysMgr.getErrReason()
                 SysMgr.printWarn((\
@@ -11522,6 +11583,8 @@ class LogMgr(object):
 
             with open(errorFile, 'a') as fd:
                 fd.write(message)
+        except SystemExit:
+            sys.exit(0)
         except:
             self.error = True
             SysMgr.printOpenErr(errorFile)
@@ -11889,6 +11952,8 @@ class SysMgr(object):
                 maxPid = fd.readline()[:-1]
                 SysMgr.pidDigit = len(maxPid)
                 SysMgr.maxPid = long(maxPid)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -11960,6 +12025,8 @@ class SysMgr(object):
                     ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
             return
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -12611,6 +12678,8 @@ class SysMgr(object):
                     if SysMgr.guiderObj:
                         guiderObj = SysMgr.guiderObj
                         ret = guiderObj.sched_setaffinity(long(pid), mask)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -12656,6 +12725,8 @@ class SysMgr(object):
     def getAffinity(pid):
         try:
             return '0x%X' % SysMgr.guiderObj.sched_getaffinity(pid)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -12713,6 +12784,8 @@ class SysMgr(object):
         try:
             with open(oomPath, 'w') as fd:
                 fd.write(pri)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "Fail to write %s because %s" % \
@@ -12750,6 +12823,8 @@ class SysMgr(object):
                     return res.split("\x00")
                 else:
                     return res.replace("\x00", " ")
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(cmdlinePath)
             if retList:
@@ -12768,6 +12843,8 @@ class SysMgr(object):
                 for line in fd.readlines():
                     if line.startswith('Tgid'):
                         return line.split(':')[1].split()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -12780,6 +12857,8 @@ class SysMgr(object):
         try:
             with open(commPath, 'r') as fd:
                 return fd.readline()[:-1]
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -12835,6 +12914,8 @@ class SysMgr(object):
         try:
             SysMgr.guiderObj.prctl(15, comm, 0, 0, 0)
             return
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -13036,11 +13117,15 @@ class SysMgr(object):
             SysMgr.diskStatsFd.seek(0)
             SysMgr.prevDiskStats = SysMgr.diskStats
             SysMgr.diskStats = SysMgr.diskStatsFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 diskstatPath = '%s/diskstats' % SysMgr.procPath
                 SysMgr.diskStatsFd = open(diskstatPath, 'r')
                 SysMgr.diskStats = SysMgr.diskStatsFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(diskstatPath)
 
@@ -13051,11 +13136,15 @@ class SysMgr(object):
         try:
             SysMgr.mountFd.seek(0)
             return SysMgr.mountFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 mountPath = '%s/self/mountinfo' % SysMgr.procPath
                 SysMgr.mountFd = open(mountPath, 'r')
                 return SysMgr.mountFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(mountPath)
 
@@ -13068,6 +13157,8 @@ class SysMgr(object):
             with open(statmPath, 'r') as fd:
                 STATM_TYPE = fd.readlines()[0].split()
                 return STATM_TYPE
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(statmPath)
             return
@@ -13094,6 +13185,8 @@ class SysMgr(object):
                             cmd += "common_pid <= %s || " % long(cond[1:])
                         elif rdir == len(cond) - 1:
                             cmd += "common_pid >= %s || " % long(cond[:-1])
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -13143,6 +13236,8 @@ class SysMgr(object):
                     elif tgid == tdata[item]['tgid'] or \
                         tgid == SysMgr.savedProcTree[item]:
                         return False
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -13247,6 +13342,8 @@ class SysMgr(object):
                 return True
 
             return False
+        except SystemExit:
+            sys.exit(0)
         except:
             return False
 
@@ -13280,6 +13377,8 @@ class SysMgr(object):
         # get process list in proc filesystem #
         try:
             pids = os.listdir(SysMgr.procPath)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.procPath)
             return None
@@ -13299,6 +13398,8 @@ class SysMgr(object):
 
             try:
                 tids = os.listdir(taskPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -13380,6 +13481,8 @@ class SysMgr(object):
                 if not "LANG" in os.environ or \
                     'tty' in os.ttyname(sys.stdout.fileno()):
                     SysMgr.encodeEnable = False
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -15583,6 +15686,8 @@ Copyright:
             SysMgr.kernelVersion = kernelVersion
 
             return kernelVersion
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
@@ -15606,6 +15711,8 @@ Copyright:
                 SysMgr.arch = 'x86'
             else:
                 SysMgr.arch = arch
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.arch = 'arm'
 
@@ -15745,6 +15852,8 @@ Copyright:
                 nrConfig = ConfigMgr.PERF_SW_EVENT_TYPE.index(econfig)
             else:
                 raise Exception()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 'Fail to recognize %s as perf event type' % econfig)
@@ -16140,6 +16249,8 @@ Copyright:
 
                     # add value to list #
                     retList.append(value)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     retList.append(None)
 
@@ -16295,6 +16406,8 @@ Copyright:
                 # cast buffer to data #
                 retList.append(\
                     ctypes.cast(pbuf, POINTER(c_ulong)).contents.value)
+            except SystemExit:
+                sys.exit(0)
             except:
                 retList.append(None)
 
@@ -16335,6 +16448,8 @@ Copyright:
                             'Change value of %s from %s to -1 '
                             'to read all perf events') % \
                             (attrPath, paranoid))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(\
                     "enable CONFIG_PERF_EVENTS kernel option")
@@ -16497,6 +16612,8 @@ Copyright:
                 (perfbuf, UtilMgr.convertSize2Unit(inst))
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -16508,6 +16625,8 @@ Copyright:
             perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
                 (perfbuf, UtilMgr.convertSize2Unit(cachemiss),\
                 cachemissrate)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -16519,6 +16638,8 @@ Copyright:
             perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
                 (perfbuf, UtilMgr.convertSize2Unit(branchmiss),\
                 branchmissrate)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -16526,7 +16647,9 @@ Copyright:
         try:
             perfbuf = '%sClk: %s / ' % \
                 (perfbuf, UtilMgr.convertSize2Unit(\
-                value['PERF_COUNT_SW_CPU_CLOCK']))
+                    value['PERF_COUNT_SW_CPU_CLOCK']))
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -16536,12 +16659,16 @@ Copyright:
             faultmaj = value['PERF_COUNT_SW_PAGE_FAULTS_MAJ']
             perfbuf = '%sMinFlt: %s / MajFlt: %s / ' % \
                 (perfbuf, format(faultmin, ','), format(faultmaj, ','))
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
         try:
             if len(perfbuf) > 0:
                 perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -17709,12 +17836,9 @@ Copyright:
                 # submit summarized report and details #
                 ThreadAnalyzer.printIntervalUsage()
 
-                try:
-                    fsize = \
-                        UtilMgr.convertSize2Unit(\
-                            long(os.path.getsize(SysMgr.inputFile)))
-                except:
-                    fsize = '?'
+                fsize = \
+                    UtilMgr.convertSize2Unit(\
+                        long(os.path.getsize(SysMgr.inputFile)))
 
                 SysMgr.printInfo(\
                     "save results based monitoring into "
@@ -17796,12 +17920,9 @@ Copyright:
                 SysMgr.fileForPrint = None
 
             # print output info #
-            try:
-                fsize = \
-                    UtilMgr.convertSize2Unit(\
-                        long(os.path.getsize(SysMgr.inputFile)))
-            except:
-                fsize = '?'
+            fsize = \
+                UtilMgr.convertSize2Unit(\
+                    long(os.path.getsize(SysMgr.inputFile)))
 
             SysMgr.printInfo(\
                 "save results based monitoring into "
