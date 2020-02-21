@@ -24263,6 +24263,8 @@ Copyright:
                             addr = hex(attr['vstart'] + long(item[0]))
                             resInfo['%s|%s' % (item[1], filePath)] = \
                                 (hex(item[0]), filePath, addr)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printWarn(\
                             "Fail to save offset info because %s" % \
@@ -24333,6 +24335,8 @@ Copyright:
         try:
             lt = LeakAnalyzer(SysMgr.sourceFile, pid)
             lt.printLeakage()
+        except SystemExit:
+            sys.exit(0)
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
