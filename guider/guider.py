@@ -13591,8 +13591,8 @@ class SysMgr(object):
         return {
             'monitor': {
                 'top': 'Process',
-                'threadtop': 'Thread',
-                'systemtop': 'System',
+                'ttop': 'Thread',
+                'sttop': 'System',
                 'bgtop': 'Background',
                 'stacktop': 'Stack',
                 'perftop': 'PMU',
@@ -13601,10 +13601,10 @@ class SysMgr(object):
                 'nettop': 'Network',
                 'wsstop': 'Memory',
                 'reptop': 'JSON',
-                'filetop': 'File',
+                'ftop': 'File',
                 'systop': 'syscall',
-                'usertop': 'Function',
-                'brktop': 'Breakpoint',
+                'utop': 'Function',
+                'btop': 'Breakpoint',
                 'dlttop': 'DLT',
                 'dbustop': 'D-Bus',
                 },
@@ -20964,7 +20964,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'systemtop':
+        if sys.argv[1] == 'sttop':
             return True
         else:
             return False
@@ -21012,7 +21012,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'usertop':
+        if sys.argv[1] == 'usertop' or \
+            sys.argv[1] == 'utop':
             return True
         else:
             return False
@@ -21024,7 +21025,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'brktop':
+        if sys.argv[1] == 'brktop' or \
+            sys.argv[1] == 'btop':
             return True
         else:
             return False
@@ -21072,7 +21074,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'filetop':
+        if sys.argv[1] == 'filetop' or \
+            sys.argv[1] == 'ftop':
             return True
         else:
             return False
@@ -21108,7 +21111,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'threadtop':
+        if sys.argv[1] == 'threadtop' or \
+            sys.argv[1] == 'ttop':
             return True
         else:
             return False
