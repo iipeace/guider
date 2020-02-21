@@ -14356,13 +14356,16 @@ Examples:
         # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
 
     - Monitor all function calls with sleep for 0.1 seconds for a specific thread
-        # {0:1} {1:1} -g a.out -c |sleep:0.1
+        # {0:1} {1:1} -g a.out -c \\|sleep:0.1
 
     - Monitor write function calls with sleep for 0.1 seconds only one time for a specific thread
-        # {0:1} {1:1} -g a.out -c write|oneshot:sleep:0.1
+        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:0.1
+
+    - Monitor write function calls for a specific thread and kill the thread
+        # {0:1} {1:1} -g a.out -c write\\|kill
 
     - Monitor all function calls for a specific thread and execute specific commands
-        # {0:1} {1:1} -g a.out -c |exec:"ls -lha"
+        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
 
     - Monitor printPeace function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
@@ -14778,13 +14781,16 @@ Examples:
         # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
 
     - Trace all function calls with sleep for 3 seconds for a specific thread
-        # {0:1} {1:1} -g a.out -c |sleep:3
+        # {0:1} {1:1} -g a.out -c \\|sleep:3
 
     - Trace write function calls with sleep for 3 seconds only one time for a specific thread
-        # {0:1} {1:1} -g a.out -c write|oneshot:sleep:3
+        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:3
+
+    - Trace write function calls for a specific thread and kill the thread
+        # {0:1} {1:1} -g a.out -c write\\|kill
 
     - Trace all function calls for a specific thread and execute specific commands
-        # {0:1} {1:1} -g a.out -c |exec:"ls -lha"
+        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
 
     - Trace printPeace function calls with argument values for a specific thread
         # {0:1} {1:1} -g a.out -c printPeace -a
@@ -30677,17 +30683,20 @@ struct msghdr {
 
             # execute a command #
             try:
+                # print context #
+                if SysMgr.showAll:
+                    self.printContext()
+
                 if cmd.upper().startswith('EXEC'):
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
                 elif cmd.upper().startswith('SLEEP'):
-                    if SysMgr.showAll:
-                        self.printContext()
                     time.sleep(float(cmdset[1]))
                 elif cmd.upper() == 'STOP':
-                    if SysMgr.showAll:
-                        self.printContext()
-                    SysMgr.waitUserInput(0)
+                    signal.pause()
+                elif cmd.upper() == 'KILL':
+                    self.kill()
+                    sys.exit(0)
                 else:
                     raise Exception("No command supported")
             except SystemExit:
@@ -31005,6 +31014,21 @@ struct msghdr {
         except:
             SysMgr.printSigError(pid, 'SIGSTOP')
             return -1
+
+
+
+    def kill(self):
+        plist = ConfigMgr.PTRACE_TYPE
+        cmd = plist.index('PTRACE_KILL')
+        ret = self.ptrace(cmd)
+        if ret != 0:
+            SysMgr.printWarn(\
+                'Fail to kill %s(%s)' % (self.comm, self.pid))
+            return -1
+        else:
+            SysMgr.printWarn(\
+                'Killed %s(%s)' % (self.comm, self.pid))
+            return 0
 
 
 
