@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200220"
+__revision__ = "200221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -37230,7 +37230,8 @@ class ThreadAnalyzer(object):
         # parse stats from multiple files #
         for idx, lfile in enumerate(flist):
             try:
-                gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
+                gstats, cstats = \
+                    ThreadAnalyzer.getDrawStats(lfile, applyOpt=False)
             except:
                 sys.exit(0)
 
@@ -38383,7 +38384,7 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def getDrawStats(logFile):
+    def getDrawStats(logFile, applyOpt=True):
         logBuf = None
         infoBuf = None
 
@@ -38446,7 +38447,8 @@ class ThreadAnalyzer(object):
                 if line.startswith('['):
                     # apply launch option #
                     SysMgr.systemInfoBuffer = infoBuf
-                    SysMgr.applyLaunchOption()
+                    if applyOpt:
+                        SysMgr.applyLaunchOption()
                     infoBuf = None
                     continue
                 elif line.startswith('=') or line.startswith(' '):
