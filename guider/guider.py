@@ -31484,6 +31484,10 @@ struct msghdr {
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
+        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+
+        # add cpu time info #
+        self.cpuUsageList.append([ttime, utime, stime])
 
         if not SysMgr.showAll and SysMgr.cpuEnable:
             floatTotalUsage = ttime / 100
@@ -31496,10 +31500,10 @@ struct msghdr {
 
         SysMgr.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
-            '[Target: %s(%s)] [CPU: %d%%(Usr:%d%%/Sys:%d%%)]%s \n%s\n') % \
+            '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), self.comm, self.pid, \
-                ttime, utime, stime, sampleStr, twoLine), newline=2)
+                cpuStr, sampleStr, twoLine), newline=2)
 
         SysMgr.addPrint(\
             '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
@@ -33273,6 +33277,7 @@ struct msghdr {
         self.childList = list()
         self.callList = list()
         self.callPrint = list()
+        self.cpuUsageList = list()
         self.syscallTime = dict()
         self.syscallTimeStat = dict()
         self.breakcallTimeStat = dict()
@@ -33847,13 +33852,24 @@ struct msghdr {
             samplingStr = ''
             sampleRateStr = ''
 
+        # calculate average cpu usage #
+        ttime = utime = stime = 0
+        for cpustat in instance.cpuUsageList:
+            ttime += cpustat[0]
+            utime += cpustat[1]
+            stime += cpustat[2]
+        ttime /= float(len(instance.cpuUsageList))
+        utime /= float(len(instance.cpuUsageList))
+        stime /= float(len(instance.cpuUsageList))
+        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+
         SysMgr.printPipe((\
-            '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] '
-            '[NrSamples: %s%s] [NrSymbols: %s] [SampleTime: %f]%s') % \
+            '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] [NrSamples: %s%s] '
+            '[NrSymbols: %s] [CPU: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, \
                 instance.comm, instance.pid, \
                 convert(long(nrTotal)), sampleRateStr, \
-                convert(len(callTable)), instance.sampleTime, suffix))
+                convert(len(callTable)), cpuStr, suffix))
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(\
