@@ -14364,6 +14364,9 @@ Examples:
     - Monitor write function calls for a specific thread and kill the thread
         # {0:1} {1:1} -g a.out -c write\\|kill
 
+    - Monitor write function calls for a specific thread and modify the 1st argument
+        # {0:1} {1:1} -g a.out -c write\\|setarg:2
+
     - Monitor write function calls for a specific thread and jump to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
 
@@ -14791,6 +14794,9 @@ Examples:
 
     - Trace write function calls for a specific thread and kill the thread
         # {0:1} {1:1} -g a.out -c write\\|kill
+
+    - Trace write function calls for a specific thread and modify the 1st argument
+        # {0:1} {1:1} -g a.out -c write\\|setarg:2
 
     - Trace write function calls for a specific thread and jump to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
@@ -30661,6 +30667,10 @@ struct msghdr {
             return
 
         for idx, val in enumerate(argList):
+            if val is None or \
+                val == '':
+                continue
+
             if arch == 'x64':
                 if idx == 0:
                     self.regs.rdi = val
@@ -30784,6 +30794,23 @@ struct msghdr {
 
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
+                elif capCmd.startswith('SETARG'):
+                    if len(cmdset) == 1:
+                        continue
+
+                    # get argument info #
+                    argList = cmdset[1].split('#')
+                    for idx, item in enumerate(list(argList)):
+                        try:
+                            argList[idx] = long(item)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            argList[idx] = ''
+
+                    self.writeArgs(argList)
+                    self.setRegs()
+                    self.updateRegs()
                 elif capCmd.startswith('JUMP'):
                     if len(cmdset) == 1:
                         continue
