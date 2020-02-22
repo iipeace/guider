@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200221"
+__revision__ = "200222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14364,6 +14364,9 @@ Examples:
     - Monitor write function calls for a specific thread and kill the thread
         # {0:1} {1:1} -g a.out -c write\\|kill
 
+    - Monitor write function calls for a specific thread and jump to the specific address with register values
+        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
+
     - Monitor all function calls for a specific thread and execute specific commands
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
 
@@ -14752,7 +14755,7 @@ OPTIONS:
         -g  <COMM|TID{:FILE}>       set filter
         -I  <COMMAND>               set command
         -R  <TIME>                  set timer
-        -c  <EVENT>                 set breakpoint
+        -c  <SYM|ADDR{:CMD}>        set breakpoint
         -H  <LEVEL>                 set function depth level
         -o  <DIR|FILE>              save output data
         -m  <ROWS:COLS>             set terminal size
@@ -14788,6 +14791,9 @@ Examples:
 
     - Trace write function calls for a specific thread and kill the thread
         # {0:1} {1:1} -g a.out -c write\\|kill
+
+    - Trace write function calls for a specific thread and jump to the specific address with register values
+        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
 
     - Trace all function calls for a specific thread and execute specific commands
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
@@ -30628,7 +30634,7 @@ struct msghdr {
 
 
 
-    def readArgValues(self):
+    def readArgs(self):
         arch = self.arch
         regs = self.regs
 
@@ -30644,6 +30650,90 @@ struct msghdr {
             return (regs.gpr3, regs.gpr4, regs.gpr5, regs.gpr6, regs.gpr7, regs.gpr8)
         else:
             return None
+
+
+
+    def writeArgs(self, argList):
+        arch = self.arch
+        nrArg = len(argList)
+
+        if len(argList) == 0:
+            return
+
+        for idx, val in enumerate(argList):
+            if arch == 'x64':
+                if idx == 0:
+                    self.regs.rdi = val
+                elif idx == 1:
+                    self.regs.rsi = val
+                elif idx == 2:
+                    self.regs.rdx = val
+                elif idx == 3:
+                    self.regs.r10 = val
+                elif idx == 4:
+                    self.regs.r8 = val
+                elif idx == 5:
+                    self.regs.r9 = val
+            elif arch == 'arm':
+                if idx == 0:
+                    self.regs.r0 = val
+                elif idx == 1:
+                    self.regs.r1 = val
+                elif idx == 2:
+                    self.regs.r2 = val
+                elif idx == 3:
+                    self.regs.r3 = val
+                elif idx == 4:
+                    self.regs.r4 = val
+                elif idx == 5:
+                    self.regs.r5 = val
+                elif idx == 6:
+                    self.regs.r6 = val
+            elif arch == 'aarch64':
+                if idx == 0:
+                    self.regs.r0 = val
+                elif idx == 1:
+                    self.regs.r1 = val
+                elif idx == 2:
+                    self.regs.r2 = val
+                elif idx == 3:
+                    self.regs.r3 = val
+                elif idx == 4:
+                    self.regs.r4 = val
+                elif idx == 5:
+                    self.regs.r5 = val
+                elif idx == 6:
+                    self.regs.r6 = val
+                elif idx == 7:
+                    self.regs.r7 = val
+            elif arch == 'x86':
+                if idx == 0:
+                    self.regs.ebx = val
+                elif idx == 1:
+                    self.regs.ecx = val
+                elif idx == 2:
+                    self.regs.edx = val
+                elif idx == 3:
+                    self.regs.esi = val
+                elif idx == 4:
+                    self.regs.edi = val
+                elif idx == 5:
+                    self.regs.ebp = val
+            elif arch == 'powerpc':
+                if idx == 0:
+                    self.regs.gpr3 = val
+                elif idx == 1:
+                    self.regs.gpr4 = val
+                elif idx == 2:
+                    self.regs.gpr5 = val
+                elif idx == 3:
+                    self.regs.gpr6 = val
+                elif idx == 4:
+                    self.regs.gpr7 = val
+                elif idx == 5:
+                    self.regs.gpr8 = val
+            else:
+                return
 
 
 
@@ -30687,14 +30777,60 @@ struct msghdr {
                 if SysMgr.showAll:
                     self.printContext()
 
-                if cmd.upper().startswith('EXEC'):
+                capCmd = cmd.upper()
+                if capCmd.startswith('EXEC'):
+                    if len(cmdset) == 1:
+                        continue
+
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
-                elif cmd.upper().startswith('SLEEP'):
-                    time.sleep(float(cmdset[1]))
-                elif cmd.upper() == 'STOP':
+                elif capCmd.startswith('JUMP'):
+                    if len(cmdset) == 1:
+                        continue
+
+                    # get function info #
+                    func = cmdset[1].split('#')
+                    val = func[0]
+                    if len(func) > 1:
+                        argList = func[1:]
+                    else:
+                        argList = []
+
+                    # convert type to integer #
+                    argList = list(map(long, argList))
+
+                    # get address #
+                    if UtilMgr.isNumber(val):
+                        try:
+                            addr = long(val, 16)
+                        except:
+                            addr = long(val)
+                    else:
+                        ret = self.getAddrBySymbol(val)
+                        if not ret:
+                            SysMgr.printErr("No found %s" % val)
+                            sys.exit(0)
+                        elif len(ret) > 1:
+                            SysMgr.printErr(\
+                                "Found %s addresses for %s" % (len(ret), val))
+                            sys.exit(0)
+                        addr = ret[0][0]
+
+                    # modify IP #
+                    self.setPC(addr)
+                    self.writeArgs(argList)
+                    self.setRegs()
+                    self.updateRegs()
+                elif capCmd.startswith('SLEEP'):
+                    if len(cmdset) == 1:
+                        val = 1
+                    else:
+                        val = float(cmdset[1])
+
+                    time.sleep(val)
+                elif capCmd == 'STOP':
                     signal.pause()
-                elif cmd.upper() == 'KILL':
+                elif capCmd == 'KILL':
                     self.kill()
                     sys.exit(0)
                 else:
@@ -32553,6 +32689,7 @@ struct msghdr {
             sys.exit(0)
 
         # set rewind address #
+        origPC = self.pc
         addr = self.pc - self.prevInstOffset
 
         # get breakpoint addr #
@@ -32575,7 +32712,7 @@ struct msghdr {
 
         # check memory map calls #
         if sym.startswith('mmap') and \
-            self.readArgValues()[4] > 0:
+            self.readArgs()[4] > 0:
             self.needMapScan = True
 
         # print context info #
@@ -32585,7 +32722,7 @@ struct msghdr {
             # build arguments string #
             if SysMgr.showAll:
                 # read args #
-                args = self.readArgValues()
+                args = self.readArgs()
                 argstr = '(%s)' % ','.join(list(map(str, args)))
             else:
                 argstr = ''
@@ -32645,14 +32782,15 @@ struct msghdr {
             if not self.isRealtime and SysMgr.funcDepth > 0:
                 self.printContext(regs=False)
 
-        # apply register set to rewind IP #
-        self.setPC(addr)
-        self.setRegs()
+            # check command #
+            if self.breakpointList[addr]['cmd']:
+                self.breakpointList[addr]['cmd'] = \
+                    self.executeCmd(self.breakpointList[addr]['cmd'])
 
-        # check command #
-        if self.breakpointList[addr]['cmd']:
-            self.breakpointList[addr]['cmd'] = \
-                self.executeCmd(self.breakpointList[addr]['cmd'])
+        # apply register set to rewind IP #
+        if self.pc == origPC:
+            self.setPC(addr)
+            self.setRegs()
 
         # lock between processes #
         self.lock()
@@ -32669,23 +32807,24 @@ struct msghdr {
         if not reins:
             return
 
-        # continue a instruction #
-        ret = self.ptrace(self.singlestepCmd)
-        if ret != 0:
-            SysMgr.printErr(\
-                'Fail to continue %s(%s) to reinstall a breakpoint' % \
-                    (self.comm, self.pid))
-            sys.exit(0)
+        if self.pc == origPC:
+            # continue a instruction #
+            ret = self.ptrace(self.singlestepCmd)
+            if ret != 0:
+                SysMgr.printErr(\
+                    'Fail to continue %s(%s) to reinstall a breakpoint' % \
+                        (self.comm, self.pid))
+                sys.exit(0)
 
-        # wait process #
-        ret = self.waitpid()
-        stat = self.getStatus(ret[1])
-        if SysMgr.isTermSignal(stat) or \
-            stat == -1:
-            SysMgr.printErr(\
-                'Fail to wait for %s(%s) to reinstall a breakpoint' % \
-                    (self.comm, self.pid))
-            sys.exit(0)
+            # wait process #
+            ret = self.waitpid()
+            stat = self.getStatus(ret[1])
+            if SysMgr.isTermSignal(stat) or \
+                stat == -1:
+                SysMgr.printErr(\
+                    'Fail to wait for %s(%s) to reinstall a breakpoint' % \
+                        (self.comm, self.pid))
+                sys.exit(0)
 
         # register this breakpoint again #
         ret = self.injectBreakpoint(\
@@ -32905,7 +33044,7 @@ struct msghdr {
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get argument values from register #
-        regstr = self.readArgValues()
+        regstr = self.readArgs()
 
         # get data types #
         self.rettype, formats = proto[self.syscall]
