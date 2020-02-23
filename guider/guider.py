@@ -13903,6 +13903,12 @@ Examples:
     - Handle write function calls for a specific thread and kill the thread
         # {0:1} {1:1} -g a.out -c write\\|kill
 
+    - Handle write function calls for a specific thread and modify specific memory value
+        # {0:1} {1:1} -g a.out -c write\\|setmem:0x1234:aaaa:4
+
+    - Handle write function calls for a specific thread and modify specific memory value from 1st argument value
+        # {0:1} {1:1} -g a.out -c write\\|setmem:0:aaaa:4
+
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
 
@@ -30762,13 +30768,16 @@ struct msghdr {
                 if SysMgr.showAll:
                     self.printContext()
 
+                # convert command to capital #
                 capCmd = cmd.upper()
+
                 if capCmd.startswith('EXEC'):
                     if len(cmdset) == 1:
                         continue
 
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
+
                 elif capCmd.startswith('RET'):
                     if len(cmdset) == 1:
                         continue
@@ -30800,6 +30809,7 @@ struct msghdr {
                     self.setPC(retaddr)
                     self.setRegs()
                     self.updateRegs()
+
                 elif capCmd.startswith('SETARG'):
                     if len(cmdset) == 1:
                         continue
@@ -30818,6 +30828,47 @@ struct msghdr {
                     self.writeArgs(argList)
                     self.setRegs()
                     self.updateRegs()
+
+                elif capCmd.startswith('SETMEM'):
+                    if len(cmdset) == 1:
+                        continue
+
+                    # get argument info #
+                    memset = cmdset[1].split(':')
+                    if len(memset) != 3:
+                        SysMgr.printErr((\
+                            "Wrong value %s, "
+                            "input in the format {addr:val:size}") % cmdset[1])
+                        sys.exit(0)
+
+                    addr = long(memset[0])
+                    val = memset[1]
+                    size = memset[2]
+
+                    # convert address from registers #
+                    try:
+                        addr = self.readArgs()[addr]
+                    except:
+                        pass
+
+                    # get address #
+                    if UtilMgr.isNumber(addr):
+                        try:
+                            addr = long(addr, 16)
+                        except:
+                            addr = long(addr)
+                    else:
+                        SysMgr.printErr(\
+                            "Wrong addr value %s" % addr)
+                        sys.exit(0)
+
+                    # set register values #
+                    ret = self.writeMem(addr, val, size)
+                    if ret == -1:
+                        SysMgr.printErr(\
+                            "Fail to write '%s' to %s" % (val, addr))
+                        sys.exit(0)
+
                 elif capCmd.startswith('JUMP'):
                     if len(cmdset) == 1:
                         continue
@@ -30855,6 +30906,7 @@ struct msghdr {
                     self.writeArgs(argList)
                     self.setRegs()
                     self.updateRegs()
+
                 elif capCmd.startswith('SLEEP'):
                     if len(cmdset) == 1:
                         val = 1
@@ -30862,11 +30914,14 @@ struct msghdr {
                         val = float(cmdset[1])
 
                     time.sleep(val)
+
                 elif capCmd == 'STOP':
                     signal.pause()
+
                 elif capCmd == 'KILL':
                     self.kill()
                     sys.exit(0)
+
                 else:
                     raise Exception("No command supported")
             except SystemExit:
