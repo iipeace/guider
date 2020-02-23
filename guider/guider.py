@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200222"
+__revision__ = "200223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3359,6 +3359,23 @@ class UtilMgr(object):
             if isinstance(value, unicode):
                 return True
         return False
+
+
+
+    @staticmethod
+    def isFloat(value):
+        if type(value) is float:
+            return True
+        elif type(value) is str:
+            try:
+                float(value)
+                return True
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return False
+        else:
+            return False
 
 
 
@@ -13848,6 +13865,57 @@ Examples:
         # {0:1} {1:1} guider*.out worstcase.out
                 '''.format(cmd, mode)
 
+                brkExamStr = '''
+Examples:
+    - Handle all function calls for a specific thread
+        # {0:1} {1:1} -g 1234
+
+    - Handle all function calls for a specific command
+        # {0:1} {1:1} -I "ls"
+
+    - Handle printPeace function calls with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -H
+
+    - Handle printPeace function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c printPeace
+
+    - Handle printPeace function calls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g a.out -c printPeace -R 2s
+
+    - Handle specific  function calls for a specific thread and save summary tables, call history to ./guider.out
+        # {0:1} {1:1} -g a.out -c printPeace -o . -a
+
+    - Handle specific function calls including specific word for a specific thread
+        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
+
+    - Handle all function calls in specific files for a specific thread
+        # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
+
+    - Handle specific function calls including specific word for a specific thread and stop the thread
+        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
+
+    - Handle all function calls with sleep for 0.1 seconds for a specific thread
+        # {0:1} {1:1} -g a.out -c \\|sleep:0.1
+
+    - Handle write function calls with sleep for 0.1 seconds only one time for a specific thread
+        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:0.1
+
+    - Handle write function calls for a specific thread and kill the thread
+        # {0:1} {1:1} -g a.out -c write\\|kill
+
+    - Handle write function calls for a specific thread and return a specific value
+        # {0:1} {1:1} -g a.out -c write\\|ret:3
+
+    - Handle write function calls for a specific thread and modify the 1st argument
+        # {0:1} {1:1} -g a.out -c write\\|setarg:2
+
+    - Handle write function calls for a specific thread and jump to the specific address with register values
+        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
+
+    - Handle all function calls for a specific thread and execute specific commands
+        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
+                '''.format(cmd, mode)
+
                 # function record #
                 if SysMgr.isFuncRecordMode():
                     helpStr = '''
@@ -14336,54 +14404,10 @@ Description:
                         '''.format(cmd, mode)
 
                     examStr = '''
-Examples:
-    - Monitor all function calls for a specific thread
-        # {0:1} {1:1} -g 1234
-
-    - Monitor all function calls for a specific command
-        # {0:1} {1:1} -I "ls"
-
-    - Monitor printPeace function calls for a specific thread
-        # {0:1} {1:1} -g 1234 -c printPeace
-
-    - Monitor all function calls in specific files for a specific thread
-        # {0:1} {1:1} -g 1234 -c -T /usr/bin/yes
-
-    - Monitor specific function calls including specific word for a specific thread
-        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
-
-    - Monitor specific function calls including specific word for a specific thread and stop the thread
-        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
-
-    - Monitor all function calls with sleep for 0.1 seconds for a specific thread
-        # {0:1} {1:1} -g a.out -c \\|sleep:0.1
-
-    - Monitor write function calls with sleep for 0.1 seconds only one time for a specific thread
-        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:0.1
-
-    - Monitor write function calls for a specific thread and kill the thread
-        # {0:1} {1:1} -g a.out -c write\\|kill
-
-    - Monitor write function calls for a specific thread and modify the 1st argument
-        # {0:1} {1:1} -g a.out -c write\\|setarg:2
-
-    - Monitor write function calls for a specific thread and jump to the specific address with register values
-        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
-
-    - Monitor all function calls for a specific thread and execute specific commands
-        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
-
-    - Monitor printPeace function calls with backtrace for a specific thread
-        # {0:1} {1:1} -g a.out -H
-
-    - Monitor printPeace function calls for a specific thread and save summary to ./guider.out
-        # {0:1} {1:1} -g 1234 -c printPeace -o . -a
-
-    - Monitor printPeace function calls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g 1234 -c printPeace -R 2s
+    {0:1}
 
     See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
+                    '''.format(brkExamStr)
 
                     helpStr += topCommonStr + examStr
 
@@ -14766,56 +14790,7 @@ OPTIONS:
         -v                          verbose
                     '''
 
-                    helpStr +=  '''
-Examples:
-    - Trace all function calls for a specific thread
-        # {0:1} {1:1} -g 1234
-
-    - Trace all function calls for a specific command
-        # {0:1} {1:1} -I "ls"
-
-    - Trace printPeace function calls for a specific thread
-        # {0:1} {1:1} -g 1234 -c printPeace
-
-    - Trace all function calls in specific files for a specific thread
-        # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
-
-    - Trace specific function calls including specific word for a specific thread
-        # {0:1} {1:1} -g a.out -c \\*printPeace\\*
-
-    - Trace specific function calls including specific word for a specific thread and stop the thread
-        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
-
-    - Trace all function calls with sleep for 3 seconds for a specific thread
-        # {0:1} {1:1} -g a.out -c \\|sleep:3
-
-    - Trace write function calls with sleep for 3 seconds only one time for a specific thread
-        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:3
-
-    - Trace write function calls for a specific thread and kill the thread
-        # {0:1} {1:1} -g a.out -c write\\|kill
-
-    - Trace write function calls for a specific thread and modify the 1st argument
-        # {0:1} {1:1} -g a.out -c write\\|setarg:2
-
-    - Trace write function calls for a specific thread and jump to the specific address with register values
-        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
-
-    - Trace all function calls for a specific thread and execute specific commands
-        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
-
-    - Trace printPeace function calls with argument values for a specific thread
-        # {0:1} {1:1} -g a.out -c printPeace -a
-
-    - Trace printPeace function calls with backtrace for a specific thread
-        # {0:1} {1:1} -g a.out -c printPeace -H 10
-
-    - Trace printPeace function calls for a specific thread and save summary tables, call history to ./guider.out
-        # {0:1} {1:1} -g a.out -c printPeace -o . -a
-
-    - Trace printPeace function calls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g a.out -c printPeace -R 2s
-                    '''.format(cmd, mode)
+                    helpStr +=  brkExamStr
 
                 # sigtrace #
                 elif SysMgr.isSigtraceMode():
@@ -30794,6 +30769,37 @@ struct msghdr {
 
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
+                elif capCmd.startswith('RET'):
+                    if len(cmdset) == 1:
+                        continue
+
+                    # get return value #
+                    try:
+                        ret = cmdset[1]
+                        ret = long(ret)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "Wrong return value %s" % ret)
+                        sys.exit(0)
+
+                    # get return address #
+                    wordSize = ConfigMgr.wordSize
+                    if self.lr:
+                        targetAddr = self.lr
+                    else:
+                        targetAddr = self.fp + wordSize
+                    if targetAddr % wordSize == 0:
+                        retaddr = self.accessMem(self.peekIdx, targetAddr)
+                    else:
+                        retaddr = self.readMem(targetAddr, retWord=True)
+
+                    # set register values #
+                    self.setRetVal(ret)
+                    self.setPC(retaddr)
+                    self.setRegs()
+                    self.updateRegs()
                 elif capCmd.startswith('SETARG'):
                     if len(cmdset) == 1:
                         continue
@@ -30808,6 +30814,7 @@ struct msghdr {
                         except:
                             argList[idx] = ''
 
+                    # set register values #
                     self.writeArgs(argList)
                     self.setRegs()
                     self.updateRegs()
@@ -30843,7 +30850,7 @@ struct msghdr {
                             sys.exit(0)
                         addr = ret[0][0]
 
-                    # modify IP #
+                    # set register values #
                     self.setPC(addr)
                     self.writeArgs(argList)
                     self.setRegs()
@@ -32300,6 +32307,21 @@ struct msghdr {
             SysMgr.doPrint(newline=False, clear=True)
 
         SysMgr.clearPrint()
+
+
+
+    def setRetVal(self, val, temp=False):
+        try:
+            if temp:
+                ret = setattr(self.tempRegs, self.retreg, val)
+            else:
+                ret = setattr(self.regs, self.retreg, val)
+
+            return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return False
 
 
 
