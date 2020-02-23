@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200223"
+__revision__ = "200224"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30625,16 +30625,21 @@ struct msghdr {
         arch = self.arch
         regs = self.regs
 
-        if arch == 'x64':
-            return (regs.rdi, regs.rsi, regs.rdx, regs.r10, regs.r8, regs.r9)
+        if arch == 'aarch64':
+            return (regs.r0, regs.r1, regs.r2,\
+                    regs.r3, regs.r4, regs.r5, regs.r6, regs.r7)
+        elif arch == 'x64':
+            return (regs.rdi, regs.rsi, regs.rdx,\
+                    regs.r10, regs.r8, regs.r9)
         elif arch == 'arm':
-            return (regs.r0, regs.r1, regs.r2, regs.r3, regs.r4, regs.r5, regs.r6)
-        elif arch == 'aarch64':
-            return (regs.r0, regs.r1, regs.r2, regs.r3, regs.r4, regs.r5, regs.r6, regs.r7)
+            return (regs.r0, regs.r1, regs.r2,\
+                    regs.r3, regs.r4, regs.r5, regs.r6)
         elif arch == 'x86':
-            return (regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi, regs.ebp)
+            return (regs.ebx, regs.ecx, regs.edx,\
+                    regs.esi, regs.edi, regs.ebp)
         elif arch == 'powerpc':
-            return (regs.gpr3, regs.gpr4, regs.gpr5, regs.gpr6, regs.gpr7, regs.gpr8)
+            return (regs.gpr3, regs.gpr4, regs.gpr5,\
+                    regs.gpr6, regs.gpr7, regs.gpr8)
         else:
             return None
 
@@ -30652,7 +30657,24 @@ struct msghdr {
                 val == '':
                 continue
 
-            if arch == 'x64':
+            if arch == 'aarch64':
+                if idx == 0:
+                    self.regs.r0 = val
+                elif idx == 1:
+                    self.regs.r1 = val
+                elif idx == 2:
+                    self.regs.r2 = val
+                elif idx == 3:
+                    self.regs.r3 = val
+                elif idx == 4:
+                    self.regs.r4 = val
+                elif idx == 5:
+                    self.regs.r5 = val
+                elif idx == 6:
+                    self.regs.r6 = val
+                elif idx == 7:
+                    self.regs.r7 = val
+            elif arch == 'x64':
                 if idx == 0:
                     self.regs.rdi = val
                 elif idx == 1:
@@ -30680,23 +30702,6 @@ struct msghdr {
                     self.regs.r5 = val
                 elif idx == 6:
                     self.regs.r6 = val
-            elif arch == 'aarch64':
-                if idx == 0:
-                    self.regs.r0 = val
-                elif idx == 1:
-                    self.regs.r1 = val
-                elif idx == 2:
-                    self.regs.r2 = val
-                elif idx == 3:
-                    self.regs.r3 = val
-                elif idx == 4:
-                    self.regs.r4 = val
-                elif idx == 5:
-                    self.regs.r5 = val
-                elif idx == 6:
-                    self.regs.r6 = val
-                elif idx == 7:
-                    self.regs.r7 = val
             elif arch == 'x86':
                 if idx == 0:
                     self.regs.ebx = val
