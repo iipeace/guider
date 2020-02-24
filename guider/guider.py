@@ -13547,6 +13547,16 @@ class SysMgr(object):
 
 
     @staticmethod
+    def onAlarm(signum, frame):
+        SysMgr.progressCnt += 1
+        if SysMgr.repeatCount <= SysMgr.progressCnt:
+            sys.exit(0)
+
+        SysMgr.updateTimer()
+
+
+
+    @staticmethod
     def checkProgress():
         if not SysMgr.countEnable:
             return
@@ -15494,6 +15504,7 @@ Description:
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
+        -R  <TIME>                  set timer
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15504,6 +15515,9 @@ Examples:
 
     - Create threads using 250% totally
         # {0:1} {1:1} 250
+
+    - Create threads using 250% totally and terminate them after 3 seconds
+        # {0:1} {1:1} 250 -R 3
                     '''.format(cmd, mode)
 
                 # memtest #
@@ -15517,6 +15531,7 @@ Description:
 
 OPTIONS:
         -E  <DIR>                   set cache dir path
+        -R  <TIME>                  set timer
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15530,6 +15545,9 @@ Examples:
 
     - Allocate physical memory 100MB twoice using 2 processes
         # {0:1} {1:1} 100M:0:2
+
+    - Allocate physical memory 100MB twoice using 2 processes and terminate them after 3 seconds
+        # {0:1} {1:1} 100M:0:2 -R 3
                     '''.format(cmd, mode)
 
                 # list #
@@ -24417,14 +24435,15 @@ Copyright:
             "and %d%% respectively") % \
                 (taskstr, totalLoad, load))
 
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
+
         # ignore SIGCHLD #
         signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
         # limit CPU usage of tasks #
         SysMgr.doLimitCpu(limitInfo, verbose=False)
-
-        # terminate tasks #
-        SysMgr.terminateTasks(list(limitInfo.keys()))
 
 
 
@@ -24501,6 +24520,10 @@ Copyright:
         rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
         rssSize = long(mlist[rssIdx]) << 12
 
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
+
         pidList = list()
         if count > 0:
             for idx in xrange(0, count):
@@ -24550,9 +24573,6 @@ Copyright:
         # wait for childs #
         if len(pidList) > 0:
             SysMgr.waitEvent()
-
-        # terminate tasks #
-        SysMgr.terminateTasks(pidList)
 
 
 
