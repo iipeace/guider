@@ -13919,6 +13919,9 @@ Examples:
     - Handle write function calls for a specific thread and modify specific memory value from 1st argument value
         # {0:1} {1:1} -g a.out -c write\\|setmem:0:aaaa:4
 
+    - Handle printf function calls for a specific thread and print 10-length string that 1st argument point to
+        # {0:1} {1:1} -g a.out -c printf\\|setmem:0:10
+
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
 
@@ -30777,6 +30780,8 @@ struct msghdr {
                 cmdformat = "R0:R1"
             elif cmd == 'setmem':
                 cmdformat = "ADDR|REG:VAL:SIZE"
+            elif cmd == 'getmem':
+                cmdformat = "ADDR|REG:SIZE"
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
 
@@ -30904,6 +30909,44 @@ struct msghdr {
                         SysMgr.printErr(\
                             "Fail to write '%s' to %s" % (val, addr))
                         sys.exit(0)
+
+                elif cmd == 'getmem':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get argument info #
+                    memset = cmdset[1].split(':')
+                    if len(memset) != 2:
+                        printCmdErr(cmdval, cmd)
+
+                    addr = long(memset[0])
+                    size = long(memset[1])
+
+                    # convert address from registers #
+                    try:
+                        addr = self.readArgs()[addr]
+                    except:
+                        pass
+
+                    # get address #
+                    if UtilMgr.isNumber(addr):
+                        try:
+                            addr = long(addr, 16)
+                        except:
+                            addr = long(addr)
+                    else:
+                        SysMgr.printErr(\
+                            "Wrong addr value %s" % addr)
+                        sys.exit(0)
+
+                    # set register values #
+                    ret = self.readMem(addr, size)
+                    if ret == -1:
+                        SysMgr.printErr(\
+                            "Fail to write '%s' to %s" % (val, addr))
+                        sys.exit(0)
+
+                    SysMgr.printPipe("(%x) -> %s" % (addr, [ret]))
 
                 elif cmd == 'jump':
                     if len(cmdset) == 1:
