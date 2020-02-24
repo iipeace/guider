@@ -13912,8 +13912,8 @@ Examples:
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
 
-    - Handle write function calls for a specific thread and modify the 1st argument
-        # {0:1} {1:1} -g a.out -c write\\|setarg:2
+    - Handle write function calls for a specific thread and modify the 1st and 2nd arguments
+        # {0:1} {1:1} -g a.out -c write\\|setarg:2:5
 
     - Handle write function calls for a specific thread and jump to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
@@ -19075,10 +19075,9 @@ Copyright:
             return True
         elif not SysMgr.printFile and \
             not SysMgr.jsonOutputEnable and \
+            not SysMgr.printStreamEnable and \
             SysMgr.bufferRows + newline >= \
-                SysMgr.ttyRows - SysMgr.ttyRowsMargin and \
-            not SysMgr.printFile and \
-            not SysMgr.printStreamEnable:
+                SysMgr.ttyRows - SysMgr.ttyRowsMargin:
             SysMgr.terminalOver = True
             SysMgr.addPrint('---more---', force=True)
             return True
@@ -30749,10 +30748,28 @@ struct msghdr {
 
 
     def executeCmd(self, cmdList):
+        def printCmdErr(cmdset, cmd):
+            if cmd == 'exec':
+                cmdformat = "COMMAND"
+            elif cmd == 'ret':
+                cmdformat = "VAL"
+            elif cmd == 'setarg':
+                cmdformat = "R0:R1"
+            elif cmd == 'setmem':
+                cmdformat = "ADDR|REG:VAL:SIZE"
+            elif cmd == 'jump':
+                cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
+
+            SysMgr.printErr(\
+                "Wrong command '%s', input in the format {%s:%s}" % \
+                    (cmdset, cmd, cmdformat))
+            sys.exit(0)
+
         if type(cmdList) is not list:
             return cmdList
 
         newCmdList = list()
+
         for cmdval in cmdList:
             # parse cmd set #
             repeat = True
@@ -30760,7 +30777,7 @@ struct msghdr {
             cmd = cmdset[0]
 
             # check repeat #
-            if cmd.upper() == 'ONESHOT':
+            if cmd == 'oneshot':
                 repeat = False
                 if len(cmdset) == 1:
                     continue
@@ -30773,19 +30790,16 @@ struct msghdr {
                 if SysMgr.showAll:
                     self.printContext()
 
-                # convert command to capital #
-                capCmd = cmd.upper()
-
-                if capCmd.startswith('EXEC'):
+                if cmd == 'exec':
                     if len(cmdset) == 1:
-                        continue
+                        printCmdErr(cmdval, cmd)
 
                     param = cmdset[1].split()
                     self.execBgCmd(execCmd=param, mute=False)
 
-                elif capCmd.startswith('RET'):
+                elif cmd == 'ret':
                     if len(cmdset) == 1:
-                        continue
+                        printCmdErr(cmdval, cmd)
 
                     # get return value #
                     try:
@@ -30804,23 +30818,23 @@ struct msghdr {
                         targetAddr = self.lr
                     else:
                         targetAddr = self.fp + wordSize
-                    if targetAddr % wordSize == 0:
-                        retaddr = self.accessMem(self.peekIdx, targetAddr)
-                    else:
-                        retaddr = self.readMem(targetAddr, retWord=True)
+                        if targetAddr % wordSize == 0:
+                            targetAddr = self.accessMem(self.peekIdx, targetAddr)
+                        else:
+                            targetAddr = self.readMem(targetAddr, retWord=True)
 
                     # set register values #
                     self.setRetVal(ret)
-                    self.setPC(retaddr)
+                    self.setPC(targetAddr)
                     self.setRegs()
                     self.updateRegs()
 
-                elif capCmd.startswith('SETARG'):
+                elif cmd == 'setarg':
                     if len(cmdset) == 1:
-                        continue
+                        printCmdErr(cmdval, cmd)
 
                     # get argument info #
-                    argList = cmdset[1].split('#')
+                    argList = cmdset[1].split(':')
                     for idx, item in enumerate(list(argList)):
                         try:
                             argList[idx] = long(item)
@@ -30834,17 +30848,14 @@ struct msghdr {
                     self.setRegs()
                     self.updateRegs()
 
-                elif capCmd.startswith('SETMEM'):
+                elif cmd == 'setmem':
                     if len(cmdset) == 1:
-                        continue
+                        printCmdErr(cmdval, cmd)
 
                     # get argument info #
                     memset = cmdset[1].split(':')
                     if len(memset) != 3:
-                        SysMgr.printErr((\
-                            "Wrong value %s, "
-                            "input in the format {addr:val:size}") % cmdset[1])
-                        sys.exit(0)
+                        printCmdErr(cmdval, cmd)
 
                     addr = long(memset[0])
                     val = memset[1]
@@ -30874,9 +30885,9 @@ struct msghdr {
                             "Fail to write '%s' to %s" % (val, addr))
                         sys.exit(0)
 
-                elif capCmd.startswith('JUMP'):
+                elif cmd == 'jump':
                     if len(cmdset) == 1:
-                        continue
+                        printCmdErr(cmdval, cmd)
 
                     # get function info #
                     func = cmdset[1].split('#')
@@ -30912,7 +30923,7 @@ struct msghdr {
                     self.setRegs()
                     self.updateRegs()
 
-                elif capCmd.startswith('SLEEP'):
+                elif cmd == 'sleep':
                     if len(cmdset) == 1:
                         val = 1
                     else:
@@ -30920,10 +30931,10 @@ struct msghdr {
 
                     time.sleep(val)
 
-                elif capCmd == 'STOP':
+                elif cmd == 'stop':
                     signal.pause()
 
-                elif capCmd == 'KILL':
+                elif cmd == 'kill':
                     self.kill()
                     sys.exit(0)
 
@@ -32304,9 +32315,6 @@ struct msghdr {
         except:
             taskInfo = '??(%s)' % self.pid
 
-        origStreamStat = SysMgr.printStreamEnable
-        SysMgr.printStreamEnable = False
-
         isPrinted = False
 
         # print register #
@@ -32358,8 +32366,6 @@ struct msghdr {
                             (hex(item[0]), item[1], item[2]))
 
                 SysMgr.addPrint('%s\n' % twoLine)
-
-        SysMgr.printStreamEnable = origStreamStat
 
         if SysMgr.printFile:
             self.callPrint.append(SysMgr.bufferString)
@@ -32887,14 +32893,15 @@ struct msghdr {
             else:
                 SysMgr.printPipe(callString)
 
+            # check command #
+            cmd = self.breakpointList[addr]['cmd']
+            if cmd:
+                self.breakpointList[addr]['cmd'] = \
+                    self.executeCmd(cmd)
+
             # print backtrace #
             if not self.isRealtime and SysMgr.funcDepth > 0:
                 self.printContext(regs=False)
-
-            # check command #
-            if self.breakpointList[addr]['cmd']:
-                self.breakpointList[addr]['cmd'] = \
-                    self.executeCmd(self.breakpointList[addr]['cmd'])
 
         # apply register set to rewind IP #
         if self.pc == origPC:
