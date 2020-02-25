@@ -23905,7 +23905,9 @@ Copyright:
                     signal.SIGSTOP, pidList, verbose=False)
 
                 for pid in pidList:
-                    breakpointList.setdefault(pid, dict())
+                    targetBpList.setdefault(pid, dict())
+                    targetBpFileList.setdefault(pid, dict())
+                    bpList.setdefault(pid, dict())
 
                     # create object #
                     procObj = Debugger(pid=pid, execCmd=execCmd)
@@ -23914,10 +23916,15 @@ Copyright:
 
                     # load common ELF cache files #
                     if procObj.loadSymbols():
-                        procObj.updateBreakpointList()
+                        procObj.updatebpList()
 
                     # save per-process breakpoint info #
-                    breakpointList[pid] = copy.deepcopy(procObj.breakpointList)
+                    targetBpList[pid] = \
+                        copy.deepcopy(procObj.targetBpList)
+                    targetBpFileList[pid] = \
+                        copy.deepcopy(procObj.targetBpFileList)
+                    bpList[pid] = \
+                        copy.deepcopy(procObj.bpList)
 
                     procObj.detach()
                     del procObj
@@ -23938,7 +23945,9 @@ Copyright:
         execCmd = None
         lockObj = None
         procList = {}
-        breakpointList = {}
+        targetBpList = {}
+        targetBpFileList = {}
+        bpList = {}
 
         # check input #
         if len(SysMgr.filterGroup) == 0 and \
@@ -24084,16 +24093,26 @@ Copyright:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
+                ppid = long(SysMgr.getTgid(pid))
+
                 # set per-process convert breakpoint list #
                 try:
-                    ppid = long(SysMgr.getTgid(pid))
-                    breakpointList = breakpointList[ppid]
+                    bpList = bpList[ppid]
                 except:
-                    breakpointList = {}
+                    bpList = {}
+                try:
+                    targetBpList = targetBpList[ppid]
+                except:
+                    targetBpList = {}
+                try:
+                    targetBpFileList = targetBpFileList[ppid]
+                except:
+                    targetBpFileList = {}
 
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait, \
-                        breakpointList=breakpointList, multi=multi, lock=lockObj)
+                    trace(mode='break', wait=wait, bpList=bpList, \
+                        multi=multi, lock=lockObj, targetBpList=targetBpList, \
+                        targetBpFileList=targetBpFileList)
             elif mode == 'signal':
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='signal', wait=wait, multi=multi)
@@ -30462,12 +30481,12 @@ class Debugger(object):
         self.totalCall = long(0)
         self.callTable = {}
         self.fileTable = {}
-        self.brkList = {}
-        self.brkFileList = {}
-        self.breakpointList = {}
+        self.targetBpList = {}
+        self.targetBpFileList = {}
+        self.bpList = {}
         self.libcLoaded = False
-        self.defaultBrkFileList = {}
-        self.defaultBrkList = {'mmap': 0, 'mmap64': 0}
+        self.defaulttargetBpFileList = {}
+        self.defaulttargetBpList = {'mmap': 0, 'mmap64': 0}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -31191,8 +31210,8 @@ struct msghdr {
 
 
     def removeBreakpoint(self, addr):
-        if addr in self.breakpointList:
-            savedData = self.breakpointList[addr]['data']
+        if addr in self.bpList:
+            savedData = self.bpList[addr]['data']
         else:
             SysMgr.printWarn(\
                 'No breakpoint with addr %s' % addr)
@@ -31204,9 +31223,9 @@ struct msghdr {
             self.writeMem(addr, savedData, skipCheck=True)
 
         # change breakpoint status #
-        self.breakpointList[addr]['set'] = False
+        self.bpList[addr]['set'] = False
 
-        data = self.breakpointList[addr]
+        data = self.bpList[addr]
         symbol = data['symbol']
         filename = data['filename']
         reins = data['reins']
@@ -31220,7 +31239,7 @@ struct msghdr {
 
 
 
-    def injectBreakpointList(self, symlist, binlist=None, verb=True):
+    def injectbpList(self, symlist, binlist=None, verb=True):
         if len(symlist) == 0:
             symlist.append('**')
         else:
@@ -31236,8 +31255,8 @@ struct msghdr {
         cmdList = []
 
         # add default breakpoints such as mmap symbols #
-        for lib in (self.defaultBrkFileList.keys()):
-            for dsym in list(self.defaultBrkList.keys()):
+        for lib in (self.defaulttargetBpFileList.keys()):
+            for dsym in list(self.defaulttargetBpList.keys()):
                 ret = self.getAddrBySymbol(dsym, binary=lib)
                 if not ret:
                     continue
@@ -31278,7 +31297,7 @@ struct msghdr {
                     value, binary=binlist, similar=similar)
                 if not ret:
                     if value == '' or \
-                        value in self.defaultBrkList:
+                        value in self.defaulttargetBpList:
                         continue
 
                     SysMgr.printErr(\
@@ -31326,18 +31345,18 @@ struct msghdr {
     def injectBreakpoint(\
         self, addr, sym=None, fname=None, size=1, reins=False, cmd=None):
         # get original instruction #
-        if addr in self.breakpointList:
-            if self.breakpointList[addr]['set']:
+        if addr in self.bpList:
+            if self.bpList[addr]['set']:
                 SysMgr.printWarn((\
                     'Fail to inject breakpoint to %s for %s thread '
                     'because it is already injected by myself') % \
                         (hex(addr), self.pid))
                 return False
             else:
-                origWord = self.breakpointList[addr]['data']
-                if self.breakpointList[addr]['reins'] != reins:
-                    self.breakpointList[addr]['reins'] = reins
-                self.breakpointList[addr]['set'] = True
+                origWord = self.bpList[addr]['data']
+                if self.bpList[addr]['reins'] != reins:
+                    self.bpList[addr]['reins'] = reins
+                self.bpList[addr]['set'] = True
         # a new breakpoint #
         else:
             # read data #
@@ -31348,7 +31367,7 @@ struct msghdr {
                 origWord = UtilMgr.convertWord2Bstr(origWord)
 
             # backup data #
-            self.breakpointList[addr] = {
+            self.bpList[addr] = {
                 'data': origWord,
                 'symbol': sym,
                 'reins': reins,
@@ -31362,9 +31381,9 @@ struct msghdr {
 
         # check instructions whether it is already injected #
         if origWord.startswith(inst):
-            if addr in self.breakpointList and \
-                self.breakpointList[addr]['data'] != inst:
-                origWord = self.breakpointList[addr]['data']
+            if addr in self.bpList and \
+                self.bpList[addr]['data'] != inst:
+                origWord = self.bpList[addr]['data']
             else:
                 SysMgr.printWarn((\
                     'Fail to inject breakpoint to %s for %s thread '
@@ -31745,22 +31764,22 @@ struct msghdr {
 
 
 
-    def updateBreakpointList(self, verb=True):
+    def updatebpList(self, verb=True):
         # update file list #
         fileList = SysMgr.getOption('T')
         if fileList:
             fileList = list(set(fileList.split(',')))
-            self.brkFileList.update(dict.fromkeys(fileList, 0))
+            self.targetBpFileList.update(dict.fromkeys(fileList, 0))
 
         # update symbol list #
         if SysMgr.customCmd is None:
             funcFilter = []
         else:
             funcFilter = list(set(SysMgr.customCmd))
-            self.brkList.update(dict.fromkeys(funcFilter, 0))
+            self.targetBpList.update(dict.fromkeys(funcFilter, 0))
 
         # add per-process breakpoints #
-        self.injectBreakpointList(\
+        self.injectbpList(\
             symlist=funcFilter, binlist=fileList, verb=verb)
 
 
@@ -32371,9 +32390,9 @@ struct msghdr {
         for fpath in list(self.pmap.keys()):
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
-                self.defaultBrkFileList[fpath] = 0
+                self.defaulttargetBpFileList[fpath] = 0
             if fname.startswith('libc-'):
-                self.defaultBrkFileList[fpath] = 0
+                self.defaulttargetBpFileList[fpath] = 0
 
         # load file-mapped objects #
         for mfile in list(self.pmap.keys()):
@@ -33003,21 +33022,21 @@ struct msghdr {
         addr = self.pc - self.prevInstOffset
 
         # get breakpoint addr #
-        if addr not in self.breakpointList:
+        if addr not in self.bpList:
             SysMgr.printErr(\
                 "Fail to get address %s in breakpoint list of %s thread" % \
                     (hex(addr), self.pid))
             sys.exit(0)
 
         # pick breakpoint info #
-        sym = self.breakpointList[addr]['symbol']
-        fname = self.breakpointList[addr]['filename']
+        sym = self.bpList[addr]['symbol']
+        fname = self.bpList[addr]['filename']
 
         # update memory map and load new objects #
         if self.needMapScan or \
             (not self.libcLoaded and sym.startswith('__libc_')):
             if self.loadSymbols():
-                self.updateBreakpointList(verb=False)
+                self.updatebpList(verb=False)
             self.needMapScan = False
 
         # check memory map calls #
@@ -33027,8 +33046,8 @@ struct msghdr {
 
         # print context info #
         if printStat and \
-            (len(self.brkList) == 0 or sym in self.brkList) and \
-            (len(self.brkFileList) == 0 or fname in self.brkFileList):
+            (len(self.targetBpList) == 0 or sym in self.targetBpList) and \
+            (len(self.targetBpFileList) == 0 or fname in self.targetBpFileList):
             # build arguments string #
             if SysMgr.showAll:
                 # read args #
@@ -33089,9 +33108,9 @@ struct msghdr {
                 SysMgr.printPipe(callString)
 
             # check command #
-            cmd = self.breakpointList[addr]['cmd']
+            cmd = self.bpList[addr]['cmd']
             if cmd:
-                self.breakpointList[addr]['cmd'] = \
+                self.bpList[addr]['cmd'] = \
                     self.executeCmd(cmd)
 
             # print backtrace #
@@ -34076,7 +34095,7 @@ struct msghdr {
                         if self.mode == 'break':
                             # load symbols again #
                             if self.loadSymbols():
-                                self.updateBreakpointList()
+                                self.updatebpList()
 
                             if self.cont(check=True) < 0:
                                 sys.exit(0)
@@ -34199,7 +34218,8 @@ struct msghdr {
 
     def trace(\
         self, mode='syscall', wait=None, \
-            multi=False, lock=None, breakpointList={}):
+            multi=False, lock=None, bpList={}, \
+            targetBpList={}, targetBpFileList={}):
 
         # index variables #
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
@@ -34216,6 +34236,10 @@ struct msghdr {
 
         # initialize variables #
         self.initValues()
+
+        # apply common breakpoint list #
+        self.targetBpList = targetBpList
+        self.targetBpFileList = targetBpFileList
 
         # context variables #
         self.cmd = None
@@ -34340,7 +34364,7 @@ struct msghdr {
         elif self.mode == 'break':
             if self.isRunning:
                 # register breakpoint data #
-                self.breakpointList = breakpointList
+                self.bpList = bpList
 
                 # check thread status #
                 stat = self.getStatList(status=True)
@@ -34388,7 +34412,7 @@ struct msghdr {
 
         # remove breakpoints #
         if not instance.isAlive() or \
-            len(instance.breakpointList) == 0:
+            len(instance.bpList) == 0:
             instance.__del__()
             return
 
@@ -34411,7 +34435,7 @@ struct msghdr {
             addr = instance.pc - instance.prevInstOffset
 
             # apply register set to rewind IP #
-            if addr in instance.breakpointList:
+            if addr in instance.bpList:
                 instance.setPC(addr)
                 instance.setRegs()
 
@@ -34427,13 +34451,13 @@ struct msghdr {
 
                 SysMgr.printStat(\
                     r"start removing %s breakpoints from %s(%s) process..." % \
-                        (UtilMgr.convertNumber(len(instance.breakpointList)), \
+                        (UtilMgr.convertNumber(len(instance.bpList)), \
                             SysMgr.getComm(tgid), tgid))
 
                 # remove all breakpoints #
-                brkList = list(instance.breakpointList.keys())
-                for idx, addr in enumerate(brkList):
-                    UtilMgr.printProgress(idx, len(brkList))
+                targetBpList = list(instance.bpList.keys())
+                for idx, addr in enumerate(targetBpList):
+                    UtilMgr.printProgress(idx, len(targetBpList))
                     instance.removeBreakpoint(addr)
                 UtilMgr.deleteProgress()
 
@@ -35207,7 +35231,7 @@ class MemoryFile(object):
         ret = memmove(ptr, self.addr, size)
         if ret < 0:
             SysMgr.printErr(\
-                "Fail to copy memory from %s" % addr)
+                "Fail to copy memory from %s" % self.addr)
         else:
             self.size = size
 
