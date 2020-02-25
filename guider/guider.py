@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200224"
+__revision__ = "200225"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17898,6 +17898,9 @@ Copyright:
         # enable signal again #
         signal.signal(signum, SysMgr.stopHandler)
 
+        if not "ISMAIN" in os.environ:
+            sys.exit(0)
+
         raise Exception()
 
 
@@ -22730,6 +22733,125 @@ Copyright:
             SysMgr.printErr(\
                 "Fail to execute '%s' because %s" % (' '.join(cmd), err))
             return -1
+
+
+
+    @staticmethod
+    def initEnvironment():
+        # save original args #
+        SysMgr.origArgs = copy.deepcopy(sys.argv)
+
+        # register exit handler #
+        atexit.register(SysMgr.doExit)
+
+        # print logo #
+        SysMgr.printLogo(big=True, pager=False)
+
+        # check environment #
+        SysMgr.checkEnv()
+
+        # print help #
+        SysMgr.printHelp()
+
+        # set default io #
+        SysMgr.inputFile = sys.argv[1]
+        SysMgr.outputFile = None
+
+        # check log level #
+        SysMgr.warnEnable = SysMgr.findOption('v')
+
+        # set error logger #
+        SysMgr.setErrorLogger()
+
+        # import Guider native module #
+        SysMgr.importNative()
+
+        # set comm #
+        SysMgr.setComm(__module__)
+
+        # set oom_adj #
+        SysMgr.setOOMAdj()
+
+        # set pid #
+        SysMgr.getMaxPid()
+        SysMgr.pid = os.getpid()
+
+        # set arch #
+        SysMgr.setArch(SysMgr.getArch())
+
+        # set default signal #
+        SysMgr.setSimpleSignal()
+
+        # shrink heap #
+        SysMgr.shrinkHeap()
+
+
+
+    @staticmethod
+    def getOutput(fd, line=False):
+        # get select object #
+        selectObj = SysMgr.getPkg('select')
+
+        output = ''
+
+        while 1:
+            # wait for event #
+            [read, write, error] = \
+                selectObj.select([fd], [], [])
+
+            if read:
+                line = read[0].readline()
+                if line == '':
+                    return output
+
+                output = '%s%s' % (output, line)
+
+
+
+    @staticmethod
+    def launchGuider(cmd, log=False, changeIO=True, stderr=False):
+        # create pipe #
+        rd, wr = os.pipe()
+
+        # set SIGPIPE handler #
+        SysMgr.setPipeHandler()
+
+        pid = SysMgr.createProcess()
+
+        # parent #
+        if pid > 0:
+            os.close(wr)
+            return (pid, os.fdopen(rd))
+
+        # child #
+        elif pid == 0:
+            # disable pager #
+            SysMgr.printStreamEnable = True
+
+            # disable logs #
+            if not log:
+                SysMgr.logEnable = False
+                SysMgr.encodeEnable = False
+
+            # change standard I/O #
+            if changeIO:
+                os.dup2(wr,1)
+                os.close(wr)
+                os.close(rd)
+
+            # close stderr #
+            if not stderr:
+                sys.stderr.close()
+
+            # launch Guider command #
+            main(cmd)
+
+            sys.exit(0)
+
+        # error #
+        else:
+            SysMgr.printErr(\
+                "Fail to launch Guider because of process creation fail")
 
 
 
@@ -53930,55 +54052,8 @@ def main(args=None):
     if UtilMgr.isString(args):
         sys.argv = ['guider'] + args.split()
 
-    # set main environment #
-    os.environ["ISMAIN"] = "True"
-
-    # save original args #
-    SysMgr.origArgs = copy.deepcopy(sys.argv)
-
-    # register exit handler #
-    atexit.register(SysMgr.doExit)
-
-    # print logo #
-    SysMgr.printLogo(big=True, pager=False)
-
-    # check environment #
-    SysMgr.checkEnv()
-
-    # print help #
-    SysMgr.printHelp()
-
-    # set default io #
-    SysMgr.inputFile = sys.argv[1]
-    SysMgr.outputFile = None
-
-    # check log level #
-    SysMgr.warnEnable = SysMgr.findOption('v')
-
-    # set error logger #
-    SysMgr.setErrorLogger()
-
-    # import Guider native module #
-    SysMgr.importNative()
-
-    # set comm #
-    SysMgr.setComm(__module__)
-
-    # set oom_adj #
-    SysMgr.setOOMAdj()
-
-    # set pid #
-    SysMgr.getMaxPid()
-    SysMgr.pid = os.getpid()
-
-    # set arch #
-    SysMgr.setArch(SysMgr.getArch())
-
-    # set default signal #
-    SysMgr.setSimpleSignal()
-
-    # shrink heap #
-    SysMgr.shrinkHeap()
+    # initialize envirnoment #
+    SysMgr.initEnvironment()
 
     # check commands #
     if not SysMgr.isRecordMode():
@@ -54078,4 +54153,7 @@ oneLine = "-" * SysMgr.lineLength
 twoLine = "=" * SysMgr.lineLength
 
 if __name__ == '__main__':
-    main()
+    # set main environment #
+    os.environ["ISMAIN"] = "True"
+
+    main(args=None)
