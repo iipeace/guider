@@ -3221,6 +3221,16 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def parseInputString(string):
+        string = string.replace('\,', '$%')
+        clist = string.split(',')
+        for idx, item in enumerate(list(clist)):
+            clist[idx] = item.replace('$%', ',')
+        return clist
+
+
+
+    @staticmethod
     def printSyscalls(systable):
         bufstring = ''
         for idx, syscall in enumerate(systable):
@@ -13889,6 +13899,9 @@ Examples:
     - Handle printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
 
+    - Handle printPeace function calls for a specific thread
+        # {0:1} {1:1} -g 1234 -c -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
+
     - Handle printPeace function calls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
@@ -15198,6 +15211,9 @@ Examples:
 
     - Print infomation of specific symbols including specific word in a file
         # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc\\*
+
+    - Print infomation of specific symbols including specific word in a file
+        # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
     - Print infomation of specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
@@ -19888,14 +19904,12 @@ Copyright:
                     SysMgr.taskEnable = False
 
             elif option == 'c':
-                SysMgr.customCmd = str(value).split(',')
-                SysMgr.customCmd = \
-                    SysMgr.clearList(SysMgr.customCmd)
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.customCmd = SysMgr.clearList(itemList)
 
             elif option == 'g':
-                SysMgr.filterGroup = value.split(',')
-                SysMgr.filterGroup = \
-                    SysMgr.clearList(SysMgr.filterGroup)
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.filterGroup = SysMgr.clearList(itemList)
 
             elif option == 'A':
                 SysMgr.archOption = value
@@ -20340,9 +20354,8 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'g':
-                SysMgr.filterGroup = value.split(',')
-                SysMgr.filterGroup = \
-                    SysMgr.clearList(SysMgr.filterGroup)
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.filterGroup = SysMgr.clearList(itemList)
                 if len(SysMgr.filterGroup) == 0:
                     SysMgr.printErr(\
                         "Input value for filter with -g option")
@@ -20385,15 +20398,13 @@ Copyright:
 
             elif option == 'U':
                 SysMgr.ueventEnable = True
-                SysMgr.userCmd = str(value).split(',')
-                SysMgr.userCmd = \
-                    SysMgr.clearList(SysMgr.userCmd)
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.userCmd = SysMgr.clearList(itemList)
 
             elif option == 'K':
                 SysMgr.keventEnable = True
-                SysMgr.kernelCmd = str(value).split(',')
-                SysMgr.kernelCmd = \
-                    SysMgr.clearList(SysMgr.kernelCmd)
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.kernelCmd = SysMgr.clearList(itemList)
 
             elif option == 'M':
                 SysMgr.objdumpPath = value
@@ -20476,10 +20487,9 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'c':
-                SysMgr.customCmd = str(value).split(',')
-                SysMgr.customCmd = \
-                    SysMgr.clearList(SysMgr.customCmd)
-                if SysMgr.customCmd == []:
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.customCmd = SysMgr.clearList(itemList)
+                if len(SysMgr.customCmd) == 0:
                     SysMgr.printErr(\
                         "Fail to recognize custom events")
                     sys.exit(0)
