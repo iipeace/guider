@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200225"
+__revision__ = "200226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15034,14 +15034,15 @@ Description:
 
 OPTIONS:
         -g  <TID|COMM>              set filter
+        -R  <TIME>                  set timer
         -u                          run in the background
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Pause specific running threads
-        # {0:1} {1:1} -g 1234
+    - Pause specific running threads for 3 seconds
+        # {0:1} {1:1} -g 1234 -R 3
                     '''.format(cmd, mode)
 
                 # readelf #
@@ -15377,7 +15378,8 @@ Description:
     Limit cpu usage of threads / processes
 
 OPTIONS:
-        -g  <TID>                   set filter
+        -g  <TID|COMM>              set filter
+        -R  <TIME>                  set timer
         -P                          group threads in same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
@@ -15385,8 +15387,8 @@ OPTIONS:
 
                     helpStr +=  '''
 Examples:
-    - Limit cpu usage of specific threads
-        # {0:1} {1:1} -g 1234:10, 1235:20
+    - Limit cpu usage of specific threads for 3 seconds
+        # {0:1} {1:1} -g 1234:10, yes:20 -R 3
                     '''.format(cmd, mode)
 
                 # setcpu #
@@ -22721,7 +22723,14 @@ Copyright:
         try:
             for item in limitInfo:
                 (tid,per) = item.split(':')
-                limitList[tid] = long(per)
+
+                # get id for tasks #
+                if tid.isdigit():
+                    limitList[tid] = long(per)
+                else:
+                    tidList = SysMgr.getPids(tid, isThread=True)
+                    for tid in tidList:
+                        limitList[tid] = long(per)
         except:
             SysMgr.printErr(\
                 "Fail to get task info to limit cpu, "
@@ -24829,6 +24838,10 @@ Copyright:
                     SysMgr.printErr(\
                         "Fail to get stats of %s thread" % task)
                     return
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
 
         try:
             while 1:
@@ -34756,6 +34769,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             SysMgr.printErr(\
                 "Fail to recognize tids, use -g option")
             return
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
 
         dlist = []
         lastTid = long(0)
