@@ -24102,7 +24102,8 @@ Copyright:
                     Debugger(pid=pid, execCmd=execCmd).\
                         trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
-                ppid = long(SysMgr.getTgid(pid))
+                if pid:
+                    ppid = long(SysMgr.getTgid(pid))
 
                 # set per-process convert breakpoint list #
                 try:
