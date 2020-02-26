@@ -23914,6 +23914,11 @@ Copyright:
                     signal.SIGSTOP, pidList, verbose=False)
 
                 for pid in pidList:
+                    # register signal sender for resume #
+                    SysMgr.addExitFunc(\
+                        SysMgr.sendSignalProcs, \
+                        [signal.SIGCONT, [pid], False, False])
+
                     targetBpList.setdefault(pid, dict())
                     targetBpFileList.setdefault(pid, dict())
                     bpList.setdefault(pid, dict())
@@ -23925,7 +23930,7 @@ Copyright:
 
                     # load common ELF cache files #
                     if procObj.loadSymbols():
-                        procObj.updatebpList()
+                        procObj.updateBpList()
 
                     # save per-process breakpoint info #
                     targetBpList[pid] = \
@@ -23937,6 +23942,11 @@ Copyright:
 
                     procObj.detach()
                     del procObj
+
+                    # remove signal sender #
+                    SysMgr.removeExitFunc(\
+                        SysMgr.sendSignalProcs, \
+                        [signal.SIGCONT, [pid], False, False])
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -26093,6 +26103,18 @@ Copyright:
 
 
     @staticmethod
+    def removeExitFunc(func, args=None):
+        newList = list()
+        for handler in SysMgr.exitFuncList:
+            if handler[0] == func and \
+                handler[1] == args:
+                continue
+            newList.append(handler)
+        SysMgr.exitFuncList = newList
+
+
+
+    @staticmethod
     def addExitFunc(func, args=None):
         SysMgr.exitFuncList.append([func, args])
 
@@ -26106,7 +26128,7 @@ Copyright:
         # call functions registered #
         for func, args in SysMgr.exitFuncList:
             try:
-                func(args)
+                func(*args)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -30475,6 +30497,7 @@ class Debugger(object):
         self.status = 'enter'
         self.runStatus = False
         self.attached = attach
+        self.execCmd = execCmd
         self.arch = arch = SysMgr.getArch()
         self.skipInst = 5
         self.syscall = ''
@@ -30500,7 +30523,7 @@ class Debugger(object):
         self.bpList = {}
         self.libcLoaded = False
         self.defaulttargetBpFileList = {}
-        self.defaulttargetBpList = {'mmap': 0, 'mmap64': 0}
+        self.defaultTargetBpList = {'mmap': 0, 'mmap64': 0}
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -30733,8 +30756,8 @@ struct msghdr {
                 if ret < 0:
                     sys.exit(0)
         # execute #
-        elif execCmd:
-            self.execute(execCmd)
+        elif self.execCmd:
+            self.execute(self.execCmd)
             self.isRunning = False
         # ready #
         else:
@@ -31253,7 +31276,7 @@ struct msghdr {
 
 
 
-    def injectbpList(self, symlist, binlist=None, verb=True):
+    def injectBpList(self, symlist, binlist=None, verb=True):
         if len(symlist) == 0:
             symlist.append('**')
         else:
@@ -31270,7 +31293,7 @@ struct msghdr {
 
         # add default breakpoints such as mmap symbols #
         for lib in (self.defaulttargetBpFileList.keys()):
-            for dsym in list(self.defaulttargetBpList.keys()):
+            for dsym in list(self.defaultTargetBpList.keys()):
                 ret = self.getAddrBySymbol(dsym, binary=lib)
                 if not ret:
                     continue
@@ -31310,8 +31333,9 @@ struct msghdr {
                 ret = self.getAddrBySymbol(\
                     value, binary=binlist, similar=similar)
                 if not ret:
-                    if value == '' or \
-                        value in self.defaulttargetBpList:
+                    if self.execCmd or \
+                        value == '' or \
+                        value in self.defaultTargetBpList:
                         continue
 
                     SysMgr.printErr(\
@@ -31778,7 +31802,7 @@ struct msghdr {
 
 
 
-    def updatebpList(self, verb=True):
+    def updateBpList(self, verb=True):
         # update file list #
         fileList = SysMgr.getOption('T')
         if fileList:
@@ -31793,7 +31817,7 @@ struct msghdr {
             self.targetBpList.update(dict.fromkeys(funcFilter, 0))
 
         # add per-process breakpoints #
-        self.injectbpList(\
+        self.injectBpList(\
             symlist=funcFilter, binlist=fileList, verb=verb)
 
 
@@ -33050,7 +33074,7 @@ struct msghdr {
         if self.needMapScan or \
             (not self.libcLoaded and sym.startswith('__libc_')):
             if self.loadSymbols():
-                self.updatebpList(verb=False)
+                self.updateBpList(verb=False)
             self.needMapScan = False
 
         # check memory map calls #
@@ -34109,7 +34133,7 @@ struct msghdr {
                         if self.mode == 'break':
                             # load symbols again #
                             if self.loadSymbols():
-                                self.updatebpList()
+                                self.updateBpList()
 
                             if self.cont(check=True) < 0:
                                 sys.exit(0)
@@ -34271,7 +34295,7 @@ struct msghdr {
         SysMgr.encodeEnable = False
 
         # register my instance #
-        SysMgr.addExitFunc(Debugger.destroyDebugger, self)
+        SysMgr.addExitFunc(Debugger.destroyDebugger, [self])
 
         # check realtime mode #
         if SysMgr.isTopMode():
@@ -34397,7 +34421,7 @@ struct msghdr {
             sys.exit(0)
 
         # register summary function #
-        SysMgr.addExitFunc(Debugger.printSummary, self)
+        SysMgr.addExitFunc(Debugger.printSummary, [self])
 
         # update time #
         self.last = time.time()
