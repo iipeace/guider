@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200227"
+__revision__ = "200228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33095,6 +33095,68 @@ struct msghdr {
 
 
 
+    def addStat(self, sym):
+        # apply stat #
+        try:
+            prev, ttotal, tmin, tmax = self.breakcallTimeStat[sym]
+
+            tdiff = self.current - prev
+
+            ttotal += tdiff
+
+            if tmax < tdiff:
+                tmax = tdiff
+
+            if tmin == 0 or \
+                tmin > tdiff:
+                tmin = tdiff
+
+            self.breakcallTimeStat[sym] = \
+                [self.current, ttotal, tmin, tmax]
+        except:
+            self.breakcallTimeStat[sym] = \
+                [self.current, 0, 0, 0]
+
+
+
+    def printBacktraceTree(self, diffstr, tinfo):
+        backtrace = self.getBacktrace()
+        depth = len(backtrace)
+        diffindent = ' ' * len(diffstr)
+        tinfoindent = ' ' * len(tinfo)
+
+        commonPos = -1
+        if len(self.targetBpList) == 0:
+            for item in reversed(self.prevStack):
+                try:
+                    if item == backtrace[commonPos]:
+                        commonPos -= 1
+                        continue
+                    break
+                except:
+                    break
+
+        if commonPos == -1:
+            commonPos = 0
+            stack = backtrace
+        else:
+            commonPos += 1
+            stack = backtrace[:commonPos]
+
+        self.prevStack = backtrace
+
+        btString = ''
+        for sidx, item in enumerate(reversed(stack)):
+            btString += '\n%s %s%s%s/%s [%s]' % \
+                (diffindent, tinfoindent, \
+                    (sidx-(commonPos)) * '  ', \
+                    item[1], hex(item[0]), item[2])
+        SysMgr.printPipe(btString, newline=False)
+
+        return depth
+
+
+
     def handleBreakpoint(self, printStat=False, checkArg=None):
         # get register set of target #
         if not self.updateRegs():
@@ -33152,9 +33214,7 @@ struct msghdr {
             else:
                 tinfo = ''
 
-            callString = '\n%3.6f %s%s/%s%s [%s]' % \
-                (diff, tinfo, sym, hex(addr), argstr, fname)
-
+            # top mode #
             if self.isRealtime:
                 if SysMgr.funcDepth > 0:
                     backtrace = self.getBacktrace(cur=True)
@@ -33164,44 +33224,41 @@ struct msghdr {
                 self.addSample(\
                     sym, fname, realtime=True, bt=backtrace)
 
-                # apply stat #
-                try:
-                    prev, ttotal, tmin, tmax = self.breakcallTimeStat[sym]
-
-                    tdiff = self.current - prev
-
-                    ttotal += tdiff
-
-                    if tmax < tdiff:
-                        tmax = tdiff
-
-                    if tmin == 0 or \
-                        tmin > tdiff:
-                        tmin = tdiff
-
-                    self.breakcallTimeStat[sym] = \
-                        [self.current, ttotal, tmin, tmax]
-                except:
-                    self.breakcallTimeStat[sym] = \
-                        [self.current, 0, 0, 0]
-
-            elif SysMgr.printFile:
-                self.addSample(sym, fname)
-
-                if SysMgr.showAll:
-                    self.callPrint.append(callString)
+                self.addStat(sym)
             else:
-                SysMgr.printPipe(callString)
+                diffstr = '%3.6f' % diff
+
+                # build backtrace string #
+                if SysMgr.funcDepth > 0:
+                    depth = self.printBacktraceTree(diffstr, tinfo)
+                    indent = '  ' * depth
+                else:
+                    indent = ''
+
+                # build current symbol string #
+                callString = '\n%s %s%s%s/%s%s [%s]' % \
+                    (diffstr, tinfo, indent, sym, hex(addr), argstr, fname)
+
+                # trace mode with file #
+                if SysMgr.printFile:
+                    self.addSample(sym, fname)
+
+                    if SysMgr.showAll:
+                        self.callPrint.append(callString)
+                # trace mode with console #
+                else:
+                    # print backtrace #
+                    if SysMgr.funcDepth > 0:
+                        pass
+
+                    # print string #
+                    SysMgr.printPipe(callString, newline=False)
 
             # check command #
             cmd = self.bpList[addr]['cmd']
             if cmd:
                 self.bpList[addr]['cmd'] = \
                     self.executeCmd(cmd)
-
-            # print backtrace #
-            if not self.isRealtime and SysMgr.funcDepth > 0:
-                self.printContext(regs=False)
 
         # apply register set to rewind IP #
         if self.pc == origPC:
@@ -34097,6 +34154,8 @@ struct msghdr {
 
         # call variables #
         self.prevCallString = ''
+        self.stack = list()
+        self.prevStack = list()
         self.getRegsCost = long(0)
         self.childList = list()
         self.callList = list()
