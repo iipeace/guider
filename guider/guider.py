@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200226"
+__revision__ = "200227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3179,6 +3179,7 @@ class ConfigMgr(object):
 class UtilMgr(object):
     """ Manager for utilities """
 
+    progressCnt = 0
     progressChar = {
             0: '|',
             1: '/',
@@ -3782,27 +3783,39 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def printProgress(current, dest):
+    def printProgress(current=0, dest=0):
         if not SysMgr.printEnable or \
             dest == sys.maxsize:
             return
 
-        try:
-            div = round((current / float(dest)) * 100, 1)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            div = long(0)
+        # just output #
+        if not current and not dest:
+            if UtilMgr.progressCnt >= len(UtilMgr.progressChar)-1:
+                UtilMgr.progressCnt = 0
+            else:
+                UtilMgr.progressCnt += 1
 
-        percent = long(div)
+            mod = UtilMgr.progressCnt
 
-        if div != percent:
-            return
+            sys.stdout.write('.... %s%s' % \
+                (UtilMgr.progressChar[mod], '\b' * 6))
+        else:
+            try:
+                div = round((current / float(dest)) * 100, 1)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                div = long(0)
 
-        mod = percent & 3
+            percent = long(div)
 
-        sys.stdout.write('%3d%% %s%s' % \
-            (percent, UtilMgr.progressChar[mod], '\b' * 6))
+            if div != percent:
+                return
+
+            mod = percent & 3
+
+            sys.stdout.write('%3d%% %s%s' % \
+                (percent, UtilMgr.progressChar[mod], '\b' * 6))
 
         # handle reentrant call exception #
         try:
@@ -19489,6 +19502,9 @@ Copyright:
 
     @staticmethod
     def parseOption(option=None):
+        if not "ISMAIN" in os.environ:
+            return
+
         if not option and SysMgr.optionList:
             return
 
@@ -19531,6 +19547,9 @@ Copyright:
 
     @staticmethod
     def findOption(option):
+        if not "ISMAIN" in os.environ:
+            return
+
         if len(sys.argv) <= 2 and not SysMgr.optionList:
             return False
 
@@ -19548,6 +19567,9 @@ Copyright:
 
     @staticmethod
     def getOption(option):
+        if not "ISMAIN" in os.environ:
+            return
+
         if len(sys.argv) <= 2 and not SysMgr.optionList:
             return None
 
@@ -19736,6 +19758,9 @@ Copyright:
 
     @staticmethod
     def parseAnalOption(option=None):
+        if not "ISMAIN" in os.environ:
+            return
+
         # check call history #
         if not option and SysMgr.parsedAnalOption:
             return
@@ -20258,6 +20283,9 @@ Copyright:
 
     @staticmethod
     def parseRecordOption():
+        if not "ISMAIN" in os.environ:
+            return
+
         if len(sys.argv) <= 2:
             return
 
@@ -22807,7 +22835,7 @@ Copyright:
 
 
     @staticmethod
-    def getOutput(fd, line=False):
+    def getOutput(fd, line=False, progress=False):
         # get select object #
         selectObj = SysMgr.getPkg('select')
 
@@ -22817,6 +22845,9 @@ Copyright:
             # wait for event #
             [read, write, error] = \
                 selectObj.select([fd], [], [])
+
+            if progress:
+                UtilMgr.printProgress()
 
             if read:
                 line = read[0].readline()
@@ -22844,8 +22875,12 @@ Copyright:
 
         # child #
         elif pid == 0:
+            # set main environment #
+            os.environ["ISMAIN"] = "True"
+
             # disable pager #
             SysMgr.printStreamEnable = True
+            SysMgr.printFile = SysMgr.fileForPrint = None
 
             # disable logs #
             if not log:
@@ -24069,8 +24104,7 @@ Copyright:
                             break
 
                 # disable printing to file #
-                SysMgr.printFile = \
-                    SysMgr.fileForPrint = None
+                SysMgr.printFile = SysMgr.fileForPrint = None
 
                 # broadcast termination signal to childs #
                 SysMgr.killChilds(\
@@ -26141,6 +26175,21 @@ Copyright:
 
         # release all resources #
         SysMgr.releaseResource()
+
+
+
+    @staticmethod
+    def getFileList(path, incFile=True, incDir=False):
+        flist = list()
+	for r, d, f in os.walk(path):
+            if incFile:
+                for sfile in f:
+                    flist.append(os.path.join(r, sfile))
+            if incDir:
+                for sdir in d:
+                    flist.append(os.path.join(r, sdir))
+
+        return flist
 
 
 
@@ -29694,8 +29743,7 @@ class DbusAnalyzer(object):
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
                 SysMgr.intervalEnable = long(0)
-                SysMgr.printFile = \
-                    SysMgr.fileForPrint = None
+                SysMgr.printFile = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonOutputEnable = True
