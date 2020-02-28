@@ -12452,6 +12452,14 @@ class SysMgr(object):
 
         # report #
         elif SysMgr.isReportTopMode():
+            if SysMgr.isRoot():
+                SysMgr.diskEnable = True
+                SysMgr.networkEnable = True
+            else:
+                SysMgr.printWarn(\
+                    "Fail to get disk and network start "
+                    "because no root permission")
+
             if SysMgr.checkReportTopCond():
                 SysMgr.printEnable = False
             else:
@@ -12862,7 +12870,7 @@ class SysMgr(object):
                 if retList:
                     return res.split("\x00")
                 else:
-                    return res.replace("\x00", " ")
+                    return res.replace("\x00", " ").strip()
         except SystemExit:
             sys.exit(0)
         except:
@@ -13397,7 +13405,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def waitEvent(ignChldSig=True):
+    def waitEvent(ignChldSig=True, exit=False):
         # ignore SIGCHLD #
         if ignChldSig:
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -13405,6 +13413,11 @@ class SysMgr(object):
         # pause task #
         try:
             signal.pause()
+        except SystemExit:
+            if exit:
+                sys.exit(0)
+            else:
+                pass
         except:
             pass
 
@@ -13693,6 +13706,7 @@ class SysMgr(object):
                 'getafnt': 'Affinity',
                 'setafnt': 'Affinity',
                 'pstree': 'Process',
+                'systat': 'Status',
                 'printenv': 'Env',
                 'printinfo': 'System',
                 'readelf': 'File',
@@ -13782,6 +13796,7 @@ Usage:
         -i  <SEC>                   set interval
         -R  <INTERVAL:TIME:TERM>    set repeat count
         -Q                          print all rows in a stream
+        -J                          print in JSON format
         -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
@@ -15378,6 +15393,29 @@ OPTIONS:
                     helpStr +=  '''
 Examples:
     - Print tree of processes
+        # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
+                # systat #
+                elif SysMgr.isSystatMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Print system status
+
+OPTIONS:
+        -E  <DIR>                   set cache dir path
+        -e  <CHARACTER>             enable options
+              t:thread
+        -J                          print in JSON format
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print system status
         # {0:1} {1:1}
                     '''.format(cmd, mode)
 
@@ -20950,6 +20988,18 @@ Copyright:
 
 
     @staticmethod
+    def isSystatMode():
+        if len(sys.argv) == 1:
+            return False
+
+        if sys.argv[1] == 'systat':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isLimitCpuMode():
         if len(sys.argv) == 1:
             return False
@@ -21484,9 +21534,13 @@ Copyright:
                 SysMgr.doLimitCpu(\
                     limitInfo, SysMgr.processEnable)
 
-        # PRINTPROC MODE #
+        # PSTREE MODE #
         elif SysMgr.isPstreeMode():
             SysMgr.doPstree()
+
+        # PS MODE #
+        elif SysMgr.isSystatMode():
+            SysMgr.doSystat()
 
         # CPUTEST MODE #
         elif SysMgr.isCpuTestMode():
@@ -24793,6 +24847,51 @@ Copyright:
         obj.saveSystemStat()
 
         ThreadAnalyzer.printProcTree(obj.procData)
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doSystat(isProcess=True):
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        origJsonFlag = SysMgr.jsonOutputEnable
+        SysMgr.jsonOutputEnable = True
+
+        # enable default attributes #
+        SysMgr.showAll = True
+        SysMgr.memEnable = True
+        SysMgr.cgroupEnable = True
+        SysMgr.cmdlineEnable = True
+
+        if SysMgr.isRoot():
+            SysMgr.diskEnable = True
+            SysMgr.networkEnable = True
+        else:
+            SysMgr.printWarn(\
+                "Fail to get disk and network start "
+                "because no root permission")
+
+        # initialize system stat #
+        SysMgr()
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveSystemStat()
+
+        # save system stat #
+        obj.reinitStats()
+        obj.saveSystemStat()
+
+        # process system stat #
+        obj.printSystemUsage()
+        obj.printProcUsage()
+
+        # print stat #
+        if origJsonFlag:
+            SysMgr.printPipe(\
+                str(UtilMgr.convertDict2Str(SysMgr.jsonData)))
+        else:
+            pass
 
         sys.exit(0)
 
@@ -49562,7 +49661,7 @@ class ThreadAnalyzer(object):
 
         SysMgr.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
-            format("PROCESS", "ID", "Pid", "Nr", "Pri", "FD", "PATH", oneLine),\
+            format("Process", "ID", "Pid", "Nr", "Pri", "FD", "Path", oneLine),\
             newline = 3)
 
         # set sort value #
@@ -51950,14 +52049,14 @@ class ThreadAnalyzer(object):
 
 
 
-    def getMemDetails(self, idx, maps, mems):
+    def getMemDetails(self, idx, maps):
         rss = long(0)
         sss = long(0)
         pss = long(0)
         memBuf = []
 
         if not maps:
-            return [], mems
+            return [], 0, 0, 0
 
         convertFunc = UtilMgr.convertSize2Unit
 
@@ -52077,16 +52176,15 @@ class ThreadAnalyzer(object):
                     self.procData[idx]['wss'][key] = '[%7s]' % wss
 
         # update pss #
-        if SysMgr.pssEnable:
-            mems = pss >> 2
+        pss = pss >> 2
+
         # update uss #
-        elif SysMgr.ussEnable:
-            mems = (rss - sss) >> 2
+        uss = (rss - sss) >> 2
 
         if not SysMgr.memEnable:
             memBuf = []
 
-        return memBuf, mems
+        return memBuf, rss, pss, uss
 
 
 
@@ -52860,15 +52958,21 @@ class ThreadAnalyzer(object):
             else:
                 pid = value['mainID']
 
+            # get task status #
+            tstat = stat[self.statIdx]
+
+            # get code size #
             codeSize = (long(stat[self.ecodeIdx]) - \
                 long(stat[self.scodeIdx])) >> 20
 
+            # get sched #
             SCHED_POLICY = ConfigMgr.SCHED_POLICY
             if SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
                 schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
             else:
                 schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
 
+            # get lifetime #
             lifeTime = UtilMgr.convertTime(value['runtime'])
 
             # save status info to get memory status #
@@ -53025,9 +53129,9 @@ class ThreadAnalyzer(object):
                     etc = '-'
 
             try:
-                mems = long(stat[self.rssIdx])
+                mems = rss = long(stat[self.rssIdx])
             except:
-                mems = long(0)
+                mems = rss = long(0)
 
             try:
                 sched = \
@@ -53041,13 +53145,20 @@ class ThreadAnalyzer(object):
                 vss = long(0)
 
             # get memory details #
-            memBuf, mems = self.getMemDetails(idx, value['maps'], mems)
-            mems = mems >> 8
+            memBuf, nrss, pss, uss = self.getMemDetails(idx, value['maps'])
+
+            if SysMgr.pssEnable:
+                mems = pss >> 8
+            elif SysMgr.ussEnable:
+                mems = uss >> 8
+            else:
+                mems = rss = rss >> 8
 
             # add JSON stats #
             if SysMgr.jsonOutputEnable:
                 jsonData[idx] = {
                     'comm': comm,
+                    'stat': tstat,
                     pidType: idx,
                     ppidType: pid,
                     'nrThreads': stat[self.nrthreadIdx],
@@ -53055,7 +53166,8 @@ class ThreadAnalyzer(object):
                     'ttime': value['ttime'],
                     'utime': value['utime'],
                     'stime': value['stime'],
-                    'vss': long(stat[self.vssIdx]) >> 20,
+                    'vss': vss,
+                    'rss': rss,
                     'mem': mems,
                     'code': codeSize,
                     'shared': shr,
@@ -53063,25 +53175,41 @@ class ThreadAnalyzer(object):
                     'nrFlt': value['majflt'],
                     'fd': value['fdsize'],
                     'life': lifeTime.strip(),
+                    'dtime': long(0),
+                    'swap': long(0),
+                    'bread': long(0),
+                    'bwrite': long(0),
                 }
 
                 try:
                     jsonData[idx]['dtime'] = long(dtime)
                 except:
-                    jsonData[idx]['dtime'] = long(0)
-
+                    pass
 
                 try:
                     jsonData[idx]['swap'] = long(swapSize)
                 except:
-                    jsonData[idx]['swap'] = long(0)
+                    pass
+
+                try:
+                    jsonData[idx]['cgroup'] = value['cgroup']
+                except:
+                    pass
+
+                try:
+                    jsonData[idx]['cmdline'] = value['cmdline']
+                except:
+                    pass
 
                 try:
                     jsonData[idx]['bread'] = long(readSize)
                     jsonData[idx]['bwrite'] = long(writeSize)
                 except:
-                    jsonData[idx]['bread'] = long(0)
-                    jsonData[idx]['bwrite'] = long(0)
+                    pass
+
+                if SysMgr.memEnable:
+                    jsonData[idx]['pss'] = pss
+                    jsonData[idx]['uss'] = uss
 
             # remove unshown field in lifetime #
             if len(lifeTime.split(':')) > 3:
@@ -53860,10 +53988,13 @@ class ThreadAnalyzer(object):
 
         # add storage status #
         if 'storage' in self.reportData:
-            if rb['storage']['total'] <= \
-                self.reportData['storage']['total']['usageper']:
-                self.reportData['event']['STORAGE_FULL'] = \
-                    self.reportData['storage']
+            try:
+                if rb['storage']['total'] <= \
+                    self.reportData['storage']['total']['usageper']:
+                    self.reportData['event']['STORAGE_FULL'] = \
+                        self.reportData['storage']
+            except:
+                pass
 
         # add system status #
         if 'system' in self.reportData:
