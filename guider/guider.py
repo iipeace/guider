@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200228"
+__revision__ = "200229"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4742,13 +4742,14 @@ class NetworkMgr(object):
     def setRemoteNetwork(service, ip, port):
         # set default service #
         if not service:
-            service = 'REPORT_ALWAYS'
+            service = 'PRINT'
+
+        errMsg = ("wrong value for remote server, "
+            "input in the format [%s]@IP:PORT") % \
+                '|'.join(ThreadAnalyzer.requestType)
 
         if not ip or not SysMgr.isEffectiveRequest(service):
-            SysMgr.printErr((\
-                "wrong option value with -N option, "
-                "input in the format [%s]@IP:PORT") % \
-                    '|'.join(ThreadAnalyzer.requestType))
+            SysMgr.printErr(errMsg)
             sys.exit(0)
 
         if not port:
@@ -4768,10 +4769,7 @@ class NetworkMgr(object):
                 SysMgr.reportEnable = True
                 SysMgr.addrListForReport[naddr] = networkObject
             else:
-                SysMgr.printErr((\
-                    "wrong option value with -N option, "
-                    "input in the format [%s]@IP:PORT") % \
-                        '|'.join(ThreadAnalyzer.requestType))
+                SysMgr.printErr(errMsg)
 
         SysMgr.printInfo(\
             "use %s:%d as remote address to request %s" % \
@@ -19193,6 +19191,21 @@ Copyright:
         if SysMgr.dltEnable:
             DltAnalyzer.doLogDlt(msg=line)
 
+        # print to socket #
+        if len(SysMgr.addrListForPrint) > 0:
+            addrListForPrint = dict(SysMgr.addrListForPrint)
+            for addr, cli in addrListForPrint.items():
+                if cli.status == 'SENT' and cli.ignore > 1:
+                    SysMgr.printInfo(\
+                        "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
+                    del SysMgr.addrListForPrint[addr]
+                else:
+                    ret = cli.send(line)
+                    if not ret:
+                        del SysMgr.addrListForPrint[addr]
+                    else:
+                        cli.ignore += 1
+
         if not SysMgr.printEnable:
             return
 
@@ -19337,7 +19350,7 @@ Copyright:
                 SysMgr.printOpenErr(SysMgr.inputFile)
                 sys.exit(0)
 
-        # file output #
+        # print to file #
         if SysMgr.fileForPrint:
             try:
                 if SysMgr.isTopMode():
@@ -19353,7 +19366,7 @@ Copyright:
                 err = SysMgr.getErrReason()
                 SysMgr.printErr(\
                     "Fail to write to file because %s" % err)
-        # console output #
+        # print to console #
         else:
             ttyCols = SysMgr.ttyCols
 
@@ -20262,9 +20275,11 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
-                service, ip, port = NetworkMgr.parseAddr(value)
-
-                NetworkMgr.setRemoteNetwork(service, ip, port)
+                networkList = value.split(',')
+                networkList = SysMgr.clearList(networkList)
+                for item in networkList:
+                    service, ip, port = NetworkMgr.parseAddr(item)
+                    NetworkMgr.setRemoteNetwork(service, ip, port)
 
             elif option == 'j':
                 if not SysMgr.checkReportTopCond(value):
@@ -53673,9 +53688,6 @@ class ThreadAnalyzer(object):
         else:
             # realtime mode #
             if not SysMgr.printFile:
-                if not SysMgr.printStreamEnable:
-                    SysMgr.clearScreen()
-
                 SysMgr.printPipe(data)
             # buffered mode #
             else:
@@ -54340,21 +54352,7 @@ class ThreadAnalyzer(object):
         # print process stat #
         self.printProcUsage()
 
-        # send packet to remote server #
-        if len(SysMgr.addrListForPrint) > 0:
-            addrListForPrint = dict(SysMgr.addrListForPrint)
-            for addr, cli in addrListForPrint.items():
-                if cli.status == 'SENT' and cli.ignore > 1:
-                    SysMgr.printInfo(\
-                        "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
-                    del SysMgr.addrListForPrint[addr]
-                else:
-                    ret = cli.send(SysMgr.bufferString)
-                    if not ret:
-                        del SysMgr.addrListForPrint[addr]
-                    else:
-                        cli.ignore += 1
-
+        # flush stats #
         SysMgr.printTopStats()
 
 
