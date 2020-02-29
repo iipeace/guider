@@ -19199,11 +19199,24 @@ Copyright:
                         "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
                     del SysMgr.addrListForPrint[addr]
                 else:
-                    ret = cli.send(line)
-                    if not ret:
-                        del SysMgr.addrListForPrint[addr]
-                    else:
-                        cli.ignore += 1
+                    udpSeg = 65507
+                    start = 0
+                    end = udpSeg
+                    while 1:
+                        ret = cli.send(line[start:end])
+                        if not ret:
+                            del SysMgr.addrListForPrint[addr]
+                            break
+                        else:
+                            cli.ignore += 1
+
+                        if end >= len(line):
+                            break
+
+                        start = end
+                        end += udpSeg
+
+                        time.sleep(0.01)
 
         if not SysMgr.printEnable:
             return
@@ -53573,7 +53586,7 @@ class ThreadAnalyzer(object):
         elif type(reportStat) is dict:
             reportStat = UtilMgr.convertDict2Str(reportStat)
 
-        SysMgr.printPipe(reportStat)
+        SysMgr.printPipe(reportStat, newline=False, flush=True)
 
         return
 
@@ -53696,7 +53709,7 @@ class ThreadAnalyzer(object):
         else:
             # realtime mode #
             if not SysMgr.printFile:
-                SysMgr.printPipe(data)
+                SysMgr.printPipe(data, newline=False, flush=True)
             # buffered mode #
             else:
                 SysMgr.addProcBuffer(data)
