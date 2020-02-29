@@ -4685,40 +4685,39 @@ class NetworkMgr(object):
             return
 
         # request mode #
-        else:
-            service, ip, port = NetworkMgr.parseAddr(value)
+        service, ip, port = NetworkMgr.parseAddr(value)
 
-            # set PRINT as default #
-            if not service:
-                service = 'PRINT'
+        # set PRINT as default #
+        if not service:
+            service = 'PRINT'
 
-            if not ip:
-                ip = NetworkMgr.getPublicIp()
+        if not ip:
+            ip = NetworkMgr.getPublicIp()
 
-            if not port:
-                port = SysMgr.defaultPort
+        if not port:
+            port = SysMgr.defaultPort
 
-            # check server addresses #
-            if SysMgr.localServObj and \
-                SysMgr.localServObj.ip == ip and \
-                SysMgr.localServObj.port == port:
-                SysMgr.printErr((\
-                    "wrong option value with -X, "
-                    "local address and remote address are same "
-                    "with %s:%s") % (ip, port))
-                sys.exit(0)
+        # check server addresses #
+        if SysMgr.localServObj and \
+            SysMgr.localServObj.ip == ip and \
+            SysMgr.localServObj.port == port:
+            SysMgr.printErr((\
+                "wrong option value with -X, "
+                "local address and remote address are same "
+                "with %s:%s") % (ip, port))
+            sys.exit(0)
 
-            if not ip or not port or \
-                not SysMgr.isEffectiveRequest(service):
-                reqList = ''
-                for req in ThreadAnalyzer.requestType:
-                    reqList += req + '|'
+        if not ip or not port or \
+            not SysMgr.isEffectiveRequest(service):
+            reqList = ''
+            for req in ThreadAnalyzer.requestType:
+                reqList += req + '|'
 
-                SysMgr.printErr(\
-                    ("wrong option value with -X, "
-                    "input [%s]@IP:PORT as remote address") % \
-                        reqList[:-1])
-                sys.exit(0)
+            SysMgr.printErr(\
+                ("wrong option value with -X, "
+                "input [%s]@IP:PORT as remote address") % \
+                    reqList[:-1])
+            sys.exit(0)
 
         # create a socket #
         networkObject = NetworkMgr('client', ip, port, tcp=tcp)
@@ -19187,7 +19186,7 @@ Copyright:
 
 
     @staticmethod
-    def printPipe(line='', newline=True, flush=False):
+    def printPipe(line='', newline=True, flush=False, pager=True):
         if SysMgr.dltEnable:
             DltAnalyzer.doLogDlt(msg=line)
 
@@ -19216,7 +19215,8 @@ Copyright:
             retstr = ''
 
         # pager initialization #
-        if (SysMgr.pipeForPrint == \
+        if pager and \
+            (SysMgr.pipeForPrint == \
                 SysMgr.printFile == None) and \
             (SysMgr.helpEnable or \
                 SysMgr.isTopMode() == \
@@ -22388,9 +22388,11 @@ Copyright:
 
 
     @staticmethod
-    def printBgProcs(cache=False):
+    def printBgProcs(cache=False, pager=False):
         if SysMgr.jsonOutputEnable:
-            print(SysMgr.getBgProcList(isJson=True))
+            jsonData = SysMgr.getBgProcList(isJson=True)
+            jsonStr = UtilMgr.convertDict2Str(jsonData)
+            SysMgr.printPipe(jsonStr, pager=False)
             return
 
         SysMgr.updateBgProcs(cache)
@@ -22398,9 +22400,10 @@ Copyright:
         procList = SysMgr.bgProcList
 
         if procList == '':
-            print("\nno running process in the background\n")
+            SysMgr.printPipe(\
+                "\nno running process in the background\n", pager=False)
         else:
-            print(SysMgr.getBgProcString())
+            SysMgr.printPipe(SysMgr.getBgProcString(), pager=False)
 
 
 
@@ -24904,7 +24907,7 @@ Copyright:
         # print stat #
         if origJsonFlag:
             SysMgr.printPipe(\
-                str(UtilMgr.convertDict2Str(SysMgr.jsonData)))
+                UtilMgr.convertDict2Str(SysMgr.jsonData))
         else:
             pass
 
@@ -53565,9 +53568,14 @@ class ThreadAnalyzer(object):
 
 
     def printReportStat(self, reportStat):
-        if not reportStat or type(reportStat) is not dict:
-            SysMgr.printPipe(reportStat)
+        if not reportStat:
             return
+        elif type(reportStat) is dict:
+            reportStat = UtilMgr.convertDict2Str(reportStat)
+
+        SysMgr.printPipe(reportStat)
+
+        return
 
         printBuf = "%s\n" % twoLine
 
@@ -53752,106 +53760,108 @@ class ThreadAnalyzer(object):
             elif not ret:
                 return
 
-            # handle request #
-            if type(ret) is tuple:
-                try:
-                    message = ret[0].decode()
-                except:
-                    message = ret[0]
+            # check type #
+            if type(ret) is not tuple:
+                continue
 
-                # check message type #
-                if not UtilMgr.isString(message):
-                    return
+            try:
+                message = ret[0].decode()
+            except:
+                message = ret[0]
 
-                try:
-                    ip = ret[1][0]
-                    port = ret[1][1]
-                except:
-                    SysMgr.printWarn(\
-                        "Fail to get address of client from message")
-                    continue
+            # check message type #
+            if not UtilMgr.isString(message):
+                return
 
-                networkObject = NetworkMgr('client', ip, port)
-                if not networkObject.ip:
-                    continue
+            try:
+                ip = ret[1][0]
+                port = ret[1][1]
+            except:
+                SysMgr.printWarn(\
+                    "Fail to get address of client from message")
+                continue
 
-                # save current time in new object #
-                networkObject.time = time.time()
+            networkObject = NetworkMgr('client', ip, port)
+            if not networkObject.ip:
+                continue
 
-                if message.startswith('EVENT_'):
-                    event = message[message.find('_')+1:]
+            # save current time in new object #
+            networkObject.time = time.time()
 
-                    pos = event.rfind('@')
-                    if pos >= 0:
-                        rtime = event[pos+1:]
-                        event = event[:pos]
-                    else:
-                        rtime = SysMgr.uptime
+            if message.startswith('EVENT_'):
+                event = message[message.find('_')+1:]
 
-                    # append event to list #
-                    ThreadAnalyzer.procEventData.append(\
-                        [SysMgr.uptime, event, rtime])
+                pos = event.rfind('@')
+                if pos >= 0:
+                    rtime = event[pos+1:]
+                    event = event[:pos]
+                else:
+                    rtime = SysMgr.uptime
 
+                # append event to list #
+                ThreadAnalyzer.procEventData.append(\
+                    [SysMgr.uptime, event, rtime])
+
+                SysMgr.printInfo(\
+                    "added event '%s' from %s:%d" % (event, ip, port))
+
+                networkObject.send(message)
+                del networkObject
+                continue
+
+            elif message == 'LOG':
+                pass
+
+            elif message == 'PRINT':
+                index = ip + ':' + str(port)
+                if not index in SysMgr.addrListForPrint:
+                    SysMgr.addrListForPrint[index] = networkObject
                     SysMgr.printInfo(\
-                        "added event '%s' from %s:%d" % (event, ip, port))
+                        "registered %s:%d as remote address for PRINT" % \
+                        (ip, port))
+                else:
+                    SysMgr.printWarn(\
+                        "Duplicated %s:%d as remote address" % (ip, port))
 
-                    networkObject.send(message)
+            elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
+                if not SysMgr.reportEnable:
+                    SysMgr.printWarn(\
+                        "Ignored %s request from %s:%d because no service" % \
+                        (message, ip, port))
+                    networkObject.send("REFUSE")
                     del networkObject
                     continue
 
-                elif message == 'LOG':
-                    pass
+                networkObject.request = message
 
-                elif message == 'PRINT':
-                    index = ip + ':' + str(port)
-                    if not index in SysMgr.addrListForPrint:
-                        SysMgr.addrListForPrint[index] = networkObject
-                        SysMgr.printInfo(\
-                            "registered %s:%d as remote address for PRINT" % \
-                            (ip, port))
-                    else:
-                        SysMgr.printWarn(\
-                            "Duplicated %s:%d as remote address" % (ip, port))
-
-                elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
-                    if not SysMgr.reportEnable:
-                        SysMgr.printWarn(\
-                            "Ignored %s request from %s:%d because no service" % \
-                            (message, ip, port))
-                        networkObject.send("REFUSE")
-                        del networkObject
-                        continue
-
-                    networkObject.request = message
-
-                    index = ip + ':' + str(port)
-                    if not index in SysMgr.addrListForReport:
-                        SysMgr.addrListForReport[index] = networkObject
-                        SysMgr.printInfo(\
-                            "registered %s:%d as remote address for REPORT" % \
-                            (ip, port))
-                    else:
-                        SysMgr.addrListForReport[index] = networkObject
-                        SysMgr.printInfo(\
-                            "updated %s:%d as remote address for REPORT" % \
-                            (ip, port))
-
-                elif message == 'ACK':
-                    index = ip + ':' + str(port)
-                    if index in SysMgr.addrListForPrint:
-                        SysMgr.addrListForPrint[index].ignore -= 1
-                        SysMgr.addrListForPrint[index].status = 'READY'
-                    elif index in SysMgr.addrListForReport:
-                        SysMgr.addrListForReport[index].ignore -= 1
-                        SysMgr.addrListForReport[index].status = 'READY'
-                    else:
-                        SysMgr.printWarn(\
-                            "Fail to find %s:%d as remote address" % (ip, port))
-
-                # wrong request or just data from server #
+                index = ip + ':' + str(port)
+                if not index in SysMgr.addrListForReport:
+                    SysMgr.addrListForReport[index] = networkObject
+                    SysMgr.printInfo(\
+                        "registered %s:%d as remote address for REPORT" % \
+                        (ip, port))
                 else:
-                    SysMgr.printErr(\
-                        "Fail to recognize the request from client")
+                    SysMgr.addrListForReport[index] = networkObject
+                    SysMgr.printInfo(\
+                        "updated %s:%d as remote address for REPORT" % \
+                        (ip, port))
+
+            elif message == 'ACK':
+                index = ip + ':' + str(port)
+                if index in SysMgr.addrListForPrint:
+                    SysMgr.addrListForPrint[index].ignore -= 1
+                    SysMgr.addrListForPrint[index].status = 'READY'
+                elif index in SysMgr.addrListForReport:
+                    SysMgr.addrListForReport[index].ignore -= 1
+                    SysMgr.addrListForReport[index].status = 'READY'
+                else:
+                    SysMgr.printWarn(\
+                        "Fail to find %s:%d as remote address" % (ip, port))
+
+            # wrong request or just data from server #
+            else:
+                SysMgr.printErr(\
+                    "Fail to recognize the request from client")
 
 
 
