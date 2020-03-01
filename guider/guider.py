@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200229"
+__revision__ = "200301"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3941,6 +3941,10 @@ class NetworkMgr(object):
                 self.socket = socket(AF_INET, SOCK_DGRAM)
 
             self.fileno = self.socket.fileno()
+
+            # increate socket buffer size to 1MB #
+            self.socket.setsockopt(SOL_SOCKET, SO_SNDBUF, 1<<20)
+            self.socket.setsockopt(SOL_SOCKET, SO_RCVBUF, 1<<20)
 
             # get buffer size #
             self.sendSize = self.socket.getsockopt(SOL_SOCKET, SO_SNDBUF)
@@ -19131,6 +19135,20 @@ Copyright:
 
 
     @staticmethod
+    def updateSession():
+        if len(SysMgr.addrListForPrint) == 0:
+            return
+
+        addrListForPrint = dict(SysMgr.addrListForPrint)
+        for addr, cli in addrListForPrint.items():
+            if cli.status == 'SENT' and cli.ignore > 1:
+                SysMgr.printInfo(\
+                    "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
+                del SysMgr.addrListForPrint[addr]
+
+
+
+    @staticmethod
     def printTopStats():
         # JSON mode #
         if SysMgr.jsonOutputEnable:
@@ -19194,29 +19212,30 @@ Copyright:
         if len(SysMgr.addrListForPrint) > 0:
             addrListForPrint = dict(SysMgr.addrListForPrint)
             for addr, cli in addrListForPrint.items():
-                if cli.status == 'SENT' and cli.ignore > 1:
-                    SysMgr.printInfo(\
-                        "unregistered %s:%d for PRINT" % (cli.ip, cli.port))
-                    del SysMgr.addrListForPrint[addr]
-                else:
-                    udpSeg = 65507
-                    start = 0
-                    end = udpSeg
-                    while 1:
-                        ret = cli.send(line[start:end])
-                        if not ret:
-                            del SysMgr.addrListForPrint[addr]
-                            break
-                        else:
-                            cli.ignore += 1
+                udpSeg = 65507 # maxium UDP diagram size
+                start = 0
+                end = udpSeg
+                while 1:
+                    # split by newline #
+                    if len(line) >= end:
+                        pos = line[start:end].rfind('\n')
+                        if pos > 0:
+                            end = pos + start
 
-                        if end >= len(line):
-                            break
+                    # send data #
+                    ret = cli.send(line[start:end])
+                    if not ret:
+                        del SysMgr.addrListForPrint[addr]
+                        break
+                    else:
+                        cli.ignore += 1
 
-                        start = end
-                        end += udpSeg
+                    if end >= len(line):
+                        break
 
-                        time.sleep(0.01)
+                    # update sending part #
+                    start = end
+                    end += udpSeg
 
         if not SysMgr.printEnable:
             return
@@ -53681,7 +53700,8 @@ class ThreadAnalyzer(object):
             SysMgr.printErr("Fail to send ACK to server")
 
         # REPORT service #
-        if data[0] == '{':
+        if data[0] == '{' and \
+            data.strip()[-1] == '}':
             # convert report data to dictionary type #
             reportStat = UtilMgr.convertStr2Dict(data)
 
@@ -54325,9 +54345,8 @@ class ThreadAnalyzer(object):
                 data, fd=SysMgr.reportObject, \
                 trunc=SysMgr.truncEnable)
 
-        addrlist = dict(SysMgr.addrListForReport)
-
         # report system status to socket #
+        addrlist = dict(SysMgr.addrListForReport)
         for addr, cli in addrlist.items():
             if cli.request != 'REPORT_ALWAYS':
                 continue
@@ -54374,6 +54393,9 @@ class ThreadAnalyzer(object):
 
         # print process stat #
         self.printProcUsage()
+
+        # update session #
+        SysMgr.updateSession()
 
         # flush stats #
         SysMgr.printTopStats()
