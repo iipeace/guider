@@ -11015,7 +11015,7 @@ class FileAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenWarn(path)
+                SysMgr.printOpenErr(path)
                 return
 
         # read maps #
@@ -11694,6 +11694,90 @@ class LogMgr(object):
 
 
     @staticmethod
+    def printKmsg():
+        # open kmsg device node #
+        try:
+            if not SysMgr.kmsgFd:
+                SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
+            fd = SysMgr.kmsgFd
+        except:
+            SysMgr.printOpenErr(SysMgr.kmsgPath)
+            sys.exit(0)
+
+        SysMgr.printInfo(\
+            "start printing kernel log... [ STOP(Ctrl+c) ]")
+
+        while 1:
+            log = fd.readline()
+
+            # parse log #
+            pos = log.find(';')
+
+            meta = log[:pos].split(',')
+            if len(meta) > 2:
+                nrLevel = long(meta[0])
+                try:
+                    level = ConfigMgr.LOG_LEVEL[nrLevel]
+                except:
+                    level = nrLevel
+                if not SysMgr.printFile:
+                    level = UtilMgr.convertColor(level, 'BOLD')
+
+                # time #
+                ltime = str(meta[2])
+                if len(ltime) < 7:
+                    ltime = '0.%s' % ltime
+                else:
+                    ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
+                if not SysMgr.printFile:
+                    ltime = UtilMgr.convertColor(ltime, 'GREEN')
+
+                # name & log #
+                log = log[pos+1:]
+                npos = log.find(':')
+                name = log[:npos]
+                if not SysMgr.printFile:
+                    name = UtilMgr.convertColor(name, 'SPECIAL')
+                if log[-1] == '\n':
+                    log = log[npos+1:-1]
+                else:
+                    log = log[npos+1:]
+
+                log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
+
+            # apply filter #
+            if len(SysMgr.filterGroup) > 0:
+                found = False
+                for string in SysMgr.filterGroup:
+                    if string in log:
+                        found = True
+                        break
+
+                if not found:
+                    continue
+
+            SysMgr.printPipe(log[:-1])
+
+
+
+    @staticmethod
+    def doLogKmsg(msg=None, level=None):
+        # open kmsg device node #
+        try:
+            if not SysMgr.kmsgFd:
+                SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
+            fd = SysMgr.kmsgFd
+        except:
+            SysMgr.printOpenErr(SysMgr.kmsgPath)
+            sys.exit(0)
+
+        fd.write(msg)
+
+        return 0
+
+
+
+    @staticmethod
     def doLogJournal(msg=None, level=None):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
@@ -11710,12 +11794,19 @@ class LogMgr(object):
                 if not SysMgr.libsystemdPath:
                     SysMgr.libsystemdPath = \
                         FileAnalyzer.getMapFilePath(1, 'libsystemd-shared-')
+                    if SysMgr.libsystemdPath is None:
+                        if not SysMgr.systemdObj:
+                            raise Exception("no libsystemd-shared")
                 SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
                     raise Exception("No file")
+
+            if not hasattr(SysMgr.systemdObj, 'sd_journal_print'):
+                raise Exception(\
+                    'no sd_journal_print in %s' % SysMgr.libsystemdPath)
         except:
             SysMgr.printErr(\
-                "Fail to load libsysted-shared because %s" % \
+                "Fail to load libsystemd-shared because %s" % \
                     SysMgr.getErrReason())
             sys.exit(0)
 
@@ -11777,6 +11868,7 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
+    kmsgPath = '/dev/kmsg'
     pythonPath = sys.executable
     addr2linePath = None
     objdumpPath = None
@@ -11918,7 +12010,8 @@ class SysMgr(object):
     diskStatsFd = None
     mountFd = None
     nullFd = None
-    eventLogFD = None
+    eventLogFd = None
+    kmsgFd = None
 
     # flags #
     irqEnable = False
@@ -12113,6 +12206,49 @@ class SysMgr(object):
             SysMgr.printWarn(\
                 "Fail to shrink heap area because %s" % \
                     SysMgr.getErrReason())
+
+
+
+    @staticmethod
+    def doLogMode(mode):
+        if mode.upper() == 'KMSG':
+            func = LogMgr.doLogKmsg
+            mtype = 'kernel'
+        elif mode.upper() == 'DLT':
+            func = LogMgr.doLogDlt
+            mtype = 'DLT'
+        elif mode.upper() == 'JOURNAL':
+            func = LogMgr.doLogJournal
+            mtype = 'journal'
+
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        if not SysMgr.sourceFile:
+            SysMgr.printErr((\
+                "wrong option value with -I option, "
+                "input a %s message") % mtype)
+            sys.exit(0)
+
+        # set alarm #
+        if SysMgr.intervalEnable:
+            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+            signal.alarm(SysMgr.intervalEnable)
+
+        while 1:
+            msg = SysMgr.sourceFile
+            ret = func(msg=msg)
+            if ret == 0:
+                SysMgr.printInfo(\
+                    "Logged a %s message '%s' successfully" % (mtype, msg))
+            else:
+                SysMgr.printErr(\
+                    "Fail to log a %s message" % mtype)
+                break
+
+            if SysMgr.intervalEnable:
+                SysMgr.waitEvent(forceExit=True)
+            else:
+                os._exit(0)
 
 
 
@@ -13795,6 +13931,7 @@ class SysMgr(object):
             'log': {
                 'printkmsg': 'Kernel',
                 'printdlt': 'DLT',
+                'logkmsg': 'Kernel',
                 'logdlt': 'DLT',
                 'logjrl': 'Journal',
                 },
@@ -15190,6 +15327,27 @@ OPTIONS:
                     helpStr +=  '''
 Examples:
     - Log DLT message
+        # {0:1} {1:1} -I "Hello World!"
+                    '''.format(cmd, mode)
+
+                # logkmsg #
+                elif SysMgr.isLogKmsgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Log a kernel message
+
+OPTIONS:
+        -v                          verbose
+        -R  <INTERVAL:TIME>         set repeat count
+        -I  <LOG>                   set log message
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Log a kernel message
         # {0:1} {1:1} -I "Hello World!"
                     '''.format(cmd, mode)
 
@@ -18556,74 +18714,6 @@ Copyright:
 
 
     @staticmethod
-    def printKmsg():
-        # open kmsg device node #
-        try:
-            kmsgPath = '/dev/kmsg'
-            fd = open(kmsgPath, 'r')
-        except:
-            SysMgr.printOpenErr(kmsgPath)
-            sys.exit(0)
-
-        # toDo: add lseek option #
-
-        SysMgr.printInfo(\
-            "start printing kernel log... [ STOP(Ctrl+c) ]")
-
-        while 1:
-            log = fd.readline()
-
-            # parse log #
-            pos = log.find(';')
-
-            meta = log[:pos].split(',')
-            if len(meta) > 2:
-                nrLevel = long(meta[0])
-                try:
-                    level = ConfigMgr.LOG_LEVEL[nrLevel]
-                except:
-                    level = nrLevel
-                if not SysMgr.printFile:
-                    level = UtilMgr.convertColor(level, 'BOLD')
-
-                # time #
-                ltime = str(meta[2])
-                if len(ltime) < 7:
-                    ltime = '0.%s' % ltime
-                else:
-                    ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
-                if not SysMgr.printFile:
-                    ltime = UtilMgr.convertColor(ltime, 'GREEN')
-
-                # name & log #
-                log = log[pos+1:]
-                npos = log.find(':')
-                name = log[:npos]
-                if not SysMgr.printFile:
-                    name = UtilMgr.convertColor(name, 'SPECIAL')
-                if log[-1] == '\n':
-                    log = log[npos+1:-1]
-                else:
-                    log = log[npos+1:]
-
-                log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
-
-            # apply filter #
-            if len(SysMgr.filterGroup) > 0:
-                found = False
-                for string in SysMgr.filterGroup:
-                    if string in log:
-                        found = True
-                        break
-
-                if not found:
-                    continue
-
-            SysMgr.printPipe(log[:-1])
-
-
-
-    @staticmethod
     def printLogo(absolute=False, big=False, onlyFile=False, pager=True):
         # check print option and remote runner #
         if not SysMgr.printEnable or \
@@ -19029,13 +19119,13 @@ Copyright:
 
     @staticmethod
     def writeEvent(message, show=True):
-        if not SysMgr.eventLogFD:
+        if not SysMgr.eventLogFd:
             if not SysMgr.eventLogPath:
                 SysMgr.eventLogPath = \
                     '%s%s' % (SysMgr.mountPath, '../trace_marker')
 
             try:
-                SysMgr.eventLogFD = \
+                SysMgr.eventLogFd = \
                     open(SysMgr.eventLogPath, 'w')
             except:
                 SysMgr.printOpenWarn(\
@@ -19043,13 +19133,13 @@ Copyright:
                         (SysMgr.eventLogPath, SysMgr.getErrReason()))
                 return
 
-        if SysMgr.eventLogFD:
+        if SysMgr.eventLogFd:
             try:
-                SysMgr.eventLogFD.write(message)
+                SysMgr.eventLogFd.write(message)
                 event = message[message.find('_')+1:]
                 if show:
                     SysMgr.printInfo('wrote %s event' % event)
-                SysMgr.eventLogFD.flush()
+                SysMgr.eventLogFd.flush()
                 return True
             except:
                 SysMgr.printWarn(\
@@ -21614,63 +21704,15 @@ Copyright:
 
         # LOGJRL MODE #
         elif SysMgr.isLogJournalMode():
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            if not SysMgr.sourceFile:
-                SysMgr.printErr(\
-                    "wrong option value with -I option, "
-                    "input journal message")
-                sys.exit(0)
-
-            # set alarm #
-            if SysMgr.intervalEnable:
-                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-                signal.alarm(SysMgr.intervalEnable)
-
-            while 1:
-                ret = LogMgr.doLogJournal(msg=SysMgr.sourceFile)
-                if ret == 0:
-                    SysMgr.printInfo(\
-                        "Logged journal message successfully")
-                else:
-                    SysMgr.printErr(\
-                        "Fail to log journal message")
-                    break
-
-                if SysMgr.intervalEnable:
-                    SysMgr.waitEvent(forceExit=True)
-                else:
-                    os._exit(0)
+            SysMgr.doLogMode('journal')
 
         # LOGDLT MODE #
         elif SysMgr.isLogDltMode():
-            SysMgr.printLogo(big=True, onlyFile=True)
+            SysMgr.doLogMode('dlt')
 
-            if not SysMgr.sourceFile:
-                SysMgr.printErr(\
-                    "wrong option value with -I option, "
-                    "input DLT message")
-                sys.exit(0)
-
-            # set alarm #
-            if SysMgr.intervalEnable:
-                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-                signal.alarm(SysMgr.intervalEnable)
-
-            while 1:
-                ret = DltAnalyzer.doLogDlt(msg=SysMgr.sourceFile)
-                if ret == 0:
-                    SysMgr.printInfo(\
-                        "Logged DLT message successfully")
-                else:
-                    SysMgr.printErr(\
-                        "Fail to log DLT message")
-                    break
-
-                if SysMgr.intervalEnable:
-                    SysMgr.waitEvent(forceExit=True)
-                else:
-                    os._exit(0)
+        # LOGKMSG MODE #
+        elif SysMgr.isLogKmsgMode():
+            SysMgr.doLogMode('kmsg')
 
         # PRINTDLT MODE #
         elif SysMgr.isPrintDltMode():
@@ -21700,7 +21742,7 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            SysMgr.printKmsg()
+            LogMgr.printKmsg()
 
         # PAGE MODE #
         elif SysMgr.isMemMode():
@@ -21989,6 +22031,15 @@ Copyright:
     @staticmethod
     def isLogDltMode():
         if sys.argv[1] == 'logdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLogKmsgMode():
+        if sys.argv[1] == 'logkmsg':
             return True
         else:
             return False
