@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200301"
+__revision__ = "200302"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11000,6 +11000,37 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def getMapFilePath(pid, fname, fd=None):
+        if not fname:
+            SysMgr.printWarn(\
+                "No memory-mapped file name to be searched")
+            return
+
+        if not fd:
+            path = '%s/%s/maps' % (SysMgr.procPath, pid)
+
+            # open maps #
+            try:
+                fd = open(path, 'r')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(path)
+                return
+
+        # read maps #
+        fd.seek(0, 0)
+        mapBuf = fd.readlines()
+        for item in mapBuf:
+            mdict = FileAnalyzer.parseMapLine(item)
+            if mdict and mdict['binName']:
+                if os.path.basename(mdict['binName']).startswith(fname):
+                    return str(mdict['binName'])
+        return None
+
+
+
+    @staticmethod
     def getProcMapInfo(pid, fd=None):
         if not fd:
             path = '%s/%s/maps' % (SysMgr.procPath, pid)
@@ -11062,15 +11093,23 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def mergeMapLine(string, procMap, onlyExec=False):
+    def parseMapLine(string):
         m = re.match((\
             r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) '
             r'(?P<offset>.\S+) (?P<devid>.\S+) (?P<inode>0|.\S+).\s*'
             r'(?P<binName>.+)'), string)
         if not m:
-            return
+            return None
 
-        d = m.groupdict()
+        return m.groupdict()
+
+
+
+    @staticmethod
+    def mergeMapLine(string, procMap, onlyExec=False):
+        d = FileAnalyzer.parseMapLine(string)
+        if not d:
+            return
 
         # check execution permission #
         if onlyExec and d['perm'][-2] == '-':
@@ -11578,6 +11617,18 @@ class FileAnalyzer(object):
 class LogMgr(object):
     """ Manager for error log """
 
+    # define log level #
+    LOG_EMERG     = 0
+    LOG_ALERT     = 1
+    LOG_CRIT      = 2
+    LOG_ERR       = 3
+    LOG_WARNING   = 4
+    LOG_NOTICE    = 5
+    LOG_INFO      = 6
+    LOG_DEBUG     = 7
+
+
+
     def __init__(self):
         self.terminal = sys.stderr
         self.notified = False
@@ -11642,11 +11693,42 @@ class LogMgr(object):
 
 
 
+    @staticmethod
+    def doLogJournal(msg=None, level=None):
+        # get ctypes object #
+        ctypes = SysMgr.getPkg('ctypes')
+
+        from ctypes import cdll, POINTER, Structure, \
+            c_ulong, c_char_p
+
+        if level is None:
+            level = LogMgr.LOG_NOTICE
+
+        # load systemd-shared library #
+        try:
+            if not SysMgr.systemdObj:
+                if not SysMgr.libsystemdPath:
+                    SysMgr.libsystemdPath = \
+                        FileAnalyzer.getMapFilePath(1, 'libsystemd-shared-')
+                SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
+                if not SysMgr.systemdObj:
+                    raise Exception("No file")
+        except:
+            SysMgr.printErr(\
+                "Fail to load libsysted-shared because %s" % \
+                    SysMgr.getErrReason())
+            sys.exit(0)
+
+        return SysMgr.systemdObj.sd_journal_print(level, msg)
+
+
+
 
 
 class SysMgr(object):
     """ Manager for system """
 
+    # page size #
     try:
         pageSize = os.sysconf("SC_PAGE_SIZE")
     except:
@@ -11654,7 +11736,6 @@ class SysMgr(object):
 
     startTime = long(0)
     startRunTime = long(0)
-    timestamp = long(0)
     blockSize = 512
     bufferSize = -1
     termGetId = None
@@ -11666,11 +11747,7 @@ class SysMgr(object):
     encodeEnable = True
     remoteRun = False
     magicString = '@@@@@'
-    procPath = '/proc'
-    imagePath = None
     launchBuffer = None
-    maxFd = 512
-    maxKeepFd = maxFd - 16
     lineLength = 154
     pid = long(0)
     prio = None
@@ -11682,6 +11759,10 @@ class SysMgr(object):
     defaultPort = 5555
     bgProcList = None
     waitDelay = 0.5
+    repeatInterval = long(0)
+    repeatCount = long(0)
+    progressCnt = long(0)
+    wordSize = 4
 
     HZ = 250 # 4ms tick #
     if sys.platform.startswith('linux'):
@@ -11689,36 +11770,48 @@ class SysMgr(object):
     else:
         TICK = long((1 / float(HZ)) * 1000)
 
-    arch = None
-    origArgs = None
-    kernelVersion = None
-    wordSize = 4
-    isLinux = True
-    isAndroid = False
-    helpEnable = False
-    drawMode = False
-    archOption = None
+    # path #
+    procPath = '/proc'
+    imagePath = None
     mountPath = None
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
     pythonPath = sys.executable
-    signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
-    saveCmd = None
     addr2linePath = None
-    boundaryLine = None
     objdumpPath = None
-    demangleEnable = True
-    compressEnable = True
     rootPath = ''
     fontPath = None
-    nrTop = None
-    pipeForPrint = None
-    fileForPrint = None
+    libdltPath = 'libdlt.so'
+    libcPath = 'libc.so.6'
+    libgobjPath = 'libgobject-2.0.so'
+    libgioPath = 'libgio-2.0.so'
+    libdbusPath = 'libdbus-1.so.3'
+    libcppPath = 'libstdc++.so.6'
+    libsystemdPath = None
+    libdemanglePath = libcppPath
+    eventLogPath = None
     inputFile = None
     outputFile = None
     sourceFile = None
     printFile = None
+
+    arch = None
+    origArgs = None
+    kernelVersion = None
+    isLinux = True
+    isAndroid = False
+    helpEnable = False
+    drawMode = False
+    archOption = None
+    signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
+    saveCmd = None
+    boundaryLine = None
+    demangleEnable = True
+    compressEnable = True
+    nrTop = None
+    pipeForPrint = None
+    fileForPrint = None
     fileSuffix = None
     parsedAnalOption = False
     optionList = None
@@ -11740,6 +11833,7 @@ class SysMgr(object):
     exitFuncList = []
     dltObj = None
     dltCtx = None
+    systemdObj = None
     libcObj = None
     libgioObj = None
     libdbusObj = None
@@ -11747,13 +11841,6 @@ class SysMgr(object):
     guiderObj = None
     libcppObj = None
     libdemangleObj = None
-    dltPath = 'libdlt.so'
-    libcPath = 'libc.so.6'
-    libgobjPath = 'libgobject-2.0.so'
-    libgioPath = 'libgio-2.0.so'
-    libdbusPath = 'libdbus-1.so.3'
-    libcppPath = 'libstdc++.so.6'
-    libdemanglePath = libcppPath
     matplotlibVersion = long(0)
     matplotlibDpi = 500
 
@@ -11761,11 +11848,6 @@ class SysMgr(object):
     remoteServObj = None
     addrListForPrint = {}
     addrListForReport = {}
-
-    tgidEnable = True
-    taskEnable = True
-    processEnable = True
-    groupProcEnable = False
 
     maxCore = long(0)
     nrCore = long(0)
@@ -11808,9 +11890,6 @@ class SysMgr(object):
     jsonData = {}
     layout = None
 
-    eventLogFile = None
-    eventLogFD = None
-
     showAll = False
     disableAll = False
     intervalNow = long(0)
@@ -11819,6 +11898,9 @@ class SysMgr(object):
     condExit = False
     sort = None
 
+    # file descriptor #
+    maxFd = 512
+    maxKeepFd = maxFd - 16
     statFd = None
     memFd = None
     irqFd = None
@@ -11836,7 +11918,9 @@ class SysMgr(object):
     diskStatsFd = None
     mountFd = None
     nullFd = None
+    eventLogFD = None
 
+    # flags #
     irqEnable = False
     cpuEnable = True
     latEnable = cpuEnable
@@ -11889,20 +11973,19 @@ class SysMgr(object):
     cmdlineEnable = False
     schedstatEnable = True
     intervalEnable = long(0)
-
     forceEnable = False
     functionEnable = False
     systemEnable = False
     fileEnable = False
     threadEnable = False
-
-    # flag for using Elastic Stack
-    elasticEnable = False
-
     termFlag = True
-    repeatInterval = long(0)
-    repeatCount = long(0)
-    progressCnt = long(0)
+    tgidEnable = True
+    taskEnable = True
+    processEnable = True
+    groupProcEnable = False
+
+    # Elastic Stack #
+    elasticEnable = False
 
     cmdList = {}
     rcmdList = {}
@@ -12396,7 +12479,7 @@ class SysMgr(object):
             else:
                 sys.exit(0)
 
-        # wss (working set size) #
+        # WSS (working set size) #
         elif SysMgr.isWssTopMode():
             if SysMgr.checkWssTopCond():
                 SysMgr.memEnable = True
@@ -12414,11 +12497,11 @@ class SysMgr(object):
             else:
                 sys.exit(0)
 
-        # dlt #
+        # DLT #
         elif SysMgr.isDltTopMode():
             SysMgr.dltTopEnable = True
 
-        # dbus #
+        # D-Bus #
         elif SysMgr.isDbusTopMode():
             SysMgr.dbusTopEnable = True
             SysMgr.floatEnable = True
@@ -13406,7 +13489,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def waitEvent(ignChldSig=True, exit=False):
+    def waitEvent(ignChldSig=True, exit=False, forceExit=False):
         # ignore SIGCHLD #
         if ignChldSig:
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -13417,6 +13500,8 @@ class SysMgr(object):
         except SystemExit:
             if exit:
                 sys.exit(0)
+            elif forceExit:
+                os._exit(0)
             else:
                 pass
         except:
@@ -13618,17 +13703,6 @@ class SysMgr(object):
 
 
     @staticmethod
-    def printDiffTime(msg=None):
-        prev = SysMgr.timestamp
-        SysMgr.timestamp = time.time()
-        if prev == 0 or not msg:
-            return
-        else:
-            print('%s: %f' % (msg, SysMgr.timestamp - prev))
-
-
-
-    @staticmethod
     def getCmdString():
         cmdList = SysMgr.getCmdList()
 
@@ -13722,6 +13796,7 @@ class SysMgr(object):
                 'printkmsg': 'Kernel',
                 'printdlt': 'DLT',
                 'logdlt': 'DLT',
+                'logjrl': 'Journal',
                 },
             'control': {
                 'list': 'List',
@@ -14638,7 +14713,7 @@ Examples:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
-                # dlt top #
+                # DLT top #
                 elif SysMgr.isDltTopMode():
                     helpStr = '''
 Usage:
@@ -15104,16 +15179,38 @@ Usage:
     # {0:1} {1:1} -I <MESSAGE>
 
 Description:
-    Log DLT message
+    Log a DLT message
 
 OPTIONS:
         -v                          verbose
+        -R  <INTERVAL:TIME>         set repeat count
         -I  <LOG>                   set log message
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
     - Log DLT message
+        # {0:1} {1:1} -I "Hello World!"
+                    '''.format(cmd, mode)
+
+                # logjournal #
+                elif SysMgr.isLogJournalMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Log a journal message
+
+OPTIONS:
+        -v                          verbose
+        -R  <INTERVAL:TIME>         set repeat count
+        -I  <LOG>                   set log message
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Log journal message
         # {0:1} {1:1} -I "Hello World!"
                     '''.format(cmd, mode)
 
@@ -18933,15 +19030,17 @@ Copyright:
     @staticmethod
     def writeEvent(message, show=True):
         if not SysMgr.eventLogFD:
-            if not SysMgr.eventLogFile:
-                SysMgr.eventLogFile = \
+            if not SysMgr.eventLogPath:
+                SysMgr.eventLogPath = \
                     '%s%s' % (SysMgr.mountPath, '../trace_marker')
 
             try:
                 SysMgr.eventLogFD = \
-                    open(SysMgr.eventLogFile, 'w')
+                    open(SysMgr.eventLogPath, 'w')
             except:
-                SysMgr.printOpenWarn(SysMgr.eventLogFile)
+                SysMgr.printOpenWarn(\
+                    "Fail to open %s because %s" % \
+                        (SysMgr.eventLogPath, SysMgr.getErrReason()))
                 return
 
         if SysMgr.eventLogFD:
@@ -21513,6 +21612,36 @@ Copyright:
             SysMgr().printCgroupInfo(printTitle=False)
             SysMgr.printInfoBuffer()
 
+        # LOGJRL MODE #
+        elif SysMgr.isLogJournalMode():
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            if not SysMgr.sourceFile:
+                SysMgr.printErr(\
+                    "wrong option value with -I option, "
+                    "input journal message")
+                sys.exit(0)
+
+            # set alarm #
+            if SysMgr.intervalEnable:
+                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+                signal.alarm(SysMgr.intervalEnable)
+
+            while 1:
+                ret = LogMgr.doLogJournal(msg=SysMgr.sourceFile)
+                if ret == 0:
+                    SysMgr.printInfo(\
+                        "Logged journal message successfully")
+                else:
+                    SysMgr.printErr(\
+                        "Fail to log journal message")
+                    break
+
+                if SysMgr.intervalEnable:
+                    SysMgr.waitEvent(forceExit=True)
+                else:
+                    os._exit(0)
+
         # LOGDLT MODE #
         elif SysMgr.isLogDltMode():
             SysMgr.printLogo(big=True, onlyFile=True)
@@ -21523,13 +21652,25 @@ Copyright:
                     "input DLT message")
                 sys.exit(0)
 
-            ret = DltAnalyzer.doLogDlt(msg=SysMgr.sourceFile)
-            if ret == 0:
-                SysMgr.printInfo(\
-                    "Logged DLT message successfully")
-            else:
-                SysMgr.printErr(\
-                    "Fail to log DLT message")
+            # set alarm #
+            if SysMgr.intervalEnable:
+                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+                signal.alarm(SysMgr.intervalEnable)
+
+            while 1:
+                ret = DltAnalyzer.doLogDlt(msg=SysMgr.sourceFile)
+                if ret == 0:
+                    SysMgr.printInfo(\
+                        "Logged DLT message successfully")
+                else:
+                    SysMgr.printErr(\
+                        "Fail to log DLT message")
+                    break
+
+                if SysMgr.intervalEnable:
+                    SysMgr.waitEvent(forceExit=True)
+                else:
+                    os._exit(0)
 
         # PRINTDLT MODE #
         elif SysMgr.isPrintDltMode():
@@ -21848,6 +21989,15 @@ Copyright:
     @staticmethod
     def isLogDltMode():
         if sys.argv[1] == 'logdlt':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLogJournalMode():
+        if sys.argv[1] == 'logjrl':
             return True
         else:
             return False
@@ -29927,16 +30077,6 @@ class DltAnalyzer(object):
     DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
     DLT_DAEMON_TEXTSIZE = 10024
 
-    # define log level #
-    LOG_EMERG     = 0
-    LOG_ALERT     = 1
-    LOG_CRIT      = 2
-    LOG_ERR       = 3
-    LOG_WARNING   = 4
-    LOG_NOTICE    = 5
-    LOG_INFO      = 6
-    LOG_DEBUG     = 7
-
     # define message type #
     MSGTYPE = \
         ["log", "app_trace", "nw_trace", "control"]
@@ -30178,15 +30318,15 @@ class DltAnalyzer(object):
 
         DLT_USER_BUF_MAX_SIZE = 1380
 
-        # load dlt library #
+        # load DLT library #
         try:
             if not SysMgr.dltObj:
-                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.dltPath)
+                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.libdltPath)
             dltObj = SysMgr.dltObj
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(\
-                'Fail to find %s to log DLT' % SysMgr.dltPath, True)
+                'Fail to find %s to log DLT' % SysMgr.libdltPath, True)
             sys.exit(0)
 
         # register #
@@ -30197,11 +30337,13 @@ class DltAnalyzer(object):
                 SysMgr.printErr(\
                     "Fail to register app '%s'" % appid)
                 sys.exit(0)
+
             ret = dltObj.dlt_register_context(byref(ctx), context, 'Guider')
             if ret < 0:
                 SysMgr.printErr(\
                     "Fail to register context '%s'" % context)
                 sys.exit(0)
+
             SysMgr.dltCtx = ctx
 
         # log #
@@ -30445,7 +30587,7 @@ class DltAnalyzer(object):
         # load DLT library #
         try:
             if not SysMgr.dltObj:
-                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.dltPath)
+                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.libdltPath)
             dltObj = SysMgr.dltObj
         except SystemExit:
             sys.exit(0)
@@ -30453,13 +30595,13 @@ class DltAnalyzer(object):
             SysMgr.dltObj = None
             SysMgr.printWarn(\
                 'Fail to find %s to get DLT log' % \
-                    SysMgr.dltPath, True)
+                    SysMgr.libdltPath, True)
             sys.exit(0)
 
         # define verbose #
         if SysMgr.warnEnable:
             # set log level to DEBUG #
-            dltObj.dlt_log_set_level(DltAnalyzer.LOG_DEBUG)
+            dltObj.dlt_log_set_level(LogMgr.LOG_DEBUG)
 
             verbose = 1
         else:
@@ -30652,7 +30794,7 @@ class DltAnalyzer(object):
                             "Fail to remove data from buffer")
                         sys.exit(0)
 
-                    # print dlt message #
+                    # print DLT message #
                     if verbose:
                         dltObj.dlt_message_print_ascii(\
                             byref(msg), byref(buf), \
@@ -39057,7 +39199,7 @@ class ThreadAnalyzer(object):
             # file top mode #
             if SysMgr.fileTopEnable:
                 self.runFileTop()
-            # dlt top mode #
+            # DLT top mode #
             elif SysMgr.dltTopEnable:
                 DltAnalyzer.runDltReceiver(mode='top')
             elif SysMgr.dbusTopEnable:
