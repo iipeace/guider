@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200302"
+__revision__ = "200303"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10717,20 +10717,9 @@ class FileAnalyzer(object):
         if not SysMgr.guiderObj:
             # get ctypes object #
             ctypes = SysMgr.getPkg('ctypes')
-
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, cdll
 
-            try:
-                # load standard libc library #
-                if not SysMgr.libcObj:
-                    SysMgr.libcObj = \
-                        cdll.LoadLibrary(SysMgr.libcPath)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.libcObj = None
-                SysMgr.printErr(\
-                    'Fail to find %s to call syscall' % SysMgr.libcPath)
+            if not SysMgr.loadLibcObj(cdll):
                 sys.exit(0)
 
             # define mmap types #
@@ -11627,6 +11616,19 @@ class LogMgr(object):
     LOG_INFO      = 6
     LOG_DEBUG     = 7
 
+    # define syslog type #
+    SYSLOG_ACTION_CLOSE = 0
+    SYSLOG_ACTION_OPEN = 1
+    SYSLOG_ACTION_READ = 2
+    SYSLOG_ACTION_READ_ALL = 3
+    SYSLOG_ACTION_READ_CLEAR = 4
+    SYSLOG_ACTION_CLEAR = 5
+    SYSLOG_ACTION_CONSOLE_OFF = 6
+    SYSLOG_ACTION_CONSOLE_ON = 7
+    SYSLOG_ACTION_CONSOLE_LEVEL = 8
+    SYSLOG_ACTION_SIZE_UNREAD = 9
+    SYSLOG_ACTION_SIZE_BUFFER = 10
+
 
 
     def __init__(self):
@@ -11694,12 +11696,30 @@ class LogMgr(object):
 
 
     @staticmethod
+    def printSyslog():
+        # open syslog file #
+        try:
+            if not SysMgr.syslogFd:
+                SysMgr.syslogFd = open(SysMgr.syslogPath, 'r')
+        except:
+            SysMgr.printOpenErr(SysMgr.syslogPath)
+            sys.exit(0)
+
+        SysMgr.printInfo(\
+            "start printing syslog... [ STOP(Ctrl+c) ]")
+
+        while 1:
+            log = SysMgr.syslogFd.readline()
+            SysMgr.printPipe(log, newline=False)
+
+
+
+    @staticmethod
     def printKmsg():
         # open kmsg device node #
         try:
             if not SysMgr.kmsgFd:
-                SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
-            fd = SysMgr.kmsgFd
+                SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'r')
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             sys.exit(0)
@@ -11707,8 +11727,34 @@ class LogMgr(object):
         SysMgr.printInfo(\
             "start printing kernel log... [ STOP(Ctrl+c) ]")
 
+        # syslog #
+        if not SysMgr.kmsgFd:
+            # get ctypes object #
+            ctypes = SysMgr.getPkg('ctypes')
+            from ctypes import cdll, Structure, c_char, memset
+
+            # get kernel ring-buffer size #
+            size = SysMgr.syscall(\
+                'syslog', LogMgr.SYSLOG_ACTION_SIZE_BUFFER, 0, 0)
+
+            # allocate buffer #
+            buf = (c_char*size)()
+
+            SysMgr.syscall(\
+                'syslog', LogMgr.SYSLOG_ACTION_READ_ALL, buf, size)
+            SysMgr.printPipe(memoryview(buf).tobytes())
+
+            while 1:
+                memset(buf, 0, size)
+                SysMgr.syscall(\
+                    'syslog', LogMgr.SYSLOG_ACTION_READ, buf, size)
+                SysMgr.printPipe(memoryview(buf).tobytes())
+
+            return
+
+        # kmsg node #
         while 1:
-            log = fd.readline()
+            log = SysMgr.kmsgFd.readline()
 
             # parse log #
             pos = log.find(';')
@@ -11766,12 +11812,29 @@ class LogMgr(object):
         try:
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
-            fd = SysMgr.kmsgFd
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             sys.exit(0)
 
-        fd.write(msg)
+        SysMgr.kmsgFd.write(msg)
+
+        return 0
+
+
+
+    @staticmethod
+    def doLogSyslog(msg=None, level=None):
+        # get ctypes object #
+        ctypes = SysMgr.getPkg('ctypes')
+        from ctypes import cdll
+
+        if not SysMgr.loadLibcObj(cdll):
+            sys.exit(0)
+
+        if level is None:
+            level = LogMgr.LOG_NOTICE
+
+        SysMgr.libcObj.syslog(level, msg)
 
         return 0
 
@@ -11781,7 +11844,6 @@ class LogMgr(object):
     def doLogJournal(msg=None, level=None):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER, Structure, \
             c_ulong, c_char_p
 
@@ -11869,6 +11931,7 @@ class SysMgr(object):
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
     kmsgPath = '/dev/kmsg'
+    syslogPath = '/var/log/syslog'
     pythonPath = sys.executable
     addr2linePath = None
     objdumpPath = None
@@ -12012,6 +12075,7 @@ class SysMgr(object):
     nullFd = None
     eventLogFd = None
     kmsgFd = None
+    syslogFd = None
 
     # flags #
     irqEnable = False
@@ -12177,6 +12241,26 @@ class SysMgr(object):
 
 
     @staticmethod
+    def loadLibcObj(cdll):
+        if SysMgr.libcObj:
+            return True
+
+        # load libc #
+        try:
+            SysMgr.libcObj = \
+                cdll.LoadLibrary(SysMgr.libcPath)
+            return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "Fail to load libc because %s" % \
+                    SysMgr.getErrReason())
+            return False
+
+
+
+    @staticmethod
     def shrinkHeap():
         if not sys.platform.startswith('linux'):
             return
@@ -12185,27 +12269,18 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-
         from ctypes import cdll, POINTER, Structure
 
-        # try to shrink heap by malloc_trim() #
-        try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+        if not SysMgr.loadLibcObj(cdll):
+            return
 
-            if not hasattr(SysMgr.libcObj, 'malloc_trim'):
-                raise Exception('no malloc_trim in %s' % SysMgr.libcPath)
+        if not hasattr(SysMgr.libcObj, 'malloc_trim'):
+            SysMgr.printErr(\
+                'no malloc_trim in %s' % SysMgr.libcPath)
+            return
 
-            # int malloc_trim (size_t pad) #
-            ret = SysMgr.libcObj.malloc_trim(0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printWarn(\
-                "Fail to shrink heap area because %s" % \
-                    SysMgr.getErrReason())
+        # int malloc_trim (size_t pad) #
+        ret = SysMgr.libcObj.malloc_trim(0)
 
 
 
@@ -12220,6 +12295,9 @@ class SysMgr(object):
         elif mode.upper() == 'JOURNAL':
             func = LogMgr.doLogJournal
             mtype = 'journal'
+        elif mode.upper() == 'SYSLOG':
+            func = LogMgr.doLogSyslog
+            mtype = 'syslog'
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -12294,7 +12372,6 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-
         from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
 
         class rlimit(Structure):
@@ -12305,7 +12382,7 @@ class SysMgr(object):
 
         # try to get maxFd by standard library call #
         try:
-            # load standard libc library #
+            # load libc #
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
@@ -12955,11 +13032,10 @@ class SysMgr(object):
                 ctypes = SysMgr.getPkg('ctypes', False)
                 if not ctypes:
                     return
-
                 from ctypes import cdll, POINTER, c_int, c_ulong, byref
 
                 try:
-                    # load standard libc library #
+                    # load libc #
                     if not SysMgr.libcObj:
                         SysMgr.libcObj = \
                             cdll.LoadLibrary(SysMgr.libcPath)
@@ -13002,11 +13078,10 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-
         from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         try:
-            # load standard libc library #
+            # load libc #
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
@@ -13136,22 +13211,10 @@ class SysMgr(object):
     def getBacktrace():
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER, c_void_p, c_int, byref, c_char
 
-        try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
+        if not SysMgr.loadLibcObj(cdll):
             sys.exit(0)
-        except:
-            err = SysMgr.getErrReason()
-            SysMgr.printErr(\
-                "Fail to load library to get backtrace because %s" % err)
-            sys.exit(0)
-
 
         # define functions #
         libcObj = SysMgr.libcObj
@@ -13191,22 +13254,20 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-
         from ctypes import cdll, POINTER, c_char_p
 
-        try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+        if not SysMgr.loadLibcObj(cdll):
+            return
 
+        try:
             SysMgr.libcObj.prctl(\
                 15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to set comm because of prctl error in libc')
+                'Fail to set comm because %s' % \
+                    SysMgr.getErrReason(), True)
 
 
 
@@ -13931,9 +13992,11 @@ class SysMgr(object):
             'log': {
                 'printkmsg': 'Kernel',
                 'printdlt': 'DLT',
+                'printsyslog': 'Syslog',
                 'logkmsg': 'Kernel',
                 'logdlt': 'DLT',
                 'logjrl': 'Journal',
+                'logsys': 'Syslog',
                 },
             'control': {
                 'list': 'List',
@@ -14188,6 +14251,40 @@ Examples:
     - Handle all function calls for a specific thread and execute specific commands
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
                 '''.format(cmd, mode)
+
+                logCommonStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Log a message
+
+OPTIONS:
+        -v                          verbose
+        -R  <INTERVAL:TIME>         set repeat count
+        -I  <LOG>                   set log message
+
+Examples:
+    - Log a message
+        # {0:1} {1:1} -I "Hello World!"
+                    '''.format(cmd, mode)
+
+                printCommonStr = '''
+Usage:
+    # {0:1} {1:1} -I <MESSAGE>
+
+Description:
+    Print messages in real-time
+
+OPTIONS:
+        -v                          verbose
+        -g  <WORD>                  set filter
+        -o  <DIR|FILE>              save output data
+
+Examples:
+    - Print messages in real-time
+        # {0:1} {1:1} -I "Hello World!"
+                    '''.format(cmd, mode)
 
                 # function record #
                 if SysMgr.isFuncRecordMode():
@@ -15309,142 +15406,28 @@ Examples:
         # {0:1} {1:1} -I vdso
                     '''.format(cmd, mode)
 
-                # logdlt #
-                elif SysMgr.isLogDltMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1} -I <MESSAGE>
-
-Description:
-    Log a DLT message
-
-OPTIONS:
-        -v                          verbose
-        -R  <INTERVAL:TIME>         set repeat count
-        -I  <LOG>                   set log message
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Log DLT message
-        # {0:1} {1:1} -I "Hello World!"
-                    '''.format(cmd, mode)
-
-                # logkmsg #
-                elif SysMgr.isLogKmsgMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1} -I <MESSAGE>
-
-Description:
-    Log a kernel message
-
-OPTIONS:
-        -v                          verbose
-        -R  <INTERVAL:TIME>         set repeat count
-        -I  <LOG>                   set log message
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Log a kernel message
-        # {0:1} {1:1} -I "Hello World!"
-                    '''.format(cmd, mode)
-
-                # logjournal #
-                elif SysMgr.isLogJournalMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1} -I <MESSAGE>
-
-Description:
-    Log a journal message
-
-OPTIONS:
-        -v                          verbose
-        -R  <INTERVAL:TIME>         set repeat count
-        -I  <LOG>                   set log message
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Log journal message
-        # {0:1} {1:1} -I "Hello World!"
-                    '''.format(cmd, mode)
+                # log #
+                elif SysMgr.isLogDltMode() or \
+                    SysMgr.isLogKmsgMode() or \
+                    SysMgr.isLogSysMode() or \
+                    SysMgr.isLogJournalMode():
+                    helpStr = logCommonStr
 
                 # printdlt #
-                elif SysMgr.isPrintDltMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1}
+                elif SysMgr.isPrintDltMode() or \
+                    SysMgr.isPrintDbusMode() or \
+                    SysMgr.isPrintKmsgMode() or \
+                    SysMgr.isPrintSyslogMode():
+                    helpStr = printCommonStr
 
-Description:
-    Print DLT messages in real-time
-
-OPTIONS:
-        -g  <STRING>                set filter
-        -X  <REQ@IP:PORT>           set request address
-        -v                          verbose
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Print DLT messages in real-time
-        # {0:1} {1:1}
-
-    - Print DLT messages including specific strings
-        # {0:1} {1:1} -g test
-                    '''.format(cmd, mode)
-
-                # printdbus #
-                elif SysMgr.isPrintDbusMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1}
-
-Description:
-    Print D-Bus messages in real-time
-
-OPTIONS:
-        -g  <STRING>                set filter
-        -X  <REQ@IP:PORT>           set request address
-        -H  <LEVEL>                 set function depth level
-        -v                          verbose
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Print D-Bus messages
-        # {0:1} {1:1}
+                    if SysMgr.isPrintDbusMode():
+                        helpStr +=  '''
 
     - Print D-Bus messages for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out
 
     - Print D-Bus messages with backtrace for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out -H
-                    '''.format(cmd, mode)
-
-                # printkmsg #
-                elif SysMgr.isPrintKmsgMode():
-                    helpStr = '''
-Usage:
-    # {0:1} {1:1}
-
-Description:
-    Print DLT messages in real-time
-
-OPTIONS:
-        -g  <STRING>                set filter
-        -v                          verbose
-                        '''.format(cmd, mode)
-
-                    helpStr +=  '''
-Examples:
-    - Print kernel logs in real-time
-        # {0:1} {1:1}
-
-    - Print kernel logs including specific strings
-        # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -16103,11 +16086,10 @@ Copyright:
 
         # import ctypes #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER
 
         try:
-            # load standard libc library #
+            # load libc #
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
@@ -16225,23 +16207,12 @@ Copyright:
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
             return
-
         from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
             c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
-        # load standard libc library #
-        try:
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.libcObj = None
+        if not SysMgr.loadLibcObj(cdll):
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
-            SysMgr.printWarn(\
-                'Fail to find %s to call systemcall' % SysMgr.libcPath)
             return
 
         # define struct perf_event_attr #
@@ -16605,21 +16576,10 @@ Copyright:
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-
         from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
             c_uint64, c_uint, c_uint32, c_int, c_ulong
 
-        # load standard libc library #
-        try:
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.libcObj = None
-            SysMgr.printWarn(\
-                'Fail to find %s to call systemcall' % SysMgr.libcPath)
+        if not SysMgr.loadLibcObj(cdll):
             return
 
         # define struct read_group_format #
@@ -17773,19 +17733,9 @@ Copyright:
 
         # import ctypes #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, c_ulong
 
-        try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printWarn(\
-                'Fail to find %s to call getauxval' % SysMgr.libcPath)
+        if not SysMgr.loadLibcObj(cdll):
             return
 
         # declare syscalls #
@@ -21714,6 +21664,10 @@ Copyright:
         elif SysMgr.isLogKmsgMode():
             SysMgr.doLogMode('kmsg')
 
+        # LOGSYS MODE #
+        elif SysMgr.isLogSysMode():
+            SysMgr.doLogMode('syslog')
+
         # PRINTDLT MODE #
         elif SysMgr.isPrintDltMode():
             # set console info #
@@ -21733,6 +21687,16 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusAnalyzer.runDbusSnooper(mode='print')
+
+        # PRINTSYSLOG MODE #
+        elif SysMgr.isPrintSyslogMode():
+            # set console info #
+            SysMgr.ttyCols = long(0)
+            SysMgr.printStreamEnable = True
+
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            LogMgr.printSyslog()
 
         # PRINTKMSG MODE #
         elif SysMgr.isPrintKmsgMode():
@@ -22029,6 +21993,15 @@ Copyright:
 
 
     @staticmethod
+    def isPrintSyslogMode():
+        if sys.argv[1] == 'printsyslog':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isLogDltMode():
         if sys.argv[1] == 'logdlt':
             return True
@@ -22040,6 +22013,15 @@ Copyright:
     @staticmethod
     def isLogKmsgMode():
         if sys.argv[1] == 'logkmsg':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isLogSysMode():
+        if sys.argv[1] == 'logsys':
             return True
         else:
             return False
@@ -25709,18 +25691,7 @@ Copyright:
         from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
             c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
 
-        # load standard libc library #
-        try:
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.libcObj = None
-            SysMgr.printWarn(\
-                'Fail to find %s to call systemcall' % \
-                    SysMgr.libcPath, True)
+        if not SysMgr.loadLibcObj(cdll):
             sys.exit(0)
 
         # define struct sched_attr #
@@ -25830,7 +25801,7 @@ Copyright:
             from ctypes import cdll, POINTER
 
         try:
-            # load standard libc library #
+            # load libc #
             if not SysMgr.guiderObj and \
                 not SysMgr.libcObj:
                 SysMgr.libcObj = \
@@ -29274,18 +29245,17 @@ class DbusAnalyzer(object):
     def prepareDbusMethods():
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER, c_char_p, pointer, \
             c_ulong, c_void_p, c_int, c_uint32, Structure
 
         # try to load libraries #
         try:
-            # load standard libgio library #
+            # load libgio library #
             if not SysMgr.libgioObj:
                 SysMgr.libgioObj = \
                     cdll.LoadLibrary(SysMgr.libgioPath)
 
-            # load standard libgobj library #
+            # load libgobj library #
             if not SysMgr.libgObj:
                 SysMgr.libgObj = \
                     cdll.LoadLibrary(SysMgr.libgobjPath)
@@ -30350,7 +30320,6 @@ class DltAnalyzer(object):
     def doLogDlt(appid='GUID', context='GUID', msg=None):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER, Structure, \
             c_char, c_int32, c_int8, c_uint8, byref
 
@@ -30425,7 +30394,6 @@ class DltAnalyzer(object):
     def runDltReceiver(mode='top'):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import cdll, POINTER, Structure, Union, \
             c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
             c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
@@ -30954,15 +30922,8 @@ class Debugger(object):
             addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
             c_size_t, c_int, POINTER, sizeof, cast
 
-        try:
-            # load standard libc library #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            raise Exception()
+        if not SysMgr.loadLibcObj(cdll):
+            raise Exception('no libc')
 
         # define member classes #
         '''
@@ -35713,7 +35674,6 @@ class MemoryFile(object):
 
     def resize(self, size):
         ctypes = SysMgr.getPkg('ctypes')
-
         from ctypes import c_char, memmove
 
         self.mem = bytearray(size)
@@ -36792,13 +36752,12 @@ class ElfAnalyzer(object):
                 "disable demangle feature"), True)
             SysMgr.demangleEnable = False
             return symbol
-
         from ctypes import cdll, POINTER, c_char_p, \
             pointer, c_int, c_void_p, cast
 
         # try to demangle symbol #
         try:
-            # load standard libc library #
+            # load libc #
             if not SysMgr.libcObj:
                 SysMgr.libcObj = \
                     cdll.LoadLibrary(SysMgr.libcPath)
