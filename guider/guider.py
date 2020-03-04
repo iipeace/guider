@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200303"
+__revision__ = "200304"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23122,7 +23122,7 @@ Copyright:
 
 
     @staticmethod
-    def getOutput(fd, line=False, progress=False):
+    def getOutput(fd, retLine=False, progress=False):
         # get select object #
         selectObj = SysMgr.getPkg('select')
 
@@ -23138,7 +23138,9 @@ Copyright:
 
             if read:
                 line = read[0].readline()
-                if line == '':
+                if retLine:
+                    return line
+                elif line == '':
                     return output
 
                 output = '%s%s' % (output, line)
@@ -26427,6 +26429,8 @@ Copyright:
     def killChilds(sig=None, childs=None, wait=False, group=False):
         if not sig:
             sig = ConfigMgr.SIGKILL
+
+        SysMgr.updateChilds()
 
         if childs is None:
             childs = list(SysMgr.childList.keys())
