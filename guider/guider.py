@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200304"
+__revision__ = "200305"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24478,11 +24478,12 @@ Copyright:
 
         SysMgr.warnEnable = True
 
+        # check input #
         if not SysMgr.sourceFile:
-            SysMgr.printErr(\
-                "No PATH with -I")
+            SysMgr.printErr("No PATH with -I")
             sys.exit(0)
 
+        # check symbol #
         if len(SysMgr.filterGroup) == 0:
             SysMgr.printErr(\
                 "No offset with -g")
@@ -24503,49 +24504,52 @@ Copyright:
         resInfo = {}
         inputArg = str(SysMgr.sourceFile)
 
-        # check file #
-        if os.path.isfile(inputArg):
-            filePath = inputArg
+        # check process #
+        if inputArg.isdigit() and \
+            os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
+            pids = [inputArg]
+        else:
+            pids = SysMgr.getPids(inputArg)
 
-            # create ELF object #
-            try:
-                binObj = ElfAnalyzer.getObject(filePath, True)
-                if not binObj:
-                    err = SysMgr.getErrReason()
-                    raise Exception(err)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                err = SysMgr.getErrReason()
-                SysMgr.printErr(\
-                    "Fail to load ELF object because %s" % err)
-                sys.exit(0)
+        # a file #
+        if len(pids) == 0:
+            # check file #
+            if os.path.isfile(inputArg):
+                filePath = inputArg
 
-            for addr in addrList:
+                # create ELF object #
                 try:
-                    resInfo[addr] = [binObj.getSymbolByOffset(addr), filePath]
+                    binObj = ElfAnalyzer.getObject(filePath, True)
+                    if not binObj:
+                        err = SysMgr.getErrReason()
+                        raise Exception(err)
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    resInfo[addr] = ['??', filePath]
-        # check process #
-        else:
-            if inputArg.isdigit() and \
-                os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
-                pids = [inputArg]
-            else:
-                pids = SysMgr.getPids(inputArg)
+                    SysMgr.printErr(\
+                        "Fail to load %s as an ELF object because %s" % \
+                            (filePath, SysMgr.getErrReason()))
+                    sys.exit(0)
 
-            if len(pids) == 0:
+                for addr in addrList:
+                    try:
+                        resInfo[addr] = [binObj.getSymbolByOffset(addr), filePath]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        resInfo[addr] = ['??', filePath]
+            else:
                 SysMgr.printErr(\
                     "Fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
-            elif len(pids) > 1:
-                SysMgr.printErr((\
-                    "Fail to find a unique process because "
-                    "multiple processes [%s] are found") % ', '.join(pids))
-                sys.exit(0)
-
+        # multiple process #
+        elif len(pids) > 1:
+            SysMgr.printErr((\
+                "Fail to find a unique process because "
+                "multiple processes [%s] are found") % ', '.join(pids))
+            sys.exit(0)
+        # single process #
+        else:
             pid = pids[0]
 
             try:
@@ -24567,7 +24571,6 @@ Copyright:
                     resInfo[addr] = ['??', '??']
 
         SysMgr.printPipe("\n[Address Info]\n%s" % twoLine)
-
         SysMgr.printPipe(\
             "{0:<18} {1:<52} {2:<1}\n{3:1}".format(\
                 'Address', 'Symbol', 'File', twoLine))
@@ -24703,59 +24706,60 @@ Copyright:
 
         SysMgr.warnEnable = True
 
+        # check input #
         if not SysMgr.sourceFile:
             SysMgr.printErr(\
                 "No PATH or COMM or PID with -I")
             sys.exit(0)
 
-        if not SysMgr.findOption('g'):
-            SysMgr.printErr("No symbol with -g")
-            sys.exit(0)
-
+        # check symbol #
         if len(SysMgr.filterGroup) == 0:
             SysMgr.filterGroup.append('**')
 
         resInfo = {}
         inputArg = str(SysMgr.sourceFile)
 
-        # check file #
-        if os.path.isfile(inputArg):
-            filePath = inputArg
-            for sym in SysMgr.filterGroup:
-                # create ELF object #
-                try:
-                    offset = ElfAnalyzer.getSymOffset(sym, inputArg)
-                    if not offset:
-                        continue
-
-                    for item in offset:
-                        resInfo['%s|%s' % (item[1], filePath)] = \
-                            (hex(item[0]), filePath, None)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(\
-                        "Fail to get '%s' info because %s" % \
-                            (sym, SysMgr.getErrReason()))
-                    sys.exit(0)
         # check process #
+        if inputArg.isdigit() and \
+            os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
+            pids = [inputArg]
         else:
-            if inputArg.isdigit() and \
-                os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
-                pids = [inputArg]
-            else:
-                pids = SysMgr.getPids(inputArg)
+            pids = SysMgr.getPids(inputArg)
 
-            if len(pids) == 0:
+        # a file #
+        if len(pids) == 0:
+            # check file #
+            if os.path.isfile(inputArg):
+                filePath = inputArg
+                for sym in SysMgr.filterGroup:
+                    # create ELF object #
+                    try:
+                        offset = ElfAnalyzer.getSymOffset(sym, inputArg)
+                        if not offset:
+                            continue
+
+                        for item in offset:
+                            resInfo['%s|%s' % (item[1], filePath)] = \
+                                (hex(item[0]), filePath, None)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "Fail to get '%s' info because %s" % \
+                                (sym, SysMgr.getErrReason()))
+                        sys.exit(0)
+            else:
                 SysMgr.printErr(\
                     "Fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
-            elif len(pids) > 1:
-                SysMgr.printErr((\
-                    "Fail to find a unique process because "
-                    "multiple processes [%s] are found") % ', '.join(pids))
-                sys.exit(0)
-
+        # multiple process #
+        elif len(pids) > 1:
+            SysMgr.printErr((\
+                "Fail to find a unique process because "
+                "multiple processes [%s] are found") % ', '.join(pids))
+            sys.exit(0)
+        # single process #
+        else:
             pid = pids[0]
 
             # get file list on memorymap #
@@ -24784,7 +24788,6 @@ Copyright:
                                 SysMgr.getErrReason(), True)
 
         SysMgr.printPipe("\n[Symbol Info]\n%s" % twoLine)
-
         SysMgr.printPipe(\
             "{0:<48} {1:<52} {2:<18} {3:<18}\n{4:1}".format(\
                 'Symbol', 'PATH', 'Offset', 'Address', twoLine))
@@ -36694,7 +36697,7 @@ class ElfAnalyzer(object):
                 elfObj = ElfAnalyzer(path)
                 if not elfObj or not elfObj.ret:
                     raiseExcept = True
-                    raise Exception('not ELF file')
+                    raise Exception('not an ELF file')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
                 SysMgr.printInfo("[Done]", prefix=False, notitle=True)
@@ -36708,7 +36711,8 @@ class ElfAnalyzer(object):
 
                 err = SysMgr.getErrReason()
                 SysMgr.printWarn(\
-                    "Fail to load %s object because %s" % (path, err))
+                    "Fail to load %s as an ELF object because %s" % \
+                        (path, err))
 
                 if raiseExcept:
                     raise Exception(err)
@@ -37521,6 +37525,17 @@ class ElfAnalyzer(object):
         e_type = e_class = 'dummpy'
         EI_NIDENT = 16
 
+        # define err string #
+        errStr = "Fail to recognize %s as an ELF object because %s"
+
+        # check size #
+        if self.fileSize < EI_NIDENT:
+            size = UtilMgr.convertSize2Unit(self.fileSize)
+            SysMgr.printWarn(\
+                errStr % (path, "it's size is just %s" % size), debug)
+            self.ret = None
+            return None
+
         # parse ELF header #
         ei_ident = struct.unpack('16B', fd.read(EI_NIDENT))
         ei_mag0, ei_mag1,ei_mag2, ei_mag3, \
@@ -37532,17 +37547,15 @@ class ElfAnalyzer(object):
             ei_mag1 != ord('E') and \
             ei_mag2 != ord('L') and \
             ei_mag3 != ord('F'):
-            SysMgr.printWarn((\
-                "Fail to recognize '%s', "
-                "check it is elf-format object") % path, debug)
+            SysMgr.printWarn(\
+                errStr % (path, 'it is not the ELF object'), debug)
             self.ret = None
             return None
 
         # check 32/64-bit type #
         if ei_class == 0:
-            SysMgr.printErr((\
-                "Fail to recognize elf-format object '%s'"
-                "because it is invalid class") % path)
+            SysMgr.printWarn(\
+                errStr % (path, 'it is invaild class'), debug)
             self.ret = None
             return None
         elif ei_class == 1:
@@ -37554,9 +37567,8 @@ class ElfAnalyzer(object):
 
         # check data encoding (endian) #
         if ei_data == 0:
-            SysMgr.printErr((\
-                "Fail to recognize elf-format object '%s'"
-                "because it is invalid for data encoding") % path)
+            SysMgr.printWarn(\
+                errStr % (path, 'it is invalid for data encoding'), debug)
             self.ret = None
             return None
         elif ei_data == 1:
