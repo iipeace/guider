@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200305"
+__revision__ = "200306"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14237,7 +14237,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|setmem:0:aaaa:4
 
     - Handle printf function calls for a specific thread and print 10-length string that 1st argument point to
-        # {0:1} {1:1} -g a.out -c printf\\|setmem:0:10
+        # {0:1} {1:1} -g a.out -c printf\\|getmem:0:10
 
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
@@ -31492,7 +31492,7 @@ struct msghdr {
                             "Fail to write '%s' to %s" % (val, addr))
                         sys.exit(0)
 
-                    SysMgr.printPipe("(%x) -> %s" % (addr, [ret]))
+                    SysMgr.printPipe("\n(%x) -> %s" % (addr, [ret]), newline=False)
 
                 elif cmd == 'jump':
                     if len(cmdset) == 1:
@@ -33489,6 +33489,7 @@ struct msghdr {
         # pick breakpoint info #
         sym = self.bpList[addr]['symbol']
         fname = self.bpList[addr]['filename']
+        cmd = self.bpList[addr]['cmd']
 
         # update memory map and load new objects #
         if self.needMapScan or \
@@ -33502,9 +33503,15 @@ struct msghdr {
             self.readArgs()[4] > 0:
             self.needMapScan = True
 
+        # composite symbol and command set #
+        if cmd:
+            symCmd = '%s|%s' % (sym, '|'.join(cmd))
+        else:
+            symCmd = sym
+
         # print context info #
         if printStat and \
-            (len(self.targetBpList) == 0 or sym in self.targetBpList) and \
+            (len(self.targetBpList) == 0 or symCmd in self.targetBpList) and \
             (len(self.targetBpFileList) == 0 or fname in self.targetBpFileList):
             # build arguments string #
             if SysMgr.showAll:
@@ -33559,7 +33566,8 @@ struct msghdr {
                 else:
                     # print backtrace #
                     if SysMgr.funcDepth > 0:
-                        pass
+                        if len(self.targetBpList) > 0:
+                            self.printContext(newline=True)
 
                     # print string #
                     SysMgr.printPipe(callString, newline=False)
