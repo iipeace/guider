@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.6"
-__revision__ = "200306"
+__revision__ = "200308"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14231,13 +14231,13 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|kill
 
     - Handle write function calls for a specific thread and modify specific memory value
-        # {0:1} {1:1} -g a.out -c write\\|setmem:0x1234:aaaa:4
+        # {0:1} {1:1} -g a.out -c write\\|wrmem:0x1234:aaaa:4
 
     - Handle write function calls for a specific thread and modify specific memory value from 1st argument value
-        # {0:1} {1:1} -g a.out -c write\\|setmem:0:aaaa:4
+        # {0:1} {1:1} -g a.out -c write\\|wrmem:0:aaaa:4
 
     - Handle printf function calls for a specific thread and print 10-length string that 1st argument point to
-        # {0:1} {1:1} -g a.out -c printf\\|getmem:0:10
+        # {0:1} {1:1} -g a.out -c printf\\|rdmem:0:10
 
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
@@ -24288,9 +24288,9 @@ Copyright:
         execCmd = None
         lockObj = None
         procList = {}
+        bpList = {}
         targetBpList = {}
         targetBpFileList = {}
-        bpList = {}
 
         # check input #
         if len(SysMgr.filterGroup) == 0 and \
@@ -30883,12 +30883,16 @@ class Debugger(object):
         self.totalCall = long(0)
         self.callTable = {}
         self.fileTable = {}
+        self.bpList = {}
+        self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
-        self.bpList = {}
         self.libcLoaded = False
-        self.defaulttargetBpFileList = {}
-        self.defaultTargetBpList = {'mmap': 0, 'mmap64': 0}
+        self.dftBpFileList = {}
+        self.dftBpSymList = {\
+            'mmap': 0,\
+            'mmap64': 0,\
+        }
 
         self.backtrace = {
             'x86': self.getBacktrace_X86,
@@ -31324,9 +31328,9 @@ struct msghdr {
                 cmdformat = "VAL"
             elif cmd == 'setarg':
                 cmdformat = "R0:R1"
-            elif cmd == 'setmem':
+            elif cmd == 'wrmem':
                 cmdformat = "ADDR|REG:VAL:SIZE"
-            elif cmd == 'getmem':
+            elif cmd == 'rdmem':
                 cmdformat = "ADDR|REG:SIZE"
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
@@ -31419,7 +31423,7 @@ struct msghdr {
                     self.setRegs()
                     self.updateRegs()
 
-                elif cmd == 'setmem':
+                elif cmd == 'wrmem':
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
@@ -31456,7 +31460,7 @@ struct msghdr {
                             "Fail to write '%s' to %s" % (val, addr))
                         sys.exit(0)
 
-                elif cmd == 'getmem':
+                elif cmd == 'rdmem':
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
@@ -31650,8 +31654,8 @@ struct msghdr {
         cmdList = []
 
         # add default breakpoints such as mmap symbols #
-        for lib in (self.defaulttargetBpFileList.keys()):
-            for dsym in list(self.defaultTargetBpList.keys()):
+        for lib in (self.dftBpFileList.keys()):
+            for dsym in list(self.dftBpSymList.keys()):
                 ret = self.getAddrBySymbol(dsym, binary=lib)
                 if not ret:
                     continue
@@ -31659,6 +31663,9 @@ struct msghdr {
                 addr = ret[0][0]
                 ret = self.injectBreakpoint(\
                     addr, dsym, fname=lib, reins=True)
+
+                # register exceptional address #
+                self.exceptBpList[addr] = 0
 
         # add breakpoints requested by user #
         for value in symlist:
@@ -31693,7 +31700,7 @@ struct msghdr {
                 if not ret:
                     if self.execCmd or \
                         value == '' or \
-                        value in self.defaultTargetBpList:
+                        value in self.dftBpSymList:
                         continue
 
                     SysMgr.printErr(\
@@ -31731,6 +31738,7 @@ struct msghdr {
                 SysMgr.printWarn(\
                     "Fail to inject breakpoint to %s(%s) for %s thread" % \
                         (value, hex(addr), self.pid))
+            self.exceptBpList.pop(addr, None)
 
         UtilMgr.deleteProgress()
 
@@ -32786,9 +32794,9 @@ struct msghdr {
         for fpath in list(self.pmap.keys()):
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
-                self.defaulttargetBpFileList[fpath] = 0
+                self.dftBpFileList[fpath] = 0
             if fname.startswith('libc-'):
-                self.defaulttargetBpFileList[fpath] = 0
+                self.dftBpFileList[fpath] = 0
 
         # load file-mapped objects #
         for mfile in list(self.pmap.keys()):
@@ -33503,16 +33511,11 @@ struct msghdr {
             self.readArgs()[4] > 0:
             self.needMapScan = True
 
-        # composite symbol and command set #
-        if cmd:
-            symCmd = '%s|%s' % (sym, '|'.join(cmd))
-        else:
-            symCmd = sym
-
         # print context info #
         if printStat and \
-            (len(self.targetBpList) == 0 or symCmd in self.targetBpList) and \
-            (len(self.targetBpFileList) == 0 or fname in self.targetBpFileList):
+            addr not in self.exceptBpList and \
+            (len(self.targetBpFileList) == 0 or \
+                fname in self.targetBpFileList):
             # build arguments string #
             if SysMgr.showAll:
                 # read args #
