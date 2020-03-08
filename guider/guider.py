@@ -24243,9 +24243,10 @@ Copyright:
                         SysMgr.sendSignalProcs, \
                         [signal.SIGCONT, [pid], False, False])
 
+                    bpList.setdefault(pid, dict())
+                    exceptBpList.setdefault(pid, dict())
                     targetBpList.setdefault(pid, dict())
                     targetBpFileList.setdefault(pid, dict())
-                    bpList.setdefault(pid, dict())
 
                     # create object #
                     procObj = Debugger(pid=pid, execCmd=execCmd)
@@ -24257,12 +24258,14 @@ Copyright:
                         procObj.updateBpList()
 
                     # save per-process breakpoint info #
+                    bpList[pid] = \
+                        copy.deepcopy(procObj.bpList)
+                    exceptBpList[pid] = \
+                        copy.deepcopy(procObj.exceptBpList)
                     targetBpList[pid] = \
                         copy.deepcopy(procObj.targetBpList)
                     targetBpFileList[pid] = \
                         copy.deepcopy(procObj.targetBpFileList)
-                    bpList[pid] = \
-                        copy.deepcopy(procObj.bpList)
 
                     procObj.detach()
                     del procObj
@@ -24289,6 +24292,7 @@ Copyright:
         lockObj = None
         procList = {}
         bpList = {}
+        exceptBpList = {}
         targetBpList = {}
         targetBpFileList = {}
 
@@ -24439,22 +24443,19 @@ Copyright:
                     ppid = long(SysMgr.getTgid(pid))
 
                 # set per-process convert breakpoint list #
-                try:
+                if ppid in bpList:
                     bpList = bpList[ppid]
-                except:
-                    bpList = {}
-                try:
+                if ppid in exceptBpList:
+                    exceptBpList = exceptBpList[ppid]
+                if ppid in targetBpList:
                     targetBpList = targetBpList[ppid]
-                except:
-                    targetBpList = {}
-                try:
+                if ppid in targetBpFileList:
                     targetBpFileList = targetBpFileList[ppid]
-                except:
-                    targetBpFileList = {}
 
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait, bpList=bpList, \
-                        multi=multi, lock=lockObj, targetBpList=targetBpList, \
+                    trace(mode='break', wait=wait, multi=multi, \
+                        bpList=bpList, exceptBpList = exceptBpList, \
+                        lock=lockObj, targetBpList=targetBpList, \
                         targetBpFileList=targetBpFileList)
             elif mode == 'signal':
                 Debugger(pid=pid, execCmd=execCmd).\
@@ -33497,7 +33498,6 @@ struct msghdr {
         # pick breakpoint info #
         sym = self.bpList[addr]['symbol']
         fname = self.bpList[addr]['filename']
-        cmd = self.bpList[addr]['cmd']
 
         # update memory map and load new objects #
         if self.needMapScan or \
@@ -34683,8 +34683,8 @@ struct msghdr {
 
 
     def trace(\
-        self, mode='syscall', wait=None, \
-            multi=False, lock=None, bpList={}, \
+        self, mode='syscall', wait=None,\
+            multi=False, lock=None, bpList={}, exceptBpList={},\
             targetBpList={}, targetBpFileList={}):
 
         # index variables #
@@ -34831,6 +34831,7 @@ struct msghdr {
             if self.isRunning:
                 # register breakpoint data #
                 self.bpList = bpList
+                self.exceptBpList = exceptBpList
 
                 # check thread status #
                 stat = self.getStatList(status=True)
