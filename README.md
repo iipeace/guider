@@ -996,25 +996,29 @@ COMMAND:
                     start           <Signal>
 
     [LOG]           logdlt          <DLT>
+                    logjrl          <Journal>
+                    logkmsg         <Kernel>
+                    logsys          <Syslog>
                     printdlt        <DLT>
                     printkmsg       <Kernel>
+                    printsyslog     <Syslog>
 
     [MONITOR]       bgtop           <Background>
-                    brktop          <Breakpoint>
+                    btop            <Breakpoint>
                     dbustop         <D-Bus>
                     disktop         <Storage>
                     dlttop          <DLT>
-                    filetop         <File>
+                    ftop            <File>
                     memtop          <Memory>
                     nettop          <Network>
                     perftop         <PMU>
                     reptop          <JSON>
                     stacktop        <Stack>
-                    systemtop       <System>
+                    sttop           <System>
                     systop          <syscall>
-                    threadtop       <Thread>
                     top             <Process>
-                    usertop         <Function>
+                    ttop            <Thread>
+                    utop            <Function>
                     wsstop          <Memory>
 
     [PROFILE]       filerec         <File>
@@ -1029,12 +1033,13 @@ COMMAND:
                     memtest         <Memory>
 
     [TRACE]         btrace          <Breakpoint>
+                    sigtrace        <Signal>
                     strace          <Syscall>
                     utrace          <Function>
 
     [UTIL]          addr2sym        <Symbol>
                     getafnt         <Affinity>
-                    kill            <Signal>
+                    kill/tkill      <Signal>
                     leaktrace       <Leak>
                     limitcpu        <CPU>
                     pause           <Thread>
@@ -1049,6 +1054,7 @@ COMMAND:
                     setcpu          <Clock>
                     setsched        <Priority>
                     sym2addr        <Address>
+                    systat          <Status>
                     topdiff         <Diff>
 
     [VISUAL]        convert         <Text>

@@ -6,8 +6,8 @@ __copyright__ = "Copyright 2015-2020, Guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
-__version__ = "3.9.6"
-__revision__ = "200308"
+__version__ = "3.9.7"
+__revision__ = "200309"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26510,7 +26510,7 @@ Copyright:
     @staticmethod
     def getFileList(path, incFile=True, incDir=False):
         flist = list()
-	for r, d, f in os.walk(path):
+        for r, d, f in os.walk(path):
             if incFile:
                 for sfile in f:
                     flist.append(os.path.join(r, sfile))
