@@ -32671,7 +32671,8 @@ struct msghdr {
                     'Path: %s, Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f' % \
                         (value['path'], convert(value['cnt']), avg, tmin, tmax)
             else:
-                addVal = value['path']
+                addVal = 'Path: %s, Cnt: %s' % \
+                    (value['path'], convert(value['cnt']))
 
             if SysMgr.checkCutCond():
                 break
@@ -39110,9 +39111,9 @@ class ThreadAnalyzer(object):
                 {'isMain': bool(False), 'tids': None, 'stat': None, \
                 'io': None, 'alive': False, 'runtime': float(0), \
                 'changed': True, 'new': bool(False), 'majflt': long(0), \
-                'ttime': float(0), 'cttime': float(0), 'utime': float(0), \
-                'stime': float(0), 'taskPath': None, 'statm': None, \
-                'mainID': '', 'btime': float(0), 'maps': None, 'status': None, \
+                'ttime': long(0), 'cttime': long(0), 'utime': long(0), \
+                'stime': long(0), 'taskPath': None, 'statm': None, \
+                'mainID': '', 'btime': long(0), 'maps': None, 'status': None, \
                 'procComm': ''}
 
             self.init_cpuData = \
@@ -50420,7 +50421,7 @@ class ThreadAnalyzer(object):
             # save info per process #
             if SysMgr.processEnable:
                 # save stat of process #
-                self.saveProcData(procPath, pid)
+                ret = self.saveProcData(procPath, pid)
 
                 # calculate number of threads #
                 if pid in self.procData:
@@ -50445,7 +50446,7 @@ class ThreadAnalyzer(object):
                 threadPath = "%s/%s" % (taskPath, tid)
 
                 # save stat of thread #
-                self.saveProcData(threadPath, tid, pid)
+                ret = self.saveProcData(threadPath, tid, pid)
 
                 # main thread #
                 if pid == tid:
@@ -50886,10 +50887,9 @@ class ThreadAnalyzer(object):
                 statBuf = getStatBuf(self, statPath, tid)
         except:
             SysMgr.printOpenWarn(statPath)
-
             self.procData.pop(tid, None)
-
-            return
+            self.abnormalTaskList[pid] = '?'
+            return False
 
         # check stat change #
         self.procData[tid]['statOrig'] = statBuf
@@ -50984,6 +50984,8 @@ class ThreadAnalyzer(object):
         # save oom_score #
         if SysMgr.oomEnable:
             self.updateOOMScore(path, tid)
+
+        return True
 
 
 
@@ -53674,9 +53676,11 @@ class ThreadAnalyzer(object):
                 stat = value['stat']
             else:
                 if not idx in self.procData:
-                    return
-                value = self.procData[idx]
-                stat = value['stat']
+                    value = dict(self.init_procData)
+                    stat = ['?'] * 52
+                else:
+                    value = self.procData[idx]
+                    stat = value['stat']
 
             # set comm #
             if taskType == 'new':
@@ -53693,18 +53697,30 @@ class ThreadAnalyzer(object):
             else:
                 pid = value['mainID']
 
-            codeSize = (long(stat[self.ecodeIdx]) - \
-                long(stat[self.scodeIdx])) >> 20
+            try:
+                codeSize = (long(stat[self.ecodeIdx]) - \
+                    long(stat[self.scodeIdx])) >> 20
+            except:
+                codeSize = 0
 
-            if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
-            else:
-                schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
+            try:
+                if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                    schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
+                else:
+                    schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
+                schedPolicy = \
+                    ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
+                    str(schedValue)
+            except:
+                schedPolicy = '?'
 
-            runtime = value['runtime'] + SysMgr.uptimeDiff
-            lifeTime = UtilMgr.convertTime(runtime)
-            if len(lifeTime.split(':')) > 3:
-                lifeTime = lifeTime[:lifeTime.rfind(':')]
+            try:
+                runtime = value['runtime'] + SysMgr.uptimeDiff
+                lifeTime = UtilMgr.convertTime(runtime)
+                if len(lifeTime.split(':')) > 3:
+                    lifeTime = lifeTime[:lifeTime.rfind(':')]
+            except:
+                lifeTime = '?'
 
             try:
                 swapSize = \
@@ -53758,6 +53774,16 @@ class ThreadAnalyzer(object):
                 ttime = value['ttime']
                 btime = value['btime']
 
+            try:
+                vss = long(stat[self.vssIdx]) >> 20
+            except:
+                vss = 0
+
+            try:
+                rss = long(stat[self.rssIdx]) >> 8
+            except:
+                rss = 0
+
             # print thread information #
             SysMgr.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
@@ -53766,10 +53792,8 @@ class ThreadAnalyzer(object):
                 "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx], \
-                ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
-                str(schedValue), ttime, value['utime'], \
-                value['stime'], '-', long(stat[self.vssIdx]) >> 20, \
-                long(stat[self.rssIdx]) >> 8, codeSize, shr, swapSize, \
+                schedPolicy, ttime, value['utime'], value['stime'], '-', \
+                vss, rss, codeSize, shr, swapSize, \
                 btime, readSize, writeSize, value['majflt'],\
                 '-', '-', '-', lifeTime[:9], etc[:21], cl=cl, pd=pd))
             procCnt += 1
