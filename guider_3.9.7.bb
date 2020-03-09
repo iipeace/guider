@@ -11,12 +11,13 @@ PR = "r0"
 
 SRC_URI = "git://github.com/iipeace/${BPN}"
 #SRCREV = "${AUTOREV}"
-SRCREV = "e201901d2c023f7bb60b194fc7e9cb219378e129"
+SRCREV = "52aeb6f4c536865305afa51f37166bfe46fa460d"
 
 S = "${WORKDIR}/git"
 R = "${RECIPE_SYSROOT}"
 
-inherit distutils
+#inherit distutils
+inherit distutils3
 
 GUIDER_OBJ = "guider.pyc"
 GUIDER_SCRIPT = "guider"
