@@ -30906,6 +30906,7 @@ class Debugger(object):
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
+        self.tkillIdx = ConfigMgr.sysList.index('sys_tkill')
 
         plist = ConfigMgr.PTRACE_TYPE
         self.contCmd = plist.index('PTRACE_CONT')
@@ -31859,7 +31860,7 @@ struct msghdr {
             if not thread:
                 raise Exception()
 
-            return SysMgr.syscall('tkill', pid, signal.SIGSTOP)
+            return SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
         except SystemExit:
             sys.exit(0)
         except:
@@ -31905,10 +31906,6 @@ struct msghdr {
                     (self.comm, pid))
             return -1
 
-        errMsg = \
-            'Fail to continue %s(%s) because it is terminated' % \
-                (self.comm, pid)
-
         # check target is running #
         try:
             os.kill(pid, 0)
@@ -31916,6 +31913,9 @@ struct msghdr {
             sys.exit(0)
         except:
             if not self.isAlive():
+                errMsg = \
+                    'Fail to continue %s(%s) because it is terminated' % \
+                        (self.comm, pid)
                 SysMgr.printWarn(errMsg)
                 return -1
 
@@ -31925,12 +31925,16 @@ struct msghdr {
             while 1:
                 ret = self.ptrace(self.contCmd, 0, sig)
                 if ret != 0:
-                    time.sleep(0.001)
                     cnt -= 1
-                    if cnt < 0 or not self.isAlive():
-                        SysMgr.printErr(errMsg)
-                        return -1
-                    continue
+                    time.sleep(0.001)
+                    if cnt > 0 and self.isAlive():
+                        continue
+
+                    errMsg = \
+                        'Fail to continue %s(%s) because it is terminated' % \
+                            (self.comm, pid)
+                    SysMgr.printErr(errMsg)
+                    return -1
                 return 0
 
         # continue target thread #
@@ -34498,16 +34502,16 @@ struct msghdr {
             elif self.status == 'ready':
                 pass
             else:
-                # skip instructions for performance #
-                if self.mode == 'inst' and self.skipInst > 0:
-                    for i in xrange(0, self.skipInst):
-                        self.ptrace(self.cmd)
                 # wait for sample calls #
-                elif self.mode == 'sample':
+                if self.mode == 'sample':
                     self.checkInterval()
                 elif self.mode == 'break' or \
                     self.mode == 'signal':
                     pass
+                # skip instructions for performance #
+                elif self.mode == 'inst' and self.skipInst > 0:
+                    for i in xrange(0, self.skipInst):
+                        self.ptrace(self.cmd)
                 # setup trap #
                 else:
                     self.ptrace(self.cmd)
@@ -34840,7 +34844,7 @@ struct msghdr {
                     SysMgr.printErr(\
                         'Terminated %s(%s)' % (self.comm, self.pid))
                 elif stat == 'S':
-                    SysMgr.syscall('tkill', self.pid, signal.SIGCONT)
+                    SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
         elif self.mode == 'signal':
             if self.isStopped():
                 if self.cont(check=True):
