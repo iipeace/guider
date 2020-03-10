@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200309"
+__revision__ = "200310"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42233,6 +42233,8 @@ class ThreadAnalyzer(object):
 
 
     def printComInfo(self):
+        convertNum = UtilMgr.convertNumber
+
         # print thread tree by creation #
         if SysMgr.showAll and self.nrNewTask > 0:
             SysMgr.clearPrint()
@@ -42345,7 +42347,8 @@ class ThreadAnalyzer(object):
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
                     format(key, \
                     ' | '.join(list(self.irqData[key]['name'].keys())), \
-                    self.irqData[key]['count'], self.irqData[key]['usage'], \
+                    convertNum(self.irqData[key]['count']), \
+                    self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], \
                     self.irqData[key]['minPeriod']))
@@ -42360,14 +42363,16 @@ class ThreadAnalyzer(object):
                     ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
                     "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").format(\
                     key, ' | '.join(list(self.irqData[key]['name'].keys())), \
-                    self.irqData[key]['count'], self.irqData[key]['usage'], \
+                    convertNum(self.irqData[key]['count']), \
+                    self.irqData[key]['usage'], \
                     self.irqData[key]['max'], self.irqData[key]['min'], \
                     self.irqData[key]['maxPeriod'], \
                     self.irqData[key]['minPeriod']))
 
             SysMgr.printPipe(\
-                "%s# IRQ(%d) / Total(%6.3f) / Cnt(%d)\n" % \
-                ('', len(self.irqData), totalUsage, totalCnt))
+                "%s# IRQ(%s) / Total(%6.3f) / Cnt(%s)\n" % \
+                    ('', convertNum(len(self.irqData)), \
+                    totalUsage, convertNum(totalCnt)))
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
 
@@ -53670,9 +53675,11 @@ class ThreadAnalyzer(object):
                 set(self.prevProcData.keys()) - set(self.procData.keys())
 
         procCnt = long(0)
-        for idx in taskList:
+        for tid in sorted(list(map(long, taskList))):
             if SysMgr.checkCutCond():
                 return -1
+
+            idx = str(tid)
 
             # define stat variables #
             if taskType == 'die':
