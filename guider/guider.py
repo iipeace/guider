@@ -37607,28 +37607,28 @@ class ElfAnalyzer(object):
             return None
 
         # check 32/64-bit type #
-        if ei_class == 0:
-            SysMgr.printWarn(\
-                errStr % (path, 'it is invaild class'), debug)
-            self.ret = None
-            return None
-        elif ei_class == 1:
+        if ei_class == 1:
             self.is32Bit = True
             e_class = '32-bit objects'
         elif ei_class == 2:
             self.is32Bit = False
             e_class = '64-bit objects'
+        else:
+            SysMgr.printWarn(\
+                errStr % (path, 'it is invaild class'), debug)
+            self.ret = None
+            return None
 
         # check data encoding (endian) #
-        if ei_data == 0:
+        if ei_data == 1:
+            e_data = 'ELFDATA2LSB'
+        elif ei_data == 2:
+            e_data = 'ELFDATA2MSB'
+        else:
             SysMgr.printWarn(\
                 errStr % (path, 'it is invalid for data encoding'), debug)
             self.ret = None
             return None
-        elif ei_data == 1:
-            e_data = 'ELFDATA2LSB'
-        elif ei_data == 2:
-            e_data = 'ELFDATA2MSB'
 
         # check file type #
         ei_type  = struct.unpack('H', fd.read(2))[0]
