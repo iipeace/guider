@@ -12021,8 +12021,13 @@ class SysMgr(object):
     netInIndex = -1
 
     printStreamEnable = False
-    terminalOver = False
+    loggingEnable = False
     dltEnable = False
+    kmsgEnable = False
+    syslogEnable = False
+    journalEnable = False
+    terminalOver = False
+
     cpuAvrEnable = True
     reportEnable = False
     truncEnable = True
@@ -13625,7 +13630,8 @@ class SysMgr(object):
             'r' in options or 'R' in options or \
             'd' in options or 'o' in options or \
             'C' in options or 'E' in options or \
-            'D' in options:
+            'D' in options or 'k' in options or \
+            'j' in options or 'y' in options:
             return True
         else:
             return False
@@ -14094,10 +14100,11 @@ OPTIONS:
                 a:affinity | b:block | c:cpu | C:cgroup
                 d:disk | D:DLT | e:encode | E:Elastic
                 f:float | F:wfc | h:sigHandler | i:irq
-                L:cmdline | m:memory | n:net | o:oomScore
-                p:pipe | P:perf | r:report | R:fileReport
-                s:stack | S:pss | t:thread | u:uss
-                w:wss | W:wchan
+                j:journal | k:kmsg | L:cmdline | m:memory
+                n:net | o:oomScore | p:pipe | P:perf
+                r:report | R:fileReport | s:stack
+                S:pss | t:thread | u:uss | w:wss
+                W:wchan | y:syslog
         -d  <CHARACTER>             disable options
                 a:memAvailable | A:cpuAverage
                 c:cpu | e:encode | G:gpu | L:log
@@ -19350,8 +19357,15 @@ Copyright:
 
     @staticmethod
     def printPipe(line='', newline=True, flush=False, pager=True):
-        if SysMgr.dltEnable:
-            DltAnalyzer.doLogDlt(msg=line)
+        if SysMgr.loggingEnable:
+            if SysMgr.dltEnable:
+                DltAnalyzer.doLogDlt(msg=line)
+            if SysMgr.kmsgEnable:
+                LogMgr.doLogKmsg(msg=line)
+            if SysMgr.syslogEnable:
+                LogMgr.doLogSyslog(msg=line)
+            if SysMgr.journalEnable:
+                LogMgr.doLogJournal(msg=line)
 
         # print to socket #
         if len(SysMgr.addrListForPrint) > 0:
@@ -20188,7 +20202,20 @@ Copyright:
                     SysMgr.processEnable = False
 
                 if 'D' in options:
+                    SysMgr.loggingEnable = True
                     SysMgr.dltEnable = True
+
+                if 'k' in options:
+                    SysMgr.loggingEnable = True
+                    SysMgr.kmsgEnable = True
+
+                if 'j' in options:
+                    SysMgr.loggingEnable = True
+                    SysMgr.journalEnable = True
+
+                if 'y' in options:
+                    SysMgr.loggingEnable = True
+                    SysMgr.syslogEnable = True
 
                 # no more options except for top mode #
                 if not SysMgr.isTopMode():
