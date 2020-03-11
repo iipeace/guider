@@ -12710,6 +12710,12 @@ class SysMgr(object):
             else:
                 sys.exit(0)
 
+        # system #
+        elif SysMgr.isSystemTopMode():
+            SysMgr.irqEnable = True
+            SysMgr.diskEnable = True
+            SysMgr.networkEnable = True
+
         # DLT #
         elif SysMgr.isDltTopMode():
             SysMgr.dltTopEnable = True
@@ -13927,7 +13933,7 @@ class SysMgr(object):
             'monitor': {
                 'top': 'Process',
                 'ttop': 'Thread',
-                'sttop': 'System',
+                'smtop': 'System',
                 'bgtop': 'Background',
                 'stacktop': 'Stack',
                 'perftop': 'PMU',
@@ -21262,7 +21268,7 @@ Copyright:
         if len(sys.argv) == 1:
             return False
 
-        if sys.argv[1] == 'sttop':
+        if sys.argv[1] == 'smtop':
             return True
         else:
             return False
