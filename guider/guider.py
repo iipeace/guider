@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200310"
+__revision__ = "200311"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23201,6 +23201,10 @@ Copyright:
     @staticmethod
     def createProcess(\
         cmd=None, isDaemon=False, mute=False, changePgid=False):
+        # flush print buffer before fork #
+        SysMgr.flushAllForPrint()
+
+        # create a new process #
         pid = os.fork()
 
         # parent #
