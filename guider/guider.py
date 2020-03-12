@@ -15779,7 +15779,7 @@ Examples:
         # {0:1} {1:1} f:90:1234
 
     - Set cpu scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
-        # {0:1} {1:1} d:1000/10000/10000:1234
+        # {0:1} {1:1} d:1000000/10000000/10000000:1234
                     '''.format(cmd, mode)
 
                 # getaffinity #
@@ -25193,14 +25193,6 @@ Copyright:
         nowTime = None
         taskList = {}
 
-        def getThreadList(pid):
-            taskPath = "%s/%s/task" % (SysMgr.procPath, pid)
-
-            try:
-                return list(map(long, os.listdir(taskPath)))
-            except:
-                return None
-
         def openStatFd(tid, isProcess):
             if isProcess:
                 statPath = "%s/%s/stat" % \
@@ -25246,7 +25238,7 @@ Copyright:
                 'ticks': long(0), 'running': True}
 
             if isProcess:
-                taskList[task]['group'] = getThreadList(task)
+                taskList[task]['group'] = SysMgr.getThreadList(task)
                 if not taskList[task]['group']:
                     SysMgr.printErr(\
                         "Fail to get thread list of '%s' process" % task)
@@ -25312,7 +25304,7 @@ Copyright:
                     for tid, val in taskList.items():
                         # update thread list in a process #
                         if isProcess:
-                            taskList[tid]['group'] = getThreadList(tid)
+                            taskList[tid]['group'] = SysMgr.getThreadList(tid)
                             if not taskList[tid]['group']:
                                 continue
 
@@ -25463,6 +25455,11 @@ Copyright:
         myPid = str(SysMgr.pid)
         SIG_LIST = ConfigMgr.SIG_LIST
 
+        if isThread:
+            taskType = 'thread'
+        else:
+            taskType = 'process'
+
         nrProc = long(0)
         if type(pidList) is list and len(pidList) > 0:
             for pid in pidList:
@@ -25481,10 +25478,14 @@ Copyright:
                 # send signal to a process #
                 try:
                     kill(long(pid), nrSig)
+
+                    # get comm #
+                    comm = SysMgr.getComm(pid)
+
                     if verbose:
                         SysMgr.printInfo(\
-                            "sent signal %s to %s process" % \
-                                (SIG_LIST[nrSig], pid))
+                            "sent signal %s to %s(%s) %s" % \
+                                (SIG_LIST[nrSig], comm, pid, taskType))
 
                     nrProc += 1
                 except:
@@ -25541,6 +25542,9 @@ Copyright:
                 except:
                     continue
 
+                # get comm #
+                comm = SysMgr.getComm(pid)
+
                 if SysMgr.isStartMode() and waitStatus:
                     try:
                         kill(long(pid), nrSig)
@@ -25554,17 +25558,21 @@ Copyright:
                         kill(long(pid), nrSig)
                         if verbose:
                             SysMgr.printInfo(\
-                                "sent signal %s to %s process" % \
-                                    (SIG_LIST[nrSig], pid))
+                                "sent signal %s to %s(%s) %s" % \
+                                    (SIG_LIST[nrSig], comm, pid, taskType))
                     except:
                         SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
                     kill(long(pid), nrSig)
+
+                    # get comm #
+                    comm = SysMgr.getComm(pid)
+
                     if verbose:
                         SysMgr.printInfo(\
-                            "sent signal %s to %s process" % \
-                                (SIG_LIST[nrSig], pid))
+                            "sent signal %s to %s(%s) %s" % \
+                                (SIG_LIST[nrSig], comm, pid, taskType))
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
 
@@ -25582,7 +25590,7 @@ Copyright:
         try:
             return list(map(long, os.listdir(taskPath)))
         except:
-            pass
+            return None
 
 
 
@@ -25620,6 +25628,7 @@ Copyright:
             try:
                 # change myself #
                 if len(schedSet) == 2:
+                    pid = SysMgr.pid
                     SysMgr.prio = long(schedSet[1])
 
                     if isProcess:
@@ -25627,11 +25636,10 @@ Copyright:
                             SysMgr.getThreadList(SysMgr.pid)
                         if not threadList:
                             SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % \
-                                SysMgr.pid)
+                                "Fail to get thread list of %s task" % pid)
                             sys.exit(0)
                     else:
-                        threadList = [SysMgr.pid]
+                        threadList = [pid]
 
                     for tid in threadList:
                         SysMgr.setPriority(\
@@ -25644,22 +25652,22 @@ Copyright:
                             [schedSet[0], schedSet[1]])
                         continue
 
+                    pid = schedSet[2]
+
                     if isProcess:
-                        threadList = SysMgr.getThreadList(schedSet[2])
+                        threadList = SysMgr.getThreadList(pid)
                         if not threadList:
                             SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % \
-                                    schedSet[2])
+                                "Fail to get thread list of %s task" % pid)
                             sys.exit(0)
-                    elif schedSet[2].isdigit():
-                        threadList = [int(schedSet[2])]
+                    elif pid.isdigit():
+                        threadList = [long(pid)]
                     else:
                         SysMgr.printErr(\
-                            "Fail to get thread id from '%s' value" % \
-                                schedSet[2])
+                            "Fail to get thread id from '%s'" % pid)
                         sys.exit(0)
 
-                    # change priority of a thread #
+                    # change priority of threads #
                     for tid in threadList:
                         if schedSet[0].upper() == 'D':
                             # parse deadline arguments #
@@ -25688,15 +25696,16 @@ Copyright:
                         SysMgr.schedFilter.append([policy, pri, 0])
                         continue
 
+                    pid = schedSet[2]
+
                     if isProcess:
-                        threadList = SysMgr.getThreadList(schedSet[2])
+                        threadList = SysMgr.getThreadList(pid)
                         if not threadList:
                             SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % \
-                                schedSet[2])
+                                "Fail to get thread list of %s task" % pid)
                             sys.exit(0)
                     else:
-                        threadList = [int(schedSet[2])]
+                        threadList = [long(pid)]
 
                     # add sched item to list #
                     for tid in threadList:
@@ -25725,7 +25734,7 @@ Copyright:
             if ver < 3.14:
                 SysMgr.printErr((\
                     "Fail to set priority of %d "
-                    "because kernel verion %f is lesser than 3.14") % \
+                    "because kernel version %f is lesser than 3.14") % \
                     (pid, ver))
                 return -1
         except:
@@ -25779,14 +25788,14 @@ Copyright:
 
         # set parameters #
         sched_attr = struct_sched_attr()
-        sched_attr.size = sizeof(sched_attr)
-        sched_attr.sched_flags = long(0)
-        sched_attr.sched_nice = long(0)
-        sched_attr.sched_priority = long(0)
-        sched_attr.sched_policy = ConfigMgr.SCHED_POLICY.index('D')
+        sched_attr.size = c_uint32(sizeof(sched_attr))
+        sched_attr.sched_flags = c_uint64(0)
+        sched_attr.sched_nice = c_int32(0)
+        sched_attr.sched_priority = c_uint32(0)
+        sched_attr.sched_policy = c_uint32(ConfigMgr.SCHED_POLICY.index('D'))
 
         # set runtime(ns) #
-        sched_attr.sched_runtime = runtime
+        sched_attr.sched_runtime = c_uint64(runtime)
 
         # check deadline and period #
         if deadline == period == 0:
@@ -25800,24 +25809,27 @@ Copyright:
             period = deadline
 
         # set period(ns) #
-        sched_attr.sched_deadline = deadline
-        sched_attr.sched_period = period
+        sched_attr.sched_deadline = c_uint64(deadline)
+        sched_attr.sched_period = c_uint64(period)
 
-        # call sched_setattr() to set deadeline sched #
+        # call sched_setattr() to set deadline sched #
         ret = SysMgr.libcObj.syscall(\
             nrSyscall, pid, pointer(sched_attr), 0)
+
+        # get comm #
+        comm = SysMgr.getComm(pid)
 
         # check return value #
         if ret == 0:
             SysMgr.printInfo((\
-                "priority of %d task is changed to "
+                "the priority of %s(%s) is changed to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
-                (pid, runtime, deadline, period))
+                (comm, pid, runtime, deadline, period))
         else:
             SysMgr.printErr((\
-                "Fail to set priority of %d as "
+                "Fail to set priority of %s(%s) as "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
-                (pid, runtime, deadline, period))
+                (comm, pid, runtime, deadline, period))
 
         return ret
 
@@ -25848,6 +25860,9 @@ Copyright:
             if not ctypes:
                 return
             from ctypes import cdll, POINTER
+
+        # get comm #
+        comm = SysMgr.getComm(pid)
 
         try:
             # load libc #
@@ -25898,8 +25913,8 @@ Copyright:
                     raise Exception()
 
             SysMgr.printInfo(\
-                'priority of task %d is changed to %d[%s]' % \
-                (pid, pri, upolicy))
+                'the priority of %s(%s) is changed to %d[%s]' % \
+                (comm, pid, pri, upolicy))
         except:
             err = "Fail to set priority of %d as %s[%s]" % \
                 (pid, pri, upolicy)
