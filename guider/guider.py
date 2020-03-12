@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200311"
+__revision__ = "200312"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11816,7 +11816,13 @@ class LogMgr(object):
             SysMgr.printOpenErr(SysMgr.kmsgPath)
             sys.exit(0)
 
-        SysMgr.kmsgFd.write(msg)
+        try:
+            SysMgr.kmsgFd.write(msg)
+            SysMgr.kmsgFd.flush()
+        except:
+            SysMgr.printWarn(\
+                "Fail to write kmsg because %s" % \
+                    SysMgr.getErrReason())
 
         return 0
 
@@ -35250,6 +35256,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     @staticmethod
     def pauseThreads(tlist):
+        def updateTargets(taskList):
+            dlist = []
+            tlist = list(taskList.keys())
+
+            for tid in tlist:
+                if not SysMgr.isAlive(tid):
+                    dlist.append(tid)
+
+            for tid in list(set(dlist)):
+                SysMgr.printWarn(\
+                    'Terminated %s(%s)' % (taskList[tid], tid), True)
+                taskList.pop(tid, None)
+
+            return taskList
+
         # check root permission #
         if not SysMgr.isRoot():
             SysMgr.printErr(\
@@ -35270,7 +35291,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
-        dlist = []
+        taskList = {}
         lastTid = long(0)
         try:
             for tid in tlist:
@@ -35278,15 +35299,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
                 ret = SysMgr.createProcess(mute=True, changePgid=True)
                 if ret > 0:
-                    dlist.append(long(ret))
-                    SysMgr.printInfo("paused thread %s" % lastTid)
+                    comm = SysMgr.getComm(tid)
+                    taskList[tid] = comm
+                    SysMgr.printInfo("paused %s(%s)" % (comm, lastTid))
                 elif ret == 0:
                     dobj = Debugger(pid=lastTid)
-
-                    SysMgr.waitEvent()
-
+                    SysMgr.waitEvent(ignChldSig=False)
                     dobj.__del__()
-
                     sys.exit(0)
                 else:
                     SysMgr.printErr(\
@@ -35294,9 +35313,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     sys.exit(0)
 
             # wait for user event to continue threads #
-            SysMgr.waitEvent()
+            while 1:
+                SysMgr.waitEvent(ignChldSig=False, exit=True)
+                taskList = updateTargets(taskList)
+                SysMgr.updateChilds()
+                if SysMgr.isNoChild():
+                    break
 
-            SysMgr.killChilds(sig=signal.SIGINT)
+            SysMgr.printErr("No target threads")
         except SystemExit:
             return
         except:
