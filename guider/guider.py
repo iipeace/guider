@@ -14082,7 +14082,7 @@ Usage:
              runtime/file
              Priority/oomScore
              Contextswitch>
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -I  <DIR|FILE>              set input path
         -m  <ROWS:COLS>             set terminal size
         -a                          show all stats and events
@@ -14164,7 +14164,7 @@ Examples:
     - Monitor status of all processes including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - Monitor status of processes involved in same process group with specific processes having name including system
+    - Monitor status of processes involved in a same process group with specific processes having name including system
         # {0:1} {1:1} -g system -P
 
     - Monitor status of processes on the minimum-size terminal
@@ -14354,7 +14354,7 @@ Options:
         -S  <cpu/memory/pid         sort by key
              block/wfc/new
              runtime/file>
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -O  <CORE>                  set core filter
         -l  <FILE>                  set addr2line path
         -r  <DIR>                   set root path
@@ -14605,7 +14605,7 @@ Options:
         -S  <cpu/memory/pid         sort by key
              block/wfc/new
              runtime/file>
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -p  <TID>                   show preemption info
         -O  <CORE>                  set core filter
         -L  <RES:PER>               set graph Layout
@@ -15406,6 +15406,7 @@ Options:
         -g  <TID|COMM>              set filter
         -R  <TIME>                  set timer
         -u                          run in the background
+        -P                          group threads in a same process
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15413,6 +15414,9 @@ Options:
 Examples:
     - Pause specific running threads for 3 seconds
         # {0:1} {1:1} -g 1234 -R 3
+
+    - Pause specific running threads including a same process group
+        # {0:1} {1:1} -g 1234 -P
                     '''.format(cmd, mode)
 
                 # readelf #
@@ -15702,7 +15706,7 @@ Description:
 Options:
         -g  <TID|COMM>              set filter
         -R  <TIME>                  set timer
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15778,7 +15782,7 @@ Policy:
     d: DEADLINE
 
 Options:
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15825,7 +15829,7 @@ Description:
     Set cpu affinity of threads
 
 Options:
-        -P                          group threads in same process
+        -P                          group threads in a same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -20114,13 +20118,8 @@ Copyright:
                 if not pfilter:
                     SysMgr.printErr((\
                         "wrong option with -P, "
-                        "use -g option to group threads in same process"))
+                        "use -g option to group threads in a same process"))
                     sys.exit(0)
-                elif not pfilter.isdigit() and \
-                    not SysMgr.isTopMode():
-                    SysMgr.printWarn((\
-                        "Using comm as process group filter "
-                        "can result in data loss"), True)
 
                 SysMgr.groupProcEnable = True
 
@@ -21632,8 +21631,11 @@ Copyright:
         # PAUSE MODE #
         elif SysMgr.isPauseMode():
             # convert comm to pid #
-            targetList = SysMgr.convertPidList(\
-                SysMgr.filterGroup, isThread=True, exceptMe=True)
+            targetList = []
+            for item in SysMgr.filterGroup:
+                targetList += SysMgr.getPids(\
+                    item, isThread=True, withSibling=SysMgr.groupProcEnable)
+            targetList = list(set(targetList))
 
             Debugger.pauseThreads(targetList)
 
