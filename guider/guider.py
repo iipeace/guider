@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200312"
+__revision__ = "200313"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14257,6 +14257,9 @@ Examples:
 
     - Handle printf function calls for a specific thread and print 10-length string that 1st argument point to
         # {0:1} {1:1} -g a.out -c printf\\|rdmem:0:10
+
+    - Handle printf function calls for a specific thread and print 10-length string from the specific address
+        # {0:1} {1:1} -g a.out -c printf\\|rdmem:0x1234:10
 
     - Handle write function calls for a specific thread and return a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
@@ -31380,7 +31383,7 @@ struct msghdr {
 
 
 
-    def executeCmd(self, cmdList):
+    def executeCmd(self, cmdList, sym=None):
         def printCmdErr(cmdset, cmd):
             if cmd == 'exec':
                 cmdformat = "COMMAND"
@@ -31430,6 +31433,11 @@ struct msghdr {
                         printCmdErr(cmdval, cmd)
 
                     param = cmdset[1].split()
+
+                    SysMgr.printPipe(\
+                        "\n[%s] %s" % \
+                            (cmd, cmdset[1]), newline=False, flush=True)
+
                     self.execBgCmd(execCmd=param, mute=False)
 
                 elif cmd == 'ret':
@@ -31458,6 +31466,9 @@ struct msghdr {
                         else:
                             targetAddr = self.readMem(targetAddr, retWord=True)
 
+                    SysMgr.printPipe(\
+                        "\n[%s] %x" % (cmd, ret), newline=False, flush=True)
+
                     # set register values #
                     self.setRetVal(ret)
                     self.setPC(targetAddr)
@@ -31469,14 +31480,25 @@ struct msghdr {
                         printCmdErr(cmdval, cmd)
 
                     # get argument info #
+                    argStr = ''
                     argList = cmdset[1].split(':')
                     for idx, item in enumerate(list(argList)):
                         try:
-                            argList[idx] = long(item)
+                            val = long(item)
+                            argList[idx] = val
+                            argStr += '%s(%s), ' % (idx, val)
                         except SystemExit:
                             sys.exit(0)
                         except:
                             argList[idx] = ''
+
+                    if len(argStr) == 0:
+                        res = ''
+                    else:
+                        res = argStr[:argStr.rfind(',')]
+
+                    SysMgr.printPipe(\
+                        "\n[%s] %s" % (cmd, res), newline=False, flush=True)
 
                     # set register values #
                     self.writeArgs(argList)
@@ -31512,6 +31534,10 @@ struct msghdr {
                         SysMgr.printErr(\
                             "Wrong addr value %s" % addr)
                         sys.exit(0)
+
+                    SysMgr.printPipe(\
+                        "\n[%s] %s(%s) -> %x" % \
+                            (cmd, [val], size, addr), newline=False, flush=True)
 
                     # set register values #
                     ret = self.writeMem(addr, val, size)
@@ -31549,14 +31575,16 @@ struct msghdr {
                             "Wrong addr value %s" % addr)
                         sys.exit(0)
 
-                    # set register values #
+                    # get memory value #
                     ret = self.readMem(addr, size)
                     if ret == -1:
                         SysMgr.printErr(\
-                            "Fail to write '%s' to %s" % (val, addr))
+                            "Fail to read '%s' to %s" % (val, addr))
                         sys.exit(0)
 
-                    SysMgr.printPipe("\n(%x) -> %s" % (addr, [ret]), newline=False)
+                    SysMgr.printPipe(\
+                        "\n[%s] %x(%s) -> %s" % \
+                            (cmd, addr, size, [ret]), newline=False, flush=True)
 
                 elif cmd == 'jump':
                     if len(cmdset) == 1:
@@ -31590,6 +31618,10 @@ struct msghdr {
                             sys.exit(0)
                         addr = ret[0][0]
 
+                    SysMgr.printPipe(\
+                        "\n[%s] %s(%x) -> %s(%x)" % \
+                            (cmd, sym, self.pc, val, addr), newline=False, flush=True)
+
                     # set register values #
                     self.setPC(addr)
                     self.writeArgs(argList)
@@ -31602,13 +31634,24 @@ struct msghdr {
                     else:
                         val = float(cmdset[1])
 
+                    SysMgr.printPipe(\
+                        "\n[%s] %f sec" % \
+                            (cmd, val), newline=False, flush=True)
+
                     time.sleep(val)
 
                 elif cmd == 'stop':
                     signal.pause()
 
+                    SysMgr.printPipe(\
+                        "\n[%s]" % (cmd), newline=False, flush=True)
+
                 elif cmd == 'kill':
+                    SysMgr.printPipe(\
+                        "\n[%s]\n" % (cmd), newline=False, flush=True)
+
                     self.kill()
+
                     sys.exit(0)
 
                 else:
@@ -31624,6 +31667,8 @@ struct msghdr {
             # re-register command #
             if repeat:
                 newCmdList.append(cmdval)
+
+        SysMgr.printPipe()
 
         return newCmdList
 
@@ -33642,7 +33687,7 @@ struct msghdr {
             cmd = self.bpList[addr]['cmd']
             if cmd:
                 self.bpList[addr]['cmd'] = \
-                    self.executeCmd(cmd)
+                    self.executeCmd(cmd, sym)
 
         # apply register set to rewind IP #
         if self.pc == origPC:
