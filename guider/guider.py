@@ -14101,7 +14101,7 @@ Usage:
                 '''
 
                 topSubStr = '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
                 a:affinity | b:block | c:cpu | C:cgroup
                 d:disk | D:DLT | e:encode | E:Elastic
@@ -14118,7 +14118,7 @@ OPTIONS:
                                     '''
 
                 drawSubStr = '''
-OPTIONS:
+Options:
         -g  <COMM|TID{:FILE}>       set filter
         -o  <DIR>                   save output data
         -a                          show all stats and events
@@ -14209,6 +14209,16 @@ Examples:
                 '''.format(cmd, mode)
 
                 brkExamStr = '''
+Commands:
+    kill
+    ret:VAL
+    exec:CMD
+    sleep:sec
+    setarg:REG:VAL
+    jump:FUNC#ARGS
+    rdmem:ADDR|REG:SIZE
+    wrmem:ADDR|REG:VAL:SIZE
+
 Examples:
     - Handle all function calls for a specific thread
         # {0:1} {1:1} -g 1234
@@ -14281,7 +14291,7 @@ Usage:
 Description:
     Log a message
 
-OPTIONS:
+Options:
         -v                          verbose
         -R  <INTERVAL:TIME>         set repeat count
         -I  <LOG>                   set log message
@@ -14298,7 +14308,7 @@ Usage:
 Description:
     Print messages in real-time
 
-OPTIONS:
+Options:
         -v                          verbose
         -g  <WORD>                  set filter
         -o  <DIR|FILE>              save output data
@@ -14319,7 +14329,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
     [collect]
         -e  <CHARACTER>             enable options
               b:block | c:cgroup | e:encode | g:graph
@@ -14425,7 +14435,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -14463,7 +14473,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -14502,7 +14512,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -14536,7 +14546,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -14568,7 +14578,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
     [collect]
         -e  <CHARACTER>             enable options
                 b:block | c:cgroup | e:encode | g:graph
@@ -15061,7 +15071,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -15110,7 +15120,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -15163,7 +15173,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -15195,7 +15205,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               p:pipe | e:encode
         -d  <CHARACTER>             disable options
@@ -15234,7 +15244,7 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
-OPTIONS:
+Options:
         -e  <CHARACTER>             enable options
               e:encode
         -d  <CHARACTER>             disable options
@@ -15365,7 +15375,7 @@ Usage:
 Description:
     Send specific signal to specific tasks or all running Guiders
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -l                          print signal list
         -v                          verbose
@@ -15392,7 +15402,7 @@ Usage:
 Description:
     Pause specific running threads
 
-OPTIONS:
+Options:
         -g  <TID|COMM>              set filter
         -R  <TIME>                  set timer
         -u                          run in the background
@@ -15414,7 +15424,7 @@ Usage:
 Description:
     Show information about ELF file
 
-OPTIONS:
+Options:
         -I  <FILE>                  set input path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15461,7 +15471,7 @@ Usage:
 Description:
     Show symbols of specific addresses in a file or a process memory map
 
-OPTIONS:
+Options:
         -I  <FILE|COMM|PID>         set input path or process
         -g  <OFFSET>                set offset
         -v                          verbose
@@ -15485,7 +15495,7 @@ Usage:
 Description:
     Show files and offset of specific symbols in a file or a process memory map
 
-OPTIONS:
+Options:
         -I  <FILE|COMM|PID>         set input path or process
         -g  <SYMBOL>                set offset
         -v                          verbose
@@ -15518,7 +15528,7 @@ Usage:
 Description:
     Show system cgroup tree
 
-OPTIONS:
+Options:
         -v                          verbose
         -a                          show name of all processes
                         '''.format(cmd, mode)
@@ -15541,7 +15551,7 @@ Usage:
 Description:
     Show directory structure
 
-OPTIONS:
+Options:
         -v                          verbose
         -I  <DIR>                   set input path
         -a                          show all attributes
@@ -15583,7 +15593,7 @@ Description:
         LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
 
-OPTIONS:
+Options:
         -I  <FILE>                  set input path
         -o  <DIR|FILE>              save output data
         -g  <PID|COMM>              set target process
@@ -15608,7 +15618,7 @@ Usage:
 Description:
     Show environment variables for a specific process
 
-OPTIONS:
+Options:
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15627,7 +15637,7 @@ Usage:
 Description:
     Show system general info
 
-OPTIONS:
+Options:
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15646,7 +15656,7 @@ Usage:
 Description:
     Print the tree of processes
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15666,7 +15676,7 @@ Usage:
 Description:
     Print system status
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -e  <CHARACTER>             enable options
               t:thread
@@ -15689,7 +15699,7 @@ Usage:
 Description:
     Limit cpu usage of threads / processes
 
-OPTIONS:
+Options:
         -g  <TID|COMM>              set filter
         -R  <TIME>                  set timer
         -P                          group threads in same process
@@ -15712,7 +15722,7 @@ Usage:
 Description:
     Set cpu clock and governor
 
-OPTIONS:
+Options:
         -g  <CORE:CLOCK:GOVERNOR>   set filter
         -E  <DIR>                   set cache dir path
         -v                          verbose
@@ -15739,7 +15749,7 @@ Usage:
 Description:
     Convert a text file to a image file
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15759,15 +15769,15 @@ Usage:
 Description:
     Set cpu scheduler policy and priority of threads / processes
 
-    [POLICY]
-        c: CFS
-        f: FIFO(RT)
-        r: RR(RT)
-        B: BATCH
-        I: IDLE
-        d: DEADLINE
+Policy:
+    c: CFS
+    f: FIFO(RT)
+    r: RR(RT)
+    B: BATCH
+    I: IDLE
+    d: DEADLINE
 
-OPTIONS:
+Options:
         -P                          group threads in same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
@@ -15794,7 +15804,7 @@ Usage:
 Description:
     Get cpu affinity of threads
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15814,7 +15824,7 @@ Usage:
 Description:
     Set cpu affinity of threads
 
-OPTIONS:
+Options:
         -P                          group threads in same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
@@ -15835,7 +15845,7 @@ Usage:
 Description:
     Create tasks using cpu
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -R  <TIME>                  set timer
         -v                          verbose
@@ -15862,7 +15872,7 @@ Usage:
 Description:
     Allocate physical memory
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -R  <TIME>                  set timer
         -v                          verbose
@@ -15892,7 +15902,7 @@ Usage:
 Description:
     Show running {2:1} processes
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode, __module__)
@@ -15906,7 +15916,7 @@ Usage:
 Description:
     Send signal to all running Guider processes to run
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15920,7 +15930,7 @@ Usage:
 Description:
     Send the event signal to all running Guider processes
 
-OPTIONS:
+Options:
         -E  <DIR>                   set cache dir path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -15940,7 +15950,7 @@ Usage:
 Description:
     Run server process
 
-OPTIONS:
+Options:
         -x  <IP:PORT>               set local address
         -u                          run in the background
         -E  <DIR>                   set cache dir path
@@ -15956,7 +15966,7 @@ Usage:
 Description:
     Run client process
 
-OPTIONS:
+Options:
         -x  <IP:PORT>               set local address
         -X  <IP:PORT>               set request address
         -E  <DIR>                   set cache dir path
@@ -15973,7 +15983,7 @@ FILE:
     Profile file (e.g. guider.dat)
     Report  file (e.g. guider.out)
 
-OPTIONS:
+Options:
     Check COMMAND with --help (e.g. {1:1} top --help)
                     '''.format(SysMgr.getCmdString(), cmd)
 
@@ -24349,6 +24359,7 @@ Copyright:
                 "Input value for target with -g or -I option")
             sys.exit(0)
 
+        # get input path #
         if SysMgr.sourceFile:
             sourceFile = str(SysMgr.sourceFile)
         else:
