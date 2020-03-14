@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200313"
+__revision__ = "200314"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14213,7 +14213,8 @@ Commands:
     kill
     ret:VAL
     exec:CMD
-    sleep:sec
+    sleep:SEC
+    getarg:REGS
     setarg:REG:VAL
     jump:FUNC#ARGS
     rdmem:ADDR|REG:SIZE
@@ -14276,6 +14277,9 @@ Examples:
 
     - Handle write function calls for a specific thread and modify the 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|setarg:2:5
+
+    - Handle write function calls for a specific thread and print the 1st and 2nd arguments
+        # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
 
     - Handle write function calls for a specific thread and jump to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
@@ -31517,6 +31521,34 @@ struct msghdr {
                     self.writeArgs(argList)
                     self.setRegs()
                     self.updateRegs()
+
+                elif cmd == 'getarg':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get arguments #
+                    args = self.readArgs()
+
+                    # get argument info #
+                    argStr = ''
+                    argList = cmdset[1].split(':')
+                    for item in argList:
+                        try:
+                            val = args[long(item)]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            val = 'None'
+
+                        argStr += '%s(%s), ' % (item, val)
+
+                    if len(argStr) == 0:
+                        res = ''
+                    else:
+                        res = argStr[:argStr.rfind(',')]
+
+                    SysMgr.printPipe(\
+                        "\n[%s] %s" % (cmd, res), newline=False, flush=True)
 
                 elif cmd == 'wrmem':
                     if len(cmdset) == 1:
