@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200314"
+__revision__ = "200315"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14214,9 +14214,9 @@ Commands:
     ret:VAL
     exec:CMD
     sleep:SEC
-    getarg:REGS
+    getarg:REG
     setarg:REG:VAL
-    jump:FUNC#ARGS
+    jump:FUNC#ARG
     rdmem:ADDR|REG:SIZE
     wrmem:ADDR|REG:VAL:SIZE
 
@@ -14276,7 +14276,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|ret:3
 
     - Handle write function calls for a specific thread and modify the 1st and 2nd arguments
-        # {0:1} {1:1} -g a.out -c write\\|setarg:2:5
+        # {0:1} {1:1} -g a.out -c write\\|setarg:0#2:1#5
 
     - Handle write function calls for a specific thread and print the 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
@@ -31406,8 +31406,10 @@ struct msghdr {
                 cmdformat = "COMMAND"
             elif cmd == 'ret':
                 cmdformat = "VAL"
+            elif cmd == 'getarg':
+                cmdformat = "REG:REG"
             elif cmd == 'setarg':
-                cmdformat = "R0:R1"
+                cmdformat = "REG#VAL:REG#VAl"
             elif cmd == 'wrmem':
                 cmdformat = "ADDR|REG:VAL:SIZE"
             elif cmd == 'rdmem':
@@ -31497,22 +31499,36 @@ struct msghdr {
                         printCmdErr(cmdval, cmd)
 
                     # get argument info #
+                    nrMax = 0
                     argStr = ''
+                    argSet = {}
+                    origArgs = self.readArgs()
                     argList = cmdset[1].split(':')
-                    for idx, item in enumerate(list(argList)):
+                    for item in argList:
                         try:
-                            val = long(item)
-                            argList[idx] = val
-                            argStr += '%s(%s), ' % (idx, val)
+                            idx, val = item.split('#')
+                            idx = long(idx)
+                            val = long(val)
+                            argSet[idx] = val
+                            if nrMax < idx:
+                                nrMax = idx
+                            argStr += '%s(%s->%s), ' % \
+                                (idx, origArgs[idx], val)
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            argList[idx] = ''
+                            pass
 
+                    # complete output string #
                     if len(argStr) == 0:
                         res = ''
                     else:
                         res = argStr[:argStr.rfind(',')]
+
+                    # make a new argument list #
+                    argList = [None] * (nrMax+1)
+                    for idx, val in argSet.items():
+                        argList[long(idx)] = val
 
                     SysMgr.printPipe(\
                         "\n[%s] %s" % (cmd, res), newline=False, flush=True)
@@ -31542,6 +31558,7 @@ struct msghdr {
 
                         argStr += '%s(%s), ' % (item, val)
 
+                    # complete output string #
                     if len(argStr) == 0:
                         res = ''
                     else:
