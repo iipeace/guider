@@ -3248,6 +3248,19 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def isEffectiveStr(string):
+        if len(SysMgr.filterGroup) == 0:
+            return True
+
+        for cond in SysMgr.filterGroup:
+            if cond in string:
+                return True
+
+        return False
+
+
+
+    @staticmethod
     def convertWord2Bstr(word):
         try:
             return struct.pack('L', word)
@@ -11710,6 +11723,10 @@ class LogMgr(object):
 
         while 1:
             log = SysMgr.syslogFd.readline()
+
+            if not UtilMgr.isEffectiveStr(log):
+                continue
+
             SysMgr.printPipe(log, newline=False)
 
 
@@ -11740,21 +11757,36 @@ class LogMgr(object):
             # allocate buffer #
             buf = (c_char*size)()
 
-            SysMgr.syscall(\
+            ret = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_READ_ALL, buf, size)
-            SysMgr.printPipe(memoryview(buf).tobytes())
+            if ret > 0:
+                logBuf = memoryview(buf).tobytes()
+                for line in logBuf.split('\n'):
+                    if not UtilMgr.isEffectiveStr(line):
+                        continue
+                    SysMgr.printPipe(line)
 
             while 1:
                 memset(buf, 0, size)
-                SysMgr.syscall(\
+                ret = SysMgr.syscall(\
                     'syslog', LogMgr.SYSLOG_ACTION_READ, buf, size)
-                SysMgr.printPipe(memoryview(buf).tobytes())
+                if ret < 1:
+                    continue
+
+                logBuf = memoryview(buf).tobytes()
+                if not UtilMgr.isEffectiveStr(line):
+                    continue
+
+                SysMgr.printPipe(logBuf)
 
             return
 
         # kmsg node #
         while 1:
             log = SysMgr.kmsgFd.readline()
+
+            if not UtilMgr.isEffectiveStr(log):
+                continue
 
             # parse log #
             pos = log.find(';')
@@ -14307,7 +14339,7 @@ Examples:
 
                 printCommonStr = '''
 Usage:
-    # {0:1} {1:1} -I <MESSAGE>
+    # {0:1} {1:1}
 
 Description:
     Print messages in real-time
@@ -14319,7 +14351,13 @@ Options:
 
 Examples:
     - Print messages in real-time
-        # {0:1} {1:1} -I "Hello World!"
+        # {0:1} {1:1}
+
+    - Print messages including specific words in real-time
+        # {0:1} {1:1} -g test
+
+    - Print messages to the sepcific file
+        # {0:1} {1:1} -o log.out
                     '''.format(cmd, mode)
 
                 # function record #
