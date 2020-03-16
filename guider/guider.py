@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200315"
+__revision__ = "200316"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11642,6 +11642,14 @@ class LogMgr(object):
     SYSLOG_ACTION_SIZE_UNREAD = 9
     SYSLOG_ACTION_SIZE_BUFFER = 10
 
+    # define journal type #
+    SD_JOURNAL_LOCAL_ONLY   = 1 << 0
+    SD_JOURNAL_RUNTIME_ONLY = 1 << 1
+    SD_JOURNAL_SYSTEM       = 1 << 2
+    SD_JOURNAL_CURRENT_USER = 1 << 3
+    SD_JOURNAL_OS_ROOT      = 1 << 4
+    SD_JOURNAL_SYSTEM_ONLY = SD_JOURNAL_SYSTEM
+
 
 
     def __init__(self):
@@ -11728,6 +11736,155 @@ class LogMgr(object):
                 continue
 
             SysMgr.printPipe(log, newline=False)
+
+
+
+    @staticmethod
+    def printJournal():
+       # get ctypes object #
+        ctypes = SysMgr.getPkg('ctypes')
+        from ctypes import cdll, POINTER, Structure, \
+            c_void_p, c_char_p, c_int, c_char, byref, c_size_t, cast
+
+        '''
+        struct sd_journal {
+                int toplevel_fd;
+
+                char *path;
+                char *prefix;
+                char *namespace;
+
+                OrderedHashmap *files;
+                IteratedCache *files_cache;
+                MMapCache *mmap;
+
+                Location current_location;
+
+                JournalFile *current_file;
+                uint64_t current_field;
+
+                Match *level0, *level1, *level2;
+
+                pid_t original_pid;
+
+                int inotify_fd;
+                unsigned current_invalidate_counter, last_invalidate_counter;
+                usec_t last_process_usec;
+                unsigned generation;
+
+                /* Iterating through unique fields and their data values */
+                char *unique_field;
+                JournalFile *unique_file;
+                uint64_t unique_offset;
+
+                /* Iterating through known fields */
+                JournalFile *fields_file;
+                uint64_t fields_offset;
+                uint64_t fields_hash_table_index;
+                char *fields_buffer;
+                size_t fields_buffer_allocated;
+
+                int flags;
+
+                bool on_network:1;
+                bool no_new_files:1;
+                bool no_inotify:1;
+                bool unique_file_lost:1; /* File we were iterating over got
+                                            removed, and there were no more
+                                            files, so sd_j_enumerate_unique
+                                            will return a value equal to 0. */
+                bool fields_file_lost:1;
+                bool has_runtime_files:1;
+                bool has_persistent_files:1;
+
+                size_t data_threshold;
+
+                Hashmap *directories_by_path;
+                Hashmap *directories_by_wd;
+
+                Hashmap *errors;
+        };
+        '''
+
+	'''
+        if level is None:
+            level = LogMgr.LOG_NOTICE
+	'''
+
+        # load libsystemd library #
+        try:
+            if not SysMgr.systemdObj:
+                SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
+                if not SysMgr.systemdObj:
+                    raise Exception("No %s" % SysMgr.libsystemdPath)
+
+            func = 'sd_journal_open'
+            if not hasattr(SysMgr.systemdObj, func):
+                raise Exception(\
+                    'no %s in %s' % (func, SysMgr.libsystemdPath))
+        except:
+            SysMgr.printErr(\
+                "Fail to print journal because %s" % \
+                    SysMgr.getErrReason())
+            sys.exit(0)
+
+        # define shortcut for object #
+        systemdObj = SysMgr.systemdObj
+
+        # open journal #
+	jrl = c_void_p(0)
+        flag = LogMgr.SD_JOURNAL_LOCAL_ONLY
+        res = systemdObj.sd_journal_open(byref(jrl), c_int(flag))
+        if res < 0:
+            SysMgr.printErr(\
+                "Fail to print journal because no journal")
+            return
+
+        SysMgr.printInfo(\
+            "start printing journal log... [ STOP(Ctrl+c) ]")
+
+        # set head #
+        res = systemdObj.sd_journal_seek_head(jrl)
+        if res < 0:
+            SysMgr.printErr(\
+                "Fail to print journal because no journal head")
+            return
+
+        # start reading loop #
+	data = c_void_p(0)
+        size = c_size_t(0)
+        fieldList = ["_COMM", "MESSAGE"]
+        while 1:
+            res = systemdObj.sd_journal_next(jrl)
+            if res < 1:
+                break
+
+            # traverse all fields #
+            '''
+            res = systemdObj.sd_journal_restart_data(jrl)
+            while 1:
+                res = systemdObj.sd_journal_enumerate_data(\
+                    jrl, byref(data), byref(size))
+                if res < 1:
+                    break
+                SysMgr.printPipe(cast(data, c_char_p).value)
+
+            continue
+            '''
+
+            jrlStr = ''
+            for field in fieldList:
+                res = systemdObj.sd_journal_get_data(\
+                    jrl, field, byref(data), byref(size))
+                if res < 0:
+                    break
+                jrlStr += cast(data, c_char_p).value + ' '
+
+            if len(jrlStr) > 0:
+                SysMgr.printPipe(jrlStr)
+
+        # close journal #
+        systemdObj.sd_journal_close(jrl)
 
 
 
@@ -11888,25 +12045,20 @@ class LogMgr(object):
         if level is None:
             level = LogMgr.LOG_NOTICE
 
-        # load systemd-shared library #
+        # load libsystemd library #
         try:
             if not SysMgr.systemdObj:
-                if not SysMgr.libsystemdPath:
-                    SysMgr.libsystemdPath = \
-                        FileAnalyzer.getMapFilePath(1, 'libsystemd-shared-')
-                    if SysMgr.libsystemdPath is None:
-                        if not SysMgr.systemdObj:
-                            raise Exception("no libsystemd-shared")
                 SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
-                    raise Exception("No file")
+                    raise Exception("No %s" % SysMgr.libsystemdPath)
 
-            if not hasattr(SysMgr.systemdObj, 'sd_journal_print'):
+            func = 'sd_journal_print'
+            if not hasattr(SysMgr.systemdObj, func):
                 raise Exception(\
-                    'no sd_journal_print in %s' % SysMgr.libsystemdPath)
+                    'no %s in %s' % (func, SysMgr.libsystemdPath))
         except:
             SysMgr.printErr(\
-                "Fail to load libsystemd-shared because %s" % \
+                "Fail to log journal because %s" % \
                     SysMgr.getErrReason())
             sys.exit(0)
 
@@ -11981,7 +12133,7 @@ class SysMgr(object):
     libgioPath = 'libgio-2.0.so'
     libdbusPath = 'libdbus-1.so.3'
     libcppPath = 'libstdc++.so.6'
-    libsystemdPath = None
+    libsystemdPath = 'libsystemd.so.0'
     libdemanglePath = libcppPath
     eventLogPath = None
     inputFile = None
@@ -14127,7 +14279,7 @@ Usage:
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched priority list
+        -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
         -v                          verbose
                 '''
@@ -14413,7 +14565,7 @@ Options:
         -H  <LEVEL>                 set function depth level
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched priority list
+        -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
         -v                          verbose
                     '''
@@ -14662,7 +14814,7 @@ Options:
         -E  <DIR>                   set cache dir path
         -k  <COMM|TID{:CONT}>       set kill list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched priority list
+        -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
         -v                          verbose
                     '''
@@ -15495,6 +15647,7 @@ Examples:
                 elif SysMgr.isPrintDltMode() or \
                     SysMgr.isPrintDbusMode() or \
                     SysMgr.isPrintKmsgMode() or \
+                    SysMgr.isPrintJournalMode() or \
                     SysMgr.isPrintSyslogMode():
                     helpStr = printCommonStr
 
@@ -15894,6 +16047,8 @@ Description:
 Options:
         -E  <DIR>                   set cache dir path
         -R  <TIME>                  set timer
+        -Y  <POLICY:PRIO|TIME       set sched
+             {:TID|ALL:CONT}>
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21804,6 +21959,16 @@ Copyright:
 
             LogMgr.printKmsg()
 
+        # PRINTJRL MODE #
+        elif SysMgr.isPrintJournalMode():
+            # set console info #
+            SysMgr.ttyCols = long(0)
+            SysMgr.printStreamEnable = True
+
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            LogMgr.printJournal()
+
         # PAGE MODE #
         elif SysMgr.isMemMode():
             SysMgr.printLogo(big=True, onlyFile=True)
@@ -22082,6 +22247,15 @@ Copyright:
     @staticmethod
     def isPrintKmsgMode():
         if sys.argv[1] == 'printkmsg':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintJournalMode():
+        if sys.argv[1] == 'printjrl':
             return True
         else:
             return False
