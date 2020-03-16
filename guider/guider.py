@@ -11744,7 +11744,7 @@ class LogMgr(object):
        # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, POINTER, Structure, \
-            c_void_p, c_char_p, c_int, c_char, byref, c_size_t, cast
+            c_void_p, c_char_p, c_int, c_char, byref, c_size_t, cast, c_uint64
 
         '''
         struct sd_journal {
@@ -11806,11 +11806,6 @@ class LogMgr(object):
         };
         '''
 
-	'''
-        if level is None:
-            level = LogMgr.LOG_NOTICE
-	'''
-
         # load libsystemd library #
         try:
             if not SysMgr.systemdObj:
@@ -11850,37 +11845,77 @@ class LogMgr(object):
                 "Fail to print journal because no journal head")
             return
 
-        # start reading loop #
+        # initialize variables #
 	data = c_void_p(0)
         size = c_size_t(0)
-        fieldList = ["_COMM", "MESSAGE"]
+        usec = c_uint64(0)
+
+        # set fields #
+        if SysMgr.sourceFile:
+            fieldList = SysMgr.sourceFile.split(',')
+        else:
+            fieldList = \
+                ["_TIME", "_HOSTNAME", "_TRANSPORT", \
+                    "_COMM", "_PID", "MESSAGE"]
+
+        # start reading loop #
         while 1:
             res = systemdObj.sd_journal_next(jrl)
             if res < 1:
                 break
 
             # traverse all fields #
-            '''
-            res = systemdObj.sd_journal_restart_data(jrl)
-            while 1:
-                res = systemdObj.sd_journal_enumerate_data(\
-                    jrl, byref(data), byref(size))
-                if res < 1:
-                    break
-                SysMgr.printPipe(cast(data, c_char_p).value)
+            if SysMgr.showAll:
+                res = systemdObj.sd_journal_restart_data(jrl)
+                while 1:
+                    res = systemdObj.sd_journal_enumerate_data(\
+                        jrl, byref(data), byref(size))
+                    if res < 1:
+                        break
 
-            continue
-            '''
+                    SysMgr.printPipe(cast(data, c_char_p).value)
+                SysMgr.printPipe()
+                continue
 
             jrlStr = ''
             for field in fieldList:
+                if field == '_TIME':
+                    # get time #
+                    ret = systemdObj.sd_journal_get_realtime_usec(\
+                        jrl, byref(usec))
+                    if ret < 0:
+                        usec = 0
+                    wtime = time.strftime(\
+                        '%m %d %H:%M:%S', \
+                            time.localtime(usec.value / float(1000000)))
+                    '''
+                    ret = systemdObj.sd_journal_get_monotonic_usec(\
+                        jrl, byref(usec), boottime)
+                    '''
+
+                    # set time #
+                    jrlStr += ('%s ' % wtime)
+
+                    continue
+
                 res = systemdObj.sd_journal_get_data(\
                     jrl, field, byref(data), byref(size))
                 if res < 0:
-                    break
-                jrlStr += cast(data, c_char_p).value + ' '
+                    continue
 
-            if len(jrlStr) > 0:
+                val = cast(data, c_char_p).value[len(field)+1:]
+                if field == "_COMM":
+                    pass
+                elif field == "_PID":
+                    val = '[%s]: ' % val
+                elif field == "_TRANSPORT" and val == "kernel":
+                    val += ': '
+                else:
+                    val += ' '
+
+                jrlStr += val
+
+            if jrlStr and UtilMgr.isEffectiveStr(jrlStr):
                 SysMgr.printPipe(jrlStr)
 
         # close journal #
@@ -15653,12 +15688,20 @@ Examples:
 
                     if SysMgr.isPrintDbusMode():
                         helpStr +=  '''
-
     - Print D-Bus messages for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out
 
     - Print D-Bus messages with backtrace for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out -H
+                    '''.format(cmd, mode)
+
+                    if SysMgr.isPrintJournalMode():
+                        helpStr +=  '''
+    - Print journal messages with specific fields in real-time
+        # {0:1} {1:1} -I _TIME, _COMM, _PID
+
+    - Print journal messages with all fields in real-time
+        # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -21963,7 +22006,6 @@ Copyright:
         elif SysMgr.isPrintJournalMode():
             # set console info #
             SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
