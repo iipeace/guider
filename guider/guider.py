@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200316"
+__revision__ = "200317"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14534,6 +14534,7 @@ Description:
 Options:
         -v                          verbose
         -g  <WORD>                  set filter
+        -I  <FILE|FIELD>            set path / field
         -o  <DIR|FILE>              save output data
 
 Examples:
@@ -15702,6 +15703,12 @@ Examples:
 
     - Print journal messages with all fields in real-time
         # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
+                    if SysMgr.isPrintDltMode():
+                        helpStr +=  '''
+    - Print DLT messages from specific files
+        # {0:1} {1:1} -I "./*.dlt"
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -30437,6 +30444,7 @@ class DltAnalyzer(object):
     DLT_MSIN_MSTP = 0x0e # message type #
     DLT_MSIN_MSTP_SHIFT = 1 # shift right offset to get mstp value #
     DLT_DAEMON_TEXTSIZE = 10024
+    DLT_FILTER_MAX = 30
 
     # define message type #
     MSGTYPE = \
@@ -30732,6 +30740,35 @@ class DltAnalyzer(object):
 
     @staticmethod
     def runDltReceiver(mode='top'):
+        def findNextHeader(path, filePos):
+            with open(path, "rb") as fobj:
+                lastPos = filePos
+                fobj.seek(lastPos)
+                buf = fobj.read(1024)
+                while buf:
+                    found = buf.find(b"DLT\x01")
+                    if found != -1:
+                        return lastPos + found
+                    lastPos = fobj.tell()
+                    buf = fobj.read(1024)
+            return None
+
+        def setFilter(dltObj, dltFile, apid=None, ctid=None):
+            # initialize filter #
+            dltFilter = DLTFilter()
+            if dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
+                SysMgr.printErr(\
+                    "Fail to initialize the DLTFilter object")
+                sys.exit(0)
+
+            if dltObj.dlt_filter_add(\
+                byref(dltFilter), apid or b"", ctid or b"", verbose) == -1:
+                SysMgr.printErr(\
+                    "Fail to add %s and %s to the DLTFilter object")
+
+            return dltObj.dlt_file_set_filter(\
+                byref(dltFile), byref(dltFilter), verbose)
+
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, POINTER, Structure, Union, \
@@ -30742,6 +30779,7 @@ class DltAnalyzer(object):
         # define constant #
         DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
         DLT_ID_SIZE = DltAnalyzer.DLT_ID_SIZE
+        DLT_FILTER_MAX = DltAnalyzer.DLT_FILTER_MAX
 
         class DltContext(Structure):
             _fields_ = [
@@ -30935,13 +30973,63 @@ class DltAnalyzer(object):
                 ("extendedheader", POINTER(DltExtendedHeader))
             ]
 
+        class DLTFilter(Structure):
+            '''
+            typedef struct
+            {
+                char apid[DLT_FILTER_MAX][DLT_ID_SIZE]; /**< application id */
+                char ctid[DLT_FILTER_MAX][DLT_ID_SIZE]; /**< context id */
+                int  counter;                           /**< number of filters */
+            } DltFilter;
+            '''
 
-        # check dlt-daemon #
-        DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
-        if len(DltAnalyzer.pids) == 0:
-            SysMgr.printErr(\
-                "Fail to find running dlt-daemon process")
-            sys.exit(0)
+            _fields_ = [
+                ("apid", (ctypes.c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
+                ("ctid", (ctypes.c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
+                ("counter", ctypes.c_int)
+            ]
+
+        class DLTFile(Structure):
+            '''
+            typedef struct sDltFile
+            {
+                /* file handle and index for fast access */
+                FILE *handle;      /**< file handle of opened DLT file */
+                long *index;       /**< file positions of all DLT messages for fast access to file, only filtered messages */
+
+                /* size parameters */
+                int32_t counter;       /**< number of messages in DLT file with filter */
+                int32_t counter_total; /**< number of messages in DLT file without filter */
+                int32_t position;      /**< current index to message parsed in DLT file starting at 0 */
+                long file_length;  /**< length of the file */
+                long file_position; /**< current position in the file */
+
+                /* error counters */
+                int32_t error_messages; /**< number of incomplete DLT messages found during file parsing */
+
+                /* filter parameters */
+                DltFilter *filter;  /**< pointer to filter list. Zero if no filter is set. */
+                int32_t filter_counter; /**< number of filter set */
+
+                /* current loaded message */
+                DltMessage msg;     /**< pointer to message */
+
+            } DltFile;
+            '''
+
+            _fields_ = [
+                ("handle", ctypes.POINTER(ctypes.c_int)),
+                ("index", ctypes.POINTER(ctypes.c_long)),
+                ("counter", ctypes.c_int32),
+                ("counter_total", ctypes.c_int32),
+                ("position", ctypes.c_int32),
+                ("file_length", ctypes.c_long),
+                ("file_position", ctypes.c_long),
+                ("error_messages", ctypes.c_int32),
+                ("filter", ctypes.POINTER(DLTFilter)),
+                ("filter_counter", ctypes.c_int32),
+                ("msg", DLTMessage)
+            ]
 
         # load DLT library #
         try:
@@ -30960,7 +31048,8 @@ class DltAnalyzer(object):
         # define verbose #
         if SysMgr.warnEnable:
             # set log level to DEBUG #
-            dltObj.dlt_log_set_level(LogMgr.LOG_DEBUG)
+            if hasattr(dltObj, 'dlt_log_set_level'):
+                dltObj.dlt_log_set_level(LogMgr.LOG_DEBUG)
 
             verbose = 1
         else:
@@ -30977,8 +31066,85 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to ready socket because %s" % \
+                "Fail to import socket because %s" % \
                     SysMgr.getErrReason())
+            sys.exit(0)
+
+        # define default variables #
+        msg = DLTMessage()
+        dltFile = DLTFile()
+        buf = create_string_buffer(\
+            b'\000' * DltAnalyzer.DLT_DAEMON_TEXTSIZE)
+
+        # initialize input path #
+        flist = []
+        if SysMgr.sourceFile:
+            for item in SysMgr.sourceFile.split(','):
+                ret = UtilMgr.convertPath(item, retStr=False)
+                flist += ret
+            flist = list(set(flist))
+
+        # messages from file #
+        if mode == 'print' and flist:
+            for path in flist:
+                # initialize file object #
+                ret = dltObj.dlt_file_init(byref(dltFile), verbose)
+                if ret < 0:
+                    SysMgr.printErr(\
+                        "Fail to initialize a DLTFile object")
+
+                # set filter #
+                #setFilter(dltObj, dltFile, apid="", ctid="")
+
+                # open file #
+                ret = dltObj.dlt_file_open(byref(dltFile), path, verbose)
+                if ret != 0:
+                    SysMgr.printErr(\
+                        "Fail to open %s" % path)
+                    return
+
+                # check file #
+                if dltFile.file_length == 0:
+                    SysMgr.printErr(\
+                        "Fail to read %s because size is 0" % path)
+                    return
+
+                # read a file #
+                while dltFile.file_position < dltFile.file_length:
+                    ret = dltObj.dlt_file_read(byref(dltFile), verbose)
+                    # storage header corrupted #
+                    if ret < 0:
+                        nextHeaderPos = findNextHeader(path, dltFile.file_position)
+                        if nextHeaderPos:
+                            if dltFile.file_position == nextHeaderPos:
+                                break
+                            else:
+                                dltFile.file_position = nextHeaderPos
+                        else:
+                            break
+
+                # read messages #
+                for index in range(0, dltFile.counter_total):
+                    ret = dltObj.dlt_file_message(byref(dltFile), index, verbose)
+                    if ret < 0:
+                        SysMgr.printWarn(\
+                            "Fail to read %s message from %s" % (index, path), True)
+                        continue
+                    DltAnalyzer.handleMessage(dltObj, dltFile.msg, buf, mode, verbose)
+
+                # free file object #
+                ret = dltObj.dlt_file_free(byref(dltFile), verbose)
+                if ret < 0:
+                    SysMgr.printErr(\
+                        "Fail to free a DLTFile object")
+
+            sys.exit(0)
+
+        # check dlt-daemon #
+        DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
+        if len(DltAnalyzer.pids) == 0:
+            SysMgr.printErr(\
+                "Fail to find running dlt-daemon process")
             sys.exit(0)
 
         # set connection info #
@@ -31056,11 +31222,6 @@ class DltAnalyzer(object):
                 SysMgr.printErr(\
                     "Fail to get dlt_receiver_receive symbol")
                 sys.exit(0)
-
-        # define message #
-        msg = DLTMessage()
-        buf = create_string_buffer(\
-            b'\000' * DltAnalyzer.DLT_DAEMON_TEXTSIZE)
 
         # save timestamp #
         prevTime = time.time()
