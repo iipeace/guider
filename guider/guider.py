@@ -11540,13 +11540,13 @@ class FileAnalyzer(object):
 
             if SysMgr.guiderObj:
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
-                mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset)
+                mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset) # pylint: disable=no-member
 
                 # call mincore systemcall by standard libc library #
-                pagemap = SysMgr.guiderObj.mincore(mm, size)
+                pagemap = SysMgr.guiderObj.mincore(mm, size) # pylint: disable=no-member
 
                 # unmap #
-                SysMgr.guiderObj.munmap(mm, size)
+                SysMgr.guiderObj.munmap(mm, size) # pylint: disable=no-member
             else:
                 # get ctypes object #
                 ctypes = SysMgr.getPkg('ctypes')
@@ -11827,7 +11827,7 @@ class LogMgr(object):
         systemdObj = SysMgr.systemdObj
 
         # open journal #
-	jrl = c_void_p(0)
+        jrl = c_void_p(0)
         flag = LogMgr.SD_JOURNAL_LOCAL_ONLY
         res = systemdObj.sd_journal_open(byref(jrl), c_int(flag))
         if res < 0:
@@ -11846,7 +11846,7 @@ class LogMgr(object):
             return
 
         # initialize variables #
-	data = c_void_p(0)
+        data = c_void_p(0)
         size = c_size_t(0)
         usec = c_uint64(0)
 
@@ -12588,9 +12588,9 @@ class SysMgr(object):
 
         # try to get maxFd by native call #
         try:
+            func = SysMgr.guiderObj.getrlimit # pylint: disable=no-member
             SysMgr.maxFd = \
-                SysMgr.guiderObj.getrlimit(\
-                    ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
+                func(ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
             return
         except SystemExit:
@@ -13018,7 +13018,7 @@ class SysMgr(object):
             raise Exception
 
             import guider
-            guider.check()
+            guider.check() # pylint: disable=no-member
             SysMgr.guiderObj = guider
         except:
             pass
@@ -13258,7 +13258,7 @@ class SysMgr(object):
                 try:
                     if SysMgr.guiderObj:
                         guiderObj = SysMgr.guiderObj
-                        ret = guiderObj.sched_setaffinity(long(pid), mask)
+                        ret = guiderObj.sched_setaffinity(long(pid), mask) # pylint: disable=no-member
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -13304,7 +13304,7 @@ class SysMgr(object):
     @staticmethod
     def getAffinity(pid):
         try:
-            return '0x%X' % SysMgr.guiderObj.sched_getaffinity(pid)
+            return '0x%X' % SysMgr.guiderObj.sched_getaffinity(pid) # pylint: disable=no-member
         except SystemExit:
             sys.exit(0)
         except:
@@ -13479,7 +13479,7 @@ class SysMgr(object):
 
         # try to set comm using native lib #
         try:
-            SysMgr.guiderObj.prctl(15, comm, 0, 0, 0)
+            SysMgr.guiderObj.prctl(15, comm, 0, 0, 0) # pylint: disable=no-member
             return
         except SystemExit:
             sys.exit(0)
@@ -16471,8 +16471,8 @@ Copyright:
 
         if SysMgr.guiderObj:
             # reference to http://man7.org/linux/man-pages/man2/perf_event_open.2.html #
-            fd = SysMgr.guiderObj.perf_event_open(\
-                nrType, nrConfig, pid, cpu, -1, 0)
+            func = SysMgr.guiderObj.perf_event_open # pylint: disable=no-member
+            fd = func(nrType, nrConfig, pid, cpu, -1, 0)
             if fd < 0:
                 # check root permission #
                 if not SysMgr.isRoot():
@@ -16844,7 +16844,7 @@ Copyright:
             for fd in fdList:
                 try:
                     # read PMU data #
-                    value = SysMgr.guiderObj.perf_event_read(fd)
+                    value = SysMgr.guiderObj.perf_event_read(fd) # pylint: disable=no-member
 
                     # add value to list #
                     retList.append(value)
@@ -26173,8 +26173,8 @@ Copyright:
                 ret = SysMgr.libcObj.sched_setscheduler(\
                     pid, argPolicy, ctypes.byref(argPriority))
             else:
-                ret = SysMgr.guiderObj.sched_setscheduler(\
-                    pid, argPolicy, argPriority)
+                func = SysMgr.guiderObj.sched_setscheduler # pylint: disable=no-member
+                ret = func(pid, argPolicy, argPriority)
             if ret != 0:
                 policy = upolicy
                 raise Exception()
@@ -26187,8 +26187,8 @@ Copyright:
                         0, pid, argPriority)
                 else:
                     argPriority = pri
-                    ret = SysMgr.guiderObj.setpriority(\
-                        0, pid, argPriority)
+                    func = SysMgr.guiderObj.setpriority # pylint: disable=no-member
+                    ret = func(0, pid, argPriority)
                 if ret != 0:
                     policy = upolicy
                     raise Exception()
@@ -31094,7 +31094,7 @@ class DltAnalyzer(object):
                         "Fail to initialize a DLTFile object")
 
                 # set filter #
-                #setFilter(dltObj, dltFile, apid="", ctid="")
+                #setFilter(dltObj, dltFile, apid=b"", ctid=b"")
 
                 # open file #
                 ret = dltObj.dlt_file_open(byref(dltFile), path, verbose)
@@ -31169,7 +31169,7 @@ class DltAnalyzer(object):
                 (string_at(servIp), servPort), timeout=1)
 
             # set blocking #
-            connSock.setblocking(1)
+            connSock.setblocking(1) # pylint: disable=no-member
 
             if not connSock:
                 raise Exception()
@@ -31193,8 +31193,8 @@ class DltAnalyzer(object):
 
         # initialize connection #
         try:
-            nrConnSock = connSock.fileno()
-            RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF)
+            nrConnSock = connSock.fileno() # pylint: disable=no-member
+            RECVBUFSIZE = connSock.getsockopt(SOL_SOCKET, SO_RCVBUF) # pylint: disable=no-member
 
             ret = dltObj.dlt_receiver_init(\
                 byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE))
@@ -31480,7 +31480,7 @@ struct msghdr {
         self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
 
         class user_regs_struct(Structure):
-            def getdict(struct):
+            def getdict(struct): # pylint: disable=no-self-argument
                 return dict((field, getattr(struct, field)) \
                     for field, _ in struct._fields_)
 
@@ -34975,7 +34975,7 @@ struct msghdr {
 
     def lock(self):
         if self.lockObj:
-            lockf(self.lockObj, LOCK_EX)
+            lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
             return True
         return False
 
@@ -34983,7 +34983,7 @@ struct msghdr {
 
     def unlock(self):
         if self.lockObj:
-            lockf(self.lockObj, LOCK_UN)
+            lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
             return True
         return False
 
@@ -40864,6 +40864,8 @@ class ThreadAnalyzer(object):
 
 
     def drawChart(self, data, logFile):
+        # pylint: disable=undefined-variable
+
         if len(data) == 0:
             return
 
@@ -41042,6 +41044,7 @@ class ThreadAnalyzer(object):
 
 
     def drawGraph(self, graphStats, logFile):
+        # pylint: disable=undefined-variable
 
         #==================== DEFINE PART ====================#
         def getTextAlign(idx, timeline):
@@ -42701,8 +42704,8 @@ class ThreadAnalyzer(object):
 
         try:
             # save graph #
-            savefig(outputFile, dpi=SysMgr.matplotlibDpi)
-            clf()
+            savefig(outputFile, dpi=SysMgr.matplotlibDpi) # pylint: disable=undefined-variable
+            clf() # pylint: disable=undefined-variable
 
             # get output size #
             try:
@@ -43284,6 +43287,8 @@ class ThreadAnalyzer(object):
 
 
     def printResourceUsage(self):
+        # pylint: disable=undefined-variable
+
         title = 'Thread Info'
 
         SysMgr.printLogo(big=True)
@@ -44989,6 +44994,8 @@ class ThreadAnalyzer(object):
 
 
     def printIntervalInfo(self):
+        # pylint: disable=undefined-variable
+
         if SysMgr.intervalEnable <= 0 or \
             not (SysMgr.cpuEnable or \
             SysMgr.memEnable or \
