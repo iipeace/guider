@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200317"
+__revision__ = "200318"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30580,12 +30580,12 @@ class DltAnalyzer(object):
 
         # pick storage info #
         if msg.storageheader:
-            ecuId = msg.storageheader.contents.ecu
+            ecuId = msg.storageheader.contents.ecu.decode()
         else:
             return
         if msg.extendedheader:
-            apId = msg.extendedheader.contents.apid
-            ctxId = msg.extendedheader.contents.ctid
+            apId = msg.extendedheader.contents.apid.decode()
+            ctxId = msg.extendedheader.contents.ctid.decode()
         else:
             return
 
@@ -30625,8 +30625,12 @@ class DltAnalyzer(object):
             dltObj.dlt_message_payload(\
                 ctypes.byref(msg), buf, \
                 DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
-            #string = buf.value.decode("utf8")
-            string = buf.value
+            try:
+                #string = buf.value.decode("utf8")
+                string = buf.value
+                string = string.decode()
+            except:
+                string = [string]
 
             # check filter #
             if len(filterGroup) > 0:
@@ -30657,7 +30661,7 @@ class DltAnalyzer(object):
             ntime = time.strftime(\
                 '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
 
-            output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7:1}".format(\
+            output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}".format(\
                 ntime, timeUs, uptime, ecuId, apId, ctxId, info, string)
 
             SysMgr.printPipe(output, flush=True)
@@ -30753,18 +30757,26 @@ class DltAnalyzer(object):
                     buf = fobj.read(1024)
             return None
 
-        def setFilter(dltObj, dltFile, apid=None, ctid=None):
+        def setFilter(dltObj, dltFilter, dltFile, apid=None, ctid=None, init=True):
             # initialize filter #
-            dltFilter = DLTFilter()
-            if dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
+            if init and dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
                 SysMgr.printErr(\
                     "Fail to initialize the DLTFilter object")
-                sys.exit(0)
+                return -1
 
             if dltObj.dlt_filter_add(\
                 byref(dltFilter), apid or b"", ctid or b"", verbose) == -1:
                 SysMgr.printErr(\
-                    "Fail to add %s and %s to the DLTFilter object")
+                    "Fail to add %s and %s to the DLTFilter object" % \
+                        (apid, tid))
+                return -1
+
+            if dltFilter.counter >= DltAnalyzer.DLT_FILTER_MAX:
+                SysMgr.printErr((\
+                    "Fail to add %s and %s to the DLTFilter object "
+                    "because maximum filter count exceed") % \
+                        (apid, tid, DltAnalyzer.DLT_FILTER_MAX))
+                return -1
 
             return dltObj.dlt_file_set_filter(\
                 byref(dltFile), byref(dltFilter), verbose)
@@ -30774,7 +30786,7 @@ class DltAnalyzer(object):
         from ctypes import cdll, POINTER, Structure, Union, \
             c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
             c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
-            create_string_buffer
+            create_string_buffer, c_ulong, c_long
 
         # define constant #
         DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
@@ -30984,9 +30996,9 @@ class DltAnalyzer(object):
             '''
 
             _fields_ = [
-                ("apid", (ctypes.c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
-                ("ctid", (ctypes.c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
-                ("counter", ctypes.c_int)
+                ("apid", (c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
+                ("ctid", (c_char * DLT_ID_SIZE) * DLT_FILTER_MAX),
+                ("counter", c_int)
             ]
 
         class DLTFile(Structure):
@@ -31018,16 +31030,16 @@ class DltAnalyzer(object):
             '''
 
             _fields_ = [
-                ("handle", ctypes.POINTER(ctypes.c_int)),
-                ("index", ctypes.POINTER(ctypes.c_long)),
-                ("counter", ctypes.c_int32),
-                ("counter_total", ctypes.c_int32),
-                ("position", ctypes.c_int32),
-                ("file_length", ctypes.c_long),
-                ("file_position", ctypes.c_long),
-                ("error_messages", ctypes.c_int32),
-                ("filter", ctypes.POINTER(DLTFilter)),
-                ("filter_counter", ctypes.c_int32),
+                ("handle", POINTER(c_int)),
+                ("index", POINTER(c_long)),
+                ("counter", c_int32),
+                ("counter_total", c_int32),
+                ("position", c_int32),
+                ("file_length", c_long),
+                ("file_position", c_long),
+                ("error_messages", c_int32),
+                ("filter", POINTER(DLTFilter)),
+                ("filter_counter", c_int32),
                 ("msg", DLTMessage)
             ]
 
@@ -31073,6 +31085,7 @@ class DltAnalyzer(object):
         # define default variables #
         msg = DLTMessage()
         dltFile = DLTFile()
+        dltFilter = DLTFilter()
         buf = create_string_buffer(\
             b'\000' * DltAnalyzer.DLT_DAEMON_TEXTSIZE)
 
@@ -31087,6 +31100,9 @@ class DltAnalyzer(object):
         # messages from file #
         if mode == 'print' and flist:
             for path in flist:
+                # convert path string to utf-8 format #
+                path = UtilMgr.encodeStr(path)
+
                 # initialize file object #
                 ret = dltObj.dlt_file_init(byref(dltFile), verbose)
                 if ret < 0:
@@ -31094,7 +31110,7 @@ class DltAnalyzer(object):
                         "Fail to initialize a DLTFile object")
 
                 # set filter #
-                #setFilter(dltObj, dltFile, apid=b"", ctid=b"")
+                #setFilter(dltObj, dltFilter, dltFile, apid=b"", ctid=b"", init=True)
 
                 # open file #
                 ret = dltObj.dlt_file_open(byref(dltFile), path, verbose)
@@ -31102,9 +31118,7 @@ class DltAnalyzer(object):
                     SysMgr.printErr(\
                         "Fail to open %s" % path)
                     return
-
-                # check file #
-                if dltFile.file_length == 0:
+                elif dltFile.file_length == 0:
                     SysMgr.printErr(\
                         "Fail to read %s because size is 0" % path)
                     return
@@ -31115,7 +31129,7 @@ class DltAnalyzer(object):
                     # storage header corrupted #
                     if ret < 0:
                         nextHeaderPos = findNextHeader(path, dltFile.file_position)
-                        if nextHeaderPos:
+                        if nextHeaderPos is not None:
                             if dltFile.file_position == nextHeaderPos:
                                 break
                             else:
@@ -31212,16 +31226,16 @@ class DltAnalyzer(object):
 
         # define receiver symbol #
         try:
-            getattr(dltObj, 'dlt_receiver_receive_socket')
-            dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
-        except:
-            try:
-                getattr(dltObj, 'dlt_receiver_receive')
+            if hasattr(dltObj, 'dlt_receiver_receive_socket'):
+                dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
+            elif hasattr(dltObj, 'dlt_receiver_receive'):
                 dlt_receiver_receive = dltObj.dlt_receiver_receive
-            except:
-                SysMgr.printErr(\
-                    "Fail to get dlt_receiver_receive symbol")
-                sys.exit(0)
+            else:
+                raise Exception()
+        except:
+            SysMgr.printErr(\
+                "Fail to get dlt_receiver_receive symbol")
+            sys.exit(0)
 
         # save timestamp #
         prevTime = time.time()
