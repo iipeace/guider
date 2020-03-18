@@ -24766,15 +24766,15 @@ Copyright:
                 if pid:
                     ppid = long(SysMgr.getTgid(pid))
 
-                # set per-process convert breakpoint list #
-                if ppid in bpList:
-                    bpList = bpList[ppid]
-                if ppid in exceptBpList:
-                    exceptBpList = exceptBpList[ppid]
-                if ppid in targetBpList:
-                    targetBpList = targetBpList[ppid]
-                if ppid in targetBpFileList:
-                    targetBpFileList = targetBpFileList[ppid]
+                    # set per-process convert breakpoint list #
+                    if ppid in bpList:
+                        bpList = bpList[ppid]
+                    if ppid in exceptBpList:
+                        exceptBpList = exceptBpList[ppid]
+                    if ppid in targetBpList:
+                        targetBpList = targetBpList[ppid]
+                    if ppid in targetBpFileList:
+                        targetBpFileList = targetBpFileList[ppid]
 
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='break', wait=wait, multi=multi, \
@@ -31382,6 +31382,10 @@ class Debugger(object):
         self.initPtrace = False
         self.initPvr = False
         self.initPvw = False
+        self.supportGetRegset = True
+        self.supportSetRegset = True
+        self.supportProcessVmRd = True
+        self.supportProcessVmWr = False
 
         self.args = []
         self.values = []
@@ -31620,7 +31624,8 @@ struct msghdr {
                 sys.exit(0)
 
             # update comm #
-            self.comm = SysMgr.getComm(self.pid)
+            if not self.comm:
+                self.comm = SysMgr.getComm(self.pid)
 
             if attach:
                 ret = self.attach(verb=True)
@@ -32639,55 +32644,48 @@ struct msghdr {
         if size == 0 or size > len(data):
             size = len(data)
 
-        class SkipException(Exception):
-            pass
-
-        try:
-            if not self.supportProcessVmWr:
-                raise SkipException()
-
-            # get ctypes object #
-            ctypes = self.ctypes
-            from ctypes import cdll, Structure, memmove, c_char, \
-                c_void_p, c_ulong, c_size_t, c_int, cast, byref
-
-            # prepare process_vm_writev syscall #
-            process_vm_writev = SysMgr.libcObj.process_vm_writev
-
-            if not self.initPvw:
-                SysMgr.libcObj.process_vm_writev.restype = c_size_t
-                SysMgr.libcObj.process_vm_writev.argtypes = \
-                    [c_int, self.iovec_ptr, c_size_t, \
-                        self.iovec_ptr, c_size_t, c_ulong]
-                self.initPvw = True
-
-            # create params #
-            pid = self.pid
-
+        if self.supportProcessVmWr:
             try:
-                lbuf = (c_char*size)()
-                memmove(byref(lbuf), data, len(data))
-                liov = (self.iovec*1)()[0]
-                liov.iov_base = cast(lbuf, c_void_p)
-                liov.iov_len = size
+                # get ctypes object #
+                ctypes = self.ctypes
+                from ctypes import cdll, Structure, memmove, c_char, \
+                    c_void_p, c_ulong, c_size_t, c_int, cast, byref
 
-                riov = (self.iovec*1)()[0]
-                riov.iov_base = c_void_p(addr)
-                riov.iov_len = size
+                # prepare process_vm_writev syscall #
+                process_vm_writev = SysMgr.libcObj.process_vm_writev
+
+                if not self.initPvw:
+                    SysMgr.libcObj.process_vm_writev.restype = c_size_t
+                    SysMgr.libcObj.process_vm_writev.argtypes = \
+                        [c_int, self.iovec_ptr, c_size_t, \
+                            self.iovec_ptr, c_size_t, c_ulong]
+                    self.initPvw = True
+
+                # create params #
+                pid = self.pid
+
+                try:
+                    lbuf = (c_char*size)()
+                    memmove(byref(lbuf), data, len(data))
+                    liov = (self.iovec*1)()[0]
+                    liov.iov_base = cast(lbuf, c_void_p)
+                    liov.iov_len = size
+
+                    riov = (self.iovec*1)()[0]
+                    riov.iov_base = c_void_p(addr)
+                    riov.iov_len = size
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return None
+
+                # do syscall #
+                ret = process_vm_writev(pid, liov, 1, riov, 1, 0)
+                return ret
             except SystemExit:
                 sys.exit(0)
             except:
-                return None
-
-            # do syscall #
-            ret = process_vm_writev(pid, liov, 1, riov, 1, 0)
-            return ret
-        except SkipException:
-            pass
-        except SystemExit:
-            sys.exit(0)
-        except:
-            self.supportProcessVmWr = False
+                self.supportProcessVmWr = False
 
         # check address alignment #
         offset = addr % wordSize
@@ -32800,55 +32798,50 @@ struct msghdr {
         if size == 0:
             size = wordSize
 
-        class SkipException(Exception):
-            pass
-
-        try:
-            if not self.supportProcessVmRd:
-                raise SkipException()
-
-            # get ctypes object #
-            ctypes = self.ctypes
-            from ctypes import cdll, Structure, c_void_p, \
-                c_ulong, c_size_t, c_int, cast, c_char, byref
-
-            # prepare process_vm_readv syscall #
-            process_vm_readv = SysMgr.libcObj.process_vm_readv
-
-            if not self.initPvr:
-                SysMgr.libcObj.process_vm_readv.restype = c_size_t
-                SysMgr.libcObj.process_vm_readv.argtypes = \
-                    [c_int, self.iovec_ptr, c_size_t, \
-                        self.iovec_ptr, c_size_t, c_ulong]
-                self.initPvr = True
-
-            # create params #
-            pid = self.pid
-
+        if self.supportProcessVmRd:
             try:
-                lbuf = (c_char*size)()
-                liov = (self.iovec*1)()[0]
-                liov.iov_base = cast(byref(lbuf), c_void_p)
-                liov.iov_len = size
+                # get ctypes object #
+                ctypes = self.ctypes
+                from ctypes import cdll, Structure, c_void_p, \
+                    c_ulong, c_size_t, c_int, cast, c_char, byref
 
-                riov = (self.iovec*1)()[0]
-                riov.iov_base = c_void_p(addr)
-                riov.iov_len = size
+                # prepare process_vm_readv syscall #
+                process_vm_readv = SysMgr.libcObj.process_vm_readv
+
+                if not self.initPvr:
+                    SysMgr.libcObj.process_vm_readv.restype = c_size_t
+                    SysMgr.libcObj.process_vm_readv.argtypes = \
+                        [c_int, self.iovec_ptr, c_size_t, \
+                            self.iovec_ptr, c_size_t, c_ulong]
+                    self.initPvr = True
+
+                # create params #
+                pid = self.pid
+
+                try:
+                    lbuf = (c_char*size)()
+                    liov = (self.iovec*1)()[0]
+                    liov.iov_base = cast(byref(lbuf), c_void_p)
+                    liov.iov_len = size
+
+                    riov = (self.iovec*1)()[0]
+                    riov.iov_base = c_void_p(addr)
+                    riov.iov_len = size
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return None
+
+                # do syscall #
+                ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
+                if ret > 0:
+                    return memoryview(lbuf).tobytes()
+                else:
+                    return None
             except SystemExit:
                 sys.exit(0)
             except:
-                return None
-
-            # do syscall #
-            ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
-            if ret > 0:
-                return memoryview(lbuf).tobytes()
-        except SkipException:
-            pass
-        except SystemExit:
-            sys.exit(0)
-        except:
-            self.supportProcessVmRd = False
+                self.supportProcessVmRd = False
 
         # define return list #
         data = bytes()
@@ -35055,10 +35048,6 @@ struct msghdr {
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
-        self.supportGetRegset = True
-        self.supportSetRegset = True
-        self.supportProcessVmRd = True
-        self.supportProcessVmWr = False
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
