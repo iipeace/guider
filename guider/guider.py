@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200318"
+__revision__ = "200319"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12327,6 +12327,7 @@ class SysMgr(object):
     ueventEnable = False
     keventEnable = False
     networkEnable = False
+    schedEnable = False
     stackEnable = False
     wchanEnable = False
     sigHandlerEnable = False
@@ -13835,7 +13836,7 @@ class SysMgr(object):
             'P' in options or 'r' in options or \
             'g' in options or 'L' in options or \
             'N' in options or 't' in options or \
-            'v' in options or \
+            'v' in options or 'H' in options or \
             'l' in options or 'G' in options or \
             'c' in options or 's' in options or \
             'S' in options or 'u' in options or \
@@ -13996,6 +13997,9 @@ class SysMgr(object):
             SysMgr.printInfo("sorted by PID")
         elif value == 'n':
             SysMgr.printInfo("sorted by NEW")
+        elif value == 'e':
+            SysMgr.printInfo("sorted by EXECTIME")
+            SysMgr.schedEnable = True
         elif value == 'r':
             SysMgr.printInfo("sorted by RUNTIME")
         elif value == 'o':
@@ -14288,9 +14292,9 @@ Usage:
         -X  <REQ@IP:PORT>           set request address
         -N  <REQ@IP:PORT>           set report address
         -S  <comm/memory/pid        sort by key
-             block/wfc/new
-             runtime/file
-             Priority/oomScore
+             block/wfc/new/file
+             runtime/exectime
+             Priority/oomscore
              Contextswitch>
         -P                          group threads in a same process
         -I  <DIR|FILE>              set input path
@@ -14315,11 +14319,11 @@ Options:
         -e  <CHARACTER>             enable options
                 a:affinity | b:block | c:cpu | C:cgroup
                 d:disk | D:DLT | e:encode | E:Elastic
-                f:float | F:wfc | h:sigHandler | i:irq
-                j:journal | k:kmsg | L:cmdline | m:memory
-                n:net | N:namespace | o:oomScore | p:pipe
-                P:perf | r:report | R:fileReport | s:stack
-                S:pss | t:thread | u:uss | w:wss
+                f:float | F:wfc | h:sigHandler | H:sched
+                i:irq | j:journal | k:kmsg | L:cmdline
+                m:memory | n:net | N:namespace | o:oomScore
+                p:pipe | P:perf | r:report | R:fileReport
+                s:stack | S:pss | t:thread | u:uss | w:wss
                 W:wchan | y:syslog
         -d  <CHARACTER>             disable options
                 a:memAvailable | A:cpuAverage
@@ -18200,6 +18204,31 @@ Copyright:
                 else:
                     disableStat += 'WSS '
 
+                if SysMgr.dltEnable:
+                    enableStat += 'DLT '
+                else:
+                    disableStat += 'DLT '
+
+                if SysMgr.syslogEnable:
+                    enableStat += 'SYSLOG '
+                else:
+                    disableStat += 'SYSLOG '
+
+                if SysMgr.kmsgEnable:
+                    enableStat += 'KMSG '
+                else:
+                    disableStat += 'KMSG '
+
+                if SysMgr.journalEnable:
+                    enableStat += 'JRL '
+                else:
+                    disableStat += 'JRL '
+
+                if SysMgr.schedEnable:
+                    enableStat += 'SCHED '
+                else:
+                    disableStat += 'SCHED '
+
                 if SysMgr.groupProcEnable:
                     enableStat += 'PGRP '
                 else:
@@ -20506,6 +20535,9 @@ Copyright:
                 if 'j' in options:
                     SysMgr.loggingEnable = True
                     SysMgr.journalEnable = True
+
+                if 'H' in options:
+                    SysMgr.schedEnable = True
 
                 if 'y' in options:
                     SysMgr.loggingEnable = True
@@ -51264,6 +51296,7 @@ class ThreadAnalyzer(object):
             SCHED_POLICY = schedBuf[0].split()
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
+            self.procData[tid]['nrSlice'] = float(SCHED_POLICY[2])
         except:
             return
 
@@ -53410,6 +53443,16 @@ class ThreadAnalyzer(object):
         elif SysMgr.sort == 'P':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: long(e[1]['stat'][self.prioIdx]), reverse=False)
+        # exectime #
+        elif SysMgr.sort == 'e':
+            try:
+                for idx, value in self.procData.items():
+                    self.saveProcSchedData(value['taskPath'], idx)
+
+                sortedProcData = sorted(self.procData.items(), \
+                    key=lambda e: e[1]['execTime'], reverse=True)
+            except:
+                sortedProcData = self.procData.items()
         # contextswitch #
         elif SysMgr.sort == 'C':
             try:
@@ -53551,12 +53594,14 @@ class ThreadAnalyzer(object):
 
             for idx, value in sortedProcData:
                 for item in SysMgr.filterGroup:
-                    if item in value['stat'][self.commIdx]:
-                        if SysMgr.processEnable:
-                            plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
-                        else:
-                            plist[self.procData[idx]['mainID']] = long(0)
-                        break
+                    if not item in value['stat'][self.commIdx]:
+                        continue
+
+                    if SysMgr.processEnable:
+                        plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
+                    else:
+                        plist[self.procData[idx]['mainID']] = long(0)
+                    break
 
             return plist
 
@@ -53703,6 +53748,7 @@ class ThreadAnalyzer(object):
         # define convert function #
         convertNum = UtilMgr.convertNumber
         convertFunc = UtilMgr.convertSize2Unit
+        convertTime = UtilMgr.convertTime
 
         totalStats = {\
             'read': long(0), 'write': long(0), \
@@ -54159,6 +54205,21 @@ class ThreadAnalyzer(object):
             if 'cgroup' in value:
                 SysMgr.addPrint(\
                     "{0:>39} | {1:1}\n".format('CGROUP', value['cgroup']))
+
+            # print sched #
+            if SysMgr.schedEnable and \
+                'execTime' in value:
+                execTime = value['execTime']
+                waitTime = value['waitTime']
+
+                execStr = 'Exec: %s' % convertTime(execTime / 1000000000)
+                waitStr = 'Wait: %s' % convertTime(waitTime / 1000000000)
+                sliceStr = 'NrTimeslice: %s' % convertNum(value['nrSlice'])
+
+                schedStr = '%s / %s / %s' % (execStr, waitStr, sliceStr)
+
+                SysMgr.addPrint(\
+                    "{0:>39} | {1:1}\n".format('SCHED', schedStr))
 
             # print D-Bus #
             if 'dbusList' in value and \
