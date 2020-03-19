@@ -2500,7 +2500,7 @@ class ConfigMgr(object):
         'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2', 'sys_pwritev2',
         'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free', 'sys_statx',
         'sys_io_pgetevents', 'sys_rseq', 'sys_kexec_file_load',
-        ] + [ 'sys_null' for idx in xrange(295, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in xrange(295, 424, 1)] + SYSCALL_COMMON
 
     # Define syscall for x86 #
     SYSCALL_X86 = [
@@ -2695,10 +2695,10 @@ class ConfigMgr(object):
         'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2',
         'sys_pwritev2', 'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free',
         'sys_statx', 'sys_io_pgetevents', 'sys_rseq',
-        ] + [ 'sys_null' for idx in xrange(335, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in xrange(335, 424, 1)] + SYSCALL_COMMON
 
     # Define default syscall list #
-    sysList = None
+    sysList = []
 
     # Define systemcall register #
     SYSREG_LIST = {
@@ -2722,13 +2722,13 @@ class ConfigMgr(object):
     SIG_LIST = [
         'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
-        'SIGKILL','SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
+        'SIGKILL', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
         'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', #16#
         'SIGCHLD', 'SIGCONT', 'SIGSTOP', 'SIGTSTP', #20#
         'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', #24#
         'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
-            [ 'SIGRT%d' % idx for idx in xrange(0, 32, 1)]
+            ['SIGRT%d' % idx for idx in xrange(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
 
     # stat list from http://linux.die.net/man/5/proc #
@@ -2961,7 +2961,7 @@ class ConfigMgr(object):
         'LAST_ACK',
         'LISTEN',
         'CLOSING'
-      ]
+        ]
 
     # Define futex operation flags #
     FUTEX_TYPE = [
@@ -3045,7 +3045,7 @@ class ConfigMgr(object):
         'PTRACE_EVENT_VFORK_DONE',
         'PTRACE_EVENT_EXIT',
         'PTRACE_EVENT_SECCOMP',
-        ] + [ 'NONE' for idx in xrange(0, 120, 1)] + ['PTRACE_EVENT_STOP']
+        ] + ['NONE' for idx in xrange(0, 120, 1)] + ['PTRACE_EVENT_STOP']
 
     # Define perf event types #
     PERF_EVENT_TYPE = [
@@ -3181,10 +3181,10 @@ class UtilMgr(object):
 
     progressCnt = 0
     progressChar = {
-            0: '|',
-            1: '/',
-            2: '-',
-            3: '\\',
+        0: '|',
+        1: '/',
+        2: '-',
+        3: '\\',
     }
 
 
@@ -3202,12 +3202,12 @@ class UtilMgr(object):
         ])
 
         superset = {}
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_COMMON})
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_COMMON32})
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_X86})
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_X64})
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_ARM})
-        superset.update({ i:0 for i in ConfigMgr.SYSCALL_AARCH64})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_COMMON})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_COMMON32})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_X86})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_X64})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_ARM})
+        superset.update({i:0 for i in ConfigMgr.SYSCALL_AARCH64})
         supersetlist = set(superset.keys())
         protolist = \
             set(['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
@@ -3376,11 +3376,11 @@ class UtilMgr(object):
     def isString(value):
         if isinstance(value, str):
             return True
-        elif sys.version_info >= (3,0,0):
+        elif sys.version_info >= (3, 0, 0):
             if isinstance(value, bytes):
                 return True
         else:
-            if isinstance(value, unicode):
+            if isinstance(value, unicode): # pylint: disable=undefined-variable
                 return True
         return False
 
@@ -3523,7 +3523,7 @@ class UtilMgr(object):
     @staticmethod
     def convertNumber(number):
         try:
-            return format(long(number),",")
+            return format(long(number), ",")
         except SystemExit:
             sys.exit(0)
         except:
@@ -3611,7 +3611,7 @@ class UtilMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            ctime = "%s%02d:%02s:%02s" % ('', '?', '?', '?')
+            ctime = "%s%02s:%02s:%02s" % ('', '?', '?', '?')
 
         return ctime.strip()
 
@@ -4133,7 +4133,7 @@ class NetworkMgr(object):
                 SysMgr.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
                     (targetPath, \
-                    UtilMgr.convertSize2Unit(os.path.getsize(targetPath)),
+                    UtilMgr.convertSize2Unit(os.path.getsize(targetPath)), \
                     targetIp, targetPort, origPath))
             except:
                 err = SysMgr.getErrReason()
@@ -4182,7 +4182,7 @@ class NetworkMgr(object):
                 # transfer file #
                 curSize = long(0)
                 totalSize = long(st_size)
-                with open(origPath,'rb') as fd:
+                with open(origPath, 'rb') as fd:
                     buf = fd.read(sender.sendSize)
                     while buf:
                         # print progress #
@@ -4732,7 +4732,7 @@ class NetworkMgr(object):
 
             SysMgr.printErr(\
                 ("wrong option value with -X, "
-                "input [%s]@IP:PORT as remote address") % \
+                 "input [%s]@IP:PORT as remote address") % \
                     reqList[:-1])
             sys.exit(0)
 
@@ -4761,8 +4761,8 @@ class NetworkMgr(object):
             service = 'PRINT'
 
         errMsg = ("wrong value for remote server, "
-            "input in the format [%s]@IP:PORT") % \
-                '|'.join(ThreadAnalyzer.requestType)
+                  "input in the format [%s]@IP:PORT") % \
+                    '|'.join(ThreadAnalyzer.requestType)
 
         if not ip or not SysMgr.isEffectiveRequest(service):
             SysMgr.printErr(errMsg)
@@ -5027,7 +5027,7 @@ class NetworkMgr(object):
             s.settimeout(0.3)
 
             # connect to google public IP #
-            s.connect(("8.8.8.8",53))
+            s.connect(("8.8.8.8", 53))
 
             ret = s.getsockname()[0]
         except SystemExit:
@@ -5057,33 +5057,33 @@ class PageAnalyzer(object):
 
     # page flags from kernel/include/uapi/linux/kernel-page-flags.h #
     flagList = [
-            'KPF_LOCKED', #0#
-            'KPF_ERROR', #1#
-            'KPF_REFERENCED', #2#
-            'KPF_UPTODATE', #3#
-            'KPF_DIRTY', #4#
-            'KPF_LRU', #5#
-            'KPF_ACTIVE', #6#
-            'KPF_SLAB', #7#
-            'KPF_WRITEBACK', #8#
-            'KPF_RECLAIM', #9#
-            'KPF_BUDDY', #10#
-            'KPF_MMAP', #11#
-            'KPF_ANON', #12#
-            'KPF_SWAPCACHE', #13#
-            'KPF_SWAPBACKED', #14#
-            'KPF_COMPOUND_HEAD', #15#
-            'KPF_COMPOUND_TAIL', #16#
-            'KPF_HUGE', #17#
-            'KPF_UNEVICTABLE', #18#
-            'KPF_HWPOISON', #19#
-            'KPF_NOPAGE', #20#
-            'KPF_KSM', #21#
-            'KPF_THP', #22#
-            'KPF_BALLOON', #23#
-            'KPF_ZERO_PAGE', #24#
-            'KPF_IDLE' #25#
-            ]
+        'KPF_LOCKED', #0#
+        'KPF_ERROR', #1#
+        'KPF_REFERENCED', #2#
+        'KPF_UPTODATE', #3#
+        'KPF_DIRTY', #4#
+        'KPF_LRU', #5#
+        'KPF_ACTIVE', #6#
+        'KPF_SLAB', #7#
+        'KPF_WRITEBACK', #8#
+        'KPF_RECLAIM', #9#
+        'KPF_BUDDY', #10#
+        'KPF_MMAP', #11#
+        'KPF_ANON', #12#
+        'KPF_SWAPCACHE', #13#
+        'KPF_SWAPBACKED', #14#
+        'KPF_COMPOUND_HEAD', #15#
+        'KPF_COMPOUND_TAIL', #16#
+        'KPF_HUGE', #17#
+        'KPF_UNEVICTABLE', #18#
+        'KPF_HWPOISON', #19#
+        'KPF_NOPAGE', #20#
+        'KPF_KSM', #21#
+        'KPF_THP', #22#
+        'KPF_BALLOON', #23#
+        'KPF_ZERO_PAGE', #24#
+        'KPF_IDLE' #25#
+        ]
 
 
 
@@ -5666,7 +5666,7 @@ class FunctionAnalyzer(object):
             sym = self.heapTable[addr]['sym']
             ksym = self.heapTable[addr]['ksym']
             stackAddr = self.heapTable[addr]['subStackAddr']
-            kstackAddr= self.heapTable[addr]['ksubStackAddr']
+            kstackAddr = self.heapTable[addr]['ksubStackAddr']
 
             self.userSymData[sym]['heapSize'] -= size
             self.kerSymData[ksym]['heapSize'] -= size
@@ -7410,7 +7410,7 @@ class FunctionAnalyzer(object):
         elif isFixedEvent and \
             (func == "mm_page_free:" or func == "mm_page_free_direct:"):
             m = re.match((r'^\s*page=(?P<page>\S+)\s+pfn=(?P<pfn>[0-9]+)\s+'
-                r'order=(?P<order>[0-9]+)'), args)
+                          r'order=(?P<order>[0-9]+)'), args)
             if m:
                 d = m.groupdict()
 
@@ -7453,7 +7453,7 @@ class FunctionAnalyzer(object):
                 return False
 
             SysMgr.printWarn("Fail to recognize event %s at %d" % \
-                    (func[:-1], SysMgr.dbgEventLine))
+                (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
 
@@ -7730,7 +7730,7 @@ class FunctionAnalyzer(object):
         # block write request event #
         elif isFixedEvent and func == "wbc_writepage:":
             m = re.match((r'^\s*bdi\s+(?P<major>[0-9]+):(?P<minor>[0-9]+):\s*'
-                r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), args)
+                          r'towrt=(?P<towrt>\S+)\s+skip=(?P<skip>\S+)'), args)
             if m:
                 d = m.groupdict()
 
@@ -7750,7 +7750,8 @@ class FunctionAnalyzer(object):
         # segmentation fault generation event #
         elif isFixedEvent and func == "signal_generate:":
             m = re.match((r'^\s*sig=(?P<sig>[0-9]+) errno=(?P<err>[0-9]+) '
-                r'code=(?P<code>.*) comm=(?P<comm>.*) pid=(?P<pid>[0-9]+)'), args)
+                          r'code=(?P<code>.*) comm=(?P<comm>.*) '
+                          r'pid=(?P<pid>[0-9]+)'), args)
             if m:
                 b = m.groupdict()
 
@@ -12122,7 +12123,7 @@ class SysMgr(object):
     encodeEnable = True
     remoteRun = False
     magicString = '@@@@@'
-    launchBuffer = None
+    launchBuffer = ''
     lineLength = 154
     pid = long(0)
     prio = None
@@ -12155,8 +12156,8 @@ class SysMgr(object):
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
     pythonPath = sys.executable
-    addr2linePath = None
-    objdumpPath = None
+    addr2linePath = []
+    objdumpPath = []
     rootPath = ''
     fontPath = None
     libdltPath = 'libdlt.so'
@@ -12191,10 +12192,10 @@ class SysMgr(object):
     fileForPrint = None
     fileSuffix = None
     parsedAnalOption = False
-    optionList = None
-    customCmd = None
-    userCmd = None
-    kernelCmd = None
+    optionList = []
+    customCmd = []
+    userCmd = []
+    kernelCmd = []
     udpListCache = None
     tcpListCache = None
     customEventList = []
@@ -12235,8 +12236,8 @@ class SysMgr(object):
     uptime = long(0)
     prevUptime = long(0)
     uptimeDiff = long(0)
-    diskStats = None
-    prevDiskStats = None
+    diskStats = []
+    prevDiskStats = []
     netstat = ''
     prevNetstat = ''
     loadavg = ''
@@ -12259,8 +12260,8 @@ class SysMgr(object):
     graphEnable = False
     procBuffer = []
     topInstance = None
-    procInstance = None
-    fileInstance = None
+    procInstance = {}
+    fileInstance = {}
     sysInstance = None
     procBufferSize = long(0)
     bufferOverflowed = False
@@ -30700,14 +30701,14 @@ class DltAnalyzer(object):
                 byref(dltFilter), apid or b"", ctid or b"", verbose) == -1:
                 SysMgr.printErr(\
                     "Fail to add %s and %s to the DLTFilter object" % \
-                        (apid, tid))
+                        (apid, ctid))
                 return -1
 
             if dltFilter.counter >= DltAnalyzer.DLT_FILTER_MAX:
                 SysMgr.printErr((\
                     "Fail to add %s and %s to the DLTFilter object "
-                    "because maximum filter count exceed") % \
-                        (apid, tid, DltAnalyzer.DLT_FILTER_MAX))
+                    "because maximum filter count %s exceed") % \
+                        (apid, ctid, DltAnalyzer.DLT_FILTER_MAX))
                 return -1
 
             return dltObj.dlt_file_set_filter(\
