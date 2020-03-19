@@ -5089,10 +5089,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission analyze pages")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         try:
             if type(pid) is not list or len(pid) != 1:
@@ -12365,6 +12362,7 @@ class SysMgr(object):
     systemEnable = False
     fileEnable = False
     threadEnable = False
+    nsEnable = False
     termFlag = True
     tgidEnable = True
     taskEnable = True
@@ -12767,11 +12765,7 @@ class SysMgr(object):
 
     @staticmethod
     def execFileAnalysis():
-        # check permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to analyze linked files")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         # parse analysis option #
         SysMgr.parseAnalOption()
@@ -13028,42 +13022,46 @@ class SysMgr(object):
     @staticmethod
     def parseKillOption(value):
         if len(value) == 0:
-            SysMgr.printErr(\
-                ("wrong option value %s with -k, "
-                "input in the format {tids}"))
+            SysMgr.printErr("wrong option value %s with -k")
             sys.exit(0)
 
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to kill tasks")
-            sys.exit(0)
+        SysMgr.checkPerm()
+
+        sigList = ConfigMgr.SIG_LIST
 
         try:
-            value = value.split(':')
+            jobs = value.split(',')
+            for job in jobs:
+                value = job.split(':')
 
-            if len(value) == 1:
-                tids = value[0]
+                if len(value) > 3:
+                    raise Exception("wrong input")
 
-                for tid in list(map(long, tids.split(','))):
-                    try:
-                        os.kill(long(tid), signal.SIGKILL)
-                    except:
-                        SysMgr.printSigError(tid, 'SIGKILL')
-            elif len(value) == 2 and value[1] == 'CONT':
-                tids = value[0]
+                # set task id #
+                tid = value[0]
 
-                SysMgr.killFilter.append(tids)
-            else:
-                raise Exception("wrong input")
+                # set signal #
+                if len(value) == 1:
+                    sig = signal.SIGKILL
+                else:
+                    sig = value[1]
+                    if sig.upper() in sigList:
+                        sig = sigList.index(sig.upper())
+                    elif ('SIG%s' % sig).upper() in sigList:
+                        sig = sigList.index('SIG%s' % sig.upper())
+                    elif sig.isdigit():
+                        sig = long(sig)
 
+                if len(value) > 2 and value[2].upper() == 'CONT':
+                    SysMgr.killFilter.append([tid, sig, 'CONT'])
+                else:
+                    SysMgr.killFilter.append([tid, sig, 'ONCE'])
         except SystemExit:
             sys.exit(0)
         except:
             err = SysMgr.getErrReason()
-            SysMgr.printErr((\
-                "Fail to kill tasks because %s, "
-                "input in the format {tids}") % err)
+            SysMgr.printErr(\
+                "Fail to set signals because %s" % err)
             sys.exit(0)
 
 
@@ -13076,11 +13074,7 @@ class SysMgr(object):
                 "input in the format {mask:tids}"))
             sys.exit(0)
 
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to set cpu affinity of tasks")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         try:
             value = value.split(':')
@@ -13135,10 +13129,7 @@ class SysMgr(object):
             isProcess = True
             value = value.replace('-P', '').replace(' ', '')
 
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to set cpu affinity of tasks")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         SysMgr.parseAffinityOption(value, isProcess)
 
@@ -13185,10 +13176,7 @@ class SysMgr(object):
                 "input in the format {tids}")
             sys.exit(0)
 
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to get cpu affinity of tasks")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         try:
             tids = list(map(long, value.split(',')))
@@ -13222,7 +13210,7 @@ class SysMgr(object):
             pass
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to set affinity of other thread")
+                "Fail to get root permission to set affinity")
             return
 
         # check pid list #
@@ -13845,7 +13833,8 @@ class SysMgr(object):
             'b' in options or 'p' in options or \
             'P' in options or 'r' in options or \
             'g' in options or 'L' in options or \
-            't' in options or 'v' in options or \
+            'N' in options or 't' in options or \
+            'v' in options or \
             'l' in options or 'G' in options or \
             'c' in options or 's' in options or \
             'S' in options or 'u' in options or \
@@ -14225,6 +14214,7 @@ class SysMgr(object):
                 'printcrp': 'Cgroup',
                 'printdir': 'Dir',
                 'printdbus': 'D-Bus',
+                'printns': 'Namespace',
                 },
             'log': {
                 'printkmsg': 'Kernel',
@@ -14312,7 +14302,7 @@ Usage:
         -J                          print in JSON format
         -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
-        -k  <COMM|TID{:CONT}>       set kill list
+        -k  <COMM|TID:SIG{:CONT}>   set signal list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
@@ -14326,8 +14316,8 @@ Options:
                 d:disk | D:DLT | e:encode | E:Elastic
                 f:float | F:wfc | h:sigHandler | i:irq
                 j:journal | k:kmsg | L:cmdline | m:memory
-                n:net | o:oomScore | p:pipe | P:perf
-                r:report | R:fileReport | s:stack
+                n:net | N:namespace | o:oomScore | p:pipe
+                P:perf | r:report | R:fileReport | s:stack
                 S:pss | t:thread | u:uss | w:wss
                 W:wchan | y:syslog
         -d  <CHARACTER>             disable options
@@ -14599,7 +14589,7 @@ Options:
         -c  <EVENT:COND>            set custom event
         -E  <DIR>                   set cache dir path
         -H  <LEVEL>                 set function depth level
-        -k  <COMM|TID{:CONT}>       set kill list
+        -k  <COMM|TID:SIG{:CONT}>   set signal list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
@@ -14848,7 +14838,7 @@ Options:
         -A  <ARCH>                  set cpu type
         -c  <EVENT:COND>            set custom event
         -E  <DIR>                   set cache dir path
-        -k  <COMM|TID{:CONT}>       set kill list
+        -k  <COMM|TID:SIG{:CONT}>   set signal list
         -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
         -Y  <POLICY:PRIO|TIME       set sched
              {:TID|ALL:CONT}>
@@ -15877,6 +15867,29 @@ Examples:
         # {0:1} {1:1} -g 1234
                     '''.format(cmd, mode)
 
+                # printns #
+                elif SysMgr.isPrintNsMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show namespace list
+
+Options:
+        -a                          show all attributes
+        -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print namespace list
+        # {0:1} {1:1}
+
+    - Print namespace list with tasks
+        # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
                 # printinfo #
                 elif SysMgr.isPrintInfoMode():
                     helpStr = '''
@@ -16438,6 +16451,16 @@ Copyright:
             SysMgr.printWarn(\
                 'Fail to call %s syscall because %s' % \
                     (syscall, SysMgr.getErrReason()), True)
+
+
+
+    @staticmethod
+    def checkPerm(exit=True):
+        if not SysMgr.isRoot():
+            SysMgr.printErr(\
+                "Fail to get root permission")
+            if exit:
+                sys.exit(0)
 
 
 
@@ -18109,6 +18132,11 @@ Copyright:
                     enableStat += 'PERF '
                 else:
                     disableStat += 'PERF '
+
+                if SysMgr.nsEnable:
+                    enableStat += 'NS '
+                else:
+                    disableStat += 'NS '
 
                 if SysMgr.wchanEnable:
                     enableStat += 'WCHAN '
@@ -20513,18 +20541,12 @@ Copyright:
                         sys.exit(0)
 
                 if 'S' in options:
-                    if not SysMgr.isRoot():
-                        SysMgr.printErr(\
-                            "Fail to get root permission to analyze PSS")
-                        sys.exit(0)
+                    SysMgr.checkPerm()
                     SysMgr.pssEnable = True
                     SysMgr.sort = 'm'
 
                 if 'u' in options:
-                    if not SysMgr.isRoot():
-                        SysMgr.printErr(\
-                            "Fail to get root permission to analyze USS")
-                        sys.exit(0)
+                    SysMgr.checkPerm()
                     SysMgr.ussEnable = True
                     SysMgr.sort = 'm'
 
@@ -20575,6 +20597,9 @@ Copyright:
 
                 if 'n' in options:
                     SysMgr.networkEnable = True
+
+                if 'N' in options:
+                    SysMgr.nsEnable = True
 
                 if 'P' in options:
                     if SysMgr.checkPerfTopCond():
@@ -21154,11 +21179,9 @@ Copyright:
 
     @staticmethod
     def isThreadRecordMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'record' or \
-            sys.argv[1] == 'rec':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'record' or \
+            sys.argv[1] == 'rec'):
             return True
         else:
             return False
@@ -21167,11 +21190,9 @@ Copyright:
 
     @staticmethod
     def isFuncRecordMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'funcrecord' or \
-            sys.argv[1] == 'funcrec':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'funcrecord' or \
+            sys.argv[1] == 'funcrec'):
             return True
         else:
             return False
@@ -21180,11 +21201,9 @@ Copyright:
 
     @staticmethod
     def isFileRecordMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'filerecord' or \
-            sys.argv[1] == 'filerec':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'filerecord' or \
+            sys.argv[1] == 'filerec'):
             return True
         else:
             return False
@@ -21193,11 +21212,9 @@ Copyright:
 
     @staticmethod
     def isSyscallRecordMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'sysrecord' or \
-            sys.argv[1] == 'sysrec':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'sysrecord' or \
+            sys.argv[1] == 'sysrec'):
             return True
         else:
             return False
@@ -21206,11 +21223,9 @@ Copyright:
 
     @staticmethod
     def isGeneralRecordMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'genrecord' or \
-            sys.argv[1] == 'genrec':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'genrecord' or \
+            sys.argv[1] == 'genrec'):
             return True
         else:
             return False
@@ -21219,10 +21234,7 @@ Copyright:
 
     @staticmethod
     def isStartMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'start':
+        if len(sys.argv) > 1 and sys.argv[1] == 'start':
             return True
         else:
             return False
@@ -21230,11 +21242,9 @@ Copyright:
 
     @staticmethod
     def isServerMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'server' or \
-            sys.argv[1] == 'serv':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'server' or \
+            sys.argv[1] == 'serv'):
             return True
         else:
             return False
@@ -21254,11 +21264,9 @@ Copyright:
 
     @staticmethod
     def isClientMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'client' or \
-            sys.argv[1] == 'cli':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'client' or \
+            sys.argv[1] == 'cli'):
             return True
         else:
             return False
@@ -21267,10 +21275,7 @@ Copyright:
 
     @staticmethod
     def isListMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'list':
+        if len(sys.argv) > 1 and sys.argv[1] == 'list':
             return True
         else:
             return False
@@ -21279,10 +21284,7 @@ Copyright:
 
     @staticmethod
     def isStopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'stop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'stop':
             return True
         else:
             return False
@@ -21291,10 +21293,7 @@ Copyright:
 
     @staticmethod
     def isTkillMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'tkill':
+        if len(sys.argv) > 1 and sys.argv[1] == 'tkill':
             return True
         else:
             return False
@@ -21303,12 +21302,10 @@ Copyright:
 
     @staticmethod
     def isSendMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'send' or \
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'send' or \
             sys.argv[1] == 'kill' or \
-            SysMgr.isTkillMode():
+            SysMgr.isTkillMode()):
             return True
         else:
             return False
@@ -21317,10 +21314,7 @@ Copyright:
 
     @staticmethod
     def isCpuTestMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'cputest':
+        if len(sys.argv) > 1 and sys.argv[1] == 'cputest':
             return True
         else:
             return False
@@ -21329,10 +21323,7 @@ Copyright:
 
     @staticmethod
     def isMemTestMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'memtest':
+        if len(sys.argv) > 1 and sys.argv[1] == 'memtest':
             return True
         else:
             return False
@@ -21341,10 +21332,7 @@ Copyright:
 
     @staticmethod
     def isSetSchedMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'setsched':
+        if len(sys.argv) > 1 and sys.argv[1] == 'setsched':
             return True
         else:
             return False
@@ -21353,10 +21341,7 @@ Copyright:
 
     @staticmethod
     def isConvertMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'convert':
+        if len(sys.argv) > 1 and sys.argv[1] == 'convert':
             return True
         else:
             return False
@@ -21365,10 +21350,7 @@ Copyright:
 
     @staticmethod
     def isStraceMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'strace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'strace':
             return True
         else:
             return False
@@ -21377,10 +21359,7 @@ Copyright:
 
     @staticmethod
     def isUtraceMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'utrace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'utrace':
             return True
         else:
             return False
@@ -21389,10 +21368,7 @@ Copyright:
 
     @staticmethod
     def isBtraceMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'btrace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'btrace':
             return True
         else:
             return False
@@ -21401,10 +21377,7 @@ Copyright:
 
     @staticmethod
     def isSigtraceMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'sigtrace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'sigtrace':
             return True
         else:
             return False
@@ -21413,10 +21386,16 @@ Copyright:
 
     @staticmethod
     def isPrintEnvMode():
-        if len(sys.argv) == 1:
+        if len(sys.argv) > 1 and sys.argv[1] == 'printenv':
+            return True
+        else:
             return False
 
-        if sys.argv[1] == 'printenv':
+
+
+    @staticmethod
+    def isPrintNsMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'printns':
             return True
         else:
             return False
@@ -21425,10 +21404,7 @@ Copyright:
 
     @staticmethod
     def isPrintInfoMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'printinfo':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printinfo':
             return True
         else:
             return False
@@ -21437,10 +21413,7 @@ Copyright:
 
     @staticmethod
     def isSetAffinityMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'setafnt':
+        if len(sys.argv) > 1 and sys.argv[1] == 'setafnt':
             return True
         else:
             return False
@@ -21449,10 +21422,7 @@ Copyright:
 
     @staticmethod
     def isGetAffinityMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'getafnt':
+        if len(sys.argv) > 1 and sys.argv[1] == 'getafnt':
             return True
         else:
             return False
@@ -21461,10 +21431,7 @@ Copyright:
 
     @staticmethod
     def isPstreeMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'pstree':
+        if len(sys.argv) > 1 and sys.argv[1] == 'pstree':
             return True
         else:
             return False
@@ -21473,10 +21440,7 @@ Copyright:
 
     @staticmethod
     def isSystatMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'systat':
+        if len(sys.argv) > 1 and sys.argv[1] == 'systat':
             return True
         else:
             return False
@@ -21485,10 +21449,7 @@ Copyright:
 
     @staticmethod
     def isLimitCpuMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'limitcpu':
+        if len(sys.argv) > 1 and sys.argv[1] == 'limitcpu':
             return True
         else:
             return False
@@ -21497,10 +21458,7 @@ Copyright:
 
     @staticmethod
     def isSetCpuMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'setcpu':
+        if len(sys.argv) > 1 and sys.argv[1] == 'setcpu':
             return True
         else:
             return False
@@ -21509,10 +21467,7 @@ Copyright:
 
     @staticmethod
     def isPerfTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'perftop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'perftop':
             return True
         else:
             return False
@@ -21521,10 +21476,7 @@ Copyright:
 
     @staticmethod
     def isMemTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'memtop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'memtop':
             return True
         else:
             return False
@@ -21533,10 +21485,7 @@ Copyright:
 
     @staticmethod
     def isWssTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'wsstop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'wsstop':
             return True
         else:
             return False
@@ -21545,10 +21494,7 @@ Copyright:
 
     @staticmethod
     def isBgTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'bgtop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'bgtop':
             return True
         else:
             return False
@@ -21557,10 +21503,7 @@ Copyright:
 
     @staticmethod
     def isSystemTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'smtop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'smtop':
             return True
         else:
             return False
@@ -21569,10 +21512,7 @@ Copyright:
 
     @staticmethod
     def isDiskTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'disktop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'disktop':
             return True
         else:
             return False
@@ -21581,10 +21521,7 @@ Copyright:
 
     @staticmethod
     def isDltTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'dlttop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'dlttop':
             return True
         else:
             return False
@@ -21593,10 +21530,7 @@ Copyright:
 
     @staticmethod
     def isDbusTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'dbustop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'dbustop':
             return True
         else:
             return False
@@ -21605,11 +21539,9 @@ Copyright:
 
     @staticmethod
     def isUserTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'usertop' or \
-            sys.argv[1] == 'utop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'usertop' or \
+            sys.argv[1] == 'utop'):
             return True
         else:
             return False
@@ -21618,11 +21550,9 @@ Copyright:
 
     @staticmethod
     def isBrkTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'brktop' or \
-            sys.argv[1] == 'btop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'brktop' or \
+            sys.argv[1] == 'btop'):
             return True
         else:
             return False
@@ -21631,10 +21561,7 @@ Copyright:
 
     @staticmethod
     def isSysTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'systop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'systop':
             return True
         else:
             return False
@@ -21643,10 +21570,7 @@ Copyright:
 
     @staticmethod
     def isNetTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'nettop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'nettop':
             return True
         else:
             return False
@@ -21655,10 +21579,7 @@ Copyright:
 
     @staticmethod
     def isStackTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'stacktop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'stacktop':
             return True
         else:
             return False
@@ -21667,11 +21588,9 @@ Copyright:
 
     @staticmethod
     def isFileTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'filetop' or \
-            sys.argv[1] == 'ftop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'filetop' or \
+            sys.argv[1] == 'ftop'):
             return True
         else:
             return False
@@ -21680,10 +21599,7 @@ Copyright:
 
     @staticmethod
     def isReportTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'reptop':
+        if len(sys.argv) > 1 and sys.argv[1] == 'reptop':
             return True
         else:
             return False
@@ -21692,10 +21608,7 @@ Copyright:
 
     @staticmethod
     def isProcTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'top':
+        if len(sys.argv) > 1 and sys.argv[1] == 'top':
             return True
         else:
             return False
@@ -21704,11 +21617,9 @@ Copyright:
 
     @staticmethod
     def isThreadTopMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'threadtop' or \
-            sys.argv[1] == 'ttop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'threadtop' or \
+            sys.argv[1] == 'ttop'):
             return True
         else:
             return False
@@ -21740,10 +21651,7 @@ Copyright:
 
     @staticmethod
     def isReportMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'report':
+        if len(sys.argv) > 1 and sys.argv[1] == 'report':
             return True
         else:
             return False
@@ -21752,9 +21660,6 @@ Copyright:
 
     @staticmethod
     def isTopMode():
-        if len(sys.argv) == 1:
-            return False
-
         if SysMgr.isProcTopMode() or \
             SysMgr.isFileTopMode() or \
             SysMgr.isThreadTopMode() or \
@@ -21780,10 +21685,7 @@ Copyright:
 
     @staticmethod
     def isTraceMode():
-        if len(sys.argv) == 1:
-            return False
-
-        if sys.argv[1] == 'trace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'trace':
             return True
         elif SysMgr.isStraceMode() or \
             SysMgr.isUtraceMode() or \
@@ -22092,6 +21994,10 @@ Copyright:
         elif SysMgr.isPrintEnvMode():
             SysMgr.doPrintEnv()
 
+        # PRINTNS MODE #
+        elif SysMgr.isPrintNsMode():
+            SysMgr.doPrintNs()
+
         # PRINTINFO MODE #
         elif SysMgr.isPrintInfoMode():
             SysMgr.doPrintInfo()
@@ -22124,7 +22030,7 @@ Copyright:
 
     @staticmethod
     def isEventMode():
-        if sys.argv[1] == 'event':
+        if len(sys.argv) > 1 and sys.argv[1] == 'event':
             return True
         else:
             return False
@@ -22133,7 +22039,7 @@ Copyright:
 
     @staticmethod
     def isCpuDrawMode():
-        if sys.argv[1] == 'cpudraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'cpudraw':
             return True
         else:
             return False
@@ -22142,7 +22048,7 @@ Copyright:
 
     @staticmethod
     def isMemDrawMode():
-        if sys.argv[1] == 'memdraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'memdraw':
             return True
         else:
             return False
@@ -22151,7 +22057,7 @@ Copyright:
 
     @staticmethod
     def isVssDrawMode():
-        if sys.argv[1] == 'vssdraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'vssdraw':
             return True
         else:
             return False
@@ -22160,7 +22066,7 @@ Copyright:
 
     @staticmethod
     def isRssDrawMode():
-        if sys.argv[1] == 'rssdraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'rssdraw':
             return True
         else:
             return False
@@ -22169,7 +22075,7 @@ Copyright:
 
     @staticmethod
     def isLeakDrawMode():
-        if sys.argv[1] == 'leakdraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'leakdraw':
             return True
         else:
             return False
@@ -22178,7 +22084,7 @@ Copyright:
 
     @staticmethod
     def isIoDrawMode():
-        if sys.argv[1] == 'iodraw':
+        if len(sys.argv) > 1 and sys.argv[1] == 'iodraw':
             return True
         else:
             return False
@@ -22187,7 +22093,7 @@ Copyright:
 
     @staticmethod
     def isTopDiffMode():
-        if sys.argv[1] == 'topdiff':
+        if len(sys.argv) > 1 and sys.argv[1] == 'topdiff':
             return True
         else:
             return False
@@ -22223,7 +22129,7 @@ Copyright:
 
     @staticmethod
     def isPauseMode():
-        if sys.argv[1] == 'pause':
+        if len(sys.argv) > 1 and sys.argv[1] == 'pause':
             return True
         else:
             return False
@@ -22232,7 +22138,7 @@ Copyright:
 
     @staticmethod
     def isReadelfMode():
-        if sys.argv[1] == 'readelf':
+        if len(sys.argv) > 1 and sys.argv[1] == 'readelf':
             return True
         else:
             return False
@@ -22241,7 +22147,7 @@ Copyright:
 
     @staticmethod
     def isAddr2symMode():
-        if sys.argv[1] == 'addr2sym':
+        if len(sys.argv) > 1 and sys.argv[1] == 'addr2sym':
             return True
         else:
             return False
@@ -22250,7 +22156,7 @@ Copyright:
 
     @staticmethod
     def isSym2addrMode():
-        if sys.argv[1] == 'sym2addr':
+        if len(sys.argv) > 1 and sys.argv[1] == 'sym2addr':
             return True
         else:
             return False
@@ -22259,7 +22165,7 @@ Copyright:
 
     @staticmethod
     def isPrintCgroupMode():
-        if sys.argv[1] == 'printcrp':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printcrp':
             return True
         else:
             return False
@@ -22268,7 +22174,7 @@ Copyright:
 
     @staticmethod
     def isPrintDirMode():
-        if sys.argv[1] == 'printdir':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printdir':
             return True
         else:
             return False
@@ -22277,7 +22183,7 @@ Copyright:
 
     @staticmethod
     def isPrintDltMode():
-        if sys.argv[1] == 'printdlt':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printdlt':
             return True
         else:
             return False
@@ -22286,7 +22192,7 @@ Copyright:
 
     @staticmethod
     def isPrintDbusMode():
-        if sys.argv[1] == 'printdbus':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printdbus':
             return True
         else:
             return False
@@ -22295,7 +22201,7 @@ Copyright:
 
     @staticmethod
     def isPrintKmsgMode():
-        if sys.argv[1] == 'printkmsg':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printkmsg':
             return True
         else:
             return False
@@ -22304,7 +22210,7 @@ Copyright:
 
     @staticmethod
     def isPrintJournalMode():
-        if sys.argv[1] == 'printjrl':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printjrl':
             return True
         else:
             return False
@@ -22313,7 +22219,7 @@ Copyright:
 
     @staticmethod
     def isPrintSyslogMode():
-        if sys.argv[1] == 'printsyslog':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsyslog':
             return True
         else:
             return False
@@ -22322,7 +22228,7 @@ Copyright:
 
     @staticmethod
     def isLogDltMode():
-        if sys.argv[1] == 'logdlt':
+        if len(sys.argv) > 1 and sys.argv[1] == 'logdlt':
             return True
         else:
             return False
@@ -22331,7 +22237,7 @@ Copyright:
 
     @staticmethod
     def isLogKmsgMode():
-        if sys.argv[1] == 'logkmsg':
+        if len(sys.argv) > 1 and sys.argv[1] == 'logkmsg':
             return True
         else:
             return False
@@ -22340,7 +22246,7 @@ Copyright:
 
     @staticmethod
     def isLogSysMode():
-        if sys.argv[1] == 'logsys':
+        if len(sys.argv) > 1 and sys.argv[1] == 'logsys':
             return True
         else:
             return False
@@ -22349,7 +22255,7 @@ Copyright:
 
     @staticmethod
     def isLogJournalMode():
-        if sys.argv[1] == 'logjrl':
+        if len(sys.argv) > 1 and sys.argv[1] == 'logjrl':
             return True
         else:
             return False
@@ -22358,7 +22264,7 @@ Copyright:
 
     @staticmethod
     def isLeaktraceMode():
-        if sys.argv[1] == 'leaktrace':
+        if len(sys.argv) > 1 and sys.argv[1] == 'leaktrace':
             return True
         else:
             return False
@@ -22367,7 +22273,7 @@ Copyright:
 
     @staticmethod
     def isMemMode():
-        if sys.argv[1] == 'mem':
+        if len(sys.argv) > 1 and sys.argv[1] == 'mem':
             return True
         else:
             return False
@@ -23348,10 +23254,7 @@ Copyright:
                 "input {tid:percentage} with -g option")
             sys.exit(0)
 
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to limit cpu of tasks")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         limitList = {}
         try:
@@ -24275,12 +24178,9 @@ Copyright:
     def doSetCpu():
         freqPath = '/sys/devices/system/cpu'
 
-        # check tid #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to set cpu clock")
-            sys.exit(0)
-        elif not os.path.isdir(freqPath):
+        SysMgr.checkPerm()
+
+        if not os.path.isdir(freqPath):
             SysMgr.printErr(\
                 "Fail to find cpu node for governor")
             sys.exit(0)
@@ -24469,12 +24369,9 @@ Copyright:
     def doPrintEnv():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        # check tid #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to print environment variables")
-            sys.exit(0)
-        elif len(SysMgr.filterGroup) == 0:
+        SysMgr.checkPerm()
+
+        if len(SysMgr.filterGroup) == 0:
             SysMgr.printErr(\
                 "No PID with -g option")
             sys.exit(0)
@@ -24495,6 +24392,49 @@ Copyright:
             SysMgr.printPipe(env)
 
         SysMgr.printPipe()
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doPrintNs():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        SysMgr.checkPerm()
+
+        SysMgr.nsEnable = True
+
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveSystemStat()
+
+        cv = UtilMgr.convertNumber
+        for ns, val in sorted(obj.nsData.items(), key=lambda e: e[0]):
+            SysMgr.printPipe(\
+                '[%s] (Total: %s)\n%s' % (ns, cv(len(val)), twoLine))
+            cnt = 1
+            for key, tids in sorted(val.items(), key=lambda e:e[0]):
+                tid = sorted(list(tids.keys()), key=lambda e:long(e))[0]
+                comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
+                subStr = '{ %s(%s)' % (comm, tid)
+                if len(tids) == 1:
+                    subStr += ' }'
+                else:
+                    subStr += ', ... }'
+
+                nsStr = '(%3s) %s [Total: %s] %s' % \
+                    (cnt, key, len(tids), subStr)
+                SysMgr.printPipe(nsStr)
+                cnt += 1
+                indentStr = ' ' * long(len(nsStr) / 2)
+
+                if not SysMgr.showAll:
+                    continue
+
+                for tid in sorted(tids.keys(), key=lambda e:long(e)):
+                    comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
+                    SysMgr.printPipe('%s - %s(%s)' % (indentStr, comm, tid))
+            SysMgr.printPipe('%s\n' % oneLine)
 
         sys.exit(0)
 
@@ -25896,11 +25836,7 @@ Copyright:
                 "input POLICY:PRIORITY|TIME:PID in the format") % value)
             sys.exit(0)
 
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to set priority")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         schedGroup = value.split(',')
         schedGroup = SysMgr.clearList(schedGroup)
@@ -30305,11 +30241,7 @@ class DbusAnalyzer(object):
 
             return taskList
 
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission")
-            sys.exit(0)
+        SysMgr.checkPerm()
 
         # check filter #
         taskList = []
@@ -32337,8 +32269,8 @@ struct msghdr {
                 addr, symbol, fname=fname, reins=True, cmd=cmdList[idx])
             if not ret:
                 SysMgr.printWarn(\
-                    "Fail to inject breakpoint to %s(%s) for %s thread" % \
-                        (value, hex(addr), self.pid))
+                    "Fail to inject a breakpoint to %s(%s) for %s(%s)" % \
+                        (value, hex(addr), self.comm, self.pid))
             self.exceptBpList.pop(addr, None)
 
         UtilMgr.deleteProgress()
@@ -32353,9 +32285,9 @@ struct msghdr {
         if addr in self.bpList:
             if self.bpList[addr]['set']:
                 SysMgr.printWarn((\
-                    'Fail to inject breakpoint to %s for %s thread '
+                    'Fail to inject a breakpoint to %s for %s(%s)'
                     'because it is already injected by myself') % \
-                        (hex(addr), self.pid))
+                        (hex(addr), self.comm, self.pid))
                 return False
             else:
                 origWord = self.bpList[addr]['data']
@@ -32391,9 +32323,9 @@ struct msghdr {
                 origWord = self.bpList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to inject breakpoint to %s for %s thread '
+                    'Fail to inject breakpoint to %s for %s(%s)'
                     'because it is already injected by another task') % \
-                        (hex(addr), self.pid))
+                        (hex(addr), self.comm, self.pid))
                 return False
 
         # inject trap code #
@@ -32401,8 +32333,8 @@ struct msghdr {
 
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to inject breakpoint to %s for %s thread' % \
-                    (hex(addr), self.pid))
+                'Fail to inject breakpoint to %s for %s(%s)' % \
+                    (hex(addr), self.comm, self.pid))
             return False
         elif ret == 0:
             if sym:
@@ -34083,8 +34015,8 @@ struct msghdr {
         # get breakpoint addr #
         if addr not in self.bpList:
             SysMgr.printErr(\
-                "Fail to get address %s in breakpoint list of %s thread" % \
-                    (hex(addr), self.pid))
+                "Fail to get address %s in breakpoint list of %s(%s)" % \
+                    (hex(addr), self.comm, self.pid))
             sys.exit(0)
 
         # pick breakpoint info #
@@ -34217,8 +34149,8 @@ struct msghdr {
             addr, sym, fname=fname, reins=reins)
         if not ret:
             SysMgr.printWarn(\
-                "Fail to inject breakpoint to %s(%s) for %s thread" % \
-                    (sym, addr, self.pid))
+                "Fail to inject breakpoint to %s(%s) for %s(%s)" % \
+                    (sym, addr, self.comm, self.pid))
             sys.exit(0)
 
 
@@ -35811,11 +35743,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             return taskList
 
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                'Fail to get root permission to pause threads')
-            return
+        SysMgr.checkPerm()
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
@@ -35836,10 +35764,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             for tid in tlist:
                 lastTid = long(tid)
+                comm = SysMgr.getComm(tid)
 
                 ret = SysMgr.createProcess(mute=True, changePgid=True)
                 if ret > 0:
-                    comm = SysMgr.getComm(tid)
                     taskList[tid] = comm
                     SysMgr.printInfo("paused %s(%s)" % (comm, lastTid))
                 elif ret == 0:
@@ -35849,7 +35777,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     sys.exit(0)
                 else:
                     SysMgr.printErr(\
-                        'Fail to create process to pause %s thread' % tid)
+                        'Fail to create process to pause %s(%s)' % (comm, tid))
                     sys.exit(0)
 
             # wait for user event to continue threads #
@@ -39733,6 +39661,7 @@ class ThreadAnalyzer(object):
             self.nrFd = long(0)
             self.procData = {}
             self.prevProcData = {}
+            self.nsData = {}
             self.fileData = {}
             self.cpuData = {}
             self.gpuData = {}
@@ -40072,11 +40001,9 @@ class ThreadAnalyzer(object):
 
             return [procFilter, fileFilter]
 
-        if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission to analyze opened files")
-            sys.exit(0)
-        elif not os.path.isdir(SysMgr.procPath):
+        SysMgr.checkPerm()
+
+        if not os.path.isdir(SysMgr.procPath):
             SysMgr.printErr("Fail to access proc filesystem")
             sys.exit(0)
 
@@ -40215,6 +40142,7 @@ class ThreadAnalyzer(object):
     def reinitStats(self):
         del self.prevCpuData
         self.prevCpuData = self.cpuData
+        self.nsData = {}
         self.cpuData = {}
         self.fileData = {}
         self.abnormalTaskList = {}
@@ -51569,17 +51497,21 @@ class ThreadAnalyzer(object):
             if tid == item[1]:
                 SysMgr.setAffinity(item[0], [item[1]])
 
-        # kill processes #
-        for item in SysMgr.killFilter:
-            if tid == item or \
-                item in self.procData[tid]['stat'][self.commIdx]:
-                try:
-                    os.kill(long(tid), signal.SIGKILL)
-
-                    SysMgr.printInfo(\
-                        "sent KILL signal to %s task" %  tid)
-                except:
-                    pass
+        # send signal #
+        if len(SysMgr.killFilter) > 0:
+            slist = list(SysMgr.killFilter)
+            for idx, item in enumerate(slist):
+                comm = self.procData[tid]['stat'][self.commIdx]
+                if tid == item[0] or item[0] in comm:
+                    try:
+                        os.kill(long(tid), item[1])
+                        SysMgr.printInfo(\
+                            "sent %s to %s(%s)" % \
+                                (ConfigMgr.SIG_LIST[item[1]], comm[1:-1], tid))
+                        if item[2] != 'CONT':
+                            SysMgr.killFilter.remove(item)
+                    except:
+                        pass
 
         # save io data #
         if SysMgr.blockEnable:
@@ -51602,7 +51534,38 @@ class ThreadAnalyzer(object):
         if SysMgr.oomEnable:
             self.updateOOMScore(path, tid)
 
+        # save namespace #
+        if SysMgr.nsEnable:
+            self.updateNamespace(path, tid)
+
         return True
+
+
+
+    def updateNamespace(self, path, tid):
+        nsPath = "%s/%s" % (path, 'ns')
+        try:
+            for items in os.walk(nsPath):
+                for node in items[2]:
+                    value = os.readlink(\
+                        os.path.join(items[0], node))[len(node)+1:]
+                    if not value:
+                        continue
+
+                    value = value[1:-1]
+
+                    if not node in self.nsData:
+                        self.nsData[node] = {}
+
+                    if not value in self.nsData[node]:
+                        self.nsData[node][value] = {tid: 0}
+                    else:
+                        self.nsData[node][value][tid] = 0
+        except:
+            comm = self.procData[tid]['stat'][self.commIdx][1:-1]
+            SysMgr.printWarn(\
+                'Fail to read namespace value for %s(%s) because %s' % \
+                    (comm, tid, SysMgr.getErrReason()))
 
 
 
