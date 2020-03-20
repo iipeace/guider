@@ -12382,7 +12382,6 @@ class SysMgr(object):
     preemptGroup = []
     filterGroup = []
     schedFilter = []
-    schedAllFilter = []
     affinityFilter = []
     killFilter = []
     syscallList = []
@@ -13095,9 +13094,20 @@ class SysMgr(object):
                     raise Exception('wrong input')
 
                 if launch:
+                    # check tid #
+                    if UtilMgr.isNumber(tid):
+                        isTid = True
+                    else:
+                        isTid = False
+
+                    withSibling = SysMgr.groupProcEnable
                     targetList = SysMgr.getPids(\
-                        tid, isThread=True, withSibling=SysMgr.groupProcEnable)
+                        tid, isTid=isTid, isThread=True, withSibling=withSibling)
                     targetList = list(map(long, targetList))
+                    if not targetList:
+                        SysMgr.printErr(\
+                            "No threads related to %s" % tid)
+                        sys.exit(0)
                     SysMgr.setAffinity(mask, targetList)
 
                 if len(value) == 3 and value[2].upper() == 'CONT':
@@ -14283,66 +14293,66 @@ Usage:
                 mode = sys.argv[1]
 
                 topCommonStr = '''
-        -o  <DIR|FILE>              save output data
-        -u                          run in the background
-        -W                          wait for signal
-        -b  <SIZE:KB>               set buffer size
-        -T  <FILE>                  set font path
-        -j  <DIR|FILE>              set report path
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -x  <IP:PORT>               set local address
-        -X  <REQ@IP:PORT>           set request address
-        -N  <REQ@IP:PORT>           set report address
-        -S  <comm/memory/pid        sort by key
-             block/wfc/new/file
-             runtime/exectime
-             Priority/oomscore
-             Contextswitch>
-        -P                          group threads in a same process
-        -I  <DIR|FILE>              set input path
-        -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -i  <SEC>                   set interval
-        -R  <INTERVAL:TIME:TERM>    set repeat count
-        -Q                          print all rows in a stream
-        -J                          print in JSON format
-        -E  <DIR>                   set cache dir path
-        -H  <LEVEL>                 set function depth level
-        -k  <COMM|TID:SIG{:CONT}>   set signal list
-        -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched
-             {:TID|ALL:CONT}>
-        -v                          verbose
+    -o  <DIR|FILE>              save output data
+    -u                          run in the background
+    -W                          wait for signal
+    -b  <SIZE:KB>               set buffer size
+    -T  <FILE>                  set font path
+    -j  <DIR|FILE>              set report path
+    -w  <TIME:FILE{:VALUE}>     set additional command
+    -x  <IP:PORT>               set local address
+    -X  <REQ@IP:PORT>           set request address
+    -N  <REQ@IP:PORT>           set report address
+    -S  <comm/memory/pid        sort by key
+         block/wfc/new/file
+         runtime/exectime
+         Priority/oomscore
+         Contextswitch>
+    -P                          group threads in a same process
+    -I  <DIR|FILE>              set input path
+    -m  <ROWS:COLS>             set terminal size
+    -a                          show all stats and events
+    -g  <COMM|TID{:FILE}>       set filter
+    -i  <SEC>                   set interval
+    -R  <INTERVAL:TIME:TERM>    set repeat count
+    -Q                          print all rows in a stream
+    -J                          print in JSON format
+    -E  <DIR>                   set cache dir path
+    -H  <LEVEL>                 set function depth level
+    -k  <COMM|TID:SIG{:CONT}>   set signal list
+    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -Y  <POLICY:PRIO|TIME       set sched
+         {:TID|COMM:CONT}>
+    -v                          verbose
                 '''
 
                 topSubStr = '''
 Options:
-        -e  <CHARACTER>             enable options
-                a:affinity | b:block | c:cpu | C:cgroup
-                d:disk | D:DLT | e:encode | E:Elastic
-                f:float | F:wfc | h:sigHandler | H:sched
-                i:irq | j:journal | k:kmsg | L:cmdline
-                m:memory | n:net | N:namespace | o:oomScore
-                p:pipe | P:perf | r:report | R:fileReport
-                s:stack | S:pss | t:thread | u:uss | w:wss
-                W:wchan | y:syslog
-        -d  <CHARACTER>             disable options
-                a:memAvailable | A:cpuAverage
-                c:cpu | e:encode | G:gpu | L:log
-                p:print | t:truncate | T:task
+    -e  <CHARACTER>             enable options
+            a:affinity | b:block | c:cpu | C:cgroup
+            d:disk | D:DLT | e:encode | E:Elastic
+            f:float | F:wfc | h:sigHandler | H:sched
+            i:irq | j:journal | k:kmsg | L:cmdline
+            m:memory | n:net | N:namespace | o:oomScore
+            p:pipe | P:perf | r:report | R:fileReport
+            s:stack | S:pss | t:thread | u:uss | w:wss
+            W:wchan | y:syslog
+    -d  <CHARACTER>             disable options
+            a:memAvailable | A:cpuAverage
+            c:cpu | e:encode | G:gpu | L:log
+            p:print | t:truncate | T:task
                                     '''
 
                 drawSubStr = '''
 Options:
-        -g  <COMM|TID{:FILE}>       set filter
-        -o  <DIR>                   save output data
-        -a                          show all stats and events
-        -T  <NUM>                   set top number
-        -L  <RES:PER>               set graph Layout
-        -l  <BOUNDARY>              set boundary lines
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -g  <COMM|TID{:FILE}>       set filter
+    -o  <DIR>                   save output data
+    -a                          show all stats and events
+    -T  <NUM>                   set top number
+    -L  <RES:PER>               set graph Layout
+    -l  <BOUNDARY>              set boundary lines
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                 topExamStr = '''
@@ -14512,9 +14522,9 @@ Description:
     Log a message
 
 Options:
-        -v                          verbose
-        -R  <INTERVAL:TIME>         set repeat count
-        -I  <LOG>                   set log message
+    -v                          verbose
+    -R  <INTERVAL:TIME>         set repeat count
+    -I  <LOG>                   set log message
 
 Examples:
     - Log a message
@@ -14529,10 +14539,10 @@ Description:
     Print messages in real-time
 
 Options:
-        -v                          verbose
-        -g  <WORD>                  set filter
-        -I  <FILE|FIELD>            set path / field
-        -o  <DIR|FILE>              save output data
+    -v                          verbose
+    -g  <WORD>                  set filter
+    -I  <FILE|FIELD>            set path / field
+    -o  <DIR|FILE>              save output data
 
 Examples:
     - Print messages in real-time
@@ -14557,50 +14567,50 @@ Description:
 
                     helpStr += '''
 Options:
-    [collect]
-        -e  <CHARACTER>             enable options
-              b:block | c:cgroup | e:encode | g:graph
-              h:heap | L:lock | m:memory | p:pipe
-        -d  <CHARACTER>             disable options
-              a:all | c:cpu | C:compress | e:encode
-              l:latency | L:log | u:user
-        -s  <DIR|FILE>              save trace data
-        -f                          force execution
-        -u                          run in the background
-        -b  <SIZE:KB>               set buffer size
-        -t  <SYSCALL>               trace syscall
-        -C  <DIR|FILE>              set command script path
-        -W                          wait for signal
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -M  <FILE>                  set objdump path
-        -U  <NAME:FUNC|ADDR:FILE>   set user event
-        -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
+  [collect]
+    -e  <CHARACTER>             enable options
+          b:block | c:cgroup | e:encode | g:graph
+          h:heap | L:lock | m:memory | p:pipe
+    -d  <CHARACTER>             disable options
+          a:all | c:cpu | C:compress | e:encode
+          l:latency | L:log | u:user
+    -s  <DIR|FILE>              save trace data
+    -f                          force execution
+    -u                          run in the background
+    -b  <SIZE:KB>               set buffer size
+    -t  <SYSCALL>               trace syscall
+    -C  <DIR|FILE>              set command script path
+    -W                          wait for signal
+    -w  <TIME:FILE{:VALUE}>     set additional command
+    -M  <FILE>                  set objdump path
+    -U  <NAME:FUNC|ADDR:FILE>   set user event
+    -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
 
-    [report]
-        -o  <DIR|FILE>              save output data
-        -S  <cpu/memory/pid         sort by key
-             block/wfc/new
-             runtime/file>
-        -P                          group threads in a same process
-        -O  <CORE>                  set core filter
-        -l  <FILE>                  set addr2line path
-        -r  <DIR>                   set root path
-        -m  <ROWS:COLS>             set terminal size
+  [report]
+    -o  <DIR|FILE>              save output data
+    -S  <cpu/memory/pid         sort by key
+         block/wfc/new
+         runtime/file>
+    -P                          group threads in a same process
+    -O  <CORE>                  set core filter
+    -l  <FILE>                  set addr2line path
+    -r  <DIR>                   set root path
+    -m  <ROWS:COLS>             set terminal size
 
-    [common]
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -R  <INTERVAL:TIME:TERM>    set repeat count
-        -Q                          print all rows in a stream
-        -A  <ARCH>                  set cpu type
-        -c  <EVENT:COND>            set custom event
-        -E  <DIR>                   set cache dir path
-        -H  <LEVEL>                 set function depth level
-        -k  <COMM|TID:SIG{:CONT}>   set signal list
-        -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched
-             {:TID|ALL:CONT}>
-        -v                          verbose
+  [common]
+    -a                          show all stats and events
+    -g  <COMM|TID{:FILE}>       set filter
+    -R  <INTERVAL:TIME:TERM>    set repeat count
+    -Q                          print all rows in a stream
+    -A  <ARCH>                  set cpu type
+    -c  <EVENT:COND>            set custom event
+    -E  <DIR>                   set cache dir path
+    -H  <LEVEL>                 set function depth level
+    -k  <COMM|TID:SIG{:CONT}>   set signal list
+    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -Y  <POLICY:PRIO|TIME       set sched
+         {:TID|COMM:CONT}>
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -14663,21 +14673,21 @@ Description:
 
                     helpStr += '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -s  <DIR|FILE>              save trace data
-        -u                          run in the background
-        -W                          wait for signal
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -Q                          print all rows in a stream
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -s  <DIR|FILE>              save trace data
+    -u                          run in the background
+    -W                          wait for signal
+    -w  <TIME:FILE{:VALUE}>     set additional command
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -a                          show all stats and events
+    -g  <COMM|TID{:FILE}>       set filter
+    -Q                          print all rows in a stream
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -14701,22 +14711,22 @@ Description:
 
                     helpStr += '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -s  <DIR|FILE>              save trace data
-        -u                          run in the background
-        -b  <SIZE:KB>               set buffer size
-        -t  <SYSCALL>               trace syscall
-        -W                          wait for signal
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -s  <DIR|FILE>              save trace data
+    -u                          run in the background
+    -b  <SIZE:KB>               set buffer size
+    -t  <SYSCALL>               trace syscall
+    -W                          wait for signal
+    -w  <TIME:FILE{:VALUE}>     set additional command
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -a                          show all stats and events
+    -g  <COMM|TID{:FILE}>       set filter
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -14740,17 +14750,17 @@ Description:
 
                     helpStr += '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -a                          show all stats and events
-        -g  <COMM|TID{:FILE}>       set filter
-        -I  <DIR|FILE>              set input path
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -a                          show all stats and events
+    -g  <COMM|TID{:FILE}>       set filter
+    -I  <DIR|FILE>              set input path
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -14774,18 +14784,18 @@ Description:
 
                     helpStr += '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -s  <DIR|FILE>              save trace data
-        -u                          run in the background
-        -W                          wait for signal
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -Q                          print all rows in a stream
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -s  <DIR|FILE>              save trace data
+    -u                          run in the background
+    -W                          wait for signal
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -Q                          print all rows in a stream
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -14806,50 +14816,50 @@ Description:
 
                     helpStr += '''
 Options:
-    [collect]
-        -e  <CHARACTER>             enable options
-                b:block | c:cgroup | e:encode | g:graph
-                i:irq | L:lock | m:memory | n:net
-                p:pipe | r:reset | P:power
-        -d  <CHARACTER>             disable options
-                a:all | c:cpu | C:compress | e:encode
-        -s  <DIR|FILE>              save trace data
-        -f                          force execution
-        -u                          run in the background
-        -W                          wait for signal
-        -b  <SIZE:KB>               set buffer size
-        -D                          trace thread dependency
-        -t  <SYSCALL>               trace syscall
-        -C  <DIR|FILE>              set command script path
-        -w  <TIME:FILE{:VALUE}>     set additional command
-        -U  <NAME:FUNC|ADDR:FILE>   set user event
-        -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
-        -R  <INTERVAL:TIME:TERM>    set repeat count
+  [collect]
+    -e  <CHARACTER>             enable options
+            b:block | c:cgroup | e:encode | g:graph
+            i:irq | L:lock | m:memory | n:net
+            p:pipe | r:reset | P:power
+    -d  <CHARACTER>             disable options
+            a:all | c:cpu | C:compress | e:encode
+    -s  <DIR|FILE>              save trace data
+    -f                          force execution
+    -u                          run in the background
+    -W                          wait for signal
+    -b  <SIZE:KB>               set buffer size
+    -D                          trace thread dependency
+    -t  <SYSCALL>               trace syscall
+    -C  <DIR|FILE>              set command script path
+    -w  <TIME:FILE{:VALUE}>     set additional command
+    -U  <NAME:FUNC|ADDR:FILE>   set user event
+    -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
+    -R  <INTERVAL:TIME:TERM>    set repeat count
 
-    [report]
-        -a                          show all stats and events
-        -o  <DIR|FILE>              save output data
-        -S  <cpu/memory/pid         sort by key
-             block/wfc/new
-             runtime/file>
-        -P                          group threads in a same process
-        -p  <TID>                   show preemption info
-        -O  <CORE>                  set core filter
-        -L  <RES:PER>               set graph Layout
-        -m  <ROWS:COLS>             set terminal size
-        -i  <SEC>                   set interval
-        -Q                          print all rows in a stream
+  [report]
+    -a                          show all stats and events
+    -o  <DIR|FILE>              save output data
+    -S  <cpu/memory/pid         sort by key
+         block/wfc/new
+         runtime/file>
+    -P                          group threads in a same process
+    -p  <TID>                   show preemption info
+    -O  <CORE>                  set core filter
+    -L  <RES:PER>               set graph Layout
+    -m  <ROWS:COLS>             set terminal size
+    -i  <SEC>                   set interval
+    -Q                          print all rows in a stream
 
-    [common]
-        -g  <COMM|TID{:FILE}>       set filter
-        -A  <ARCH>                  set cpu type
-        -c  <EVENT:COND>            set custom event
-        -E  <DIR>                   set cache dir path
-        -k  <COMM|TID:SIG{:CONT}>   set signal list
-        -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
-        -Y  <POLICY:PRIO|TIME       set sched
-             {:TID|ALL:CONT}>
-        -v                          verbose
+  [common]
+    -g  <COMM|TID{:FILE}>       set filter
+    -A  <ARCH>                  set cpu type
+    -c  <EVENT:COND>            set custom event
+    -E  <DIR>                   set cache dir path
+    -k  <COMM|TID:SIG{:CONT}>   set signal list
+    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -Y  <POLICY:PRIO|TIME       set sched
+         {:TID|COMM:CONT}>
+    -v                          verbose
                     '''
 
                     helpStr += '''
@@ -15299,20 +15309,20 @@ Description:
 
                     helpStr +=  '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -u                          run in the background
-        -a                          show all stats including registers
-        -g  <COMM|TID{:FILE}>       set filter
-        -I  <COMMAND>               set command
-        -R  <TIME>                  set timer
-        -c  <EVENT>                 set breakpoint
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -u                          run in the background
+    -a                          show all stats including registers
+    -g  <COMM|TID{:FILE}>       set filter
+    -I  <COMMAND>               set command
+    -R  <TIME>                  set timer
+    -c  <EVENT>                 set breakpoint
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr +=  '''
@@ -15348,21 +15358,21 @@ Description:
 
                     helpStr +=  '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -u                          run in the background
-        -a                          show all stats including registers
-        -g  <COMM|TID{:FILE}>       set filter
-        -I  <COMMAND>               set command
-        -R  <TIME>                  set timer
-        -c  <EVENT>                 set breakpoint
-        -H  <SKIP>                  set instrunction sampling rate
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -u                          run in the background
+    -a                          show all stats including registers
+    -g  <COMM|TID{:FILE}>       set filter
+    -I  <COMMAND>               set command
+    -R  <TIME>                  set timer
+    -c  <EVENT>                 set breakpoint
+    -H  <SKIP>                  set instrunction sampling rate
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr +=  '''
@@ -15401,22 +15411,22 @@ Description:
 
                     helpStr +=  '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -u                          run in the background
-        -a                          show all stats including registers
-        -T  <FILE>                  set file
-        -g  <COMM|TID{:FILE}>       set filter
-        -I  <COMMAND>               set command
-        -R  <TIME>                  set timer
-        -c  <SYM|ADDR{:CMD}>        set breakpoint
-        -H  <LEVEL>                 set function depth level
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -u                          run in the background
+    -a                          show all stats including registers
+    -T  <FILE>                  set file
+    -g  <COMM|TID{:FILE}>       set filter
+    -I  <COMMAND>               set command
+    -R  <TIME>                  set timer
+    -c  <SYM|ADDR{:CMD}>        set breakpoint
+    -H  <LEVEL>                 set function depth level
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr +=  brkExamStr
@@ -15433,19 +15443,19 @@ Description:
 
                     helpStr +=  '''
 Options:
-        -e  <CHARACTER>             enable options
-              p:pipe | e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -u                          run in the background
-        -g  <COMM|TID{:FILE}>       set filter
-        -I  <COMMAND>               set command
-        -R  <TIME>                  set timer
-        -H  <LEVEL>                 set function depth level
-        -o  <DIR|FILE>              save output data
-        -m  <ROWS:COLS>             set terminal size
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -u                          run in the background
+    -g  <COMM|TID{:FILE}>       set filter
+    -I  <COMMAND>               set command
+    -R  <TIME>                  set timer
+    -H  <LEVEL>                 set function depth level
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr +=  '''
@@ -15472,16 +15482,16 @@ Description:
 
                     helpStr += '''
 Options:
-        -e  <CHARACTER>             enable options
-              e:encode
-        -d  <CHARACTER>             disable options
-              e:encode
-        -g  <COMM|TID{:FILE}>       set filter
-        -o  <DIR|FILE>              save output data
-        -I  <ADDR>                  set address area
-        -m  <ROWS:COLS>             set terminal size
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -e  <CHARACTER>             enable options
+          e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -g  <COMM|TID{:FILE}>       set filter
+    -o  <DIR|FILE>              save output data
+    -I  <ADDR>                  set address area
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                     '''
 
                     helpStr +=  '''
@@ -15603,9 +15613,9 @@ Description:
     Send specific signal to specific tasks or all running Guiders
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -l                          print signal list
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -l                          print signal list
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15630,11 +15640,11 @@ Description:
     Pause specific running threads
 
 Options:
-        -g  <TID|COMM>              set filter
-        -R  <TIME>                  set timer
-        -u                          run in the background
-        -P                          group threads in a same process
-        -v                          verbose
+    -g  <TID|COMM>              set filter
+    -R  <TIME>                  set timer
+    -u                          run in the background
+    -P                          group threads in a same process
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15718,9 +15728,9 @@ Description:
     Show symbols of specific addresses in a file or a process memory map
 
 Options:
-        -I  <FILE|COMM|PID>         set input path or process
-        -g  <OFFSET>                set offset
-        -v                          verbose
+    -I  <FILE|COMM|PID>         set input path or process
+    -g  <OFFSET>                set offset
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15742,9 +15752,9 @@ Description:
     Show files and offset of specific symbols in a file or a process memory map
 
 Options:
-        -I  <FILE|COMM|PID>         set input path or process
-        -g  <SYMBOL>                set offset
-        -v                          verbose
+    -I  <FILE|COMM|PID>         set input path or process
+    -g  <SYMBOL>                set offset
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15775,8 +15785,8 @@ Description:
     Show system cgroup tree
 
 Options:
-        -v                          verbose
-        -a                          show name of all processes
+    -v                          verbose
+    -a                          show name of all processes
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15798,10 +15808,10 @@ Description:
     Show directory structure
 
 Options:
-        -v                          verbose
-        -I  <DIR>                   set input path
-        -a                          show all attributes
-        -H  <LEVEL>                 set function depth level
+    -v                          verbose
+    -I  <DIR>                   set input path
+    -a                          show all attributes
+    -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15840,10 +15850,10 @@ Description:
         LEAKTRACER_ONSIG_REPORT=36 EXEC
 
 Options:
-        -I  <FILE>                  set input path
-        -o  <DIR|FILE>              save output data
-        -g  <PID|COMM>              set target process
-        -v                          verbose
+    -I  <FILE>                  set input path
+    -o  <DIR|FILE>              save output data
+    -g  <PID|COMM>              set target process
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15865,7 +15875,7 @@ Description:
     Show environment variables for a specific process
 
 Options:
-        -v                          verbose
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15884,8 +15894,8 @@ Description:
     Show namespace list
 
 Options:
-        -a                          show all attributes
-        -v                          verbose
+    -a                          show all attributes
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15907,7 +15917,7 @@ Description:
     Show system general info
 
 Options:
-        -v                          verbose
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15926,8 +15936,8 @@ Description:
     Print the tree of processes
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15946,11 +15956,11 @@ Description:
     Print system status
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -e  <CHARACTER>             enable options
-              t:thread
-        -J                          print in JSON format
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -e  <CHARACTER>             enable options
+          t:thread
+    -J                          print in JSON format
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15969,11 +15979,11 @@ Description:
     Limit cpu usage of threads / processes
 
 Options:
-        -g  <TID|COMM>              set filter
-        -R  <TIME>                  set timer
-        -P                          group threads in a same process
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -g  <TID|COMM>              set filter
+    -R  <TIME>                  set timer
+    -P                          group threads in a same process
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -15992,9 +16002,9 @@ Description:
     Set cpu clock and governor
 
 Options:
-        -g  <CORE:CLOCK:GOVERNOR>   set filter
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -g  <CORE:CLOCK:GOVERNOR>   set filter
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16019,8 +16029,8 @@ Description:
     Convert a text file to a image file
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16033,7 +16043,7 @@ Examples:
                 elif SysMgr.isSetSchedMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <POLICY:PRIORITY|TIME:TID|PID> [OPTIONS] [--help]
+    # {0:1} {1:1} <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
 
 Description:
     Set cpu scheduler policy and priority of threads / processes
@@ -16047,9 +16057,9 @@ Policy:
     d: DEADLINE
 
 Options:
-        -P                          group threads in a same process
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -P                          group threads in a same process
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16074,8 +16084,8 @@ Description:
     Get cpu affinity of threads
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16094,10 +16104,10 @@ Description:
     Set cpu affinity of threads
 
 Options:
-        -g  <TID|COMM:MASK>         set filter
-        -P                          group threads in a same process
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -g  <TID|COMM:MASK>         set filter
+    -P                          group threads in a same process
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16116,11 +16126,11 @@ Description:
     Create tasks using cpu
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -R  <TIME>                  set timer
-        -Y  <POLICY:PRIO|TIME       set sched
-             {{:TID|ALL:CONT}}>
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -R  <TIME>                  set timer
+    -Y  <POLICY:PRIO|TIME       set sched
+         {{:TID|COMM:CONT}}>
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16128,13 +16138,16 @@ Examples:
     - Create 10 processes using 5% of a core each other
         # {0:1} {1:1} 50:10
 
-    - Create threads using 250% totally
+    - Create threads using 250% CPU totally
         # {0:1} {1:1} 250
 
-    - Create threads using 250% totally and run them only on cpu 1
+    - Create threads using 250% CPU totally with RR 1 priority
+        # {0:1} {1:1} 250 -Y r:1
+
+    - Create threads using 250% CPU totally and run them only on CPU 1
         # {0:1} {1:1} 250 -z :1
 
-    - Create threads using 250% totally and terminate them after 3 seconds
+    - Create threads using 250% CPU totally and terminate them after 3 seconds
         # {0:1} {1:1} 250 -R 3
                     '''.format(cmd, mode)
 
@@ -16148,9 +16161,9 @@ Description:
     Allocate physical memory
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -R  <TIME>                  set timer
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -R  <TIME>                  set timer
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16178,8 +16191,8 @@ Description:
     Show running {2:1} processes
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode, __module__)
 
                 # start #
@@ -16192,8 +16205,8 @@ Description:
     Send signal to all running Guider processes to run
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                 # event #
@@ -16206,8 +16219,8 @@ Description:
     Send the event signal to all running Guider processes
 
 Options:
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16226,10 +16239,10 @@ Description:
     Run server process
 
 Options:
-        -x  <IP:PORT>               set local address
-        -u                          run in the background
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -x  <IP:PORT>               set local address
+    -u                          run in the background
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                 # client #
@@ -16242,10 +16255,10 @@ Description:
     Run client process
 
 Options:
-        -x  <IP:PORT>               set local address
-        -X  <IP:PORT>               set request address
-        -E  <DIR>                   set cache dir path
-        -v                          verbose
+    -x  <IP:PORT>               set local address
+    -X  <IP:PORT>               set request address
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
                         '''.format(cmd, mode)
 
                 # default #
@@ -24394,11 +24407,8 @@ Copyright:
                 ("wrong option value to set priority, "
                 "input in the format POLICY:PRIORITY|TIME:PID"))
             sys.exit(0)
-        elif ' -P' in value:
-            isProcess = True
-            value = value.replace('-P', '').replace(' ', '')
 
-        SysMgr.parsePriorityOption(value, isProcess)
+        SysMgr.parsePriorityOption(value)
 
         sys.exit(0)
 
@@ -25862,17 +25872,17 @@ Copyright:
     def getDeadlineArgs(value):
         value = value.split('/')
         if len(value) == 3:
-            return map(long, value)
+            return list(map(long, value))
         elif len(value) == 2:
             value.append(value[-1])
-            return map(long, value)
+            return list(map(long, value))
         else:
             return [0, 0, 0]
 
 
 
     @staticmethod
-    def parsePriorityOption(value, isProcess=False):
+    def parsePriorityOption(value):
         if len(value) == 0:
             SysMgr.printErr(\
                 ("wrong option value %s with -Y, "
@@ -25886,99 +25896,61 @@ Copyright:
         for item in schedGroup:
             schedSet = item.split(':')
             try:
+                policy = schedSet[0].upper()
+                ConfigMgr.SCHED_POLICY.index(policy)
+                pri = long(schedSet[1])
+
                 # change myself #
                 if len(schedSet) == 2:
-                    pid = SysMgr.pid
-                    SysMgr.prio = long(schedSet[1])
-
-                    if isProcess:
-                        threadList = \
-                            SysMgr.getThreadList(SysMgr.pid)
-                        if not threadList:
-                            SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % pid)
-                            sys.exit(0)
-                    else:
-                        threadList = [pid]
-
-                    for tid in threadList:
-                        SysMgr.setPriority(\
-                            tid, schedSet[0], SysMgr.prio)
+                    tid = SysMgr.pid
+                    SysMgr.prio = pri
                 # change others #
-                elif len(schedSet) == 3:
-                    # update priority of all threads #
-                    if schedSet[2] == 'ALL':
-                        SysMgr.schedAllFilter.append(\
-                            [schedSet[0], schedSet[1]])
-                        continue
+                else:
+                    tid = schedSet[2]
 
-                    pid = schedSet[2]
+                # check tid #
+                if UtilMgr.isNumber(tid):
+                    isTid = True
+                else:
+                    isTid = False
 
-                    if isProcess:
-                        threadList = SysMgr.getThreadList(pid)
-                        if not threadList:
-                            SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % pid)
-                            sys.exit(0)
-                    elif pid.isdigit():
-                        threadList = [long(pid)]
+                # get thread list #
+                withSibling = SysMgr.groupProcEnable
+                targetList = SysMgr.getPids(\
+                    tid, isTid=isTid, isThread=True, withSibling=withSibling)
+                targetList = list(map(long, targetList))
+
+                if not targetList:
+                    SysMgr.printErr(\
+                        "No threads related to %s" % tid)
+                    sys.exit(0)
+
+                for tid in targetList:
+                    if schedSet[0].upper() == 'D':
+                        # parse deadline arguments #
+                        runtime, deadline, period = \
+                            SysMgr.getDeadlineArgs(schedSet[1])
+
+                        # set deadline sched #
+                        SysMgr.setDeadlinePriority(\
+                            tid, runtime, deadline, period)
                     else:
-                        SysMgr.printErr(\
-                            "Fail to get thread id from '%s'" % pid)
-                        sys.exit(0)
+                        SysMgr.setPriority(tid, policy, pri)
 
-                    # change priority of threads #
-                    for tid in threadList:
-                        if schedSet[0].upper() == 'D':
-                            # parse deadline arguments #
-                            runtime, deadline, period = \
-                                SysMgr.getDeadlineArgs(schedSet[1])
-
-                            # set deadline sched #
-                            SysMgr.setDeadlinePriority(\
-                                tid, runtime, deadline, period)
-                        else:
-                            SysMgr.setPriority(\
-                                tid, schedSet[0], long(schedSet[1]))
                 # change others continually #
-                elif len(schedSet) == 4:
-                    # verify sched parameters #
+                if len(schedSet) == 4:
                     if schedSet[3] != 'CONT':
-                        raise Exception(\
-                            "no recognizable '%s' parameter" % schedSet[3])
-
-                    policy = schedSet[0].upper()
-                    ConfigMgr.SCHED_POLICY.index(policy)
-                    pri = schedSet[1]
-
-                    # update priority of all threads #
-                    if schedSet[2] == 'ALL':
-                        SysMgr.schedFilter.append([policy, pri, 0])
-                        continue
-
-                    pid = schedSet[2]
-
-                    if isProcess:
-                        threadList = SysMgr.getThreadList(pid)
-                        if not threadList:
-                            SysMgr.printErr(\
-                                "Fail to get thread list of %s task" % pid)
-                            sys.exit(0)
-                    else:
-                        threadList = [long(pid)]
+                        raise Exception("wrong last value")
 
                     # add sched item to list #
-                    for tid in threadList:
-                        SysMgr.schedFilter.append([policy, pri, tid])
-                else:
-                    raise Exception("no recognizable parameters")
+                    SysMgr.schedFilter.append([policy, pri, tid])
             except SystemExit:
                 sys.exit(0)
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((\
                     "wrong option value %s with -Y because %s, "
-                    "input in the format POLICY:PRIORITY|TIME:PID") % \
+                    "input in the format POLICY:PRIORITY|TIME:TID") % \
                     (item, ' '.join(list(err))))
                 sys.exit(0)
 
@@ -26060,7 +26032,7 @@ Copyright:
         # check deadline and period #
         if deadline == period == 0:
             SysMgr.printErr((\
-                "Fail to set priority of %d "
+                "Fail to set priority of %s "
                 "as runtime(ns)/deadline(ns)/period(ns)[D]") % pid)
             return -1
         elif deadline == 0:
@@ -51524,18 +51496,22 @@ class ThreadAnalyzer(object):
         # change sched priority #
         for item in SysMgr.schedFilter:
             target = str(item[2])
-            if target== '0' or tid == target:
-                if item[0].upper() == 'D':
-                    # parse deadline arguments #
-                    runtime, deadline, period = \
-                        SysMgr.getDeadlineArgs(item[1])
+            if target == '':
+                target = tid
+            elif tid != target and \
+                not target in comm:
+                    continue
 
-                    # set deadline sched #
-                    SysMgr.setDeadlinePriority(\
-                        long(tid), runtime, deadline, period)
-                else:
-                    # set priority #
-                    SysMgr.setPriority(long(tid), item[0], long(item[1]))
+            # set deadline sched #
+            if item[0].upper() == 'D':
+                runtime, deadline, period = \
+                    SysMgr.getDeadlineArgs(item[1])
+
+                SysMgr.setDeadlinePriority(\
+                    long(tid), runtime, deadline, period)
+            # set other scheds #
+            else:
+                SysMgr.setPriority(long(tid), item[0], long(item[1]))
 
         # change cpu affinity #
         if len(SysMgr.affinityFilter) > 0:
@@ -53792,21 +53768,6 @@ class ThreadAnalyzer(object):
             # check exception flag #
             if isExceptTask(idx):
                 continue
-
-            # set priority of this task #
-            for item in SysMgr.schedAllFilter:
-                if item[0].upper() == 'D':
-                    # parse deadline arguments #
-                    runtime, deadline, period = \
-                        SysMgr.getDeadlineArgs(item[1])
-
-                    # set deadline sched #
-                    SysMgr.setDeadlinePriority(\
-                        long(idx), runtime, deadline, period)
-                else:
-                    # set priority #
-                    SysMgr.setPriority(\
-                        long(idx), item[0], long(item[1]))
 
             # add task into stack trace list #
             if SysMgr.stackEnable:
