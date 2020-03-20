@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200320"
+__revision__ = "200321"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5095,20 +5095,15 @@ class PageAnalyzer(object):
             if type(pid) is not list or len(pid) != 1:
                 raise Exception()
 
-            pid = pid[0]
-            if pid.isdigit():
-                if not os.path.exists('%s/%s' % (SysMgr.procPath, pid)):
-                    raise Exception()
+            pid = SysMgr.getPids(pid[0], isThread=False)
+            if len(pid) == 0:
+                raise Exception()
+            elif len(pid) > 1:
+                SysMgr.printErr(\
+                    "Found multiple pids [ %s ]" % ', '.join(pid))
+                raise Exception()
             else:
-                pid = SysMgr.getPids(pid)
-                if len(pid) == 0:
-                    raise Exception()
-                elif len(pid) > 1:
-                    SysMgr.printErr(\
-                        "Found multiple pids [ %s ]" % ', '.join(pid))
-                    raise Exception()
-                else:
-                    pid = pid[0]
+                pid = pid[0]
         except SystemExit:
             sys.exit(0)
         except:
@@ -13094,15 +13089,8 @@ class SysMgr(object):
                     raise Exception('wrong input')
 
                 if launch:
-                    # check tid #
-                    if UtilMgr.isNumber(tid):
-                        isTid = True
-                    else:
-                        isTid = False
-
                     withSibling = SysMgr.groupProcEnable
-                    targetList = SysMgr.getPids(\
-                        tid, isTid=isTid, isThread=True, withSibling=withSibling)
+                    targetList = SysMgr.getPids(tid, withSibling=withSibling)
                     targetList = list(map(long, targetList))
                     if not targetList:
                         SysMgr.printErr(\
@@ -13179,7 +13167,7 @@ class SysMgr(object):
         SysMgr.warnEnable = True
 
         # parse options #
-        value = ' '.join(sys.argv[2:])
+        value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
                 "Fail to get cpu affinity of task, "
@@ -13188,28 +13176,35 @@ class SysMgr(object):
 
         SysMgr.checkPerm()
 
-        try:
-            tids = list(map(long, value.split(',')))
-
-            for tid in tids:
-                mask = SysMgr.getAffinity(tid)
-                if not mask:
+        withSibling = SysMgr.groupProcEnable
+        for item in value:
+            try:
+                targetList = SysMgr.getPids(item, withSibling=withSibling)
+                targetList = list(map(long, targetList))
+                if not targetList:
                     SysMgr.printErr(\
-                        "Fail to get cpu affinity of %s(%s)" % \
-                            (SysMgr.getComm(tid), tid))
-                else:
-                    SysMgr.printInfo(\
-                        'affinity of %s(%s) is %s' % \
-                            (SysMgr.getComm(tid), tid, mask))
+                        "No threads related to %s" % item)
+                    sys.exit(0)
 
-            sys.exit(0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(\
-                "Fail to get cpu affinity of task, "
-                "input in the format {TID}")
-            sys.exit(0)
+                for tid in targetList:
+                    mask = SysMgr.getAffinity(tid)
+                    if not mask:
+                        SysMgr.printErr(\
+                            "Fail to get cpu affinity of %s(%s)" % \
+                                (SysMgr.getComm(tid), tid))
+                    else:
+                        SysMgr.printInfo(\
+                            'affinity of %s(%s) is %s' % \
+                                (SysMgr.getComm(tid), tid, mask))
+
+                sys.exit(0)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Fail to get cpu affinity of task, "
+                    "input in the format {TID}")
+                sys.exit(0)
 
 
 
@@ -16043,7 +16038,7 @@ Examples:
                 elif SysMgr.isSetSchedMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
 
 Description:
     Set cpu scheduler policy and priority of threads / processes
@@ -16057,41 +16052,42 @@ Policy:
     d: DEADLINE
 
 Options:
-    -P                          group threads in a same process
-    -E  <DIR>                   set cache dir path
-    -v                          verbose
+    -g <POLICY:PRIORITY|TIME:TID|COMM> set value
+    -P                                 group threads in a same process
+    -v                                 verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
     - Set cpu scheduler policy(CFS), priority(-20) for a specific thread
-        # {0:1} {1:1} c:-20:1234
+        # {0:1} {1:1} -g c:-20:1234
 
     - Set cpu scheduler policy(FIFO), priority(90) for a specific thread
-        # {0:1} {1:1} f:90:1234
+        # {0:1} {1:1} -g f:90:1234
 
     - Set cpu scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
-        # {0:1} {1:1} d:1000000/10000000/10000000:1234
+        # {0:1} {1:1} -g d:1000000/10000000/10000000:1234
                     '''.format(cmd, mode)
 
                 # getaffinity #
                 elif SysMgr.isGetAffinityMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <TID|PID> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
     Get cpu affinity of threads
 
 Options:
-    -E  <DIR>                   set cache dir path
+    -g  <TID|COMM>              set values
+    -P                          group threads in a same process
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Get cpu affinity of a specific thread
-        # {0:1} {1:1} 1234
+    - Get cpu affinity of specific threads
+        # {0:1} {1:1} -g a.out, 1234
                     '''.format(cmd, mode)
 
                 # setaffinity #
@@ -16104,7 +16100,7 @@ Description:
     Set cpu affinity of threads
 
 Options:
-    -g  <TID|COMM:MASK>         set filter
+    -g  <TID|COMM:MASK>         set values
     -P                          group threads in a same process
     -E  <DIR>                   set cache dir path
     -v                          verbose
@@ -21833,9 +21829,9 @@ Copyright:
         elif SysMgr.isPauseMode():
             # convert comm to pid #
             targetList = []
+            withSibling = SysMgr.groupProcEnable
             for item in SysMgr.filterGroup:
-                targetList += SysMgr.getPids(\
-                    item, isThread=True, withSibling=SysMgr.groupProcEnable)
+                targetList += SysMgr.getPids(item, withSibling=withSibling)
             targetList = list(set(targetList))
 
             Debugger.pauseThreads(targetList)
@@ -22900,82 +22896,67 @@ Copyright:
 
 
     @staticmethod
-    def getPids(name, isThread=False, isTid=False, \
-        withSibling=False, withMain=False):
-
+    def getPids(name, isThread=True, withSibling=False, withMain=False):
         pidList = []
 
-        # check tasks by tid #
-        if isTid and \
+        # tid #
+        if UtilMgr.isNumber(name) and \
             os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
             if withSibling:
                 path = '%s/%s/task' % (SysMgr.procPath, name)
-
                 pids = os.listdir(path)
                 for pid in pids:
-                    try:
-                        long(pid)
+                    if pid.isdigit():
                         pidList.append(pid)
-                    except:
-                        continue
-
                 return pidList
             elif withMain:
                 return list(set([name, SysMgr.getTgid(name)]))
             else:
                 return [name]
 
+        # comm #
         pids = os.listdir(SysMgr.procPath)
         for pid in pids:
             if not pid.isdigit():
                 continue
 
-            # make comm path of pid #
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
+            # process #
+            if not isThread:
+                # get comm #
+                comm = SysMgr.getComm(pid)
+                if comm == name:
+                    pidList.append(pid)
+                continue
 
-            if isThread:
-                threadPath = '%s/task' % procPath
+            # thread #
+            try:
+                threadPath = "%s/%s/task" % (SysMgr.procPath, pid)
+                tids = os.listdir(threadPath)
+            except:
+                continue
 
-                try:
-                    tids = os.listdir(threadPath)
-                except:
+            for tid in tids:
+                if not tid.isdigit():
                     continue
 
-                for tid in tids:
-                    if not tid.isdigit():
-                        continue
+                # get comm #
+                comm = SysMgr.getComm(tid)
+                if comm != name:
+                    continue
 
-                    # get comm #
-                    comm = SysMgr.getComm(tid)
-                    if comm != name:
-                        continue
+                # include all siblings #
+                if withSibling:
+                    pidList += tids
+                    break
 
-                    # including all sibling threads #
-                    if withSibling:
-                        for tid in tids:
-                            if tid not in pidList:
-                                pidList.append(tid)
-                        break
+                # include the main thread #
+                if withMain:
+                    pidList.append(pid)
 
-                    # include a thread #
-                    if tid not in pidList:
-                        pidList.append(tid)
+                # include a thread #
+                pidList.append(tid)
 
-                    # include main thread #
-                    if withMain and pid not in pidList:
-                        pidList.append(pid)
-
-                continue
-
-            # get comm #
-            comm = SysMgr.getComm(pid)
-            if comm != name:
-                continue
-
-            if pid not in pidList:
-                pidList.append(pid)
-
-        return pidList
+        return list(set(pidList))
 
 
 
@@ -23317,7 +23298,7 @@ Copyright:
                 if tid.isdigit():
                     limitList[tid] = long(per)
                 else:
-                    tidList = SysMgr.getPids(tid, isThread=True)
+                    tidList = SysMgr.getPids(tid)
                     for tid in tidList:
                         limitList[tid] = long(per)
         except:
@@ -24401,7 +24382,7 @@ Copyright:
         SysMgr.warnEnable = True
 
         # parse options #
-        value = ' '.join(sys.argv[2:])
+        value = ','.join(SysMgr.filterGroup)
         if len(value) == 0:
             SysMgr.printErr(\
                 ("wrong option value to set priority, "
@@ -24624,14 +24605,12 @@ Copyright:
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
             SysMgr.filterGroup, isThread=True, \
-                withSibling=SysMgr.groupProcEnable, \
-                withMain=SysMgr.groupProcEnable)
+                withSibling=SysMgr.groupProcEnable)
 
         # get pids of process groups #
         if mode == 'breakcall':
             allpids = SysMgr.convertPidList(\
-                SysMgr.filterGroup, isThread=True, \
-                    withSibling=True, withMain=True)
+                SysMgr.filterGroup, isThread=True, withSibling=True)
         else:
             allpids = pids
 
@@ -24819,11 +24798,7 @@ Copyright:
         inputArg = str(SysMgr.sourceFile)
 
         # check process #
-        if inputArg.isdigit() and \
-            os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
-            pids = [inputArg]
-        else:
-            pids = SysMgr.getPids(inputArg)
+        pids = SysMgr.getPids(inputArg, isThread=False)
 
         # a file #
         if len(pids) == 0:
@@ -25034,11 +25009,7 @@ Copyright:
         inputArg = str(SysMgr.sourceFile)
 
         # check process #
-        if inputArg.isdigit() and \
-            os.path.exists('%s/%s' % (SysMgr.procPath, inputArg)):
-            pids = [inputArg]
-        else:
-            pids = SysMgr.getPids(inputArg)
+        pids = SysMgr.getPids(inputArg, isThread=False)
 
         # a file #
         if len(pids) == 0:
@@ -25653,32 +25624,27 @@ Copyright:
 
 
     @staticmethod
-    def convertPidList(procList, isThread=False, exceptMe=False, \
-        withSibling=False, withMain=False):
-        targetList = []
-
-        if not procList and not exceptMe:
-            procList = [__module__]
-
+    def convertPidList(\
+        procList, isThread=False, exceptMe=False, withSibling=False):
         if not procList:
             return
 
-        # get pids from comm #
+        targetList = []
+
         for pid in procList:
-            if not pid.isdigit():
-                isTid = False
-            else:
-                isTid = True
+            # get pids #
+            taskList = SysMgr.getPids(pid, isThread, withSibling)
 
-            # get pid list #
-            idlist = SysMgr.getPids(\
-                pid, isThread, isTid, withSibling, withMain)
+            # merge lists #
+            targetList += taskList
 
-            # merge pid list #
-            if len(idlist) > 0:
-                targetList = list(set(idlist+targetList))
+        # remove redundant items #
+        finalList = list(set(targetList))
 
-        return list(set(targetList))
+        if exceptMe:
+            finalList.remove(SysMgr.pid)
+
+        return finalList
 
 
 
@@ -25916,8 +25882,7 @@ Copyright:
 
                 # get thread list #
                 withSibling = SysMgr.groupProcEnable
-                targetList = SysMgr.getPids(\
-                    tid, isTid=isTid, isThread=True, withSibling=withSibling)
+                targetList = SysMgr.getPids(tid, withSibling=withSibling)
                 targetList = list(map(long, targetList))
 
                 if not targetList:
@@ -30242,9 +30207,7 @@ class DbusAnalyzer(object):
 
         def getDefaultTasks(comm):
             taskList = []
-            tempList = SysMgr.getPids(\
-                comm, isThread=True, withSibling=True)
-
+            tempList = SysMgr.getPids(comm, withSibling=True)
             if len(tempList) > 0:
                 taskList.append(\
                     SysMgr.getTgid(tempList[0]))
@@ -30278,21 +30241,10 @@ class DbusAnalyzer(object):
 
         # get pids of gdbus threads #
         for val in SysMgr.filterGroup:
-            # by TID #
-            if val.isdigit() and \
-                os.path.exists('%s/%s' % (SysMgr.procPath, val)):
-                if SysMgr.groupProcEnable:
-                    taskList = SysMgr.getPids(\
-                        val, isTid=True, withSibling=True)
-                else:
-                    taskList.append(val)
-            # by COMM #
+            if SysMgr.groupProcEnable:
+                taskList += SysMgr.getPids(val, withSibling=True)
             else:
-                if SysMgr.groupProcEnable:
-                    taskList += SysMgr.getPids(\
-                        val, isThread=True, withSibling=True)
-                else:
-                    taskList += getDefaultTasks(val)
+                taskList += getDefaultTasks(val)
 
         if len(taskList) == 0:
             SysMgr.printErr(\
