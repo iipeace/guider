@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200319"
+__revision__ = "200320"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6380,7 +6380,7 @@ class FunctionAnalyzer(object):
         if not remoteObj or remoteObj == 'NONE':
             SysMgr.printErr(\
                 "wrong remote address with -X, "
-                "input in the format {ip:port}")
+                "input in the format {IP:PORT}")
             sys.exit(0)
 
         # set download command #
@@ -12384,7 +12384,6 @@ class SysMgr(object):
     schedFilter = []
     schedAllFilter = []
     affinityFilter = []
-    affinityAllFilter = []
     killFilter = []
     syscallList = []
     perCoreList = []
@@ -13031,15 +13030,15 @@ class SysMgr(object):
 
         sigList = ConfigMgr.SIG_LIST
 
-        try:
-            jobs = value.split(',')
-            for job in jobs:
+        jobs = value.split(',')
+        for job in jobs:
+            try:
                 value = job.split(':')
 
                 if len(value) > 3:
                     raise Exception("wrong input")
 
-                # set task id #
+                # set task #
                 tid = value[0]
 
                 # set signal #
@@ -13055,63 +13054,65 @@ class SysMgr(object):
                         sig = long(sig)
 
                 if len(value) > 2 and value[2].upper() == 'CONT':
-                    SysMgr.killFilter.append([tid, sig, 'CONT'])
+                    flag = 'CONT'
                 else:
-                    SysMgr.killFilter.append([tid, sig, 'ONCE'])
-        except SystemExit:
-            sys.exit(0)
-        except:
-            err = SysMgr.getErrReason()
-            SysMgr.printErr(\
-                "Fail to set signals because %s" % err)
-            sys.exit(0)
+                    flag = 'ONCE'
+
+                SysMgr.killFilter.append([tid, sig, flag])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                err = SysMgr.getErrReason()
+                SysMgr.printErr(\
+                    "Fail to set signals because %s" % err)
+                sys.exit(0)
 
 
 
     @staticmethod
-    def parseAffinityOption(value, isProcess=False):
-        if len(value) == 0:
-            SysMgr.printErr(\
-                ("wrong option value %s with -z, "
-                "input in the format {mask:tids}"))
+    def parseAffinityOption(jobs, launch=False):
+        if len(jobs) == 0:
+            SysMgr.printErr("wrong option value %s with -z")
             sys.exit(0)
 
         SysMgr.checkPerm()
 
-        try:
-            value = value.split(':')
+        for origVal in jobs:
+            try:
+                value = origVal.split(':')
 
-            if len(value) == 2:
-                mask = value[0]
-                tids = value[1]
+                if len(value) > 3:
+                    raise Exception("wrong input")
 
-                if tids == 'ALL':
-                    SysMgr.affinityAllFilter.append(mask)
+                # set task #
+                tid = value[0]
+                if tid == '':
+                    tid = str(SysMgr.pid)
+
+                # set mask #
+                mask = value[1]
+                if not mask:
+                    raise Exception('wrong input')
+
+                if launch:
+                    targetList = SysMgr.getPids(\
+                        tid, isThread=True, withSibling=SysMgr.groupProcEnable)
+                    targetList = list(map(long, targetList))
+                    SysMgr.setAffinity(mask, targetList)
+
+                if len(value) == 3 and value[2].upper() == 'CONT':
+                    flag = 'CONT'
                 else:
-                    tids = list(map(long, tids.split(',')))
+                    flag = 'ONCE'
 
-                    SysMgr.setAffinity(mask, tids, isProcess)
-            elif len(value) == 3 and value[2] == 'CONT':
-                mask = value[0]
-                tids = value[1]
-
-                if tids == 'ALL':
-                    SysMgr.affinityFilter.append([mask, 'ALL'])
-                else:
-                    # check tid type #
-                    list(map(long, tids.split(',')))
-
-                    SysMgr.affinityFilter.append([mask, tids])
-            else:
-                raise Exception()
-
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(\
-                "Fail to set cpu affinity of task, "
-                "input in the format {mask:tids}")
-            sys.exit(0)
+                SysMgr.affinityFilter.append([mask, tid, flag])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "wrong option value '%s' with -z because %s" % \
+                        (origVal, SysMgr.getErrReason()))
+                sys.exit(0)
 
 
 
@@ -13121,19 +13122,16 @@ class SysMgr(object):
         SysMgr.warnEnable = True
 
         # parse options #
-        value = ' '.join(sys.argv[2:])
+        value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
                 "Fail to set cpu affinity of task, "
-                "input in the format {mask:tids}")
+                "input in the format {TID|COMM:MASK}")
             sys.exit(0)
-        elif '-P' in value >= 0:
-            isProcess = True
-            value = value.replace('-P', '').replace(' ', '')
 
         SysMgr.checkPerm()
 
-        SysMgr.parseAffinityOption(value, isProcess)
+        SysMgr.parseAffinityOption(value, launch=True)
 
         sys.exit(0)
 
@@ -13175,7 +13173,7 @@ class SysMgr(object):
         if len(value) == 0:
             SysMgr.printErr(\
                 "Fail to get cpu affinity of task, "
-                "input in the format {tids}")
+                "input in the format {TID}")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -13187,10 +13185,12 @@ class SysMgr(object):
                 mask = SysMgr.getAffinity(tid)
                 if not mask:
                     SysMgr.printErr(\
-                        "Fail to get cpu affinity of %s task" % tid)
+                        "Fail to get cpu affinity of %s(%s)" % \
+                            (SysMgr.getComm(tid), tid))
                 else:
                     SysMgr.printInfo(\
-                        'affinity of task %s is %s' % (tid, mask))
+                        'affinity of %s(%s) is %s' % \
+                            (SysMgr.getComm(tid), tid, mask))
 
             sys.exit(0)
         except SystemExit:
@@ -13198,7 +13198,7 @@ class SysMgr(object):
         except:
             SysMgr.printErr(\
                 "Fail to get cpu affinity of task, "
-                "input in the format {tids}")
+                "input in the format {TID}")
             sys.exit(0)
 
 
@@ -13284,10 +13284,12 @@ class SysMgr(object):
 
                 if ret >= 0:
                     SysMgr.printInfo(\
-                        'affinity of %s task is changed to 0x%X' % (pid, mask))
+                        'affinity of %s(%s) is changed to 0x%X' % \
+                            (SysMgr.getComm(pid), pid, mask))
                 else:
                     SysMgr.printErr(\
-                        'Fail to set affinity of %s as 0x%X' % (pid, mask))
+                        'Fail to set affinity of %s(%s) as 0x%X' % \
+                            (SysMgr.getComm(pid), pid, mask))
 
 
 
@@ -16086,12 +16088,13 @@ Examples:
                 elif SysMgr.isSetAffinityMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} <MASK:TID|PID> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TID|COMM:MASK> [OPTIONS] [--help]
 
 Description:
     Set cpu affinity of threads
 
 Options:
+        -g  <TID|COMM:MASK>         set filter
         -P                          group threads in a same process
         -E  <DIR>                   set cache dir path
         -v                          verbose
@@ -16100,7 +16103,7 @@ Options:
                     helpStr +=  '''
 Examples:
     - Set cpu affinity of a specific thread to use only cpu 1 and cpu 2
-        # {0:1} {1:1} 3:1234
+        # {0:1} {1:1} -g a.out:3
                     '''.format(cmd, mode)
 
                 # cputest #
@@ -16116,7 +16119,7 @@ Options:
         -E  <DIR>                   set cache dir path
         -R  <TIME>                  set timer
         -Y  <POLICY:PRIO|TIME       set sched
-             {:TID|ALL:CONT}>
+             {{:TID|ALL:CONT}}>
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16127,6 +16130,9 @@ Examples:
 
     - Create threads using 250% totally
         # {0:1} {1:1} 250
+
+    - Create threads using 250% totally and run them only on cpu 1
+        # {0:1} {1:1} 250 -z :1
 
     - Create threads using 250% totally and terminate them after 3 seconds
         # {0:1} {1:1} 250 -R 3
@@ -20453,7 +20459,7 @@ Copyright:
                     SysMgr.parsePriorityOption(value)
 
             elif option == 'z':
-                SysMgr.parseAffinityOption(value)
+                SysMgr.parseAffinityOption(value.split(','))
 
             elif option == 'J':
                 SysMgr.jsonOutputEnable = True
@@ -20903,7 +20909,7 @@ Copyright:
                 SysMgr.parsePriorityOption(value)
 
             elif option == 'z':
-                SysMgr.parseAffinityOption(value)
+                SysMgr.parseAffinityOption(value.split(','))
 
             elif option == 'f':
                 SysMgr.forceEnable = True
@@ -23655,7 +23661,7 @@ Copyright:
                 SysMgr.printWarn(\
                     'Failed to recognize path', True)
                 sendErrMsg(netObj,\
-                    "wrong format for path, input in the format {src, des}")
+                    "wrong format for path, input in the format {SRC,DES}")
                 return
 
             # verify path #
@@ -23715,7 +23721,7 @@ Copyright:
                 SysMgr.printWarn(\
                     'Failed to recognize path', True)
                 sendErrMsg(netObj,\
-                    "wrong format for path, input in the format {src, des}")
+                    "wrong format for path, input in the format {SRC,DES}")
                 return
 
             # response from command request #
@@ -25215,6 +25221,10 @@ Copyright:
                     cputask(idx, load)
                 else:
                     limitInfo[pid] = load
+
+                    # set affinity #
+                    for item in SysMgr.affinityFilter:
+                        SysMgr.setAffinity(item[0], [str(pid)])
             except SystemExit:
                 pass
             except:
@@ -51503,6 +51513,9 @@ class ThreadAnalyzer(object):
             statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
+        # set comm #
+        comm = self.procData[tid]['stat'][self.commIdx][1:-1]
+
         # check task status #
         tstat = self.procData[tid]['stat'][self.statIdx]
         if tstat != 'S' and tstat != 'R' and tstat != 'I':
@@ -51525,27 +51538,43 @@ class ThreadAnalyzer(object):
                     SysMgr.setPriority(long(tid), item[0], long(item[1]))
 
         # change cpu affinity #
-        for item in SysMgr.affinityFilter:
-            if item[1] == 'ALL':
-                SysMgr.setAffinity(item[0], [tid])
-            if tid == item[1]:
-                SysMgr.setAffinity(item[0], [item[1]])
+        if len(SysMgr.affinityFilter) > 0:
+            alist = list(SysMgr.affinityFilter)
+            for idx, item in enumerate(alist):
+                val = item[1]
+                if tid != val and not val in comm:
+                    continue
+
+                try:
+                    mask = item[0]
+                    if val == tid or val in comm:
+                        SysMgr.setAffinity(mask, [tid])
+
+                    flag = item[2]
+                    if flag != 'CONT':
+                        SysMgr.affinityFilter.remove(item)
+                except:
+                    pass
 
         # send signal #
         if len(SysMgr.killFilter) > 0:
             slist = list(SysMgr.killFilter)
             for idx, item in enumerate(slist):
-                comm = self.procData[tid]['stat'][self.commIdx]
-                if tid == item[0] or item[0] in comm:
-                    try:
-                        os.kill(long(tid), item[1])
-                        SysMgr.printInfo(\
-                            "sent %s to %s(%s)" % \
-                                (ConfigMgr.SIG_LIST[item[1]], comm[1:-1], tid))
-                        if item[2] != 'CONT':
-                            SysMgr.killFilter.remove(item)
-                    except:
-                        pass
+                val = item[0]
+                sig = item[1]
+                flag = item[2]
+                if tid != val and not val in comm:
+                    continue
+
+                try:
+                    os.kill(long(tid), sig)
+                    SysMgr.printInfo(\
+                        "sent %s to %s(%s)" % \
+                            (ConfigMgr.SIG_LIST[sig], comm, tid))
+                    if flag != 'CONT':
+                        SysMgr.killFilter.remove(item)
+                except:
+                    pass
 
         # save io data #
         if SysMgr.blockEnable:
@@ -53779,10 +53808,6 @@ class ThreadAnalyzer(object):
                     SysMgr.setPriority(\
                         long(idx), item[0], long(item[1]))
 
-            # set affinity of this task #
-            for item in SysMgr.affinityAllFilter:
-                SysMgr.setAffinity(item, [int(idx)])
-
             # add task into stack trace list #
             if SysMgr.stackEnable:
                 self.stackTable.setdefault(idx, dict())
@@ -54209,11 +54234,13 @@ class ThreadAnalyzer(object):
             # print sched #
             if SysMgr.schedEnable and \
                 'execTime' in value:
-                execTime = value['execTime']
-                waitTime = value['waitTime']
+                execTime = float(long(value['execTime'] / 1000000000))
+                execPer = execTime / value['runtime'] * 100
+                waitTime = float(long(value['waitTime'] / 1000000000))
+                waitPer = waitTime / value['runtime'] * 100
 
-                execStr = 'Exec: %s' % convertTime(execTime / 1000000000)
-                waitStr = 'Wait: %s' % convertTime(waitTime / 1000000000)
+                execStr = 'Exec: %s(%.1f%%)' % (convertTime(execTime), execPer)
+                waitStr = 'Wait: %s(%.1f%%)' % (convertTime(waitTime), waitPer)
                 sliceStr = 'NrTimeslice: %s' % convertNum(value['nrSlice'])
 
                 schedStr = '%s / %s / %s' % (execStr, waitStr, sliceStr)
