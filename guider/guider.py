@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200322"
+__revision__ = "200323"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24917,7 +24917,7 @@ Copyright:
                     continue
 
                 sub_abspath = "%s" % (os.path.abspath(full_path))
-                
+
                 if os.path.isdir(full_path):
                     total_dir += 1
                     info = dict(sub_dirs=dict(), files=dict())
@@ -25213,12 +25213,14 @@ Copyright:
 
     @staticmethod
     def doCpuTest():
+        import random
+
         def cputask(num, load):
             SysMgr.setDefaultSignal()
 
             # run loop #
             while 1:
-                pass
+                sorted([random.random() for i in range(1<<10)])
 
         # get the number of task and load #
         try:
