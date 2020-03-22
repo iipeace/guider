@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200321"
+__revision__ = "200322"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6324,7 +6324,7 @@ class FunctionAnalyzer(object):
                 self.kerSymData[ksym]['unlockCnt'] += eventCnt
                 self.userFileData[path]['unlockCnt'] += eventCnt
 
-            # periodic event such as cpu tick #
+            # periodic event such as CPU tick #
             elif event == 'CPU_TICK':
                 self.userSymData[sym]['tickCnt'] += 1
                 self.kerSymData[ksym]['tickCnt'] += 1
@@ -6336,7 +6336,7 @@ class FunctionAnalyzer(object):
                 self.kerSymData[ksym]['syscallCnt'] += 1
                 self.userFileData[path]['syscallCnt'] += 1
 
-            # periodic event such as cpu tick #
+            # periodic event such as CPU tick #
             elif event == 'CUSTOM':
                 if eventCnt > 0:
                     self.userSymData[sym]['customTotal'] += 1
@@ -7311,7 +7311,7 @@ class FunctionAnalyzer(object):
         else:
             isFixedEvent = True
 
-        # cpu tick event #
+        # CPU tick event #
         # toDo: find shorter periodic event for sampling #
         if isFixedEvent and func == "hrtimer_start:":
             if 'tick_sched_timer' in args:
@@ -7941,7 +7941,7 @@ class FunctionAnalyzer(object):
                 d['func'] != '0:':
                 pass
 
-            # Calculate a total of cpu usage #
+            # Calculate a total of CPU usage #
             elif d['func'] == "hrtimer_start:" and \
                 'tick_sched_timer' in d['etc']:
                 self.totalTick += 1
@@ -7956,7 +7956,7 @@ class FunctionAnalyzer(object):
                 self.nowCtx['prevTid'] = thread
                 self.nowCtx['prevTime'] = d['time']
 
-                # Set max core to calculate cpu usage of thread #
+                # Set max core to calculate CPU usage of thread #
                 if SysMgr.maxCore < long(d['core']):
                     SysMgr.maxCore = long(d['core'])
 
@@ -8217,7 +8217,7 @@ class FunctionAnalyzer(object):
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['nrSyscall'], reverse=True)
         else:
-            # set cpu usage as default #
+            # set CPU usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['cpuTick'], reverse=True)
 
@@ -8238,7 +8238,7 @@ class FunctionAnalyzer(object):
                         "Multiple target threads are selected")
                 targetMark = '*'
 
-            # get cpu usage #
+            # get CPU usage #
             if self.totalTick > 0:
                 cpuPer = \
                     '%.1f%%' % \
@@ -8847,7 +8847,7 @@ class FunctionAnalyzer(object):
 
 
     def printCpuUsage(self):
-        # no cpu event #
+        # no CPU event #
         if not self.cpuEnabled or self.periodicEventCnt == 0:
             return
 
@@ -8859,7 +8859,7 @@ class FunctionAnalyzer(object):
         if self.periodicContEventCnt > 0:
             self.periodicEventInterval /= self.periodicContEventCnt
 
-        # Print cpu usage in user space #
+        # Print CPU usage in user space #
         if SysMgr.userEnable:
             SysMgr.clearPrint()
             title = 'Function CPU-Tick Info'
@@ -8890,7 +8890,7 @@ class FunctionAnalyzer(object):
                     "{0:7.1f}% |{1:^47}| {2:48}".format(cpuPer, idx, \
                     self.posData[value['pos']]['origBin']))
 
-                # Increase total cpu usage per symbol #
+                # Increase total CPU usage per symbol #
                 value['totalTickCnt'] += value['tickCnt']
 
                 # Set target stack #
@@ -8998,7 +8998,7 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe()
 
-        # Print cpu usage in kernel space #
+        # Print CPU usage in kernel space #
         title = 'Function CPU-Tick Info'
         SysMgr.clearPrint()
         SysMgr.printPipe(\
@@ -9020,7 +9020,7 @@ class FunctionAnalyzer(object):
                 value['symbol'] == 'apic_timer_interrupt':
                 exceptList.setdefault(pos, dict())
 
-        # Print cpu usage of stacks #
+        # Print CPU usage of stacks #
         for idx, value in sorted(\
             self.kerSymData.items(), \
             key=lambda e: e[1]['tickCnt'], reverse=True):
@@ -12729,7 +12729,7 @@ class SysMgr(object):
             del sys.argv[2]
         # top draw mode #
         else:
-            # cpu graph #
+            # CPU graph #
             if SysMgr.isCpuDrawMode():
                 SysMgr.layout = 'CPU'
             # memory graph #
@@ -13123,8 +13123,8 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to set cpu affinity of task, "
-                "input in the format {TID|COMM:MASK}")
+                "Fail to set CPU affinity of task "
+                "because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -13170,41 +13170,44 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to get cpu affinity of task, "
-                "input in the format {TID}")
+                "Fail to get CPU affinity of task "
+                "because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
 
         withSibling = SysMgr.groupProcEnable
-        for item in value:
-            try:
-                targetList = SysMgr.getPids(item, withSibling=withSibling)
-                targetList = list(map(long, targetList))
-                if not targetList:
-                    SysMgr.printErr(\
-                        "No threads related to %s" % item)
-                    sys.exit(0)
+        targetList = []
 
-                for tid in targetList:
-                    mask = SysMgr.getAffinity(tid)
-                    if not mask:
-                        SysMgr.printErr(\
-                            "Fail to get cpu affinity of %s(%s)" % \
-                                (SysMgr.getComm(tid), tid))
-                    else:
-                        SysMgr.printInfo(\
-                            'affinity of %s(%s) is %s' % \
-                                (SysMgr.getComm(tid), tid, mask))
+        try:
+            for item in value:
+                targetList += SysMgr.getPids(item, withSibling=withSibling)
 
-                sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
-            except:
+            if not targetList:
                 SysMgr.printErr(\
-                    "Fail to get cpu affinity of task, "
-                    "input in the format {TID}")
+                    "No threads related to %s" % item)
                 sys.exit(0)
+
+            targetList = list(set(targetList))
+            targetList = list(map(long, targetList))
+
+            for tid in targetList:
+                mask = SysMgr.getAffinity(tid)
+                if not mask:
+                    SysMgr.printErr(\
+                        "Fail to get CPU affinity of %s(%s)" % \
+                            (SysMgr.getComm(tid), tid))
+                else:
+                    SysMgr.printInfo(\
+                        'affinity of %s(%s) is %s' % \
+                            (SysMgr.getComm(tid), tid, mask))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr((\
+                "Fail to get CPU affinity of task "
+                "because %s") % SysMgr.getErrReason())
+            sys.exit(0)
 
 
 
@@ -13243,6 +13246,12 @@ class SysMgr(object):
             SysMgr.printErr('Fail to recognize mask type')
             return
 
+        # get ctypes object #
+        ctypes = SysMgr.getPkg('ctypes', False)
+        if not ctypes:
+            return
+        from ctypes import cdll, POINTER, c_int, c_ulong, byref
+
         for pid in pids:
             if isProcess:
                 threadList = SysMgr.getThreadList(pid)
@@ -13258,12 +13267,6 @@ class SysMgr(object):
                     sys.exit(0)
                 except:
                     pass
-
-                # get ctypes object #
-                ctypes = SysMgr.getPkg('ctypes', False)
-                if not ctypes:
-                    return
-                from ctypes import cdll, POINTER, c_int, c_ulong, byref
 
                 try:
                     # load libc #
@@ -13284,7 +13287,7 @@ class SysMgr(object):
                 except:
                     ret = -1
                     SysMgr.printWarn(\
-                        "Fail to set cpu affinity of tasks "
+                        "Fail to set CPU affinity of tasks "
                         "because of sched_setaffinity fail")
 
                 if ret >= 0:
@@ -13301,7 +13304,8 @@ class SysMgr(object):
     @staticmethod
     def getAffinity(pid):
         try:
-            return '0x%X' % SysMgr.guiderObj.sched_getaffinity(pid) # pylint: disable=no-member
+            return '0x%X' % \
+                SysMgr.guiderObj.sched_getaffinity(pid) # pylint: disable=no-member
         except SystemExit:
             sys.exit(0)
         except:
@@ -13338,7 +13342,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn((\
-                "Fail to get cpu affinity of tasks "
+                "Fail to get CPU affinity of tasks "
                 "because of sched_getaffinity fail"))
 
 
@@ -14315,7 +14319,7 @@ Usage:
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
     -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -14352,7 +14356,7 @@ Options:
 
                 topExamStr = '''
 Examples:
-    - Monitor status of processes used cpu resource more than 1%
+    - Monitor status of processes used CPU resource more than 1%
         # {0:1} {1:1}
 
     - Monitor status of all processes sorted by memory(RSS)
@@ -14597,12 +14601,12 @@ Options:
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
-    -A  <ARCH>                  set cpu type
+    -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
     -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -14847,11 +14851,11 @@ Options:
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
-    -A  <ARCH>                  set cpu type
+    -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
     -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set cpu affinity list
+    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -15495,14 +15499,14 @@ Examples:
         # {0:1} {1:1} -g 1234 -I 0x0-0x4000
                     '''.format(cmd, mode)
 
-                # cpu draw #
+                # CPU draw #
                 elif SysMgr.isCpuDrawMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} FILE [OPTIONS] [--help]
 
 Description:
-    Draw cpu graphs and memory chart
+    Draw CPU graphs and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -15971,7 +15975,7 @@ Usage:
     # {0:1} {1:1} -g <TID|PID:PER> [OPTIONS] [--help]
 
 Description:
-    Limit cpu usage of threads / processes
+    Limit CPU usage of threads / processes
 
 Options:
     -g  <TID|COMM>              set filter
@@ -15983,7 +15987,7 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Limit cpu usage of specific threads for 3 seconds
+    - Limit CPU usage of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
                     '''.format(cmd, mode)
 
@@ -15994,7 +15998,7 @@ Usage:
     # {0:1} {1:1} -g <CORE:CLOCK:GOVERNOR> [OPTIONS] [--help]
 
 Description:
-    Set cpu clock and governor
+    Set CPU clock and governor
 
 Options:
     -g  <CORE:CLOCK:GOVERNOR>   set filter
@@ -16041,7 +16045,7 @@ Usage:
     # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Set cpu scheduler policy and priority of threads / processes
+    Set CPU scheduler policy and priority of threads / processes
 
 Policy:
     c: CFS
@@ -16059,13 +16063,13 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Set cpu scheduler policy(CFS), priority(-20) for a specific thread
+    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
         # {0:1} {1:1} -g c:-20:1234
 
-    - Set cpu scheduler policy(FIFO), priority(90) for a specific thread
+    - Set CPU scheduler policy(FIFO), priority(90) for a specific thread
         # {0:1} {1:1} -g f:90:1234
 
-    - Set cpu scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
+    - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
         # {0:1} {1:1} -g d:1000000/10000000/10000000:1234
                     '''.format(cmd, mode)
 
@@ -16076,7 +16080,7 @@ Usage:
     # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Get cpu affinity of threads
+    Get CPU affinity of threads
 
 Options:
     -g  <TID|COMM>              set values
@@ -16086,7 +16090,7 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Get cpu affinity of specific threads
+    - Get CPU affinity of specific threads
         # {0:1} {1:1} -g a.out, 1234
                     '''.format(cmd, mode)
 
@@ -16097,7 +16101,7 @@ Usage:
     # {0:1} {1:1} -g <TID|COMM:MASK> [OPTIONS] [--help]
 
 Description:
-    Set cpu affinity of threads
+    Set CPU affinity of threads
 
 Options:
     -g  <TID|COMM:MASK>         set values
@@ -16108,7 +16112,7 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Set cpu affinity of a specific thread to use only cpu 1 and cpu 2
+    - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
         # {0:1} {1:1} -g a.out:3
                     '''.format(cmd, mode)
 
@@ -17066,7 +17070,7 @@ Copyright:
                     '''
                     -1 - not paranoid at all
                      0 - disallow raw tracepoint access for unpriv
-                     1 - disallow cpu events for unpriv
+                     1 - disallow CPU events for unpriv
                      2 - disallow kernel profiling for unpriv
                      3 - disallow user profiling for unpriv
                     '''
@@ -24215,7 +24219,7 @@ Copyright:
 
         if not os.path.isdir(freqPath):
             SysMgr.printErr(\
-                "Fail to find cpu node for governor")
+                "Fail to find CPU node for governor")
             sys.exit(0)
         elif len(SysMgr.filterGroup) == 0:
             SysMgr.printErr(\
@@ -24231,13 +24235,13 @@ Copyright:
             if (len(vals) < 2 or len(vals) > 3) or \
                 not vals[0].isdigit() or not vals[1].isdigit():
                 SysMgr.printErr(\
-                ("wrong option value to set cpu clock, "
+                ("wrong option value to set CPU clock, "
                 "input in the format CORE:CLOCK(HZ){:GOVERNOR}"))
                 sys.exit(0)
 
             targetlist.append(vals)
 
-        # get available cpu list #
+        # get available CPU list #
         cpulist = {}
         for f in os.listdir(freqPath):
             if not f.startswith('cpu'):
@@ -24293,7 +24297,7 @@ Copyright:
             except:
                 cpulist.pop(cpu, None)
 
-        # set cpu clock #
+        # set CPU clock #
         for vals in targetlist:
             if len(vals) == 2:
                 core, clock = vals
@@ -24361,9 +24365,9 @@ Copyright:
             except:
                 curgovernor = '?'
 
-            # get affected cpu list #
+            # get affected CPU list #
             if 'affect' in cpulist[core] and len(cpulist[core]['affect']) > 1:
-                affectstring = 'and it also affects cpu [%s]' % \
+                affectstring = 'and it also affects CPU [%s]' % \
                     ', '.join(cpulist[core]['affect'])
             else:
                 affectstring = ''
@@ -25278,7 +25282,7 @@ Copyright:
             taskstr = 'a process'
 
         SysMgr.printInfo((\
-            "created %s and limited them to use cpu a total of %d%% " \
+            "created %s and limited them to use CPU a total of %d%% " \
             "and %d%% respectively") % \
                 (taskstr, totalLoad, load))
 
@@ -25580,7 +25584,7 @@ Copyright:
                     stat = getTaskStat(val['fd'])
                     if not stat:
                         SysMgr.printErr(\
-                            "Fail to get cpu time of %s thread" % tid)
+                            "Fail to get CPU time of %s thread" % tid)
                         taskList.pop(tid, None)
                     else:
                         val['comm'], val['nowTick'] = stat
@@ -25617,7 +25621,7 @@ Copyright:
 
                         if verbose:
                             SysMgr.printInfo((\
-                                "limited cpu usage of %s(%s) %s to %s%%, "
+                                "limited CPU usage of %s(%s) %s to %s%%, "
                                 "it used %s%%") % \
                                 (val['comm'], tid, tasktype, \
                                 val['per'], val['ticks']))
@@ -26451,7 +26455,7 @@ Copyright:
             self.cpuData = SysMgr.procReadlines('cpuinfo')
         except:
             SysMgr.printWarn(\
-                "Fail to save cpu info because %s" % \
+                "Fail to save CPU info because %s" % \
                 SysMgr.getErrReason())
 
 
@@ -27213,7 +27217,7 @@ Copyright:
                 sigCmd = "sig == %d" % signal.SIGSEGV
                 SysMgr.writeCmd('signal/filter', sigCmd)
 
-            # enable cpu events #
+            # enable CPU events #
             if SysMgr.cpuEnable:
                 addr = SysMgr.getKerAddr('tick_sched_timer')
                 if addr:
@@ -27776,7 +27780,7 @@ Copyright:
         except:
             pass
 
-        # cpu architecture #
+        # CPU architecture #
         try:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SysMgr.arch))
@@ -29809,7 +29813,7 @@ class DbusAnalyzer(object):
 
             convertNum = UtilMgr.convertNumber
 
-            # update cpu usage of tasks #
+            # update CPU usage of tasks #
             updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
             # print title #
@@ -33151,14 +33155,14 @@ struct msghdr {
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convertNumber
 
-        # get cpu Usage #
+        # get CPU Usage #
         cpuUsage = self.getCpuUsage()
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
         cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
 
-        # add cpu time info #
+        # add CPU time info #
         self.cpuUsageList.append([ttime, utime, stime])
 
         if not SysMgr.showAll and SysMgr.cpuEnable:
@@ -34854,7 +34858,7 @@ struct msghdr {
         # convert string to list #
         statList = stat.split(')')[1].split()
 
-        # get total cpu time #
+        # get total CPU time #
         utime = long(statList[self.utimeIdx-2])
         stime = long(statList[self.stimeIdx-2])
         ttime = utime + stime
@@ -35278,7 +35282,7 @@ struct msghdr {
 
         # set tracing attribute #
         if self.isRealtime:
-            # get first cpu usage #
+            # get first CPU usage #
             self.getCpuUsage()
 
             # set alarm handler #
@@ -35607,7 +35611,7 @@ struct msghdr {
             samplingStr = ''
             sampleRateStr = ''
 
-        # calculate average cpu usage #
+        # calculate average CPU usage #
         ttime = utime = stime = 0
         for cpustat in instance.cpuUsageList:
             ttime += cpustat[0]
@@ -39039,7 +39043,7 @@ class ThreadAnalyzer(object):
             memProcUsage = gstats['memProcUsage']
             gpuProcUsage = gstats['gpuProcUsage'] = {}
 
-            # get total cpu info #
+            # get total CPU info #
             cpuUsage = gstats['cpuUsage']
             cpuProcUsage['TOTAL'] = {
                 'usage': cpuUsage,
@@ -39109,7 +39113,7 @@ class ThreadAnalyzer(object):
                 if '(' in pinfo:
                     cpuProcUsage.pop(pinfo)
 
-            # iterate cpu list #
+            # iterate CPU list #
             for pinfo, value in sorted(cpuProcUsage.items()):
                 pname = getProcName(pinfo)
 
@@ -39815,7 +39819,7 @@ class ThreadAnalyzer(object):
 
 
         #-------------------- THREAD MODE --------------------#
-        # change default cpu property #
+        # change default CPU property #
         SysMgr.cpuEnable = False
 
         # initialize preempt thread list #
@@ -39889,7 +39893,7 @@ class ThreadAnalyzer(object):
                     if item['ftxMax'] < wtime:
                         item['ftxMax'] = wtime
 
-                    # cpu time #
+                    # CPU time #
                     if item['start'] > item['ftxEnter']:
                         ctime = float(self.finishTime) - item['start']
                         item['ftxProcess'] += ctime
@@ -41178,7 +41182,7 @@ class ThreadAnalyzer(object):
                 nrCore = graphStats['%snrCore' % fname]
                 maxCore = max(nrCore)
 
-                # convert total cpu usage by core number #
+                # convert total CPU usage by core number #
                 if not SysMgr.cpuAvrEnable:
                     cpuUsage = [maxCore * i for i in cpuUsage]
 
@@ -41253,7 +41257,7 @@ class ThreadAnalyzer(object):
                         else:
                             icolor = 'pink'
 
-                        # draw total cpu + iowait graph #
+                        # draw total CPU + iowait graph #
                         plot(timeline, blkWait, '-', c=icolor, linestyle='-',\
                             linewidth=1, marker='d', markersize=1, \
                             solid_capstyle='round')
@@ -41288,7 +41292,7 @@ class ThreadAnalyzer(object):
                     else:
                         ccolor = 'red'
 
-                    # draw total cpu graph #
+                    # draw total CPU graph #
                     plot(timeline, cpuUsage, '-', c=ccolor, linestyle='-',\
                         linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
@@ -41392,7 +41396,7 @@ class ThreadAnalyzer(object):
                         avgUsage = long(0)
 
                     if not SysMgr.blockEnable:
-                        # merge cpu usage and wait time of processes #
+                        # merge CPU usage and wait time of processes #
                         try:
                             blkUsage = blkProcUsage[idx]['usage'].split()
                             blkUsage = list(map(long, blkUsage))
@@ -43319,7 +43323,7 @@ class ThreadAnalyzer(object):
                 value['awriteBlock'] = \
                     (value['awriteBlock'] * SysMgr.pageSize) >> 20
 
-        # print total information after sorting by cpu usage #
+        # print total information after sorting by CPU usage #
         count = long(0)
         SysMgr.clearPrint()
         for key, value in sorted(self.threadData.items(), \
@@ -43447,11 +43451,11 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['readBlock'] + e[1]['writeBlock'] + e[1]['awriteBlock'], \
                 reverse=True)
         else:
-            # set cpu usage as default #
+            # set CPU usage as default #
             sortedThreadData = sorted(self.threadData.items(), \
                 key=lambda e: e[1]['usage'], reverse=True)
 
-        # set total cpu variables #
+        # set total CPU variables #
         totalCpuTime = long(0)
         totalPrtTime = long(0)
         totalSchedLatency = long(0)
@@ -43488,7 +43492,7 @@ class ThreadAnalyzer(object):
         newThreadString = ''
         dieThreadString = ''
 
-        # print thread information after sorting by time of cpu usage #
+        # print thread information after sorting by time of CPU usage #
         count = long(0)
         SysMgr.clearPrint()
         for key, value in sortedThreadData:
@@ -43770,7 +43774,7 @@ class ThreadAnalyzer(object):
                 "%s# %s: %d\n%s\n%s" % \
                     ('', 'Die', dieCnt, dieThreadString, oneLine))
 
-        # print thread preempted information after sorting by time of cpu usage #
+        # print thread preempted information after sorting by time of CPU usage #
         for val in SysMgr.preemptGroup:
             index = SysMgr.preemptGroup.index(val)
             count = long(0)
@@ -45049,7 +45053,7 @@ class ThreadAnalyzer(object):
             SysMgr.addPrint("%16s(%5s/%5s): " % \
                 (value['comm'], '0', value['tgid']) + timeLine + '\n')
 
-            # make cpu usage list for graph #
+            # make CPU usage list for graph #
             if SysMgr.graphEnable and SysMgr.cpuEnable:
                 timeLine = timeLine.replace('N', '')
                 timeLine = timeLine.replace('D', '')
@@ -45403,14 +45407,14 @@ class ThreadAnalyzer(object):
                 value['usage'] / float(self.totalTime) * 100 < 1:
                 break
 
-        # draw cpu graph #
+        # draw CPU graph #
         if SysMgr.graphEnable and len(cpuUsageList) > 0:
             timelen = len(cpuUsageList[0])
             ax = subplot2grid((6,1), (0,0), rowspan=5, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-            # cpu total usage #
+            # CPU total usage #
             totalCpuUsage = None
             for item in cpuUsageList:
                 if totalCpuUsage is None:
@@ -45424,7 +45428,7 @@ class ThreadAnalyzer(object):
                     (timelen+1)*intervalEnable, intervalEnable),\
                 avgCpuUsage, '.-', linewidth=3, solid_capstyle='round')
 
-            # cpu usage of threads #
+            # CPU usage of threads #
             for idx, item in enumerate(cpuThrUsageList):
                 maxIdx = item.index(max(item))
 
@@ -45444,7 +45448,7 @@ class ThreadAnalyzer(object):
                 text(maxIdx + 1, item[maxIdx] + margin, label,\
                     fontsize=3, color=color, fontweight='bold')
 
-            # draw cpu graph #
+            # draw CPU graph #
             totalLabel = [' CPU Average '] + cpuThrLabelList
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),\
@@ -45898,14 +45902,14 @@ class ThreadAnalyzer(object):
 
             cpu = long(d['cpu'])
 
-            # sum total cpu usage #
+            # sum total CPU usage #
             TA.procTotData['total']['cpu'] += cpu
 
-            # get total max cpu usage #
+            # get total max CPU usage #
             if TA.procTotData['total']['cpuMax'] < cpu:
                 TA.procTotData['total']['cpuMax'] = cpu
 
-            # get total min cpu usage #
+            # get total min CPU usage #
             if TA.procTotData['total']['cpuMin'] < 0:
                 TA.procTotData['total']['cpuMin'] = cpu
             elif TA.procTotData['total']['cpuMin'] > cpu:
@@ -45913,7 +45917,7 @@ class ThreadAnalyzer(object):
 
             TA.procIntData[index]['total'] = dict(TA.init_procIntData)
 
-            # save cpu usage on this interval #
+            # save CPU usage on this interval #
             try:
                 TA.procIntData[index]['total']['cpu'] = cpu
             except:
@@ -46215,7 +46219,7 @@ class ThreadAnalyzer(object):
         TA.procTotData[pid]['nrThreads'] = d['nrThreads']
         TA.procTotData[pid]['pri'] = d['pri']
 
-        # save cpu usage of process #
+        # save CPU usage of process #
         TA.procTotData[pid]['cpu'] += cpu
 
         if TA.procTotData[pid]['cpuMax'] < cpu:
@@ -46473,7 +46477,7 @@ class ThreadAnalyzer(object):
             (value['cpuMin'] if value['cpuMin'] > 0 else 0, \
             value['cpuAvg'], value['cpuMax'])
 
-        # Print total cpu usage #
+        # Print total CPU usage #
         procInfo = \
             "{0:^{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^12} |".\
             format('[CPU]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
@@ -46498,7 +46502,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
         SysMgr.printPipe("%s\n" % oneLine)
 
-        # Print cpu usage of processes #
+        # Print CPU usage of processes #
         for pid, value in sorted(\
             ThreadAnalyzer.procTotData.items(), \
             key=lambda e: e[1]['cpu'], reverse=True):
@@ -46534,7 +46538,7 @@ class ThreadAnalyzer(object):
                 timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
                 lineLen += 7
 
-            # skip process used no cpu #
+            # skip process used no CPU #
             if total == 0:
                 continue
 
@@ -48011,7 +48015,7 @@ class ThreadAnalyzer(object):
                     self.intData[index]['toTal']['kernelEvent'][evt]['usage'] += \
                         intervalThread['kernelEvent'][evt]['usage']
 
-            # fix cpu usage exceed this interval #
+            # fix CPU usage exceed this interval #
             self.thisInterval = intervalEnable
             if intervalThread['cpuUsage'] > intervalEnable or \
                 self.finishTime != '0':
@@ -48078,7 +48082,7 @@ class ThreadAnalyzer(object):
 
                         remainTime -= intervalEnable
 
-            # add remainter of cpu usage exceed interval in this interval to previous interval #
+            # add remainter of CPU usage exceed interval in this interval to previous interval #
             if SysMgr.intervalNow - intervalEnable > 0 and \
                 self.thisInterval > intervalEnable:
                 diff = self.thisInterval - intervalEnable
@@ -48089,7 +48093,7 @@ class ThreadAnalyzer(object):
                 prevIntervalThread['cpuPer'] = \
                     prevIntervalThread['cpuUsage'] / intervalEnable * 100
 
-            # calculate percentage of cpu usage of this thread in this interval #
+            # calculate percentage of CPU usage of this thread in this interval #
             if self.thisInterval > 0:
                 intervalThread['cpuPer'] = \
                     intervalThread['cpuUsage'] / self.thisInterval * 100
@@ -48344,7 +48348,7 @@ class ThreadAnalyzer(object):
                     coreId = '0[%s]' % key
                     tid = self.lastTidPerCore[key]
 
-                    # check cpu idle status #
+                    # check CPU idle status #
                     if self.threadData[coreId]['lastStatus'] == 'R':
                         self.threadData[coreId]['usage'] += \
                             float(time) - self.threadData[coreId]['start']
@@ -48424,7 +48428,7 @@ class ThreadAnalyzer(object):
             else:
                 next_id = next_pid
 
-            # check cpu wakeup #
+            # check CPU wakeup #
             if self.threadData[coreId]['lastOff'] > 0:
                 diff = float(time) - self.threadData[coreId]['lastOff']
                 self.threadData[coreId]['offTime'] += diff
@@ -48473,7 +48477,7 @@ class ThreadAnalyzer(object):
                 long(self.threadData[next_id]['pri']) > long(d['next_prio']):
                 self.threadData[next_id]['pri'] = d['next_prio']
 
-            # update cpu time by futex #
+            # update CPU time by futex #
             if self.threadData[prev_id]['ftxEnter'] > 0:
                 cstart = self.threadData[prev_id]['start']
                 fstart = self.threadData[prev_id]['ftxEnter']
@@ -48755,7 +48759,7 @@ class ThreadAnalyzer(object):
                 self.threadData[thread]['irq'] += diff
                 self.irqData[irqId]['usage'] += diff
 
-                # add cpu usage of this thread to core usage #
+                # add CPU usage of this thread to core usage #
                 if coreId != thread:
                     self.threadData[coreId]['irq'] += diff
 
@@ -48864,7 +48868,7 @@ class ThreadAnalyzer(object):
                 self.threadData[thread]['irq'] += diff
                 self.irqData[irqId]['usage'] += diff
 
-                # add cpu usage of this thread to core usage #
+                # add CPU usage of this thread to core usage #
                 if coreId != thread:
                     self.threadData[coreId]['irq'] += diff
 
@@ -49341,7 +49345,7 @@ class ThreadAnalyzer(object):
                     td['ftxTotal'] += futexTime
                     td['ftxEnter'] = long(0)
 
-                    # update cpu time by futex #
+                    # update CPU time by futex #
                     if td['start'] > lockEnter:
                         ctime = float(time) - td['start']
                         td['ftxProcess'] += ctime
@@ -50782,7 +50786,7 @@ class ThreadAnalyzer(object):
         # update uptime #
         SysMgr.updateUptime()
 
-        # save cpu info #
+        # save CPU info #
         try:
             cpuBuf = None
             SysMgr.statFd.seek(0)
@@ -51523,7 +51527,7 @@ class ThreadAnalyzer(object):
             else:
                 SysMgr.setPriority(long(tid), item[0], long(item[1]))
 
-        # change cpu affinity #
+        # change CPU affinity #
         if len(SysMgr.affinityFilter) > 0:
             alist = list(SysMgr.affinityFilter)
             for idx, item in enumerate(alist):
@@ -52041,7 +52045,7 @@ class ThreadAnalyzer(object):
         except:
             nrSoftIrq = long(0)
 
-        # get total cpu usage #
+        # get total CPU usage #
         nowData = self.cpuData['all']
         prevData = self.prevCpuData['all']
 
@@ -52052,7 +52056,7 @@ class ThreadAnalyzer(object):
             nrCore = 1
             maxUsage = 100 * SysMgr.nrCore
 
-        # initialize accumulated cpu values #
+        # initialize accumulated CPU values #
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = long(0)
         coreStats = dict()
 
@@ -52097,7 +52101,7 @@ class ThreadAnalyzer(object):
                     ioCoreUsage + irqCoreUsage + idleCoreUsage
                 scale = 100 / float(totalStat)
 
-                # get cpu stats #
+                # get CPU stats #
                 coreStats[idx]['user'] = long(userCoreUsage * scale)
                 userUsage += coreStats[idx]['user']
                 coreStats[idx]['kernel'] = long(kerCoreUsage * scale)
@@ -52111,7 +52115,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-        # divide total cpu usage by the number of cores #
+        # divide total CPU usage by the number of cores #
         userUsage = long(userUsage / nrCore)
         kerUsage = long(kerUsage / nrCore)
         ioUsage = long(ioUsage / nrCore)
@@ -52281,7 +52285,7 @@ class ThreadAnalyzer(object):
                     if SysMgr.checkCutCond():
                         return
 
-                    # get cpu stats #
+                    # get CPU stats #
                     userCoreUsage = coreStats[idx]['user']
                     kerCoreUsage = coreStats[idx]['kernel']
                     ioCoreUsage = coreStats[idx]['io']
@@ -52317,7 +52321,7 @@ class ThreadAnalyzer(object):
                 # set default path #
                 defPath = '%s%s/cpufreq' % (freqPath, idx)
 
-                # get current cpu frequency #
+                # get current CPU frequency #
                 try:
                     self.prevCpuData[idx]['curFd'].seek(0)
                     curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
@@ -52340,7 +52344,7 @@ class ThreadAnalyzer(object):
                     except:
                         curFreq = None
 
-                # get cpu min frequency #
+                # get CPU min frequency #
                 try:
                     self.prevCpuData[idx]['minFd'].seek(0)
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
@@ -52363,7 +52367,7 @@ class ThreadAnalyzer(object):
                     except:
                         minFreq = None
 
-                # get cpu max frequency #
+                # get CPU max frequency #
                 try:
                     self.prevCpuData[idx]['maxFd'].seek(0)
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
@@ -52577,7 +52581,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            # cpu #
+            # CPU #
             try:
                 percoreStats
             except:
@@ -53500,7 +53504,7 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['stat'][self.commIdx], reverse=False)
         # CPU #
         else:
-            # set cpu usage as default #
+            # set CPU usage as default #
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['ttime'], reverse=True)
 
@@ -54766,7 +54770,7 @@ class ThreadAnalyzer(object):
 
         rb = ThreadAnalyzer.reportBoundary
 
-        # add cpu status #
+        # add CPU status #
         if 'cpu' in self.reportData:
             rank = 1
             self.reportData['cpu']['procs'] = {}
@@ -55000,7 +55004,7 @@ class ThreadAnalyzer(object):
         }
 
 
-        # generate cpu status data #
+        # generate CPU status data #
         metricsetFields['metricset']['name'] = 'cpu'
 
         cpuData = self.reportData['cpu']
@@ -55020,7 +55024,7 @@ class ThreadAnalyzer(object):
                 }
         }
 
-        # merge cpu data dictionary #
+        # merge CPU data dictionary #
         reportCpuData = metricsetFields.copy()
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
