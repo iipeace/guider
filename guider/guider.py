@@ -5196,14 +5196,14 @@ class PageAnalyzer(object):
 
             isFile = PageAnalyzer.isFilePage(entry)
 
-            bflags = hex(PageAnalyzer.getPageFlags(pfn))
+            bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip('L')
 
             sflags = PageAnalyzer.getFlagTypes(bflags)
 
             SysMgr.printPipe((\
                 "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"\
                 "{6:^8}|{7:^7}| {8}({9} )").format(\
-                hex(addr), hex(pfn), isPresent,\
+                hex(addr).rstrip('L'), hex(pfn).rstrip('L'), isPresent,\
                 isSwapped, isFile,PageAnalyzer.getPagecount(pfn),\
                 isSoftdirty, isExmapped, bflags, sflags))
 
@@ -6654,7 +6654,7 @@ class FunctionAnalyzer(object):
                     # Get return of addr2line #
                     addr = proc.stdout.readline().decode().replace('\n', '')[2:]
                     try:
-                        addr = hex(long(addr, 16))
+                        addr = hex(long(addr, 16)).rstrip('L')
                     except:
                         pass
 
@@ -13335,7 +13335,7 @@ class SysMgr(object):
                 long(pid), size, ctypes.pointer(cpuset))
 
             if ret >= 0:
-                return hex(cpuset.value)
+                return hex(cpuset.value).rstrip('L')
             else:
                 raise Exception()
         except SystemExit:
@@ -24872,7 +24872,7 @@ Copyright:
         for addr, val in resInfo.items():
             SysMgr.printPipe(\
                 "{0:<18} {1:<52} {2:<1}".format(\
-                    hex(addr), val[0], val[1]))
+                    hex(addr).rstrip('L'), val[0], val[1]))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -25152,7 +25152,7 @@ Copyright:
 
             SysMgr.printPipe(\
                 "{0:<48} {1:<52} {2:<18} {3:<18}".format(\
-                    symbol, filePath, offset, addr))
+                    symbol, filePath, offset.rstrip('L'), addr.rstrip('L')))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -32194,7 +32194,7 @@ struct msghdr {
         if SysMgr.warnEnable:
             SysMgr.printWarn(\
                 'Removed the breakpoint %s(%s) from %s(%s)' % \
-                    (hex(addr), symbol, self.comm, self.pid))
+                    (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
 
         return (symbol, filename, reins)
 
@@ -32299,7 +32299,7 @@ struct msghdr {
             if not ret:
                 SysMgr.printWarn(\
                     "Fail to inject a breakpoint to %s(%s) for %s(%s)" % \
-                        (value, hex(addr), self.comm, self.pid))
+                        (value, hex(addr).rstrip('L'), self.comm, self.pid))
             self.exceptBpList.pop(addr, None)
 
         UtilMgr.deleteProgress()
@@ -32316,7 +32316,7 @@ struct msghdr {
                 SysMgr.printWarn((\
                     'Fail to inject a breakpoint to %s for %s(%s)'
                     'because it is already injected by myself') % \
-                        (hex(addr), self.comm, self.pid))
+                        (hex(addr).rstrip('L'), self.comm, self.pid))
                 return False
             else:
                 origWord = self.bpList[addr]['data']
@@ -32354,7 +32354,7 @@ struct msghdr {
                 SysMgr.printWarn((\
                     'Fail to inject breakpoint to %s for %s(%s)'
                     'because it is already injected by another task') % \
-                        (hex(addr), self.comm, self.pid))
+                        (hex(addr).rstrip('L'), self.comm, self.pid))
                 return False
 
         # inject trap code #
@@ -32363,7 +32363,7 @@ struct msghdr {
         if ret < 0:
             SysMgr.printWarn(\
                 'Fail to inject breakpoint to %s for %s(%s)' % \
-                    (hex(addr), self.comm, self.pid))
+                    (hex(addr).rstrip('L'), self.comm, self.pid))
             return False
         elif ret == 0:
             if sym:
@@ -32374,7 +32374,7 @@ struct msghdr {
             if SysMgr.warnEnable:
                 SysMgr.printWarn(\
                     'Added a new breakpoint %s%s to %s(%s)' % \
-                        (hex(addr), symbol, self.comm, self.pid))
+                        (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
 
         return True
 
@@ -32578,13 +32578,13 @@ struct msghdr {
         if addr < wordSize:
             SysMgr.printWarn((\
                 "Fail to access %s memory "
-                "because of wrong address") % hex(addr))
+                "because of wrong address") % hex(addr).rstrip('L'))
             return -1
 
         if addr % wordSize:
             SysMgr.printWarn((\
                 "Fail to access %s memory "
-                "because of unaligned address") % hex(addr))
+                "because of unaligned address") % hex(addr).rstrip('L'))
             return -1
 
         return self.ptrace(cmd, addr, data)
@@ -32598,7 +32598,7 @@ struct msghdr {
         if addr < wordSize:
             SysMgr.printWarn((\
                 "Fail to write to %s memory "
-                "because of wrong address") % hex(addr))
+                "because of wrong address") % hex(addr).rstrip('L'))
             return None
 
         # update size #
@@ -32752,7 +32752,7 @@ struct msghdr {
         if addr < wordSize:
             SysMgr.printWarn((\
                 "Fail to read from %s memory "
-                "because of wrong address") % hex(addr))
+                "because of wrong address") % hex(addr).rstrip('L'))
             return None
 
         # check size #
@@ -32820,7 +32820,7 @@ struct msghdr {
             if word == -1:
                 SysMgr.printErr(\
                     "Fail to read memory %s from %s(%s)" % \
-                        (hex(addr), self.comm, self.pid))
+                        (hex(addr).rstrip('L'), self.comm, self.pid))
                 return None
 
             if retWord:
@@ -33397,7 +33397,8 @@ struct msghdr {
         fname = self.getFileFromMap(vaddr)
         if not fname:
             SysMgr.printWarn(\
-                'Fail to get file name via addr %s' % hex(vaddr))
+                'Fail to get file name via addr %s' % \
+                    hex(vaddr).rstrip('L'))
             return None
 
         vstart = self.pmap[fname]['vstart']
@@ -33409,9 +33410,10 @@ struct msghdr {
             # set variable to rescan process map #
             self.needMapScan = True
 
-            SysMgr.printWarn(\
+            SysMgr.printWarn((\
                 'Fail to get offset in %s via %s '
-                'because wrong memory map' % (fname, hex(vaddr)))
+                'because wrong memory map') % \
+                    (fname, hex(vaddr).rstrip('L')))
             return ['??', fname, '??', '??', '??']
 
         # get ELF object #
@@ -33425,7 +33427,7 @@ struct msghdr {
 
         try:
             sym = fcache.getSymbolByOffset(offset)
-            return [sym, fname, hex(offset), vstart, vend]
+            return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
         except SystemExit:
             sys.exit(0)
         except:
@@ -33511,6 +33513,7 @@ struct msghdr {
                             rvalue = re.sub('\W+','', rvalue)
                         except:
                             rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
+                            rvalue = rvalue.rstrip('L')
                     else:
                         rvalue = '?'
                 else:
@@ -33535,7 +33538,7 @@ struct msghdr {
                 for item in backtrace:
                     SysMgr.addPrint(\
                         '%s(%s)[%s]\n' % \
-                            (hex(item[0]), item[1], item[2]))
+                            (hex(item[0]).rstrip('L'), item[1], item[2]))
 
                 SysMgr.addPrint('%s\n' % twoLine)
 
@@ -34022,7 +34025,7 @@ struct msghdr {
             btString += '\n%s %s%s%s/%s [%s]' % \
                 (diffindent, tinfoindent, \
                     (sidx-(commonPos)) * '  ', \
-                    item[1], hex(item[0]), item[2])
+                    item[1], hex(item[0]).rstrip('L'), item[2])
         SysMgr.printPipe(btString, newline=False)
 
         return depth
@@ -34045,7 +34048,7 @@ struct msghdr {
         if addr not in self.bpList:
             SysMgr.printErr(\
                 "Fail to get address %s in breakpoint list of %s(%s)" % \
-                    (hex(addr), self.comm, self.pid))
+                    (hex(addr).rstrip('L'), self.comm, self.pid))
             sys.exit(0)
 
         # pick breakpoint info #
@@ -34110,7 +34113,8 @@ struct msghdr {
 
                 # build current symbol string #
                 callString = '\n%s %s%s%s/%s%s [%s]' % \
-                    (diffstr, tinfo, indent, sym, hex(addr), argstr, fname)
+                    (diffstr, tinfo, indent, sym, \
+                        hex(addr).rstrip('L'), argstr, fname)
 
                 # trace mode with file #
                 if SysMgr.printFile:
@@ -34360,7 +34364,7 @@ struct msghdr {
         # build call string #
         callString = '%3.6f %s %s [%s + %s] [%s]' % \
             (diff, symstr , direction, fname, \
-                offset, hex(self.sp))
+                offset, hex(self.sp).rstrip('L'))
 
         # backup callString #
         self.prevCallString = callString
@@ -34932,7 +34936,8 @@ struct msghdr {
             return None
         elif len(addrList) > 1:
             addrString = ['%s/%s(%s)' % \
-                    (item[2], hex(item[0]), item[1]) for item in addrList]
+                (item[2], hex(item[0]).rstrip('L'), \
+                    item[1]) for item in addrList]
             listString = ', '.join(addrString)
             SysMgr.printWarn(\
                 "Found multiple symbols [ %s ]" % listString)
@@ -37718,9 +37723,10 @@ class ElfAnalyzer(object):
         try:
             for idx, val in enumerate(self.sortedSymTable):
                 if similar and symbol in val[0]:
-                    clist.append([val[0], hex(self.sortedAddrTable[idx])])
+                    clist.append(\
+                        [val[0], hex(self.sortedAddrTable[idx]).rstrip('L')])
                 elif (symbol == val[0] or symbol == val[0].split('@')[0]):
-                    return str(hex(self.sortedAddrTable[idx]))
+                    return hex(self.sortedAddrTable[idx]).rstrip('L')
         except:
             return None
 
