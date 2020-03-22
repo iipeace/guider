@@ -19025,9 +19025,13 @@ Copyright:
 
     @staticmethod
     def printLogo(absolute=False, big=False, onlyFile=False, pager=True):
+        # check package #
+        if not "ISMAIN" in os.environ:
+            print("\nPowered by %s" % ConfigMgr.logo)
+            return
+
         # check print option and remote runner #
         if not SysMgr.printEnable or \
-            not "ISMAIN" in os.environ or \
             "REMOTERUN" in os.environ:
             return
 
