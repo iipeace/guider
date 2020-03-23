@@ -13474,6 +13474,17 @@ class SysMgr(object):
 
 
     @staticmethod
+    def isBlkDev(path):
+        stat = SysMgr.getPkg('stat')
+
+        try:
+            return stat.S_ISBLK(os.stat(path).st_mode)
+        except:
+            return False
+
+
+
+    @staticmethod
     def setComm(comm):
         if not sys.platform.startswith('linux'):
             return
@@ -14252,6 +14263,7 @@ class SysMgr(object):
             'test': {
                 'cputest': 'CPU',
                 'memtest': 'Memory',
+                'iotest ': 'Storage',
                 },
             }
 
@@ -15489,7 +15501,6 @@ Options:
     -o  <DIR|FILE>              save output data
     -I  <ADDR>                  set address area
     -m  <ROWS:COLS>             set terminal size
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
 
@@ -15612,7 +15623,6 @@ Description:
     Send specific signal to specific tasks or all running Guiders
 
 Options:
-    -E  <DIR>                   set cache dir path
     -l                          print signal list
     -v                          verbose
                         '''.format(cmd, mode)
@@ -15935,7 +15945,6 @@ Description:
     Print the tree of processes
 
 Options:
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -15955,7 +15964,6 @@ Description:
     Print system status
 
 Options:
-    -E  <DIR>                   set cache dir path
     -e  <CHARACTER>             enable options
           t:thread
     -J                          print in JSON format
@@ -15981,7 +15989,6 @@ Options:
     -g  <TID|COMM>              set filter
     -R  <TIME>                  set timer
     -P                          group threads in a same process
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16002,7 +16009,6 @@ Description:
 
 Options:
     -g  <CORE:CLOCK:GOVERNOR>   set filter
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16028,7 +16034,6 @@ Description:
     Convert a text file to a image file
 
 Options:
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16106,7 +16111,6 @@ Description:
 Options:
     -g  <TID|COMM:MASK>         set values
     -P                          group threads in a same process
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16126,7 +16130,6 @@ Description:
     Create tasks using cpu
 
 Options:
-    -E  <DIR>                   set cache dir path
     -R  <TIME>                  set timer
     -Y  <POLICY:PRIO|TIME       set sched
          {{:TID|COMM:CONT}}>
@@ -16161,7 +16164,6 @@ Description:
     Allocate physical memory
 
 Options:
-    -E  <DIR>                   set cache dir path
     -R  <TIME>                  set timer
     -v                          verbose
                         '''.format(cmd, mode)
@@ -16181,6 +16183,33 @@ Examples:
         # {0:1} {1:1} 100M:0:2 -R 3
                     '''.format(cmd, mode)
 
+                # iotest #
+                elif SysMgr.isIoTestMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <OP:PATH> [OPTIONS] [--help]
+
+Description:
+    Run I/O operations
+
+Options:
+    -g  <OP:PATH>               set path
+    -R  <TIME>                  set timer
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Read contents of all files from the current mount position
+        # {0:1} {1:1}
+
+    - Read contents of all files from current directory recusively
+        # {0:1} {1:1} -g .
+
+    - Read contents of all device nodes mounted
+        # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
                 # list #
                 elif SysMgr.isListMode():
                     helpStr = '''
@@ -16191,7 +16220,6 @@ Description:
     Show running {2:1} processes
 
 Options:
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode, __module__)
 
@@ -16205,7 +16233,6 @@ Description:
     Send signal to all running Guider processes to run
 
 Options:
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16219,7 +16246,6 @@ Description:
     Send the event signal to all running Guider processes
 
 Options:
-    -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16479,12 +16505,16 @@ Copyright:
 
 
     @staticmethod
-    def checkPerm(exit=True):
+    def checkPerm(exit=True, verb=True):
         if not SysMgr.isRoot():
-            SysMgr.printErr(\
-                "Fail to get root permission")
+            if verb:
+                SysMgr.printErr(\
+                    "Fail to get root permission")
             if exit:
                 sys.exit(0)
+            return False
+        else:
+            return True
 
 
 
@@ -21378,6 +21408,15 @@ Copyright:
 
 
     @staticmethod
+    def isIoTestMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'iotest':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isMemTestMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'memtest':
             return True
@@ -22008,6 +22047,10 @@ Copyright:
         elif SysMgr.isCpuTestMode():
             SysMgr.doCpuTest()
 
+        # IOTEST MODE #
+        elif SysMgr.isIoTestMode():
+            SysMgr.doIoTest()
+
         # MEMTEST MODE #
         elif SysMgr.isMemTestMode():
             SysMgr.doMemTest()
@@ -22543,7 +22586,7 @@ Copyright:
             "mount -t debugfs nodev %s" % mp
         os.system(SysMgr.mountCmd)
 
-        SysMgr.mountPath = SysMgr.getMountPath()
+        SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printErr(\
                 "Fail to mount debugfs to trace events")
@@ -22556,7 +22599,7 @@ Copyright:
         pids = []
 
         # mount debug fs #
-        SysMgr.mountPath = SysMgr.getMountPath()
+        SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printWarn(\
                 "Fail to get debugfs mount point", True)
@@ -25212,6 +25255,201 @@ Copyright:
 
 
     @staticmethod
+    def doIoTest():
+        # gather system info including mount #
+        SysMgr()
+
+        workload = []
+
+        def flushCache(verb=False):
+            try:
+                if SysMgr.checkPerm(exit=False, verb=False):
+                    dropCachePath = \
+                        '%s/sys/vm/drop_caches' % SysMgr.procPath
+                    with open(dropCachePath, 'w') as fd:
+                        if verb:
+                            SysMgr.printInfo(\
+                                'start flushing system cache... ', suffix=False)
+                        ret = fd.write('3')
+                        if verb:
+                            SysMgr.printInfo("[Done]", prefix=False, notitle=True)
+                else:
+                    raise Exception('no root permission')
+            except:
+                SysMgr.printWarn(\
+                    'Fali to flush system cache because %s' % \
+                        SysMgr.getErrReason())
+
+
+        def iotask(num, load):
+            SysMgr.setDefaultSignal()
+
+            op = load['op']
+            path = load['path']
+            direction = load['direction']
+            if 'size' in load:
+                size = load['size']
+            else:
+                size = 0
+
+            if os.path.isfile(path) or \
+                SysMgr.isBlkDev(path):
+                target = 'file'
+                SysMgr.printInfo(\
+                    "created a process to generate I/O from '%s'" % path)
+            elif os.path.isdir(path):
+                target = 'dir'
+                SysMgr.printInfo(\
+                    "created a process to generate I/O from '%s'" % path)
+            else:
+                SysMgr.printErr(\
+                    "Failed to access '%s'" % path)
+                return
+
+            def readChunk(fobj, size=4096):
+                while 1:
+                    data = fobj.read(size)
+                    yield data
+
+            # run loop #
+            while 1:
+                flushCache()
+
+                totalSize = 0
+
+                if target == 'file':
+                    try:
+                        if direction:
+                            start = 0
+                        else:
+                            start = long(size / 2)
+
+                        with open(path, 'rb') as f:
+                            f.seek(start)
+                            for piece in readChunk(f):
+                                if not piece:
+                                    break
+                    except:
+                        pass
+                elif target == 'dir':
+                    if direction:
+                        targetList = os.walk(path)
+                    else:
+                        targetList = reversed(list(os.walk(path)))
+
+                    for r, d, f in targetList:
+                        for item in f:
+                            try:
+                                fpath = os.path.join(r, item)
+                                if not os.path.isfile(fpath):
+                                    continue
+                                with open(fpath, 'rb') as fd:
+                                    fd.read()
+                            except:
+                                pass
+
+        # get tasks #
+        try:
+            if SysMgr.filterGroup:
+                for item in SysMgr.filterGroup:
+                    item = item.split(':')
+                    if len(item) == 1:
+                        op = 'read'
+                        path = item[0]
+                    else:
+                        op, path = item
+
+                    if not os.path.exists(path):
+                        SysMgr.printErr(\
+                            "Fail to access %s" % path)
+                        sys.exit(0)
+
+                    workload.append(\
+                        {'op': op, 'path': path})
+
+            elif SysMgr.showAll:
+                for path, value in SysMgr.sysInstance.mountInfo.items():
+                    if path.startswith('/dev/') and \
+                        not 'loop' in path:
+
+                        stat = os.statvfs(value['path'])
+                        size = (stat.f_bsize * stat.f_blocks)
+
+                        workload.append(\
+                            {'op': 'read', 'path': path, 'size': size})
+            else:
+                # get device id #
+                fstat = os.lstat('.')
+                major = str(os.major(fstat.st_dev))
+                minor = str(os.minor(fstat.st_dev))
+
+                # get mount point #
+                mountPoint = None
+                for path, value in SysMgr.sysInstance.mountInfo.items():
+                    if value['major'] == major and \
+                        value['minor'] == minor:
+                        mountPoint = value['path']
+                        break
+
+                if not mountPoint:
+                    mountPoint = '.'
+
+                if not os.path.exists(mountPoint):
+                    SysMgr.printErr(\
+                        "Fail to access %s" % mountPoint)
+                    sys.exit(0)
+
+                workload.append(\
+                    {'op': 'read', 'path': mountPoint})
+
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "wrong option value because %s" % \
+                        SysMgr.getErrReason())
+            sys.exit(0)
+
+        # drop cache #
+        flushCache(verb=True)
+
+        # run tasks #
+        ioTasks = dict()
+        for cnt in xrange(0, 1):
+            for idx in xrange(0, len(workload)):
+                try:
+                    pid = SysMgr.createProcess()
+                    if pid == 0:
+                        if cnt % 2:
+                            workload[idx]['direction'] = True
+                        else:
+                            workload[idx]['direction'] = False
+
+                        iotask(idx, workload[idx])
+                    else:
+                        ioTasks[pid] = workload[idx]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    err = SysMgr.getErrReason()
+                    SysMgr.printErr(\
+                        "Failed to create process because %s" % err)
+                    sys.exit(0)
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
+
+        # ignore SIGCHLD #
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+        # wait for childs #
+        if len(ioTasks) > 0:
+            SysMgr.waitEvent()
+
+
+
+    @staticmethod
     def doCpuTest():
         import random
 
@@ -25270,10 +25508,6 @@ Copyright:
                     cputask(idx, load)
                 else:
                     limitInfo[pid] = load
-
-                    # set affinity #
-                    for item in SysMgr.affinityFilter:
-                        SysMgr.setAffinity(item[0], [str(pid)])
             except SystemExit:
                 pass
             except:
@@ -25291,6 +25525,11 @@ Copyright:
             "created %s and limited them to use CPU a total of %d%% " \
             "and %d%% respectively") % \
                 (taskstr, totalLoad, load))
+
+        # set affinity #
+        for pid in list(limitInfo.keys()):
+            for item in SysMgr.affinityFilter:
+                SysMgr.setAffinity(item[0], [pid])
 
         # set alarm #
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
@@ -26699,7 +26938,7 @@ Copyright:
 
 
     @staticmethod
-    def getMountPath():
+    def getDebugfsPath():
         try:
             lines = SysMgr.procReadlines('mounts')
         except:
@@ -27064,7 +27303,7 @@ Copyright:
                 SysMgr.writeCmd('signal/enable', '1')
 
         # mount debugfs #
-        SysMgr.mountPath = SysMgr.getMountPath()
+        SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.mountDebugfs()
 
