@@ -22930,8 +22930,8 @@ Copyright:
     def printBgProcs(cache=False, pager=False):
         if SysMgr.jsonOutputEnable:
             result = (SysMgr.getBgProcList(isJson=True))
-            json_result = UtilMgr.convertDict2Str(result)
-            SysMgr.printPipe(json_result)
+            jsonResult = UtilMgr.convertDict2Str(result)
+            SysMgr.printPipe(jsonResult)
             return
 
         SysMgr.updateBgProcs(cache)
@@ -24930,64 +24930,70 @@ Copyright:
 
     @staticmethod
     def printDirs(path='.', maxLevel=-1):
-        def get_dirs(result, parent_path, level, max_level):
-            file_list = os.listdir(parent_path)
-            parent_abspath = "%s" % (os.path.abspath(parent_path))
+        def getDirs(result, parentPath, level, maxLevel):
+            fileList = os.listdir(parentPath)
+            parentAbsPath = "%s" % (os.path.abspath(parentPath))
 
-            if len(file_list) == 0 or \
-                    (max_level != -1 and max_level <= level):
+            if len(fileList) == 0 or \
+                    (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
-            total_size = long(0)
-            total_file = long(0)
-            total_dir = long(0)
+            totalSize = long(0)
+            totalFile = long(0)
+            totalDir = long(0)
 
             # sort by size #
             if SysMgr.showAll:
-                file_list.sort( \
+                fileList.sort( \
                     key=lambda name: os.path.getsize( \
-                        '%s/%s' % (parent_path, name)), reverse=True)
+                        '%s/%s' % (parentPath, name)), reverse=True)
             # sort by type #
             else:
-                file_list.sort( \
-                    key=lambda f: os.path.isfile(os.path.join(parent_path, f)))
+                fileList.sort( \
+                    key=lambda f: os.path.isfile(os.path.join(parentPath, f)))
 
-            for idx, sub_path in enumerate(file_list):
+            for idx, subPath in enumerate(fileList):
 
-                full_path = os.path.join(parent_path, sub_path)
+                fullPath = os.path.join(parentPath, subPath)
 
-                if os.path.islink(full_path):
+                if os.path.islink(fullPath):
                     continue
 
-                sub_abspath = "%s" % (os.path.abspath(full_path))
+                subAbsPath = "%s" % (os.path.abspath(fullPath))
 
-                if os.path.isdir(full_path):
-                    total_dir += 1
-                    info = dict(sub_dirs=dict(), files=dict())
-                    result[parent_abspath]['sub_dirs'][sub_abspath] = info
-                    total_info = get_dirs(result[parent_abspath]['sub_dirs'], full_path, level + 1, max_level)
+                if os.path.isdir(fullPath):
+                    totalDir += 1
+                    if SysMgr.showAll:
+                        info = dict(subDirs=dict(), subFiles=dict())
+                    else:
+                        info = dict(subDirs=dict())
+                    result[parentAbsPath]['subDirs'][subAbsPath] = info
+                    totalInfo = \
+                        getDirs(result[parentAbsPath]['subDirs'], \
+                            fullPath, level + 1, maxLevel)
 
-                    total_size += total_info[0]
-                    total_dir += total_info[1]
-                    total_file += total_info[2]
+                    totalSize += totalInfo[0]
+                    totalDir += totalInfo[1]
+                    totalFile += totalInfo[2]
 
-                elif os.path.isfile(full_path):
-                    total_file += 1
-                    size = os.stat(full_path).st_size
-                    total_size += size
+                elif os.path.isfile(fullPath):
+                    totalFile += 1
+                    size = os.stat(fullPath).st_size
+                    totalSize += size
 
                     if not SysMgr.showAll:
                         continue
 
-                    if 'files' not in result[parent_abspath]:
-                        result[parent_abspath]['files'] = dict()
-                    result[parent_abspath]['files'][sub_abspath] = dict(size=UtilMgr.convertSize2Unit(size), type='file')
+                    if 'subFiles' not in result[parentAbsPath]:
+                        result[parentAbsPath]['subFiles'] = dict()
+                    result[parentAbsPath]['subFiles'][subAbsPath] = \
+                        dict(size=UtilMgr.convertSize2Unit(size), type='file')
 
-            result[parent_abspath]['size'] = UtilMgr.convertSize2Unit(total_size)
-            result[parent_abspath]['dir'] = UtilMgr.convertNumber(total_dir)
-            result[parent_abspath]['file'] = UtilMgr.convertNumber(total_file)
+            result[parentAbsPath]['size'] = UtilMgr.convertSize2Unit(totalSize)
+            result[parentAbsPath]['nrDir'] = UtilMgr.convertNumber(totalDir)
+            result[parentAbsPath]['nrFile'] = UtilMgr.convertNumber(totalFile)
 
-            return (total_size, total_dir, total_file)
+            return (totalSize, totalDir, totalFile)
 
         def recurse(parentPath, fileList, prefix, result, level, maxLevel):
             totalSize = long(0)
@@ -25030,7 +25036,8 @@ Copyright:
                     subdirs = os.listdir(fullPath)
 
                     rlist = recurse( \
-                        fullPath, subdirs, tmpPrefix, result, level + 1, maxLevel)
+                        fullPath, subdirs, tmpPrefix, \
+                            result, level + 1, maxLevel)
 
                     totalSize += rlist[0]
                     totalDir += rlist[1]
@@ -25083,10 +25090,14 @@ Copyright:
         # print start path #
         if SysMgr.jsonOutputEnable:
             result = dict()
-            result[os.path.abspath(path)] = dict(sub_dirs=dict(), files=dict())
-            get_dirs(result, path, 0, -1)
-            json_result = UtilMgr.convertDict2Str(result)
-            SysMgr.printPipe(json_result)
+            if SysMgr.showAll:
+                result[os.path.abspath(path)] = \
+                    dict(subDirs=dict(), subFiles=dict())
+            else:
+                result[os.path.abspath(path)] = dict(subDirs=dict())
+            getDirs(result, path, 0, -1)
+            jsonResult = UtilMgr.convertDict2Str(result)
+            SysMgr.printPipe(jsonResult)
         else:
             abspath = "[%s]" % (os.path.abspath(path))
             result = [abspath]
