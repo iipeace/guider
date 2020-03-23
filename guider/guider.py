@@ -16208,6 +16208,9 @@ Examples:
 
     - Read contents of all device nodes mounted
         # {0:1} {1:1} -a
+
+    - Write contents to a specific file
+        # {0:1} {1:1} -g write:TEST
                     '''.format(cmd, mode)
 
                 # list #
@@ -25271,6 +25274,7 @@ Copyright:
         SysMgr()
 
         workload = []
+        writeData = '0' * 4096
 
         def flushCache(verb=False):
             try:
@@ -25293,34 +25297,52 @@ Copyright:
 
 
         def iotask(num, load):
+            def readChunk(fobj, size=4096):
+                while 1:
+                    data = fobj.read(size)
+                    yield data
+
+            def writeChunk(fobj, size=4096):
+                while 1:
+                    fobj.write(writeData)
+                    yield 1
+
             SysMgr.setDefaultSignal()
 
             op = load['op']
             path = load['path']
-            direction = load['direction']
-            if 'size' in load:
-                size = load['size']
+
+            # set operation #
+            if op == 'read':
+                opFunc = readChunk
+                perm = 'rb'
+            elif op == 'write':
+                opFunc = writeChunk
+                perm = 'wb'
             else:
-                size = 0
+                SysMgr.printErr(\
+                    "Failed to recognize operation %s" % op)
+                sys.exit(0)
 
             if os.path.isfile(path) or \
                 SysMgr.isBlkDev(path):
                 target = 'file'
-                SysMgr.printInfo(\
-                    "created a process to generate I/O from '%s'" % path)
             elif os.path.isdir(path):
-                target = 'dir'
-                SysMgr.printInfo(\
-                    "created a process to generate I/O from '%s'" % path)
+                if op == 'write':
+                    target = 'file'
+                    path = os.path.join(path, 'IOTEST.out')
+                else:
+                    target = 'dir'
+            elif op == 'write' and \
+                SysMgr.isWritable(path):
+                target = 'file'
             else:
                 SysMgr.printErr(\
                     "Failed to access '%s'" % path)
                 return
 
-            def readChunk(fobj, size=4096):
-                while 1:
-                    data = fobj.read(size)
-                    yield data
+            SysMgr.printInfo(\
+                "created a process to generate I/O from '%s'" % path)
 
             # run loop #
             while 1:
@@ -25330,23 +25352,15 @@ Copyright:
 
                 if target == 'file':
                     try:
-                        if direction:
-                            start = 0
-                        else:
-                            start = long(size / 2)
-
-                        with open(path, 'rb') as f:
-                            f.seek(start)
-                            for piece in readChunk(f):
+                        with open(path, perm) as f:
+                            f.seek(0)
+                            for piece in opFunc(f):
                                 if not piece:
                                     break
                     except:
                         pass
                 elif target == 'dir':
-                    if direction:
-                        targetList = os.walk(path)
-                    else:
-                        targetList = reversed(list(os.walk(path)))
+                    targetList = os.walk(path)
 
                     for r, d, f in targetList:
                         for item in f:
@@ -25354,8 +25368,10 @@ Copyright:
                                 fpath = os.path.join(r, item)
                                 if not os.path.isfile(fpath):
                                     continue
-                                with open(fpath, 'rb') as fd:
-                                    fd.read()
+                                with open(fpath, perm) as f:
+                                    for piece in opFunc(f):
+                                        if not piece:
+                                            break
                             except:
                                 pass
 
@@ -25370,7 +25386,8 @@ Copyright:
                     else:
                         op, path = item
 
-                    if not os.path.exists(path):
+                    if op != 'write' and \
+                        not os.path.exists(path):
                         SysMgr.printErr(\
                             "Fail to access %s" % path)
                         sys.exit(0)
@@ -25431,11 +25448,6 @@ Copyright:
                 try:
                     pid = SysMgr.createProcess()
                     if pid == 0:
-                        if cnt % 2:
-                            workload[idx]['direction'] = True
-                        else:
-                            workload[idx]['direction'] = False
-
                         iotask(idx, workload[idx])
                     else:
                         ioTasks[pid] = workload[idx]
