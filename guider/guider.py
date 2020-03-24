@@ -12402,6 +12402,9 @@ class LogMgr(object):
         SysMgr.printInfo(\
             "start printing syslog... [ STOP(Ctrl+c) ]")
 
+        # set file posiion #
+        SysMgr.syslogFd.seek(0)
+
         while 1:
             log = SysMgr.syslogFd.readline()
 
@@ -12645,6 +12648,9 @@ class LogMgr(object):
                 SysMgr.printPipe(logBuf)
 
             return
+
+        # change file position #
+        SysMgr.kmsgFd.seek(0)
 
         # kmsg node #
         while 1:
