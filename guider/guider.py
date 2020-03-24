@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200323"
+__revision__ = "200324"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -25274,7 +25274,7 @@ Copyright:
         SysMgr()
 
         workload = []
-        writeData = '0' * 4096
+        writeData = b'0' * 4096
 
         def flushCache(verb=False):
             try:
@@ -25299,38 +25299,45 @@ Copyright:
         def iotask(num, load):
             def readChunk(fobj, size=4096):
                 while 1:
-                    data = fobj.read(size)
-                    yield data
+                    ret = os.read(fobj, size)
+                    yield ret
 
-            def writeChunk(fobj, size=4096):
+            def writeChunk(fobj, sync=False, size=4096):
                 while 1:
-                    fobj.write(writeData)
-                    yield 1
+                    ret = os.write(fobj, writeData[:size])
+                    if sync:
+                        os.fsync(fobj)
+                    yield ret
 
             SysMgr.setDefaultSignal()
 
             op = load['op']
             path = load['path']
+            flag = os.O_RDWR | os.O_CREAT | os.O_TRUNC
 
             # set operation #
             if op == 'read':
                 opFunc = readChunk
-                perm = 'rb'
             elif op == 'write':
                 opFunc = writeChunk
-                perm = 'wb'
             else:
                 SysMgr.printErr(\
                     "Failed to recognize operation %s" % op)
                 sys.exit(0)
 
+            # set direction #
+            if op == 'write':
+                direct = 'to'
+            elif op == 'read':
+                direct = 'from'
+
+            # check I/O type #
             if os.path.isfile(path) or \
                 SysMgr.isBlkDev(path):
                 target = 'file'
             elif os.path.isdir(path):
                 if op == 'write':
-                    target = 'file'
-                    path = os.path.join(path, 'IOTEST.out')
+                    path = os.path.join(path, 'WRTEST')
                 else:
                     target = 'dir'
             elif op == 'write' and \
@@ -25342,7 +25349,8 @@ Copyright:
                 return
 
             SysMgr.printInfo(\
-                "created a process to generate I/O from '%s'" % path)
+                "created a new process to %s %s '%s'" % \
+                    (op, direct, path))
 
             # run loop #
             while 1:
@@ -25352,13 +25360,13 @@ Copyright:
 
                 if target == 'file':
                     try:
-                        with open(path, perm) as f:
-                            f.seek(0)
-                            for piece in opFunc(f):
-                                if not piece:
-                                    break
+                        fd = os.open(path, flag)
+                        for piece in opFunc(fd):
+                            if not piece:
+                                return
                     except:
-                        pass
+                        SysMgr.printErr(SysMgr.getErrReason())
+                        break
                 elif target == 'dir':
                     targetList = os.walk(path)
 
@@ -25368,12 +25376,13 @@ Copyright:
                                 fpath = os.path.join(r, item)
                                 if not os.path.isfile(fpath):
                                     continue
-                                with open(fpath, perm) as f:
-                                    for piece in opFunc(f):
-                                        if not piece:
-                                            break
+
+                                fd = os.open(path, flag)
+                                for piece in opFunc(fd):
+                                    if not piece:
+                                        break
                             except:
-                                pass
+                                SysMgr.printWarn(SysMgr.getErrReason())
 
         # get tasks #
         try:
@@ -25463,12 +25472,14 @@ Copyright:
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
-        # ignore SIGCHLD #
-        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
-
         # wait for childs #
-        if len(ioTasks) > 0:
-            SysMgr.waitEvent()
+        while 1:
+            if len(ioTasks) == 0:
+                break
+            SysMgr.waitEvent(ignChldSig=False, exit=True)
+            SysMgr.updateChilds()
+            if SysMgr.isNoChild():
+                break
 
 
 
