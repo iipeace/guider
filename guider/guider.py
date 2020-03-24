@@ -12406,7 +12406,6 @@ class LogMgr(object):
             SysMgr.printPipe(log, newline=False)
 
 
-
     @staticmethod
     def printJournal():
        # get ctypes object #
@@ -12639,13 +12638,18 @@ class LogMgr(object):
                 SysMgr.printPipe(logBuf)
 
             return
+        # toDo: add lseek option #
+
+        SysMgr.printInfo( \
+            "start printing kernel log... [ STOP(Ctrl+c) ]")
 
         # change file position #
         SysMgr.kmsgFd.seek(0)
 
         # kmsg node #
         while 1:
-            log = SysMgr.kmsgFd.readline()
+            jsonResult = dict()
+            log = fd.readline()
 
             if not UtilMgr.isEffectiveStr(log):
                 continue
@@ -12660,8 +12664,6 @@ class LogMgr(object):
                     level = ConfigMgr.LOG_LEVEL[nrLevel]
                 except:
                     level = nrLevel
-                if not SysMgr.printFile:
-                    level = UtilMgr.convertColor(level, 'BOLD')
 
                 # time #
                 ltime = str(meta[2])
@@ -12669,21 +12671,24 @@ class LogMgr(object):
                     ltime = '0.%s' % ltime
                 else:
                     ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
-                if not SysMgr.printFile:
-                    ltime = UtilMgr.convertColor(ltime, 'GREEN')
 
                 # name & log #
-                log = log[pos+1:]
+                log = log[pos + 1:]
                 npos = log.find(':')
                 name = log[:npos]
-                if not SysMgr.printFile:
-                    name = UtilMgr.convertColor(name, 'SPECIAL')
                 if log[-1] == '\n':
-                    log = log[npos+1:-1]
+                    log = log[npos + 1:-1]
                 else:
-                    log = log[npos+1:]
+                    log = log[npos + 1:]
 
-                log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
+                if SysMgr.jsonOutputEnable:
+                    jsonResult = dict(time=ltime, level=nrLevel, name=name, log=log)
+                else:
+                    if not SysMgr.printFile:
+                        level = UtilMgr.convertColor(level, 'BOLD')
+                        name = UtilMgr.convertColor(name, 'SPECIAL')
+                        ltime = UtilMgr.convertColor(ltime, 'GREEN')
+                    log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
 
             # apply filter #
             if len(SysMgr.filterGroup) > 0:
@@ -12696,9 +12701,11 @@ class LogMgr(object):
                 if not found:
                     continue
 
-            SysMgr.printPipe(log[:-1])
-
-
+            if SysMgr.jsonOutputEnable:
+                jsonResult = UtilMgr.convertDict2Str(jsonResult)
+                SysMgr.printPipe(jsonResult)
+            else:
+                SysMgr.printPipe(log[:-1])
 
     @staticmethod
     def doLogKmsg(msg=None, level=None):
