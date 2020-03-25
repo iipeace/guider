@@ -14729,7 +14729,7 @@ class SysMgr(object):
     @staticmethod
     def checkEnv():
         # check os #
-        if SysMgr.isLinux:
+        if sys.platform.startswith('linux'):
             SysMgr.isLinux = True
 
             # environment variables #
@@ -17199,7 +17199,7 @@ Copyright:
 
     @staticmethod
     def isRoot():
-        if os.geteuid() == 0:
+        if SysMgr.isLinux and os.geteuid() == 0:
             return True
         else:
             return False
@@ -19956,7 +19956,7 @@ Copyright:
             recVer = infoBuf[verPosStart:verPosEnd].split()[1]
             if recVer != __version__:
                 SysMgr.printWarn(\
-                    "Data version (%s) is different from current software (%s)" % \
+                    "data version (%s) is different from current software (%s)" % \
                     (__version__, recVer), True)
         except:
             pass
