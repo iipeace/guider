@@ -24145,19 +24145,38 @@ Copyright:
 
 
     @staticmethod
-    def launchGuider(cmd, log=False, changeIO=True, stderr=False):
+    def launchGuider(\
+        cmd, log=False, mute=False, pipe=True, stderr=False, wait=False):
+        # check mute #
+        if mute:
+            pipe = False
+
         # create pipe #
-        rd, wr = os.pipe()
+        if pipe:
+            rd, wr = os.pipe()
 
-        # set SIGPIPE handler #
-        SysMgr.setPipeHandler()
+            # set SIGPIPE handler #
+            SysMgr.setPipeHandler()
+        else:
+            rd = wr = None
 
-        pid = SysMgr.createProcess()
+        # create a new process #
+        pid = SysMgr.createProcess(mute=mute)
 
         # parent #
         if pid > 0:
-            os.close(wr)
-            return (pid, os.fdopen(rd))
+            if pipe:
+                os.close(wr)
+                rdFd = os.fdopen(rd)
+            else:
+                rdFd = None
+
+            # wait for child temrination #
+            if wait:
+                SysMgr.waitChild(pid)
+                return None
+
+            return (pid, rdFd)
 
         # child #
         elif pid == 0:
@@ -24174,7 +24193,7 @@ Copyright:
                 SysMgr.encodeEnable = False
 
             # change standard I/O #
-            if changeIO:
+            if pipe:
                 os.dup2(wr,1)
                 os.close(wr)
                 os.close(rd)
@@ -24192,6 +24211,41 @@ Copyright:
         else:
             SysMgr.printErr(\
                 "Fail to launch Guider because of process creation fail")
+
+
+
+    @staticmethod
+    def waitChild(pid=None, hang=True):
+        # wait for all childs #
+        if not pid:
+            while 1:
+                try:
+                    os.waitpid(-1, 0)
+                except:
+                    pass
+
+                if SysMgr.condExit:
+                    break
+
+                # check childs #
+                SysMgr.updateChilds()
+                if SysMgr.isNoChild():
+                    break
+            return
+
+        # set blocking flag #
+        if hang:
+            flag = 0
+        else:
+            flag = os.WNOHANG
+
+        # wait for a specific child #
+        try:
+            return os.waitpid(pid, flag)
+        except:
+            SysMgr.printWarn(\
+                "Fail to wait %s task because %s" % \
+                    (pid, SysMgr.getErrReason()))
 
 
 
