@@ -3331,8 +3331,7 @@ class UtilMgr(object):
                     string = '%s%s|' % (string, flist[0])
             except:
                 SysMgr.printErr(\
-                    "Fail to get flag info for %s because %s" % \
-                    (value, SysMgr.getErrReason()))
+                    "Fail to get flag info for %s" % value, True)
         if len(string) > 0:
             return string[:-1]
         else:
@@ -3719,10 +3718,8 @@ class UtilMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to write JSON format data to %s because %s" % \
-                    (path, err))
+                "Fail to write JSON format data to %s" % path, True)
             sys.exit(0)
 
 
@@ -4138,8 +4135,8 @@ class NetworkMgr(object):
             except:
                 err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    'Fail to download %s from %s:%s:%s because %s' % \
-                    (origPath, targetIp, targetPort, targetPath, err))
+                    'Fail to download %s from %s:%s:%s' % \
+                        (origPath, targetIp, targetPort, targetPath), True)
             finally:
                 receiver.close()
 
@@ -4203,10 +4200,9 @@ class NetworkMgr(object):
                         (origPath, convert(os.path.getsize(origPath)), \
                             addr, targetPath))
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to upload %s to %s:%s because %s" % \
-                        (origPath, addr, targetPath, err))
+                    "Fail to upload %s to %s:%s" % \
+                        (origPath, addr, targetPath), True)
             finally:
                 sender.close()
 
@@ -4337,10 +4333,9 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to send data to %s:%d as server because %s" % \
-                (self.ip, self.port, err))
+                "Fail to send data to %s:%d as server" % \
+                (self.ip, self.port), True)
             return False
 
 
@@ -4365,10 +4360,9 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to send data to %s:%d as client because %s" % \
-                (self.ip, self.port, err))
+                "Fail to send data to %s:%d as client" % \
+                (self.ip, self.port), True)
             return False
 
 
@@ -4433,10 +4427,9 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to get data from %s:%d as client because %s" % \
-                (self.ip, self.port, err))
+                "Fail to get data from %s:%d as client" % \
+                (self.ip, self.port), True)
             return None
 
         # decode data #
@@ -4473,7 +4466,7 @@ class NetworkMgr(object):
                 if noTimeout:
                     continue
                 SysMgr.printWarn(\
-                    "Fail to receive data from %s:%d as client because %s" % \
+                    "Fail to receive data from %s:%d as client because of %s" % \
                     (self.ip, self.port, 'timeout'))
                 return None
             except KeyboardInterrupt:
@@ -4619,10 +4612,9 @@ class NetworkMgr(object):
                 lport = SysMgr.localServObj.port
                 SysMgr.remoteServObj.socket.bind((lip, lport))
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to bind socket to %s:%s for connection because %s" % \
-                    (lip, lport, err))
+                "Fail to bind socket to %s:%s for connection" % \
+                    (lip, lport), True)
 
         # do connect to server #
         try:
@@ -4647,9 +4639,8 @@ class NetworkMgr(object):
 
             return connObj
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to set socket for connection because %s" % err)
+                "Fail to set socket for connection", True)
             return None
 
 
@@ -7255,10 +7246,8 @@ class FunctionAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to get symbol from %s because %s" % \
-                        (binPath, err))
+                    "Fail to get symbol from %s" % binPath, True)
                 return None
 
             # get system addr2line path #
@@ -7520,9 +7509,8 @@ class FunctionAnalyzer(object):
                 self.nowCtx['userLastPos'], self.nowCtx['userStack'], \
                 targetEvent, targetCnt, targetArg)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to save full stacks because %s" % err)
+                "Fail to save full stacks", True)
             sys.exit(0)
 
 
@@ -11083,9 +11071,8 @@ class LeakAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to analyze leakage because %s" % err)
+                "Fail to analyze leakage", True)
 
         SysMgr.printInfo("start resolving symbols...")
 
@@ -12495,8 +12482,7 @@ class LogMgr(object):
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
         except:
             SysMgr.printErr(\
-                "Fail to print journal because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to print journal", True)
             sys.exit(0)
 
         # define shortcut for object #
@@ -12772,8 +12758,7 @@ class LogMgr(object):
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
         except:
             SysMgr.printErr(\
-                "Fail to log journal because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to log journal", True)
             sys.exit(0)
 
         return SysMgr.systemdObj.sd_journal_print(level, msg)
@@ -12790,6 +12775,15 @@ class SysMgr(object):
         pageSize = os.sysconf("SC_PAGE_SIZE")
     except:
         pageSize = 4096
+
+    arch = None
+    origArgs = None
+    kernelVersion = None
+    isLinux = True
+    isAndroid = False
+    helpEnable = False
+    drawMode = False
+    archOption = None
 
     startTime = long(0)
     startRunTime = long(0)
@@ -12822,7 +12816,7 @@ class SysMgr(object):
     wordSize = 4
 
     HZ = 250 # 4ms tick #
-    if sys.platform.startswith('linux'):
+    if isLinux:
         TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
     else:
         TICK = long((1 / float(HZ)) * 1000)
@@ -12856,14 +12850,6 @@ class SysMgr(object):
     sourceFile = None
     printFile = None
 
-    arch = None
-    origArgs = None
-    kernelVersion = None
-    isLinux = True
-    isAndroid = False
-    helpEnable = False
-    drawMode = False
-    archOption = None
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
     boundaryLine = None
@@ -13075,7 +13061,7 @@ class SysMgr(object):
 
 
     def __init__(self):
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         SysMgr.sysInstance = self
@@ -13165,15 +13151,14 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to load libc because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to load libc", True)
             return False
 
 
 
     @staticmethod
     def shrinkHeap():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         # get ctypes object #
@@ -13243,7 +13228,7 @@ class SysMgr(object):
 
     @staticmethod
     def setMaxFd():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         '''
@@ -13744,9 +13729,8 @@ class SysMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to set signals because %s" % err)
+                    "Fail to set signal", True)
                 sys.exit(0)
 
 
@@ -13796,8 +13780,7 @@ class SysMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "wrong option value '%s' with -z because %s" % \
-                        (origVal, SysMgr.getErrReason()))
+                    "wrong option value '%s' with -z" % origVal, True)
                 sys.exit(0)
 
 
@@ -14037,7 +14020,7 @@ class SysMgr(object):
 
     @staticmethod
     def setOOMAdj(pid='self', pri='-17'):
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         if not SysMgr.isRoot():
@@ -14174,7 +14157,7 @@ class SysMgr(object):
 
     @staticmethod
     def setComm(comm):
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         # try to set comm using native lib #
@@ -14741,7 +14724,7 @@ class SysMgr(object):
     @staticmethod
     def checkEnv():
         # check os #
-        if sys.platform.startswith('linux'):
+        if SysMgr.isLinux:
             SysMgr.isLinux = True
 
             # environment variables #
@@ -18778,8 +18761,7 @@ Copyright:
             nrType = ConfigMgr.AT_TYPE[attype]
         except:
             SysMgr.printErr(\
-                "Fail to get entry type %s because %s" % \
-                    (attype, SysMgr.getErrReason()))
+                "Fail to get entry type %s" % attype, True)
             return
 
         # import ctypes #
@@ -19434,9 +19416,9 @@ Copyright:
                 SysMgr.printInfo(\
                     '%s is renamed to %s' % (outputFile, backupFile))
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to backup %s because %s" % (outputFile, err))
+                "Fail to backup %s to %s" % \
+                    (outputFile, backupFile), True)
 
         # compress by gzip #
         if SysMgr.isRecordMode() and SysMgr.compressEnable:
@@ -19507,8 +19489,7 @@ Copyright:
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to write trace data to %s because %s" % \
-                (outputFile, err))
+                "Fail to write trace data to %s" % outputFile, True)
 
 
 
@@ -19734,7 +19715,7 @@ Copyright:
             SysMgr.pipeForPrint:
             return
 
-        if sys.platform.startswith('linux') and \
+        if SysMgr.isLinux and \
             not 'REMOTERUN' in os.environ:
             sys.stdout.write("\x1b[2J\x1b[H")
         elif sys.platform.startswith('win'):
@@ -20485,9 +20466,10 @@ Copyright:
                 SysMgr.isTopMode() == \
                 SysMgr.printStreamEnable == False):
             try:
-                if sys.platform.startswith('linux'):
+                if SysMgr.isLinux:
                     if UtilMgr.which('less'):
-                        defopt = '-FRSXM'
+                        #defopt = '-FRSXMQi'
+                        defopt = '-FRXMQi'
 
                         # verify pager option support #
                         ret = os.popen(\
@@ -20594,8 +20576,9 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printWarn(\
-                        "Fail to backup %s" % SysMgr.inputFile)
+                    SysMgr.printErr(\
+                        "Fail to backup %s to %s" % \
+                            (SysMgr.inputFile, backupFile), True)
 
             # open output file #
             try:
@@ -20626,9 +20609,8 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to write to file because %s" % err)
+                    "Fail to write to file", True)
         # print to console #
         else:
             ttyCols = SysMgr.ttyCols
@@ -20709,15 +20691,20 @@ Copyright:
 
 
     @staticmethod
-    def printErr(line):
+    def printErr(line, reason=False):
         #SysMgr.printBacktrace()
         if not SysMgr.logEnable:
             return
 
         SysMgr.flushAllForPrint()
 
-        msg = ('\n%s%s%s%s\n' % \
-            (ConfigMgr.FAIL, '[Error] ', line, ConfigMgr.ENDC))
+        if reason:
+            rstring = ' because %s' % SysMgr.getErrReason()
+        else:
+            rstring = ''
+
+        msg = ('\n%s%s%s%s%s\n' % \
+            (ConfigMgr.FAIL, '[Error] ', line, rstring, ConfigMgr.ENDC))
 
         SysMgr.stderr.write(msg)
 
@@ -20801,8 +20788,7 @@ Copyright:
     @staticmethod
     def printOpenErr(path):
         SysMgr.printErr(\
-            'Fail to open %s because %s' % \
-                (path, SysMgr.getErrReason()))
+            'Fail to open %s' % path, True)
 
 
 
@@ -20854,7 +20840,7 @@ Copyright:
                 continue
 
             SysMgr.printErr(\
-                "wrong -%s option because it is used more than once" % opt[0])
+                "wrong -%s option because of redundant use" % opt[0])
             sys.exit(0)
 
 
@@ -22604,8 +22590,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to analyze %s because %s" % \
-                        (path, SysMgr.getErrReason()))
+                    "Fail to analyze %s" % path, True)
 
         # LEAKTRACE MODE #
         elif SysMgr.isLeaktraceMode():
@@ -23161,8 +23146,9 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn(\
-                    "Fail to backup %s" % reportPath)
+                SysMgr.printErr(\
+                    "Fail to backup %s to %s" % \
+                        (reportPath, backupFile), True)
 
         # open report file #
         try:
@@ -24060,9 +24046,8 @@ Copyright:
 
             os.execvp(cmd[0], cmd)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to execute '%s' because %s" % (' '.join(cmd), err))
+                "Fail to execute '%s'" % ' '.join(cmd), True)
             return -1
 
 
@@ -24363,7 +24348,7 @@ Copyright:
 
     @staticmethod
     def setDefaultSignal():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -24375,7 +24360,7 @@ Copyright:
 
     @staticmethod
     def setSimpleSignal():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         SysMgr.setCommonSignal()
@@ -24389,7 +24374,7 @@ Copyright:
 
     @staticmethod
     def setPipeHandler():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         signal.signal(signal.SIGPIPE, SysMgr.exitHandler)
@@ -24398,7 +24383,7 @@ Copyright:
 
     @staticmethod
     def setCommonSignal():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         signal.signal(signal.SIGCHLD, SysMgr.chldHandler)
@@ -24412,7 +24397,7 @@ Copyright:
 
     @staticmethod
     def setIgnoreSignal():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
@@ -24424,7 +24409,7 @@ Copyright:
 
     @staticmethod
     def setNormalSignal():
-        if not sys.platform.startswith('linux'):
+        if not SysMgr.isLinux:
             return
 
         SysMgr.setCommonSignal()
@@ -24497,10 +24482,9 @@ Copyright:
                         (targetPath, UtilMgr.convertSize2Unit(\
                             os.path.getsize(targetPath)), addr, remotePath))
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to upload %s to %s:%s because %s" % \
-                    (targetPath, addr, err, remotePath))
+                    "Fail to upload %s to %s:%s" % \
+                    (targetPath, addr, remotePath), True)
             finally:
                 netObj.close()
 
@@ -24561,10 +24545,9 @@ Copyright:
                     UtilMgr.convertSize2Unit(\
                         os.path.getsize(targetPath)), addr, origPath))
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    'Fail to download %s from %s:%s because %s' % \
-                        (origPath, addr, targetPath, err))
+                    'Fail to download %s from %s:%s' % \
+                        (origPath, addr, targetPath), True)
             finally:
                 netObj.close()
 
@@ -24643,9 +24626,8 @@ Copyright:
                 SysMgr.printInfo(\
                     "'%s' command is terminated for %s" % (value, addr))
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to execute '%s' from %s because %s" % (value, addr, err))
+                    "Fail to execute '%s' from %s" % (value, addr), True)
             finally:
                 try:
                     connObj.close()
@@ -24785,8 +24767,7 @@ Copyright:
             connMan.timeout()
         except:
             SysMgr.printErr(\
-                'Fail to listen to prepare for connection because %s' % \
-                    SysMgr.getErrReason())
+                'Fail to listen to prepare for connection', True)
             sys.exit(0)
 
         # run mainloop #
@@ -24849,8 +24830,7 @@ Copyright:
                 service, ip, port = NetworkMgr.parseAddr(addrs)
                 if service == ip == port == None:
                     SysMgr.printErr(\
-                        "Fail to recognize command %s because %s" % \
-                            (uinput, SysMgr.getErrReason()))
+                        "Fail to recognize command %s" % uinput, True)
                     return
                 else:
                     NetworkMgr.setRemoteServer(addrs, tcp=True)
@@ -25137,8 +25117,6 @@ Copyright:
                     with open(curgovpath, 'w') as fd:
                         fd.write(gov)
             except:
-                err = SysMgr.getErrReason()
-
                 if not minres:
                     res = 'min clock'
                 elif not maxres:
@@ -25147,7 +25125,7 @@ Copyright:
                     res = 'governor'
 
                 SysMgr.printErr(\
-                    "Fail to set %s of cpu[%s] because %s" % (res, core, err))
+                    "Fail to set %s of cpu[%s]" % (res, core), True)
                 sys.exit(0)
 
             # cur_governor #
@@ -25198,9 +25176,7 @@ Copyright:
         SysMgr.checkPerm()
 
         if len(SysMgr.filterGroup) == 0:
-            SysMgr.printErr(\
-                "No PID with -g option")
-            sys.exit(0)
+            SysMgr.filterGroup.append(SysMgr.pid)
         elif len(SysMgr.filterGroup) > 1:
             SysMgr.printErr(\
                 "wrong option value with -g, input only one tid")
@@ -25553,9 +25529,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Stopped to trace %s because %s" % (mode, err))
+                "Stopped to trace %s" % mode, True)
 
         sys.exit(0)
 
@@ -25612,8 +25587,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to load %s as an ELF object because %s" % \
-                            (filePath, SysMgr.getErrReason()))
+                        "Fail to load %s as an ELF object" % filePath, True)
                     sys.exit(0)
 
                 for addr in addrList:
@@ -25895,8 +25869,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "Fail to get '%s' info because %s" % \
-                                (sym, SysMgr.getErrReason()))
+                            "Fail to get '%s' info" % sym, True)
                         sys.exit(0)
             else:
                 SysMgr.printErr(\
@@ -26004,9 +25977,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to analyze leak because %s" % err)
+                "Fail to analyze leak", True)
 
 
 
@@ -26185,8 +26157,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "wrong option value because %s" % \
-                        SysMgr.getErrReason())
+                "wrong option value", True)
             sys.exit(0)
 
         # drop cache #
@@ -26205,9 +26176,8 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    err = SysMgr.getErrReason()
                     SysMgr.printErr(\
-                        "Failed to create process because %s" % err)
+                        "Failed to create process", True)
                     sys.exit(0)
 
         # set alarm #
@@ -26287,9 +26257,8 @@ Copyright:
             except SystemExit:
                 pass
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Failed to create process because %s" % err)
+                    "Failed to create process", True)
                 sys.exit(0)
 
         if len(limitInfo) > 1:
@@ -26330,9 +26299,8 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Failed to allocate memory because %s" % err)
+                    "Failed to allocate memory", True)
                 sys.exit(0)
 
             SysMgr.printInfo((\
@@ -26404,9 +26372,8 @@ Copyright:
                 except SystemExit:
                     pass
                 except:
-                    err = SysMgr.getErrReason()
                     SysMgr.printErr(\
-                        "Failed to start process because %s" % err)
+                        "Failed to start process", True)
                     sys.exit(0)
 
                 if pid == 0:
@@ -26425,9 +26392,8 @@ Copyright:
                 except SystemExit:
                     pass
                 except:
-                    err = SysMgr.getErrReason()
                     SysMgr.printErr(\
-                        "Failed to start process because %s" % err)
+                        "Failed to start process", True)
                     sys.exit(0)
 
                 if pid == 0:
@@ -26823,8 +26789,7 @@ Copyright:
         myComm = SysMgr.getComm(SysMgr.pid)
         if not myComm:
             SysMgr.printErr(\
-                "Fail to get my comm because %s" % \
-                SysMgr.getErrReason())
+                "Fail to get my comm", True)
             sys.exit(0)
 
         # get my cmdline #
@@ -26833,8 +26798,7 @@ Copyright:
             myCmdline = myCmdline.split()
         else:
             SysMgr.printErr(\
-                "Fail to get my cmdline because %s" % \
-                SysMgr.getErrReason())
+                "Fail to get my cmdline", True)
             sys.exit(0)
 
         # handle Guider processes #
@@ -27124,10 +27088,8 @@ Copyright:
             with open(path, 'r') as fd:
                 return fd.readlines()[0].split('\x00')[:-1]
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to get environment variables of process %s because %s" % \
-                (pid, err))
+                "Fail to get environment variables of process %s" % pid, True)
             return
 
 
@@ -27718,9 +27680,8 @@ Copyright:
         try:
             lines = SysMgr.procReadlines('mounts')
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to get mount path because %s" % err)
+                "Fail to get mount path", True)
             return None
 
         ret = None
@@ -27834,8 +27795,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to execute a exit handler because %s" % \
-                        SysMgr.getErrReason())
+                    "Fail to execute a exit handler", True)
 
         # destroy objects registered #
         del SysMgr.exitFuncList
@@ -30615,9 +30575,8 @@ class DbusAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to load library to analyze dbus packets because %s" % err)
+                "Fail to load library to analyze dbus packets", True)
             sys.exit(0)
 
         # define error object #
@@ -30713,8 +30672,7 @@ class DbusAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to update system stat because %s" % \
-                    SysMgr.getErrReason())
+                    "Fail to update system stat", True)
 
             for pid in taskList:
                 try:
@@ -31068,7 +31026,7 @@ class DbusAnalyzer(object):
                     except:
                         SysMgr.printWarn(\
                             "Fail to get type of GDbusMessage because %s" % \
-                            SysMgr.getErrReason())
+                                SysMgr.getErrReason())
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -32060,8 +32018,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to import socket because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to import socket", True)
             sys.exit(0)
 
         # define default variables #
@@ -32155,8 +32112,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to get the address of dlt-daemon because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to get the address of dlt-daemon", True)
             sys.exit(0)
 
         # connect to server #
@@ -32173,8 +32129,8 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to connect to dlt-daemon with %s:%s because %s" % \
-                    (servIp, servPort, SysMgr.getErrReason()))
+                "Fail to connect to dlt-daemon with %s:%s" % \
+                    (servIp, servPort), True)
             sys.exit(0)
 
         '''
@@ -32202,8 +32158,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to initialize connection because %s" % \
-                SysMgr.getErrReason())
+                "Fail to initialize connection", True)
             sys.exit(0)
 
         # define receiver symbol #
@@ -32679,8 +32634,7 @@ struct msghdr {
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to create file for global lock because %s" % \
-                    SysMgr.getErrReason())
+                "Fail to create file for global lock", True)
 
             if not SysMgr.forceEnable:
                 sys.exit(0)
@@ -33138,8 +33092,7 @@ struct msghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to handle %s command because %s" % \
-                        (cmdval, SysMgr.getErrReason()))
+                    "Fail to handle %s command", True)
                 sys.exit(0)
 
             # re-register command #
@@ -35538,8 +35491,7 @@ struct msghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to convert %s to JSON for marshalling because %s" % \
-                        ([jsonData], SysMgr.getErrReason()))
+                    "Fail to convert %s to JSON for marshalling" % [jsonData], True)
             return
 
         # convert args to string ##
@@ -36323,8 +36275,7 @@ struct msghdr {
                             long(sampleTime) / float(1000000)
                     except:
                         SysMgr.printErr(\
-                            "Fail to set sampling time because %s" % \
-                                SysMgr.getErrReason())
+                            "Fail to set sampling time", True)
                         sys.exit(0)
                 else:
                     self.sampleTime = float(0.0001)
@@ -36363,9 +36314,8 @@ struct msghdr {
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to load symbols because %s" % err)
+                    "Fail to load symbols", True)
                 sys.exit(0)
 
         # print target task info #
@@ -36847,9 +36797,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except SystemExit:
             return
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                'Fail to pause thread %s because %s' % (lastTid, err))
+                'Fail to pause thread %s' % lastTid, True)
 
 
 
@@ -38500,8 +38449,7 @@ class ElfAnalyzer(object):
                 line = proc.stdout.readline()
             except:
                 SysMgr.printErr(\
-                    "Fail to read output from objdump because %s" % \
-                    (' '.join(list(map(str, sys.exc_info()[1].args)))))
+                    "Fail to read output from objdump", True)
 
             # handle error #
             if not line:
@@ -38551,9 +38499,8 @@ class ElfAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printWarn(\
-                "Fail to check relocatable format because %s" % err)
+                "Fail to check relocatable format", True)
             return False
 
         # check file name #
@@ -41832,9 +41779,8 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to draw graph while setting property because %s" % err)
+                "Fail to draw graph", True)
             return
 
         # draw charts #
@@ -41843,9 +41789,8 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to draw chart while setting property because %s" % err)
+                "Fail to draw chart", True)
             return
 
 
@@ -42142,9 +42087,8 @@ class ThreadAnalyzer(object):
                     list(map(UtilMgr.convertUnit2Size, \
                         SysMgr.boundaryLine))
             except:
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to set boundary line because %s" % err)
+                    "Fail to set boundary line", True)
                 sys.exit(0)
 
             # draw boundary graph #
@@ -43682,9 +43626,8 @@ class ThreadAnalyzer(object):
                 SysMgr.printInfo(\
                     '%s is renamed to %s' % (outputFile, oldPath))
         except:
-            err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to backup %s because %s" % (outputFile, err))
+                "Fail to backup %s to %s" % (outputFile, oldPath), True)
 
         # get pylab object #
         SysMgr.importPackageItems('pylab')
@@ -43707,7 +43650,7 @@ class ThreadAnalyzer(object):
         except:
             err = SysMgr.getErrReason()
             SysMgr.printErr(\
-                "Fail to draw image to %s because %s" % (outputFile, err))
+                "Fail to draw image to %s" % outputFile, True)
             return
 
 
@@ -48576,10 +48519,8 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 compressor = None
-                err = SysMgr.getErrReason()
                 SysMgr.printErr(\
-                    "Fail to check compression for %s because %s" % \
-                    (file, err))
+                    "Fail to check compression for %s" % file, True)
 
         while 1:
             start = end = -1
@@ -51825,8 +51766,7 @@ class ThreadAnalyzer(object):
                 cpuBuf = SysMgr.statFd.readlines()
             except:
                 SysMgr.printErr(\
-                    'Fail to read %s because %s' % \
-                    (cpuPath, SysMgr.getErrReason()))
+                    'Fail to read %s' % cpuPath, True)
 
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
