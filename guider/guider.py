@@ -5044,6 +5044,8 @@ class NetworkMgr(object):
 
 
 class GlMgr(object):
+    """ Manager for GL """
+
     instance = None
 
     @staticmethod
@@ -12770,12 +12772,6 @@ class LogMgr(object):
 class SysMgr(object):
     """ Manager for system """
 
-    # page size #
-    try:
-        pageSize = os.sysconf("SC_PAGE_SIZE")
-    except:
-        pageSize = 4096
-
     arch = None
     origArgs = None
     kernelVersion = None
@@ -12784,6 +12780,21 @@ class SysMgr(object):
     helpEnable = False
     drawMode = False
     archOption = None
+
+    # page size #
+    try:
+        pageSize = os.sysconf("SC_PAGE_SIZE")
+    except:
+        pageSize = 4096
+
+    HZ = 250 # 4ms tick #
+    try:
+        if isLinux:
+            TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+        else:
+            TICK = long((1 / float(HZ)) * 1000)
+    except:
+        TICK = long((1 / float(HZ)) * 1000)
 
     startTime = long(0)
     startRunTime = long(0)
@@ -12814,12 +12825,6 @@ class SysMgr(object):
     repeatCount = long(0)
     progressCnt = long(0)
     wordSize = 4
-
-    HZ = 250 # 4ms tick #
-    if isLinux:
-        TICK = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
-    else:
-        TICK = long((1 / float(HZ)) * 1000)
 
     # path #
     procPath = '/proc'
