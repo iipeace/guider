@@ -12515,8 +12515,8 @@ class LogMgr(object):
         usec = c_uint64(0)
 
         # set fields #
-        if SysMgr.sourceFile:
-            fieldList = SysMgr.sourceFile.split(',')
+        if SysMgr.inputParam:
+            fieldList = SysMgr.inputParam.split(',')
         else:
             fieldList = \
                 ["_TIME", "_HOSTNAME", "_TRANSPORT", \
@@ -12852,7 +12852,7 @@ class SysMgr(object):
     eventLogPath = None
     inputFile = None
     outputFile = None
-    sourceFile = None
+    inputParam = None
     printFile = None
 
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
@@ -13202,7 +13202,7 @@ class SysMgr(object):
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             SysMgr.printErr((\
                 "wrong option value with -I option, "
                 "input a %s message") % mtype)
@@ -13214,7 +13214,7 @@ class SysMgr(object):
             signal.alarm(SysMgr.intervalEnable)
 
         while 1:
-            msg = SysMgr.sourceFile
+            msg = SysMgr.inputParam
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(\
@@ -13308,10 +13308,10 @@ class SysMgr(object):
 
     @staticmethod
     def setReportAttr():
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             SysMgr.inputFile = 'guider.dat'
         else:
-            SysMgr.inputFile = SysMgr.sourceFile
+            SysMgr.inputFile = SysMgr.inputParam
 
         if not SysMgr.printFile:
             SysMgr.printFile = \
@@ -13432,7 +13432,7 @@ class SysMgr(object):
             # modify args for drawing multiple input files #
             sys.argv[1] = 'top'
             args = sys.argv[2:]
-            SysMgr.sourceFile = UtilMgr.getFileList(args)
+            SysMgr.inputParam = UtilMgr.getFileList(args)
 
 
 
@@ -14940,6 +14940,7 @@ class SysMgr(object):
                 'cputest': 'CPU',
                 'memtest': 'Memory',
                 'iotest ': 'Storage',
+                'nettest ': 'Network',
                 },
             }
 
@@ -16866,7 +16867,7 @@ Usage:
     # {0:1} {1:1} -g <OP:PATH> [OPTIONS] [--help]
 
 Description:
-    Run I/O operations
+    Run storage I/O operations
 
 Options:
     -g  <OP:PATH>               set path
@@ -16887,6 +16888,31 @@ Examples:
 
     - Write contents to a specific file
         # {0:1} {1:1} -g write:TEST
+                    '''.format(cmd, mode)
+
+                # nettest #
+                elif SysMgr.isNetTestMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Run network I/O operations
+
+Options:
+    -x  <IP:PORT>               set local address
+    -I  <PRO{{:IP:PORT}}>         set job
+    -R  <TIME>                  set timer
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Send UDP packets
+        # {0:1} {1:1}
+
+    - Send UDP packets with 3 processes
+        # {0:1} {1:1} -I udp, udp, udp
                     '''.format(cmd, mode)
 
                 # list #
@@ -21135,7 +21161,7 @@ Copyright:
                 SysMgr.printFile = os.path.normpath(value)
 
             elif option == 'I':
-                SysMgr.sourceFile = value
+                SysMgr.inputParam = value
 
             elif option == 'L':
                 SysMgr.layout = value
@@ -22102,6 +22128,15 @@ Copyright:
 
 
     @staticmethod
+    def isNetTestMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'nettest':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isMemTestMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'memtest':
             return True
@@ -22572,7 +22607,7 @@ Copyright:
         elif SysMgr.isReadelfMode():
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            path = SysMgr.sourceFile
+            path = SysMgr.inputParam
             if not path:
                 SysMgr.printErr(\
                     "No PATH with -I")
@@ -22616,10 +22651,10 @@ Copyright:
         elif SysMgr.isPrintDirMode():
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            if not SysMgr.sourceFile:
+            if not SysMgr.inputParam:
                 root = '.'
             else:
-                root = SysMgr.sourceFile
+                root = SysMgr.inputParam
 
             if not SysMgr.funcDepth:
                 maxLevel = -1
@@ -22704,7 +22739,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(\
-                SysMgr.filterGroup, SysMgr.sourceFile)
+                SysMgr.filterGroup, SysMgr.inputParam)
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
@@ -22734,6 +22769,10 @@ Copyright:
         # IOTEST MODE #
         elif SysMgr.isIoTestMode():
             SysMgr.doIoTest()
+
+        # NETTEST MODE #
+        elif SysMgr.isNetTestMode():
+            SysMgr.doNetTest()
 
         # MEMTEST MODE #
         elif SysMgr.isMemTestMode():
@@ -25371,16 +25410,16 @@ Copyright:
 
         # check input #
         if len(SysMgr.filterGroup) == 0 and \
-            not SysMgr.sourceFile:
+            not SysMgr.inputParam:
             SysMgr.printErr(\
                 "Input value for target with -g or -I option")
             sys.exit(0)
 
         # get input path #
-        if SysMgr.sourceFile:
-            sourceFile = str(SysMgr.sourceFile)
+        if SysMgr.inputParam:
+            inputParam = str(SysMgr.inputParam)
         else:
-            sourceFile = None
+            inputParam = None
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
@@ -25395,9 +25434,9 @@ Copyright:
             allpids = pids
 
         # check tid #
-        if sourceFile:
+        if inputParam:
             pid = None
-            execCmd = sourceFile.split()
+            execCmd = inputParam.split()
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
                 "Fail to get root permission to trace %s" % mode)
@@ -25407,7 +25446,7 @@ Copyright:
                 SysMgr.printErr(\
                     "No thread related to %s" % \
                     ', '.join(SysMgr.filterGroup))
-            elif not sourceFile:
+            elif not inputParam:
                 SysMgr.printErr(\
                     "No TID with -g option or command with -I option")
             else:
@@ -25551,7 +25590,7 @@ Copyright:
         SysMgr.warnEnable = True
 
         # check input #
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             SysMgr.printErr("No PATH with -I")
             sys.exit(0)
 
@@ -25574,7 +25613,7 @@ Copyright:
                     addrList.append(long(addr))
 
         resInfo = {}
-        inputArg = str(SysMgr.sourceFile)
+        inputArg = str(SysMgr.inputParam)
 
         # check process #
         pids = SysMgr.getPids(inputArg, isThread=False)
@@ -25843,7 +25882,7 @@ Copyright:
         SysMgr.warnEnable = True
 
         # check input #
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             SysMgr.printErr(\
                 "No PATH or COMM or PID with -I")
             sys.exit(0)
@@ -25853,7 +25892,7 @@ Copyright:
             SysMgr.filterGroup.append('**')
 
         resInfo = {}
-        inputArg = str(SysMgr.sourceFile)
+        inputArg = str(SysMgr.inputParam)
 
         # check process #
         pids = SysMgr.getPids(inputArg, isThread=False)
@@ -25947,7 +25986,7 @@ Copyright:
 
     @staticmethod
     def doLeaktrace():
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             SysMgr.printErr(\
                 "No PATH with -I")
             sys.exit(0)
@@ -25980,13 +26019,113 @@ Copyright:
 
         # create leaktracer parser #
         try:
-            lt = LeakAnalyzer(SysMgr.sourceFile, pid)
+            lt = LeakAnalyzer(SysMgr.inputParam, pid)
             lt.printLeakage()
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(\
                 "Fail to analyze leak", True)
+
+
+
+    @staticmethod
+    def doNetTest():
+        workload = []
+        msg = '*' * 4096
+        msg = msg.encode()
+
+        def iotask(val):
+            prot = val[0].lower()
+            if prot == 'tcp':
+                tcp = True
+                SysMgr.printErr(\
+                    "TCP protocol is not supported yet")
+                sys.exit(0)
+            elif prot == 'udp':
+                tcp = False
+            else:
+                SysMgr.printErr(\
+                    "%s protocol is not supported" % prot)
+                sys.exit(0)
+
+            gObj = SysMgr.localServObj
+            networkObject = NetworkMgr(\
+                'client', ip=gObj.ip, port=gObj.port, tcp=tcp)
+
+            while 1:
+                networkObject.sendto(msg, val[1], val[2])
+
+            sys.exit(0)
+
+        # set network configuration #
+        value = SysMgr.getOption('x')
+        if not value:
+            NetworkMgr.setServerNetwork(None, None)
+        else:
+            service, ip, port = NetworkMgr.parseAddr(value)
+            NetworkMgr.setServerNetwork(ip, port)
+
+        # get tasks #
+        try:
+            prot = 'udp'
+            ip = '0.0.0.0'
+            port = 55555
+
+            jobs = SysMgr.getOption('I')
+            if jobs:
+                for item in jobs.split(','):
+                    task = item.split(':')
+                    if len(task) == 1:
+                        prot = task[0]
+                    elif len(task) == 2:
+                        prot = task[0]
+                        port = long(task[1])
+                    elif len(task) == 3:
+                        prot = task[0]
+                        ip = task[1]
+                        port = long(task[2])
+                    else:
+                        raise Exception('too many values')
+
+                    workload.append([prot, ip, port])
+            else:
+                workload.append([prot, ip, port])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "wrong option value", True)
+            sys.exit(0)
+
+        # run tasks #
+        ioTasks = dict()
+        for idx, item in enumerate(workload):
+            try:
+                pid = SysMgr.createProcess()
+                if pid == 0:
+                    iotask(workload[idx])
+                else:
+                    ioTasks[pid] = workload[idx]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Failed to create process", True)
+                sys.exit(0)
+
+        # set alarm #
+        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+        signal.alarm(SysMgr.intervalEnable)
+
+        # wait for childs #
+        while 1:
+            if len(ioTasks) == 0:
+                break
+            SysMgr.waitEvent(ignChldSig=False, exit=True)
+            SysMgr.updateChilds()
+            if SysMgr.isNoChild():
+                break
 
 
 
@@ -32051,8 +32190,8 @@ class DltAnalyzer(object):
 
         # initialize input path #
         flist = []
-        if SysMgr.sourceFile:
-            for item in SysMgr.sourceFile.split(','):
+        if SysMgr.inputParam:
+            for item in SysMgr.inputParam.split(','):
                 ret = UtilMgr.convertPath(item, retStr=False)
                 flist += ret
             flist = list(set(flist))
@@ -40728,8 +40867,8 @@ class ThreadAnalyzer(object):
 
             if SysMgr.graphEnable:
                 # convert text-based statistics to images #
-                if SysMgr.sourceFile:
-                    self.drawStats(SysMgr.sourceFile)
+                if SysMgr.inputParam:
+                    self.drawStats(SysMgr.inputParam)
                 # no path for statistics file #
                 else:
                     SysMgr.printErr((\
@@ -44834,23 +44973,23 @@ class ThreadAnalyzer(object):
 
 
     def getConf(self):
-        if not SysMgr.sourceFile:
+        if not SysMgr.inputParam:
             return
 
         confBuf = None
         confDict = None
 
         try:
-            with open(SysMgr.sourceFile, 'r') as fd:
+            with open(SysMgr.inputParam, 'r') as fd:
                 confBuf = fd.read()
         except:
-            SysMgr.printOpenErr(SysMgr.sourceFile)
+            SysMgr.printOpenErr(SysMgr.inputParam)
             sys.exit(0)
 
         if not confBuf:
             SysMgr.printErr(\
                 "Fail to read %s to set configuration" % \
-                SysMgr.sourceFile)
+                SysMgr.inputParam)
             sys.exit(0)
 
         try:
@@ -44864,7 +45003,7 @@ class ThreadAnalyzer(object):
         except:
             SysMgr.printErr(\
                 "Fail to load configuration from %s" % \
-                SysMgr.sourceFile)
+                    SysMgr.inputParam)
             sys.exit(0)
 
 
