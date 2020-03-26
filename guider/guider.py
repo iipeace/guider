@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200326"
+__revision__ = "200327"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -29522,6 +29522,12 @@ Copyright:
                 return
 
         try:
+            socket = SysMgr.getPkg('socket', False)
+            fcntl = SysMgr.getPkg('fcntl', False)
+        except:
+            socket = fcntl = None
+
+        try:
             for line in data:
                 dev, stats = line.split(':')
 
@@ -29531,6 +29537,18 @@ Copyright:
                     self.networkInfo[dev]
                 except:
                     self.networkInfo[dev] = dict()
+
+                # set ip addr #
+                try:
+                    res = fcntl.ioctl(\
+                        SysMgr.localServObj.socket.fileno(),\
+                        0x8915,  # SIOCGIFADDR
+                        struct.pack('256s', dev[:15].encode('utf-8')))
+                    ipaddr = socket.inet_ntoa(res[20:24])
+                except:
+                    ipaddr = ''
+
+                self.networkInfo[dev]['ipaddr'] = ipaddr
 
                 stats = stats.split()
                 '''
@@ -30094,8 +30112,7 @@ Copyright:
             "{0:^16} {1:^21} | "
             "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9} | "
             "{2:^8} {3:^8} {4:^8} {5:^8} {6:^9}").format(\
-                "Dev", "TYPE",
-                "Size", "Packet", "Error", "Drop", "Multicast"))
+                "Dev", "TYPE", "Size", "Packet", "Error", "Drop", "Multicast"))
         SysMgr.infoBufferPrint(twoLine)
 
         convertFunc = UtilMgr.convertSize2Unit
@@ -30183,6 +30200,8 @@ Copyright:
 
                 if SysMgr.jsonOutputEnable:
                     jsonData[dev] = dict()
+
+                    jsonData[dev]['ipaddr'] = val['ipaddr']
 
                     jsonData[dev]['recv'] = {
                         'bytes': convertFunc(rlist[0]),
@@ -53811,6 +53830,8 @@ class ThreadAnalyzer(object):
                     self.reportData['net'][dev] = dict()
                     reportData = self.reportData['net'][dev]
 
+                    reportData['ipaddr'] = value['ipaddr']
+
                     rdiff = value['rdiff']
                     tdiff = value['tdiff']
 
@@ -54353,12 +54374,6 @@ class ThreadAnalyzer(object):
         cnt = long(0)
         totalStat = {'rdiff': [0] * 5, 'tdiff': [0] * 5}
 
-        try:
-            socket = SysMgr.getPkg('socket', False)
-            fcntl = SysMgr.getPkg('fcntl', False)
-        except:
-            socket = fcntl = None
-
         for dev, val in sorted(\
             SysMgr.sysInstance.networkInfo.items(), key=lambda e:e[0]):
             '''
@@ -54383,20 +54398,11 @@ class ThreadAnalyzer(object):
                 totalStat['tdiff'][3] += tdiff[3]
                 totalStat['tdiff'][4] += tdiff[-1]
 
-                try:
-                    res = fcntl.ioctl(\
-                        SysMgr.localServObj.socket.fileno(),\
-                        0x8915,  # SIOCGIFADDR
-                        struct.pack('256s', dev[:15].encode('utf-8')))
-                    ipaddr = socket.inet_ntoa(res[20:24])
-                except:
-                    ipaddr = ' '
-
                 SysMgr.addPrint((\
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
-                        dev, ipaddr,\
+                        dev, val['ipaddr'],\
                         convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
                         convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
                         convertFunc(rdiff[-1]), \
