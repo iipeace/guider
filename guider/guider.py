@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200324"
+__revision__ = "200326"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21473,11 +21473,12 @@ Copyright:
                         enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
                         sidx = SysMgr.syscallList.index(val)
                         SysMgr.syscallList[sidx] = nrSyscall
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printErr(\
                             "No %s syscall in %s ABI" % \
                             (val, SysMgr.arch))
-                        SysMgr.syscallList.remove(val)
                         sys.exit(0)
 
                 if len(enabledSyscall) == 0:
@@ -21803,11 +21804,12 @@ Copyright:
                             ConfigMgr.sysList[nrSyscall])
                         sidx = SysMgr.syscallList.index(val)
                         SysMgr.syscallList[sidx] = nrSyscall
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printErr(\
                             "No %s syscall in %s ABI" % \
                             (val, SysMgr.arch))
-                        SysMgr.syscallList.remove(val)
                         sys.exit(0)
 
                 if len(enabledSyscall) == 0:
@@ -22070,10 +22072,11 @@ Copyright:
 
     @staticmethod
     def isSendMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'send' or \
-            sys.argv[1] == 'kill' or \
-            SysMgr.isTkillMode()):
+        if len(sys.argv) < 2:
+            return False
+        elif sys.argv[1] == 'kill' or \
+            sys.argv[1] == 'send' or \
+            SysMgr.isTkillMode():
             return True
         else:
             return False
@@ -26685,18 +26688,19 @@ Copyright:
 
         targetList = []
 
+        # get pids #
         for pid in procList:
-            # get pids #
             taskList = SysMgr.getPids(pid, isThread, withSibling)
-
-            # merge lists #
             targetList += taskList
 
         # remove redundant items #
         finalList = list(set(targetList))
 
         if exceptMe:
-            finalList.remove(SysMgr.pid)
+            try:
+                finalList.remove(SysMgr.pid)
+            except:
+                pass
 
         return finalList
 
@@ -26705,26 +26709,38 @@ Copyright:
     @staticmethod
     def sendSignalArgs(argList, isThread=False):
         sig = signal.SIGQUIT
-        cSigList = ConfigMgr.SIG_LIST
-        if argList:
-            SIG_LIST = [item for item in argList if item.startswith('-')]
-            for val in SIG_LIST:
-                try:
-                    if val[1:].upper() in cSigList:
-                        sig = cSigList.index(val[1:].upper())
-                    elif ('SIG%s' % val[1:]).upper() in cSigList:
-                        sig = cSigList.index('SIG%s' % val[1:].upper())
-                    elif val[1:].isdigit():
-                        sig = long(val[1:])
-                    else:
-                        continue
+        SIG_LIST = ConfigMgr.SIG_LIST
+        if not argList:
+            return
 
-                    del argList[argList.index(val)]
-                    break
-                except:
-                    pass
+        # get signal candidates #
+        options = [item for item in argList if item.startswith('-')]
 
-        # send signal to processes #
+        isFound = False
+        for val in options:
+            try:
+                if val[1:].upper() in SIG_LIST:
+                    sig = SIG_LIST.index(val[1:].upper())
+                elif ('SIG%s' % val[1:]).upper() in SIG_LIST:
+                    sig = SIG_LIST.index('SIG%s' % val[1:].upper())
+                elif val[1:].isdigit():
+                    sig = long(val[1:])
+                else:
+                    continue
+
+                isFound = True
+                del argList[argList.index(val)]
+                break
+            except:
+                pass
+
+        # check type #
+        if not isFound:
+            SysMgr.printErr(\
+                "Fail to recognize signal")
+            return
+
+        # convert pid list #
         try:
             argList = (''.join(argList)).split(',')
         except:
