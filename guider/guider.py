@@ -54214,6 +54214,12 @@ class ThreadAnalyzer(object):
         cnt = long(0)
         totalStat = {'rdiff': [0] * 5, 'tdiff': [0] * 5}
 
+        try:
+            socket = SysMgr.getPkg('socket', False)
+            fcntl = SysMgr.getPkg('fcntl', False)
+        except:
+            socket = fcntl = None
+
         for dev, val in sorted(\
             SysMgr.sysInstance.networkInfo.items(), key=lambda e:e[0]):
             '''
@@ -54238,11 +54244,20 @@ class ThreadAnalyzer(object):
                 totalStat['tdiff'][3] += tdiff[3]
                 totalStat['tdiff'][4] += tdiff[-1]
 
+                try:
+                    res = fcntl.ioctl(\
+                        SysMgr.localServObj.socket.fileno(),\
+                        0x8915,  # SIOCGIFADDR
+                        struct.pack('256s', dev[:15].encode('utf-8')))
+                    ipaddr = socket.inet_ntoa(res[20:24])
+                except:
+                    ipaddr = ' '
+
                 SysMgr.addPrint((\
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
-                        dev, ' ',\
+                        dev, ipaddr,\
                         convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
                         convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
                         convertFunc(rdiff[-1]), \
@@ -54262,7 +54277,7 @@ class ThreadAnalyzer(object):
                 "{0:>16} | {1:^21} | "
                 "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                 "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(\
-                    '[ TOTAL ]', '-',\
+                    '[ TOTAL ]', ' ',\
                     convertFunc(rdiff[0]), convertFunc(rdiff[1]), \
                     convertFunc(rdiff[2]), convertFunc(rdiff[3]), \
                     convertFunc(rdiff[-1]), \
