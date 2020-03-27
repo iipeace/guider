@@ -35321,10 +35321,8 @@ struct msghdr {
                         self.callPrint.append(callString)
                 # trace mode with console #
                 else:
-                    # print backtrace #
-                    if SysMgr.funcDepth > 0:
-                        if len(self.targetBpList) > 0:
-                            self.printContext(newline=True)
+                    if SysMgr.showAll:
+                        self.printContext(newline=True, bt=False)
 
                     # print string #
                     SysMgr.printPipe(callString, newline=False)
