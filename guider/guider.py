@@ -3366,7 +3366,10 @@ class UtilMgr(object):
         try:
             return value.encode()
         except:
-            return value
+            try:
+                return value.encode('utf8', 'surrogateescape')
+            except:
+                return value
 
 
 
@@ -3700,7 +3703,7 @@ class UtilMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printWarn(\
                     "Fail to write JSON format data because %s" % err)
             return
@@ -3751,7 +3754,7 @@ class UtilMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
                 "Fail to save ELF cache to %s because %s" % \
                 (path, err))
@@ -3877,7 +3880,7 @@ class UtilMgr(object):
         except:
             SysMgr.printWarn(\
                 "Fail to convert %s to string because %s" % \
-                    ([dictObj], SysMgr.getErrReason()))
+                    ([dictObj], SysMgr.getErrMsg()))
             return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
@@ -3907,7 +3910,7 @@ class UtilMgr(object):
         except:
             SysMgr.printWarn(\
                 "Fail to convert %s to dict because %s" % \
-                    ([strObj], SysMgr.getErrReason()))
+                    ([strObj], SysMgr.getErrMsg()))
             return None
 
 
@@ -4003,7 +4006,7 @@ class NetworkMgr(object):
             if not blocking:
                 self.socket.setblocking(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             if err.startswith('13') and \
                 not SysMgr.isRoot() and \
                 port < 1024:
@@ -4133,7 +4136,7 @@ class NetworkMgr(object):
                     UtilMgr.convertSize2Unit(os.path.getsize(targetPath)), \
                     targetIp, targetPort, origPath))
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printErr(\
                     'Fail to download %s from %s:%s:%s' % \
                         (origPath, targetIp, targetPort, targetPath), True)
@@ -4386,7 +4389,7 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
                 "Fail to receive data from %s:%d as client because %s" % \
                 (self.ip, self.port, err))
@@ -4477,7 +4480,7 @@ class NetworkMgr(object):
                 if verbose:
                     SysMgr.printWarn(\
                         "Fail to receive data from %s:%d as client because %s" % \
-                            (self.ip, self.port, SysMgr.getErrReason()))
+                            (self.ip, self.port, SysMgr.getErrMsg()))
                 return None
 
 
@@ -4628,7 +4631,7 @@ class NetworkMgr(object):
                     connObj.connect()
                     break
                 except:
-                    err = SysMgr.getErrReason()
+                    err = SysMgr.getErrMsg()
                     SysMgr.printWarn(\
                         "Fail to connect to %s:%s because %s" % \
                             (ip, port, err))
@@ -12334,7 +12337,7 @@ class LogMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printWarn((\
                     'Fail to make %s directory because %s '
                     'so that use /tmp dir') % \
@@ -12713,7 +12716,7 @@ class LogMgr(object):
         except:
             SysMgr.printWarn(\
                 "Fail to write kmsg because %s" % \
-                    SysMgr.getErrReason())
+                    SysMgr.getErrMsg())
 
         return 0
 
@@ -12940,6 +12943,7 @@ class SysMgr(object):
     procBufferSize = long(0)
     bufferOverflowed = False
     bufferString = ''
+    bufferList = []
     bufferRows = long(0)
     systemInfoBuffer = ''
     kerSymTable = {}
@@ -13302,7 +13306,7 @@ class SysMgr(object):
         except:
             SysMgr.printWarn(\
                 "Fail to get the maximum file descriptor because %s" % \
-                    SysMgr.getErrReason())
+                    SysMgr.getErrMsg())
 
 
 
@@ -13882,7 +13886,7 @@ class SysMgr(object):
         except:
             SysMgr.printErr((\
                 "Fail to get CPU affinity of task "
-                "because %s") % SysMgr.getErrReason())
+                "because %s") % SysMgr.getErrMsg())
             sys.exit(0)
 
 
@@ -14045,7 +14049,7 @@ class SysMgr(object):
         except:
             SysMgr.printWarn(\
                 "Fail to write %s because %s" % \
-                    (oomPath, SysMgr.getErrReason()))
+                    (oomPath, SysMgr.getErrMsg()))
 
 
 
@@ -14191,7 +14195,7 @@ class SysMgr(object):
         except:
             SysMgr.printWarn(\
                 'Fail to set comm because %s' % \
-                    SysMgr.getErrReason(), True)
+                    SysMgr.getErrMsg(), True)
 
 
 
@@ -14716,6 +14720,8 @@ class SysMgr(object):
                 sys.exit(0)
             SysMgr.printInfo("sorted by CONTEXTSWITCH")
             SysMgr.showAll = True
+        elif not value:
+            value = None
         else:
             SysMgr.printErr(\
                 "wrong option value '%s' for sort" % value)
@@ -16402,6 +16408,9 @@ Examples:
                         helpStr +=  '''
     - Print DLT messages from specific files
         # {0:1} {1:1} -I "./*.dlt"
+
+    - Print DLT messages sorted by line from specific files
+        # {0:1} {1:1} -I "./*.dlt" -S
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -17205,7 +17214,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 'Fail to call %s syscall because %s' % \
-                    (syscall, SysMgr.getErrReason()), True)
+                    (syscall, SysMgr.getErrMsg()), True)
 
 
 
@@ -18417,7 +18426,7 @@ Copyright:
 
     @staticmethod
     def printSigError(tid, signal, warn=True):
-        err = SysMgr.getErrReason()
+        err = SysMgr.getErrMsg()
 
         if warn:
             printFunc = SysMgr.printWarn
@@ -18431,7 +18440,7 @@ Copyright:
 
 
     @staticmethod
-    def getErrReason():
+    def getErrMsg():
         et, err, to = sys.exc_info()
 
         try:
@@ -19402,7 +19411,7 @@ Copyright:
                 with open(rpath, 'r') as fr:
                     lines = fr.readlines()
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printOpenErr(rpath)
                 sys.exit(0)
 
@@ -19518,7 +19527,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printErr(\
                 "Fail to write trace data to %s" % outputFile, True)
 
@@ -19660,7 +19669,7 @@ Copyright:
                     SysMgr.sysInstance.\
                         cmdList[path[:path.rfind('/enable')]] = False
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
                 "Fail to apply command '%s' to %s because %s" % \
                 (val, path, err))
@@ -19694,13 +19703,17 @@ Copyright:
 
 
     @staticmethod
-    def addPrint(string, newline=1, force=False):
+    def addPrint(string, newline=1, force=False, listBuf=False):
         if not force and SysMgr.checkCutCond(newline):
             return
 
         # add string to buffer #
-        SysMgr.bufferString = \
-            "%s%s" % (SysMgr.bufferString, string)
+        if listBuf:
+            SysMgr.bufferList.append(string)
+        else:
+            SysMgr.bufferString = \
+                "%s%s" % (SysMgr.bufferString, string)
+
         SysMgr.bufferRows += newline
 
         if SysMgr.terminalOver or \
@@ -19709,6 +19722,18 @@ Copyright:
             return
 
         SysMgr.printConsole(string)
+
+
+
+    @staticmethod
+    def getPrintList(retStr=False, sort=False):
+        if sort:
+            SysMgr.bufferList.sort()
+
+        if retStr:
+            return '\n'.join(SysMgr.bufferList)
+        else:
+            return SysMgr.bufferList
 
 
 
@@ -20177,7 +20202,7 @@ Copyright:
             except:
                 SysMgr.printOpenWarn(\
                     "Fail to open %s because %s" % \
-                        (SysMgr.eventLogPath, SysMgr.getErrReason()))
+                        (SysMgr.eventLogPath, SysMgr.getErrMsg()))
                 return
 
         if SysMgr.eventLogFd:
@@ -20282,7 +20307,7 @@ Copyright:
             except:
                 SysMgr.printErr((\
                     "Fail to load default font because %s, "
-                    "try to use -T option") % SysMgr.getErrReason())
+                    "try to use -T option") % SysMgr.getErrMsg())
                 return
 
         # get default font size and image length #
@@ -20530,7 +20555,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printWarn(\
                     "Fail to use pager because %s" % err, True)
 
@@ -20547,7 +20572,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printErr(\
                     "Fail to print to pipe because %s\n" % err)
                 SysMgr.pipeForPrint = None
@@ -20730,7 +20755,7 @@ Copyright:
         SysMgr.flushAllForPrint()
 
         if reason:
-            rstring = ' because %s' % SysMgr.getErrReason()
+            rstring = ' because %s' % SysMgr.getErrMsg()
         else:
             rstring = ''
 
@@ -20827,7 +20852,7 @@ Copyright:
     def printOpenWarn(path, always=False):
         SysMgr.printWarn(\
             'Fail to open %s because %s' % \
-                (path, SysMgr.getErrReason()), always)
+                (path, SysMgr.getErrMsg()), always)
 
 
 
@@ -20951,7 +20976,7 @@ Copyright:
             except:
                 SysMgr.printErr((\
                     "wrong option value with -R because %s, "
-                    "input integer values") % SysMgr.getErrReason())
+                    "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
@@ -20978,13 +21003,13 @@ Copyright:
             except:
                 SysMgr.printErr((\
                     "wrong option value with -R because %s, "
-                    "input integer values") % SysMgr.getErrReason())
+                    "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         else:
             SysMgr.printErr((\
                 "wrong option value with -R because %s, "
                 "input in the format INTERVAL:REPEAT") % \
-                    SysMgr.getErrReason())
+                    SysMgr.getErrMsg())
             sys.exit(0)
 
         # check variables #
@@ -24277,7 +24302,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to wait %s task because %s" % \
-                    (pid, SysMgr.getErrReason()))
+                    (pid, SysMgr.getErrMsg()))
 
 
 
@@ -24829,7 +24854,7 @@ Copyright:
             except:
                 SysMgr.printWarn(\
                     'Fail to accept to prepare for connection because %s' % \
-                        SysMgr.getErrReason())
+                        SysMgr.getErrMsg())
                 continue
 
             SysMgr.printInfo(\
@@ -25628,7 +25653,7 @@ Copyright:
                 try:
                     binObj = ElfAnalyzer.getObject(filePath, True)
                     if not binObj:
-                        err = SysMgr.getErrReason()
+                        err = SysMgr.getErrMsg()
                         raise Exception(err)
                 except SystemExit:
                     sys.exit(0)
@@ -25820,7 +25845,7 @@ Copyright:
                     except:
                         SysMgr.printWarn( \
                             'Fail to get size of %s because %s' % (
-                                fullPath, SysMgr.getErrReason()))
+                                fullPath, SysMgr.getErrMsg()))
                         size = ''
 
                     if not SysMgr.showAll:
@@ -25955,7 +25980,7 @@ Copyright:
                     except:
                         SysMgr.printWarn(\
                             "Fail to save offset info because %s" % \
-                                SysMgr.getErrReason(), True)
+                                SysMgr.getErrMsg(), True)
 
         SysMgr.printPipe("\n[Symbol Info]\n%s" % twoLine)
         SysMgr.printPipe(\
@@ -26154,7 +26179,7 @@ Copyright:
             except:
                 SysMgr.printWarn(\
                     'Fali to flush system cache because %s' % \
-                        SysMgr.getErrReason())
+                        SysMgr.getErrMsg())
 
 
         def iotask(num, load):
@@ -26226,7 +26251,7 @@ Copyright:
                             if not piece:
                                 return
                     except:
-                        SysMgr.printErr(SysMgr.getErrReason())
+                        SysMgr.printErr(SysMgr.getErrMsg())
                         break
                 elif target == 'dir':
                     targetList = os.walk(path)
@@ -26243,7 +26268,7 @@ Copyright:
                                     if not piece:
                                         break
                             except:
-                                SysMgr.printWarn(SysMgr.getErrReason())
+                                SysMgr.printWarn(SysMgr.getErrMsg())
 
         # get tasks #
         try:
@@ -26384,7 +26409,7 @@ Copyright:
             SysMgr.printErr(\
                 ("wrong option value because %s, "
                     "input integer number in the format LOAD{:NRTASK}") % \
-                        SysMgr.getErrReason())
+                        SysMgr.getErrMsg())
             sys.exit(0)
 
         if nrTask > 1:
@@ -26492,7 +26517,7 @@ Copyright:
         except:
             errMsg = ("wrong option value because %s, "
                 "input integer number in the format SIZE{:INTERVAL:COUNT}") % \
-                    SysMgr.getErrReason()
+                    SysMgr.getErrMsg()
             SysMgr.printErr(errMsg)
             sys.exit(0)
 
@@ -27435,7 +27460,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to get terminal info because %s" % \
-                SysMgr.getErrReason())
+                SysMgr.getErrMsg())
 
 
 
@@ -27455,7 +27480,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to get load because %s" % \
-                SysMgr.getErrReason())
+                SysMgr.getErrMsg())
 
         self.loadData = self.loadData.split()
         '''
@@ -27599,7 +27624,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to save CPU info because %s" % \
-                SysMgr.getErrReason())
+                SysMgr.getErrMsg())
 
 
 
@@ -27677,7 +27702,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to save deice info because %s" % \
-                SysMgr.getErrReason())
+                SysMgr.getErrMsg())
 
 
 
@@ -27742,7 +27767,7 @@ Copyright:
         except:
             SysMgr.printWarn(\
                 "Fail to update memory because %s" % \
-                SysMgr.getErrReason())
+                SysMgr.getErrMsg())
 
 
 
@@ -30927,7 +30952,7 @@ class DbusAnalyzer(object):
                 except:
                     SysMgr.printWarn(\
                         "Fail to update task info because %s" % \
-                            SysMgr.getErrReason(), True)
+                            SysMgr.getErrMsg(), True)
 
         def printSummary(signum, frame):
             def checkRepeatCnt():
@@ -31205,7 +31230,7 @@ class DbusAnalyzer(object):
                     except:
                         SysMgr.printWarn(\
                             "Fail to get type of GDbusMessage because %s" % \
-                                SysMgr.getErrReason())
+                                SysMgr.getErrMsg())
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -31372,7 +31397,7 @@ class DbusAnalyzer(object):
             except:
                 SysMgr.printWarn(\
                     "Fail to handle %s because %s" % \
-                        ([jsonData], SysMgr.getErrReason()))
+                        ([jsonData], SysMgr.getErrMsg()))
             finally:
                 # free gdbus message object #
                 if gdmsg != 0:
@@ -31688,7 +31713,7 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def handleMessage(dltObj, msg, buf, mode, verbose):
+    def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
         ctypes = SysMgr.getPkg('ctypes')
 
         DLT_MSIN_MTIN = 0xf0 # message type info #
@@ -31783,7 +31808,10 @@ class DltAnalyzer(object):
             output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}".format(\
                 ntime, timeUs, uptime, ecuId, apId, ctxId, info, string)
 
-            SysMgr.printPipe(output, flush=True)
+            if buffered:
+                SysMgr.addPrint(output, force=True, listBuf=True)
+            else:
+                SysMgr.printPipe(output, flush=True)
 
 
 
@@ -32215,6 +32243,13 @@ class DltAnalyzer(object):
                 flist += ret
             flist = list(set(flist))
 
+        # check sort option #
+        if SysMgr.findOption('S'):
+            buffered = True
+            SysMgr.printStreamEnable = False
+        else:
+            buffered = False
+
         # messages from file #
         if mode == 'print' and flist:
             for path in flist:
@@ -32262,13 +32297,22 @@ class DltAnalyzer(object):
                         SysMgr.printWarn(\
                             "Fail to read %s message from %s" % (index, path), True)
                         continue
-                    DltAnalyzer.handleMessage(dltObj, dltFile.msg, buf, mode, verbose)
+
+                    # print message #
+                    DltAnalyzer.handleMessage(\
+                        dltObj, dltFile.msg, buf, mode, verbose, buffered=buffered)
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verbose)
                 if ret < 0:
                     SysMgr.printErr(\
                         "Fail to free a DLTFile object")
+
+            # handle buffered logs #
+            if buffered:
+                output = SysMgr.getPrintList(retStr=True, sort=True)
+                SysMgr.clearPrint()
+                SysMgr.printPipe(output, flush=True)
 
             sys.exit(0)
 
@@ -32464,7 +32508,7 @@ class DltAnalyzer(object):
             except:
                 SysMgr.printWarn(\
                     "Fail to process DLT message because %s" % \
-                        SysMgr.getErrReason(), True)
+                        SysMgr.getErrMsg(), True)
                 continue
 
         # free message #
@@ -33579,7 +33623,7 @@ struct msghdr {
         except:
             SysMgr.printWarn(\
                 "Fail to stop %s(%s) because %s" % \
-                    (self.comm, pid, SysMgr.getErrReason()))
+                    (self.comm, pid, SysMgr.getErrMsg()))
 
         # send signal to a process #
         try:
@@ -33653,7 +33697,7 @@ struct msghdr {
         # continue target thread #
         ret = self.ptrace(self.contCmd, 0, sig)
         if ret != 0:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
                 'Fail to continue %s(%s) because %s' % \
                     (self.comm, pid, err))
@@ -34129,7 +34173,7 @@ struct msghdr {
             except:
                 SysMgr.printWarn(\
                     "Fail to get msghdr because %s" % \
-                        SysMgr.getErrReason(), True)
+                        SysMgr.getErrMsg(), True)
 
         # handle special syscalls #
         if syscall == "execve":
@@ -36372,7 +36416,7 @@ struct msghdr {
                 if self.isAlive():
                     SysMgr.printWarn(\
                         'Detected %s(%s) with error because %s' % \
-                        (self.comm, self.pid, SysMgr.getErrReason()))
+                        (self.comm, self.pid, SysMgr.getErrMsg()))
 
                     if self.mode == 'break':
                         if self.cont(check=True) < 0:
@@ -36478,7 +36522,7 @@ struct msghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            ereason = SysMgr.getErrReason()
+            ereason = SysMgr.getErrMsg()
             if ereason != '0':
                 SysMgr.printErr(\
                     'Fail to trace %s(%s) because %s' % \
@@ -37243,7 +37287,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             SysMgr.printWarn(\
                 'Fail to call waitpid because %s' % \
-                    SysMgr.getErrReason())
+                    SysMgr.getErrMsg())
             return 0, 0
 
 
@@ -37282,7 +37326,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
                 'Fail to call ptrace in libc because %s' % err)
             return -1
@@ -38337,7 +38381,7 @@ class ElfAnalyzer(object):
             try:
                 os.mkdir(SysMgr.cacheDirPath)
             except:
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printWarn(\
                     'Fail to make %s directory because %s' % \
                         (SysMgr.cacheDirPath, err))
@@ -38438,7 +38482,7 @@ class ElfAnalyzer(object):
                 failLog = UtilMgr.convertColor("[Fail]", 'RED')
                 SysMgr.printInfo(failLog, prefix=False, notitle=True)
 
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 SysMgr.printWarn(\
                     "Fail to load %s as an ELF object because %s" % \
                         (path, err))
@@ -38560,7 +38604,7 @@ class ElfAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printWarn((\
                 "Fail to demangle symbol %s because %s "
                 "so that disable demangle feature") % \
@@ -39243,7 +39287,7 @@ class ElfAnalyzer(object):
                 else:
                     SysMgr.printOpenWarn(path)
 
-                err = SysMgr.getErrReason()
+                err = SysMgr.getErrMsg()
                 raise Exception(err)
 
             # get file size #
@@ -43745,7 +43789,7 @@ class ThreadAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    err = SysMgr.getErrReason()
+                    err = SysMgr.getErrMsg()
                     raise Exception(err)
 
         # draw system info #
@@ -43764,7 +43808,7 @@ class ThreadAnalyzer(object):
         except:
             SysMgr.printWarn(\
                 "Fail to write system info because %s" % \
-                    SysMgr.getErrReason(), True)
+                    SysMgr.getErrMsg(), True)
 
         # remove stats to free memory #
         graphStats.clear()
@@ -43827,7 +43871,7 @@ class ThreadAnalyzer(object):
             SysMgr.printStat(\
                 "write resource %s into %s [%s]" % (itype, outputFile, fsize))
         except:
-            err = SysMgr.getErrReason()
+            err = SysMgr.getErrMsg()
             SysMgr.printErr(\
                 "Fail to draw image to %s" % outputFile, True)
             return
@@ -52764,7 +52808,7 @@ class ThreadAnalyzer(object):
             comm = self.procData[tid]['stat'][self.commIdx][1:-1]
             SysMgr.printWarn(\
                 'Fail to read namespace value for %s(%s) because %s' % \
-                    (comm, tid, SysMgr.getErrReason()))
+                    (comm, tid, SysMgr.getErrMsg()))
 
 
 
