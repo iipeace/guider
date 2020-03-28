@@ -12845,6 +12845,7 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
+    tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
     pythonPath = sys.executable
@@ -25413,6 +25414,10 @@ Copyright:
                     targetBpFileList[pid] = \
                         copy.deepcopy(procObj.targetBpFileList)
 
+                    # create a lock for a target process #
+                    lockList[pid] = \
+                        Debugger.getGlobalLock(pid, len(bpList[pid]))
+
                     procObj.detach()
                     del procObj
 
@@ -25438,6 +25443,7 @@ Copyright:
         lockObj = None
         procList = {}
         bpList = {}
+        lockList = {}
         exceptBpList = {}
         targetBpList = {}
         targetBpFileList = {}
@@ -25504,10 +25510,6 @@ Copyright:
             if (mode != 'syscall' and mode != 'signal') \
                 or SysMgr.funcDepth > 0:
                 doCommonJobs(pids, procList)
-
-            # create a system-wide lock for tracer processes #
-            if mode == 'breakcall':
-                lockObj = Debugger.getGlobalLock()
 
             # create new worker processes #
             try:
@@ -25596,6 +25598,10 @@ Copyright:
                         targetBpList = targetBpList[ppid]
                     if ppid in targetBpFileList:
                         targetBpFileList = targetBpFileList[ppid]
+                    if ppid in lockList:
+                        lockObj = lockList[ppid]
+                else:
+                    ppid = SysMgr.pid
 
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='break', wait=wait, multi=multi, \
@@ -32531,6 +32537,7 @@ class Debugger(object):
     """ Debugger for ptrace """
 
     gLockObj = None
+    gLockPath = None
     lastInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True):
@@ -32853,20 +32860,33 @@ struct msghdr {
 
 
     @staticmethod
-    def getGlobalLock():
+    def getGlobalLock(name=None, size=0):
         if Debugger.gLockObj:
             return Debugger.gLockObj
 
         # create a global lock based on file #
         try:
             SysMgr.importPackageItems('fcntl')
-            Debugger.gLockObj = \
-                open('%s/guider.lock' % SysMgr.cacheDirPath, 'w')
+
+            if os.path.isdir(SysMgr.tmpPath):
+                dirpath = SysMgr.tmpPath
+            else:
+                dirpath = SysMgr.cacheDirPath
+
+            if not name:
+                name = SysMgr.pid
+
+            Debugger.gLockPath = '%s/guider_%s.lock' % (dirpath, name)
+            Debugger.gLockObj = open(Debugger.gLockPath, 'w')
+
+            if size != 0:
+                Debugger.gLockObj.truncate(size)
+
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to create file for global lock", True)
+                "Fail to create a file for lock", True)
 
             if not SysMgr.forceEnable:
                 sys.exit(0)
@@ -33541,6 +33561,7 @@ struct msghdr {
             # backup data #
             self.bpList[addr] = {
                 'data': origWord,
+                'number': len(self.bpList),
                 'symbol': sym,
                 'reins': reins,
                 'filename': fname,
@@ -35348,11 +35369,13 @@ struct msghdr {
             self.setRegs()
 
         # lock between processes #
-        self.lock()
+        nrLock = self.bpList[addr]['number']
+        self.lock(nrLock)
 
         # remove breakpoint #
         ret = self.removeBreakpoint(addr)
         if ret is None:
+            self.unlock(nrLock)
             return
 
         # pick breakpoint info #
@@ -35360,6 +35383,7 @@ struct msghdr {
 
         # check reinstall option #
         if not reins:
+            self.unlock(nrLock)
             return
 
         if self.pc == origPC:
@@ -35390,6 +35414,9 @@ struct msghdr {
                     (sym, addr, self.comm, self.pid))
             sys.exit(0)
 
+        # unlock between processes #
+        self.unlock(nrLock)
+
 
 
     def handleTrapEvent(self, stat):
@@ -35401,9 +35428,6 @@ struct msghdr {
             self.handleUsercall()
         elif self.mode == 'break':
             self.handleBreakpoint(printStat=SysMgr.printEnable)
-
-            # unlock between processes #
-            self.unlock()
 
             if self.cont(check=True) < 0:
                 sys.exit(0)
@@ -36149,18 +36173,28 @@ struct msghdr {
 
 
 
-    def lock(self):
+    def lock(self, pos=-1):
         if self.lockObj:
+            if pos > -1:
+                lockf(self.lockObj, LOCK_EX, 1, pos, 0)
+                return True
+
             lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
             return True
+
         return False
 
 
 
-    def unlock(self):
+    def unlock(self, pos=-1):
         if self.lockObj:
+            if pos > -1:
+                lockf(self.lockObj, LOCK_UN, 1, pos, 0)
+                return
+
             lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
             return True
+
         return False
 
 
@@ -36172,7 +36206,8 @@ struct msghdr {
         if self.mode == 'break':
             # check lock #
             if not self.lockObj:
-                self.lockObj = Debugger.getGlobalLock()
+                self.lockObj = \
+                    Debugger.getGlobalLock(self.pid, len(self.bpList))
 
             # stop the target #
             self.stop()
@@ -36682,6 +36717,12 @@ struct msghdr {
                     UtilMgr.printProgress(idx, len(targetBpList))
                     instance.removeBreakpoint(addr)
                 UtilMgr.deleteProgress()
+
+                # remove lock file #
+                try:
+                    os.remove(Debugger.gLockPath)
+                except:
+                    pass
 
                 # create a progress file #
                 os.open(progressPath, os.O_CREAT, 0o777)
