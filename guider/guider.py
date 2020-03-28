@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200327"
+__revision__ = "200328"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12638,7 +12638,6 @@ class LogMgr(object):
                 SysMgr.printPipe(logBuf)
 
             return
-        # toDo: add lseek option #
 
         SysMgr.printInfo( \
             "start printing kernel log... [ STOP(Ctrl+c) ]")
@@ -12649,7 +12648,7 @@ class LogMgr(object):
         # kmsg node #
         while 1:
             jsonResult = dict()
-            log = fd.readline()
+            log = SysMgr.kmsgFd.readline()
 
             if not UtilMgr.isEffectiveStr(log):
                 continue
@@ -12682,7 +12681,8 @@ class LogMgr(object):
                     log = log[npos + 1:]
 
                 if SysMgr.jsonOutputEnable:
-                    jsonResult = dict(time=ltime, level=nrLevel, name=name, log=log)
+                    jsonResult = \
+                        dict(time=ltime, level=level, name=name, log=log)
                 else:
                     if not SysMgr.printFile:
                         level = UtilMgr.convertColor(level, 'BOLD')
@@ -12706,6 +12706,8 @@ class LogMgr(object):
                 SysMgr.printPipe(jsonResult)
             else:
                 SysMgr.printPipe(log[:-1])
+
+
 
     @staticmethod
     def doLogKmsg(msg=None, level=None):
