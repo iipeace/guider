@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200328"
+__revision__ = "200330"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -272,6 +272,41 @@ class ConfigMgr(object):
         0x0: "SEEK_SET",
         0x1: "SEEK_CUR",
         0x2: "SEEK_END",
+    }
+
+    # Define prctl flags type #
+    PRCTL_TYPE = {
+        1: "PR_SET_PDEATHSIG",
+        2: "PR_GET_PDEATHSIG",
+        3: "PR_GET_DUMPABLE",
+        4: "PR_SET_DUMPABLE",
+        5: "PR_GET_UNALIGN",
+        6: "PR_SET_UNALIGN",
+        7: "PR_GET_KEEPCAPS",
+        8: "PR_SET_KEEPCAPS",
+        9: "PR_GET_FPEMU",
+        10: "PR_SET_FPEMU",
+        11: "PR_GET_FPEXC",
+        12: "PR_SET_FPEXC",
+        13: "PR_GET_TIMING",
+        14: "PR_SET_TIMING",
+        15: "PR_SET_NAME",
+        16: "PR_GET_NAME",
+        19: "PR_GET_ENDIAN",
+        20: "PR_SET_ENDIAN",
+        21: "PR_GET_SECCOMP",
+        22: "PR_SET_SECCOMP",
+        23: "PR_CAPBSET_READ",
+        24: "PR_CAPBSET_DROP",
+        25: "PR_GET_TSC 25",
+        26: "PR_SET_TSC 26",
+        27: "PR_GET_SECUREBITS",
+        28: "PR_SET_SECUREBITS",
+        29: "PR_SET_TIMERSLACK",
+        30: "PR_GET_TIMERSLACK",
+        31: "PR_TASK_PERF_EVENTS_DISABLE",
+        32: "PR_TASK_PERF_EVENTS_ENABLE",
+        33: "PR_MCE_KILL",
     }
 
     # Define clone flags type #
@@ -12897,6 +12932,7 @@ class SysMgr(object):
     exitFuncList = []
     dltObj = None
     dltCtx = None
+    shmObj = None
     systemdObj = None
     libcObj = None
     libgioObj = None
@@ -14117,6 +14153,29 @@ class SysMgr(object):
             sys.exit(0)
         except:
             return None
+
+
+
+    @staticmethod
+    def resizeShm(shm, size):
+        mmap = SysMgr.getPkg('mmap', False)
+        if not mmap:
+            return
+
+        mmap.resize(size)
+
+
+
+    @staticmethod
+    def createShm(path=None, size=pageSize):
+        if not SysMgr.isLinux:
+            return
+
+        mmap = SysMgr.getPkg('mmap', False)
+        if not mmap:
+            return
+
+        return mmap.mmap(-1, size)
 
 
 
@@ -21198,6 +21257,9 @@ Copyright:
             elif option == 'I':
                 SysMgr.inputParam = value
 
+            elif option == 'f':
+                SysMgr.forceEnable = True
+
             elif option == 'L':
                 SysMgr.layout = value
                 if len(value) == 0:
@@ -24167,6 +24229,9 @@ Copyright:
         # set comm #
         SysMgr.setComm(__module__)
 
+        # create shared memory #
+        SysMgr.shmObj = SysMgr.createShm()
+
         # set oom_adj #
         SysMgr.setOOMAdj()
 
@@ -25472,6 +25537,9 @@ Copyright:
                 SysMgr.filterGroup, isThread=True, withSibling=True)
         else:
             allpids = pids
+
+        # create event memory #
+        Debugger.globalEvent = SysMgr.createShm()
 
         # check tid #
         if inputParam:
@@ -32536,6 +32604,7 @@ class DltAnalyzer(object):
 class Debugger(object):
     """ Debugger for ptrace """
 
+    globalEvent = None
     gLockObj = None
     gLockPath = None
     lastInstance = None
@@ -32580,6 +32649,9 @@ class Debugger(object):
         self.dftBpSymList = {\
             'mmap': 0,\
             'mmap64': 0,\
+            'munmap': 0,\
+            'prctl': 0,\
+            'pthread_setname_np': 0,\
         }
 
         self.backtrace = {
@@ -33520,12 +33592,11 @@ struct msghdr {
             else:
                 continue
 
+            # inject a breakpoint #
             ret = self.injectBreakpoint(\
                 addr, symbol, fname=fname, reins=True, cmd=cmdList[idx])
-            if not ret:
-                SysMgr.printWarn(\
-                    "Fail to inject a breakpoint to %s(%s) for %s(%s)" % \
-                        (value, hex(addr).rstrip('L'), self.comm, self.pid))
+
+            # remove the address from exception list #
             self.exceptBpList.pop(addr, None)
 
         UtilMgr.deleteProgress()
@@ -33540,7 +33611,7 @@ struct msghdr {
         if addr in self.bpList:
             if self.bpList[addr]['set']:
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s for %s(%s)'
+                    'Fail to inject a breakpoint to %s for %s(%s) '
                     'because it is already injected by myself') % \
                         (hex(addr).rstrip('L'), self.comm, self.pid))
                 return False
@@ -33579,7 +33650,7 @@ struct msghdr {
                 origWord = self.bpList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to inject breakpoint to %s for %s(%s)'
+                    'Fail to inject a breakpoint to %s for %s(%s) '
                     'because it is already injected by another task') % \
                         (hex(addr).rstrip('L'), self.comm, self.pid))
                 return False
@@ -33589,7 +33660,7 @@ struct msghdr {
 
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to inject breakpoint to %s for %s(%s)' % \
+                'Fail to inject a breakpoint to %s for %s(%s)' % \
                     (hex(addr).rstrip('L'), self.comm, self.pid))
             return False
         elif ret == 0:
@@ -33600,8 +33671,9 @@ struct msghdr {
 
             if SysMgr.warnEnable:
                 SysMgr.printWarn(\
-                    'Added a new breakpoint %s%s to %s(%s)' % \
-                        (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
+                    'Added a new breakpoint %s%s[%s] to %s(%s)' % \
+                        (hex(addr).rstrip('L'), symbol, \
+                            fname, self.comm, self.pid))
 
         return True
 
@@ -34304,6 +34376,30 @@ struct msghdr {
 
 
     @staticmethod
+    def writeUpdateCommFlag(flag=True):
+        if Debugger.globalEvent:
+            # set flag value #
+            if flag == True:
+                value = b'1'
+            else:
+                value = b'0'
+
+            Debugger.globalEvent[0] = value
+
+
+
+    @staticmethod
+    def needUpdateComm():
+        if Debugger.globalEvent:
+            ret = Debugger.globalEvent[0]
+            if ret == b'1':
+                return True
+            else:
+                return False
+
+
+
+    @staticmethod
     def onAlarm(signum, frame):
         if Debugger.lastInstance:
             Debugger.lastInstance.printIntervalSummary()
@@ -34576,7 +34672,9 @@ struct msghdr {
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
                 self.dftBpFileList[fpath] = 0
-            if fname.startswith('libc-'):
+            elif fname.startswith('libc-'):
+                self.dftBpFileList[fpath] = 0
+            elif fname.startswith('libpthread'):
                 self.dftBpFileList[fpath] = 0
 
         # load file-mapped objects #
@@ -34585,6 +34683,8 @@ struct msghdr {
                 eobj = ElfAnalyzer.getObject(mfile)
                 if eobj:
                     eobj.mergeSymTable()
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -35276,7 +35376,15 @@ struct msghdr {
             SysMgr.printErr(\
                 "Fail to get address %s in breakpoint list of %s(%s)" % \
                     (hex(addr).rstrip('L'), self.comm, self.pid))
-            sys.exit(0)
+
+            '''
+            # toDo: update breakpoint list including original data
+                    through shared memory of the process mapped new files
+            '''
+
+            # check memory map again #
+            if addr not in self.bpList:
+                sys.exit(0)
 
         # pick breakpoint info #
         sym = self.bpList[addr]['symbol']
@@ -35290,9 +35398,27 @@ struct msghdr {
             self.needMapScan = False
 
         # check memory map calls #
-        if sym.startswith('mmap') and \
-            self.readArgs()[4] > 0:
+        if sym.startswith('mmap') and self.readArgs()[4] > 0:
             self.needMapScan = True
+        elif sym.startswith('munmap'):
+            # toDo: remove all breakpoints related to the unmapped file #
+            pass
+
+        # update comm #
+        if self.needUpdateComm():
+            comm = SysMgr.getComm(self.pid)
+            if self.comm != comm:
+                self.comm = comm
+                Debugger.writeUpdateCommFlag(False)
+
+        # check comm change calls #
+        if sym == 'pthread_setname_np':
+            Debugger.writeUpdateCommFlag()
+        elif sym == 'prctl':
+            param = self.readArgs()[0]
+            if param in ConfigMgr.PRCTL_TYPE and \
+                ConfigMgr.PRCTL_TYPE[param] == "PR_SET_NAME":
+                Debugger.writeUpdateCommFlag()
 
         # print context info #
         if printStat and \
@@ -36176,7 +36302,7 @@ struct msghdr {
     def lock(self, pos=-1):
         if self.lockObj:
             if pos > -1:
-                lockf(self.lockObj, LOCK_EX, 1, pos, 0)
+                lockf(self.lockObj, LOCK_EX, 1, pos, 0) # pylint: disable=undefined-variable
                 return True
 
             lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
@@ -36189,7 +36315,7 @@ struct msghdr {
     def unlock(self, pos=-1):
         if self.lockObj:
             if pos > -1:
-                lockf(self.lockObj, LOCK_UN, 1, pos, 0)
+                lockf(self.lockObj, LOCK_UN, 1, pos, 0) # pylint: disable=undefined-variable
                 return
 
             lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
@@ -38456,13 +38582,18 @@ class ElfAnalyzer(object):
 
         # check modified time #
         try:
-            otime = os.stat(path).st_mtime
-            ctime = os.stat(cpath).st_mtime
+            otime = os.stat(path).st_ctime
+            ctime = os.stat(cpath).st_ctime
 
             if otime > ctime:
-                SysMgr.printWarn(\
-                    "The modification time of %s is ahead of %s" % \
+                SysMgr.printErr((\
+                    "The time of binary '%s' is ahead of cache '%s', "
+                    "ignore this error with -f option") % \
                         (path, cpath))
+                if not SysMgr.forceEnable:
+                    sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -38682,6 +38813,8 @@ class ElfAnalyzer(object):
                     similar = False
 
                 offset = binObj.getOffsetBySymbol(symbol, similar=similar)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
