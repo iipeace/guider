@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200330"
+__revision__ = "200331"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38506,8 +38506,8 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def ELF32_R_INFO(sym, type):
-        return (((sym) << 8) + ((type) & 0xff))
+    def ELF32_R_INFO(s, t):
+        return (((s)<<8)+((t)&0xff))
 
 
 
@@ -38524,8 +38524,8 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def ELF64_R_INFO(sym, type):
-        return ((sym << 32) + (type))
+    def ELF64_R_INFO(s, type):
+        return (((s)<<32)+((t)&0xffffffff))
 
 
 
@@ -38586,12 +38586,9 @@ class ElfAnalyzer(object):
             ctime = os.stat(cpath).st_ctime
 
             if otime > ctime:
-                SysMgr.printErr((\
-                    "The time of binary '%s' is ahead of cache '%s', "
-                    "ignore this error with -f option") % \
-                        (path, cpath))
-                if not SysMgr.forceEnable:
-                    sys.exit(0)
+                SysMgr.printWarn(\
+                    "The time of binary '%s' is ahead of cache '%s'" % \
+                        (path, cpath), True)
         except SystemExit:
             sys.exit(0)
         except:
@@ -39831,7 +39828,7 @@ Section header string table index: %d
 
         # define .dynsym info #
         self.attr['dynsymTable'] = dict()
-        self.attr['dynsymList'] = list()
+        self.attr['dynsymList'] = [''] # STN_UNDEF == 0
         self.attr['versionTable'] = dict()
 
 
@@ -39960,7 +39957,11 @@ Section header string table index: %d
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
-            for i in range(0, long(sh_size / sh_entsize)):
+            nrItems = long(sh_size / sh_entsize)
+            if nrItems == 0:
+                SysMgr.printPipe('\tNone')
+
+            for i in range(0, nrItems):
                 target = dynsym_section[i*sh_entsize:(i+1)*sh_entsize]
                 # 32-bit #
                 if self.is32Bit:
@@ -39981,9 +39982,6 @@ Section header string table index: %d
 
                 # concatenate symbol with it's required version #
                 try:
-                    if len(symbol) == 0:
-                        continue
-
                     symIdx = len(self.attr['dynsymList'])
                     vsIdx = self.attr['versymList'][symIdx]
                     symbol = '%s@%s' % \
@@ -40056,7 +40054,11 @@ Section header string table index: %d
                     (twoLine, "Num", "Value", "Size", "Type", \
                     "Bind", "Vis", "Ndx", "Name", twoLine))
 
-            for i in range(0, long(sh_size / sh_entsize)):
+            nrItems = long(sh_size / sh_entsize)
+            if nrItems == 0:
+                SysMgr.printPipe('\tNone')
+
+            for i in range(0, nrItems):
                 if self.is32Bit:
                     st_name, st_value, st_size, \
                         st_info, st_other, st_shndx = \
@@ -40122,7 +40124,11 @@ Section header string table index: %d
 
             fd.seek(sh_offset)
 
-            for i in range(0, long(sh_size / sh_entsize)):
+            nrItems = long(sh_size / sh_entsize)
+            if nrItems == 0:
+                SysMgr.printPipe('\tNone')
+
+            for i in range(0, nrItems):
                 # 32-bit #
                 if self.is32Bit:
                     sh_offset, sh_info = \
@@ -40144,7 +40150,7 @@ Section header string table index: %d
                     RTYPE = rtype
 
                 try:
-                    symbol = self.attr['dynsymList'][rsym]
+                    symbol = self.attr['dynsymList'][rsym+1]
                 except:
                     symbol = rsym
 
@@ -40188,7 +40194,11 @@ Section header string table index: %d
 
             fd.seek(sh_offset)
 
-            for i in range(0, long(sh_size / sh_entsize)):
+            nrItems = long(sh_size / sh_entsize)
+            if nrItems == 0:
+                SysMgr.printPipe('\tNone')
+
+            for i in range(0, nrItems):
                 # 32-bit #
                 if self.is32Bit:
                     sh_offset, sh_info, sh_addend = \
@@ -40210,9 +40220,9 @@ Section header string table index: %d
                     RTYPE = rtype
 
                 try:
-                    symbol = self.attr['dynsymList'][rsym]
+                    symbol = self.attr['dynsymList'][rsym+1]
                 except:
-                    continue
+                    symbol = rsym
 
                 # convert manged string #
                 symbol = ElfAnalyzer.demangleSymbol(symbol)
@@ -40249,7 +40259,11 @@ Section header string table index: %d
                 '%16s %20s %32s\n%s') % \
                 (twoLine, "Tag", "Type", "Name/Value", twoLine))
 
-        for i in range(0, long(sh_size / sh_entsize)):
+        nrItems = long(sh_size / sh_entsize)
+        if nrItems == 0:
+            SysMgr.printPipe('\tNone')
+
+        for i in range(0, nrItems):
             fd.seek(sh_offset + i * sh_entsize)
 
             if self.is32Bit:
