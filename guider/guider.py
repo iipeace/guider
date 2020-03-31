@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200331"
+__revision__ = "200401"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33468,12 +33468,24 @@ struct msghdr {
 
 
 
+    def removeBpFileByAddr(self, addr):
+        fname = self.getFileFromMap(addr)
+        fname = '/home/peacelee/test/mutex'
+        fcache = ElfAnalyzer.getObject(fname)
+        if not fcache:
+            return
+
+        for item in fcache.sortedAddrTable:
+            self.removeBreakpoint(addr + item)
+
+
+
     def removeBreakpoint(self, addr):
         if addr in self.bpList:
             savedData = self.bpList[addr]['data']
         else:
             SysMgr.printWarn(\
-                'No breakpoint with addr %s' % addr)
+                'No breakpoint with addr %s' % hex(addr).rstrip('L'))
             return None
 
         # write original data #
@@ -34721,7 +34733,7 @@ struct msghdr {
             self.needMapScan = False
 
         # get file name by address #
-        fname = self.getFileFromMap(vaddr)
+        fname = self.getFileFastFromMap(vaddr)
         if not fname:
             SysMgr.printWarn(\
                 'Fail to get file name via addr %s' % \
@@ -34779,6 +34791,23 @@ struct msghdr {
 
 
     def getFileFromMap(self, vaddr):
+        if not self.pmap:
+            return None
+
+        try:
+            vaddr = long(vaddr)
+        except:
+            return None
+
+        for fname, value in self.pmap.items():
+            if value['vstart'] == vaddr:
+                return fname
+
+        return None
+
+
+
+    def getFileFastFromMap(self, vaddr):
         def bisect_left(a, x, lo=0, hi=None):
             # copied from python standard library bisect.py #
             if lo < 0:
@@ -35401,8 +35430,8 @@ struct msghdr {
         if sym.startswith('mmap') and self.readArgs()[4] > 0:
             self.needMapScan = True
         elif sym.startswith('munmap'):
-            # toDo: remove all breakpoints related to the unmapped file #
-            pass
+            unmapAddr = self.readArgs()[0]
+            self.removeBpFileByAddr(unmapAddr)
 
         # update comm #
         if self.needUpdateComm():
@@ -36795,6 +36824,7 @@ struct msghdr {
 
         # remove breakpoints #
         if not instance.isAlive() or \
+            SysMgr.inputParam or \
             len(instance.bpList) == 0:
             instance.__del__()
             return
