@@ -23,11 +23,11 @@ try:
     import gc
     import sys
     import time
-    import copy
     import errno
     import signal
     import atexit
     import struct
+    from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] Fail to import python default packages: %s" % err.args[0])
@@ -3292,6 +3292,20 @@ class UtilMgr(object):
                 return True
 
         return False
+
+
+
+    @staticmethod
+    def drawGraph(inFile, outFile=None):
+        instance = ThreadAnalyzer(onlyInstance=True)
+        instance.drawStats(inFile, outFile=outFile, onlyGraph=True)
+
+
+
+    @staticmethod
+    def drawChart(inFile, outFile=None):
+        instance = ThreadAnalyzer(onlyInstance=True)
+        instance.drawStats(inFile, outFile=outFile, onlyChart=True)
 
 
 
@@ -20076,7 +20090,7 @@ Copyright:
             recVer = infoBuf[verPosStart:verPosEnd].split()[1]
             if recVer != __version__:
                 SysMgr.printWarn(\
-                    "data version (%s) is different from current software (%s)" % \
+                    "data version %s is different from current software %s" % \
                     (__version__, recVer), True)
         except:
             pass
@@ -24199,7 +24213,7 @@ Copyright:
     @staticmethod
     def initEnvironment():
         # save original args #
-        SysMgr.origArgs = copy.deepcopy(sys.argv)
+        SysMgr.origArgs = deepcopy(sys.argv)
 
         # register exit handler #
         atexit.register(SysMgr.doExit)
@@ -24720,7 +24734,7 @@ Copyright:
             # run command #
             try:
                 # copy environment variables #
-                myEnv = copy.deepcopy(os.environ)
+                myEnv = deepcopy(os.environ)
                 myEnv["REMOTERUN"] = "True"
 
                 # set SIGCHLD #
@@ -25471,13 +25485,13 @@ Copyright:
 
                     # save per-process breakpoint info #
                     bpList[pid] = \
-                        copy.deepcopy(procObj.bpList)
+                        deepcopy(procObj.bpList)
                     exceptBpList[pid] = \
-                        copy.deepcopy(procObj.exceptBpList)
+                        deepcopy(procObj.exceptBpList)
                     targetBpList[pid] = \
-                        copy.deepcopy(procObj.targetBpList)
+                        deepcopy(procObj.targetBpList)
                     targetBpFileList[pid] = \
-                        copy.deepcopy(procObj.targetBpFileList)
+                        deepcopy(procObj.targetBpFileList)
 
                     # create a lock for a target process #
                     lockList[pid] = \
@@ -29949,7 +29963,7 @@ Copyright:
             if type(root) is not dict:
                 return
 
-            tempRoot = copy.deepcopy(root)
+            tempRoot = deepcopy(root)
 
             for curdir, subdir in sorted(\
                 tempRoot.items(), \
@@ -29958,7 +29972,7 @@ Copyright:
                 nrProcs = long(0)
                 nrTasks = long(0)
 
-                tempSubdir = copy.deepcopy(subdir)
+                tempSubdir = deepcopy(subdir)
                 for val in list(subdir.keys()):
                     if not val in ConfigMgr.CGROUP_VALUE:
                         continue
@@ -32607,7 +32621,7 @@ class Debugger(object):
     globalEvent = None
     gLockObj = None
     gLockPath = None
-    lastInstance = None
+    dbgInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.comm = None
@@ -32894,7 +32908,7 @@ struct msghdr {
         self.regsDict = None
 
         # save instances #
-        Debugger.lastInstance = self
+        Debugger.dbgInstance = self
 
         self.iovecObj = self.iovec(\
             iov_base=addressof(self.regs),\
@@ -34413,8 +34427,8 @@ struct msghdr {
 
     @staticmethod
     def onAlarm(signum, frame):
-        if Debugger.lastInstance:
-            Debugger.lastInstance.printIntervalSummary()
+        if Debugger.dbgInstance:
+            Debugger.dbgInstance.printIntervalSummary()
 
         SysMgr.updateTimer()
 
@@ -36820,7 +36834,7 @@ struct msghdr {
 
     @staticmethod
     def destroyDebugger(instance):
-        Debugger.lastInstance = None
+        Debugger.dbgInstance = None
 
         # remove breakpoints #
         if not instance.isAlive() or \
@@ -38950,7 +38964,7 @@ class ElfAnalyzer(object):
             return
 
         # merge symbol tables #
-        tempSymTable = copy.deepcopy(self.attr['symTable'])
+        tempSymTable = deepcopy(self.attr['symTable'])
         tempSymTable.update(self.attr['dynsymTable'])
 
         # add PLT symbol #
@@ -42194,7 +42208,11 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawStats(self, flist):
+    def drawStats(self, flist, outFile=None, onlyGraph=False, onlyChart=False):
+        # convert str to list #
+        if type(flist) is str:
+            flist = [flist]
+
         # get stats from single file #
         if len(flist) == 1:
             logFile = flist[0]
@@ -42223,7 +42241,8 @@ class ThreadAnalyzer(object):
 
         # draw graphs #
         try:
-            self.drawGraph(graphStats, logFile)
+            if not onlyChart:
+                self.drawGraph(graphStats, logFile, outFile=outFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -42233,7 +42252,8 @@ class ThreadAnalyzer(object):
 
         # draw charts #
         try:
-            self.drawChart(chartStats, logFile)
+            if not onlyGraph:
+                self.drawChart(chartStats, logFile, outFile=outFile)
         except SystemExit:
             sys.exit(0)
         except:
@@ -42243,7 +42263,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawChart(self, data, logFile):
+    def drawChart(self, data, logFile, outFile=None):
         # pylint: disable=undefined-variable
 
         if len(data) == 0:
@@ -42419,11 +42439,11 @@ class ThreadAnalyzer(object):
             subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
-        self.saveImage(logFile, 'chart')
+        self.saveImage(logFile, 'chart', outFile=outFile)
 
 
 
-    def drawGraph(self, graphStats, logFile):
+    def drawGraph(self, graphStats, logFile, outFile=None):
         # pylint: disable=undefined-variable
 
         #==================== DEFINE PART ====================#
@@ -44021,6 +44041,9 @@ class ThreadAnalyzer(object):
         try:
             if SysMgr.systemInfoBuffer and \
                 len(SysMgr.systemInfoBuffer) > 0:
+                if not SysMgr.origArgs:
+                    SysMgr.origArgs = ['None']
+
                 # add draw command #
                 drawCmdStr = "{0:20} # {1:<100}".\
                     format('DrawCmd', ' '.join(SysMgr.origArgs))
@@ -44039,27 +44062,30 @@ class ThreadAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        self.saveImage(logFile, 'graph')
+        self.saveImage(logFile, 'graph', outFile=outFile)
 
 
 
-    def saveImage(self, logFile, itype):
+    def saveImage(self, logFile, itype='', outFile=None):
         try:
             # build output file name #
-            if SysMgr.printFile:
-                outputFile = os.path.normpath(SysMgr.printFile)
+            if outFile:
+                outputFile = outFile
             else:
-                outputFile = os.path.normpath(logFile)
+                if SysMgr.printFile:
+                    outputFile = os.path.normpath(SysMgr.printFile)
+                else:
+                    outputFile = os.path.normpath(logFile)
 
-            # convert output path #
-            if os.path.isdir(outputFile):
-                filename = os.path.basename(logFile)
-                filename = os.path.splitext(filename)[0]
-                name = '%s/%s' % (outputFile, filename)
-            else:
-                name = os.path.splitext(outputFile)[0]
+                # convert output path #
+                if os.path.isdir(outputFile):
+                    filename = os.path.basename(logFile)
+                    filename = os.path.splitext(filename)[0]
+                    name = '%s/%s' % (outputFile, filename)
+                else:
+                    name = os.path.splitext(outputFile)[0]
 
-            outputFile = '%s_%s.png' % (name, itype)
+                outputFile = '%s_%s.png' % (name, itype)
 
             # backup an exist image file #
             if os.path.isfile(outputFile):
@@ -54132,7 +54158,7 @@ class ThreadAnalyzer(object):
 
                 # copy storage data into report data structure #
                 self.reportData['storage'] = \
-                    copy.deepcopy(SysMgr.sysInstance.storageData)
+                    deepcopy(SysMgr.sysInstance.storageData)
 
                 prevStorageData = SysMgr.sysInstance.prevStorageData
 
