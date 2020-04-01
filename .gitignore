@@ -22,6 +22,16 @@ MANIFEST
 # python Virtualenv
 venv/
 
+# flask secret info
 agent/app/secrets.json
+
+# django secret info
+*.log
+*.pot
+*.pyc
+__pycache__/
+guider_web/guider_web/secret.json
+db.sqlite3
+
 # vscode
 .vscode/
