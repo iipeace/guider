@@ -27022,9 +27022,7 @@ Copyright:
 
         # check type #
         if not isFound:
-            SysMgr.printErr(\
-                "Fail to recognize signal")
-            return
+            sig = signal.SIGINT
 
         # convert pid list #
         try:
