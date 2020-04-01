@@ -12382,7 +12382,7 @@ class LogMgr(object):
         # check cache dir #
         if not os.path.exists(SysMgr.cacheDirPath):
             try:
-                os.mkdir(SysMgr.cacheDirPath)
+                os.makedirs(SysMgr.cacheDirPath)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -12939,6 +12939,7 @@ class SysMgr(object):
     perfEventChannel = {}
     perfTargetEvent = []
     perfEventData = {}
+    commCache = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -13240,7 +13241,7 @@ class SysMgr(object):
             return
 
         if not hasattr(SysMgr.libcObj, 'malloc_trim'):
-            SysMgr.printErr(\
+            SysMgr.printWarn(\
                 'no malloc_trim in %s' % SysMgr.libcPath)
             return
 
@@ -14194,12 +14195,36 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getCommList(pidList):
+        try:
+            commList = ['%s(%s)' % (SysMgr.getComm(pid), pid) for pid in pidList]
+            return ', '.join(commList)
+        except:
+            return ', '.join(pidList)
+
+
+
+    @staticmethod
     def getComm(pid):
+        try:
+            if pid in SysMgr.commCache:
+                fd = SysMgr.commCache[pid]
+                fd.seek(0)
+                return fd.readline()[:-1]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
         commPath = \
             '%s/%s/comm' % (SysMgr.procPath, pid)
         try:
-            with open(commPath, 'r') as fd:
-                return fd.readline()[:-1]
+            fd = open(commPath, 'r')
+            if SysMgr.maxKeepFd < fd.fileno():
+                SysMgr.commCache = {}
+            else:
+                SysMgr.commCache[pid] = fd
+            return fd.readline()[:-1]
         except SystemExit:
             sys.exit(0)
         except:
@@ -20136,19 +20161,19 @@ Copyright:
             SysMgr.filterGroup = \
                 SysMgr.clearList(SysMgr.filterGroup)
             SysMgr.printInfo(\
-                "only specific threads including [%s] were recorded" % \
+                "only specific threads [%s] were recorded" % \
                 ', '.join(SysMgr.filterGroup))
 
         # check filter list #
         if len(SysMgr.filterGroup) > 0:
             if not SysMgr.groupProcEnable:
                 SysMgr.printInfo(\
-                    "only specific threads including [%s] are shown" % \
+                    "only specific threads [%s] are shown" % \
                     ', '.join(SysMgr.filterGroup))
             else:
                 SysMgr.printInfo((\
                     "only specific threads that involved "
-                    "in process group including [%s] are shown") % \
+                    "in the process group [%s] are shown") % \
                     ', '.join(SysMgr.filterGroup))
 
         # apply dependency option #
@@ -21587,7 +21612,7 @@ Copyright:
                         sys.exit(0)
 
                 SysMgr.printInfo(\
-                    "only specific cores including [%s] are shown" % \
+                    "only specific cores [%s] are shown" % \
                     ', '.join(SysMgr.perCoreList))
 
                 SysMgr.perCoreList = \
@@ -21845,7 +21870,7 @@ Copyright:
                     sys.exit(0)
 
                 SysMgr.printInfo(\
-                    "only specific threads including [%s] are recorded" % \
+                    "only specific threads [%s] are recorded" % \
                     ', '.join(SysMgr.filterGroup))
 
             elif option == 's':
@@ -24128,7 +24153,7 @@ Copyright:
                 mode = 'processes'
 
             SysMgr.printInfo(\
-                "only specific %s including [ %s ] are shown" % \
+                "only specific %s [ %s ] are shown" % \
                 (mode, ', '.join(SysMgr.filterGroup)))
         # option #
         elif ulist[0].upper() == 'OPTION' or \
@@ -25584,9 +25609,9 @@ Copyright:
                 multi = True
                 SysMgr.printStreamEnable = True
 
-            SysMgr.printWarn(\
-                "multiple tasks including [ %s ] are traced" % \
-                    ', '.join(pids), True)
+                SysMgr.printWarn(\
+                    "multiple tasks [ %s ] are traced" % \
+                        SysMgr.getCommList(pids), True)
 
             # load symbol caches and addresses for breakpoint in advance #
             if (mode != 'syscall' and mode != 'signal') \
@@ -31598,7 +31623,7 @@ class DbusAnalyzer(object):
         taskList.sort(key=int)
         SysMgr.printInfo((\
             "only specific processes that are involved "
-            "in process group including [ %s ] are shown") % \
+            "in the process group [ %s ] are shown") % \
                 ', '.join(taskList))
 
         # define common list #
@@ -32972,7 +32997,7 @@ struct msghdr {
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to create a file for lock", True)
+                "Fail to create %s for lock" % Debugger.gLockPath, True)
 
             if not SysMgr.forceEnable:
                 sys.exit(0)
@@ -33654,6 +33679,9 @@ struct msghdr {
             else:
                 origWord = self.accessMem(self.peekIdx, addr)
                 origWord = UtilMgr.convertWord2Bstr(origWord)
+
+            if not origWord:
+                return False
 
             # backup data #
             self.bpList[addr] = {
@@ -35413,12 +35441,15 @@ struct msghdr {
         # set rewind address #
         origPC = self.pc
         addr = self.pc - self.prevInstOffset
+        origAddr = addr
 
         # get breakpoint addr #
         if addr not in self.bpList:
-            SysMgr.printErr(\
-                "Fail to get address %s in breakpoint list of %s(%s)" % \
-                    (hex(addr).rstrip('L'), self.comm, self.pid))
+            # handle strange instructions #
+            if addr+1 in self.bpList:
+                addr += 1
+            elif addr-1 in self.bpList:
+                addr -= 1
 
             '''
             # toDo: update breakpoint list including original data
@@ -35427,6 +35458,10 @@ struct msghdr {
 
             # check memory map again #
             if addr not in self.bpList:
+                SysMgr.printErr(\
+                    "Fail to get address %s in breakpoint list of %s(%s)" % \
+                        (hex(origAddr).rstrip('L'), self.comm, self.pid))
+
                 sys.exit(0)
 
         # pick breakpoint info #
@@ -35556,19 +35591,22 @@ struct msghdr {
             return
 
         if self.pc == origPC:
-            # continue a instruction #
+            # continue processing an instruction #
             ret = self.ptrace(self.singlestepCmd)
-            if ret != 0:
+            if ret != 0 and self.arch != 'arm':
                 SysMgr.printErr(\
                     'Fail to continue %s(%s) to reinstall a breakpoint' % \
                         (self.comm, self.pid))
                 sys.exit(0)
 
-            # wait process #
+            # check process #
+            if self.arch == 'arm':
+                self.cont()
+
             ret = self.waitpid()
             stat = self.getStatus(ret[1])
-            if SysMgr.isTermSignal(stat) or \
-                stat == -1:
+            if self.arch != 'arm' and \
+                (SysMgr.isTermSignal(stat) or stat == -1):
                 SysMgr.printErr(\
                     'Fail to wait for %s(%s) to reinstall a breakpoint' % \
                         (self.comm, self.pid))
@@ -38597,7 +38635,7 @@ class ElfAnalyzer(object):
         # check cache dir #
         if not os.path.isdir(SysMgr.cacheDirPath):
             try:
-                os.mkdir(SysMgr.cacheDirPath)
+                os.makedirs(SysMgr.cacheDirPath)
             except:
                 err = SysMgr.getErrMsg()
                 SysMgr.printWarn(\
@@ -38631,7 +38669,7 @@ class ElfAnalyzer(object):
 
             if otime > ctime:
                 SysMgr.printWarn(\
-                    "The time of binary '%s' is ahead of cache '%s'" % \
+                    "The binary '%s' is more recent than the cache '%s'" % \
                         (path, cpath), True)
         except SystemExit:
             sys.exit(0)
@@ -41199,20 +41237,20 @@ class ThreadAnalyzer(object):
                     if SysMgr.processEnable:
                         SysMgr.printInfo((\
                             "only specific processes that are involved "
-                            "in process group including [ %s ] are shown") % \
+                            "in the process group [ %s ] are shown") % \
                                 taskList)
                     else:
                         SysMgr.printInfo((\
                             "only specific threads that are involved "
-                            "in process group including [ %s ] are shown") % \
+                            "in the process group [ %s ] are shown") % \
                                 taskList)
                 elif SysMgr.processEnable:
                     SysMgr.printInfo(\
-                        "only specific processes including [ %s ] are shown" % \
+                        "only specific processes [ %s ] are shown" % \
                         taskList)
                 else:
                     SysMgr.printInfo(\
-                        "only specific threads including [ %s ] are shown" % \
+                        "only specific threads [ %s ] are shown" % \
                         taskList)
 
             # set network configuration #
@@ -41456,12 +41494,12 @@ class ThreadAnalyzer(object):
 
             if init and len(procFilter) > 0:
                 SysMgr.printInfo(\
-                    "only specific processes including [ %s ] are shown" % \
+                    "only specific processes [ %s ] are shown" % \
                         ', '.join(procFilter))
 
             if init and len(fileFilter) > 0:
                 SysMgr.printInfo(\
-                    "only specific files including [ %s ] are shown" % \
+                    "only specific files [ %s ] are shown" % \
                         ', '.join(fileFilter))
 
             return [procFilter, fileFilter]
