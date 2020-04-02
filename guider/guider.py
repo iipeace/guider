@@ -3317,7 +3317,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to convert word %s to string" % word)
+                "Fail to convert word %s to string" % word, True)
             return None
 
 
@@ -33203,7 +33203,7 @@ struct msghdr {
                     except:
                         SysMgr.printErr(\
                             "Wrong return value %s" % ret)
-                        sys.exit(0)
+                        continue
 
                     # get return address #
                     wordSize = ConfigMgr.wordSize
@@ -33328,7 +33328,7 @@ struct msghdr {
                     else:
                         SysMgr.printErr(\
                             "Wrong addr value %s" % addr)
-                        sys.exit(0)
+                        continue
 
                     SysMgr.printPipe(\
                         "\n[%s] %s(%s) -> %x" % \
@@ -33339,7 +33339,7 @@ struct msghdr {
                     if ret == -1:
                         SysMgr.printErr(\
                             "Fail to write '%s' to %s" % (val, addr))
-                        sys.exit(0)
+                        continue
 
                 elif cmd == 'rdmem':
                     if len(cmdset) == 1:
@@ -33370,14 +33370,14 @@ struct msghdr {
                     else:
                         SysMgr.printErr(\
                             "Wrong addr value %s" % addr)
-                        sys.exit(0)
+                        continue
 
                     # get memory value #
                     ret = self.readMem(addr, size)
                     if ret == -1:
                         SysMgr.printErr(\
                             "Fail to read '%s' to %s" % (val, addr))
-                        sys.exit(0)
+                        continue
 
                     SysMgr.printPipe(\
                         "\n[%s] %x(%s) -> %s" % \
@@ -33408,16 +33408,16 @@ struct msghdr {
                         ret = self.getAddrBySymbol(val)
                         if not ret:
                             SysMgr.printErr("No found %s" % val)
-                            sys.exit(0)
+                            continue
                         elif len(ret) > 1:
                             SysMgr.printErr(\
                                 "Found %s addresses for %s" % (len(ret), val))
-                            sys.exit(0)
+                            continue
                         addr = ret[0][0]
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %s(%x) -> %s(%x)" % \
-                            (cmd, sym, self.pc, val, addr), newline=False, flush=True)
+                    output = "\n[%s] %s(%x) -> %s(%x)" % \
+                        (cmd, sym, self.pc, val, addr)
+                    SysMgr.printPipe(output, newline=False, flush=True)
 
                     # set register values #
                     self.setPC(addr)
@@ -34018,7 +34018,7 @@ struct msghdr {
                         break
                 return ret
             else:
-                data = UtilMgr.convertWord2Bstr(data)
+                data = UtilMgr.convertWord2Bstr(long(data))
                 if not data:
                     return -1
 
