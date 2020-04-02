@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200401"
+__revision__ = "200402"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4853,7 +4853,7 @@ class NetworkMgr(object):
             iplist = sorted(NetworkMgr.getUsingIps())
             if len(iplist) > 0:
                 SysMgr.printWarn(\
-                    'available IP list [%s]' % ', '.join(iplist))
+                    'available IP list [ %s ]' % ', '.join(iplist))
         except:
             pass
 
@@ -14892,8 +14892,8 @@ class SysMgr(object):
                     arg = sys.argv[1]
 
                 SysMgr.printErr(\
-                    '%s platform is not supported for %s command now' % \
-                        (sys.platform, arg))
+                    '%s command is not supported on %s platform now' % \
+                        (arg, sys.platform))
                 sys.exit(0)
         else:
             SysMgr.printErr(\
@@ -20161,19 +20161,19 @@ Copyright:
             SysMgr.filterGroup = \
                 SysMgr.clearList(SysMgr.filterGroup)
             SysMgr.printInfo(\
-                "only specific threads [%s] were recorded" % \
+                "only specific threads [ %s ] were recorded" % \
                 ', '.join(SysMgr.filterGroup))
 
         # check filter list #
         if len(SysMgr.filterGroup) > 0:
             if not SysMgr.groupProcEnable:
                 SysMgr.printInfo(\
-                    "only specific threads [%s] are shown" % \
+                    "only specific threads [ %s ] are shown" % \
                     ', '.join(SysMgr.filterGroup))
             else:
                 SysMgr.printInfo((\
                     "only specific threads that involved "
-                    "in the process group [%s] are shown") % \
+                    "in the process group [ %s ] are shown") % \
                     ', '.join(SysMgr.filterGroup))
 
         # apply dependency option #
@@ -21612,7 +21612,7 @@ Copyright:
                         sys.exit(0)
 
                 SysMgr.printInfo(\
-                    "only specific cores [%s] are shown" % \
+                    "only specific cores [ %s ] are shown" % \
                     ', '.join(SysMgr.perCoreList))
 
                 SysMgr.perCoreList = \
@@ -21735,7 +21735,7 @@ Copyright:
             elif option == 'H':
                 try:
                     if not value:
-                        SysMgr.funcDepth = sys.maxsize
+                        SysMgr.funcDepth = 32
                     else:
                         SysMgr.funcDepth = long(value)
 
@@ -21870,7 +21870,7 @@ Copyright:
                     sys.exit(0)
 
                 SysMgr.printInfo(\
-                    "only specific threads [%s] are recorded" % \
+                    "only specific threads [ %s ] are recorded" % \
                     ', '.join(SysMgr.filterGroup))
 
             elif option == 's':
@@ -21885,7 +21885,7 @@ Copyright:
             elif option == 'H':
                 try:
                     if not value:
-                        SysMgr.funcDepth = sys.maxsize
+                        SysMgr.funcDepth = 32
                     else:
                         SysMgr.funcDepth = long(value)
 
@@ -25799,7 +25799,7 @@ Copyright:
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to find a unique process because "
-                "multiple processes [%s] are found") % ', '.join(pids))
+                "multiple processes [ %s ] are found") % ', '.join(pids))
             sys.exit(0)
         # single process #
         else:
@@ -26073,7 +26073,7 @@ Copyright:
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to find a unique process because "
-                "multiple processes [%s] are found") % ', '.join(pids))
+                "multiple processes [ %s ] are found") % ', '.join(pids))
             sys.exit(0)
         # single process #
         else:
@@ -26158,7 +26158,7 @@ Copyright:
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to select a target process because "
-                "multiple %s processes are exist with PID [%s]") \
+                "multiple %s processes exist with PID [ %s ]") \
                     % (', '.join(targetList), ', '.join(pids)))
             sys.exit(0)
         else:
@@ -34791,7 +34791,7 @@ struct msghdr {
 
             SysMgr.printWarn((\
                 'Fail to get offset in %s via %s '
-                'because wrong memory map') % \
+                'because of wrong memory map') % \
                     (fname, hex(vaddr).rstrip('L')))
             return ['??', fname, '??', '??', '??']
 
@@ -35187,7 +35187,7 @@ struct msghdr {
 
 
 
-    def getBacktrace(self, limit=sys.maxsize, cur=False):
+    def getBacktrace(self, limit=32, cur=False):
         try:
             return self.backtrace[SysMgr.arch](limit, cur)
         except SystemExit:
@@ -35197,7 +35197,7 @@ struct msghdr {
 
 
 
-    def getBacktrace_X86(self, limit=sys.maxsize, cur=False):
+    def getBacktrace_X86(self, limit=32, cur=False):
         nextFp = self.fp
         btList = []
         wordSize = ConfigMgr.wordSize
@@ -35246,7 +35246,7 @@ struct msghdr {
 
 
 
-    def getBacktrace_ARM(self, limit=sys.maxsize, cur=False):
+    def getBacktrace_ARM(self, limit=32, cur=False):
         nextFp = self.fp
         nextLr = self.lr
         wordSize = ConfigMgr.wordSize
@@ -35301,7 +35301,7 @@ struct msghdr {
 
 
 
-    def getBacktrace_AARCH64(self, limit=sys.maxsize, cur=False):
+    def getBacktrace_AARCH64(self, limit=32, cur=False):
         nextFp = self.fp
         nextLr = self.lr
         btList = [nextLr]
@@ -35590,21 +35590,22 @@ struct msghdr {
 
         if self.pc == origPC:
             # continue processing an instruction #
-            ret = self.ptrace(self.singlestepCmd)
-            if ret != 0 and self.arch != 'arm':
-                SysMgr.printErr(\
-                    'Fail to continue %s(%s) to reinstall a breakpoint' % \
-                        (self.comm, self.pid))
-                sys.exit(0)
+            if self.arch == 'arm':
+                # PTRACE_SINGLESTEP is removed on ARM #
+                self.cont()
+                self.stop()
+            else:
+                ret = self.ptrace(self.singlestepCmd)
+                if ret != 0:
+                    SysMgr.printErr(\
+                        'Fail to continue %s(%s) to reinstall a breakpoint' % \
+                            (self.comm, self.pid))
+                    sys.exit(0)
 
             # check process #
-            if self.arch == 'arm':
-                self.cont()
-
             ret = self.waitpid()
             stat = self.getStatus(ret[1])
-            if self.arch != 'arm' and \
-                (SysMgr.isTermSignal(stat) or stat == -1):
+            if SysMgr.isTermSignal(stat) or stat == -1:
                 SysMgr.printErr(\
                     'Fail to wait for %s(%s) to reinstall a breakpoint' % \
                         (self.comm, self.pid))
@@ -36820,6 +36821,10 @@ struct msghdr {
             self.cmd = self.syscallCmd
         elif self.mode == 'inst':
             self.cmd = self.singlestepCmd
+            if self.arch == 'arm':
+                SysMgr.printErr(\
+                    "Not supported on %s" % self.arch.upper())
+                sys.exit(0)
         elif self.mode == 'sample':
             self.cmd = None
         elif self.mode == 'break':
