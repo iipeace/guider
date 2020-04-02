@@ -3970,7 +3970,8 @@ class NetworkMgr(object):
     """ Manager for remote communication """
 
     def __init__(\
-        self, mode, ip, port, blocking=True, tcp=False, anyPort=False):
+        self, mode, ip, port, blocking=True, \
+        tcp=False, anyPort=False, bind=True):
         self.mode = mode
         self.ip = None
         self.port = None
@@ -4044,13 +4045,16 @@ class NetworkMgr(object):
                     self.port = SysMgr.defaultPort
 
                 # bind #
-                try:
-                    self.socket.bind((self.ip, self.port))
-                except:
-                    self.socket.bind((self.ip, self.port))
+                if bind:
+                    try:
+                        self.socket.bind((self.ip, self.port))
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        self.socket.bind((self.ip, self.port))
 
-                # get bind port #
-                self.port = self.socket.getsockname()[1]
+                    # get bind port #
+                    self.port = self.socket.getsockname()[1]
 
             if not blocking:
                 self.socket.setblocking(0)
@@ -24975,7 +24979,8 @@ Copyright:
                 "Connected to client %s:%s" % (addr[0], addr[1]))
 
             # create a TCP socket #
-            connObj = NetworkMgr('server', addr[0], addr[1], tcp=True)
+            connObj = NetworkMgr(\
+                'server', addr[0], addr[1], tcp=True, bind=False)
             if not connObj or not connObj.ip:
                 continue
 
