@@ -33236,19 +33236,17 @@ struct msghdr {
                     origArgs = self.readArgs()
                     argList = cmdset[1].split(':')
                     for item in argList:
+                        idx, val = item.split('#')
+                        idx = long(idx)
                         try:
-                            idx, val = item.split('#')
-                            idx = long(idx)
-                            val = long(val)
-                            argSet[idx] = val
-                            if nrMax < idx:
-                                nrMax = idx
-                            argStr += '%s(%s->%s), ' % \
-                                (idx, origArgs[idx], val)
-                        except SystemExit:
-                            sys.exit(0)
+                            val = long(val, 16)
                         except:
-                            pass
+                            val = long(val)
+                        argSet[idx] = val
+                        if nrMax < idx:
+                            nrMax = idx
+                        argStr += '%s(%s->%s), ' % \
+                            (idx, origArgs[idx], val)
 
                     # complete output string #
                     if len(argStr) == 0:
@@ -33308,8 +33306,12 @@ struct msghdr {
                         printCmdErr(cmdval, cmd)
 
                     addr = long(memset[0])
-                    val = memset[1]
-                    size = memset[2]
+                    val = memset[1].encode()
+                    size = long(memset[2])
+
+                    # increase size #
+                    if len(val) < size:
+                        val += b' ' * (size - len(val))
 
                     # convert address from registers #
                     try:
@@ -33354,6 +33356,8 @@ struct msghdr {
                     # convert address from registers #
                     try:
                         addr = self.readArgs()[addr]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -33453,7 +33457,7 @@ struct msghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to handle %s command", True)
+                    "Fail to handle %s command" % cmd, True)
                 sys.exit(0)
 
             # re-register command #
@@ -36368,9 +36372,8 @@ struct msghdr {
         if len(addrList) == 0:
             return None
         elif len(addrList) > 1:
-            addrString = ['%s/%s(%s)' % \
-                (item[2], hex(item[0]).rstrip('L'), \
-                    item[1]) for item in addrList]
+            addrString = ['%s(%s/%s)' % \
+                (item[1], item[2], hex(item[0]).rstrip('L')) for item in addrList]
             listString = ', '.join(addrString)
             SysMgr.printWarn(\
                 "Found multiple symbols [ %s ]" % listString)
@@ -37587,7 +37590,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             err = SysMgr.getErrMsg()
             SysMgr.printWarn(\
-                'Fail to call ptrace in libc because %s' % err)
+                'Fail to call ptrace because %s' % err)
             return -1
 
 
