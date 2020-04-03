@@ -1694,6 +1694,8 @@ class ConfigMgr(object):
             ("sigset_t *", "set"),
             ("size_t", "sigsetsize"),
         )),
+        "rt_sigreturn": ("long", (
+        )),
         "rt_sigprocmask": ("long", (
             ("int", "how"),
             ("sigset_t *", "set"),
@@ -24075,14 +24077,14 @@ Copyright:
             SysMgr.printPipe("[Filter]   {COMM|PID}")
             SysMgr.printPipe("  exam) f init, 1234\n")
 
-            SysMgr.printPipe("[Sched]    {SCHED:PRIO:PID}")
+            SysMgr.printPipe("[Sched]    {SCHED:PRIO:COMM|PID}")
             SysMgr.printPipe("  exam) s r:1:123, c:-1:1234\n")
 
-            SysMgr.printPipe("[Kill]     {-SIGNAME|-SIGNO} {PID}")
-            SysMgr.printPipe("  exam) k -stop 123, 456\n")
+            SysMgr.printPipe("[Kill]     {-SIGNAL} {COMM|PID}")
+            SysMgr.printPipe("  exam) k -stop 123, a.out\n")
 
-            SysMgr.printPipe("[Affinity] {MASK} {PID}")
-            SysMgr.printPipe("  exam) a f 123, 456\n")
+            SysMgr.printPipe("[Affinity] {MASK} {COMM|PID}")
+            SysMgr.printPipe("  exam) a f 123, a.out\n")
 
             SysMgr.printPipe("[Sort]     {VAL}")
             SysMgr.printPipe("  exam) S p\n")
@@ -24126,8 +24128,9 @@ Copyright:
         elif ulist[0].upper() == 'AFFINITY' or \
             ulist[0] == 'a':
             if len(ulist) > 2:
-                SysMgr.setAffinity(\
-                    ulist[1], (' '.join(ulist[2:])).split(','))
+                pids = (' '.join(ulist[2:])).split(',')
+                pids = SysMgr.convertPidList(pids, isThread=True)
+                SysMgr.setAffinity(ulist[1], pids)
             else:
                 printHelp()
         # filter #
