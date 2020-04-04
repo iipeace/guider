@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200403"
+__revision__ = "200405"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15077,7 +15077,7 @@ class SysMgr(object):
 
             defStr = '''
 Usage:
-    $ {0:1} COMMAND|FILE [OPTIONS] [--help] [--version]
+    $ {0:1} COMMAND|FILE [OPTIONS] [--help]
                 '''.format(cmd)
 
             # command help #
@@ -17111,7 +17111,8 @@ Options:
                         '''.format(cmd, mode)
 
                 # default #
-                elif mode.startswith('-'):
+                elif mode.startswith('-') or \
+                    mode == 'help':
                     helpStr = defStr + \
                         '''
 COMMAND:
@@ -17141,8 +17142,8 @@ Options:
 Author:
     {0:1} ({1:1})
 
-Reporting bugs:
-    {1:1} or {2:1}/issues
+Bugs:
+    {1:1} | {2:1}/issues
 
 Copyright:
     {3:1}
@@ -17152,11 +17153,6 @@ Copyright:
                         __repository__, __copyright__, __license__)
 
                 printPipe(helpStr)
-
-            sys.exit(0)
-
-        # version #
-        elif sys.argv[1] == '--version':
 
             sys.exit(0)
 
@@ -22183,7 +22179,8 @@ Copyright:
     def isHelpMode():
         if '-help' in sys.argv or \
             '--help' in sys.argv or \
-            '-h' in sys.argv:
+            '-h' in sys.argv or \
+            (len(sys.argv) > 1 and sys.argv[1] == 'help'):
             return True
         else:
             return False
@@ -28124,6 +28121,11 @@ Copyright:
 
     @staticmethod
     def flushAllForPrint():
+        try:
+            sys.stdout.flush()
+        except:
+            pass
+
         if SysMgr.pipeForPrint:
             try:
                 SysMgr.pipeForPrint.flush()
@@ -37069,7 +37071,7 @@ struct msghdr {
         printSystemStat()
 
         SysMgr.printInfo(\
-            "Start analyze call samples...")
+            "Start analyze calls...")
 
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
@@ -37147,15 +37149,19 @@ struct msghdr {
             samplingStr = ''
             sampleRateStr = ''
 
+        nrCpuUsageSample = len(instance.cpuUsageList)
+        if nrCpuUsageSample == 0:
+            nrCpuUsageSample = 1
+
         # calculate average CPU usage #
         ttime = utime = stime = 0
         for cpustat in instance.cpuUsageList:
             ttime += cpustat[0]
             utime += cpustat[1]
             stime += cpustat[2]
-        ttime /= float(len(instance.cpuUsageList))
-        utime /= float(len(instance.cpuUsageList))
-        stime /= float(len(instance.cpuUsageList))
+        ttime /= float(nrCpuUsageSample)
+        utime /= float(nrCpuUsageSample)
+        stime /= float(nrCpuUsageSample)
         cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
 
         SysMgr.printPipe((\
