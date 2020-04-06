@@ -55980,10 +55980,16 @@ class ThreadAnalyzer(object):
             # print sched #
             if SysMgr.schedEnable and \
                 'execTime' in value:
-                execTime = float(long(value['execTime'] / 1000000000))
-                execPer = execTime / value['runtime'] * 100
-                waitTime = float(long(value['waitTime'] / 1000000000))
-                waitPer = waitTime / value['runtime'] * 100
+                execTime = float(value['execTime'] / 1000000000)
+                if value['runtime'] > 0:
+                    execPer = execTime / value['runtime'] * 100
+                else:
+                    execPer = 0
+                waitTime = float(value['waitTime'] / 1000000000)
+                if value['runtime'] > 0:
+                    waitPer = waitTime / value['runtime'] * 100
+                else:
+                    waitPer = 0
 
                 execStr = 'Exec: %s(%.1f%%)' % (convertTime(execTime), execPer)
                 waitStr = 'Wait: %s(%.1f%%)' % (convertTime(waitTime), waitPer)
