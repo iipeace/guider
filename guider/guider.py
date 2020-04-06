@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200405"
+__revision__ = "200406"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3285,13 +3285,26 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def isEffectiveStr(string):
-        if len(SysMgr.filterGroup) == 0:
+    def isEffectiveStr(string, key=None, inc=True, ignCap=False):
+        if not key:
+            key = SysMgr.filterGroup
+
+        if not key:
             return True
 
-        for cond in SysMgr.filterGroup:
-            if cond in string:
-                return True
+        if ignCap:
+            string = string.lower()
+
+        for cond in key:
+            if ignCap:
+                cond = cond.lower()
+
+            if inc:
+                if cond in string:
+                    return True
+            else:
+                if cond == string:
+                    return True
 
         return False
 
@@ -15024,6 +15037,7 @@ class SysMgr(object):
                 'printdir': 'Dir',
                 'printdbus': 'D-Bus',
                 'printns': 'Namespace',
+                'printsvc': 'systemd',
                 },
             'log': {
                 'printkmsg': 'Kernel',
@@ -16709,6 +16723,37 @@ Examples:
 
     - Print namespace list with tasks
         # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
+                # printsvc #
+                elif SysMgr.isPrintSvcMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show systemd services
+
+Options:
+    -a                          show all attributes
+    -g  <NAME>                  set target file
+    -c  <ATTR>                  set target attribute
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print systemd services
+        # {0:1} {1:1}
+
+    - Print systemd services about only specific files
+        # {0:1} {1:1} -g test
+
+    - Print systemd services including specific attributes
+        # {0:1} {1:1} -c Restart
+
+    - Print systemd services including specific value of attributes
+        # {0:1} {1:1} -c :pid
                     '''.format(cmd, mode)
 
                 # printinfo #
@@ -20768,11 +20813,16 @@ Copyright:
             ttyCols = SysMgr.ttyCols
 
             # cut output by terminal size #
-            if ttyCols == 0 or SysMgr.jsonOutputEnable:
-                line = '\n'.join([nline for nline in line.split('\n')])
-            else:
-                line = '\n'.join(\
-                    [nline[:ttyCols-1] for nline in line.split('\n')])
+            try:
+                if ttyCols == 0 or SysMgr.jsonOutputEnable:
+                    line = '\n'.join([nline for nline in line.split('\n')])
+                else:
+                    line = '\n'.join(\
+                        [nline[:ttyCols-1] for nline in line.split('\n')])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return
 
             # convert to extended ascii #
             nline = SysMgr.convertExtAscii(line)
@@ -20859,6 +20909,11 @@ Copyright:
             rstring = ' because %s' % SysMgr.getErrMsg()
         else:
             rstring = ''
+
+        try:
+            line = line.rstrip('\n')
+        except:
+            pass
 
         msg = ('\n%s%s%s%s%s\n' % \
             (ConfigMgr.FAIL, '[Error] ', line, rstring, ConfigMgr.ENDC))
@@ -22347,6 +22402,15 @@ Copyright:
 
 
     @staticmethod
+    def isPrintSvcMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsvc':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isPrintInfoMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'printinfo':
             return True
@@ -22948,6 +23012,10 @@ Copyright:
         # PRINTNS MODE #
         elif SysMgr.isPrintNsMode():
             SysMgr.doPrintNs()
+
+        # PRINTSVC MODE #
+        elif SysMgr.isPrintSvcMode():
+            SysMgr.doPrintSvc()
 
         # PRINTINFO MODE #
         elif SysMgr.isPrintInfoMode():
@@ -25373,6 +25441,124 @@ Copyright:
             SysMgr.printPipe(env)
 
         SysMgr.printPipe()
+
+        sys.exit(0)
+
+
+
+    @staticmethod
+    def doPrintSvc():
+        def getAttr(fpath):
+            try:
+                with open(fpath, 'r') as fd:
+                    lines = fd.readlines()
+
+                    attrList = dict()
+                    for line in lines:
+                        try:
+                            if line == '\n' or \
+                                line.startswith('#') or \
+                                line.startswith('['):
+                                continue
+
+                            name, value = line[:-1].split('=', 1)
+                            attrList[name.strip()] = value.strip()
+                        except:
+                            SysMgr.printWarn(\
+                                "Fail to parse line '%s'" % line[:-1], reason=True)
+
+                    return attrList
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fpath)
+                return
+
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        systemdPathList = [\
+            '/etc/systemd/system',
+            '/lib/systemd/system',
+        ]
+
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveSystemStat()
+
+        cv = UtilMgr.convertNumber
+
+        serviceList = {}
+        filteredList = {}
+
+        # parse service files #
+        for spath in systemdPathList:
+            for items in os.walk(spath):
+                for node in items[2]:
+                    if not node.endswith('.service'):
+                        continue
+                    elif node in serviceList:
+                        continue
+                    elif not UtilMgr.isEffectiveStr(node, ignCap=True):
+                        continue
+
+                    fpath = os.path.join(items[0], node)
+                    if os.path.islink(fpath):
+                        continue
+
+                    serviceList[node] = getAttr(fpath)
+                    serviceList[node]["path"] = fpath
+
+        # parse filter #
+        attrList = []
+        valList = []
+        for item in SysMgr.customCmd:
+            args = item.split(':', 1)
+            if len(args) == 1:
+                attrList.append(args[0])
+            else:
+                valList.append(args[1])
+
+        # print service files #
+        if len(serviceList) > 0:
+            SysMgr.printPipe(\
+                'Target Service [ NrItems: %s ]\n%s' % \
+                    (cv(len(serviceList)), twoLine))
+            nrItems = 0
+            for node, value in sorted(serviceList.items(), key=lambda e:e[0]):
+                cnt = 0
+                for attr, val in sorted(value.items()):
+                    if not UtilMgr.isEffectiveStr(attr, attrList, ignCap=True):
+                        continue
+                    elif not UtilMgr.isEffectiveStr(val, valList, ignCap=True):
+                        continue
+
+                    SysMgr.addPrint(\
+                        '{0:32} {1:1} = {2:1}\n'.format(' ', attr, val))
+                    cnt += 1
+
+                if cnt > 0:
+                    SysMgr.printPipe('[ %s ]' % node)
+                    SysMgr.doPrint(clear=True)
+                    nrItems += 1
+                else:
+                    SysMgr.clearPrint()
+                    filteredList[node] = value
+
+            if nrItems == 0:
+                SysMgr.printPipe('\tNone')
+            SysMgr.printPipe('%s\n' % oneLine)
+
+        # print filtered list #
+        if len(filteredList) > 0:
+            SysMgr.printPipe(\
+                'Exceptional Service [ NrItems: %s ]\n%s' % \
+                    (cv(len(filteredList)), twoLine))
+            for node, value in sorted(filteredList.items()):
+                SysMgr.printPipe('[ %s ]' % node)
+                for attr, val in sorted(value.items()):
+                    SysMgr.printPipe(\
+                        '{0:32} {1:1} = {2:1}'.format(' ', attr, val))
+                SysMgr.printPipe()
+            SysMgr.printPipe('%s\n' % oneLine)
 
         sys.exit(0)
 
@@ -34523,14 +34709,14 @@ struct msghdr {
             else:
                 value = b'0'
 
-            Debugger.globalEvent[0] = value
+            Debugger.globalEvent[0] = value # pylint: disable=unsupported-assignment-operation
 
 
 
     @staticmethod
     def needUpdateComm():
         if Debugger.globalEvent:
-            ret = Debugger.globalEvent[0]
+            ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
             if ret == b'1':
                 return True
             else:
