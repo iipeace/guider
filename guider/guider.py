@@ -16738,6 +16738,7 @@ Options:
     -a                          show all attributes
     -g  <NAME>                  set target file
     -c  <ATTR>                  set target attribute
+    -I  <DIR>                   set input path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16754,6 +16755,9 @@ Examples:
 
     - Print systemd services including specific value of attributes
         # {0:1} {1:1} -c :pid
+
+    - Print systemd services in specific directories
+        # {0:1} {1:1} -I /home/iipeace/services
                     '''.format(cmd, mode)
 
                 # printinfo #
@@ -21481,6 +21485,10 @@ Copyright:
                     SysMgr.journalEnable = True
 
                 if 'H' in options:
+                    if not SysMgr.isThreadTopMode():
+                        SysMgr.printErr(\
+                            "sched option is supported only in thread mode")
+                        sys.exit(0)
                     SysMgr.schedEnable = True
 
                 if 'y' in options:
@@ -25450,44 +25458,55 @@ Copyright:
     def doPrintSvc():
         def getAttr(fpath):
             try:
-                with open(fpath, 'r') as fd:
-                    lines = fd.readlines()
-
-                    attrList = dict()
-                    for line in lines:
-                        try:
-                            if line == '\n' or \
-                                line.startswith('#') or \
-                                line.startswith('['):
-                                continue
-
-                            name, value = line[:-1].split('=', 1)
-                            attrList[name.strip()] = value.strip()
-                        except:
-                            SysMgr.printWarn(\
-                                "Fail to parse line '%s'" % line[:-1], reason=True)
-
-                    return attrList
+                fd = open(fpath, 'r')
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenErr(fpath)
                 return
 
+            lines = fd.readlines()
+
+            attrList = dict()
+            for line in lines:
+                try:
+                    if line == '\n' or \
+                        line.startswith('#') or \
+                        line.startswith('['):
+                        continue
+
+                    name, value = line[:-1].split('=', 1)
+                    attrList[name.strip()] = value.strip()
+                except:
+                    SysMgr.printWarn(\
+                        "Fail to parse line '%s'" % line[:-1], reason=True)
+
+            return attrList
+
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        systemdPathList = [\
-            '/etc/systemd/system',
-            '/lib/systemd/system',
-        ]
-
-        obj = ThreadAnalyzer(onlyInstance=True)
-        obj.saveSystemStat()
+        # set dir path #
+        if SysMgr.inputParam:
+            systemdPathList = SysMgr.inputParam.split(',')
+            for d in systemdPathList:
+                if not os.path.isdir(d):
+                    SysMgr.printErr(\
+                        "%s is not an accessable directory" % d)
+                    sys.exit(0)
+        else:
+            systemdPathList = [\
+                '/etc/systemd/system',
+                '/lib/systemd/system',
+            ]
 
         cv = UtilMgr.convertNumber
 
         serviceList = {}
         filteredList = {}
+
+        SysMgr.cmdlineEnable = True
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveSystemStat()
 
         # parse service files #
         for spath in systemdPathList:
