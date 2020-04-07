@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200406"
+__revision__ = "200407"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -376,6 +376,31 @@ class ConfigMgr(object):
         19: "MADV_KEEPONFORK",  # Undo MADV_WIPEONFORK
         100: "MADV_HWPOISON",   # Poison a page for testing
     }
+
+    # Define netlink type #
+    NETLINK_TYPE = {
+        "NETLINK_ROUTE": 0,
+        "NETLINK_UNUSED": 1,
+        "NETLINK_USERSOCK": 2,
+        "NETLINK_FIREWALL": 3,
+        "NETLINK_SOCK_DIAG": 4,
+        "NETLINK_NFLOG": 5,
+        "NETLINK_XFRM": 6,
+        "NETLINK_SELINUX": 7,
+        "NETLINK_ISCSI": 8,
+        "NETLINK_AUDIT": 9,
+        "NETLINK_FIB_LOOKUP": 10,
+        "NETLINK_CONNECTOR": 11,
+        "NETLINK_NETFILTER": 12,
+        "NETLINK_IP6_FW": 13,
+        "NETLINK_DNRTMSG": 14,
+        "NETLINK_KOBJECT_UEVENT": 15,
+        "NETLINK_GENERIC": 16,
+        "NETLINK_SCSITRANSPORT": 18,
+        "NETLINK_ECRYPTFS": 19,
+        "NETLINK_RDMA": 20,
+        "NETLINK_CRYPTO": 21,
+     }
 
     # Define entry type #
     AT_TYPE = {
@@ -3932,7 +3957,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertDict2Str(dictObj):
+    def convDict2Str(dictObj):
         try:
             jsonStr = SysMgr.getPkg('json').\
                 dumps(dictObj, indent=2, ensure_ascii=False)
@@ -3961,7 +3986,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertStr2Dict(strObj):
+    def convStr2Dict(strObj):
         try:
             strObj = strObj.replace("'", '"')
             return SysMgr.getPkg('json').loads(strObj)
@@ -3981,7 +4006,7 @@ class NetworkMgr(object):
 
     def __init__(\
         self, mode, ip, port, blocking=True, \
-        tcp=False, anyPort=False, bind=True):
+        tcp=False, anyPort=False, bind=True, netlink=False):
         self.mode = mode
         self.ip = None
         self.port = None
@@ -3994,15 +4019,16 @@ class NetworkMgr(object):
         self.sendSize = 32767
         self.recvSize = 32767
         self.tcp = tcp
+        self.netlink = netlink
         self.connected = False
 
         # get socket object #
         socket = SysMgr.getPkg('socket')
 
         try:
-            from socket import socket, AF_INET, SOCK_DGRAM, \
+            from socket import socket, AF_INET, SOCK_DGRAM, AF_NETLINK, \
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
-                SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO
+                SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO, SOCK_RAW
         except:
             return None
 
@@ -4010,6 +4036,9 @@ class NetworkMgr(object):
             # set socket type #
             if tcp:
                 self.socket = socket(AF_INET, SOCK_STREAM)
+            elif netlink:
+                self.socket = socket(\
+                    AF_NETLINK, SOCK_RAW, ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'])
             else:
                 self.socket = socket(AF_INET, SOCK_DGRAM)
 
@@ -4045,7 +4074,7 @@ class NetworkMgr(object):
 
             if mode == 'server':
                 # IP #
-                if not ip:
+                if ip is None:
                     self.ip = '0.0.0.0'
 
                 # PORT #
@@ -4381,7 +4410,7 @@ class NetworkMgr(object):
 
         try:
             # check protocol #
-            if self.tcp:
+            if self.tcp or self.netlink:
                 ret = self.socket.send(message)
             elif not write and SysMgr.localServObj:
                 ret = SysMgr.localServObj.socket.sendto(\
@@ -12761,7 +12790,7 @@ class LogMgr(object):
                     continue
 
             if SysMgr.jsonOutputEnable:
-                jsonResult = UtilMgr.convertDict2Str(jsonResult)
+                jsonResult = UtilMgr.convDict2Str(jsonResult)
                 SysMgr.printPipe(jsonResult)
             else:
                 SysMgr.printPipe(log[:-1])
@@ -12971,6 +13000,8 @@ class SysMgr(object):
 
     localServObj = None
     remoteServObj = None
+    netlinkObj = None
+    GEAttr = [0] * 9
     addrListForPrint = {}
     addrListForReport = {}
 
@@ -20561,7 +20592,7 @@ Copyright:
         # JSON mode #
         if SysMgr.jsonOutputEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilMgr.convertDict2Str(SysMgr.jsonData)
+            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
             if not jsonObj:
                 SysMgr.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -22828,7 +22859,7 @@ Copyright:
                     obj = ElfAnalyzer(path, debug, incArg=True)
 
                 if SysMgr.jsonOutputEnable:
-                    jsonStr = UtilMgr.convertDict2Str(obj.attr)
+                    jsonStr = UtilMgr.convDict2Str(obj.attr)
                     SysMgr.printPipe(jsonStr)
             except SystemExit:
                 sys.exit(0)
@@ -23859,7 +23890,7 @@ Copyright:
     def printBgProcs(cache=False, pager=False):
         if SysMgr.jsonOutputEnable:
             result = (SysMgr.getBgProcList(isJson=True))
-            jsonResult = UtilMgr.convertDict2Str(result)
+            jsonResult = UtilMgr.convDict2Str(result)
             SysMgr.printPipe(jsonResult)
             return
 
@@ -25455,6 +25486,197 @@ Copyright:
 
 
     @staticmethod
+    def initNetlink():
+        if SysMgr.netlinkObj:
+            return
+
+        array = SysMgr.getPkg('array', False)
+        if not array:
+            return None
+
+        # create netlink socket #
+        sockObj = SysMgr.netlinkObj = \
+            NetworkMgr('server', ip=0, port=0, anyPort=True, netlink=True)
+
+        NLM_F_REQUEST = 1
+
+        CTRL_CMD_UNSPEC         = 0
+        CTRL_CMD_NEWFAMILY      = 1
+        CTRL_CMD_DELFAMILY      = 2
+        CTRL_CMD_GETFAMILY      = 3
+        CTRL_CMD_NEWOPS         = 4
+        CTRL_CMD_DELOPS         = 5
+        CTRL_CMD_GETOPS         = 6
+
+        CTRL_ATTR_UNSPEC        = 0
+        CTRL_ATTR_FAMILY_ID     = 1
+        CTRL_ATTR_FAMILY_NAME   = 2
+        CTRL_ATTR_VERSION       = 3
+        CTRL_ATTR_HDRSIZE       = 4
+        CTRL_ATTR_MAXATTR       = 5
+        CTRL_ATTR_OPS           = 6
+
+        GEAttrStruct = [
+                9,          # 0 CTRL_ATTR_UNSPEC
+                '''=H''',   # 1 U16(skb, CTRL_ATTR_FAMILY_ID
+                0,          # 2 STRING(skb, CTRL_ATTR_FAMILY_NAME
+                '''=I''',   # 3 U32(skb, CTRL_ATTR_VERSION
+                '''=I''',   # 4 U32(skb, CTRL_ATTR_HDRSIZE
+                '''=I''',   # 5 U32(skb, CTRL_ATTR_MAXATTR
+                '''=I''',   # 6 U32(skb, CTRL_ATTR_OP_ID
+                '''=I''',   # 7 U32(skb, CTRL_ATTR_OP_FLAGS
+                '''=I''',   # 8 U32(skb, CTRL_ATTR_MCAST_GRP_ID
+                9           # 9 STRING(skb, CTRL_ATTR_MCAST_GRP_NAME
+        ]
+
+        cmd = 'TASKSTATS\0'
+        msgLen = len(cmd) + 4
+
+        # build request packet #
+        msg = array.array(str('B'))
+        msg.fromstring(struct.pack("BBxx", CTRL_CMD_GETFAMILY, 0))
+        msg.fromstring(struct.pack("HH", msgLen, CTRL_ATTR_FAMILY_NAME))
+        msg.fromstring(cmd)
+        msg.fromstring('\0' * ((4 - (len(cmd) % 4)) & 0x3))
+
+        nlmsghdr = array.array(\
+            str('B'), struct.pack(str('=IHHII'), len(msg)+16, \
+            ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'], NLM_F_REQUEST, 0, 0))
+        nlmsghdr.extend(msg)
+
+        # send GETFAMILY command #
+        sockObj.send(nlmsghdr)
+
+        # recv result #
+        data = sockObj.recv()
+        if not data:
+            return None
+
+        (size, type, flags, seq, pid) = struct.unpack(str('=IHHII'), data[:16])
+        data = data[16:size]
+
+        cmd, version = struct.unpack(str('=BBxx'), data[:4])
+        data = data[4:]
+
+        while len(data) > 0:
+            length, typ = struct.unpack(str('=HH'), data[:4])
+            length = length & 0x7fff
+
+            if GEAttrStruct[typ] == 0:
+               SysMgr.GEAttr[typ] = data[4:length-1]
+            elif GEAttrStruct[typ] == 9:
+               pass
+            elif typ > 5:
+               pass
+            else:
+               SysMgr.GEAttr[typ] = \
+                   struct.unpack(GEAttrStruct[typ], data[4:length])[0]
+
+            data = data[((((length +3 ))) & ~0x3):]
+
+
+
+    @staticmethod
+    def getTaskstats(target):
+        sockObj = SysMgr.netlinkObj
+        GEAttr = SysMgr.GEAttr
+
+        if not sockObj:
+            SysMgr.printErr("Not initialized netlink socket yet")
+            return None
+
+        NLMSG_MIN_TYPE  = 0x10
+        GENL_ID_CTRL = NLMSG_MIN_TYPE
+        ACK_REQUEST = (4 | 1)
+
+        TASKSTATS_CMD_ATTR_PID = 1
+        TASKSTATS_CMD_ATTR_TGID = 2
+        TASKSTATS_CMD_GET = 1 # user -> kernel request/get-response
+        TASKSTATS_CMD_NEW = 2 # kernel -> user event
+
+        TASKSTATS_TYPE_PID = 1 # Process id
+        TASKSTATS_TYPE_TGID = 2 # Thread group id
+        TASKSTATS_TYPE_STATS = 3 # taskstats structure
+        TASKSTATS_TYPE_AGGR_PID = 4 # contains pid + stats
+        TASKSTATS_TYPE_AGGR_TGID = 5 # contains tgid + stats
+
+        NLMSG_NOOP      =        0x1
+        NLMSG_ERROR     =        0x2
+        NLMSG_DONE      =        0x3
+        NLMSG_OVERRUN   =        0x4
+
+        CTRL_ATTR_UNSPEC        = 0
+        CTRL_ATTR_FAMILY_ID     = 1
+        CTRL_ATTR_FAMILY_NAME   = 2
+        CTRL_ATTR_VERSION       = 3
+        CTRL_ATTR_HDRSIZE       = 4
+        CTRL_ATTR_MAXATTR       = 5
+        CTRL_ATTR_OPS           = 6
+
+        TASKSTATS_STRUCT = 'HIBBQQQQQQQQ32sIxxxIIIIIQQQQQQQQQQQQQQQQQQQQQQQ'
+        TASKSTATS_FIELD = [
+         'version', 'ac_exitcode',
+         'ac_flag', 'ac_nice',
+         'cpu_count', 'cpu_delay_total',
+         'blkio_count', 'blkio_delay_total',
+         'swapin_count', 'swapin_delay_total',
+         'cpu_run_real_total', 'cpu_run_virtual_total',
+         'ac_comm', 'ac_sched',
+         'ac_uid', 'ac_gid', 'ac_pid', 'ac_ppid',
+         'ac_btime', 'ac_etime', 'ac_utime', 'ac_stime',
+         'ac_minflt', 'ac_majflt',
+         'coremem', 'virtmem',
+         'hiwater_rss', 'hiwater_vm',
+         'read_char', 'write_char', 'read_syscalls', 'write_syscalls',
+         'read_bytes', 'write_bytes', 'cancelled_write_bytes',
+         'nvcsw', 'nivcsw',
+         'utimescaled', 'stimescaled', 'cpu_scaled_run_real_total',
+         'freepages_count', 'freepages_delay_total'
+        ]
+
+        array = SysMgr.getPkg('array', False)
+        if not array:
+            return None
+
+        # request #
+        msg = array.array(str('B'))
+        msg.fromstring(struct.pack("BBxx", TASKSTATS_CMD_GET, 0))
+
+        cmd = struct.pack('=I', int(target))
+        msgLen = len(cmd) + 4
+
+        msg.fromstring(struct.pack("HH", msgLen, TASKSTATS_CMD_ATTR_PID))
+        msg.fromstring(cmd)
+        msg.fromstring('\0' * ((4 - (len(cmd) % 4)) & 0x3))
+
+        pid = sockObj.socket.getsockname()[0]
+        nlmsghdr = array.array(\
+            str('B'),struct.pack(str('=IHHII'), len(msg) + 16, \
+            GEAttr[CTRL_ATTR_FAMILY_ID], ACK_REQUEST, 1, pid))
+        nlmsghdr.extend(msg)
+
+        while 1:
+            sockObj.send(nlmsghdr)
+
+            data = sockObj.recv()
+            if type(data) is bytes and len(data) >= 328:
+                break
+
+        (size, ftype, flags, seq, pid) = struct.unpack(str('=IHHII'), data[:16])
+        data = data[16:size]
+
+        cmd, version = struct.unpack(str('=BBxx'), data[:4])
+        data = data[4:]
+
+        attrs = dict(\
+            zip(TASKSTATS_FIELD, struct.unpack(TASKSTATS_STRUCT, data[16:])))
+        attrs['ac_comm'] = attrs['ac_comm'].decode().rstrip('\0')
+
+        return attrs
+
+
+
+    @staticmethod
     def doPrintSvc():
         def getAttr(fpath):
             try:
@@ -25635,7 +25857,7 @@ Copyright:
 
         if SysMgr.jsonOutputEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilMgr.convertDict2Str(SysMgr.jsonData)
+            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
             if not jsonObj:
                 SysMgr.printWarn(\
                     "Fail to convert report data to JSON type")
@@ -26206,7 +26428,7 @@ Copyright:
             else:
                 result[os.path.abspath(path)] = dict(subDirs=dict())
             getDirs(result, path, 0, -1)
-            jsonResult = UtilMgr.convertDict2Str(result)
+            jsonResult = UtilMgr.convDict2Str(result)
             SysMgr.printPipe(jsonResult)
         else:
             abspath = "[%s]" % (os.path.abspath(path))
@@ -26953,7 +27175,7 @@ Copyright:
         # print stat #
         if origJsonFlag:
             SysMgr.printPipe(\
-                UtilMgr.convertDict2Str(SysMgr.jsonData))
+                UtilMgr.convDict2Str(SysMgr.jsonData))
         else:
             pass
 
@@ -29936,8 +30158,10 @@ Copyright:
 
         try:
             path = '/etc/passwd'
-            with open(path, 'r') as fd:
+            with open(path, 'rb') as fd:
                 data = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(path)
             return
@@ -29946,14 +30170,15 @@ Copyright:
         for line in data:
             try:
                 user, passwd, uid, gid, info, home, shell = \
-                    line.split(':')
+                    line.decode().split(':')
 
-                userData = self.userData[uid] = dict()
-                userData['name'] = user
-                userData['gid'] = gid
-                userData['info'] = info
-                userData['home'] = home
-                userData['shell'] = shell
+                self.userData[uid] = {
+                    'name': user,
+                    'gid': gid,
+                    'info': info,
+                    'home': home,
+                    'shell': shell,
+                }
             except:
                 pass
 
@@ -31383,7 +31608,7 @@ class DbusAnalyzer(object):
 
             # convert string to dict #
             try:
-                jsonData = UtilMgr.convertStr2Dict(params)
+                jsonData = UtilMgr.convStr2Dict(params)
                 if not jsonData:
                     return
             except SystemExit:
@@ -36232,7 +36457,7 @@ struct msghdr {
 
             try:
                 SysMgr.printPipe(\
-                    str(UtilMgr.convertDict2Str(jsonData)))
+                    str(UtilMgr.convDict2Str(jsonData)))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -36465,7 +36690,7 @@ struct msghdr {
                 }
 
                 SysMgr.printPipe(\
-                    str(UtilMgr.convertDict2Str(jsonData)))
+                    str(UtilMgr.convDict2Str(jsonData)))
 
                 self.clearArgs()
 
@@ -41505,6 +41730,13 @@ class ThreadAnalyzer(object):
 
             # set system maximum fd number #
             SysMgr.setMaxFd()
+
+            # initialize netlink socket #
+            try:
+                SysMgr.initNetlink()
+            except:
+                SysMgr.printWarn(\
+                    "Fail to initialize netlink", reason=True)
 
             # set default interval #
             if SysMgr.intervalEnable == 0:
@@ -56230,7 +56462,7 @@ class ThreadAnalyzer(object):
         if not reportStat:
             return
         elif type(reportStat) is dict:
-            reportStat = UtilMgr.convertDict2Str(reportStat)
+            reportStat = UtilMgr.convDict2Str(reportStat)
 
         SysMgr.printPipe(reportStat, newline=False, flush=True)
 
@@ -56330,7 +56562,7 @@ class ThreadAnalyzer(object):
         if data[0] == '{' and \
             data.strip()[-1] == '}':
             # convert report data to dictionary type #
-            reportStat = UtilMgr.convertStr2Dict(data)
+            reportStat = UtilMgr.convStr2Dict(data)
 
             # check converting result #
             if not reportStat:
@@ -56735,7 +56967,7 @@ class ThreadAnalyzer(object):
                     SysMgr.inputFile, filePath)
 
         # convert dict data to JSON-type string #
-        jsonObj = UtilMgr.convertDict2Str(self.reportData)
+        jsonObj = UtilMgr.convDict2Str(self.reportData)
         if not jsonObj:
             SysMgr.printWarn(\
                 "Fail to convert report data to JSON type")
@@ -56806,7 +57038,7 @@ class ThreadAnalyzer(object):
         reportCpuData.update(beatFields)
         reportCpuData.update(systemCpuFields)
 
-        jstr = UtilMgr.convertDict2Str(reportCpuData)
+        jstr = UtilMgr.convDict2Str(reportCpuData)
         if jstr:
             reportElasticData += jstr
 
@@ -56839,7 +57071,7 @@ class ThreadAnalyzer(object):
         reportMemoryData.update(beatFields)
         reportMemoryData.update(systemMemoryFields)
 
-        jstr = UtilMgr.convertDict2Str(reportMemoryData)
+        jstr = UtilMgr.convDict2Str(reportMemoryData)
         if jstr:
             reportElasticData += jstr
 
@@ -56863,7 +57095,7 @@ class ThreadAnalyzer(object):
         reportNetworkData.update(beatFields)
         reportNetworkData.update(systemNetworkFields)
 
-        jstr = UtilMgr.convertDict2Str(reportNetworkData)
+        jstr = UtilMgr.convDict2Str(reportNetworkData)
         if jstr:
             reportElasticData += jstr
 
@@ -56896,7 +57128,7 @@ class ThreadAnalyzer(object):
             reportDiskioData.update(beatFields)
             reportDiskioData.update(systemDiskioFields)
 
-            jstr = UtilMgr.convertDict2Str(reportDiskioData)
+            jstr = UtilMgr.convDict2Str(reportDiskioData)
             if jstr:
                 reportElasticData += jstr
 
@@ -56956,7 +57188,7 @@ class ThreadAnalyzer(object):
             reportProcessData.update(beatFields)
             reportProcessData.update(systemProcessFields)
 
-            jstr = UtilMgr.convertDict2Str(reportProcessData)
+            jstr = UtilMgr.convDict2Str(reportProcessData)
             if jstr:
                 reportElasticData += jstr
 
