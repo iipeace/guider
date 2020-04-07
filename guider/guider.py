@@ -25669,7 +25669,7 @@ Copyright:
         data = data[4:]
 
         attrs = dict(\
-            zip(TASKSTATS_FIELD, struct.unpack(TASKSTATS_STRUCT, data[16:])))
+            zip(TASKSTATS_FIELD, struct.unpack(TASKSTATS_STRUCT, data[16:344])))
         attrs['ac_comm'] = attrs['ac_comm'].decode().rstrip('\0')
 
         return attrs
