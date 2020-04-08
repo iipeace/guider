@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200407"
+__revision__ = "200408"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5134,6 +5134,7 @@ class NetworkMgr(object):
 
 
 
+'''
 class GlMgr(object):
     """ Manager for GL """
 
@@ -5811,6 +5812,7 @@ class GlMgr(object):
         gl.glVertexBindingDivisor.restype = None
         gl.glViewport.argtypes = [c_int, c_int, c_size_t, c_size_t]
         gl.glViewport.restype = None
+'''
 
 
 
@@ -13107,6 +13109,7 @@ class SysMgr(object):
     keventEnable = False
     networkEnable = False
     schedEnable = False
+    delayEnable = False
     stackEnable = False
     wchanEnable = False
     sigHandlerEnable = False
@@ -14693,7 +14696,8 @@ class SysMgr(object):
             'd' in options or 'o' in options or \
             'C' in options or 'E' in options or \
             'D' in options or 'k' in options or \
-            'j' in options or 'y' in options:
+            'j' in options or 'y' in options or \
+            'Y' in options:
             return True
         else:
             return False
@@ -15175,7 +15179,7 @@ Options:
             m:memory | n:net | N:namespace | o:oomScore
             p:pipe | P:perf | r:report | R:fileReport
             s:stack | S:pss | t:thread | u:uss | w:wss
-            W:wchan | y:syslog
+            W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage
             c:cpu | e:encode | G:gpu | L:log
@@ -18604,7 +18608,9 @@ Copyright:
             scmd = scmd[scmd.find("("):]
 
         SysMgr.writeCmd('raw_syscalls/filter', scmd)
-        SysMgr.writeCmd(cmd, '1')
+        ret = SysMgr.writeCmd(cmd, '1')
+        if ret < 0:
+            SysMgr.printWarn("Fail to enable syscall events", True)
 
 
 
@@ -19171,6 +19177,11 @@ Copyright:
                     enableStat += 'SCHED '
                 else:
                     disableStat += 'SCHED '
+
+                if SysMgr.delayEnable:
+                    enableStat += 'DELAY '
+                else:
+                    disableStat += 'DELAY '
 
                 if SysMgr.groupProcEnable:
                     enableStat += 'PGRP '
@@ -21525,6 +21536,9 @@ Copyright:
                 if 'y' in options:
                     SysMgr.loggingEnable = True
                     SysMgr.syslogEnable = True
+
+                if 'Y' in options:
+                    SysMgr.delayEnable = True
 
                 # no more options except for top mode #
                 if not SysMgr.isTopMode():
@@ -25496,7 +25510,8 @@ Copyright:
 
         # create netlink socket #
         sockObj = SysMgr.netlinkObj = \
-            NetworkMgr('server', ip=0, port=0, anyPort=True, netlink=True)
+            NetworkMgr('server', ip=0, port=0, \
+                anyPort=True, netlink=True, blocking=False)
 
         NLM_F_REQUEST = 1
 
@@ -25578,6 +25593,9 @@ Copyright:
 
     @staticmethod
     def getTaskstats(target):
+        if SysMgr.isAndroid:
+            return None
+
         sockObj = SysMgr.netlinkObj
         GEAttr = SysMgr.GEAttr
 
@@ -25655,12 +25673,17 @@ Copyright:
             GEAttr[CTRL_ATTR_FAMILY_ID], ACK_REQUEST, 1, pid))
         nlmsghdr.extend(msg)
 
+        cnt = 0
         while 1:
             sockObj.send(nlmsghdr)
 
             data = sockObj.recv()
             if type(data) is bytes and len(data) >= 328:
                 break
+
+            cnt += 1
+            if cnt > 3:
+                return None
 
         (size, ftype, flags, seq, pid) = struct.unpack(str('=IHHII'), data[:16])
         data = data[16:size]
@@ -41733,7 +41756,7 @@ class ThreadAnalyzer(object):
 
             # initialize netlink socket #
             try:
-                SysMgr.initNetlink()
+                ret = SysMgr.initNetlink()
             except:
                 SysMgr.printWarn(\
                     "Fail to initialize netlink", reason=True)
@@ -56212,12 +56235,12 @@ class ThreadAnalyzer(object):
             # print sched #
             if SysMgr.schedEnable and \
                 'execTime' in value:
-                execTime = float(value['execTime'] / 1000000000)
+                execTime = float(long(value['execTime'] / 1000000000))
                 if value['runtime'] > 0:
                     execPer = execTime / value['runtime'] * 100
                 else:
                     execPer = 0
-                waitTime = float(value['waitTime'] / 1000000000)
+                waitTime = float(long(value['waitTime'] / 1000000000))
                 if value['runtime'] > 0:
                     waitPer = waitTime / value['runtime'] * 100
                 else:
@@ -56231,6 +56254,54 @@ class ThreadAnalyzer(object):
 
                 SysMgr.addPrint(\
                     "{0:>39} | {1:1}\n".format('SCHED', schedStr))
+
+            if SysMgr.delayEnable:
+                while 1:
+                    val = SysMgr.getTaskstats(idx)
+                    if not val or str(val['ac_pid']) == idx:
+                        break
+
+                try:
+                    cpuDelay = val['cpu_delay_total']
+                    blkDelay = val['blkio_delay_total']
+                    swapDelay = val['swapin_delay_total']
+                    rclmDelay = val['freepages_delay_total']
+
+                    value['delay'] = {
+                        'CPU': cpuDelay,
+                        'BLK': blkDelay,
+                        'SWAP': swapDelay,
+                        'RCLM': rclmDelay,
+                    }
+
+                    cpuDelayDiff = cpuDelay - self.prevProcData[idx]['delay']['CPU']
+                    blkDelayDiff = blkDelay - self.prevProcData[idx]['delay']['BLK']
+                    swapDelayDiff = swapDelay - self.prevProcData[idx]['delay']['SWAP']
+                    rclmDelayDiff = rclmDelay - self.prevProcData[idx]['delay']['RCLM']
+
+                    cpuDelay /= 1000000000.0
+                    blkDelay /= 1000000000.0
+                    swapDelay /= 1000000000.0
+                    rclmDelay /= 1000000000.0
+
+                    cpuDelayDiff /= 1000000000.0
+                    blkDelayDiff /= 1000000000.0
+                    swapDelayDiff /= 1000000000.0
+                    rclmDelayDiff /= 1000000000.0
+
+                    delayStr = \
+                        'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                            (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
+                    SysMgr.addPrint(\
+                        "{0:>39} | {1:1}\n".format('DELAY', delayStr))
+
+                    delayTotalStr = \
+                        'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                            (cpuDelay, blkDelay, swapDelay, rclmDelay)
+                    SysMgr.addPrint(\
+                        "{0:>39} | {1:1}\n".format('TOTAL_DELAY', delayTotalStr))
+                except:
+                    pass
 
             # print D-Bus #
             if 'dbusList' in value and \
