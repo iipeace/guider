@@ -7,6 +7,8 @@
 *.bmp
 *.out*
 *.dat*
+*.log
+*.pot
 *.report
 __pycache__
 build
@@ -26,11 +28,7 @@ venv/
 agent/app/secrets.json
 
 # django secret info
-*.log
-*.pot
-*.pyc
-__pycache__/
-guider_web/guider_web/secret.json
+secret.json
 db.sqlite3
 
 # vscode
