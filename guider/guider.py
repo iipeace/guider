@@ -26929,8 +26929,131 @@ Copyright:
 
 
     @staticmethod
+    def getGpuInfo():
+        def ConvertSMVer2Cores(major, minor):
+            # Returns the number of CUDA cores per multiprocessor for a given
+            # Compute Capability version. There is no way to retrieve that via
+            # the API, so it needs to be hard-coded.
+            # See _ConvertSMVer2Cores in helper_cuda.h in NVIDIA's CUDA Samples.
+            return {(1, 0): 8,    # Tesla
+                    (1, 1): 8,
+                    (1, 2): 8,
+                    (1, 3): 8,
+                    (2, 0): 32,   # Fermi
+                    (2, 1): 48,
+                    (3, 0): 192,  # Kepler
+                    (3, 2): 192,
+                    (3, 5): 192,
+                    (3, 7): 192,
+                    (5, 0): 128,  # Maxwell
+                    (5, 2): 128,
+                    (5, 3): 128,
+                    (6, 0): 64,   # Pascal
+                    (6, 1): 128,
+                    (6, 2): 128,
+                    (7, 0): 64,   # Volta
+                    (7, 2): 64,
+                    (7, 5): 64,   # Turing
+                    }.get((major, minor), 0)
+
+        CUDA_SUCCESS = 0
+        CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16
+        CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR = 39
+        CU_DEVICE_ATTRIBUTE_CLOCK_RATE = 13
+        CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE = 36
+
+        ctypes = SysMgr.getPkg('ctypes', False)
+        if not ctypes:
+            return None
+
+        from ctypes import cdll, POINTER, Structure, c_int, c_size_t, \
+            c_void_p, c_char_p, byref
+
+        nGpus = c_int()
+        name = b' ' * 100
+        cc_major = c_int()
+        cc_minor = c_int()
+        cores = c_int()
+        threads_per_core = c_int()
+        clockrate = c_int()
+        freeMem = c_size_t()
+        totalMem = c_size_t()
+
+        result = c_int()
+        device = c_int()
+        context = c_void_p()
+        error_str = c_char_p()
+
+        try:
+            cuda = cdll.LoadLibrary('libcuda.so')
+        except:
+            return None
+
+        result = cuda.cuInit(0)
+        if result != CUDA_SUCCESS:
+            return None
+
+        result = cuda.cuDeviceGetCount(byref(nGpus))
+        if result != CUDA_SUCCESS:
+            return None
+
+        gpuInfo = {}
+
+        for i in range(nGpus.value):
+            result = cuda.cuDeviceGet(byref(device), i)
+            if result != CUDA_SUCCESS:
+                return None
+
+            gpuInfo[i] = dict()
+
+            if cuda.cuDeviceGetName(c_char_p(name), len(name), device) == CUDA_SUCCESS:
+                gpuInfo[i]['name'] = name.split(b'\0', 1)[0].decode()
+
+            if cuda.cuDeviceComputeCapability(\
+                byref(cc_major), byref(cc_minor), device) == CUDA_SUCCESS:
+                gpuInfo[i]['capa'] = "%d.%d" % (cc_major.value, cc_minor.value)
+
+            if cuda.cuDeviceGetAttribute(\
+                byref(cores), CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, device) == CUDA_SUCCESS:
+                gpuInfo[i]['processor'] = cores.value
+                gpuInfo[i]['core'] = cores.value * \
+                    ConvertSMVer2Cores(cc_major.value, cc_minor.value)
+
+                if cuda.cuDeviceGetAttribute(\
+                    byref(threads_per_core), \
+                    CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR, device) == CUDA_SUCCESS:
+                    gpuInfo[i]['threads'] = cores.value * threads_per_core.value
+
+            if cuda.cuDeviceGetAttribute(\
+                byref(clockrate), CU_DEVICE_ATTRIBUTE_CLOCK_RATE, device) == CUDA_SUCCESS:
+                gpuInfo[i]['gpuClock(MHz)'] = clockrate.value / 1000.
+
+            if cuda.cuDeviceGetAttribute(\
+                byref(clockrate), CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE, device) == CUDA_SUCCESS:
+                gpuInfo[i]['memClock(MHz)'] = clockrate.value / 1000.
+
+            result = cuda.cuCtxCreate(byref(context), 0, device)
+            if result == CUDA_SUCCESS:
+                result = cuda.cuMemGetInfo(byref(freeMem), byref(totalMem))
+                if result == CUDA_SUCCESS:
+                    gpuInfo[i]['totalMem(MB)'] = totalMem.value / 1024**2
+                    gpuInfo[i]['freeMem(MB)'] = freeMem.value / 1024**2
+
+                cuda.cuCtxDetach(context)
+
+        return gpuInfo
+
+
+
+    @staticmethod
+    def doGpuTest():
+        pass
+
+
+
+    @staticmethod
     def doCpuTest():
-        import random
+        random = SysMgr.getPkg('random')
 
         def cputask(num, load):
             SysMgr.setDefaultSignal()
@@ -29398,6 +29521,8 @@ Copyright:
 
         self.printNetworkInfo()
 
+        self.printGpuInfo()
+
         self.printIPCInfo()
 
         self.printCgroupInfo()
@@ -30679,6 +30804,40 @@ Copyright:
 
     def printMsgqInfo(self):
         pass
+
+
+
+    def printGpuInfo(self):
+        gpuInfo = SysMgr.getGpuInfo()
+        if not gpuInfo:
+            return
+
+        # add JSON stats #
+        if SysMgr.jsonOutputEnable:
+            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData['general']['gpu'] = dict()
+            jsonData = SysMgr.jsonData['general']['gpu']
+
+        # print GPU info #
+        SysMgr.infoBufferPrint('\n[System GPU Info]')
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(\
+            "{0:^32} | {1:^16} | {2:^32}\n{3:1}".format(\
+            "Name", "Stat", "Value", oneLine))
+
+        for item in gpuInfo.values():
+            name = item['name']
+            for key, value in sorted(item.items()):
+                if key == 'name':
+                    continue
+
+                SysMgr.infoBufferPrint(\
+                    "{0:^32} | {1:>16} | {2:>32}".format(\
+                        name, key, value))
+
+                name = ''
+
+            SysMgr.infoBufferPrint(oneLine)
 
 
 
