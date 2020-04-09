@@ -26991,26 +26991,34 @@ Copyright:
             # Compute Capability version. There is no way to retrieve that via
             # the API, so it needs to be hard-coded.
             # See _ConvertSMVer2Cores in helper_cuda.h in NVIDIA's CUDA Samples.
-            return {(1, 0): 8,    # Tesla
-                    (1, 1): 8,
-                    (1, 2): 8,
-                    (1, 3): 8,
-                    (2, 0): 32,   # Fermi
-                    (2, 1): 48,
-                    (3, 0): 192,  # Kepler
-                    (3, 2): 192,
-                    (3, 5): 192,
-                    (3, 7): 192,
-                    (5, 0): 128,  # Maxwell
-                    (5, 2): 128,
-                    (5, 3): 128,
-                    (6, 0): 64,   # Pascal
-                    (6, 1): 128,
-                    (6, 2): 128,
-                    (7, 0): 64,   # Volta
-                    (7, 2): 64,
-                    (7, 5): 64,   # Turing
-                    }.get((major, minor), 0)
+            return {
+                # Tesla
+                (1, 0):   8,      # SM 1.0
+                (1, 1):   8,      # SM 1.1
+                (1, 2):   8,      # SM 1.2
+                (1, 3):   8,      # SM 1.3
+                # Fermi
+                (2, 0):  32,      # SM 2.0: GF100 class
+                (2, 1):  48,      # SM 2.1: GF10x class
+                # Kepler
+                (3, 0): 192,      # SM 3.0: GK10x class
+                (3, 2): 192,      # SM 3.2: GK10x class
+                (3, 5): 192,      # SM 3.5: GK11x class
+                (3, 7): 192,      # SM 3.7: GK21x class
+                # Maxwell
+                (5, 0): 128,      # SM 5.0: GM10x class
+                (5, 2): 128,      # SM 5.2: GM20x class
+                (5, 3): 128,      # SM 5.3: GM20x class
+                # Pascal
+                (6, 0):  64,      # SM 6.0: GP100 class
+                (6, 1): 128,      # SM 6.1: GP10x class
+                (6, 2): 128,      # SM 6.2: GP10x class
+                # Volta
+                (7, 0):  64,      # SM 7.0: GV100 class
+                (7, 2):  64,      # SM 7.2: GV11b class
+                # Turing
+                (7, 5):  64,      # SM 7.5: TU10x class
+            }.get((major, minor), 64)   # unknown architecture, return a default value
 
         CUDA_SUCCESS = 0
         CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16
