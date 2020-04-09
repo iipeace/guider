@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200408"
+__revision__ = "200409"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5150,8 +5150,7 @@ class GlMgr(object):
         try:
             # load libglesobj library #
             if not SysMgr.libglesObj:
-                SysMgr.libglesObj = \
-                    cdll.LoadLibrary(SysMgr.libglesPath)
+                SysMgr.libglesObj = SysMgr.loadLib(SysMgr.libglesPath)
         except:
             SysMgr.printErr(\
                 "Fail to load GLES object")
@@ -11487,7 +11486,7 @@ class FileAnalyzer(object):
             ctypes = SysMgr.getPkg('ctypes')
             from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, cdll
 
-            if not SysMgr.loadLibcObj(cdll):
+            if not SysMgr.loadLibcObj():
                 sys.exit(0)
 
             # define mmap types #
@@ -12566,7 +12565,7 @@ class LogMgr(object):
         # load libsystemd library #
         try:
             if not SysMgr.systemdObj:
-                SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
+                SysMgr.systemdObj = SysMgr.loadLib(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
                     raise Exception("No %s" % SysMgr.libsystemdPath)
 
@@ -12826,7 +12825,7 @@ class LogMgr(object):
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             sys.exit(0)
 
         if level is None:
@@ -12851,7 +12850,7 @@ class LogMgr(object):
         # load libsystemd library #
         try:
             if not SysMgr.systemdObj:
-                SysMgr.systemdObj = cdll.LoadLibrary(SysMgr.libsystemdPath)
+                SysMgr.systemdObj = SysMgr.loadLib(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
                     raise Exception("No %s" % SysMgr.libsystemdPath)
 
@@ -12942,14 +12941,14 @@ class SysMgr(object):
     objdumpPath = []
     rootPath = ''
     fontPath = None
-    libdltPath = 'libdlt.so'
-    libcPath = 'libc.so.6'
-    libgobjPath = 'libgobject-2.0.so'
-    libgioPath = 'libgio-2.0.so'
-    libdbusPath = 'libdbus-1.so.3'
-    libcppPath = 'libstdc++.so.6'
-    libsystemdPath = 'libsystemd.so.0'
-    libglesPath = 'libGLESv2.so'
+    libdltPath = 'libdlt'
+    libcPath = 'libc'
+    libgobjPath = 'libgobject-2.0'
+    libgioPath = 'libgio-2.0'
+    libdbusPath = 'libdbus-1'
+    libcppPath = 'libstdc++'
+    libsystemdPath = 'libsystemd'
+    libglesPath = 'libGLESv2'
     libdemanglePath = libcppPath
     eventLogPath = None
     inputFile = None
@@ -12980,6 +12979,7 @@ class SysMgr(object):
     perfTargetEvent = []
     perfEventData = {}
     commCache = {}
+    libCache = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -13251,20 +13251,21 @@ class SysMgr(object):
 
 
     @staticmethod
-    def loadLibcObj(cdll):
+    def loadLibcObj():
         if SysMgr.libcObj:
             return True
 
         # load libc #
         try:
-            SysMgr.libcObj = \
-                cdll.LoadLibrary(SysMgr.libcPath)
-            return True
+            ret = SysMgr.loadLib(SysMgr.libcPath)
+            if ret:
+                SysMgr.libcObj = ret
+                return True
+            else:
+                return False
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr(\
-                "Fail to load libc", True)
             return False
 
 
@@ -13280,7 +13281,7 @@ class SysMgr(object):
             return
         from ctypes import cdll, POINTER, Structure
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             return
 
         if not hasattr(SysMgr.libcObj, 'malloc_trim'):
@@ -13392,9 +13393,7 @@ class SysMgr(object):
         # try to get maxFd by standard library call #
         try:
             # load libc #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+            SysMgr.loadLibcObj()
 
             SysMgr.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
             SysMgr.libcObj.getrlimit.restype = c_int
@@ -13786,6 +13785,69 @@ class SysMgr(object):
 
 
     @staticmethod
+    def loadLibCache():
+        try:
+            path = '/etc/ld.so.cache'
+            if sys.version_info < (3, 0):
+                fd = open(path, 'rb')
+            else:
+                fd = open(path, errors='ignore')
+
+            content = fd.read()
+            libList = list(re.findall("[^\x00-\x1F\x7F-\xFF]{4,}", content))
+
+            libDict = {}
+            for idx, item in enumerate(libList):
+                try:
+                    if libList[idx+1][0] == '/':
+                        value = libList[idx+1]
+                        if item in libDict:
+                            libDict[item].append(value)
+                        else:
+                            libDict[item] = [value]
+                except:
+                    pass
+
+            SysMgr.libCache = libDict
+        except:
+            SysMgr.printWarn('Fail to load library cache', reason=True)
+            return False
+
+
+
+    @staticmethod
+    def findLib(lib):
+        if len(SysMgr.libCache) == 0:
+            SysMgr.loadLibCache()
+
+        for key, val in SysMgr.libCache.items():
+            if key.startswith(lib):
+                if len(val) > 1:
+                    SysMgr.printWarn(\
+                        'Multiple libraries [ %s ] exist for %s' % \
+                            (', '.join(val), key))
+
+                return val[0]
+
+        return None
+
+
+
+    @staticmethod
+    def loadLib(lib):
+        ctypes = SysMgr.getPkg('ctypes', False)
+        if not ctypes:
+            return
+
+        target = SysMgr.findLib(lib)
+        if not target:
+            target = '%s.so' % lib
+
+        return ctypes.cdll.LoadLibrary(target)
+
+
+
+    @staticmethod
     def importNative():
         try:
             # do not use native library to improve initialization time #
@@ -14052,9 +14114,7 @@ class SysMgr(object):
 
                 try:
                     # load libc #
-                    if not SysMgr.libcObj:
-                        SysMgr.libcObj = \
-                            cdll.LoadLibrary(SysMgr.libcPath)
+                    SysMgr.loadLibcObj()
 
                     nrCore = SysMgr.getNrCore()
 
@@ -14101,9 +14161,7 @@ class SysMgr(object):
 
         try:
             # load libc #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+            SysMgr.loadLibcObj()
 
             nrCore = SysMgr.getNrCore()
 
@@ -14278,7 +14336,7 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, POINTER, c_void_p, c_int, byref, c_char
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             sys.exit(0)
 
         # define functions #
@@ -14332,7 +14390,7 @@ class SysMgr(object):
             return
         from ctypes import cdll, POINTER, c_char_p
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             return
 
         try:
@@ -14908,9 +14966,9 @@ class SysMgr(object):
             # android #
             if 'ANDROID_ROOT' in os.environ:
                 SysMgr.isAndroid = True
-                SysMgr.libcPath = 'libc.so'
-                SysMgr.libcppPath = 'libstdc++.so'
-                SysMgr.libdemanglePath = 'libgccdemangle.so'
+                SysMgr.libcPath = 'libc'
+                SysMgr.libcppPath = 'libstdc++'
+                SysMgr.libdemanglePath = 'libgccdemangle'
                 SysMgr.cacheDirPath = '/data/log/guider'
         elif sys.platform.startswith('win') or \
             sys.platform.startswith('darwin'):
@@ -17339,9 +17397,7 @@ Copyright:
 
         try:
             # load libc #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+            SysMgr.loadLibcObj()
 
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
@@ -17472,7 +17528,7 @@ Copyright:
         from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
             c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
             return
@@ -17841,7 +17897,7 @@ Copyright:
         from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
             c_uint64, c_uint, c_uint32, c_int, c_ulong
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             return
 
         # define struct read_group_format #
@@ -18995,7 +19051,7 @@ Copyright:
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, c_ulong
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             return
 
         # declare syscalls #
@@ -26985,7 +27041,7 @@ Copyright:
         error_str = c_char_p()
 
         try:
-            cuda = cdll.LoadLibrary('libcuda.so')
+            cuda = SysMgr.loadLib('libcuda.so')
         except:
             return None
 
@@ -27860,7 +27916,7 @@ Copyright:
         from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
             c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             sys.exit(0)
 
         # define struct sched_attr #
@@ -27975,10 +28031,7 @@ Copyright:
 
         try:
             # load libc #
-            if not SysMgr.guiderObj and \
-                not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+            SysMgr.loadLibcObj()
 
             upolicy = policy.upper()
 
@@ -30808,9 +30861,12 @@ Copyright:
 
 
     def printGpuInfo(self):
-        gpuInfo = SysMgr.getGpuInfo()
-        if not gpuInfo:
-            return
+        try:
+            gpuInfo = SysMgr.getGpuInfo()
+            if not gpuInfo:
+                return None
+        except:
+            return None
 
         # add JSON stats #
         if SysMgr.jsonOutputEnable:
@@ -31483,19 +31539,16 @@ class DbusAnalyzer(object):
         try:
             # load libgio library #
             if not SysMgr.libgioObj:
-                SysMgr.libgioObj = \
-                    cdll.LoadLibrary(SysMgr.libgioPath)
+                SysMgr.libgioObj = SysMgr.loadLib(SysMgr.libgioPath)
 
             # load libgobj library #
             if not SysMgr.libgObj:
-                SysMgr.libgObj = \
-                    cdll.LoadLibrary(SysMgr.libgobjPath)
+                SysMgr.libgObj = SysMgr.loadLib(SysMgr.libgobjPath)
 
             '''
             # load standard libdbus library #
             if not SysMgr.libdbusObj:
-                SysMgr.libdbusObj = \
-                    cdll.LoadLibrary(SysMgr.libdbusPath)
+                SysMgr.libdbusObj = SysMgr.loadLib(SysMgr.libdbusPath)
             '''
         except SystemExit:
             sys.exit(0)
@@ -32558,7 +32611,7 @@ class DltAnalyzer(object):
         # load DLT library #
         try:
             if not SysMgr.dltObj:
-                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.libdltPath)
+                SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
             dltObj = SysMgr.dltObj
         except:
             SysMgr.dltObj = None
@@ -32911,7 +32964,8 @@ class DltAnalyzer(object):
         # load DLT library #
         try:
             if not SysMgr.dltObj:
-                SysMgr.dltObj = cdll.LoadLibrary(SysMgr.libdltPath)
+                SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
+
             dltObj = SysMgr.dltObj
         except SystemExit:
             sys.exit(0)
@@ -32919,7 +32973,7 @@ class DltAnalyzer(object):
             SysMgr.dltObj = None
             SysMgr.printWarn(\
                 'Fail to find %s to get DLT log' % \
-                    SysMgr.libdltPath, True)
+                    SysMgr.libdltPath, True, reason=True)
             sys.exit(0)
 
         # define verbose #
@@ -33059,7 +33113,7 @@ class DltAnalyzer(object):
         # connect to server #
         try:
             connSock = create_connection(\
-                (string_at(servIp), servPort), timeout=1)
+                (string_at(servIp.encode()), servPort), timeout=1)
 
             # set blocking #
             connSock.setblocking(1) # pylint: disable=no-member
@@ -33328,7 +33382,7 @@ class Debugger(object):
             addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
             c_size_t, c_int, POINTER, sizeof, cast
 
-        if not SysMgr.loadLibcObj(cdll):
+        if not SysMgr.loadLibcObj():
             raise Exception('no libc')
 
         # define member classes #
@@ -34563,6 +34617,9 @@ struct msghdr {
         if not pid:
             pid = self.pid
 
+        # stop target for detach #
+        self.stop()
+
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_DETACH')
         ret = self.ptrace(cmd, pid=pid)
@@ -34575,6 +34632,7 @@ struct msghdr {
             SysMgr.printWarn(\
                 'Detached %s(%s) from guider(%s)' % \
                     (self.comm, pid, SysMgr.pid))
+            self.attached = False
             return 0
 
 
@@ -39491,14 +39549,11 @@ class ElfAnalyzer(object):
         # try to demangle symbol #
         try:
             # load libc #
-            if not SysMgr.libcObj:
-                SysMgr.libcObj = \
-                    cdll.LoadLibrary(SysMgr.libcPath)
+            SysMgr.loadLibcObj()
 
             # load demangle library #
             if not SysMgr.libdemangleObj:
-                SysMgr.libdemangleObj = \
-                    cdll.LoadLibrary(SysMgr.libdemanglePath)
+                SysMgr.libdemangleObj = SysMgr.loadLib(SysMgr.libdemanglePath)
 
             # declare free() args #
             SysMgr.libcObj.free.argtypes = [c_void_p]
