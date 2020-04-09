@@ -13827,7 +13827,7 @@ class SysMgr(object):
                         'Multiple libraries [ %s ] exist for %s' % \
                             (', '.join(val), key))
 
-                return val[0]
+                return val
 
         return None
 
@@ -13841,9 +13841,15 @@ class SysMgr(object):
 
         target = SysMgr.findLib(lib)
         if not target:
-            target = '%s.so' % lib
+            target = ['%s.so' % lib]
 
-        return ctypes.cdll.LoadLibrary(target)
+        for item in target:
+            try:
+                res = ctypes.cdll.LoadLibrary(item)
+                if res:
+                    return res
+            except:
+                pass
 
 
 
@@ -15078,7 +15084,7 @@ class SysMgr(object):
                 'wsstop': 'Memory',
                 'reptop': 'JSON',
                 'ftop': 'File',
-                'systop': 'syscall',
+                'systop': 'Syscall',
                 'utop': 'Function',
                 'btop': 'Breakpoint',
                 'dlttop': 'DLT',
@@ -34625,8 +34631,7 @@ struct msghdr {
         if not pid:
             pid = self.pid
 
-        # stop target for detach #
-        self.stop()
+        self.attached = False
 
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_DETACH')
@@ -34640,7 +34645,6 @@ struct msghdr {
             SysMgr.printWarn(\
                 'Detached %s(%s) from guider(%s)' % \
                     (self.comm, pid, SysMgr.pid))
-            self.attached = False
             return 0
 
 
@@ -36455,22 +36459,25 @@ struct msghdr {
             sys.exit(0)
 
         # check previous function boundary #
-        if self.prevCallInfo and \
-            self.pc >= self.prevCallInfo[2] and \
-            self.pc <= self.prevCallInfo[3]:
-            if self.mode == 'inst':
+        if self.prevCallInfo:
+            if (not self.isRealtime and \
+                self.pc >= self.prevCallInfo[2] and \
+                self.pc <= self.prevCallInfo[3]) or \
+                (self.isRealtime and \
+                    self.pc == self.prevCallInfo[5]):
+
+                # add sample #
+                if self.isRealtime:
+                    self.addSample(\
+                        self.prevCallInfo[0], self.prevCallInfo[1], \
+                        realtime=True, bt=self.prevCallInfo[4])
+                elif SysMgr.printFile:
+                    self.addSample(\
+                        self.prevCallInfo[0], self.prevCallInfo[1])
+
                 return
 
-            # add sample #
-            if self.isRealtime:
-                self.addSample(\
-                    self.prevCallInfo[0], self.prevCallInfo[1], \
-                    realtime=True, bt=self.prevCallInfo[4])
-            elif SysMgr.printFile:
-                self.addSample(\
-                    self.prevCallInfo[0], self.prevCallInfo[1])
-
-        # get new symbol info from program counter of target #
+        # get symbol info #
         ret = self.getSymbolInfo(self.pc)
         if type(ret) is list:
             sym, fname, offset, fstart, fend = ret
@@ -36496,40 +36503,40 @@ struct msghdr {
                 self.addSample('??', fname, bt=backtrace)
             return
 
-        # get filter addr #
-        try:
-            # symbol range #
-            if sym != '??':
-                vstart, vend = self.getVrangeBySymbol(sym, fname)
-            # anon range #
-            else:
-                vstart, vend = self.getAnonVrangeByOffset(offset, fname)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            vstart = vend = long(0)
-
         # check contiguous unknown symbol #
         if sym == '??' and self.prevCallInfo:
             if self.prevCallInfo[0] == sym:
-                # save current call info as previous call #
-                self.prevCallInfo = [sym, fname, vstart, vend, backtrace]
                 return
             elif self.prevCallInfo[0].startswith('mmap'):
                 # enable memory update flag #
                 self.needMapScan = True
 
-        # save current call info as previous call #
-        self.prevCallInfo = [sym, fname, vstart, vend, backtrace]
-
-        # toDo: add additional call stack info #
-        pass
-
-        # get time diff #
-        diff = self.current - self.start
-
         # update callstack #
-        if self.mode == 'inst':
+        if self.isRealtime:
+            direction = ''
+            symstr = sym
+
+            # save current call info as previous call #
+            self.prevCallInfo = [sym, fname, 0, 0, backtrace, self.pc]
+
+            self.addSample(sym, fname, realtime=True, bt=backtrace)
+        else:
+            # get filter addr #
+            try:
+                # symbol range #
+                if sym != '??':
+                    vstart, vend = self.getVrangeBySymbol(sym, fname)
+                # anon range #
+                else:
+                    vstart, vend = self.getAnonVrangeByOffset(offset, fname)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                vstart = vend = long(0)
+
+            # save current call info as previous call #
+            self.prevCallInfo = [sym, fname, vstart, vend, backtrace, self.pc]
+
             self.updateCallstack(sym)
 
             # check call relationship #
@@ -36549,30 +36556,26 @@ struct msghdr {
                 self.addCall(sym)
 
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
-        else:
-            direction = ''
 
-            symstr = sym
+            # get time diff #
+            diff = self.current - self.start
 
-        # build call string #
-        callString = '%3.6f %s %s [%s + %s] [%s]' % \
-            (diff, symstr , direction, fname, \
-                offset, hex(self.sp).rstrip('L'))
+            # build call string #
+            callString = '%3.6f %s %s [%s + %s] [%s]' % \
+                (diff, symstr , direction, fname, \
+                    offset, hex(self.sp).rstrip('L'))
 
-        # backup callString #
-        self.prevCallString = callString
+            # backup callString #
+            self.prevCallString = callString
 
-        # print call info #
-        if self.isRealtime:
-            self.addSample(sym, fname, realtime=True, bt=backtrace)
-        elif SysMgr.printFile:
-            self.addSample(sym, fname)
+            if SysMgr.printFile:
+                self.addSample(sym, fname)
 
-            if SysMgr.showAll:
-                self.callPrint.append(callString)
-        else:
-            SysMgr.printPipe(\
-                '\n%s' % callString, newline=False, flush=True)
+                if SysMgr.showAll:
+                    self.callPrint.append(callString)
+            else:
+                SysMgr.printPipe(\
+                    '\n%s' % callString, newline=False, flush=True)
 
         # backup register #
         self.prevSp = self.sp
