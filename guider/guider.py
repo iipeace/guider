@@ -12621,8 +12621,10 @@ class LogMgr(object):
         while 1:
             res = systemdObj.sd_journal_next(jrl)
             if res == 0:
-                ret = systemdObj.sd_journal_wait(jrl, -1)
-                if ret < 0:
+                ret = systemdObj.sd_journal_wait(jrl, 1)
+                if ret == 0:
+                    continue
+                elif ret < 0:
                     break
             elif res < 1:
                 break
@@ -12636,8 +12638,8 @@ class LogMgr(object):
                     if res < 1:
                         break
 
-                    SysMgr.printPipe(cast(data, c_char_p).value)
-                SysMgr.printPipe()
+                    SysMgr.printPipe(cast(data, c_char_p).value, flush=True)
+                SysMgr.printPipe(flush=True)
                 continue
 
             jrlStr = ''
@@ -12647,10 +12649,13 @@ class LogMgr(object):
                     ret = systemdObj.sd_journal_get_realtime_usec(\
                         jrl, byref(usec))
                     if ret < 0:
-                        usec = 0
+                        realtime = 0
+                    else:
+                        realtime = usec.value
+
                     wtime = time.strftime(\
                         '%m %d %H:%M:%S', \
-                            time.localtime(usec.value / float(1000000)))
+                            time.localtime(realtime / float(1000000)))
                     '''
                     ret = systemdObj.sd_journal_get_monotonic_usec(\
                         jrl, byref(usec), boottime)
@@ -12679,7 +12684,7 @@ class LogMgr(object):
                 jrlStr += val
 
             if jrlStr and UtilMgr.isEffectiveStr(jrlStr):
-                SysMgr.printPipe(jrlStr)
+                SysMgr.printPipe(jrlStr, flush=True)
 
         # close journal #
         systemdObj.sd_journal_close(jrl)
@@ -13156,6 +13161,7 @@ class SysMgr(object):
     threadEnable = False
     nsEnable = False
     termFlag = True
+    exitFlag = True
     tgidEnable = True
     taskEnable = True
     processEnable = True
@@ -19608,9 +19614,14 @@ Copyright:
     def exitHandler(signum, frame):
         signal.alarm(0)
         SysMgr.condExit = True
+
         SysMgr.printWarn('Terminated by user\n')
-        signal.signal(signum, signal.SIG_DFL)
-        sys.exit(0)
+
+        if SysMgr.exitFlag:
+            signal.signal(signum, signal.SIG_DFL)
+            sys.exit(0)
+
+        SysMgr.exitFlag = True
 
 
 
@@ -20861,8 +20872,7 @@ Copyright:
                 # append uptime to the output file #
                 if not SysMgr.termFlag:
                     SysMgr.inputFile = '%s_%s' % \
-                        (SysMgr.inputFile, \
-                            SysMgr.getRuntime())
+                        (SysMgr.inputFile, SysMgr.getRuntime())
             # analysis #
             else:
                 # dir #
@@ -23050,6 +23060,7 @@ Copyright:
         elif SysMgr.isPrintJournalMode():
             # set console info #
             SysMgr.ttyCols = long(0)
+            SysMgr.printStreamEnable = True
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -26152,6 +26163,8 @@ Copyright:
                                 SysMgr.logEnable = False
 
                         pid = long(tid)
+                        if SysMgr.bgStatus:
+                            SysMgr.exitFlag = False
                         break
             except:
                 isFinished = False
