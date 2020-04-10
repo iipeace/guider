@@ -12613,14 +12613,22 @@ class LogMgr(object):
                 ["_TIME", "_HOSTNAME", "_TRANSPORT", \
                     "_COMM", "_PID", "MESSAGE"]
 
+        # move to the end of journal #
+        if not SysMgr.showAll:
+            systemdObj.sd_journal_seek_tail(jrl)
+
         # start reading loop #
         while 1:
             res = systemdObj.sd_journal_next(jrl)
-            if res < 1:
+            if res == 0:
+                ret = systemdObj.sd_journal_wait(jrl, -1)
+                if ret < 0:
+                    break
+            elif res < 1:
                 break
 
             # traverse all fields #
-            if SysMgr.showAll:
+            if SysMgr.inputParam is not None:
                 res = systemdObj.sd_journal_restart_data(jrl)
                 while 1:
                     res = systemdObj.sd_journal_enumerate_data(\
@@ -16619,10 +16627,13 @@ Examples:
 
                     if SysMgr.isPrintJournalMode():
                         helpStr +=  '''
+    - Print journal messages with all fields in real-time
+        # {0:1} {1:1} -I
+
     - Print journal messages with specific fields in real-time
         # {0:1} {1:1} -I _TIME, _COMM, _PID
 
-    - Print journal messages with all fields in real-time
+    - Print all journal messages
         # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
