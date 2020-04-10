@@ -26013,11 +26013,10 @@ Copyright:
 
             # save original data to be injected for multi-threaded process #
             if mode == 'breakcall':
-                # stop all processes #
-                SysMgr.sendSignalProcs(\
-                    signal.SIGSTOP, pidList, verbose=False)
-
                 for pid in pidList:
+                    # stop a process #
+                    os.kill(pid, signal.SIGSTOP)
+
                     # register signal sender for resume #
                     SysMgr.addExitFunc(\
                         SysMgr.sendSignalProcs, \
