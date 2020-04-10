@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200409"
+__revision__ = "200410"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20842,8 +20842,10 @@ Copyright:
 
                 # append suffix to output file #
                 if SysMgr.fileSuffix:
+                    name, ext = os.path.splitext(\
+                        os.path.basename(SysMgr.inputFile))
                     SysMgr.inputFile = \
-                        '%s_%s' % (SysMgr.inputFile, SysMgr.fileSuffix)
+                        '%s_%s%s' % (name, SysMgr.fileSuffix, ext)
 
                 # append uptime to the output file #
                 if not SysMgr.termFlag:
@@ -26105,6 +26107,7 @@ Copyright:
                 SysMgr.printErr("No TID with -g option")
 
             SysMgr.printFile = SysMgr.fileForPrint = None
+
             sys.exit(0)
         elif len(allpids) > 1 or mode == 'breakcall':
             parent = SysMgr.pid
@@ -34574,7 +34577,7 @@ struct msghdr {
 
     def cont(self, pid=None, check=False, sig=0):
         if not self.attached:
-            return
+            return 0
 
         if not pid:
             pid = self.pid
@@ -37676,6 +37679,7 @@ struct msghdr {
 
             # the thread group leader #
             if tgid == instance.pid:
+                origPrintFlag = SysMgr.printEnable
                 SysMgr.printEnable = True
 
                 SysMgr.printStat(\
@@ -37689,6 +37693,8 @@ struct msghdr {
                     UtilMgr.printProgress(idx, len(targetBpList))
                     instance.removeBreakpoint(addr)
                 UtilMgr.deleteProgress()
+
+                SysMgr.printEnable = origPrintFlag
 
                 # remove lock file #
                 try:
