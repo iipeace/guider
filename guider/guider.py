@@ -25737,10 +25737,10 @@ Copyright:
             GEAttr[CTRL_ATTR_FAMILY_ID], ACK_REQUEST, 1, pid))
         nlmsghdr.extend(msg)
 
+        sockObj.send(nlmsghdr)
+
         cnt = 0
         while 1:
-            sockObj.send(nlmsghdr)
-
             data = sockObj.recv()
             if type(data) is bytes and len(data) >= 328:
                 break
@@ -27361,21 +27361,21 @@ Copyright:
     def doSystat(isProcess=True):
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        origJsonFlag = SysMgr.jsonOutputEnable
-        SysMgr.jsonOutputEnable = True
-
         # enable default attributes #
         SysMgr.showAll = True
         SysMgr.memEnable = True
         SysMgr.cgroupEnable = True
         SysMgr.cmdlineEnable = True
+        SysMgr.delayEnable = True
+        SysMgr.ttyRows = sys.maxsize
 
         if SysMgr.isRoot():
             SysMgr.diskEnable = True
+            SysMgr.blockEnable = True
             SysMgr.networkEnable = True
         else:
             SysMgr.printWarn(\
-                "Fail to get disk and network start "
+                "Fail to get disk and network stats "
                 "because no root permission")
 
         # initialize system stat #
@@ -27383,20 +27383,27 @@ Copyright:
         obj = ThreadAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
+        if SysMgr.intervalEnable:
+            time.sleep(SysMgr.intervalEnable)
+        else:
+            time.sleep(1)
+
         # save system stat #
         obj.reinitStats()
         obj.saveSystemStat()
 
-        # process system stat #
-        obj.printSystemUsage()
-        obj.printProcUsage()
-
         # print stat #
-        if origJsonFlag:
-            SysMgr.printPipe(\
-                UtilMgr.convDict2Str(SysMgr.jsonData))
+        if SysMgr.jsonOutputEnable:
+            # process system stat #
+            obj.printSystemUsage()
+
+            # process task stat #
+            obj.printProcUsage()
         else:
-            pass
+            # process system stat #
+            obj.printSystemStat()
+
+        SysMgr.printTopStats()
 
         sys.exit(0)
 
@@ -30319,9 +30326,13 @@ Copyright:
 
                 # set ip addr #
                 try:
+                    if not SysMgr.localServObj:
+                        NetworkMgr.setServerNetwork(None, None)
+
+                    sockObj = SysMgr.localServObj
+
                     res = fcntl.ioctl(\
-                        SysMgr.localServObj.socket.fileno(),\
-                        0x8915,  # SIOCGIFADDR
+                        sockObj.socket.fileno(), 0x8915, # SIOCGIFADDR
                         struct.pack('256s', dev[:15].encode('utf-8')))
                     ipaddr = socket.inet_ntoa(res[20:24])
                 except:
@@ -41967,6 +41978,13 @@ class ThreadAnalyzer(object):
             self.pgrpIdx = ConfigMgr.STAT_ATTR.index("PGRP")
             self.shrIdx = ConfigMgr.STATM_TYPE.index("SHR")
 
+            # initialize netlink socket #
+            try:
+                ret = SysMgr.initNetlink()
+            except:
+                SysMgr.printWarn(\
+                    "Fail to initialize netlink", reason=True)
+
             # check to return just instance #
             if onlyInstance:
                 return
@@ -41984,13 +42002,6 @@ class ThreadAnalyzer(object):
 
             # set system maximum fd number #
             SysMgr.setMaxFd()
-
-            # initialize netlink socket #
-            try:
-                ret = SysMgr.initNetlink()
-            except:
-                SysMgr.printWarn(\
-                    "Fail to initialize netlink", reason=True)
 
             # set default interval #
             if SysMgr.intervalEnable == 0:
@@ -55470,8 +55481,7 @@ class ThreadAnalyzer(object):
             "{0:^16} | {1:^21} | "
             "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} | "
             "{2:^8} | {3:^8} | {4:^8} | {5:^8} | {6:^9} |\n").format(\
-                "Dev", "IP", \
-                "Size", "Packet", "Error", "Drop", "Multicast"))
+                "Dev", "IP", "Size", "Packet", "Error", "Drop", "Multicast"))
 
         SysMgr.addPrint('%s\n' % twoLine)
 
@@ -56486,13 +56496,21 @@ class ThreadAnalyzer(object):
                 SysMgr.addPrint(\
                     "{0:>39} | {1:1}\n".format('SCHED', schedStr))
 
-            if SysMgr.delayEnable:
-                while 1:
-                    val = SysMgr.getTaskstats(idx)
-                    if not val or str(val['ac_pid']) == idx:
-                        break
+                if SysMgr.jsonOutputEnable:
+                    try:
+                        jsonData[idx]['execTime'] = execTime
+                        jsonData[idx]['waitTime'] = waitTime
+                        jsonData[idx]['nrSchedSlice'] = value['nrSlice']
+                    except:
+                        pass
 
+            if SysMgr.delayEnable:
                 try:
+                    while 1:
+                        val = SysMgr.getTaskstats(idx)
+                        if not val or str(val['ac_pid']) == idx:
+                            break
+
                     cpuDelay = val['cpu_delay_total']
                     blkDelay = val['blkio_delay_total']
                     swapDelay = val['swapin_delay_total']
@@ -56505,32 +56523,57 @@ class ThreadAnalyzer(object):
                         'RCLM': rclmDelay,
                     }
 
-                    cpuDelayDiff = cpuDelay - self.prevProcData[idx]['delay']['CPU']
-                    blkDelayDiff = blkDelay - self.prevProcData[idx]['delay']['BLK']
-                    swapDelayDiff = swapDelay - self.prevProcData[idx]['delay']['SWAP']
-                    rclmDelayDiff = rclmDelay - self.prevProcData[idx]['delay']['RCLM']
+                    prevData = self.prevProcData[idx]
+
+                    if 'delay' in prevData:
+                        cpuDelayDiff = cpuDelay - prevData['delay']['CPU']
+                        blkDelayDiff = blkDelay - prevData['delay']['BLK']
+                        swapDelayDiff = swapDelay - prevData['delay']['SWAP']
+                        rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
+
+                        cpuDelayDiff /= 1000000000.0
+                        blkDelayDiff /= 1000000000.0
+                        swapDelayDiff /= 1000000000.0
+                        rclmDelayDiff /= 1000000000.0
+
+                        delayStr = \
+                            'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                                (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
+
+                        SysMgr.addPrint(\
+                            "{0:>39} | {1:1}\n".format('DELAY', delayStr))
+
 
                     cpuDelay /= 1000000000.0
                     blkDelay /= 1000000000.0
                     swapDelay /= 1000000000.0
                     rclmDelay /= 1000000000.0
 
-                    cpuDelayDiff /= 1000000000.0
-                    blkDelayDiff /= 1000000000.0
-                    swapDelayDiff /= 1000000000.0
-                    rclmDelayDiff /= 1000000000.0
-
-                    delayStr = \
-                        'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
-                            (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
-                    SysMgr.addPrint(\
-                        "{0:>39} | {1:1}\n".format('DELAY', delayStr))
-
                     delayTotalStr = \
                         'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
                             (cpuDelay, blkDelay, swapDelay, rclmDelay)
+
                     SysMgr.addPrint(\
                         "{0:>39} | {1:1}\n".format('TOTAL_DELAY', delayTotalStr))
+
+                    if SysMgr.jsonOutputEnable:
+                        try:
+                            jsonData[idx]['delayTotal'] = value['delay']
+                        except:
+                            pass
+
+                        try:
+                            jsonData[idx]['delay'] = {
+                                'CPU': cpuDelayDiff,
+                                'BLK': blkDelayDiff,
+                                'SWAP': swapDelayDiff,
+                                'RCLM': rclmDelayDiff,
+                            }
+                        except:
+                            pass
+
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
