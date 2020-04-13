@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200410"
+__revision__ = "200413"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12741,9 +12741,6 @@ class LogMgr(object):
 
             return
 
-        SysMgr.printInfo( \
-            "start printing kernel log... [ STOP(Ctrl+c) ]")
-
         # change file position #
         SysMgr.kmsgFd.seek(0)
 
@@ -12991,7 +12988,7 @@ class SysMgr(object):
     perfEventChannel = {}
     perfTargetEvent = []
     perfEventData = {}
-    commCache = {}
+    commFdCache = {}
     libCache = {}
 
     impPkg = {}
@@ -14323,12 +14320,12 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getComm(pid):
+    def getComm(pid, cache=False):
         try:
-            if pid in SysMgr.commCache:
-                fd = SysMgr.commCache[pid]
+            if pid in SysMgr.commFdCache:
+                fd = SysMgr.commFdCache[pid]
                 fd.seek(0)
-                return fd.readline()[:-1]
+                comm = fd.readline()[:-1]
         except SystemExit:
             sys.exit(0)
         except:
@@ -14336,17 +14333,27 @@ class SysMgr(object):
 
         commPath = \
             '%s/%s/comm' % (SysMgr.procPath, pid)
+        comm = None
+
         try:
             fd = open(commPath, 'r')
+
+            comm = fd.readline()[:-1]
+
+            # flush fd cache #
             if SysMgr.maxKeepFd < fd.fileno():
-                SysMgr.commCache = {}
+                SysMgr.commFdCache = {}
+            # cache a fd #
+            elif cache:
+                SysMgr.commFdCache[pid] = fd
             else:
-                SysMgr.commCache[pid] = fd
-            return fd.readline()[:-1]
+                fd.close()
         except SystemExit:
             sys.exit(0)
         except:
             return None
+
+        return comm
 
 
 
@@ -15155,7 +15162,7 @@ class SysMgr(object):
             'log': {
                 'printkmsg': 'Kernel',
                 'printdlt': 'DLT',
-                'printsyslog': 'Syslog',
+                'printsys': 'Syslog',
                 'logkmsg': 'Kernel',
                 'logdlt': 'DLT',
                 'logjrl': 'Journal',
@@ -15470,7 +15477,8 @@ Description:
 
 Options:
     -v                          verbose
-    -g  <WORD>                  set filter
+    -g  <WORD|TID>              set filter
+    -c  <WORD>                  set filter
     -I  <FILE|FIELD>            set path / field
     -o  <DIR|FILE>              save output data
 
@@ -16624,8 +16632,8 @@ Examples:
 
                     if SysMgr.isPrintDbusMode():
                         helpStr +=  '''
-    - Print D-Bus messages for main thread and gdbus threads in a.out process in real-time
-        # {0:1} {1:1} -g a.out
+    - Print D-Bus messages including specific word for main thread and gdbus threads in a.out process in real-time
+        # {0:1} {1:1} -g a.out -c test
 
     - Print D-Bus messages with backtrace for main thread and gdbus threads in a.out process in real-time
         # {0:1} {1:1} -g a.out -H
@@ -20697,7 +20705,6 @@ Copyright:
         elif not SysMgr.printFile:
             if not SysMgr.printStreamEnable:
                 SysMgr.clearScreen()
-
             SysMgr.doPrint()
         # pipe mode #
         elif SysMgr.pipeEnable:
@@ -23377,7 +23384,7 @@ Copyright:
 
     @staticmethod
     def isPrintSyslogMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printsyslog':
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsys':
             return True
         else:
             return False
@@ -31519,6 +31526,7 @@ class DbusAnalyzer(object):
     previousData = {}
     msgSentTable = {}
     msgRecvTable = {}
+    dbgObj = None
 
     G_IO_ERROR_TYPE = [
         'G_IO_ERROR_FAILED',
@@ -31823,14 +31831,24 @@ class DbusAnalyzer(object):
             # update CPU usage of tasks #
             updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
+            if DbusAnalyzer.dbgObj:
+                cpuUsage = DbusAnalyzer.dbgObj.getCpuUsage()
+                ttime = cpuUsage[0] / SysMgr.uptimeDiff
+                utime = cpuUsage[1] / SysMgr.uptimeDiff
+                stime = cpuUsage[2] / SysMgr.uptimeDiff
+                cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+            else:
+                cpuStr = '?'
+
             # print title #
             SysMgr.addPrint(\
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
-                "[NrMsg: %s] [NrErr: %s]\n") % \
+                "[NrMsg: %s] [NrErr: %s] [CPU: %s]\n") % \
                     ('D-BUS Info', SysMgr.uptime, \
                     SysMgr.uptimeDiff, \
                     convertNum(prevDbusData['totalCnt']),
-                    convertNum(prevDbusData['totalErr'])))
+                    convertNum(prevDbusData['totalErr']),
+                    cpuStr))
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
@@ -32078,7 +32096,13 @@ class DbusAnalyzer(object):
                                 libgioObj.g_dbus_message_print(\
                                     c_ulong(gdmsg), c_ulong(0)),\
                                 backtrace)
-                        SysMgr.printPipe(msgStr)
+
+                        if SysMgr.customCmd and \
+                            not UtilMgr.isEffectiveStr(\
+                                msgStr, SysMgr.customCmd, ignCap=True):
+                            continue
+
+                        SysMgr.printPipe(msgStr, flush=True)
 
                         continue
 
@@ -32270,6 +32294,7 @@ class DbusAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.printWarn('Fail to read data from pipe', reason=True)
                 return
 
         def getDefaultTasks(comm):
@@ -32305,6 +32330,11 @@ class DbusAnalyzer(object):
             lock = threadObj.Lock()
         else:
             lock = None
+
+        # initialize task stat #
+        DbusAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+        DbusAnalyzer.dbgObj.initValues()
+        DbusAnalyzer.dbgObj.getCpuUsage()
 
         # get pids of gdbus threads #
         for val in SysMgr.filterGroup:
@@ -32529,6 +32559,8 @@ class DltAnalyzer(object):
             not SysMgr.inWaitStatus:
             SysMgr.printWarn(\
                 "No DLT message received", True)
+        else:
+            DltAnalyzer.printSummary()
 
         SysMgr.updateTimer()
 
@@ -33246,26 +33278,6 @@ class DltAnalyzer(object):
                 "start printing DLT log... [ STOP(Ctrl+c) ]\n")
 
         while 1:
-            # summarizing #
-            if mode == 'top':
-                # get delayed time #
-                delayTime = time.time() - prevTime
-                if delayTime >= SysMgr.intervalEnable:
-                    # check repeat count #
-                    SysMgr.checkProgress()
-
-                    # check user input #
-                    SysMgr.waitUserInput(0.000001)
-
-                    # print summary #
-                    DltAnalyzer.printSummary()
-
-                    # save timestamp #
-                    prevTime = time.time()
-
-                    # update timer #
-                    SysMgr.updateTimer()
-
             try:
                 # initialize message #
                 ret = dltObj.dlt_message_init(byref(msg), verbose)
@@ -33612,7 +33624,7 @@ struct msghdr {
 
             # update comm #
             if not self.comm:
-                self.comm = SysMgr.getComm(self.pid)
+                self.comm = SysMgr.getComm(self.pid, cache=True)
 
             if attach:
                 ret = self.attach(verb=True)
@@ -34334,7 +34346,7 @@ struct msghdr {
             SysMgr.printStat(\
                 r"start injecting %s breakpoints for %s(%s) process..." % \
                     (UtilMgr.convertNumber(len(addrList)), \
-                        SysMgr.getComm(tgid), tgid))
+                        SysMgr.getComm(tgid, cache=True), tgid))
 
         # add new breakpoints #
         for idx, item in enumerate(addrList):
@@ -35317,7 +35329,7 @@ struct msghdr {
         self.last = current
 
         # update comm #
-        self.comm = SysMgr.getComm(self.pid)
+        self.comm = SysMgr.getComm(self.pid, cache=True)
 
         # print summary table #
         if self.mode == 'syscall':
@@ -36288,7 +36300,7 @@ struct msghdr {
 
         # update comm #
         if self.needUpdateComm():
-            comm = SysMgr.getComm(self.pid)
+            comm = SysMgr.getComm(self.pid, cache=True)
             if self.comm != comm:
                 self.comm = comm
                 Debugger.writeUpdateCommFlag(False)
@@ -36309,7 +36321,7 @@ struct msghdr {
                 fname in self.targetBpFileList):
             # build arguments string #
             args = self.readArgs()
-            argstr = '(%s)' % ','.join(list(map(str, args)))
+            argstr = '(%s)' % ','.join(list(map(hex, args)))
 
             # check filter #
             filterCmd = self.bpList[addr]['filter']
@@ -37250,7 +37262,7 @@ struct msghdr {
         ]
 
         # stat variables #
-        self.comm = SysMgr.getComm(self.pid)
+        self.comm = SysMgr.getComm(self.pid, cache=True)
         self.start = long(0)
         self.last = time.time()
         self.statFd = None
@@ -37259,6 +37271,9 @@ struct msghdr {
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
+        self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
+        self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
+        self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
         # register variables #
         self.pc = None
@@ -37484,9 +37499,6 @@ struct msghdr {
             targetBpList={}, targetBpFileList={}):
 
         # index variables #
-        self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
-        self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
-        self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
         self.sigTrapFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
         self.sigCloneFlag = signal.SIGTRAP | \
@@ -37719,7 +37731,7 @@ struct msghdr {
                 SysMgr.printStat(\
                     r"start removing %s breakpoints from %s(%s) process..." % \
                         (UtilMgr.convertNumber(len(instance.bpList)), \
-                            SysMgr.getComm(tgid), tgid))
+                            SysMgr.getComm(tgid, cache=True), tgid))
 
                 # remove all breakpoints #
                 targetBpList = list(instance.bpList.keys())
@@ -49539,7 +49551,7 @@ class ThreadAnalyzer(object):
             cnt += 1
 
         if cnt == 0:
-            SysMgr.printPipe("\n\tNone")
+            SysMgr.printPipe("\tNone\n")
 
         SysMgr.printPipe(oneLine)
 
