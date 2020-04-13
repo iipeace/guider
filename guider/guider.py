@@ -13311,7 +13311,7 @@ class SysMgr(object):
             func = LogMgr.doLogKmsg
             mtype = 'kernel'
         elif mode.upper() == 'DLT':
-            func = LogMgr.doLogDlt
+            func = DltAnalyzer.doLogDlt
             mtype = 'DLT'
         elif mode.upper() == 'JOURNAL':
             func = LogMgr.doLogJournal
@@ -32676,7 +32676,7 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def doLogDlt(appid='GUID', context='GUID', msg=None):
+    def doLogDlt(appid='GUID', context='GUID', msg=None, level='INFO'):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, POINTER, Structure, \
@@ -32692,10 +32692,24 @@ class DltAnalyzer(object):
             ]
 
         # define log level #
-        LEVEL_INFO = 0x04
-        LEVEL_ERROR = 0x02
+        DLT_LOG_LEVEL = {
+            "DEFAULT":  -1, # Default log level
+            "OFF": 0x00, # Log level off
+            "FATAL": 0x01, # fatal system error
+            "ERROR": 0x02, # error with impact to correct functionality
+            "WARN": 0x03, # warning, correct behaviour could not be ensured
+            "INFO": 0x04, # informational
+            "DEBUG": 0x05, # debug
+            "VERBOSE": 0x06, # highest grade of information
+        }
 
         DLT_USER_BUF_MAX_SIZE = 1380
+
+        # set log level #
+        try:
+            loglevel = DLT_LOG_LEVEL[level.upper()]
+        except:
+            loglevel = DLT_LOG_LEVEL['INFO']
 
         # load DLT library #
         try:
@@ -32734,7 +32748,7 @@ class DltAnalyzer(object):
                 end = len(msg)
 
             ret = dltObj.dlt_log_string(\
-                byref(SysMgr.dltCtx), LEVEL_INFO, msg[pos:end])
+                byref(SysMgr.dltCtx), loglevel, msg[pos:end])
 
             if end == len(msg):
                 return ret
