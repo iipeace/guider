@@ -15399,12 +15399,16 @@ Examples:
         # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
     - Handle specific function calls including specific word for a specific thread
+        # {0:1} {1:1} -g 1234 -c \\*printPeace
+        # {0:1} {1:1} -g 1234 -c printPeace\\*
         # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
 
     - Handle all function calls in specific files for a specific thread
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
     - Handle specific function calls including specific word for a specific thread and stop the thread
+        # {0:1} {1:1} -g a.out -c \\*printPeace|stop
+        # {0:1} {1:1} -g a.out -c printPeace\\*|stop
         # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
 
     - Handle all function calls with sleep for 0.1 seconds for a specific thread
@@ -16708,6 +16712,8 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g
 
     - Print infomation of specific symbols including specific word in a file
+        # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc
+        # {0:1} {1:1} -I /usr/bin/yes -g testFunc\\*
         # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc\\*
 
     - Print infomation of specific symbols including specific word in a file
@@ -32836,19 +32842,24 @@ class DltAnalyzer(object):
                 DltReceiver receiver;  /**< receiver pointer to dlt receiver structure */
                 int sock;              /**< sock Connection handle/socket */
                 char *servIP;          /**< servIP IP adress/Hostname of TCP/IP interface */
+                int port;              /**< Port for TCP connections (optional) */
                 char *serialDevice;    /**< serialDevice Devicename of serial device */
                 char *socketPath;      /**< socketPath Unix socket path */
+                char ecuid[4];           /**< ECUiD */
                 speed_t baudrate;      /**< baudrate Baudrate of serial interface, as speed_t */
                 DltClientMode mode;    /**< mode DltClientMode */
             } DltClient;
             '''
 
+            _pack_ = 1
             _fields_ = [
                     ("receiver", DltReceiver),
                     ("sock", c_int),
                     ("servIP", c_char_p),
+                    ("port", c_int),
                     ("serialDevice", c_char_p),
                     ("socketPath", c_char_p),
+                    ("ecuid", c_char * DLT_ID_SIZE),
                     ("baudrate", c_int),
                     ("mode", c_int)
             ]
@@ -33195,8 +33206,8 @@ class DltAnalyzer(object):
 
         # connect to server #
         try:
-            connSock = create_connection(\
-                (string_at(servIp.encode()), servPort), timeout=1)
+            servIpStr = string_at(servIp.encode())
+            connSock = create_connection((servIpStr, servPort), timeout=1)
 
             # set blocking #
             connSock.setblocking(1) # pylint: disable=no-member
@@ -33215,6 +33226,9 @@ class DltAnalyzer(object):
         # initialize client #
         dltClient = DltClient()
         dltObj.dlt_client_init(byref(dltClient), verbose)
+        dltClient.sock = c_int(connSock.fileno())
+        dltClient.port = c_int(servPort)
+        dltObj.dlt_client_get_log_info(byref(dltClient))
         dltObj.dlt_client_cleanup(byref(dltClient), verbose)
         '''
 
@@ -34313,15 +34327,10 @@ struct msghdr {
                 cmdList.append(cmdSet)
             # symbol #
             else:
-                if value.startswith('*') and \
-                    value.endswith('*'):
-                    value = value.strip('*')
-                    similar = True
-                else:
-                    similar = False
+                symbol, inc, start, end = ElfAnalyzer.getFilterFlags(value)
 
                 ret = self.getAddrBySymbol(\
-                    value, binary=binlist, similar=similar)
+                    symbol, binary=binlist, inc=inc, start=start, end=end)
                 if not ret:
                     if self.execCmd or \
                         value == '' or \
@@ -37126,7 +37135,8 @@ struct msghdr {
 
 
 
-    def getAddrBySymbol(self, symbol, binary=None, similar=False):
+    def getAddrBySymbol(\
+        self, symbol, binary=None, inc=False, start=False, end=False):
         if not self.pmap:
             self.loadSymbols()
 
@@ -37139,7 +37149,8 @@ struct msghdr {
 
             fcache = ElfAnalyzer.getObject(mfile)
             if fcache:
-                offset = fcache.getOffsetBySymbol(symbol, similar=similar)
+                offset = fcache.getOffsetBySymbol(\
+                    symbol, inc=inc, start=start, end=end)
                 if type(offset) is str:
                     offset = long(offset, 16)
 
@@ -39685,6 +39696,25 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def getFilterFlags(symbol):
+        inc = start = end = False
+
+        if symbol[0] == '*' and \
+            symbol[-1] == '*':
+            symbol = symbol.strip('*')
+            inc = True
+        elif symbol[0] == '*':
+            symbol = symbol.strip('*')
+            end = True
+        elif symbol[-1] == '*':
+            symbol = symbol.strip('*')
+            start = True
+
+        return symbol, inc, start, end
+
+
+
+    @staticmethod
     def getSymOffset(symbol, binPath, objdumpPath=None):
         syms = []
 
@@ -39696,14 +39726,10 @@ class ElfAnalyzer(object):
                 if not binObj:
                     raise Exception()
 
-                if symbol.startswith('*') and \
-                    symbol.endswith('*'):
-                    symbol = symbol.strip('*')
-                    similar = True
-                else:
-                    similar = False
+                symbol, inc, start, end = ElfAnalyzer.getFilterFlags(symbol)
 
-                offset = binObj.getOffsetBySymbol(symbol, similar=similar)
+                offset = binObj.getOffsetBySymbol(\
+                    symbol, inc=inc, start=start, end=end)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -39975,7 +40001,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getOffsetBySymbol(self, symbol, similar=False):
+    def getOffsetBySymbol(self, symbol, inc=False, start=False, end=False):
         # check symbol table #
         if len(self.sortedSymTable) == 0:
             self.mergeSymTable()
@@ -39985,10 +40011,13 @@ class ElfAnalyzer(object):
         # get offset or symbol list #
         try:
             for idx, val in enumerate(self.sortedSymTable):
-                if similar and symbol in val[0]:
+                target = val[0].split('@')[0]
+                if (start and target.startswith(symbol)) or \
+                    (end and target.endswith(symbol)) or \
+                    (inc and symbol in target):
                     clist.append(\
                         [val[0], hex(self.sortedAddrTable[idx]).rstrip('L')])
-                elif (symbol == val[0] or symbol == val[0].split('@')[0]):
+                elif (symbol == val[0] or symbol == target):
                     return hex(self.sortedAddrTable[idx]).rstrip('L')
         except:
             return None
