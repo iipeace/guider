@@ -3,7 +3,7 @@
 ### Build Frontend Codes
 It is recommended to build at static/ directory
 ```sh
-$ cd ./front-vue/ && npm install && npm run build && cd ..
+$ cd ./django_vue/ && npm install && npm run build && cd ..
 ```
 
 ### Requirement
@@ -18,10 +18,11 @@ $ pip3 install -r requirements.txt
 ```
 
 ### Run
-```sh
-$ python manage.py runserver
+Run frontend
 ```
-If you want to listen on all available public IPs
+$ cd ./django_vue/ && npm run serve
+```
+Run backend
 ```sh
 $ python3 manage.py runserver 0.0.0.0:8000
 ```
