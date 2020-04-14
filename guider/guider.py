@@ -31730,13 +31730,15 @@ class DbusAnalyzer(object):
                 SysMgr.printErr(\
                     "Fail to update system stat", True)
 
+            convertNum = UtilMgr.convertNumber
+            convertSize = UtilMgr.convertSize2Unit
+
             for pid in taskList:
                 try:
                     if pid not in dbusData:
                         continue
 
                     dbusList = []
-                    convertNum = UtilMgr.convertNumber
 
                     # build D-Bus usage string #
                     dbusCnt = dbusData[pid]['totalCnt']
@@ -31793,8 +31795,12 @@ class DbusAnalyzer(object):
                                 (name, data['min'], avr, data['max'], \
                                     errstr, wstat)
 
-                        dbusList.append("{0:>4}({1:>3}%) {2:1}".format(\
-                            convertNum(value['cnt']), per, name))
+                        count = convertNum(value['cnt'])
+                        size = convertSize(data['size'])
+
+                        dbusList.append(\
+                            "{0:>4}({1:>6}/{2:>3}%) {3:1}".format(\
+                                count, size, per, name))
 
                     # add D-Bus usage #
                     taskManager.procData[pid]['dbusList'] = dbusList
@@ -31944,8 +31950,10 @@ class DbusAnalyzer(object):
                 ctype = jsonData["name"]
 
                 # check syscall #
-                if (ctype != "recvmsg" or jsonData["type"] != "enter") and \
-                    (ctype != "sendmsg" or jsonData["type"] != "enter"):
+                if jsonData["type"] == "enter" and \
+                    (ctype == "recvmsg" or ctype == "sendmsg"):
+                    pass
+                else:
                     return
             except:
                 return
@@ -32109,9 +32117,10 @@ class DbusAnalyzer(object):
                             backtrace = ''
 
                         msgStr = \
-                            "Tid: %s(%s) / Direction: %s / Time: %f\n%s%s" % \
+                            "Tid: %s(%s) / Direction: %s / Time: %f\nSize: %s\n%s%s" % \
                             (tid, jsonData['comm'], \
                                 direction, jsonData['timediff'], \
+                                UtilMgr.convertSize2Unit(hsize),
                                 libgioObj.g_dbus_message_print(\
                                     c_ulong(gdmsg), c_ulong(0)),\
                                 backtrace)
@@ -32215,6 +32224,7 @@ class DbusAnalyzer(object):
                             'max': long(0),
                             'err': long(0),
                             'cnt': long(0),
+                            'size': long(0),
                             'total': long(0)
                         }
 
@@ -32224,6 +32234,9 @@ class DbusAnalyzer(object):
                         mlist[mname] = {'count': 1}
                     else:
                         mlist[mname]['count'] += 1
+
+                    # increase size #
+                    data[tid][mname]['size'] += hsize
 
                     # save timestamp #
                     data[tid][mname]['time'] = jsonData['time']
@@ -32319,14 +32332,12 @@ class DbusAnalyzer(object):
         def getDefaultTasks(comm):
             taskList = []
             tempList = SysMgr.getPids(comm, withSibling=True)
-            if len(tempList) > 0:
-                taskList.append(\
-                    SysMgr.getTgid(tempList[0]))
+            for tid in tempList:
+                taskList.append(SysMgr.getTgid(tid))
 
-                for tid in tempList:
-                    comm = SysMgr.getComm(tid)
-                    if comm == 'gdbus':
-                        taskList.append(tid)
+                comm = SysMgr.getComm(tid)
+                if comm == 'gdbus':
+                    taskList.append(tid)
 
             return taskList
 
@@ -33585,6 +33596,10 @@ class Debugger(object):
             'arm': self.getBacktrace_ARM,
             'aarch64': self.getBacktrace_AARCH64,
         }
+        self.btList = None
+        self.btStr = None
+        self.prevBtList = None
+        self.prevBtStr = None
 
         self.lockObj = None
 
@@ -36110,6 +36125,9 @@ struct msghdr {
 
 
     def getBacktraceString(self, bt, default=0, maximum=0):
+        if self.btStr:
+            return self.btStr
+
         btString = ''
         prevSym = None
         prevFile = None
@@ -36153,9 +36171,11 @@ struct msghdr {
             btString = '%s%s' % (btString, newString)
 
         if btString == '':
-            return '??'
+            self.btStr = '??'
+        else:
+            self.btStr = btString
 
-        return btString
+        return self.btStr
 
 
 
@@ -36178,7 +36198,10 @@ struct msghdr {
 
     def getBacktrace(self, limit=32, cur=False):
         try:
-            return self.backtrace[SysMgr.arch](limit, cur)
+            if not self.bpList:
+                self.bpList = self.backtrace[SysMgr.arch](limit, cur)
+
+            return self.bpList
         except SystemExit:
             sys.exit(0)
         except:
@@ -36920,6 +36943,7 @@ struct msghdr {
                 "args": dict(),
             }
 
+            # marshaling args #
             for idx, arg in enumerate(self.args):
                 if len(args) > 0:
                     jsonData['args'][arg[1]] = args[idx]
@@ -37040,6 +37064,9 @@ struct msghdr {
         except:
             return
 
+        # get diff time #
+        diff = self.current - self.start
+
         # enter #
         if self.status == 'enter':
             # set next status #
@@ -37066,9 +37093,6 @@ struct msghdr {
 
                     if SysMgr.jsonOutputEnable:
                         return
-
-                    # get diff time #
-                    diff = self.current - self.start
 
                     # build call string #
                     callString = '%3.6f %s(%s) %s(' % \
@@ -37153,10 +37177,13 @@ struct msghdr {
             if SysMgr.jsonOutputEnable:
                 jsonData = {
                     "type": "exit",
-                    "time": time.time(),
+                    "time": self.current,
+                    "timediff": diff,
                     "name": name,
-                    "ret": str(retval),
                     "tid": self.pid,
+                    "comm": self.comm,
+                    "backtrace": self.prevBtStr,
+                    "ret": str(retval),
                     "err": err,
                 }
 
@@ -37475,6 +37502,11 @@ struct msghdr {
     def runEventLoop(self):
         # enter trace loop #
         while 1:
+            # save backtrace info #
+            self.prevBtList = self.btList
+            self.prevBtStr = self.btStr
+            self.btList = self.btStr = None
+
             # set status #
             if self.status == 'stop':
                 self.status = 'enter'
