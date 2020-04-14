@@ -16173,7 +16173,10 @@ Examples:
     - Monitor DLT logs
         # {0:1} {1:1}
 
-    - Monitor DLT logs including specific strings
+    - Change default log level to be printed
+        # {0:1} {1:1} -c INFO
+
+    - Monitor DLT logs including specific string
         # {0:1} {1:1} -g test
 
     See the top COMMAND help for more examples.
@@ -16659,6 +16662,9 @@ Examples:
                         helpStr +=  '''
     - Print DLT messages from specific files
         # {0:1} {1:1} -I "./*.dlt"
+
+    - Change default log level to be printed
+        # {0:1} {1:1} -c INFO
 
     - Print DLT messages sorted by line from specific files
         # {0:1} {1:1} -I "./*.dlt" -S
@@ -32461,6 +32467,51 @@ class DltAnalyzer(object):
     LOGINFO = \
         ["", "fatal", "error", "warn", "info", "debug", "verb"]
 
+    # define log level #
+    LOGLEVEL = {
+        "DEFAULT":  -1, # Default log level
+        "OFF": 0x00, # Log level off
+        "FATAL": 0x01, # fatal system error
+        "ERROR": 0x02, # error with impact to correct functionality
+        "WARN": 0x03, # warning, correct behaviour could not be ensured
+        "INFO": 0x04, # informational
+        "DEBUG": 0x05, # debug
+        "VERBOSE": 0x06, # highest grade of information
+    }
+
+    SERVICEID = {
+        "DLT_SERVICE_ID": 0x00,
+        "DLT_SERVICE_ID_SET_LOG_LEVEL": 0x01,
+        "DLT_SERVICE_ID_SET_TRACE_STATUS": 0x02,
+        "DLT_SERVICE_ID_GET_LOG_INFO": 0x03,
+        "DLT_SERVICE_ID_GET_DEFAULT_LOG_LEVEL": 0x04,
+        "DLT_SERVICE_ID_STORE_CONFIG": 0x05,
+        "DLT_SERVICE_ID_RESET_TO_FACTORY_DEFAULT": 0x06,
+        "DLT_SERVICE_ID_SET_COM_INTERFACE_STATUS": 0x07,
+        "DLT_SERVICE_ID_SET_COM_INTERFACE_MAX_BANDWIDTH": 0x08,
+        "DLT_SERVICE_ID_SET_VERBOSE_MODE": 0x09,
+        "DLT_SERVICE_ID_SET_MESSAGE_FILTERING": 0x0A,
+        "DLT_SERVICE_ID_SET_TIMING_PACKETS": 0x0B,
+        "DLT_SERVICE_ID_GET_LOCAL_TIME": 0x0C,
+        "DLT_SERVICE_ID_USE_ECU_ID": 0x0D,
+        "DLT_SERVICE_ID_USE_SESSION_ID": 0x0E,
+        "DLT_SERVICE_ID_USE_TIMESTAMP": 0x0F,
+        "DLT_SERVICE_ID_USE_EXTENDED_HEADER": 0x10,
+        "DLT_SERVICE_ID_SET_DEFAULT_LOG_LEVEL": 0x11,
+        "DLT_SERVICE_ID_SET_DEFAULT_TRACE_STATUS": 0x12,
+        "DLT_SERVICE_ID_GET_SOFTWARE_VERSION": 0x13,
+        "DLT_SERVICE_ID_MESSAGE_BUFFER_OVERFLOW": 0x14,
+    }
+
+    SERVICERESPONSE = {
+        "DLT_SERVICE_RESPONSE_OK": 0x00,
+        "DLT_SERVICE_RESPONSE_NOT_SUPPORTED": 0x01,
+        "DLT_SERVICE_RESPONSE_ERROR": 0x02,
+        "DLT_SERVICE_RESPONSE_PERM_DENIED": 0x03,
+        "DLT_SERVICE_RESPONSE_WARNING": 0x04,
+        "DLT_SERVICE_RESPONSE_LAST": 0x05,
+    }
+
     # define list #
     pids = []
     procInfo = None
@@ -32683,7 +32734,8 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def doLogDlt(appid='GUID', context='GUID', msg=None, level='INFO'):
+    def doLogDlt(\
+        appid='GUID'.encode(), context='GUID'.encode(), msg=None, level='INFO'):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import cdll, POINTER, Structure, \
@@ -32698,25 +32750,13 @@ class DltAnalyzer(object):
                 ('mcnt', c_uint8)
             ]
 
-        # define log level #
-        DLT_LOG_LEVEL = {
-            "DEFAULT":  -1, # Default log level
-            "OFF": 0x00, # Log level off
-            "FATAL": 0x01, # fatal system error
-            "ERROR": 0x02, # error with impact to correct functionality
-            "WARN": 0x03, # warning, correct behaviour could not be ensured
-            "INFO": 0x04, # informational
-            "DEBUG": 0x05, # debug
-            "VERBOSE": 0x06, # highest grade of information
-        }
-
         DLT_USER_BUF_MAX_SIZE = 1380
 
         # set log level #
         try:
-            loglevel = DLT_LOG_LEVEL[level.upper()]
+            loglevel = DltAnalyzer.LOGLEVEL[level.upper()]
         except:
-            loglevel = DLT_LOG_LEVEL['INFO']
+            loglevel = DltAnalyzer.LOGLEVEL['INFO']
 
         # load DLT library #
         try:
@@ -32732,13 +32772,13 @@ class DltAnalyzer(object):
         # register #
         if not SysMgr.dltCtx:
             ctx = DltContext()
-            ret = dltObj.dlt_register_app(appid, 'Guider')
+            ret = dltObj.dlt_register_app(appid, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(\
                     "Fail to register app '%s'" % appid)
                 sys.exit(0)
 
-            ret = dltObj.dlt_register_context(byref(ctx), context, 'Guider')
+            ret = dltObj.dlt_register_context(byref(ctx), context, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(\
                     "Fail to register context '%s'" % context)
@@ -32755,7 +32795,7 @@ class DltAnalyzer(object):
                 end = len(msg)
 
             ret = dltObj.dlt_log_string(\
-                byref(SysMgr.dltCtx), loglevel, msg[pos:end])
+                byref(SysMgr.dltCtx), loglevel, msg[pos:end].encode())
 
             if end == len(msg):
                 return ret
@@ -32814,7 +32854,7 @@ class DltAnalyzer(object):
         from ctypes import cdll, POINTER, Structure, Union, \
             c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
             c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
-            create_string_buffer, c_ulong, c_long
+            create_string_buffer, c_ulong, c_long, c_int16, c_uint16
 
         # define constant #
         DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
@@ -32883,6 +32923,78 @@ class DltAnalyzer(object):
                     ("ecuid", c_char * DLT_ID_SIZE),
                     ("baudrate", c_int),
                     ("mode", c_int)
+            ]
+
+        class ContextIDsInfoType(Structure):
+            '''
+             typedef struct
+             {
+                 char context_id[DLT_ID_SIZE];
+                 int16_t log_level;
+                 int16_t trace_status;
+                 uint16_t len_context_description;
+                 char *context_description;
+             } ContextIDsInfoType;
+            '''
+            _pack_ = 1
+            _fields_ = [
+                ("context_id", c_char * DLT_ID_SIZE),
+                ("log_level", c_int16),
+                ("trace_status", c_int16),
+                ("len_context_description", c_uint16),
+                ("context_description", c_char_p)
+            ]
+
+        class AppIDsType(Structure):
+            '''
+            typedef struct
+             {
+                 char app_id[DLT_ID_SIZE];
+                 uint16_t count_context_ids;
+                 ContextIDsInfoType *context_id_info; /**< holds info about a specific con id */
+                 uint16_t len_app_description;
+                 char *app_description;
+             } AppIDsType;
+            '''
+            _pack_ = 1
+            _fields_ = [
+                ("app_id", c_char * DLT_ID_SIZE),
+                ("count_context_ids", c_uint16),
+                ("context_id_info", POINTER(ContextIDsInfoType)),
+                ("len_app_description", c_uint16),
+                ("app_description", c_char_p)
+            ]
+
+        class LogInfoType(Structure):
+            '''
+            typedef struct
+            {
+		uint16_t count_app_ids;
+		AppIDsType *app_ids;            /**< holds info about a specific app id */
+             } LogInfoType;
+            '''
+            _pack_ = 1
+            _fields_ = [
+                ("count_app_ids", c_uint16),
+                ("app_ids", POINTER(AppIDsType)),
+            ]
+
+        class DltServiceGetLogInfoResponse(Structure):
+            '''
+            typedef struct
+            {
+                uint32_t service_id;            /**< service ID */
+                uint8_t status;                 /**< type of request */
+                LogInfoType log_info_type;      /**< log info type */
+                char com[DLT_ID_SIZE];      /**< communication interface */
+             } DltServiceGetLogInfoResponse;
+            '''
+            _pack_ = 1
+            _fields_ = [
+                ("service_id", c_uint32),
+                ("status", c_uint8),
+                ("log_info_type", LogInfoType),
+                ("com", c_char * DLT_ID_SIZE)
             ]
 
         class DltStorageHeader(Structure):
@@ -33244,18 +33356,44 @@ class DltAnalyzer(object):
             sys.exit(0)
 
         # initialize client #
-        '''
         dltClient = DltClient()
         dltObj.dlt_client_init(byref(dltClient), verbose)
         dltClient.sock = c_int(connSock.fileno())
-        dltClient.port = c_int(servPort)
-        print(dltObj.dlt_client_get_log_info(byref(dltClient)))
-        dltObj.dlt_client_cleanup(byref(dltClient), verbose)
-        sys.exit(0)
-        '''
+        dltClient.receiver.fd = c_int(connSock.fileno())
+        #dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+
+        # change default log level #
+        try:
+            if SysMgr.customCmd:
+                val = SysMgr.customCmd[0].upper()
+                level = DltAnalyzer.LOGLEVEL[val]
+                dltObj.dlt_client_send_all_log_level(byref(dltClient), level)
+        except:
+            SysMgr.printErr(\
+                "Fail to set %s to default log level" % val)
+            sys.exit(0)
+
+        # print log level #
+        try:
+            ret = dltObj.dlt_client_get_log_info(byref(dltClient))
+            if ret == 0:
+                resp = DltServiceGetLogInfoResponse()
+                resp.service_id = DltAnalyzer.SERVICEID['DLT_SERVICE_ID_GET_LOG_INFO']
+                resp.status = DltAnalyzer.SERVICERESPONSE['DLT_SERVICE_RESPONSE_ERROR']
+                dltObj.dlt_client_main_loop(byref(dltClient), byref(resp), 0)
+                appids = resp.log_info_type.count_app_ids
+                for idx in xrange(0, appids):
+                    app = resp.log_info_type.app_ids[idx]
+                    for num in xrange(0, app.count_context_ids):
+                        con = app.context_id_info[num]
+                        SysMgr.printPipe("[%s] [%s] %s" % \
+                            (app.app_id, con.context_id, con.log_level))
+        except:
+            SysMgr.printWarn(\
+                "Fail to print log level", reason=True)
 
         # initialize receiver #
-        dltReceiver = DltReceiver()
+        dltReceiver = dltClient.receiver
 
         # initialize connection #
         try:
