@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200413"
+__revision__ = "200414"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26121,10 +26121,14 @@ Copyright:
         # create event memory #
         Debugger.globalEvent = SysMgr.createShm()
 
+        needSymbol = (mode == 'sample' or mode == 'breakcall' or \
+            mode == 'usercall' or SysMgr.funcDepth > 0)
+
         # check tid #
         if inputParam:
             pid = None
             execCmd = inputParam.split()
+        # check error #
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
                 "Fail to get root permission to trace %s" % mode)
@@ -26155,9 +26159,8 @@ Copyright:
                     "multiple tasks [ %s ] are traced" % \
                         SysMgr.getCommList(pids), True)
 
-            # load symbol caches and addresses for breakpoint in advance #
-            if (mode != 'syscall' and mode != 'signal') \
-                or SysMgr.funcDepth > 0:
+            # load symbol caches #
+            if needSymbol:
                 doCommonJobs(pids, procList)
 
             # create new worker processes #
@@ -26217,6 +26220,10 @@ Copyright:
 
                 sys.exit(0)
         else:
+            # load symbol caches #
+            if needSymbol:
+                doCommonJobs(pids, procList)
+
             pid = long(pids[0])
 
         # recover SIGCHLD #
@@ -33236,14 +33243,15 @@ class DltAnalyzer(object):
                     (servIp, servPort), True)
             sys.exit(0)
 
-        '''
         # initialize client #
+        '''
         dltClient = DltClient()
         dltObj.dlt_client_init(byref(dltClient), verbose)
         dltClient.sock = c_int(connSock.fileno())
         dltClient.port = c_int(servPort)
-        dltObj.dlt_client_get_log_info(byref(dltClient))
+        print(dltObj.dlt_client_get_log_info(byref(dltClient)))
         dltObj.dlt_client_cleanup(byref(dltClient), verbose)
+        sys.exit(0)
         '''
 
         # initialize receiver #
@@ -34251,7 +34259,9 @@ struct msghdr {
 
     def removeBpFileByAddr(self, addr):
         fname = self.getFileFromMap(addr)
-        fname = '/home/peacelee/test/mutex'
+        if not fname:
+            return
+
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
             return
