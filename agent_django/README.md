@@ -17,6 +17,13 @@ It is recommended to use virtualenv
 $ pip3 install -r requirements.txt
 ```
 
+### Set
+Set a secret key in JSON format
+```shell script
+$ vi ./agent_django/secret.json
+```
+
+
 ### Run
 Run frontend
 ```
