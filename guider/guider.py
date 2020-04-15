@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200414"
+__revision__ = "200416"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13009,6 +13009,7 @@ class SysMgr(object):
     libdemangleObj = None
     matplotlibVersion = long(0)
     matplotlibDpi = 500
+    sigsetObj = None
 
     localServObj = None
     remoteServObj = None
@@ -24813,6 +24814,40 @@ Copyright:
 
 
     @staticmethod
+    def blockSignal(sig, act='block'):
+        # get ctypes object #
+        ctypes = SysMgr.getPkg('ctypes')
+        from ctypes import cdll, POINTER, Structure, c_uint, byref, sizeof
+
+        if not SysMgr.sigsetObj:
+            NWORDS = long(1024 / (8 * sizeof(c_uint)))
+
+            class sigset_t(Structure):
+                _fields_ = [
+                    ('__sigbits', c_uint * NWORDS),
+                ]
+
+            SysMgr.sigsetObj = sigset_t()
+
+        nset = SysMgr.sigsetObj
+
+        if act == 'block':
+            atype = SIG_BLOCK = 0
+        elif act == 'unblock':
+            atype = SIG_UNBLOCK = 1
+        else:
+            SysMgr.printErr(\
+                "No supported '%s' for blocking signal" % act)
+            return
+
+        #SysMgr.libcObj.sigemptyset(byref(nset))
+        SysMgr.libcObj.sigaddset(byref(nset), sig)
+        SysMgr.libcObj.sigprocmask(atype, byref(nset), 0)
+        #print(SysMgr.libcObj.sigpending(byref(nset)))
+
+
+
+    @staticmethod
     def setNormalSignal():
         if not SysMgr.isLinux:
             return
@@ -28206,7 +28241,7 @@ Copyright:
             # update current terminal size #
             SysMgr.getTty()
 
-            SysMgr.printInfo("set terminal size [ %s:%s ]" % \
+            SysMgr.printInfo("set terminal size [ %s * %s ]" % \
                 (SysMgr.ttyRows, SysMgr.ttyCols))
 
             return
@@ -36639,10 +36674,16 @@ struct msghdr {
         if self.mode == 'inst' or self.mode =='sample':
             self.handleUsercall()
         elif self.mode == 'break':
+            # block signal #
+            SysMgr.blockSignal(signal.SIGINT, act='block')
+
             self.handleBreakpoint(printStat=SysMgr.printEnable)
 
             if self.cont(check=True) < 0:
                 sys.exit(0)
+
+            # unblock signal #
+            SysMgr.blockSignal(signal.SIGINT, act='unblock')
 
         self.status = previous
 
@@ -37393,12 +37434,12 @@ struct msghdr {
         if self.lockObj:
             if pos > -1:
                 lockf(self.lockObj, LOCK_EX, 1, pos, 0) # pylint: disable=undefined-variable
-                return True
+            else:
+                lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
 
-            lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
             return True
-
-        return False
+        else:
+            return False
 
 
 
@@ -37406,12 +37447,12 @@ struct msghdr {
         if self.lockObj:
             if pos > -1:
                 lockf(self.lockObj, LOCK_UN, 1, pos, 0) # pylint: disable=undefined-variable
-                return
+            else:
+                lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
 
-            lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
             return True
-
-        return False
+        else:
+            return False
 
 
 
