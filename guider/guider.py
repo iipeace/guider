@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200417"
+__revision__ = "200418"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7320,7 +7320,7 @@ class FunctionAnalyzer(object):
 
         # check user-mode enabled #
         if not SysMgr.userEnable:
-            return
+            return None
 
         # Check addr2line path #
         if not SysMgr.addr2linePath:
@@ -7336,13 +7336,13 @@ class FunctionAnalyzer(object):
                     symbolList.append('??')
 
                     updateSymbol(offset, symbol, '??', relocated)
-                return
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "Fail to get symbol from %s" % binPath, True)
-                return None
+
+            return None
 
             # get system addr2line path #
             addr2linePath = UtilMgr.which('addr2line')
@@ -13159,7 +13159,6 @@ class SysMgr(object):
     threadEnable = False
     nsEnable = False
     termFlag = True
-    exitFlag = True
     tgidEnable = True
     taskEnable = True
     processEnable = True
@@ -19633,16 +19632,15 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
+        # block signals for stable termination #
+        SysMgr.setIgnoreSignal()
+
         signal.alarm(0)
         SysMgr.condExit = True
 
         SysMgr.printWarn('Terminated by user\n')
 
-        if SysMgr.exitFlag:
-            signal.signal(signum, signal.SIG_DFL)
-            sys.exit(0)
-
-        SysMgr.exitFlag = True
+        sys.exit(0)
 
 
 
@@ -20000,7 +19998,7 @@ Copyright:
     @staticmethod
     def addPrint(string, newline=1, force=False, listBuf=False):
         if not force and SysMgr.checkCutCond(newline):
-            return
+            return False
 
         # add string to buffer #
         if listBuf:
@@ -20014,9 +20012,11 @@ Copyright:
         if SysMgr.terminalOver or \
             not SysMgr.printFile or \
             not SysMgr.printStreamEnable:
-            return
+            return True
 
         SysMgr.printConsole(string)
+
+        return True
 
 
 
@@ -21002,6 +21002,8 @@ Copyright:
 
     @staticmethod
     def convertExtAscii(line):
+        # pylint: disable=no-member
+        # pylint: disable=undefined-variable
         if not SysMgr.encodeEnable:
             return line
 
@@ -22706,8 +22708,7 @@ Copyright:
     @staticmethod
     def isUserTopMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'usertop' or \
-            sys.argv[1] == 'utop'):
+            (sys.argv[1] == 'usertop' or sys.argv[1] == 'utop'):
             return True
         else:
             return False
@@ -22717,8 +22718,7 @@ Copyright:
     @staticmethod
     def isBrkTopMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'brktop' or \
-            sys.argv[1] == 'btop'):
+            (sys.argv[1] == 'brktop' or sys.argv[1] == 'btop'):
             return True
         else:
             return False
@@ -24844,7 +24844,11 @@ Copyright:
         #SysMgr.libcObj.sigemptyset(byref(sigset))
         SysMgr.libcObj.memset(byref(sigset), 0, sizeof(sigset))
 
-        SysMgr.libcObj.sigaddset(byref(sigset), sig)
+        if type(sig) is not list:
+            sig = [sig]
+
+        for sigbit in sig:
+            SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
 
         SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
 
@@ -25651,7 +25655,7 @@ Copyright:
 
         array = SysMgr.getPkg('array', False)
         if not array:
-            return None
+            return
 
         # create netlink socket #
         sockObj = SysMgr.netlinkObj = \
@@ -25710,7 +25714,7 @@ Copyright:
         # recv result #
         data = sockObj.recv()
         if not data:
-            return None
+            return
 
         (size, type, flags, seq, pid) = struct.unpack(str('=IHHII'), data[:16])
         data = data[16:size]
@@ -26199,7 +26203,8 @@ Copyright:
             # set multi-task attributes #
             if len(pids) > 1:
                 multi = True
-                SysMgr.printStreamEnable = True
+                if not SysMgr.printFile:
+                    SysMgr.printStreamEnable = True
 
                 SysMgr.printWarn(\
                     "multiple tasks [ %s ] are traced" % \
@@ -26224,8 +26229,6 @@ Copyright:
                                 SysMgr.logEnable = False
 
                         pid = long(tid)
-                        if SysMgr.bgStatus:
-                            SysMgr.exitFlag = False
                         break
             except:
                 isFinished = False
@@ -28254,7 +28257,7 @@ Copyright:
             # update current terminal size #
             SysMgr.getTty()
 
-            SysMgr.printInfo("set terminal size [ %s * %s ]" % \
+            SysMgr.printInfo("set terminal size [ %sx%s ]" % \
                 (SysMgr.ttyRows, SysMgr.ttyCols))
 
             return
@@ -28907,7 +28910,10 @@ Copyright:
                 SysMgr.printInfo(\
                     "finish saving all results into %s [%s] successfully" % \
                     (SysMgr.fileForPrint.name, fsize))
+
                 SysMgr.fileForPrint.close()
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
             finally:
@@ -30159,7 +30165,11 @@ Copyright:
             #dev, path, fs, option, etc1, etc2 = l.split()
 
             # split mount info #
-            left, right = l.split(' - ')
+            values = l.split(' - ')
+            if len(values) != 2:
+                continue
+            left = values[0]
+            right = values[1]
 
             # split left-side part #
             left = left.split()
@@ -35578,7 +35588,7 @@ struct msghdr {
             addInfo = 'Count'
             sampleStr = ''
         elif self.mode == 'break':
-            ctype = 'Breakpoint'
+            ctype = 'Breakcall'
             addInfo = 'Path'
             sampleStr = ' [SampleTime: %f]' % self.sampleTime
         else:
@@ -35608,18 +35618,23 @@ struct msghdr {
             floatUserUsage = 1
             floatSysUsage = 1
 
-        SysMgr.addPrint((\
+        ret = SysMgr.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
             '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), self.comm, self.pid, \
                 cpuStr, sampleStr, twoLine), newline=2)
+        if not ret:
+            finishPrint()
 
-        SysMgr.addPrint(\
+        ret = SysMgr.addPrint(\
             '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
                 'Usage', 'Function [%s]' % addInfo, twoLine), newline=2)
+        if not ret:
+            finishPrint()
 
         cnt = long(0)
+        isBtPrinted = False
         for sym, value in sorted(\
             self.callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
             if sym[0] == '/':
@@ -35663,9 +35678,11 @@ struct msghdr {
             if SysMgr.checkCutCond():
                 break
 
-            SysMgr.addPrint(\
+            ret = SysMgr.addPrint(\
                 '{0:>7} | {1:<144}\n'.format(\
                     '%.1f%%' % per, '%s [%s]' % (sym, addVal)))
+            if not ret:
+                finishPrint()
 
             cnt += 1
 
@@ -35685,15 +35702,25 @@ struct msghdr {
                         finishPrint()
                         return
 
-                    SysMgr.addPrint(\
+                    ret = SysMgr.addPrint(\
                         '{0:>17} | {1:<1}\n'.format(\
                             '%.1f%%' % bper, bt), newline=nline)
+                    if not ret:
+                        finishPrint()
+
+            if SysMgr.funcDepth > 0:
+                isBtPrinted = True
+                ret = SysMgr.addPrint('%s\n' % oneLine)
+                if not ret:
+                    finishPrint()
 
         if cnt == 0:
             SysMgr.addPrint('\tNone\n')
 
-        SysMgr.addPrint('%s\n' % oneLine)
+        if not isBtPrinted:
+            SysMgr.addPrint('%s\n' % oneLine)
 
+        # print stats #
         finishPrint()
 
         # print progress #
@@ -36255,10 +36282,10 @@ struct msghdr {
 
     def getBacktrace(self, limit=32, cur=False):
         try:
-            if not self.bpList:
-                self.bpList = self.backtrace[SysMgr.arch](limit, cur)
+            if not self.btList:
+                self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
-            return self.bpList
+            return self.btList
         except SystemExit:
             sys.exit(0)
         except:
@@ -36295,6 +36322,8 @@ struct msghdr {
                 if value > 0:
                     try:
                         btList.append(long(value))
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -37518,7 +37547,8 @@ struct msghdr {
 
         # set multiprocess attributes #
         self.multi = True
-        SysMgr.printStreamEnable = True
+        if not SysMgr.printFile:
+            SysMgr.printStreamEnable = True
 
 
 
@@ -37533,8 +37563,7 @@ struct msghdr {
 
         # stat variables #
         self.comm = SysMgr.getComm(self.pid, cache=True)
-        self.start = long(0)
-        self.last = time.time()
+        self.start = self.last = time.time()
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
@@ -37975,14 +38004,17 @@ struct msghdr {
             instance.waitpid()
 
         # get current register set #
-        while 1:
-            ret = instance.updateRegs()
-            if not ret:
-                if not instance.isAlive():
-                    return
-                time.sleep(SysMgr.waitDelay)
-                continue
-            break
+        if instance.mode == 'break':
+            while 1:
+                ret = instance.updateRegs()
+                if not ret:
+                    if not instance.isAlive():
+                        return
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                break
+        else:
+            ret = False
 
         if ret:
             addr = instance.pc - instance.prevInstOffset
@@ -38122,7 +38154,7 @@ struct msghdr {
             ctype = 'Syscall'
             addInfo = 'Count'
         elif instance.mode == 'break':
-            ctype = 'Breakpoint'
+            ctype = 'Breakcall'
             addInfo = 'Path'
         else:
             ctype = 'Usercall'
@@ -38151,7 +38183,7 @@ struct msghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = '[Sampling: %f]' % instance.sampleTime
+            samplingStr = '[Sampling: %f] ' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
@@ -38173,8 +38205,8 @@ struct msghdr {
         cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
 
         SysMgr.printPipe((\
-            '\n[%s %s Info] [Time: %f] %s [Task: %s(%s)] [NrSamples: %s%s] '
-            '[NrSymbols: %s] [CPU: %s] %s') % \
+            '\n[%s %s Summary] [Elapsed: %f] %s[Task: %s(%s)] '
+            '[NrSamples: %s%s] [NrSymbols: %s] [CPU: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, \
                 instance.comm, instance.pid, \
                 convert(long(nrTotal)), sampleRateStr, \
@@ -38219,10 +38251,12 @@ struct msghdr {
         if len(fileTable) > 0:
             # print file table #
             SysMgr.printPipe((\
-                '\n[%s File Info] [Time: %f] %s '
-                '[NrSamples: %s(%s%%)] [NrFiles: %s]%s') % \
-                    (mtype, elapsed, samplingStr, convert(long(nrTotal)), \
-                    perSample, convert(len(fileTable)), suffix))
+                '\n[%s File Summary] [Elapsed: %f] %s[Task: %s(%s)] '
+                '[NrSamples: %s(%s%%)] [NrFiles: %s] [CPU: %s] %s') % \
+                    (mtype, elapsed, samplingStr, \
+                    instance.comm, instance.pid, \
+                    convert(long(nrTotal)), perSample, \
+                    convert(len(fileTable)), cpuStr, suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
             SysMgr.printPipe(\
                 '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
@@ -38343,10 +38377,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         try:
             for tid in tlist:
                 lastTid = long(tid)
-                comm = SysMgr.getComm(tid)
 
                 ret = SysMgr.createProcess(mute=True, changePgid=True)
                 if ret > 0:
+                    comm = SysMgr.getComm(tid)
                     taskList[tid] = comm
                     SysMgr.printInfo("paused %s(%s)" % (comm, lastTid))
                 elif ret == 0:
@@ -38355,8 +38389,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     dobj.__del__()
                     sys.exit(0)
                 else:
-                    SysMgr.printErr(\
-                        'Fail to create process to pause %s(%s)' % (comm, tid))
+                    SysMgr.printErr('Fail to create a process')
                     sys.exit(0)
 
             # wait for user event to continue threads #
@@ -42308,7 +42341,7 @@ class ThreadAnalyzer(object):
 
             # initialize netlink socket #
             try:
-                ret = SysMgr.initNetlink()
+                SysMgr.initNetlink()
             except:
                 SysMgr.printWarn(\
                     "Fail to initialize netlink", reason=True)
