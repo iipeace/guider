@@ -26359,8 +26359,12 @@ Copyright:
         resInfo = {}
         inputArg = str(SysMgr.inputParam)
 
-        # check process #
-        pids = SysMgr.getPids(inputArg, isThread=False)
+        # get pid list #
+        pids = SysMgr.getPids(inputArg)
+        taskList = []
+        for tid in pids:
+            taskList.append(SysMgr.getTgid(tid))
+        pids = list(set(taskList))
 
         # a file #
         if len(pids) == 0:
@@ -26637,8 +26641,12 @@ Copyright:
         resInfo = {}
         inputArg = str(SysMgr.inputParam)
 
-        # check process #
-        pids = SysMgr.getPids(inputArg, isThread=False)
+        # get pid list #
+        pids = SysMgr.getPids(inputArg)
+        taskList = []
+        for tid in pids:
+            taskList.append(SysMgr.getTgid(tid))
+        pids = list(set(taskList))
 
         # a file #
         if len(pids) == 0:
@@ -34596,11 +34604,14 @@ struct msghdr {
 
 
 
-    def meetFilterCond(self, filterCmd, args):
+    def checkFilterCond(self, filterCmd, args):
         def printErr(cmd):
             SysMgr.printErr(\
                 "Wrong command '%s', input in the format {%s:%s}" % \
                     (cmd, 'filter', 'ADDR|REG:OP:VAL:SIZE'))
+
+        if not filterCmd:
+            return True
 
         for cmd in filterCmd:
             cmdset = cmd.split(':', 1)
@@ -35472,26 +35483,30 @@ struct msghdr {
 
 
     @staticmethod
-    def writeUpdateCommFlag(flag=True):
-        if Debugger.globalEvent:
-            # set flag value #
-            if flag == True:
-                value = b'1'
-            else:
-                value = b'0'
+    def updateCommFlag(flag=True):
+        if not Debugger.globalEvent:
+            return
 
-            Debugger.globalEvent[0] = value # pylint: disable=unsupported-assignment-operation
+        # set flag value #
+        if flag == True:
+            value = b'1'
+        else:
+            value = b'0'
+
+        Debugger.globalEvent[0] = value # pylint: disable=unsupported-assignment-operation
 
 
 
     @staticmethod
     def needUpdateComm():
-        if Debugger.globalEvent:
-            ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
-            if ret == b'1':
-                return True
-            else:
-                return False
+        if not Debugger.globalEvent:
+            return False
+
+        ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
+        if ret == b'1':
+            return True
+        else:
+            return False
 
 
 
@@ -35768,7 +35783,9 @@ struct msghdr {
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
                 self.dftBpFileList[fpath] = 0
-            elif fname.startswith('libc-'):
+            elif fname.startswith('libc-') or \
+                fname == 'libc.so':
+                self.libcLoaded = True
                 self.dftBpFileList[fpath] = 0
             elif fname.startswith('libpthread'):
                 self.dftBpFileList[fpath] = 0
@@ -36436,9 +36453,10 @@ struct msghdr {
 
             self.breakcallTimeStat[sym] = \
                 [self.current, ttotal, tmin, tmax]
+        except SystemExit:
+            sys.exit(0)
         except:
-            self.breakcallTimeStat[sym] = \
-                [self.current, 0, 0, 0]
+            self.breakcallTimeStat[sym] = [self.current, 0, 0, 0]
 
 
 
@@ -36531,42 +36549,35 @@ struct msghdr {
         elif sym.startswith('munmap'):
             unmapAddr = self.readArgs()[0]
             self.removeBpFileByAddr(unmapAddr)
+            self.needMapScan = True
 
         # update comm #
         if self.needUpdateComm():
             comm = SysMgr.getComm(self.pid, cache=True)
             if self.comm != comm:
                 self.comm = comm
-                Debugger.writeUpdateCommFlag(False)
+                Debugger.updateCommFlag(False)
 
         # check comm change calls #
         if sym == 'pthread_setname_np':
-            Debugger.writeUpdateCommFlag()
+            Debugger.updateCommFlag()
         elif sym == 'prctl':
             param = self.readArgs()[0]
             if param in ConfigMgr.PRCTL_TYPE and \
                 ConfigMgr.PRCTL_TYPE[param] == "PR_SET_NAME":
-                Debugger.writeUpdateCommFlag()
+                Debugger.updateCommFlag()
 
         # print context info #
-        if printStat and \
-            addr not in self.exceptBpList and \
-            (len(self.targetBpFileList) == 0 or \
-                fname in self.targetBpFileList):
-            # build arguments string #
+        if printStat and not addr in self.exceptBpList and \
+            (not self.targetBpFileList or fname in self.targetBpFileList):
+            # read args #
             args = self.readArgs()
-            argstr = '(%s)' % ','.join(list(map(hex, args)))
 
             # check filter #
             filterCmd = self.bpList[addr]['filter']
-            if not filterCmd or self.meetFilterCond(filterCmd, args):
-                # get diff time #
-                diff = self.current - self.start
-
-                if self.multi:
-                    tinfo = '%s(%s) ' % (self.comm, self.pid)
-                else:
-                    tinfo = ''
+            if self.checkFilterCond(filterCmd, args):
+                # build arguments string #
+                argstr = '(%s)' % ','.join(list(map(hex, args)))
 
                 # top mode #
                 if self.isRealtime:
@@ -36579,8 +36590,15 @@ struct msghdr {
                         sym, fname, realtime=True, bt=backtrace)
 
                     self.addStat(sym)
+                # trace mode #
                 else:
-                    diffstr = '%3.6f' % diff
+                    if self.multi:
+                        tinfo = '%s(%s) ' % (self.comm, self.pid)
+                    else:
+                        tinfo = ''
+
+                    # get diff time #
+                    diffstr = '%3.6f' % (self.current - self.start)
 
                     # build backtrace string #
                     if SysMgr.funcDepth > 0:
@@ -36594,13 +36612,13 @@ struct msghdr {
                         (diffstr, tinfo, indent, sym, \
                             hex(addr).rstrip('L'), argstr, fname)
 
-                    # trace mode with file #
+                    # file output #
                     if SysMgr.printFile:
                         self.addSample(sym, fname)
 
                         if SysMgr.showAll:
                             self.callPrint.append(callString)
-                    # trace mode with console #
+                    # console output #
                     else:
                         # print string #
                         SysMgr.printPipe(callString, newline=False)
