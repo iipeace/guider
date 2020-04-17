@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200416"
+__revision__ = "200417"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24829,8 +24829,9 @@ Copyright:
 
             SysMgr.sigsetObj = sigset_t()
 
-        nset = SysMgr.sigsetObj
+        sigset = SysMgr.sigsetObj
 
+        # check act #
         if act == 'block':
             atype = SIG_BLOCK = 0
         elif act == 'unblock':
@@ -24840,10 +24841,14 @@ Copyright:
                 "No supported '%s' for blocking signal" % act)
             return
 
-        #SysMgr.libcObj.sigemptyset(byref(nset))
-        SysMgr.libcObj.sigaddset(byref(nset), sig)
-        SysMgr.libcObj.sigprocmask(atype, byref(nset), 0)
-        #print(SysMgr.libcObj.sigpending(byref(nset)))
+        #SysMgr.libcObj.sigemptyset(byref(sigset))
+        SysMgr.libcObj.memset(byref(sigset), 0, sizeof(sigset))
+
+        SysMgr.libcObj.sigaddset(byref(sigset), sig)
+
+        SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
+
+        #print(SysMgr.libcObj.sigpending(byref(sigset)))
 
 
 
@@ -36677,7 +36682,13 @@ struct msghdr {
             # block signal #
             SysMgr.blockSignal(signal.SIGINT, act='block')
 
-            self.handleBreakpoint(printStat=SysMgr.printEnable)
+            try:
+                self.handleBreakpoint(printStat=SysMgr.printEnable)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(\
+                    "Fail to handle a breakpoint", True, reason=True)
 
             if self.cont(check=True) < 0:
                 sys.exit(0)
@@ -38050,7 +38061,7 @@ struct msghdr {
         printSystemStat()
 
         SysMgr.printInfo(\
-            "Start analyze calls...")
+            "Start analyzing calls...")
 
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
