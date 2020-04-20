@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200418"
+__revision__ = "200420"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3496,8 +3496,8 @@ class UtilMgr(object):
 
     @staticmethod
     def isNumber(value):
-        if type(value) is int or \
-            type(value) is long:
+        if type(value) is long or \
+            type(value) is int:
             return True
         elif type(value) is str:
             if value.isdigit():
@@ -15374,7 +15374,7 @@ Commands:
     jump:FUNC#ARG
     rdmem:ADDR|REG:SIZE
     wrmem:ADDR|REG:VAL:SIZE
-    filter:ADDR|REG:OP(EQ/DF/BT/LT):VAL:SIZE
+    filter:ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE
 
 Examples:
     - Handle all function calls for a specific thread
@@ -15443,7 +15443,9 @@ Examples:
 
     - Handle write function calls for a specific thread with special conditions
         # {0:1} {1:1} -g a.out -c write\\|filter:2:EQ:4096
+        # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
+        # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
 
     - Handle write function calls for a specific thread and print the 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
@@ -34512,6 +34514,35 @@ struct msghdr {
 
 
 
+    def convertFilterValue(self, origCmdSet):
+        cmdSet = list()
+        for cmd in origCmdSet:
+            cmds = cmd.split(':')
+            if cmds[0] != 'filter' or \
+                len(cmds) < 4 or \
+                cmds[1].startswith('*'):
+                cmdSet.append(cmd)
+                continue
+
+            val = cmds[3]
+            if val.isdigit():
+                val = long(val)
+            else:
+                try:
+                    val = long(val, 16)
+                except:
+                    SysMgr.printErr(\
+                        "Fail to recognize %s as a number" % val, True)
+                    sys.exit(0)
+
+            cmds[3] = str(val)
+            newCmds = ':'.join(cmds)
+            cmdSet.append(newCmds)
+
+        return cmdSet
+
+
+
     def injectBpList(self, symlist, binlist=None, verb=True):
         if len(symlist) == 0:
             symlist.append('**')
@@ -34547,7 +34578,8 @@ struct msghdr {
             valueList = value.split('|')
             value = valueList[0]
             if len(valueList) > 1:
-                cmdSet = valueList[1:]
+                # convert value to decimal #
+                cmdSet = self.convertFilterValue(valueList[1:])
             else:
                 cmdSet = None
 
@@ -34669,13 +34701,14 @@ struct msghdr {
                     "Wrong addr %s" % addr)
                 return False
 
-            # get memory value #
+            # get value from memory #
             if ref:
                 ret = self.readMem(addr, size)
                 if ret == -1:
                     SysMgr.printErr(\
                         "Fail to read from %s" % addr)
                     return False
+            # get value from register #
             else:
                 ret = addr
 
@@ -34683,12 +34716,31 @@ struct msghdr {
             if size == 0:
                 size = len(val)
 
+            # check value #
+            # == #
             if op.upper() == 'EQ':
-                if str(ret)[:size] != val:
-                    return False
+                if ref:
+                    if ret.decode()[:size] != val:
+                        return False
+                else:
+                    if ret != long(val):
+                        return False
+            # != #
             elif op.upper() == 'DF':
-                if str(ret)[:size] == val:
-                    return False
+                if ref:
+                    if ret.decode()[:size] == val:
+                        return False
+                else:
+                    if ret == long(val):
+                        return False
+
+            # in #
+            elif op.upper() == 'INC':
+                if ref:
+                    if not val in ret.decode()[:size]:
+                        return False
+
+            # <= or >= #
             elif op.upper() == 'BT' or op.upper() == 'LT':
                 if not UtilMgr.isNumber(val):
                     printErr(cmd)
