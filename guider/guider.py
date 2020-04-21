@@ -3496,8 +3496,8 @@ class UtilMgr(object):
 
     @staticmethod
     def isNumber(value):
-        if type(value) is long or \
-            type(value) is int:
+        if type(value) is int or \
+            type(value) is long:
             return True
         elif type(value) is str:
             if value.isdigit():
@@ -5144,7 +5144,7 @@ class GlMgr(object):
     def init():
         ctypes = SysMgr.getPkg('ctypes')
         from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, \
-            cdll, c_uint32, c_uint, c_char, c_ssize_t, c_int32, c_float, \
+            c_uint32, c_uint, c_char, c_ssize_t, c_int32, c_float, \
             c_char_p, c_void_p, c_ulong, c_int64
 
         try:
@@ -12604,6 +12604,7 @@ class LogMgr(object):
         data = c_void_p(0)
         size = c_size_t(0)
         usec = c_uint64(0)
+        timeout = c_uint64(10000)
 
         # set fields #
         if SysMgr.inputParam:
@@ -12621,8 +12622,9 @@ class LogMgr(object):
         while 1:
             res = systemdObj.sd_journal_next(jrl)
             if res == 0:
-                ret = systemdObj.sd_journal_wait(jrl, 1)
-                if ret == 0:
+                ret = systemdObj.sd_journal_wait(jrl, timeout)
+                # SD_JOURNAL_NOP / SD_JOURNAL_APPEND / SD_JOURNAL_INVALID #
+                if ret == 0 or ret == 1 or ret == 2:
                     continue
                 elif ret < 0:
                     break
@@ -12708,14 +12710,13 @@ class LogMgr(object):
         if not SysMgr.kmsgFd:
             # get ctypes object #
             ctypes = SysMgr.getPkg('ctypes')
-            from ctypes import cdll, Structure, c_char, memset
 
             # get kernel ring-buffer size #
             size = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_SIZE_BUFFER, 0, 0)
 
             # allocate buffer #
-            buf = (c_char*size)()
+            buf = (ctypes.c_char*size)()
 
             ret = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_READ_ALL, buf, size)
@@ -12727,7 +12728,7 @@ class LogMgr(object):
                     SysMgr.printPipe(line)
 
             while 1:
-                memset(buf, 0, size)
+                ctypes.memset(buf, 0, size)
                 ret = SysMgr.syscall(\
                     'syslog', LogMgr.SYSLOG_ACTION_READ, buf, size)
                 if ret < 1:
@@ -12831,9 +12832,8 @@ class LogMgr(object):
 
     @staticmethod
     def doLogSyslog(msg=None, level=None):
-        # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll
+        if not msg:
+            return
 
         if not SysMgr.loadLibcObj():
             sys.exit(0)
@@ -12841,7 +12841,7 @@ class LogMgr(object):
         if level is None:
             level = LogMgr.LOG_NOTICE
 
-        SysMgr.libcObj.syslog(level, msg)
+        SysMgr.libcObj.syslog(level, msg.encode())
 
         return 0
 
@@ -12851,8 +12851,9 @@ class LogMgr(object):
     def doLogJournal(msg=None, level=None):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, \
-            c_ulong, c_char_p
+
+        if not msg:
+            return
 
         if level is None:
             level = LogMgr.LOG_NOTICE
@@ -12873,7 +12874,7 @@ class LogMgr(object):
                 "Fail to log journal", True)
             sys.exit(0)
 
-        return SysMgr.systemdObj.sd_journal_print(level, msg)
+        return SysMgr.systemdObj.sd_journal_print(level, msg.encode())
 
 
 
@@ -13290,7 +13291,6 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, POINTER, Structure
 
         if not SysMgr.loadLibcObj():
             return
@@ -13393,7 +13393,7 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, POINTER, Structure, c_int, c_uint, byref
+        from ctypes import POINTER, Structure, c_int, c_uint, byref
 
         class rlimit(Structure):
             _fields_ = (
@@ -14111,7 +14111,7 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, POINTER, c_int, c_ulong, byref
+        from ctypes import POINTER, c_int, c_ulong, byref
 
         for pid in pids:
             if isProcess:
@@ -14174,20 +14174,20 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, Structure, c_int, c_ulong, POINTER, sizeof
 
         try:
             # load libc #
-            SysMgr.loadLibcObj()
+            if not SysMgr.loadLibcObj():
+                raise Exception()
 
             nrCore = SysMgr.getNrCore()
 
             SysMgr.libcObj.sched_getaffinity.argtypes = \
-                [c_int, c_ulong, POINTER(ctypes.c_ulong)]
+                [ctypes.c_int, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong)]
 
-            cpuset = c_ulong(0)
+            cpuset = ctypes.c_ulong(0)
 
-            size = long(1024 / (sizeof(c_ulong) * 8))
+            size = long(1024 / (ctypes.sizeof(ctypes.c_ulong) * 8))
             ret = SysMgr.libcObj.sched_getaffinity(\
                 long(pid), size, ctypes.pointer(cpuset))
 
@@ -14361,7 +14361,6 @@ class SysMgr(object):
     def getBacktrace():
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, c_void_p, c_int, byref, c_char
 
         if not SysMgr.loadLibcObj():
             sys.exit(0)
@@ -14369,18 +14368,18 @@ class SysMgr(object):
         # define functions #
         libcObj = SysMgr.libcObj
 
-        libcObj.backtrace.argtypes = [c_void_p, c_int]
-        libcObj.backtrace.restype = c_int
+        libcObj.backtrace.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        libcObj.backtrace.restype = ctypes.c_int
 
-        libcObj.backtrace_symbols.argtypes = [c_void_p, c_int]
+        libcObj.backtrace_symbols.argtypes = [ctypes.c_void_p, ctypes.c_int]
         libcObj.backtrace_symbols.restype = ctypes.POINTER(ctypes.c_char_p)
 
         # define buffers #
-        buf = (c_void_p*1024)()
+        buf = (ctypes.c_void_p*1024)()
 
         # call backtrace #
-        ret = libcObj.backtrace(byref(buf), c_int(1024))
-        syms = libcObj.backtrace_symbols(byref(buf), c_int(ret))
+        ret = libcObj.backtrace(ctypes.byref(buf), ctypes.c_int(1024))
+        syms = libcObj.backtrace_symbols(ctypes.byref(buf), ctypes.c_int(ret))
 
         sys.exit(0)
 
@@ -14415,14 +14414,13 @@ class SysMgr(object):
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, POINTER, c_char_p
 
         if not SysMgr.loadLibcObj():
             return
 
         try:
             SysMgr.libcObj.prctl(\
-                15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
+                15, ctypes.c_char_p(comm.encode('utf-8')), 0, 0, 0)
         except SystemExit:
             sys.exit(0)
         except:
@@ -17439,13 +17437,10 @@ Copyright:
         if not SysMgr.isLinux:
             return None
 
-        # import ctypes #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER
-
         try:
             # load libc #
-            SysMgr.loadLibcObj()
+            if not SysMgr.loadLibcObj():
+                raise Exception()
 
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
@@ -17573,7 +17568,7 @@ Copyright:
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
             return
-        from ctypes import cdll, POINTER, Union, Structure, sizeof, pointer,\
+        from ctypes import POINTER, Union, Structure, sizeof, pointer,\
             c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
         if not SysMgr.loadLibcObj():
@@ -17942,7 +17937,7 @@ Copyright:
         ctypes = SysMgr.getPkg('ctypes', False)
         if not ctypes:
             return
-        from ctypes import cdll, sizeof, POINTER, pointer, Structure,\
+        from ctypes import sizeof, POINTER, pointer, Structure,\
             c_uint64, c_uint, c_uint32, c_int, c_ulong
 
         if not SysMgr.loadLibcObj():
@@ -19097,16 +19092,15 @@ Copyright:
 
         # import ctypes #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, c_ulong
 
         if not SysMgr.loadLibcObj():
             return
 
         # declare syscalls #
-        SysMgr.libcObj.getauxval.restype = c_ulong
-        SysMgr.libcObj.getauxval.argtypes = [c_ulong]
+        SysMgr.libcObj.getauxval.restype = ctypes.c_ulong
+        SysMgr.libcObj.getauxval.argtypes = [ctypes.c_ulong]
 
-        return SysMgr.libcObj.getauxval(c_ulong(nrType))
+        return SysMgr.libcObj.getauxval(ctypes.c_ulong(nrType))
 
 
 
@@ -24822,14 +24816,13 @@ Copyright:
     def blockSignal(sig, act='block'):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, c_uint, byref, sizeof
 
         if not SysMgr.sigsetObj:
-            NWORDS = long(1024 / (8 * sizeof(c_uint)))
+            NWORDS = long(1024 / (8 * ctypes.sizeof(ctypes.c_uint)))
 
-            class sigset_t(Structure):
+            class sigset_t(ctypes.Structure):
                 _fields_ = [
-                    ('__sigbits', c_uint * NWORDS),
+                    ('__sigbits', ctypes.c_uint * NWORDS),
                 ]
 
             SysMgr.sigsetObj = sigset_t()
@@ -24846,16 +24839,17 @@ Copyright:
                 "No supported '%s' for blocking signal" % act)
             return
 
-        #SysMgr.libcObj.sigemptyset(byref(sigset))
-        SysMgr.libcObj.memset(byref(sigset), 0, sizeof(sigset))
+        #SysMgr.libcObj.sigemptyset(ctypes.byref(sigset))
+        SysMgr.libcObj.memset(\
+            ctypes.byref(sigset), 0, ctypes.sizeof(sigset))
 
         if type(sig) is not list:
             sig = [sig]
 
         for sigbit in sig:
-            SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
+            SysMgr.libcObj.sigaddset(ctypes.byref(sigset), sigbit)
 
-        SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
+        SysMgr.libcObj.sigprocmask(atype, ctypes.byref(sigset), 0)
 
         #print(SysMgr.libcObj.sigpending(byref(sigset)))
 
@@ -27144,7 +27138,7 @@ Copyright:
         if not ctypes:
             return None
 
-        from ctypes import cdll, POINTER, Structure, c_int, c_size_t, \
+        from ctypes import POINTER, Structure, c_int, c_size_t, \
             c_void_p, c_char_p, byref
 
         nGpus = c_int()
@@ -28042,7 +28036,7 @@ Copyright:
 
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, sizeof, pointer,\
+        from ctypes import POINTER, Structure, sizeof, pointer,\
             c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
 
         if not SysMgr.loadLibcObj():
@@ -28153,14 +28147,14 @@ Copyright:
             ctypes = SysMgr.getPkg('ctypes', False)
             if not ctypes:
                 return
-            from ctypes import cdll, POINTER
 
         # get comm #
         comm = SysMgr.getComm(pid)
 
         try:
             # load libc #
-            SysMgr.loadLibcObj()
+            if not SysMgr.loadLibcObj():
+                raise Exception()
 
             upolicy = policy.upper()
 
@@ -31673,7 +31667,7 @@ class DbusAnalyzer(object):
     def prepareDbusMethods():
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, c_char_p, pointer, \
+        from ctypes import POINTER, c_char_p, pointer, \
             c_ulong, c_void_p, c_int, c_uint32, Structure
 
         # try to load libraries #
@@ -32812,7 +32806,7 @@ class DltAnalyzer(object):
         appid='GUID'.encode(), context='GUID'.encode(), msg=None, level='INFO'):
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, \
+        from ctypes import POINTER, Structure, \
             c_char, c_int32, c_int8, c_uint8, byref
 
         class DltContext(Structure):
@@ -32925,7 +32919,7 @@ class DltAnalyzer(object):
 
         # get ctypes object #
         ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, Union, \
+        from ctypes import POINTER, Structure, Union, \
             c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
             c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
             create_string_buffer, c_ulong, c_long, c_int16, c_uint16
@@ -33624,6 +33618,7 @@ class Debugger(object):
         self.prevPmap = None
         self.needMapScan = True
         self.initPtrace = False
+        self.initWaitpid = False
         self.initPvr = False
         self.initPvw = False
         self.supportGetRegset = True
@@ -33693,7 +33688,7 @@ class Debugger(object):
 
         # get ctypes object #
         ctypes = self.ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, Structure, sizeof, c_void_p, \
+        from ctypes import Structure, sizeof, c_void_p, \
             addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
             c_size_t, c_int, POINTER, sizeof, cast
 
@@ -33977,12 +33972,12 @@ struct msghdr {
         if arch == 'aarch64':
             return (regs.r0, regs.r1, regs.r2,\
                     regs.r3, regs.r4, regs.r5, regs.r6, regs.r7)
-        elif arch == 'x64':
-            return (regs.rdi, regs.rsi, regs.rdx,\
-                    regs.r10, regs.r8, regs.r9)
         elif arch == 'arm':
             return (regs.r0, regs.r1, regs.r2,\
                     regs.r3, regs.r4, regs.r5, regs.r6)
+        elif arch == 'x64':
+            return (regs.rdi, regs.rsi, regs.rdx,\
+                    regs.r10, regs.r8, regs.r9)
         elif arch == 'x86':
             return (regs.ebx, regs.ecx, regs.edx,\
                     regs.esi, regs.edi, regs.ebp)
@@ -35081,31 +35076,29 @@ struct msghdr {
             try:
                 # get ctypes object #
                 ctypes = self.ctypes
-                from ctypes import cdll, Structure, memmove, c_char, \
-                    c_void_p, c_ulong, c_size_t, c_int, cast, byref
 
                 # prepare process_vm_writev syscall #
                 process_vm_writev = SysMgr.libcObj.process_vm_writev
 
                 if not self.initPvw:
-                    SysMgr.libcObj.process_vm_writev.restype = c_size_t
+                    SysMgr.libcObj.process_vm_writev.restype = ctypes.c_size_t
                     SysMgr.libcObj.process_vm_writev.argtypes = \
-                        [c_int, self.iovec_ptr, c_size_t, \
-                            self.iovec_ptr, c_size_t, c_ulong]
+                        [ctypes.c_int, self.iovec_ptr, ctypes.c_size_t, \
+                            self.iovec_ptr, ctypes.c_size_t, ctypes.c_ulong]
                     self.initPvw = True
 
                 # create params #
                 pid = self.pid
 
                 try:
-                    lbuf = (c_char*size)()
-                    memmove(byref(lbuf), data, len(data))
+                    lbuf = (ctypes.c_char*size)()
+                    memmove(ctypes.byref(lbuf), data, len(data))
                     liov = (self.iovec*1)()[0]
-                    liov.iov_base = cast(lbuf, c_void_p)
+                    liov.iov_base = ctypes.cast(lbuf, ctypes.c_void_p)
                     liov.iov_len = size
 
                     riov = (self.iovec*1)()[0]
-                    riov.iov_base = c_void_p(addr)
+                    riov.iov_base = ctypes.c_void_p(addr)
                     riov.iov_len = size
                 except SystemExit:
                     sys.exit(0)
@@ -35235,30 +35228,29 @@ struct msghdr {
             try:
                 # get ctypes object #
                 ctypes = self.ctypes
-                from ctypes import cdll, Structure, c_void_p, \
-                    c_ulong, c_size_t, c_int, cast, c_char, byref
 
                 # prepare process_vm_readv syscall #
                 process_vm_readv = SysMgr.libcObj.process_vm_readv
 
                 if not self.initPvr:
-                    SysMgr.libcObj.process_vm_readv.restype = c_size_t
+                    SysMgr.libcObj.process_vm_readv.restype = ctypes.c_size_t
                     SysMgr.libcObj.process_vm_readv.argtypes = \
-                        [c_int, self.iovec_ptr, c_size_t, \
-                            self.iovec_ptr, c_size_t, c_ulong]
+                        [ctypes.c_int, self.iovec_ptr, ctypes.c_size_t, \
+                            self.iovec_ptr, ctypes.c_size_t, ctypes.c_ulong]
                     self.initPvr = True
 
                 # create params #
                 pid = self.pid
 
                 try:
-                    lbuf = (c_char*size)()
+                    lbuf = (ctypes.c_char*size)()
                     liov = (self.iovec*1)()[0]
-                    liov.iov_base = cast(byref(lbuf), c_void_p)
+                    liov.iov_base = \
+                        ctypes.cast(ctypes.byref(lbuf), ctypes.c_void_p)
                     liov.iov_len = size
 
                     riov = (self.iovec*1)()[0]
-                    riov.iov_base = c_void_p(addr)
+                    riov.iov_base = ctypes.c_void_p(addr)
                     riov.iov_len = size
                 except SystemExit:
                     sys.exit(0)
@@ -35337,17 +35329,15 @@ struct msghdr {
     def readMsgHdr(self, addr):
         # get ctypes object #
         ctypes = self.ctypes
-        from ctypes import cdll, Structure, c_void_p, \
-            c_uint, c_size_t, c_int, POINTER, sizeof, cast
 
         # read msghdr structure #
-        ret = self.readMem(addr, sizeof(self.msghdr))
+        ret = self.readMem(addr, ctypes.sizeof(self.msghdr))
         if not ret:
             return addr
 
         # cast struct msghdr #
         msginfo = {}
-        header = cast(ret, self.msghdr_ptr)
+        header = ctypes.cast(ret, self.msghdr_ptr)
 
         # get msg info #
         namelen = long(header.contents.msg_namelen)
@@ -35361,7 +35351,8 @@ struct msghdr {
                 msginfo['msg_name'].decode('latin-1')
 
         # get iov header info #
-        iovaddr = cast(header.contents.msg_iov, c_void_p).value
+        iovaddr = ctypes.cast(\
+            header.contents.msg_iov, ctypes.c_void_p).value
         iovlen = long(header.contents.msg_iovlen)
 
         if not SysMgr.showAll:
@@ -35371,12 +35362,13 @@ struct msghdr {
 
             # get iov info #
             for idx in xrange(0, iovlen):
-                offset = idx * sizeof(self.iovec)
+                offset = idx * ctypes.sizeof(self.iovec)
                 msginfo['msg_iov'][idx] = {}
 
                 # get iov object #
-                iovobj = self.readMem(iovaddr+offset, sizeof(self.iovec))
-                iovobj = cast(iovobj, self.iovec_ptr)
+                iovobj = self.readMem(\
+                    iovaddr+offset, ctypes.sizeof(self.iovec))
+                iovobj = ctypes.cast(iovobj, self.iovec_ptr)
 
                 # get iov data #
                 iovobjlen = long(iovobj.contents.iov_len)
@@ -35413,7 +35405,7 @@ struct msghdr {
             msginfo['msg_control']['addr'] = control
         elif controllen >= ctypes.sizeof(self.cmsghdr):
             control = self.readMem(header.contents.msg_control, controllen)
-            controlobj = cast(control, self.cmsghdr_ptr)
+            controlobj = ctypes.cast(control, self.cmsghdr_ptr)
 
             cmsglen = long(controlobj.contents.cmsg_len)
             cmsglevel = controlobj.contents.cmsg_level
@@ -36720,12 +36712,14 @@ struct msghdr {
 
         # lock between processes #
         nrLock = self.bpList[addr]['number']
-        self.lock(nrLock)
+        if self.multi:
+            self.lock(nrLock)
 
         # remove breakpoint #
         ret = self.removeBreakpoint(addr)
         if ret is None:
-            self.unlock(nrLock)
+            if self.multi:
+                self.unlock(nrLock)
             return
 
         # pick breakpoint info #
@@ -36733,7 +36727,8 @@ struct msghdr {
 
         # check reinstall option #
         if not reins:
-            self.unlock(nrLock)
+            if self.multi:
+                self.unlock(nrLock)
             return
 
         if self.pc == origPC:
@@ -36769,7 +36764,8 @@ struct msghdr {
             sys.exit(0)
 
         # unlock between processes #
-        self.unlock(nrLock)
+        if self.multi:
+            self.unlock(nrLock)
 
 
 
@@ -37600,7 +37596,7 @@ struct msghdr {
         else:
             return
 
-        # set multiprocess attributes #
+        # set attributes for multiprocess #
         self.multi = True
         if not SysMgr.printFile:
             SysMgr.printStreamEnable = True
@@ -37739,7 +37735,7 @@ struct msghdr {
                         continue
 
                     # usercall / breakcall #
-                    elif self.mode == 'inst' or self.mode == 'break':
+                    elif self.mode == 'break' or self.mode == 'inst':
                         self.handleTrapEvent(ostat)
 
                 # breakpoint event for ARM #
@@ -38681,7 +38677,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
     def waitpid(self, pid=None):
         # get ctypes object #
         ctypes = self.ctypes
-        from ctypes import cdll, c_int, c_ulong, pointer, POINTER, c_uint
 
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
@@ -38693,22 +38688,25 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # set default option #
         options = __WALL
 
+        ret = 0
+
         if pid is None:
             pid = self.pid
 
         try:
             # type converting #
-            SysMgr.libcObj.waitpid.argtypes = \
-                (c_int, POINTER(None), c_int)
-            SysMgr.libcObj.waitpid.restype = c_int
+            if not self.initWaitpid:
+                SysMgr.libcObj.waitpid.argtypes = \
+                    (ctypes.c_int, ctypes.POINTER(None), ctypes.c_int)
+                SysMgr.libcObj.waitpid.restype = ctypes.c_int
+                self.initWaitpid = True
 
-            status = c_uint(0)
+            status = ctypes.c_uint(0)
 
             while 1:
                 try:
-                    ret = 0
                     ret = SysMgr.libcObj.waitpid(\
-                        pid, pointer(status), options)
+                        pid, ctypes.pointer(status), options)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -38718,6 +38716,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     if not self.isAlive():
                         sys.exit(0)
                     continue
+
                 break
 
             return ret, status.value
@@ -39969,8 +39968,6 @@ class ElfAnalyzer(object):
                 "disable demangle feature"), True)
             SysMgr.demangleEnable = False
             return symbol
-        from ctypes import cdll, POINTER, c_char_p, \
-            pointer, c_int, c_void_p, cast
 
         # try to demangle symbol #
         try:
@@ -39982,19 +39979,19 @@ class ElfAnalyzer(object):
                 SysMgr.libdemangleObj = SysMgr.loadLib(SysMgr.libdemanglePath)
 
             # declare free() args #
-            SysMgr.libcObj.free.argtypes = [c_void_p]
+            SysMgr.libcObj.free.argtypes = [ctypes.c_void_p]
 
             # declare __cxa_demangle() function pointer #
             funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
-            funcp.restype = c_void_p
+            funcp.restype = ctypes.c_void_p
 
-            status = c_int()
-            mSymbol = c_char_p(UtilMgr.encodeStr(symbol))
+            status = ctypes.c_int()
+            mSymbol = ctypes.c_char_p(UtilMgr.encodeStr(symbol))
 
             # call to demangle symbol #
-            ret = funcp(mSymbol, None, None, pointer(status))
+            ret = funcp(mSymbol, None, None, ctypes.pointer(status))
 
-            retc = cast(ret, c_char_p)
+            retc = ctypes.cast(ret, ctypes.c_char_p)
 
             # check return status and convert type from bytes to string #
             if status.value == 0:
