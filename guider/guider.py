@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200420"
+__revision__ = "200421"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13670,7 +13670,7 @@ class SysMgr(object):
             SysMgr.setTtyAuto(True, False)
 
         # write user command #
-        SysMgr.writeRecordCmd('BEFORE')
+        SysMgr.writeTraceCmd('BEFORE')
 
         # thread #
         if SysMgr.isThreadTopMode():
@@ -15878,10 +15878,13 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor open files of all processes that which name include null
+    - Monitor open files including null of all processes
         # {0:1} {1:1} -g :null
 
-    - Monitor open files of specific processes that which name include system
+    - Monitor open files of specific processes including system
+        # {0:1} {1:1} -g system
+
+    - Monitor all processes sorted by the number of file descriptors
         # {0:1} {1:1} -g system
 
     - Report analysis result of open files to ./guider.out
@@ -19505,7 +19508,7 @@ Copyright:
         signal.signal(signum, signal.SIG_IGN)
 
         # write user command #
-        SysMgr.writeRecordCmd('STOP')
+        SysMgr.writeTraceCmd('STOP')
 
         if SysMgr.isFileMode() or \
             SysMgr.isSystemMode():
@@ -19830,7 +19833,7 @@ Copyright:
 
 
     @staticmethod
-    def writeRecordCmd(time):
+    def writeTraceCmd(time):
         if SysMgr.rcmdList == {}:
             return
 
@@ -29106,7 +29109,7 @@ Copyright:
             sys.exit(0)
 
         # write user command #
-        SysMgr.writeRecordCmd('BEFORE')
+        SysMgr.writeTraceCmd('BEFORE')
 
         # set size of trace buffer per core #
         if SysMgr.bufferSize == -1:
@@ -29202,7 +29205,7 @@ Copyright:
                 SysMgr.writeCmd('../tracing_on', '1')
 
                 # write user command #
-                SysMgr.writeRecordCmd('AFTER')
+                SysMgr.writeTraceCmd('AFTER')
 
                 return
 
@@ -29236,7 +29239,7 @@ Copyright:
 
             if SysMgr.disableAll:
                 # write user command #
-                SysMgr.writeRecordCmd('AFTER')
+                SysMgr.writeTraceCmd('AFTER')
 
                 return
 
@@ -29335,7 +29338,7 @@ Copyright:
             writeCommonCmd()
 
             # write user command #
-            SysMgr.writeRecordCmd('AFTER')
+            SysMgr.writeTraceCmd('AFTER')
 
             return
 
@@ -29624,7 +29627,7 @@ Copyright:
         writeCommonCmd()
 
         # write user command #
-        SysMgr.writeRecordCmd('AFTER')
+        SysMgr.writeTraceCmd('AFTER')
 
         return
 
@@ -35734,7 +35737,7 @@ struct msghdr {
                 '{0:>7} | {1:<144}\n'.format(\
                     '%.1f%%' % per, '%s [%s]' % (sym, addVal)))
             if not ret:
-                finishPrint()
+                break
 
             cnt += 1
 
@@ -35758,13 +35761,13 @@ struct msghdr {
                         '{0:>17} | {1:<1}\n'.format(\
                             '%.1f%%' % bper, bt), newline=nline)
                     if not ret:
-                        finishPrint()
+                        break
 
             if SysMgr.funcDepth > 0:
                 isBtPrinted = True
                 ret = SysMgr.addPrint('%s\n' % oneLine)
                 if not ret:
-                    finishPrint()
+                    break
 
         if cnt == 0:
             SysMgr.addPrint('\tNone\n')
@@ -41591,6 +41594,7 @@ class ThreadAnalyzer(object):
     procIntData = []
     procEventData = []
     dbusData = {'totalCnt': long(0), 'totalErr': long(0)}
+    dbgObj = None
 
     # request type #
     requestType = [
@@ -42691,12 +42695,12 @@ class ThreadAnalyzer(object):
 
             if init and len(procFilter) > 0:
                 SysMgr.printInfo(\
-                    "only specific processes [ %s ] are shown" % \
+                    "only specific processes including [ %s ] are shown" % \
                         ', '.join(procFilter))
 
             if init and len(fileFilter) > 0:
                 SysMgr.printInfo(\
-                    "only specific files [ %s ] are shown" % \
+                    "only specific files including [ %s ] are shown" % \
                         ', '.join(fileFilter))
 
             return [procFilter, fileFilter]
@@ -42713,22 +42717,24 @@ class ThreadAnalyzer(object):
 
         prevFilter = []
 
-        # wait a minute to show options #
-        time.sleep(1)
+        # initialize task stat #
+        ThreadAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+        ThreadAnalyzer.dbgObj.initValues()
+        ThreadAnalyzer.dbgObj.getCpuUsage()
 
         while 1:
-            # collect file stats as soon as possible #
-            self.saveFileStat()
-
             # save timestamp #
             prevTime = time.time()
 
             # update proc and file filter #
             if prevFilter != SysMgr.filterGroup:
-                nowFilter = getFilter()
+                nowFilter = getFilter(True)
                 prevFilter = SysMgr.filterGroup
             else:
                 nowFilter = getFilter()
+
+            # collect file stats as soon as possible #
+            self.saveFileStat(nowFilter)
 
             # print system status #
             self.printFileStat(nowFilter)
@@ -42744,7 +42750,7 @@ class ThreadAnalyzer(object):
             self.reinitStats()
 
             # write user command #
-            SysMgr.writeRecordCmd('AFTER')
+            SysMgr.writeTraceCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -42807,7 +42813,7 @@ class ThreadAnalyzer(object):
             self.reinitStats()
 
             # write user command #
-            SysMgr.writeRecordCmd('AFTER')
+            SysMgr.writeTraceCmd('AFTER')
 
             # get delayed time #
             delayTime = time.time() - prevTime
@@ -53138,11 +53144,19 @@ class ThreadAnalyzer(object):
 
         convertNum = UtilMgr.convertNumber
 
+        # print cpu usage #
+        cpuUsage = ThreadAnalyzer.dbgObj.getCpuUsage()
+        diff = SysMgr.uptimeDiff
+        ttime = cpuUsage[0] / diff
+        utime = cpuUsage[1] / diff
+        stime = cpuUsage[2] / diff
+        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+
         SysMgr.addPrint((\
             "[Top File Info] [Time: %7.3f] [Proc: %s] "
-            "[FD: %s] [File: %s] (Unit: %%/MB/NR)\n") % \
+            "[FD: %s] [File: %s] [CPU: %s] (Unit: %%/MB/NR)\n") % \
             (SysMgr.uptime, convertNum(self.nrProcess), \
-            convertNum(self.nrFd), convertNum(len(self.fileData))))
+            convertNum(self.nrFd), convertNum(len(self.fileData)), cpuStr))
 
         SysMgr.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
@@ -53160,64 +53174,9 @@ class ThreadAnalyzer(object):
 
         procFilter, fileFilter = filters
 
-        # make parent list #
-        if SysMgr.groupProcEnable:
-            plist = {}
-            for idx, value in sortedProcData:
-                for item in procFilter:
-                    if item in value['stat'][self.commIdx]:
-                        plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
-                        break
-
         # print process info #
         procCnt = long(0)
         for idx, value in sortedProcData:
-            # apply filter #
-            exceptFlag = False
-            for item in procFilter:
-                exceptFlag = True
-                comm = value['stat'][self.commIdx][1:-1]
-
-                # group mode #
-                if SysMgr.groupProcEnable:
-                    ppid = self.procData[idx]['stat'][self.ppidIdx]
-
-                    # check current pid #
-                    if idx == item:
-                        exceptFlag = False
-                        break
-                    # check current thread comm #
-                    elif comm >= 0:
-                        exceptFlag = False
-                        break
-                    # check current's parent pid by comm #
-                    elif ppid in plist:
-                        exceptFlag = False
-                        break
-                    # check current's parent comm #
-                    elif ppid in self.procData and \
-                        item in self.procData[ppid]['stat'][self.commIdx]:
-                        exceptFlag = False
-                        break
-                    # check current's parent pid #
-                    elif item.isdigit() and \
-                        item in self.procData and \
-                        self.procData[item]['stat'][self.ppidIdx] == \
-                        value['stat'][self.ppidIdx]:
-                        exceptFlag = False
-                        break
-                # single mode #
-                else:
-                    if idx == item:
-                        exceptFlag = False
-                        break
-                    elif item in comm:
-                        exceptFlag = False
-                        break
-
-            if exceptFlag:
-                continue
-
             comm = value['stat'][self.commIdx][1:-1]
 
             pid = value['stat'][self.ppidIdx]
@@ -53240,107 +53199,116 @@ class ThreadAnalyzer(object):
                     key=lambda e: long(e[1]), reverse=True)])
             else:
                 details = ' '
+
             procInfo = "%s|%s\n" % \
                 (procInfo, '{0:>4}| {1:<106}|'.format(\
                 len(value['fdList']), details))
 
             fdCnt = long(0)
-            if SysMgr.sort != 'f':
-                for fd, path in sorted(value['fdList'].items(),\
-                    key=lambda e: long(e[0]), reverse=True):
-                    if SysMgr.checkCutCond():
-                        break
-
-                    if fileFilter != []:
-                        found = False
-                        for fileItem in fileFilter:
-                            if fileItem in path:
-                                found = True
-                                break
-                        if not found:
-                            continue
-
-                    if procInfo != '':
-                        SysMgr.addPrint(procInfo)
-                        procInfo = ''
-
-                    try:
-                        if path.startswith('socket'):
-                            obj = path.split('[')[1][:-1]
-                            addr = SysMgr.getSocketAddrList([obj])
-                            if len(addr) > 0:
-                                path = '%s (%s)' % (path, addr[0])
-                                raise Exception()
-                            uds = SysMgr.getSocketPathList([obj])
-                            if len(uds) > 0:
-                                path = '%s (%s)' % (path, uds[0])
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
-                    SysMgr.addPrint(\
-                        ("{0:>1}|{1:>4}| {2:<106}|\n").format(\
-                        ' ' * procInfoLen, fd, path))
-
-                    fdCnt += 1
-
-                if fdCnt > 0:
-                    procCnt += 1
-            else:
+            if SysMgr.sort == 'f':
                 if procInfo != '':
-                    SysMgr.addPrint(procInfo)
+                    ret = SysMgr.addPrint(procInfo)
                     procInfo = ''
+                    if not ret:
+                        break
 
                 fdCnt += 1
                 procCnt += 1
 
-            if SysMgr.checkCutCond():
-                break
+                continue
+
+            for fd, path in sorted(value['fdList'].items(),\
+                key=lambda e: long(e[0]), reverse=True):
+                # get additional info #
+                try:
+                    if path.startswith('socket'):
+                        obj = path.split('[')[1][:-1]
+                        addr = SysMgr.getSocketAddrList([obj])
+                        if len(addr) > 0:
+                            path = '%s (%s)' % (path, addr[0])
+                            raise Exception()
+                        uds = SysMgr.getSocketPathList([obj])
+                        if len(uds) > 0:
+                            path = '%s (%s)' % (path, uds[0])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # apply filter #
+                if fileFilter != []:
+                    found = False
+                    for fileItem in fileFilter:
+                        if fileItem in path:
+                            found = True
+                            break
+                    if not found:
+                        continue
+
+                if procInfo != '':
+                    ret = SysMgr.addPrint(procInfo)
+                    procInfo = ''
+                    if not ret:
+                        break
+
+                SysMgr.addPrint(\
+                    ("{0:>1}|{1:>4}| {2:<106}|\n").format(\
+                    ' ' * procInfoLen, fd, path))
+
+                fdCnt += 1
 
             if fdCnt > 0:
-                SysMgr.addPrint("%s\n" % oneLine)
+                procCnt += 1
+
+            if fdCnt > 0:
+                ret = SysMgr.addPrint("%s\n" % oneLine)
+                if not ret:
+                    break
 
         if procCnt == 0:
             text = "{0:^16}".format('None')
             frame = '%s%s|' % \
                 (text, ' ' * (SysMgr.lineLength - len(text) - 1))
+
             SysMgr.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
+        elif SysMgr.sort == 'f':
+            SysMgr.addPrint("{0:1}\n".format(oneLine))
 
         SysMgr.printTopStats()
 
 
 
-    def saveFileStat(self):
+    def saveFileStat(self, filters):
         # save proc and file instance #
         SysMgr.topInstance = self
         SysMgr.procInstance = self.procData
         SysMgr.fileInstance = self.fileData
 
-        # get process list #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            sys.exit(0)
+        procFilter, fileFilter = filters
 
-        # remove self info #
+        # get process list #
+        if procFilter:
+            pids = SysMgr.convertPidList(procFilter, isThread=True)
+            newPids = []
+            for pid in pids:
+                ret = SysMgr.getTgid(pid)
+                if ret:
+                    newPids.append(ret)
+            pids = list(set(newPids))
+        else:
+            try:
+                pids = os.listdir(SysMgr.procPath)
+            except:
+                SysMgr.printOpenErr(SysMgr.procPath)
+                sys.exit(0)
+
+        # remove myself info #
         try:
             del pids[pids.index(str(SysMgr.pid))]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
-
-        # handle thread #
-        for item in SysMgr.filterGroup:
-            if item in pids:
-                continue
-
-            # add tid to list #
-            path = '%s/%s' % (SysMgr.procPath, item)
-            if os.path.isdir(path):
-                pid = SysMgr.getTgid(item)
-                if pid:
-                    SysMgr.filterGroup.append(pid)
 
         # get thread list #
         for pid in pids:
