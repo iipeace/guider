@@ -1,24 +1,24 @@
 # Guider Web
 
 ### Setting
-Set a secret key in JSON format
+`First`, Set a secret key in JSON format
 ```shell script
 $ vi ./agent_django/secret.json
 ```
-Example
+This is Example. Change "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" to Your Secret Key!
 ```json
 {
-  "SECRET_KEY": "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" // "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" -> {Your Secret Key}
+  "SECRET_KEY": "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" 
 }
 ```
-Set publicPath to the IP of your web server
+`Second`, Set publicPath to the IP of your web server
 ```shell script
 $ vi ./django_vue/vue.config.js
 ```
-Example
+This is Example. Change 211.10.52.1 to Your Server`s Public IP!
 ```js
 module.exports = {
-  publicPath: 'http://211.10.52.1:8080/', // 211.10.52.1 -> {Your Public IP}
+  publicPath: 'http://211.10.52.1:8080/', 
   outputDir: "../static",
   ....
 }
