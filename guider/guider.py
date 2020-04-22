@@ -34553,14 +34553,28 @@ struct msghdr {
                 ret = self.getAddrBySymbol(\
                     symbol, binary=binlist, inc=inc, start=start, end=end)
                 if not ret:
+                    # execution mode #
                     if self.execCmd or \
                         value == '' or \
                         value in self.dftBpSymList:
                         continue
 
+                    # no binary on map #
+                    if binlist:
+                        found = False
+                        for binary in binlist:
+                            if binary in self.pmap:
+                                found = True
+                                break
+                        if not found:
+                            SysMgr.printErr(\
+                                "Fail to find [ %s ] on map table" % \
+                                    ', '.join(binlist))
+                            sys.exit(0)
+
+                    # no symbol #
                     SysMgr.printErr(\
                         "Fail to find address for '%s'" % value)
-
                     sys.exit(0)
                 else:
                     addrList += ret
