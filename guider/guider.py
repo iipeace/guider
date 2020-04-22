@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200422"
+__revision__ = "200423"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15350,7 +15350,7 @@ Commands:
     exec:CMD
     sleep:SEC
     getarg:REG
-    setarg:REG:VAL
+    setarg:REG#VAL
     jump:FUNC#ARG
     rdmem:ADDR|REG:SIZE
     wrmem:ADDR|REG:VAL:SIZE
@@ -27997,7 +27997,7 @@ Copyright:
             if ver < 3.14:
                 SysMgr.printErr((\
                     "Fail to set priority of %d "
-                    "because kernel version %f is lesser than 3.14") % \
+                    "because kernel version %g is lesser than 3.14") % \
                     (pid, ver))
                 return -1
         except:
@@ -32140,7 +32140,7 @@ class DbusAnalyzer(object):
                             backtrace = ''
 
                         msgStr = \
-                            "Tid: %s(%s) / Direction: %s / Time: %f\nSize: %s\n%s%s" % \
+                            "Tid: %s(%s) / Direction: %s / Time: %g\nSize: %s\n%s%s" % \
                             (tid, jsonData['comm'], \
                                 direction, jsonData['timediff'], \
                                 UtilMgr.convertSize2Unit(hsize),
@@ -34094,6 +34094,8 @@ struct msghdr {
 
             # execute a command #
             try:
+                cmdstr = '%6s' % cmd
+
                 if cmd == 'prtctx':
                     self.printContext(newline=True)
 
@@ -34104,8 +34106,8 @@ struct msghdr {
                     param = cmdset[1].split()
 
                     SysMgr.printPipe(\
-                        "\n[%s] %s" % \
-                            (cmd, cmdset[1]), newline=False, flush=True)
+                        "\n[%s] %s" % (cmdstr, cmdset[1]),\
+                             newline=False, flush=True)
 
                     self.execBgCmd(execCmd=param, mute=False)
 
@@ -34136,7 +34138,8 @@ struct msghdr {
                             targetAddr = self.readMem(targetAddr, retWord=True)
 
                     SysMgr.printPipe(\
-                        "\n[%s] %x" % (cmd, ret), newline=False, flush=True)
+                        "\n[%s] %x" % (cmdstr, ret), \
+                            newline=False, flush=True)
 
                     # set register values #
                     self.setRetVal(ret)
@@ -34164,8 +34167,9 @@ struct msghdr {
                         argSet[idx] = val
                         if nrMax < idx:
                             nrMax = idx
-                        argStr += '%s(%s->%s), ' % \
-                            (idx, origArgs[idx], val)
+                        argStr += '%s: %s(%s) -> %s(%s), ' % \
+                            (idx, hex(origArgs[idx]), origArgs[idx], \
+                                hex(val), val)
 
                     # complete output string #
                     if len(argStr) == 0:
@@ -34179,7 +34183,8 @@ struct msghdr {
                         argList[long(idx)] = val
 
                     SysMgr.printPipe(\
-                        "\n[%s] %s" % (cmd, res), newline=False, flush=True)
+                        "\n[%s] %s" % (cmdstr, res),\
+                            newline=False, flush=True)
 
                     # set register values #
                     self.writeArgs(argList)
@@ -34201,7 +34206,7 @@ struct msghdr {
                         except:
                             val = 'None'
 
-                        argStr += '%s(%s), ' % (item, val)
+                        argStr += '%s: %s(%s), ' % (item, hex(val), val)
 
                     # complete output string #
                     if len(argStr) == 0:
@@ -34210,7 +34215,8 @@ struct msghdr {
                         res = argStr[:argStr.rfind(',')]
 
                     SysMgr.printPipe(\
-                        "\n[%s] %s" % (cmd, res), newline=False, flush=True)
+                        "\n[%s] %s" % (cmdstr, res),\
+                            newline=False, flush=True)
 
                 elif cmd == 'wrmem':
                     if len(cmdset) == 1:
@@ -34247,14 +34253,15 @@ struct msghdr {
                         continue
 
                     SysMgr.printPipe(\
-                        "\n[%s] %s(%s) -> %x" % \
-                            (cmd, [val], size, addr), newline=False, flush=True)
+                        "\n[%s] %s: %s(%sbyte)" % \
+                            (cmdstr, hex(addr), [val[:size]], size),\
+                                newline=False, flush=True)
 
                     # set register values #
                     ret = self.writeMem(addr, val, size)
                     if ret == -1:
                         SysMgr.printErr(\
-                            "Fail to write '%s' to %s" % (val, addr))
+                            "Fail to write '%s' to %s" % (val, hex(addr)))
                         continue
 
                 elif cmd == 'rdmem':
@@ -34284,20 +34291,20 @@ struct msghdr {
                         except:
                             addr = long(addr)
                     else:
-                        SysMgr.printErr(\
-                            "Wrong addr %s" % addr)
+                        SysMgr.printErr("wrong addr %s" % addr)
                         continue
 
                     # get memory value #
                     ret = self.readMem(addr, size)
                     if ret == -1:
                         SysMgr.printErr(\
-                            "Fail to read from %s" % addr)
+                            "Fail to read from %s" % hex(addr))
                         continue
 
                     SysMgr.printPipe(\
-                        "\n[%s] %x(%s) -> %s" % \
-                            (cmd, addr, size, [ret]), newline=False, flush=True)
+                        "\n[%s] %s: %s(%sbyte)" % \
+                            (cmdstr, hex(addr), [ret], size),\
+                                newline=False, flush=True)
 
                 elif cmd == 'jump':
                     if len(cmdset) == 1:
@@ -34332,7 +34339,7 @@ struct msghdr {
                         addr = ret[0][0]
 
                     output = "\n[%s] %s(%x) -> %s(%x)" % \
-                        (cmd, sym, self.pc, val, addr)
+                        (cmdstr, sym, self.pc, val, addr)
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     # set register values #
@@ -34348,20 +34355,21 @@ struct msghdr {
                         val = float(cmdset[1])
 
                     SysMgr.printPipe(\
-                        "\n[%s] %f sec" % \
-                            (cmd, val), newline=False, flush=True)
+                        "\n[%s] %g sec" % \
+                            (cmdstr, val), newline=False, flush=True)
 
                     time.sleep(val)
 
                 elif cmd == 'stop':
-                    signal.pause()
-
                     SysMgr.printPipe(\
-                        "\n[%s]" % (cmd), newline=False, flush=True)
+                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+
+                    SysMgr.blockSignal(signal.SIGINT, act='unblock')
+                    SysMgr.waitEvent(exit=True)
 
                 elif cmd == 'kill':
                     SysMgr.printPipe(\
-                        "\n[%s]\n" % (cmd), newline=False, flush=True)
+                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
 
                     self.kill()
 
@@ -35608,11 +35616,11 @@ struct msghdr {
         elif self.mode == 'break':
             ctype = 'Breakcall'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %f]' % self.sampleTime
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %f]' % self.sampleTime
+            sampleStr = ' [SampleTime: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convertNumber
@@ -35637,7 +35645,7 @@ struct msghdr {
             floatSysUsage = 1
 
         ret = SysMgr.addPrint((\
-            '[Top %s Info] [Time: %f] [Interval: %f] [NrSamples: %s] '
+            '[Top %s Info] [Time: %g] [Interval: %g] [NrSamples: %s] '
             '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), self.comm, self.pid, \
@@ -38104,7 +38112,7 @@ struct msghdr {
         callStr = '\n'.join(instance.callPrint)
 
         SysMgr.printPipe(\
-            '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
+            '\n[Trace History] [Time: %g] [Line: %s]\n%s\n%s\n%s' %
                 (elapsed, nrLine, twoLine, callStr, oneLine))
 
 
@@ -38201,7 +38209,7 @@ struct msghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = '[Sampling: %f] ' % instance.sampleTime
+            samplingStr = '[Sampling: %g] ' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
@@ -38223,7 +38231,7 @@ struct msghdr {
         cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
 
         SysMgr.printPipe((\
-            '\n[%s %s Summary] [Elapsed: %f] %s[Task: %s(%s)] '
+            '\n[%s %s Summary] [Elapsed: %g] %s[Task: %s(%s)] '
             '[NrSamples: %s%s] [NrSymbols: %s] [CPU: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, \
                 instance.comm, instance.pid, \
@@ -38269,7 +38277,7 @@ struct msghdr {
         if len(fileTable) > 0:
             # print file table #
             SysMgr.printPipe((\
-                '\n[%s File Summary] [Elapsed: %f] %s[Task: %s(%s)] '
+                '\n[%s File Summary] [Elapsed: %g] %s[Task: %s(%s)] '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] [CPU: %s] %s') % \
                     (mtype, elapsed, samplingStr, \
                     instance.comm, instance.pid, \
