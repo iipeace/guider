@@ -1,12 +1,30 @@
 # Guider Web
 
-### Build Frontend Codes
-It is recommended to build at static/ directory
-```sh
-$ cd ./django_vue/ && npm install && npm run build && cd ..
+### Setting
+Set a secret key in JSON format
+```shell script
+$ vi ./agent_django/secret.json
+```
+Example
+```json
+{
+  "SECRET_KEY": "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" // "p@nef2j@eof%dv016b(-j6_e9=6paujgs%-ct5mj9r$11o98l@" -> {Your Secret Key}
+}
+```
+Set publicPath to the IP of your web server
+```shell script
+$ vi ./django_vue/vue.config.js
+```
+Example
+```js
+module.exports = {
+  publicPath: 'http://211.10.52.1:8080/', // 211.10.52.1 -> {Your Public IP}
+  outputDir: "../static",
+  ....
+}
 ```
 
-### Install Python Dependencies 
+### Install Python Dependencies
 ```shell script
 $ pip3 install virtualenv
 ```
@@ -20,10 +38,9 @@ $ source ./venv/bin/activate
 $ pip3 install -r requirements.txt
 ```
 
-### Set
-Set a secret key in JSON format
-```shell script
-$ vi ./agent_django/secret.json
+### Build Frontend Codes
+```sh
+$ cd ./django_vue/ && npm install && npm run build && cd ..
 ```
 
 ### Run
