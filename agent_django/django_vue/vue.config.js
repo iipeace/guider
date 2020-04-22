@@ -1,4 +1,3 @@
-// vue.config.js
 const BundleTracker = require('webpack-bundle-tracker');
 
 module.exports = {
