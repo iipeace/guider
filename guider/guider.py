@@ -26084,9 +26084,10 @@ Copyright:
                     targetBpFileList[pid] = \
                         deepcopy(procObj.targetBpFileList)
 
-                    # create a lock for a target process #
-                    lockList[pid] = \
-                        Debugger.getGlobalLock(pid, len(bpList[pid]))
+                    # create a lock for a target multi-threaded process #
+                    if SysMgr.getPids(pid, withSibling=True):
+                        lockList[pid] = \
+                            Debugger.getGlobalLock(pid, len(bpList[pid]))
 
                     procObj.detach()
                     del procObj
@@ -36682,14 +36683,12 @@ struct msghdr {
 
         # lock between processes #
         nrLock = self.bpList[addr]['number']
-        if self.multi:
-            self.lock(nrLock)
+        self.lock(nrLock)
 
         # remove breakpoint #
         ret = self.removeBreakpoint(addr)
         if ret is None:
-            if self.multi:
-                self.unlock(nrLock)
+            self.unlock(nrLock)
             return
 
         # pick breakpoint info #
@@ -36697,8 +36696,7 @@ struct msghdr {
 
         # check reinstall option #
         if not reins:
-            if self.multi:
-                self.unlock(nrLock)
+            self.unlock(nrLock)
             return
 
         if self.pc == origPC:
@@ -36734,8 +36732,7 @@ struct msghdr {
             sys.exit(0)
 
         # unlock between processes #
-        if self.multi:
-            self.unlock(nrLock)
+        self.unlock(nrLock)
 
 
 
