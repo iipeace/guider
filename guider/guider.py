@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200421"
+__revision__ = "200422"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5142,10 +5142,7 @@ class GlMgr(object):
 
     @staticmethod
     def init():
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, \
-            c_uint32, c_uint, c_char, c_ssize_t, c_int32, c_float, \
-            c_char_p, c_void_p, c_ulong, c_int64
+        SysMgr.importPkgItems('ctypes')
 
         try:
             # load libglesobj library #
@@ -11483,8 +11480,7 @@ class FileAnalyzer(object):
 
         if not SysMgr.guiderObj:
             # get ctypes object #
-            ctypes = SysMgr.getPkg('ctypes')
-            from ctypes import POINTER, c_size_t, c_int, c_long, c_ubyte, cdll
+            SysMgr.importPkgItems('ctypes')
 
             if not SysMgr.loadLibcObj():
                 sys.exit(0)
@@ -12303,11 +12299,7 @@ class FileAnalyzer(object):
                 SysMgr.guiderObj.munmap(mm, size) # pylint: disable=no-member
             else:
                 # get ctypes object #
-                ctypes = SysMgr.getPkg('ctypes')
-                if not ctypes:
-                    sys.exit(0)
-
-                from  ctypes import POINTER, c_char, c_ubyte, cast
+                SysMgr.importPkgItems('ctypes')
 
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SysMgr.libcObj.mmap(\
@@ -12317,7 +12309,7 @@ class FileAnalyzer(object):
                 tsize = long((size + pageSize - 1) / pageSize);
 
                 # make a pagemap table #
-                pagemap = (tsize * ctypes.c_ubyte)()
+                pagemap = (tsize * c_ubyte)()
 
                 # call mincore systemcall by standard libc library #
                 ret = SysMgr.libcObj.mincore(\
@@ -12498,9 +12490,7 @@ class LogMgr(object):
     @staticmethod
     def printJournal():
        # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import cdll, POINTER, Structure, \
-            c_void_p, c_char_p, c_int, c_char, byref, c_size_t, cast, c_uint64
+        SysMgr.importPkgItems('ctypes')
 
         '''
         struct sd_journal {
@@ -12709,14 +12699,14 @@ class LogMgr(object):
         # syslog #
         if not SysMgr.kmsgFd:
             # get ctypes object #
-            ctypes = SysMgr.getPkg('ctypes')
+            SysMgr.importPkgItems('ctypes')
 
             # get kernel ring-buffer size #
             size = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_SIZE_BUFFER, 0, 0)
 
             # allocate buffer #
-            buf = (ctypes.c_char*size)()
+            buf = (c_char*size)()
 
             ret = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_READ_ALL, buf, size)
@@ -12728,7 +12718,7 @@ class LogMgr(object):
                     SysMgr.printPipe(line)
 
             while 1:
-                ctypes.memset(buf, 0, size)
+                memset(buf, 0, size)
                 ret = SysMgr.syscall(\
                     'syslog', LogMgr.SYSLOG_ACTION_READ, buf, size)
                 if ret < 1:
@@ -12850,7 +12840,7 @@ class LogMgr(object):
     @staticmethod
     def doLogJournal(msg=None, level=None):
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         if not msg:
             return
@@ -13288,8 +13278,7 @@ class SysMgr(object):
             return
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
 
         if not SysMgr.loadLibcObj():
@@ -13390,10 +13379,8 @@ class SysMgr(object):
             pass
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
-        from ctypes import POINTER, Structure, c_int, c_uint, byref
 
         class rlimit(Structure):
             _fields_ = (
@@ -13846,8 +13833,7 @@ class SysMgr(object):
 
     @staticmethod
     def loadLib(lib):
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
 
         target = SysMgr.findLib(lib)
@@ -13856,7 +13842,7 @@ class SysMgr(object):
 
         for item in target:
             try:
-                res = ctypes.cdll.LoadLibrary(item)
+                res = cdll.LoadLibrary(item)
                 if res:
                     return res
             except:
@@ -13998,9 +13984,9 @@ class SysMgr(object):
 
 
     @staticmethod
-    def importPackageItems(pkg, isExit=True):
+    def importPkgItems(pkg, isExit=True):
         if pkg in SysMgr.impGlbPkg:
-            return
+            return True
 
         module = SysMgr.getPkg(pkg, isExit)
         if not module:
@@ -14108,10 +14094,8 @@ class SysMgr(object):
             return
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
-        from ctypes import POINTER, c_int, c_ulong, byref
 
         for pid in pids:
             if isProcess:
@@ -14171,8 +14155,7 @@ class SysMgr(object):
             pass
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
 
         try:
@@ -14183,13 +14166,13 @@ class SysMgr(object):
             nrCore = SysMgr.getNrCore()
 
             SysMgr.libcObj.sched_getaffinity.argtypes = \
-                [ctypes.c_int, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong)]
+                [c_int, c_ulong, POINTER(c_ulong)]
 
-            cpuset = ctypes.c_ulong(0)
+            cpuset = c_ulong(0)
 
-            size = long(1024 / (ctypes.sizeof(ctypes.c_ulong) * 8))
+            size = long(1024 / (sizeof(c_ulong) * 8))
             ret = SysMgr.libcObj.sched_getaffinity(\
-                long(pid), size, ctypes.pointer(cpuset))
+                long(pid), size, pointer(cpuset))
 
             if ret >= 0:
                 return hex(cpuset.value).rstrip('L')
@@ -14360,7 +14343,7 @@ class SysMgr(object):
     @staticmethod
     def getBacktrace():
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.loadLibcObj():
             sys.exit(0)
@@ -14368,18 +14351,18 @@ class SysMgr(object):
         # define functions #
         libcObj = SysMgr.libcObj
 
-        libcObj.backtrace.argtypes = [ctypes.c_void_p, ctypes.c_int]
-        libcObj.backtrace.restype = ctypes.c_int
+        libcObj.backtrace.argtypes = [c_void_p, c_int]
+        libcObj.backtrace.restype = c_int
 
-        libcObj.backtrace_symbols.argtypes = [ctypes.c_void_p, ctypes.c_int]
-        libcObj.backtrace_symbols.restype = ctypes.POINTER(ctypes.c_char_p)
+        libcObj.backtrace_symbols.argtypes = [c_void_p, c_int]
+        libcObj.backtrace_symbols.restype = POINTER(c_char_p)
 
         # define buffers #
-        buf = (ctypes.c_void_p*1024)()
+        buf = (c_void_p*1024)()
 
         # call backtrace #
-        ret = libcObj.backtrace(ctypes.byref(buf), ctypes.c_int(1024))
-        syms = libcObj.backtrace_symbols(ctypes.byref(buf), ctypes.c_int(ret))
+        ret = libcObj.backtrace(byref(buf), c_int(1024))
+        syms = libcObj.backtrace_symbols(byref(buf), c_int(ret))
 
         sys.exit(0)
 
@@ -14411,8 +14394,7 @@ class SysMgr(object):
             pass
 
         # get cyptes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
 
         if not SysMgr.loadLibcObj():
@@ -14420,7 +14402,7 @@ class SysMgr(object):
 
         try:
             SysMgr.libcObj.prctl(\
-                15, ctypes.c_char_p(comm.encode('utf-8')), 0, 0, 0)
+                15, c_char_p(comm.encode('utf-8')), 0, 0, 0)
         except SystemExit:
             sys.exit(0)
         except:
@@ -17563,13 +17545,10 @@ Copyright:
                 return fd
 
         # import ctypes #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
             return
-        from ctypes import POINTER, Union, Structure, sizeof, pointer,\
-            c_uint16, c_uint32, c_uint64, c_int32, c_int, c_ulong, c_uint
 
         if not SysMgr.loadLibcObj():
             SysMgr.perfEnable = False
@@ -17934,11 +17913,8 @@ Copyright:
             return retList
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return
-        from ctypes import sizeof, POINTER, pointer, Structure,\
-            c_uint64, c_uint, c_uint32, c_int, c_ulong
 
         if not SysMgr.loadLibcObj():
             return
@@ -18058,7 +18034,7 @@ Copyright:
         SysMgr.libcObj.read.restype = c_int
 
         # declare buffer and retList #
-        pbuf = (8 * ctypes.c_ubyte)()
+        pbuf = (8 * c_ubyte)()
         retList = []
 
         for fd in fdList:
@@ -18071,7 +18047,7 @@ Copyright:
 
                 # cast buffer to data #
                 retList.append(\
-                    ctypes.cast(pbuf, POINTER(c_ulong)).contents.value)
+                    cast(pbuf, POINTER(c_ulong)).contents.value)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -19091,16 +19067,16 @@ Copyright:
             return
 
         # import ctypes #
-        ctypes = SysMgr.getPkg('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.loadLibcObj():
             return
 
         # declare syscalls #
-        SysMgr.libcObj.getauxval.restype = ctypes.c_ulong
-        SysMgr.libcObj.getauxval.argtypes = [ctypes.c_ulong]
+        SysMgr.libcObj.getauxval.restype = c_ulong
+        SysMgr.libcObj.getauxval.argtypes = [c_ulong]
 
-        return SysMgr.libcObj.getauxval(ctypes.c_ulong(nrType))
+        return SysMgr.libcObj.getauxval(c_ulong(nrType))
 
 
 
@@ -24815,14 +24791,14 @@ Copyright:
     @staticmethod
     def blockSignal(sig, act='block'):
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.sigsetObj:
-            NWORDS = long(1024 / (8 * ctypes.sizeof(ctypes.c_uint)))
+            NWORDS = long(1024 / (8 * sizeof(c_uint)))
 
-            class sigset_t(ctypes.Structure):
+            class sigset_t(Structure):
                 _fields_ = [
-                    ('__sigbits', ctypes.c_uint * NWORDS),
+                    ('__sigbits', c_uint * NWORDS),
                 ]
 
             SysMgr.sigsetObj = sigset_t()
@@ -24839,17 +24815,17 @@ Copyright:
                 "No supported '%s' for blocking signal" % act)
             return
 
-        #SysMgr.libcObj.sigemptyset(ctypes.byref(sigset))
+        #SysMgr.libcObj.sigemptyset(byref(sigset))
         SysMgr.libcObj.memset(\
-            ctypes.byref(sigset), 0, ctypes.sizeof(sigset))
+            byref(sigset), 0, sizeof(sigset))
 
         if type(sig) is not list:
             sig = [sig]
 
         for sigbit in sig:
-            SysMgr.libcObj.sigaddset(ctypes.byref(sigset), sigbit)
+            SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
 
-        SysMgr.libcObj.sigprocmask(atype, ctypes.byref(sigset), 0)
+        SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
 
         #print(SysMgr.libcObj.sigpending(byref(sigset)))
 
@@ -27134,12 +27110,8 @@ Copyright:
         CU_DEVICE_ATTRIBUTE_CLOCK_RATE = 13
         CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE = 36
 
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             return None
-
-        from ctypes import POINTER, Structure, c_int, c_size_t, \
-            c_void_p, c_char_p, byref
 
         nGpus = c_int()
         name = b' ' * 100
@@ -28035,9 +28007,7 @@ Copyright:
             return -1
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import POINTER, Structure, sizeof, pointer,\
-            c_int, c_uint, c_uint32, c_uint64, c_int32, c_ulong
+        SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.loadLibcObj():
             sys.exit(0)
@@ -28144,8 +28114,7 @@ Copyright:
     def setPriority(pid, policy, pri, runtime=0, deadline=0, period=0):
         if not SysMgr.guiderObj:
             # get ctypes object #
-            ctypes = SysMgr.getPkg('ctypes', False)
-            if not ctypes:
+            if not SysMgr.importPkgItems('ctypes', False):
                 return
 
         # get comm #
@@ -28160,7 +28129,7 @@ Copyright:
 
             argPolicy = ConfigMgr.SCHED_POLICY.index(upolicy)
             if not SysMgr.guiderObj:
-                argPolicy = ctypes.c_int(argPolicy)
+                argPolicy = c_int(argPolicy)
 
             # set default priority #
             if upolicy == 'I' or upolicy == 'C' or upolicy == 'B':
@@ -28170,12 +28139,12 @@ Copyright:
 
             # prepare for libc call #
             if not SysMgr.guiderObj:
-                argPriority = ctypes.c_int(argPriority)
+                argPriority = c_int(argPriority)
 
             # set scheduler policy #
             if not SysMgr.guiderObj:
                 ret = SysMgr.libcObj.sched_setscheduler(\
-                    pid, argPolicy, ctypes.byref(argPriority))
+                    pid, argPolicy, byref(argPriority))
             else:
                 func = SysMgr.guiderObj.sched_setscheduler # pylint: disable=no-member
                 ret = func(pid, argPolicy, argPriority)
@@ -28186,7 +28155,7 @@ Copyright:
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
                 if not SysMgr.guiderObj:
-                    argPriority = ctypes.c_int(pri)
+                    argPriority = c_int(pri)
                     ret = SysMgr.libcObj.setpriority(\
                         0, pid, argPriority)
                 else:
@@ -31666,9 +31635,7 @@ class DbusAnalyzer(object):
     @staticmethod
     def prepareDbusMethods():
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import POINTER, c_char_p, pointer, \
-            c_ulong, c_void_p, c_int, c_uint32, Structure
+        SysMgr.importPkgItems('ctypes')
 
         # try to load libraries #
         try:
@@ -32016,9 +31983,7 @@ class DbusAnalyzer(object):
                 return
 
             # get ctypes object #
-            ctypes = SysMgr.getPkg('ctypes')
-            from ctypes import c_char_p,  c_ulong, c_void_p, \
-                cast, addressof, byref, c_int, POINTER
+            SysMgr.importPkgItems('ctypes')
 
             libgioObj = SysMgr.libgioObj
             libgObj = SysMgr.libgObj
@@ -32700,7 +32665,7 @@ class DltAnalyzer(object):
 
     @staticmethod
     def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
-        ctypes = SysMgr.getPkg('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         DLT_MSIN_MTIN = 0xf0 # message type info #
         DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
@@ -32753,7 +32718,7 @@ class DltAnalyzer(object):
         elif mode == 'print':
             # get payload #
             dltObj.dlt_message_payload(\
-                ctypes.byref(msg), buf, \
+                byref(msg), buf, \
                 DltAnalyzer.DLT_DAEMON_TEXTSIZE, 2, verbose)
             try:
                 #string = buf.value.decode("utf8")
@@ -32805,9 +32770,7 @@ class DltAnalyzer(object):
     def doLogDlt(\
         appid='GUID'.encode(), context='GUID'.encode(), msg=None, level='INFO'):
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import POINTER, Structure, \
-            c_char, c_int32, c_int8, c_uint8, byref
+        SysMgr.importPkgItems('ctypes')
 
         class DltContext(Structure):
             _fields_ = [
@@ -32918,11 +32881,7 @@ class DltAnalyzer(object):
                 byref(dltFile), byref(dltFilter), verbose)
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import POINTER, Structure, Union, \
-            c_char, c_int, c_char_p, c_int32, c_int8, c_uint8, byref, c_uint, \
-            c_uint32, c_ushort, sizeof, BigEndianStructure, string_at, cast, \
-            create_string_buffer, c_ulong, c_long, c_int16, c_uint16
+        SysMgr.importPkgItems('ctypes')
 
         # define constant #
         DLT_HTYP_WEID = DltAnalyzer.DLT_HTYP_WEID
@@ -33687,10 +33646,7 @@ class Debugger(object):
             raise Exception()
 
         # get ctypes object #
-        ctypes = self.ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import Structure, sizeof, c_void_p, \
-            addressof, c_ulong, c_uint, c_uint32, byref, c_ushort, \
-            c_size_t, c_int, POINTER, sizeof, cast
+        self.ctypes = SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.loadLibcObj():
             raise Exception('no libc')
@@ -33936,7 +33892,7 @@ struct msghdr {
 
         # create a global lock based on file #
         try:
-            SysMgr.importPackageItems('fcntl')
+            SysMgr.importPkgItems('fcntl')
 
             if os.path.isdir(SysMgr.tmpPath):
                 dirpath = SysMgr.tmpPath
@@ -35081,24 +35037,24 @@ struct msghdr {
                 process_vm_writev = SysMgr.libcObj.process_vm_writev
 
                 if not self.initPvw:
-                    SysMgr.libcObj.process_vm_writev.restype = ctypes.c_size_t
+                    SysMgr.libcObj.process_vm_writev.restype = c_size_t
                     SysMgr.libcObj.process_vm_writev.argtypes = \
-                        [ctypes.c_int, self.iovec_ptr, ctypes.c_size_t, \
-                            self.iovec_ptr, ctypes.c_size_t, ctypes.c_ulong]
+                        [c_int, self.iovec_ptr, c_size_t, \
+                            self.iovec_ptr, c_size_t, c_ulong]
                     self.initPvw = True
 
                 # create params #
                 pid = self.pid
 
                 try:
-                    lbuf = (ctypes.c_char*size)()
-                    memmove(ctypes.byref(lbuf), data, len(data))
+                    lbuf = (c_char*size)()
+                    memmove(byref(lbuf), data, len(data))
                     liov = (self.iovec*1)()[0]
-                    liov.iov_base = ctypes.cast(lbuf, ctypes.c_void_p)
+                    liov.iov_base = cast(lbuf, c_void_p)
                     liov.iov_len = size
 
                     riov = (self.iovec*1)()[0]
-                    riov.iov_base = ctypes.c_void_p(addr)
+                    riov.iov_base = c_void_p(addr)
                     riov.iov_len = size
                 except SystemExit:
                     sys.exit(0)
@@ -35233,24 +35189,24 @@ struct msghdr {
                 process_vm_readv = SysMgr.libcObj.process_vm_readv
 
                 if not self.initPvr:
-                    SysMgr.libcObj.process_vm_readv.restype = ctypes.c_size_t
+                    SysMgr.libcObj.process_vm_readv.restype = c_size_t
                     SysMgr.libcObj.process_vm_readv.argtypes = \
-                        [ctypes.c_int, self.iovec_ptr, ctypes.c_size_t, \
-                            self.iovec_ptr, ctypes.c_size_t, ctypes.c_ulong]
+                        [c_int, self.iovec_ptr, c_size_t, \
+                            self.iovec_ptr, c_size_t, c_ulong]
                     self.initPvr = True
 
                 # create params #
                 pid = self.pid
 
                 try:
-                    lbuf = (ctypes.c_char*size)()
+                    lbuf = (c_char*size)()
                     liov = (self.iovec*1)()[0]
                     liov.iov_base = \
-                        ctypes.cast(ctypes.byref(lbuf), ctypes.c_void_p)
+                        cast(byref(lbuf), c_void_p)
                     liov.iov_len = size
 
                     riov = (self.iovec*1)()[0]
-                    riov.iov_base = ctypes.c_void_p(addr)
+                    riov.iov_base = c_void_p(addr)
                     riov.iov_len = size
                 except SystemExit:
                     sys.exit(0)
@@ -35331,13 +35287,13 @@ struct msghdr {
         ctypes = self.ctypes
 
         # read msghdr structure #
-        ret = self.readMem(addr, ctypes.sizeof(self.msghdr))
+        ret = self.readMem(addr, sizeof(self.msghdr))
         if not ret:
             return addr
 
         # cast struct msghdr #
         msginfo = {}
-        header = ctypes.cast(ret, self.msghdr_ptr)
+        header = cast(ret, self.msghdr_ptr)
 
         # get msg info #
         namelen = long(header.contents.msg_namelen)
@@ -35351,8 +35307,8 @@ struct msghdr {
                 msginfo['msg_name'].decode('latin-1')
 
         # get iov header info #
-        iovaddr = ctypes.cast(\
-            header.contents.msg_iov, ctypes.c_void_p).value
+        iovaddr = cast(\
+            header.contents.msg_iov, c_void_p).value
         iovlen = long(header.contents.msg_iovlen)
 
         if not SysMgr.showAll:
@@ -35362,13 +35318,13 @@ struct msghdr {
 
             # get iov info #
             for idx in xrange(0, iovlen):
-                offset = idx * ctypes.sizeof(self.iovec)
+                offset = idx * sizeof(self.iovec)
                 msginfo['msg_iov'][idx] = {}
 
                 # get iov object #
                 iovobj = self.readMem(\
-                    iovaddr+offset, ctypes.sizeof(self.iovec))
-                iovobj = ctypes.cast(iovobj, self.iovec_ptr)
+                    iovaddr+offset, sizeof(self.iovec))
+                iovobj = cast(iovobj, self.iovec_ptr)
 
                 # get iov data #
                 iovobjlen = long(iovobj.contents.iov_len)
@@ -35403,9 +35359,9 @@ struct msghdr {
 
         if not SysMgr.showAll:
             msginfo['msg_control']['addr'] = control
-        elif controllen >= ctypes.sizeof(self.cmsghdr):
+        elif controllen >= sizeof(self.cmsghdr):
             control = self.readMem(header.contents.msg_control, controllen)
-            controlobj = ctypes.cast(control, self.cmsghdr_ptr)
+            controlobj = cast(control, self.cmsghdr_ptr)
 
             cmsglen = long(controlobj.contents.cmsg_len)
             cmsglevel = controlobj.contents.cmsg_level
@@ -36104,7 +36060,7 @@ struct msghdr {
             else:
                 ret = getattr(self.regs, self.retreg)
 
-            return self.ctypes.c_long(ret).value
+            return self.c_long(ret).value
         except SystemExit:
             sys.exit(0)
         except:
@@ -38485,8 +38441,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def getEventMsg(self):
         PTRACE_GETEVENTMSG = 0x4201
-        data = self.ctypes.c_long(0)
-        addr = self.ctypes.addressof(data)
+        data = self.c_long(0)
+        addr = self.addressof(data)
 
         ret = self.ptrace(PTRACE_GETEVENTMSG, data=addr)
         return data.value
@@ -38546,10 +38502,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             cmd = PTRACE_SETREGSET = 0x4205
             NT_PRSTATUS = 1
-            nrWords = ctypes.sizeof(self.regs) * wordSize
+            nrWords = sizeof(self.regs) * wordSize
 
             ret = self.ptrace(\
-                cmd, NT_PRSTATUS, ctypes.addressof(self.iovecObj))
+                cmd, NT_PRSTATUS, addressof(self.iovecObj))
             if ret != 0:
                 raise Exception()
         except SystemExit:
@@ -38558,7 +38514,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.supportSetRegset = False
 
             cmd = self.setregsCmd
-            ret = self.ptrace(cmd, 0, ctypes.addressof(self.regs))
+            ret = self.ptrace(cmd, 0, addressof(self.regs))
 
         # check ret value #
         if ret >= 0:
@@ -38579,13 +38535,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 raise Exception()
 
             if temp:
-                addr = ctypes.addressof(self.tempIovecObj)
+                addr = addressof(self.tempIovecObj)
             else:
-                addr = ctypes.addressof(self.iovecObj)
+                addr = addressof(self.iovecObj)
 
             cmd = PTRACE_GETREGSET = 0x4204
             NT_PRSTATUS = 1
-            nrWords = ctypes.sizeof(self.regs) * wordSize
+            nrWords = sizeof(self.regs) * wordSize
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
@@ -38596,9 +38552,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.supportGetRegset = False
 
             if temp:
-                addr = ctypes.addressof(self.tempRegs)
+                addr = addressof(self.tempRegs)
             else:
-                addr = ctypes.addressof(self.regs)
+                addr = addressof(self.regs)
 
             cmd = self.getregsCmd
 
@@ -38697,16 +38653,16 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # type converting #
             if not self.initWaitpid:
                 SysMgr.libcObj.waitpid.argtypes = \
-                    (ctypes.c_int, ctypes.POINTER(None), ctypes.c_int)
-                SysMgr.libcObj.waitpid.restype = ctypes.c_int
+                    (c_int, POINTER(None), c_int)
+                SysMgr.libcObj.waitpid.restype = c_int
                 self.initWaitpid = True
 
-            status = ctypes.c_uint(0)
+            status = c_uint(0)
 
             while 1:
                 try:
                     ret = SysMgr.libcObj.waitpid(\
-                        pid, ctypes.pointer(status), options)
+                        pid, pointer(status), options)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -38750,13 +38706,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # type converting #
             if not self.initPtrace:
                 SysMgr.libcObj.ptrace.argtypes = \
-                    (ctypes.c_ulong, ctypes.c_ulong, \
-                        ctypes.c_ulong, ctypes.c_ulong)
-                SysMgr.libcObj.ptrace.restype = ctypes.c_ulong
+                    (c_ulong, c_ulong, \
+                        c_ulong, c_ulong)
+                SysMgr.libcObj.ptrace.restype = c_ulong
                 self.initPtrace = True
 
             ret = SysMgr.libcObj.ptrace(req, pid, addr, data)
-            if ctypes.c_long(ret).value == -1:
+            if c_long(ret).value == -1:
                 return -1
             else:
                 return ret
@@ -38889,8 +38845,7 @@ class MemoryFile(object):
 
 
     def resize(self, size):
-        ctypes = SysMgr.getPkg('ctypes')
-        from ctypes import c_char, memmove
+        SysMgr.importPkgItems('ctypes')
 
         self.mem = bytearray(size)
         ptr = (c_char * size).from_buffer(self.mem)
@@ -39960,8 +39915,7 @@ class ElfAnalyzer(object):
             version = ''
 
         # get ctypes object #
-        ctypes = SysMgr.getPkg('ctypes', False)
-        if not ctypes:
+        if not SysMgr.importPkgItems('ctypes', False):
             SysMgr.printWarn((\
                 "Fail to import python package: ctypes "
                 "to demangle symbol, so that "
@@ -39979,19 +39933,19 @@ class ElfAnalyzer(object):
                 SysMgr.libdemangleObj = SysMgr.loadLib(SysMgr.libdemanglePath)
 
             # declare free() args #
-            SysMgr.libcObj.free.argtypes = [ctypes.c_void_p]
+            SysMgr.libcObj.free.argtypes = [c_void_p]
 
             # declare __cxa_demangle() function pointer #
             funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
-            funcp.restype = ctypes.c_void_p
+            funcp.restype = c_void_p
 
-            status = ctypes.c_int()
-            mSymbol = ctypes.c_char_p(UtilMgr.encodeStr(symbol))
+            status = c_int()
+            mSymbol = c_char_p(UtilMgr.encodeStr(symbol))
 
             # call to demangle symbol #
-            ret = funcp(mSymbol, None, None, ctypes.pointer(status))
+            ret = funcp(mSymbol, None, None, pointer(status))
 
-            retc = ctypes.cast(ret, ctypes.c_char_p)
+            retc = cast(ret, c_char_p)
 
             # check return status and convert type from bytes to string #
             if status.value == 0:
@@ -43535,7 +43489,7 @@ class ThreadAnalyzer(object):
         matplotlib.use('Agg')
 
         # get pylab object #
-        SysMgr.importPackageItems('pylab')
+        SysMgr.importPkgItems('pylab')
 
         seq = long(0)
         height = \
@@ -45158,7 +45112,7 @@ class ThreadAnalyzer(object):
         matplotlib.use('Agg')
 
         # get pylab object #
-        SysMgr.importPackageItems('pylab')
+        SysMgr.importPkgItems('pylab')
 
         # set dpi #
         matplotlib.rcParams['figure.dpi'] = SysMgr.matplotlibDpi
@@ -45341,7 +45295,7 @@ class ThreadAnalyzer(object):
                 "Fail to backup %s to %s" % (outputFile, oldPath), True)
 
         # get pylab object #
-        SysMgr.importPackageItems('pylab')
+        SysMgr.importPkgItems('pylab')
 
         try:
             # save graph #
@@ -46513,7 +46467,7 @@ class ThreadAnalyzer(object):
             matplotlib.use('Agg')
 
             # get pylab object #
-            SysMgr.importPackageItems('pylab')
+            SysMgr.importPkgItems('pylab')
 
             rc('legend', fontsize=5)
             rcParams.update({'font.size': 8})
@@ -47953,7 +47907,7 @@ class ThreadAnalyzer(object):
             matplotlib.pyplot.switch_backend('agg')
 
             # get pylab object #
-            SysMgr.importPackageItems('pylab')
+            SysMgr.importPkgItems('pylab')
 
         # draw io graph #
         if SysMgr.graphEnable and len(ioUsageList) > 0:
