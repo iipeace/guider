@@ -25,15 +25,6 @@ Set a secret key in JSON format
 ```shell script
 $ vi ./agent_django/secret.json
 ```
-Add templates tags in ./static/index.html
-```html
-<!DOCTYPE html>
-{% load render_bundle from webpack_loader %}
-....
-{% render_bundle 'index' %}
-</body>
-```
-
 
 ### Run
 Run frontend
