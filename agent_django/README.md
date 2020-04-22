@@ -6,13 +6,16 @@ It is recommended to build at static/ directory
 $ cd ./django_vue/ && npm install && npm run build && cd ..
 ```
 
-### Requirement
+### Install Python Dependencies 
+```shell script
+$ pip3 install virtualenv
 ```
-- Python (>= 3.6)
+```shell script
+$ virtualenv venv 
 ```
-
-### Install Python Dependencies
-It is recommended to use virtualenv 
+```shell script
+$ source ./venv/bin/activate
+```
 ```sh
 $ pip3 install -r requirements.txt
 ```
@@ -21,6 +24,14 @@ $ pip3 install -r requirements.txt
 Set a secret key in JSON format
 ```shell script
 $ vi ./agent_django/secret.json
+```
+Add templates tags in ./static/index.html
+```html
+<!DOCTYPE html>
+{% load render_bundle from webpack_loader %}
+....
+{% render_bundle 'index' %}
+</body>
 ```
 
 
