@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200423"
+__revision__ = "200424"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7228,7 +7228,7 @@ class FunctionAnalyzer(object):
         if nrNoFile > 0:
             SysMgr.printWarn(\
                 "Fail to find total %s binaries to analyze functions" % \
-                nrNoFile, True)
+                    nrNoFile, True)
 
 
 
@@ -27291,6 +27291,51 @@ Copyright:
 
     @staticmethod
     def doMemTest():
+        def getMeminfo():
+            # save mem info #
+            try:
+                memBuf = None
+                SysMgr.memFd.seek(0)
+                memBuf = SysMgr.memFd.readlines()
+            except:
+                try:
+                    memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
+                    SysMgr.memFd = open(memPath, 'r')
+
+                    memBuf = SysMgr.memFd.readlines()
+                except:
+                    SysMgr.printOpenWarn(memPath)
+
+            if memBuf:
+                memData = {}
+
+                for line in memBuf:
+                    memList = line.split()
+                    memData[memList[0][:-1]] = long(memList[1])
+
+                conv = UtilMgr.convertSize2Unit
+                memTotal = conv(memData['MemTotal'] << 10)
+                memFree = conv(memData['MemFree'] << 10)
+                memFreePer = (memData['MemFree'] / float(memData['MemTotal'])) * 100
+                try:
+                    memAvail = conv(memData['MemAvailable'] << 10)
+                    memAvailPer = \
+                        (memData['MemAvailable'] / float(memData['MemTotal'])) * 100
+                except:
+                    memAvail = memAvailPer = '-'
+                swapTotal = conv(memData['SwapTotal'] << 10)
+                swapFree = conv(memData['SwapFree'] << 10)
+                swapFreePer = (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
+
+                memstr = ('\n\tMemTotal: %s, MemFree: %s(%.1f%%), '
+                    'MemAvail: %s(%.1f%%), swapTotal: %s, swapFree: %s(%.1f%%)') % \
+                        (memTotal, memFree, memFreePer, memAvail, \
+                            memAvailPer, swapTotal, swapFree, swapFreePer)
+
+                return memstr
+
+            return ''
+
         def allocMemory(rssSize, size):
             SysMgr.setDefaultSignal()
 
@@ -27304,11 +27349,13 @@ Copyright:
                     "Failed to allocate memory", True)
                 sys.exit(0)
 
+            memstr = getMeminfo()
+
             SysMgr.printInfo((\
                 'allocated %s of physical memory, '
-                'used %s of additional physical memory for runtime') % \
+                'used %s of additional physical memory for runtime%s') % \
                     (UtilMgr.convertSize2Unit(len(buffer), True), \
-                        UtilMgr.convertSize2Unit(rssSize, True)))
+                        UtilMgr.convertSize2Unit(rssSize, True), memstr))
 
             SysMgr.waitEvent()
 
@@ -34522,7 +34569,22 @@ struct msghdr {
         cmdList = []
 
         # add default breakpoints such as mmap symbols #
-        for lib in (self.dftBpFileList.keys()):
+        for lib in list(self.dftBpFileList.keys()):
+            # add all symbols of loader #
+            if os.path.basename(lib).startswith('ld-'):
+                ret = self.getAddrBySymbol('', binary=lib, inc=True)
+
+                for item in ret:
+                    ldaddr, ldsym, ldlib = item
+                    self.injectBreakpoint(\
+                        ldaddr, ldsym, fname=ldlib, reins=True)
+
+                    # register exceptional address #
+                    self.exceptBpList[ldaddr] = 0
+
+                continue
+
+            # add specific default symbols #
             for dsym in list(self.dftBpSymList.keys()):
                 ret = self.getAddrBySymbol(dsym, binary=lib)
                 if not ret:
@@ -37889,56 +37951,63 @@ struct msghdr {
                             "Fail to set sampling time", True)
                         sys.exit(0)
                 else:
-                    self.sampleTime = float(0.0001)
+                    self.sampleTime = 0.0001
 
                 if not self.multi:
                     SysMgr.printInfo(\
-                        'Do sampling every {0:f} second'.format(self.sampleTime))
-        # inst #
-        elif SysMgr.isUtraceMode() and \
-            SysMgr.funcDepth > 0:
-            # set sampling rate for instruction #
-            self.skipInst = SysMgr.funcDepth
+                        'Do sampling every %g second' % self.sampleTime)
 
-            SysMgr.printInfo(\
-                'Do sampling every %s instrunctions' % \
-                    UtilMgr.convertNumber(SysMgr.funcDepth))
+            # set default interval #
+            if not SysMgr.findOption('R') or \
+                not SysMgr.intervalEnable:
+                SysMgr.intervalEnable = 1
+        else:
+            # set timer handler #
+            if SysMgr.intervalEnable:
+                signal.signal(signal.SIGALRM, SysMgr.exitHandler)
 
-        # check the process is running #
-        try:
-            os.kill(self.pid, 0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            ereason = SysMgr.getErrMsg()
-            if ereason != '0':
-                SysMgr.printErr(\
-                    'Fail to trace %s(%s) because %s' % \
-                        (self.comm, self.pid, ereason))
-            sys.exit(0)
+            # inst #
+            if SysMgr.isUtraceMode() and \
+                SysMgr.funcDepth > 0:
+                # set sampling rate for instruction #
+                self.skipInst = SysMgr.funcDepth
 
-        # load user symbols #
-        if (mode != 'syscall' and mode != 'signal') \
-            or SysMgr.funcDepth > 0:
+                SysMgr.printInfo(\
+                    'Do sampling every %s instrunctions' % \
+                        UtilMgr.convertNumber(SysMgr.funcDepth))
+
+        # prepare environment for the running target #
+        if self.isRunning:
+            # check the process is running #
             try:
-                self.loadSymbols()
+                os.kill(self.pid, 0)
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr(\
-                    "Fail to load symbols", True)
+                ereason = SysMgr.getErrMsg()
+                if ereason != '0':
+                    SysMgr.printErr(\
+                        'Fail to trace %s(%s) because %s' % \
+                            (self.comm, self.pid, ereason))
                 sys.exit(0)
 
-        # print target task info #
-        if SysMgr.printEnable:
-            SysMgr.printInfo(\
-                "Start profiling %s(%d)" % (self.comm, self.pid))
+            # load user symbols #
+            if (mode != 'syscall' and mode != 'signal') or \
+                SysMgr.funcDepth > 0:
+                try:
+                    self.loadSymbols()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(\
+                        "Fail to load symbols", True)
+                    sys.exit(0)
 
-        # set start time #
-        #self.start = self.last = time.time()
+            # print target task info #
+            if SysMgr.printEnable:
+                SysMgr.printInfo(\
+                    "Start profiling %s(%d)" % (self.comm, self.pid))
 
-        # prepare environment for profiling #
-        if self.isRunning:
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
@@ -37951,7 +38020,7 @@ struct msghdr {
                     sys.exit(0)
                 except:
                     return
-        # set trap event type #
+        # set trap event type for the new target #
         else:
             self.ptraceEvent(['PTRACE_O_TRACEEXEC'])
             self.status = 'ready'
@@ -37989,26 +38058,14 @@ struct msghdr {
                 "Fail to recognize trace mode '%s'" % self.mode)
             sys.exit(0)
 
-        # register summary function #
+        # register summary callback #
         SysMgr.addExitFunc(Debugger.printSummary, [self])
-
-        # update time #
-        self.last = time.time()
-
-        # set timer value #
-        if self.isRealtime:
-            # set default interval #
-            if not SysMgr.findOption('R') or \
-                SysMgr.intervalEnable == 0:
-                SysMgr.intervalEnable = 1
-        else:
-            if SysMgr.intervalEnable > 0:
-                signal.signal(signal.SIGALRM, SysMgr.exitHandler)
 
         # set timer #
         if SysMgr.printEnable:
             signal.alarm(SysMgr.intervalEnable)
 
+        # run loop #
         self.runEventLoop()
 
 
