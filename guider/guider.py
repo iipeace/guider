@@ -33645,6 +33645,7 @@ class Debugger(object):
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
+        self.ldInjected = False
         self.libcLoaded = False
         self.dftBpFileList = {}
         self.dftBpSymList = {\
@@ -34568,10 +34569,11 @@ struct msghdr {
         addrList = []
         cmdList = []
 
-        # add default breakpoints such as mmap symbols #
+        # add default breakpoints such as mmap #
         for lib in list(self.dftBpFileList.keys()):
             # add all symbols of loader #
-            if os.path.basename(lib).startswith('ld-'):
+            if not self.isRunning and not self.ldInjected and \
+                os.path.basename(lib).startswith('ld-'):
                 ret = self.getAddrBySymbol('', binary=lib, inc=True)
 
                 for item in ret:
@@ -34582,6 +34584,7 @@ struct msghdr {
                     # register exceptional address #
                     self.exceptBpList[ldaddr] = 0
 
+                self.ldInjected = True
                 continue
 
             # add specific default symbols #
@@ -35233,6 +35236,9 @@ struct msghdr {
 
 
     def updateBpList(self, verb=True):
+        if self.mode != 'break':
+            return
+
         # update file list #
         fileList = SysMgr.getOption('T')
         if fileList:
@@ -35945,7 +35951,8 @@ struct msghdr {
 
         # scan process memory map #
         if self.needMapScan:
-            self.loadSymbols()
+            if self.loadSymbols():
+                self.updateBpList(verb=False)
             self.needMapScan = False
 
         # get file name by address #
