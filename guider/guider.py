@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200424"
+__revision__ = "200426"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -33611,7 +33611,6 @@ class Debugger(object):
 
     def __init__(self, pid=None, execCmd=None, attach=True):
         self.comm = None
-        self.ctypes = None
         self.status = 'enter'
         self.runStatus = False
         self.attached = attach
@@ -33695,7 +33694,7 @@ class Debugger(object):
             raise Exception()
 
         # get ctypes object #
-        self.ctypes = SysMgr.importPkgItems('ctypes')
+        SysMgr.importPkgItems('ctypes')
 
         if not SysMgr.loadLibcObj():
             raise Exception('no libc')
@@ -34618,7 +34617,7 @@ struct msghdr {
                 except:
                     addr = long(value)
                 ret = self.getSymbolInfo(addr)
-                addrList += [addr, ret[0], ret[1]]
+                addrList.append([addr, ret[0], ret[1]])
                 cmdList.append(cmdSet)
             # symbol #
             else:
@@ -34807,10 +34806,12 @@ struct msghdr {
         # get original instruction #
         if addr in self.bpList:
             if self.bpList[addr]['set']:
+                if not sym:
+                    sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s for %s(%s) '
+                    'Fail to inject a breakpoint to %s(%s) for %s(%s) '
                     'because it is already injected by myself') % \
-                        (hex(addr).rstrip('L'), self.comm, self.pid))
+                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
                 return False
             else:
                 origWord = self.bpList[addr]['data']
@@ -34860,10 +34861,12 @@ struct msghdr {
                 self.bpList[addr]['data'] != inst:
                 origWord = self.bpList[addr]['data']
             else:
+                if not sym:
+                    sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s for %s(%s) '
+                    'Fail to inject a breakpoint to %s(%s) for %s(%s) '
                     'because it is already injected by another task') % \
-                        (hex(addr).rstrip('L'), self.comm, self.pid))
+                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
                 return False
 
         # inject trap code #
@@ -34871,20 +34874,17 @@ struct msghdr {
 
         if ret < 0:
             SysMgr.printWarn(\
-                'Fail to inject a breakpoint to %s for %s(%s)' % \
+                'Fail to inject a breakpoint to %s(%s) for %s(%s)' % \
                     (hex(addr).rstrip('L'), self.comm, self.pid))
             return False
         elif ret == 0:
-            if sym:
-                symbol = '(%s)' % sym
-            else:
-                symbol = ''
-
             if SysMgr.warnEnable:
+                if not sym:
+                    sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn(\
-                    'Added a new breakpoint %s%s[%s] to %s(%s)' % \
-                        (hex(addr).rstrip('L'), symbol, \
-                            fname, self.comm, self.pid))
+                    'Added a new breakpoint %s(%s)[%s] to %s(%s)' % \
+                        (hex(addr).rstrip('L'), sym, fname, \
+                            self.comm, self.pid))
 
         return True
 
@@ -35118,9 +35118,6 @@ struct msghdr {
 
         if self.supportProcessVmWr:
             try:
-                # get ctypes object #
-                ctypes = self.ctypes
-
                 # prepare process_vm_writev syscall #
                 process_vm_writev = SysMgr.libcObj.process_vm_writev
 
@@ -35236,7 +35233,7 @@ struct msghdr {
 
 
     def updateBpList(self, verb=True):
-        if self.mode != 'break':
+        if hasattr(self, 'mode') and self.mode != 'break':
             return
 
         # update file list #
@@ -35273,9 +35270,6 @@ struct msghdr {
 
         if self.supportProcessVmRd:
             try:
-                # get ctypes object #
-                ctypes = self.ctypes
-
                 # prepare process_vm_readv syscall #
                 process_vm_readv = SysMgr.libcObj.process_vm_readv
 
@@ -35374,9 +35368,6 @@ struct msghdr {
 
 
     def readMsgHdr(self, addr):
-        # get ctypes object #
-        ctypes = self.ctypes
-
         # read msghdr structure #
         ret = self.readMem(addr, sizeof(self.msghdr))
         if not ret:
@@ -35713,7 +35704,7 @@ struct msghdr {
             floatSysUsage = 1
 
         ret = SysMgr.addPrint((\
-            '[Top %s Info] [Time: %g] [Interval: %g] [NrSamples: %s] '
+            '[Top %s Info] [Time: %f] [Interval: %g] [NrSamples: %s] '
             '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), self.comm, self.pid, \
@@ -37836,22 +37827,13 @@ struct msghdr {
 
                 # exit #
                 elif stat == -1:
-                    # check target is running #
-                    try:
-                        os.kill(self.pid, 0)
-                        continue
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
                     if self.status == 'exit':
                         SysMgr.printPipe(' ')
 
                     SysMgr.printErr(\
                         'Terminated %s(%s)' % (self.comm, self.pid))
 
-                    if SysMgr.isTopMode():
+                    if SysMgr.isTopMode() and self.totalCall:
                         SysMgr.waitEvent()
 
                     sys.exit(0)
@@ -37869,7 +37851,6 @@ struct msghdr {
                     if self.mode != 'syscall':
                         if self.cont(check=True, sig=stat) < 0:
                             sys.exit(0)
-
             except SystemExit:
                 return
             except:
@@ -38176,7 +38157,7 @@ struct msghdr {
         callStr = '\n'.join(instance.callPrint)
 
         SysMgr.printPipe(\
-            '\n[Trace History] [Time: %g] [Line: %s]\n%s\n%s\n%s' %
+            '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
                 (elapsed, nrLine, twoLine, callStr, oneLine))
 
 
@@ -38575,7 +38556,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def setRegs(self):
         pid = self.pid
-        ctypes = self.ctypes
         wordSize = ConfigMgr.wordSize
 
         # get register set #
@@ -38609,7 +38589,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def getRegs(self, temp=False):
         pid = self.pid
-        ctypes = self.ctypes
         wordSize = ConfigMgr.wordSize
 
         # get register set #
@@ -38714,9 +38693,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def waitpid(self, pid=None):
-        # get ctypes object #
-        ctypes = self.ctypes
-
         # Don't wait on children of other threads in this group #
         __WNOTHREAD = 0x20000000
         # Wait on all children, regardless of type #
@@ -38781,9 +38757,6 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             pass
         '''
-
-        # get ctypes object #
-        ctypes = self.ctypes
 
         try:
             # type converting #
