@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200426"
+__revision__ = "200427"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13069,6 +13069,7 @@ class SysMgr(object):
     maxKeepFd = maxFd - 16
     statFd = None
     memFd = None
+    zoneFd = None
     irqFd = None
     softirqFd = None
     vmstatFd = None
@@ -27321,23 +27322,117 @@ Copyright:
                     memAvail = conv(memData['MemAvailable'] << 10)
                     memAvailPer = \
                         (memData['MemAvailable'] / float(memData['MemTotal'])) * 100
+                    memAvailPer = '%.1f%%' % memAvailPer
                 except:
                     memAvail = memAvailPer = '-'
                 swapTotal = conv(memData['SwapTotal'] << 10)
                 swapFree = conv(memData['SwapFree'] << 10)
-                swapFreePer = (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
+                if swapTotal == '0':
+                    swapFreePer = 100.0
+                else:
+                    swapFreePer = \
+                        (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
 
-                memstr = ('\n\tMemTotal: %s, MemFree: %s(%.1f%%), '
-                    'MemAvail: %s(%.1f%%), swapTotal: %s, swapFree: %s(%.1f%%)') % \
-                        (memTotal, memFree, memFreePer, memAvail, \
+                memstr = ('\n\t[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
+                    'MemAvail: %s(%s), swapTotal: %s, swapFree: %s(%.1f%%)') % \
+                        ('Total', memTotal, memFree, memFreePer, memAvail, \
                             memAvailPer, swapTotal, swapFree, swapFreePer)
 
                 return memstr
 
             return ''
 
-        def allocMemory(rssSize, size):
+        def getVminfo():
+            # save mem info #
+            try:
+                vmBuf = None
+                SysMgr.vmstatFd.seek(0)
+                vmBuf = SysMgr.vmstatFd.readlines()
+            except:
+                try:
+                    vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
+                    SysMgr.vmstatFd = open(vmstatPath, 'r')
+                    vmBuf = SysMgr.vmstatFd.readlines()
+                except:
+                    SysMgr.printOpenWarn(vmstatPath)
+
+            if vmBuf:
+                vmData = {}
+
+                zonestr = '\n\t'
+                conv = UtilMgr.convertSize2Unit
+                for line in vmBuf:
+                    vmList = line.split()
+                    item = vmList[0]
+                    if item.startswith('pgscan_') or \
+                        item.startswith('pgstreal_') or \
+                        item.startswith('kswapd_') or \
+                        item.startswith('compact_') or \
+                        item.startswith('oom_') or \
+                        item.startswith('pswin'):
+                        vmData[item] = long(vmList[1])
+
+                cnt = 1
+                vmstr = '\n\t[%9s] ' % 'VMSTAT'
+                for vm, item in sorted(vmData.items()):
+                    vmstr += '%s: %s, ' % (vm, conv(item << 12))
+                    if cnt % 4 == 0 and cnt != len(vmData):
+                        vmstr += '\n\t[%9s] ' % 'VMSTAT'
+                    cnt += 1
+
+                return vmstr[:-2]
+
+            return ''
+
+        def getZoneinfo():
+            # save zone info #
+            try:
+                memBuf = None
+                SysMgr.zoneFd.seek(0)
+                memBuf = SysMgr.zoneFd.readlines()
+            except:
+                try:
+                    memPath = "%s/%s" % (SysMgr.procPath, 'zoneinfo')
+                    SysMgr.zoneFd = open(memPath, 'r')
+
+                    memBuf = SysMgr.zoneFd.readlines()
+                except:
+                    SysMgr.printOpenWarn(memPath)
+
+            if memBuf:
+                memData = {}
+
+                zone = None
+                for line in memBuf:
+                    zl = line.split()
+                    item = zl[0]
+                    if item  == 'Node':
+                        zone = '%s-%s' % (zl[1][:-1], zl[3])
+                        memData[zone] = dict()
+                    elif item == 'pages' and zl[1] == 'free':
+                        memData[zone]['free'] = long(zl[2])
+                    elif item == 'min' or item == 'low' or item == 'high' or \
+                        item == 'spanned' or item == 'present' or item == 'managed':
+                        memData[zone][item] = long(zl[1])
+                    else:
+                        continue
+
+                zonestr = '\n\t'
+                conv = UtilMgr.convertSize2Unit
+                for zone, items in sorted(memData.items()):
+                    zonestr += '[%9s] ' % zone
+                    for name, val in sorted(items.items()):
+                        zonestr += "%s: %7s, " % (name, conv(val << 12))
+                    zonestr = zonestr[:-2] + '\n\t'
+
+                return zonestr[:-2]
+
+            return ''
+
+        def allocMemory(size):
             SysMgr.setDefaultSignal()
+
+            conv = UtilMgr.convertSize2Unit
 
             # allocate memory #
             try:
@@ -27346,16 +27441,62 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Failed to allocate memory", True)
+                    "Fail to allocate memory", True)
                 sys.exit(0)
 
-            memstr = getMeminfo()
+            try:
+                memstr = getMeminfo()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to get memory stat", True)
+                return
+
+            try:
+                vmstr = getVminfo()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to get virtual memory stat", True)
+                return
+
+            try:
+                zonestr = getZoneinfo()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to get zone memory stat", True)
+                return
+
+            if SysMgr.isRoot():
+                # create task object #
+                pid = str(SysMgr.pid)
+                obj = ThreadAnalyzer(onlyInstance=True)
+                procPath = '%s/%s' % (SysMgr.procPath, pid)
+
+                # save memory stat #
+                obj.saveProcData(procPath, pid)
+                obj.saveProcStats()
+                obj.saveProcData(procPath, pid)
+                obj.saveProcSmapsData(procPath, pid)
+                ret = obj.getMemDetails(pid, obj.procData[pid]['maps'])
+                statstr = "RSS: %s, PSS: %s, USS: %s" % \
+                    (conv(ret[1] << 10), conv(ret[2] << 10), conv(ret[3] << 10))
+            else:
+                # save RSS stat #
+                mlist = SysMgr.getMemStat('self')
+                if not mlist:
+                    SysMgr.printErr(\
+                        "Fail to get memory size of Guider")
+                    sys.exit(0)
+
+                # get memory size #
+                rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+                statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
 
             SysMgr.printInfo((\
-                'allocated %s of physical memory, '
-                'used %s of additional physical memory for runtime%s') % \
-                    (UtilMgr.convertSize2Unit(len(buffer), True), \
-                        UtilMgr.convertSize2Unit(rssSize, True), memstr))
+                'allocated %s, used total (%s) via Guider %s%s%s') % \
+                    (conv(len(buffer), True), statstr, memstr, vmstr, zonestr))
 
             SysMgr.waitEvent()
 
@@ -27397,17 +27538,6 @@ Copyright:
             SysMgr.printErr(errMsg)
             sys.exit(0)
 
-        # get self memory usage #
-        mlist = SysMgr.getMemStat('self')
-        if not mlist:
-            SysMgr.printErr(\
-                "Fail to get memory size of Guider")
-            sys.exit(0)
-
-        # get memory size #
-        rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
-        rssSize = long(mlist[rssIdx]) << 12
-
         # set alarm #
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
@@ -27426,8 +27556,11 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(rssSize, size)
+                        allocMemory(size)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
+                        SysMgr.printErr("Fail to alloc memory", True)
                         sys.exit(0)
                 else:
                     pidList.append(pid)
@@ -27446,15 +27579,24 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(rssSize, size)
+                        allocMemory(size)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
+                        SysMgr.printErr("Fail to alloc memory", True)
                         sys.exit(0)
                 else:
                     pidList.append(pid)
 
                 time.sleep(interval)
         else:
-            allocMemory(rssSize, size)
+            try:
+                allocMemory(size)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to alloc memory", True)
+                sys.exit(0)
 
         # wait for childs #
         if len(pidList) > 0:
@@ -36575,28 +36717,31 @@ struct msghdr {
 
 
 
-    def printBacktraceTree(self, diffstr, tinfo):
+    def printBacktraceTree(self, diffstr, tinfo, cont=True):
         backtrace = self.getBacktrace()
         depth = len(backtrace)
         diffindent = ' ' * len(diffstr)
         tinfoindent = ' ' * len(tinfo)
 
-        commonPos = -1
-        if len(self.targetBpList) == 0:
-            for item in reversed(self.prevStack):
-                try:
-                    if item == backtrace[commonPos]:
-                        commonPos -= 1
-                        continue
-                    break
-                except:
-                    break
+        # check contiguous tree presentation #
+        if cont:
+            commonPos = -1
+            if len(self.targetBpList) == 0:
+                for item in reversed(self.prevStack):
+                    try:
+                        if item == backtrace[commonPos]:
+                            commonPos -= 1
+                            continue
+                        break
+                    except:
+                        break
+        else:
+            commonPos = -1
 
         if commonPos == -1:
             commonPos = 0
             stack = backtrace
         else:
-            commonPos += 1
             stack = backtrace[:commonPos]
 
         self.prevStack = backtrace
@@ -36717,7 +36862,11 @@ struct msghdr {
 
                     # build backtrace string #
                     if SysMgr.funcDepth > 0:
-                        depth = self.printBacktraceTree(diffstr, tinfo)
+                        if SysMgr.showAll:
+                            cont = False
+                        else:
+                            cont = True
+                        depth = self.printBacktraceTree(diffstr, tinfo, cont)
                         indent = '  ' * depth
                     else:
                         indent = ''
@@ -42372,6 +42521,8 @@ class ThreadAnalyzer(object):
             self.prevCpuData = {}
             self.irqData = {}
             self.prevIrqData = {}
+            self.zoneData = {}
+            self.prevZoneData = {}
             self.memData = {}
             self.prevMemData = {}
             self.vmData = {}
@@ -53390,6 +53541,42 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveZoneInfo(self):
+        # save zone info #
+        try:
+            memBuf = None
+            SysMgr.zoneFd.seek(0)
+            memBuf = SysMgr.zoneFd.readlines()
+        except:
+            try:
+                memPath = "%s/%s" % (SysMgr.procPath, 'zoneinfo')
+                SysMgr.zoneFd = open(memPath, 'r')
+
+                memBuf = SysMgr.zoneFd.readlines()
+            except:
+                SysMgr.printOpenWarn(memPath)
+
+        if memBuf:
+            self.prevZoneData = self.zoneData
+            self.zoneData = {}
+
+            zone = None
+            for line in memBuf:
+                zl = line.split()
+                item = zl[0]
+                if item  == 'Node':
+                    zone = '%s-%s' % (zl[1][:-1], zl[3])
+                    self.zoneData[zone] = dict()
+                elif item == 'pages' and zl[1] == 'free':
+                    self.zoneData[zone]['free'] = long(zl[2])
+                elif item == 'min' or item == 'low' or item == 'high' or \
+                    item == 'spanned' or item == 'present' or item == 'managed':
+                    self.zoneData[zone][item] = long(zl[1])
+                else:
+                    continue
+
+
+
     def saveIrqs(self):
         # save irq info #
         try:
@@ -53520,6 +53707,9 @@ class ThreadAnalyzer(object):
         # save irq info #
         if SysMgr.irqEnable:
             self.saveIrqs()
+
+        if SysMgr.memEnable:
+            self.saveZoneInfo()
 
         # save vmstat info #
         # vmstat list from https://access.redhat.com/solutions/406773 #
@@ -55785,6 +55975,70 @@ class ThreadAnalyzer(object):
 
 
 
+    def printZoneUsage(self, nrIndent):
+        if len(self.zoneData) == 0:
+            return
+
+        nrZone = long(0)
+        zoneData = '%s [Node %s > ' % (' ' * nrIndent, 0)
+        lenZone = len(zoneData)
+
+        # add JSON stats #
+        if SysMgr.jsonOutputEnable:
+            SysMgr.jsonData.setdefault('zone', dict())
+
+        for node, items in sorted(self.zoneData.items()):
+            zoneData = '%s [%-10s > ' % (' ' * nrIndent, 'N%s' % node)
+            lenZone = len(zoneData)
+            nrZone += 1
+
+            for info, val in sorted(items.items()):
+                if SysMgr.jsonOutputEnable:
+                    SysMgr.jsonData['zone'].setdefault(node, dict())
+
+                if info == 'free':
+                    if not node in self.prevZoneData or \
+                        not info in self.prevZoneData[node]:
+                        diff = val
+                    else:
+                        diff = val - self.prevZoneData[node][info]
+
+                    diff = UtilMgr.convertSize2Unit(diff << 12)
+                    ninfo = 'diff'
+
+                    if SysMgr.jsonOutputEnable:
+                        SysMgr.jsonData['zone'][node][ninfo] = diff
+
+                    zoneStat = '%s: %7s / ' % (ninfo, diff)
+                    lenZoneStat = len(zoneStat)
+
+                    if lenZone + lenZoneStat >= len(oneLine):
+                        zoneData = '%s\n%s %s' % (zoneData, ' ' * 7, ' ' * nrIndent)
+                        lenZone = nrIndent
+
+                    zoneData = '%s%s' % (zoneData, zoneStat)
+                    lenZone += lenZoneStat
+
+                stat = UtilMgr.convertSize2Unit(val << 12)
+
+                if SysMgr.jsonOutputEnable:
+                    SysMgr.jsonData['zone'][node][info] = stat
+                    continue
+
+                zoneStat = '%s: %6s / ' % (info, stat)
+                lenZoneStat = len(zoneStat)
+
+                if lenZone + lenZoneStat >= len(oneLine):
+                    zoneData = '%s\n%s %s' % (zoneData, ' ' * 7, ' ' * nrIndent)
+                    lenZone = nrIndent
+
+                zoneData = '%s%s' % (zoneData, zoneStat)
+                lenZone += lenZoneStat
+
+            SysMgr.addPrint("{0:<1}]\n".format(zoneData[:-2]))
+
+
+
     def printIrqUsage(self, nrIndent):
         if len(self.irqData) == 0:
             return
@@ -57967,6 +58221,9 @@ class ThreadAnalyzer(object):
 
         # print default stats #
         self.printDefaultUsage(title)
+
+        # print zone stats #
+        self.printZoneUsage(nrIndent)
 
         # print irq stats #
         self.printIrqUsage(nrIndent)
