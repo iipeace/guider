@@ -35061,6 +35061,7 @@ struct msghdr {
         else:
             SysMgr.printWarn(\
                 'Attached %s(%s) to guider(%s)' % (self.comm, pid, SysMgr.pid))
+            self.attached = True
             return 0
 
 
@@ -36293,7 +36294,7 @@ struct msghdr {
             else:
                 ret = getattr(self.regs, self.retreg)
 
-            return self.c_long(ret).value
+            return c_long(ret).value
         except SystemExit:
             sys.exit(0)
         except:
@@ -37480,6 +37481,8 @@ struct msghdr {
                         tmax = diff
 
                     self.syscallTimeStat[name] = [ttotal, tmax]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.syscallTimeStat[name] = [diff, diff]
 
@@ -37502,6 +37505,8 @@ struct msghdr {
                             os.strerror(abs(retval)))
 
                     self.addSample(name, '??', err=retval)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     err = ''
             else:
@@ -37512,6 +37517,8 @@ struct msghdr {
                 rtype = proto[name][0]
                 if '*' in rtype:
                     retval = '0x%s' % long(str(retval), 16)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -38662,8 +38669,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def getEventMsg(self):
         PTRACE_GETEVENTMSG = 0x4201
-        data = self.c_long(0)
-        addr = self.addressof(data)
+        data = c_long(0)
+        addr = addressof(data)
 
         ret = self.ptrace(PTRACE_GETEVENTMSG, data=addr)
         return data.value
@@ -38919,8 +38926,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # type converting #
             if not self.initPtrace:
                 SysMgr.libcObj.ptrace.argtypes = \
-                    (c_ulong, c_ulong, \
-                        c_ulong, c_ulong)
+                    (c_ulong, c_ulong, c_ulong, c_ulong)
                 SysMgr.libcObj.ptrace.restype = c_ulong
                 self.initPtrace = True
 
