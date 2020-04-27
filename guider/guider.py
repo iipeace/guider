@@ -27630,6 +27630,9 @@ Copyright:
         SysMgr.cgroupEnable = True
         SysMgr.cmdlineEnable = True
         SysMgr.delayEnable = True
+        SysMgr.irqEnable = True
+        SysMgr.perfEnable = True
+        SysMgr.nsEnable = True
         SysMgr.ttyRows = sys.maxsize
 
         if SysMgr.isRoot():
@@ -27640,6 +27643,9 @@ Copyright:
             SysMgr.printWarn(\
                 "Fail to get disk and network stats "
                 "because no root permission")
+
+        # initialize perf events #
+        SysMgr.initSystemPerfEvents()
 
         # initialize system stat #
         SysMgr()
