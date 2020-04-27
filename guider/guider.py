@@ -13757,6 +13757,8 @@ class SysMgr(object):
 
         # report #
         elif SysMgr.isReportTopMode():
+            SysMgr.jsonOutputEnable = True
+
             if SysMgr.isRoot():
                 SysMgr.diskEnable = True
                 SysMgr.networkEnable = True
@@ -55159,6 +55161,8 @@ class ThreadAnalyzer(object):
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalCoreUsage,\
                         userCoreUsage, kerCoreUsage, ioCoreUsage, irqCoreUsage)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -55171,6 +55175,8 @@ class ThreadAnalyzer(object):
                     curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
                     self.cpuData[idx]['curFd'] = \
                         self.prevCpuData[idx]['curFd']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     infoPath = '%s/cpuinfo_cur_freq' % defPath
                     scalingPath = '%s/scaling_cur_freq' % defPath
@@ -55194,6 +55200,8 @@ class ThreadAnalyzer(object):
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
                     self.cpuData[idx]['minFd'] = \
                         self.prevCpuData[idx]['minFd']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     infoPath = '%s/cpuinfo_min_freq' % defPath
                     scalingPath = '%s/scaling_min_freq' % defPath
@@ -55208,6 +55216,8 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['minFd'] = open(minPath, 'r')
                         minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         minFreq = None
 
@@ -55217,6 +55227,8 @@ class ThreadAnalyzer(object):
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
                     self.cpuData[idx]['maxFd'] = \
                         self.prevCpuData[idx]['maxFd']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     infoPath = '%s/cpuinfo_max_freq' % defPath
                     scalingPath = '%s/scaling_max_freq' % defPath
@@ -55240,6 +55252,8 @@ class ThreadAnalyzer(object):
                     gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
                     self.cpuData[idx]['govFd'] = \
                         self.prevCpuData[idx]['govFd']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     govPath = '%s/scaling_governor' % defPath
 
@@ -55288,6 +55302,8 @@ class ThreadAnalyzer(object):
                         phyId = '?'
 
                     cid = '%s-%s' % (phyId, coreId)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     cid = None
 
@@ -55302,6 +55318,8 @@ class ThreadAnalyzer(object):
                         coreFreq = '%s [%d-%d]' % \
                             (coreFreq, long(minFreq) >> 10, long(maxFreq) >> 10)
                     coreFreq = '%20s|' % coreFreq
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -55309,6 +55327,8 @@ class ThreadAnalyzer(object):
                 try:
                     coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
                         format(cid, coreTempData[cid], coreFreq)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     try:
                         coreFreq = '{0:^6} | {1:>3} C | {2:<1}'.\
@@ -55342,6 +55362,8 @@ class ThreadAnalyzer(object):
 
                     SysMgr.addPrint(\
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
