@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200427"
+__revision__ = "200428"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3515,24 +3515,24 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getTextLines(file, verbose=False, retfd=False):
+    def getTextLines(fname, verbose=False, retfd=False):
         buf = []
 
         if verbose:
             if retfd:
                 SysMgr.printStat(\
-                    r"start checking %s..." % file)
+                    r"start checking %s..." % fname)
             else:
                 SysMgr.printStat(\
-                    r"start loading %s..." % file)
+                    r"start loading %s..." % fname)
 
         # open a file #
         try:
-            fd = open(file, 'r', encoding='utf-8')
+            fd = open(fname, 'r', encoding='utf-8')
         except SystemExit:
             sys.exit(0)
         except:
-            fd = open(file, 'r')
+            fd = open(fname, 'r')
 
         # just return fd #
         if retfd:
@@ -3540,7 +3540,7 @@ class UtilMgr(object):
 
         # get total size #
         try:
-            totalSize = os.stat(file).st_size
+            totalSize = os.stat(fname).st_size
         except:
             totalSize = long(0)
 
@@ -12981,6 +12981,8 @@ class SysMgr(object):
     perfEventData = {}
     commFdCache = {}
     libCache = {}
+    cmdFileCache = {}
+    cmdAttachCache = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -19877,6 +19879,8 @@ Copyright:
                         SysMgr.debugfsPath)
                     SysMgr.cmdFd.write(\
                         'echo "\nstart recording... [ STOP(Ctrl+c) ]\n"\n')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printOpenErr(SysMgr.cmdEnable)
                     return -1
@@ -19885,6 +19889,8 @@ Copyright:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
                         (str(val), SysMgr.mountPath, path)
                     SysMgr.cmdFd.write(cmd)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printErr("Fail to write command")
                     return -1
@@ -19892,10 +19898,23 @@ Copyright:
         # open for applying command #
         try:
             target = '%s%s' % (SysMgr.mountPath, path)
+
             if append:
-                fd = os.open(target, os.O_RDWR|os.O_CREAT|os.O_APPEND)
+                if target in SysMgr.cmdAttachCache:
+                    fd = SysMgr.cmdAttachCache[target]
+                    os.lseek(fd, 0, 0)
+                else:
+                    fd = os.open(target, os.O_RDWR|os.O_CREAT|os.O_APPEND)
+                    SysMgr.cmdAttachCache[target] = fd
             else:
-                fd = open(target, perm)
+                if target in SysMgr.cmdFileCache:
+                    fd = SysMgr.cmdFileCache[target]
+                    fd.seek(0, 0)
+                else:
+                    fd = open(target, perm)
+                    SysMgr.cmdFileCache[target] = fd
+        except SystemExit:
+            sys.exit(0)
         except:
             fpos = path.rfind('/')
             try:
@@ -19913,24 +19932,17 @@ Copyright:
 
             SysMgr.printWarn(\
                 "Fail to use %s event, please check kernel configuration" % \
-                    epath)
+                    epath, reason=True)
             return -1
 
         # apply command #
         try:
             if append:
                 os.write(fd, bytes(UtilMgr.encodeStr(val)))
+                #os.fsync(fd)
             else:
                 fd.write(val)
-
-            # ignore some close exceptions #
-            try:
-                if append:
-                    os.close(fd)
-                else:
-                    fd.close()
-            except:
-                pass
+                fd.flush()
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -19940,6 +19952,8 @@ Copyright:
                 elif val == '0':
                     SysMgr.sysInstance.\
                         cmdList[path[:path.rfind('/enable')]] = False
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "Fail to apply command '%s' to %s" % \
@@ -20487,7 +20501,7 @@ Copyright:
                 return True
             except:
                 SysMgr.printWarn(\
-                    "Fail to write %s event" % (message))
+                    "Fail to write %s event" % (message), reason=True)
                 return
         else:
             SysMgr.printErr(\
@@ -24818,7 +24832,6 @@ Copyright:
                 "No supported '%s' for blocking signal" % act)
             return
 
-        #SysMgr.libcObj.sigemptyset(byref(sigset))
         SysMgr.libcObj.memset(\
             byref(sigset), 0, sizeof(sigset))
 
@@ -24826,11 +24839,12 @@ Copyright:
             sig = [sig]
 
         for sigbit in sig:
-            SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
+            if hasattr(SysMgr.libcObj, 'sigaddset'):
+                SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
 
         SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
 
-        #print(SysMgr.libcObj.sigpending(byref(sigset)))
+        #pendingList = SysMgr.libcObj.sigpending(byref(sigset))
 
 
 
@@ -29183,8 +29197,8 @@ Copyright:
 
     def startTracing(self):
         stat = SysMgr.readCmdVal('../tracing_on')
-        if not stat:
-            sys.exit(0)
+        if stat == '0':
+            pass
         elif SysMgr.forceEnable:
             # write command to stop tracing #
             SysMgr.writeCmd('../tracing_on', '0')
@@ -31179,7 +31193,7 @@ Copyright:
         SysMgr.infoBufferPrint('\n[System GPU Info]')
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(\
-            "{0:^32} | {1:^16} | {2:^32}\n{3:1}".format(\
+            "{0:^32} | {1:^16} | {2:^32} |\n{3:1}".format(\
             "Name", "Stat", "Value", oneLine))
 
         for item in gpuInfo.values():
@@ -31189,7 +31203,7 @@ Copyright:
                     continue
 
                 SysMgr.infoBufferPrint(\
-                    "{0:^32} | {1:>16} | {2:>32}".format(\
+                    "{0:^32} | {1:>16} | {2:>32} |".format(\
                         name, key, value))
 
                 name = ''
@@ -35005,14 +35019,16 @@ struct msghdr {
         # build trap instruction #
         inst = self.brkInst * size
 
+        # update symbol #
+        if not sym:
+            sym = self.bpList[addr]['symbol']
+
         # check instructions whether it is already injected #
         if origWord.startswith(inst):
             if addr in self.bpList and \
                 self.bpList[addr]['data'] != inst:
                 origWord = self.bpList[addr]['data']
             else:
-                if not sym:
-                    sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
                     'Fail to inject a breakpoint to %s(%s) for %s(%s) '
                     'because it is already injected by another task') % \
@@ -35025,12 +35041,10 @@ struct msghdr {
         if ret < 0:
             SysMgr.printWarn(\
                 'Fail to inject a breakpoint to %s(%s) for %s(%s)' % \
-                    (hex(addr).rstrip('L'), self.comm, self.pid))
+                    (hex(addr).rstrip('L'), sym, self.comm, self.pid))
             return False
         elif ret == 0:
             if SysMgr.warnEnable:
-                if not sym:
-                    sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn(\
                     'Added a new breakpoint %s(%s)[%s] to %s(%s)' % \
                         (hex(addr).rstrip('L'), sym, fname, \
@@ -50375,7 +50389,7 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def getInitTime(file):
+    def getInitTime(fname):
         fd = None
         systemInfoBuffer = ''
 
@@ -50386,11 +50400,11 @@ class ThreadAnalyzer(object):
             nrLine = long(0)
 
             try:
-                fd = open(file, 'rb')
+                fd = open(fname, 'rb')
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenErr(file)
+                SysMgr.printOpenErr(fname)
                 sys.exit(0)
 
             # check compression #
@@ -50410,7 +50424,7 @@ class ThreadAnalyzer(object):
             except:
                 compressor = None
                 SysMgr.printErr(\
-                    "Fail to check compression for %s" % file, True)
+                    "Fail to check compression for %s" % fname, True)
 
         while 1:
             start = end = -1
@@ -50432,17 +50446,19 @@ class ThreadAnalyzer(object):
                 if compressor and fd:
                     if verbose:
                         SysMgr.printStat(\
-                            r"start checking %s..." % file)
+                            r"start checking %s..." % fname)
                 else:
                     try:
-                        fd = UtilMgr.getTextLines(file, verbose, retfd=True)
+                        fd = UtilMgr.getTextLines(fname, verbose, retfd=True)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
-                        SysMgr.printErr("Fail to read %s\n" % file)
+                        SysMgr.printErr("Fail to read %s\n" % fname, reason=True)
                         sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printOpenErr(file)
+                SysMgr.printOpenErr(fname)
                 sys.exit(0)
 
             # verify log buffer #
