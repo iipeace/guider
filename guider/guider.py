@@ -12913,6 +12913,7 @@ class SysMgr(object):
     launchBuffer = ''
     lineLength = 154
     pid = long(0)
+    masterPid = long(0)
     prio = None
     funcDepth = long(0)
     maxPid = 32768
@@ -24634,7 +24635,9 @@ Copyright:
 
     @staticmethod
     def createProcess(\
-        cmd=None, isDaemon=False, mute=False, changePgid=False):
+        cmd=None, isDaemon=False, mute=False, \
+            changePgid=False, updateMaster=True):
+
         # flush print buffer before fork #
         SysMgr.flushAllForPrint()
 
@@ -24666,7 +24669,11 @@ Copyright:
 
             # Guider #
             if not cmd:
+                # set pid #
+                if updateMaster and SysMgr.masterPid == 0:
+                    SysMgr.masterPid = SysMgr.pid
                 SysMgr.fileSuffix = SysMgr.pid = os.getpid()
+
                 if mute:
                     SysMgr.closeStdFds(stderr=False)
                 return 0
@@ -24727,7 +24734,7 @@ Copyright:
 
     @staticmethod
     def runBackgroundMode():
-        pid = SysMgr.createProcess(isDaemon=True)
+        pid = SysMgr.createProcess(isDaemon=True, updateMaster=False)
 
         if pid > 0:
             # wait a minute for child message #
@@ -38254,6 +38261,9 @@ struct msghdr {
 
         # get current register set #
         if instance.mode == 'break':
+            # notify termination to master process #
+            os.kill(SysMgr.masterPid, signal.SIGINT)
+
             while 1:
                 ret = instance.updateRegs()
                 if not ret:
