@@ -15446,7 +15446,10 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
 
     - Handle all function calls for a specific thread and execute specific commands
-        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha"
+        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha":"sleep 1"
+
+    - Handle all function calls for a specific thread and execute a specific command in background
+        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha &"
                 '''.format(cmd, mode)
 
                 logCommonStr = '''
@@ -34374,13 +34377,22 @@ struct msghdr {
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
-                    param = cmdset[1].split()
-
                     SysMgr.printPipe(\
-                        "\n[%s] %s\n" % (cmdstr, cmdset[1]),\
+                        "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])),\
                              newline=False, flush=True)
 
-                    self.execBgCmd(execCmd=param, mute=False)
+                    # execute commands #
+                    for item in cmdset[1].split(':'):
+                        command = item
+                        if command.endswith('&'):
+                            command = command[:-1]
+                            wait = False
+                        else:
+                            wait = True
+
+                        param = command.split()
+
+                        self.execBgCmd(execCmd=param, mute=False, wait=wait)
 
                 elif cmd == 'ret':
                     if len(cmdset) == 1:
@@ -34671,12 +34683,13 @@ struct msghdr {
 
 
 
-    def execBgCmd(self, execCmd, mute=True):
+    def execBgCmd(self, execCmd, mute=True, wait=True):
         pid = SysMgr.createProcess()
         if pid < 0:
             return pid
         elif pid > 0:
-            os.waitpid(pid, 0)
+            if wait:
+                os.waitpid(pid, 0)
             return
 
         # execute #
