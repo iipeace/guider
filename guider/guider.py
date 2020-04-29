@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200428"
+__revision__ = "200429"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4026,10 +4026,11 @@ class NetworkMgr(object):
         socket = SysMgr.getPkg('socket')
 
         try:
-            from socket import socket, AF_INET, SOCK_DGRAM, AF_NETLINK, \
+            from socket import socket, AF_INET, SOCK_DGRAM, \
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
                 SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO, SOCK_RAW
         except:
+            SysMgr.printWarn("Fail to import socket", True, reason=True)
             return None
 
         try:
@@ -4037,8 +4038,15 @@ class NetworkMgr(object):
             if tcp:
                 self.socket = socket(AF_INET, SOCK_STREAM)
             elif netlink:
-                self.socket = socket(\
-                    AF_NETLINK, SOCK_RAW, ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'])
+                try:
+                    from socket import socket, AF_NETLINK
+                    self.socket = socket(\
+                        AF_NETLINK, SOCK_RAW, \
+                            ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'])
+                except:
+                    SysMgr.printWarn(\
+                        "Fail to create NETLINK socket", True, reason=True)
+                    return None
             else:
                 self.socket = socket(AF_INET, SOCK_DGRAM)
 
@@ -4396,7 +4404,7 @@ class NetworkMgr(object):
 
     def send(self, message, write=False):
         if self.ip is None or self.port is None:
-            SysMgr.printErr(\
+            SysMgr.printWarn(\
                 "Fail to use IP address for client because it is not set")
             return False
         elif not self.socket:
@@ -4436,7 +4444,7 @@ class NetworkMgr(object):
 
     def sendto(self, message, ip, port):
         if not ip or not port:
-            SysMgr.printErr(\
+            SysMgr.printWarn(\
                 "Fail to use IP address for client because it is not set")
             return False
         elif not self.socket:
@@ -4463,7 +4471,7 @@ class NetworkMgr(object):
 
     def recv(self, size=0):
         if self.ip is None or self.port is None:
-            SysMgr.printErr(\
+            SysMgr.printWarn(\
                 "Fail to use IP address for server because it is not set")
             return False
         elif not self.socket:
@@ -4536,7 +4544,7 @@ class NetworkMgr(object):
 
     def recvfrom(self, size=0, noTimeout=False, verbose=True):
         if self.ip is None or self.port is None:
-            SysMgr.printErr(\
+            SysMgr.printWarn(\
                 "Fail to use IP address for server because it is not set")
             return False
         elif not self.socket:
@@ -4723,7 +4731,8 @@ class NetworkMgr(object):
                 except:
                     SysMgr.printWarn(\
                         "Fail to connect to %s:%s" % (ip, port), reason=True)
-                    if err.startswith('99'):
+                    et, err, to = sys.exc_info()
+                    if err.args and err.args[0] == 99:
                         time.sleep(0.1)
                         continue
                     break
@@ -13004,6 +13013,7 @@ class SysMgr(object):
     matplotlibVersion = long(0)
     matplotlibDpi = 500
     sigsetObj = None
+    sigsetOldObj = None
 
     localServObj = None
     remoteServObj = None
@@ -13261,7 +13271,6 @@ class SysMgr(object):
         if SysMgr.libcObj:
             return True
 
-        # load libc #
         try:
             ret = SysMgr.loadLib(SysMgr.libcPath)
             if ret:
@@ -13394,7 +13403,6 @@ class SysMgr(object):
 
         # try to get maxFd by standard library call #
         try:
-            # load libc #
             SysMgr.loadLibcObj()
 
             SysMgr.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
@@ -14120,7 +14128,6 @@ class SysMgr(object):
                     pass
 
                 try:
-                    # load libc #
                     SysMgr.loadLibcObj()
 
                     nrCore = SysMgr.getNrCore()
@@ -14165,7 +14172,6 @@ class SysMgr(object):
             return
 
         try:
-            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception()
 
@@ -17426,7 +17432,6 @@ Copyright:
             return None
 
         try:
-            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception()
 
@@ -24635,9 +24640,7 @@ Copyright:
 
     @staticmethod
     def createProcess(\
-        cmd=None, isDaemon=False, mute=False, \
-            changePgid=False, updateMaster=True):
-
+        cmd=None, isDaemon=False, mute=False, chPgid=False, chMid=False):
         # flush print buffer before fork #
         SysMgr.flushAllForPrint()
 
@@ -24655,7 +24658,7 @@ Copyright:
             # initialize child list #
             SysMgr.clearChildList()
 
-            if changePgid:
+            if chPgid:
                 os.setpgid(0, 0)
 
             if SysMgr.fileForPrint:
@@ -24669,13 +24672,16 @@ Copyright:
 
             # Guider #
             if not cmd:
-                # set pid #
-                if updateMaster and SysMgr.masterPid == 0:
+                # update master pid #
+                if chMid:
                     SysMgr.masterPid = SysMgr.pid
+
+                # update pid #
                 SysMgr.fileSuffix = SysMgr.pid = os.getpid()
 
                 if mute:
                     SysMgr.closeStdFds(stderr=False)
+
                 return 0
 
             # split command #
@@ -24734,7 +24740,7 @@ Copyright:
 
     @staticmethod
     def runBackgroundMode():
-        pid = SysMgr.createProcess(isDaemon=True, updateMaster=False)
+        pid = SysMgr.createProcess(isDaemon=True)
 
         if pid > 0:
             # wait a minute for child message #
@@ -24747,7 +24753,8 @@ Copyright:
 
             # continue child process #
             SysMgr.printStat(\
-                "background running as process %s" % SysMgr.pid)
+                "run %s(%s) in background" % \
+                    (SysMgr.getComm(SysMgr.pid), SysMgr.pid))
 
 
 
@@ -24813,9 +24820,10 @@ Copyright:
 
 
     @staticmethod
-    def blockSignal(sig, act='block'):
-        # get ctypes object #
-        SysMgr.importPkgItems('ctypes')
+    def blockSignal(sig, act='block', wait=False):
+        if not SysMgr.libcObj:
+            if not SysMgr.loadLibcObj():
+                return False
 
         if not SysMgr.sigsetObj:
             NWORDS = long(1024 / (8 * sizeof(c_uint)))
@@ -24826,8 +24834,10 @@ Copyright:
                 ]
 
             SysMgr.sigsetObj = sigset_t()
+            SysMgr.sigsetOldObj = sigset_t()
 
         sigset = SysMgr.sigsetObj
+        sigsetold = SysMgr.sigsetOldObj
 
         # check act #
         if act == 'block':
@@ -24849,9 +24859,38 @@ Copyright:
             if hasattr(SysMgr.libcObj, 'sigaddset'):
                 SysMgr.libcObj.sigaddset(byref(sigset), sigbit)
 
-        SysMgr.libcObj.sigprocmask(atype, byref(sigset), 0)
+        SysMgr.libcObj.sigprocmask(atype, byref(sigset), byref(sigsetold))
 
-        #pendingList = SysMgr.libcObj.sigpending(byref(sigset))
+        if wait:
+            if hasattr(SysMgr.libcObj, 'sigsuspend'):
+                SysMgr.libcObj.sigsuspend(byref(sigsetold))
+
+        return True
+
+
+
+    @staticmethod
+    def pendingSignal(sig):
+        if not SysMgr.libcObj:
+            if not SysMgr.loadLibcObj():
+                return False
+
+        if not SysMgr.sigsetObj:
+            return False
+
+        sigset = SysMgr.sigsetObj
+
+        pendingList = SysMgr.libcObj.sigpending(byref(sigset))
+
+        if type(sig) is not list:
+            sig = [sig]
+
+        pendList = []
+        for item in sig:
+            if SysMgr.libcObj.sigismember(byref(sigset), item):
+                pendList.append(item)
+
+        return set(list(pendList))
 
 
 
@@ -25204,7 +25243,8 @@ Copyright:
             return
 
         SysMgr.printStat(\
-            "run process %s as server" % SysMgr.pid)
+            "run %s(%s) as a server" % \
+                (SysMgr.getComm(SysMgr.pid), SysMgr.pid))
 
         # set SA_RESTART for SIGCHLD #
         signal.siginterrupt(signal.SIGCHLD, False)
@@ -25283,7 +25323,9 @@ Copyright:
                 else:
                     NetworkMgr.setRemoteServer(addrs, tcp=True)
 
-            NetworkMgr.requestPing()
+            ret = NetworkMgr.requestPing()
+            if ret:
+                SysMgr.printInfo('server is alive')
 
         def printHistory(hlist):
             for idx, cmd in enumerate(hlist):
@@ -25308,6 +25350,9 @@ Copyright:
         local, remote = \
             NetworkMgr.prepareServerConn(localAddr, remoteAddr)
         '''
+
+        if SysMgr.loadLibcObj():
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         # run mainloop #
         hlist = list()
@@ -25347,6 +25392,9 @@ Copyright:
                         "Fail to execute remote command")
                     continue
 
+                # block signal #
+                SysMgr.blockSignal(signal.SIGINT, act='block')
+
                 while 1:
                     output = pipe.getData()
                     if not output:
@@ -25355,6 +25403,12 @@ Copyright:
                     dataType = pipe.getDataType(output)
 
                     print(output[:-1])
+
+                    if SysMgr.pendingSignal(signal.SIGINT):
+                        break
+
+                # unblock signal #
+                SysMgr.blockSignal(signal.SIGINT, act='unblock')
 
             except SystemExit:
                 return
@@ -26218,7 +26272,7 @@ Copyright:
             try:
                 isFinished = True
                 for tid in allpids:
-                    ret = SysMgr.createProcess(changePgid=True)
+                    ret = SysMgr.createProcess(chPgid=True, chMid=True)
                     if ret == 0:
                         if not tid in pids:
                             SysMgr.printEnable = False
@@ -28340,7 +28394,6 @@ Copyright:
         comm = SysMgr.getComm(pid)
 
         try:
-            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception()
 
@@ -32649,7 +32702,7 @@ class DbusAnalyzer(object):
             # create pipe #
             rd, wr = os.pipe()
 
-            pid = SysMgr.createProcess(changePgid=False)
+            pid = SysMgr.createProcess(chPgid=False)
 
             # parent #
             if pid > 0:
@@ -34324,7 +34377,7 @@ struct msghdr {
                     param = cmdset[1].split()
 
                     SysMgr.printPipe(\
-                        "\n[%s] %s" % (cmdstr, cmdset[1]),\
+                        "\n[%s] %s\n" % (cmdstr, cmdset[1]),\
                              newline=False, flush=True)
 
                     self.execBgCmd(execCmd=param, mute=False)
@@ -34620,10 +34673,11 @@ struct msghdr {
 
     def execBgCmd(self, execCmd, mute=True):
         pid = SysMgr.createProcess()
-        if pid != 0:
+        if pid < 0:
+            return pid
+        elif pid > 0:
+            os.waitpid(pid, 0)
             return
-
-        self.pid = os.getpid()
 
         # execute #
         SysMgr.executeProcess(cmd=execCmd, mute=mute)
@@ -35875,11 +35929,16 @@ struct msghdr {
             floatUserUsage = 1
             floatSysUsage = 1
 
+        if self.comm:
+            comm = self.comm
+        else:
+            comm = '??'
+
         ret = SysMgr.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %g] [NrSamples: %s] '
             '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
-                convert(self.totalCall), self.comm, self.pid, \
+                convert(self.totalCall), comm, self.pid, \
                 cpuStr, sampleStr, twoLine), newline=2)
         if not ret:
             finishPrint()
@@ -37798,23 +37857,29 @@ struct msghdr {
             # stop the target #
             self.stop()
 
+        if SysMgr.masterPid == 0:
+            chMid = True
+        else:
+            chMid = False
+
         # create a new process to trace a new task #
-        pid = SysMgr.createProcess(isDaemon=True)
+        pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
         # original tracee #
         if pid > 0:
             self.detach(only=True)
             self.detach(only=True, pid=tid)
             self.attach()
-            self.ptraceEvent(self.traceEventList)
         # new tracee #
         elif pid == 0:
             self.pid = tid
             self.attach()
             self.initValues()
-            self.ptraceEvent(self.traceEventList)
             signal.alarm(SysMgr.intervalEnable)
         else:
             return
+
+        # set trace event #
+        self.ptraceEvent(self.traceEventList)
 
         # set attributes for multiprocess #
         self.multi = True
@@ -38262,7 +38327,8 @@ struct msghdr {
         # get current register set #
         if instance.mode == 'break':
             # notify termination to master process #
-            os.kill(SysMgr.masterPid, signal.SIGINT)
+            if SysMgr.masterPid > 0:
+                os.kill(SysMgr.masterPid, signal.SIGINT)
 
             while 1:
                 ret = instance.updateRegs()
@@ -38637,7 +38703,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             for tid in tlist:
                 lastTid = long(tid)
 
-                ret = SysMgr.createProcess(mute=True, changePgid=True)
+                ret = SysMgr.createProcess(mute=True, chPgid=True)
                 if ret > 0:
                     comm = SysMgr.getComm(tid)
                     taskList[tid] = comm
@@ -40168,7 +40234,6 @@ class ElfAnalyzer(object):
 
         # try to demangle symbol #
         try:
-            # load libc #
             SysMgr.loadLibcObj()
 
             # load demangle library #
