@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200429"
+__revision__ = "200502"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32233,6 +32233,7 @@ class DbusAnalyzer(object):
         def updateData(data):
             tid = data[0]
             params = data[1]
+            bus = data[2]
 
             # convert string to dict #
             try:
@@ -32414,7 +32415,8 @@ class DbusAnalyzer(object):
                             backtrace = ''
 
                         msgStr = \
-                            "Tid: %s(%s) / Direction: %s / Time: %g\nSize: %s\n%s%s" % \
+                            ("Tid: %s(%s) / Direction: %s / "
+                            "Time: %g\nSize: %s\n%s%s") % \
                             (tid, jsonData['comm'], \
                                 direction, jsonData['timediff'], \
                                 UtilMgr.convertSize2Unit(hsize),
@@ -32598,7 +32600,9 @@ class DbusAnalyzer(object):
                 for robj in read:
                     # get tid of target #
                     try:
-                        tid = taskList[pipeList.index(robj)]
+                        index = pipeList.index(robj)
+                        tid = taskList[index]
+                        bus = busList[index]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -32617,7 +32621,7 @@ class DbusAnalyzer(object):
                             except:
                                 pass
                         elif output and len(output) > 0:
-                            updateData((tid, output))
+                            updateData((tid, output, bus))
 
                         break
             except SystemExit:
@@ -32681,7 +32685,7 @@ class DbusAnalyzer(object):
         SysMgr.printInfo((\
             "only specific processes that are involved "
             "in the process group [ %s ] are shown") % \
-                ', '.join(taskList))
+                SysMgr.getCommList(taskList))
 
         # define common list #
         pipeList = []
@@ -32701,6 +32705,7 @@ class DbusAnalyzer(object):
             ConfigMgr.sysList.index('sys_sendmsg'))
 
         # create child processes to attach each targets #
+        busList = []
         for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
@@ -32719,6 +32724,13 @@ class DbusAnalyzer(object):
                         target=executeLoop, args=[[rdPipe]])
                     tobj.daemon = True
                     threadingList.append(tobj)
+
+                # get bus type #
+                cmdline = SysMgr.getCmdline(tid)
+                if '--session' in cmdline:
+                    busList.append('session')
+                else:
+                    busList.append('system')
             # child #
             elif pid == 0:
                 # redirect stdout to pipe #
