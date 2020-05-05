@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200502"
+__revision__ = "200506"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35,9 +35,9 @@ except ImportError:
 
 # convert types not supported #
 try:
-    xrange
+    range
 except:
-    xrange = range
+    range = range
 try:
     long
 except:
@@ -2562,7 +2562,7 @@ class ConfigMgr(object):
         'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2', 'sys_pwritev2',
         'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free', 'sys_statx',
         'sys_io_pgetevents', 'sys_rseq', 'sys_kexec_file_load',
-        ] + ['sys_null' for idx in xrange(295, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in range(295, 424, 1)] + SYSCALL_COMMON
 
     # Define syscall for x86 #
     SYSCALL_X86 = [
@@ -2757,7 +2757,7 @@ class ConfigMgr(object):
         'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2',
         'sys_pwritev2', 'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free',
         'sys_statx', 'sys_io_pgetevents', 'sys_rseq',
-        ] + ['sys_null' for idx in xrange(335, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in range(335, 424, 1)] + SYSCALL_COMMON
 
     # Define default syscall list #
     sysList = []
@@ -2790,7 +2790,7 @@ class ConfigMgr(object):
         'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', #24#
         'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
-            ['SIGRT%d' % idx for idx in xrange(0, 32, 1)]
+            ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
 
     # stat list from http://linux.die.net/man/5/proc #
@@ -3107,7 +3107,7 @@ class ConfigMgr(object):
         'PTRACE_EVENT_VFORK_DONE',
         'PTRACE_EVENT_EXIT',
         'PTRACE_EVENT_SECCOMP',
-        ] + ['NONE' for idx in xrange(0, 120, 1)] + ['PTRACE_EVENT_STOP']
+        ] + ['NONE' for idx in range(0, 120, 1)] + ['PTRACE_EVENT_STOP']
 
     # Define perf event types #
     PERF_EVENT_TYPE = [
@@ -3988,14 +3988,19 @@ class UtilMgr(object):
     @staticmethod
     def convStr2Dict(strObj):
         try:
-            strObj = strObj.replace("'", '"')
             return SysMgr.getPkg('json').loads(strObj)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(\
-                "Fail to convert %s to dict" % [strObj], reason=True)
-            return None
+            try:
+                strObj = strObj.replace("'", '"')
+                return SysMgr.getPkg('json').loads(strObj)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(\
+                    "Fail to convert %s to dict" % [strObj], reason=True)
+                return None
 
 
 
@@ -5952,7 +5957,7 @@ class PageAnalyzer(object):
             format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",\
             "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
-        for addr in xrange(addrs, addre + offset, SysMgr.pageSize):
+        for addr in range(addrs, addre + offset, SysMgr.pageSize):
             entry = PageAnalyzer.getPagemapEntry(pid, addr)
 
             pfn = PageAnalyzer.getPfn(entry)
@@ -6477,7 +6482,7 @@ class FunctionAnalyzer(object):
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-        for cnt in xrange(0, pageFreeCnt):
+        for cnt in range(0, pageFreeCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = long(0)
 
@@ -6759,7 +6764,7 @@ class FunctionAnalyzer(object):
                 break
 
         # Make PTE in page table #
-        for cnt in xrange(0, pageAllocCnt):
+        for cnt in range(0, pageAllocCnt):
             pfnv = pfn + cnt
             subStackPageInfoIdx = long(0)
 
@@ -8128,7 +8133,7 @@ class FunctionAnalyzer(object):
                     self.threadData[tid]['kernelPages'] += pageCnt
 
                 # Make PTE in page table #
-                for cnt in xrange(0, pageCnt):
+                for cnt in range(0, pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -8183,7 +8188,7 @@ class FunctionAnalyzer(object):
 
                 # Update page table #
                 origPageType = None
-                for cnt in xrange(0, pageCnt):
+                for cnt in range(0, pageCnt):
                     pfnv = pfn + cnt
 
                     try:
@@ -11652,7 +11657,7 @@ class FileAnalyzer(object):
             "InitRAM", "File", "%")
 
         if len(self.intervalFileData) > 1:
-            for idx in xrange(1, len(self.intervalFileData)):
+            for idx in range(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
         printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM", "%")
@@ -11702,7 +11707,7 @@ class FileAnalyzer(object):
 
             # calculate diff of on-memory file size #
             if len(self.intervalFileData) > 1:
-                for idx in xrange(1, len(self.intervalFileData)):
+                for idx in range(1, len(self.intervalFileData)):
                     diffNew = long(0)
                     diffDel = long(0)
 
@@ -11727,7 +11732,7 @@ class FileAnalyzer(object):
                             diffNew = fileData[idx][fileName]['pageCnt']
                         else:
                             if len(nowFileMap) == len(prevFileMap):
-                                for i in xrange(len(nowFileMap)):
+                                for i in range(len(nowFileMap)):
                                     if nowFileMap[i] > prevFileMap[i]:
                                         diffNew += 1
                                     elif nowFileMap[i] < prevFileMap[i]:
@@ -12335,10 +12340,10 @@ class FileAnalyzer(object):
                     if SysMgr.guiderObj:
                         val['fileMap'] = \
                             [ord(pagemap[i]) for i in \
-                            xrange(long(size / pageSize))]
+                            range(long(size / pageSize))]
                     else:
                         val['fileMap'] = \
-                            [pagemap[i] for i in xrange(long(size / pageSize))]
+                            [pagemap[i] for i in range(long(size / pageSize))]
 
                     self.profSuccessCnt += 1
 
@@ -23632,7 +23637,7 @@ Copyright:
     @staticmethod
     def convertCIDR(addr):
         addrList = []
-        splitAddr = [addr[i:i+2] for i in xrange(0, len(addr), 2)]
+        splitAddr = [addr[i:i+2] for i in range(0, len(addr), 2)]
         for num in reversed(splitAddr):
             addrList.append(str(long(num, base=16)))
         return '.'.join(addrList)
@@ -27120,8 +27125,8 @@ Copyright:
 
         # run tasks #
         ioTasks = dict()
-        for cnt in xrange(0, 1):
-            for idx in xrange(0, len(workload)):
+        for cnt in range(0, 1):
+            for idx in range(0, len(workload)):
                 try:
                     pid = SysMgr.createProcess()
                     if pid == 0:
@@ -27329,7 +27334,7 @@ Copyright:
 
         # run tasks #
         limitInfo = dict()
-        for idx in xrange(0, nrTask):
+        for idx in range(0, nrTask):
             try:
                 pid = SysMgr.createProcess()
                 if pid == 0:
@@ -27624,7 +27629,7 @@ Copyright:
 
         pidList = list()
         if count > 0:
-            for idx in xrange(0, count):
+            for idx in range(0, count):
                 try:
                     pid = SysMgr.createProcess()
                 except SystemExit:
@@ -30197,7 +30202,7 @@ Copyright:
             splitLen = SysMgr.lineLength - 21
             cmdlineList = \
                 [self.cmdlineData[i:i+splitLen] for i in \
-                xrange(0, len(self.cmdlineData), splitLen)]
+                range(0, len(self.cmdlineData), splitLen)]
             for string in cmdlineList:
                 SysMgr.infoBufferPrint(\
                     "{0:20} {1:<100}".format(title, string))
@@ -31014,7 +31019,7 @@ Copyright:
                 if depth == 0:
                     indent = '\n'
 
-                for idx in xrange(0, depth):
+                for idx in range(0, depth):
                     indent = '%s%s|' % (indent, '     ')
 
                 if len(cstr) > 0:
@@ -31584,7 +31589,7 @@ Copyright:
 
                 mountList = \
                     [mountList[i:i+splitLen] for i in \
-                    xrange(0, len(mountList), splitLen)]
+                    range(0, len(mountList), splitLen)]
                 for string in mountList:
                     SysMgr.infoBufferPrint(\
                         '{0:85} {1:<1}'.format(title, string))
@@ -31843,7 +31848,7 @@ class DbusAnalyzer(object):
     errObj = None
     sentData = {}
     recvData = {}
-    previousData = {}
+    prevData = {}
     msgSentTable = {}
     msgRecvTable = {}
     dbgObj = None
@@ -31899,6 +31904,12 @@ class DbusAnalyzer(object):
         'G_IO_ERROR_MESSAGE_TOO_LARGE',
     ]
 
+    DBusBusType = {
+        "DBUS_BUS_SESSION": 0,
+        "DBUS_BUS_SYSTEM": 1,
+        "DBUS_BUS_STARTER": 2,
+    }
+
     GDBusMessageType = [
         "INVALID",
         "METHOD_CALL",
@@ -31906,6 +31917,278 @@ class DbusAnalyzer(object):
         "ERROR",
         "SIGNAL"
     ]
+
+    @staticmethod
+    def getErrP():
+        # define error object #
+        '''
+        class DBusError(Structure):
+            _fields_ = (
+                ("name", c_char_p),
+                ("message", c_char_p),
+                ("padding2", c_void_p * 2),
+            )
+
+        dbusErr = DBusError()
+        dbusErrP = byref(dbusErr)
+        SysMgr.libdbusObj.dbus_error_init(dbusErrP)
+        '''
+
+        dbusErrP = 0
+
+        return dbusErrP
+
+
+
+    @staticmethod
+    def getBus(bus):
+        dbusObj = SysMgr.libdbusObj
+        dbusErrP = DbusAnalyzer.getErrP()
+
+        if bus == 'system':
+            bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
+        elif bus == 'session':
+            bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']
+        else:
+            SysMgr.printWarn("Fail to recognize %s bus" % bus)
+            return None
+
+        # get connection #
+        conn = dbusObj.dbus_bus_get(bustype, dbusErrP)
+        if not conn:
+            if 'DBUS_SESSION_BUS_ADDRESS' in os.environ:
+                address = os.environ['DBUS_SESSION_BUS_ADDRESS']
+            else:
+                address = ''
+            address = c_char_p(address.encode())
+            conn = dbusObj.dbus_connection_open(address, dbusErrP)
+            if not conn:
+                SysMgr.printWarn("Fail to get DBus %s bus" % bus)
+                return None
+
+        # request my name #
+        name = "guider.method.caller"
+        DBUS_NAME_FLAG_ALLOW_REPLACEMENT = c_uint(0x1)
+        DBUS_NAME_FLAG_REPLACE_EXISTING = c_uint(0x2)
+        ret = dbusObj.dbus_bus_request_name(\
+            conn, c_char_p(name.encode()), \
+            DBUS_NAME_FLAG_REPLACE_EXISTING, dbusErrP);
+
+        return conn
+
+
+
+    @staticmethod
+    def getIntrospection(bus):
+        if not bus:
+            return
+
+        dbusObj = SysMgr.libdbusObj
+        dbusErrP = DbusAnalyzer.getErrP()
+
+        conn = DbusAnalyzer.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = 'org.freedesktop.DBus'
+        path = '/'
+        iface = des + '.Introspectable'
+        method = 'Introspect'
+        msg = dbusObj.dbus_message_new_method_call(\
+            des.encode(), path.encode(), \
+            iface.encode(), method.encode())
+        if not msg:
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to create a DBus message")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(\
+            conn, msg, -1, dbusErrP)
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to call a DBus remote method")
+            return
+
+        # prepare args #
+        char = c_char('s'.encode())
+        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        null = c_char('\0'.encode())
+        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+
+        # parse args #
+        strRes = c_char_p(''.encode())
+        res = dbusObj.dbus_message_get_args(\
+            reply, dbusErrP, DBUS_TYPE_STRING, \
+            byref(strRes), DBUS_TYPE_INVALID)
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to parse DBus message args")
+            return
+
+        # convert value #
+        buf = str(strRes.value.decode())
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        dbusObj.dbus_connection_unref(conn)
+
+        return buf
+
+
+
+    @staticmethod
+    def getServiceProc(bus, service):
+        if not bus or not service:
+            return
+
+        dbusObj = SysMgr.libdbusObj
+        dbusErrP = DbusAnalyzer.getErrP()
+
+        conn = DbusAnalyzer.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = 'org.freedesktop.DBus'
+        path = '/'
+        iface = des
+        method = 'GetConnectionUnixProcessID'
+        msg = dbusObj.dbus_message_new_method_call(\
+            des.encode(), path.encode(), \
+            iface.encode(), method.encode())
+        if not msg:
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to create a DBus message")
+            return
+
+        # prepare args #
+        char = c_char('s'.encode())
+        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        null = c_char('\0'.encode())
+        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+
+        # append args #
+        item = c_char_p(service.encode())
+        res = dbusObj.dbus_message_append_args(\
+            msg, DBUS_TYPE_STRING, byref(item), DBUS_TYPE_INVALID)
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to append DBus message args")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(\
+            conn, msg, -1, dbusErrP)
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to call a DBus remote method")
+            return
+
+        # parse args #
+        pid = c_uint32(0)
+        uint32 = c_char('u'.encode())
+        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
+        res = dbusObj.dbus_message_get_args(\
+            reply, dbusErrP, DBUS_TYPE_UINT32, \
+            byref(pid), DBUS_TYPE_INVALID)
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to parse DBus message args")
+            return
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        dbusObj.dbus_connection_unref(conn)
+
+        try:
+            return '%s(%s)' % (SysMgr.getComm(pid.value), pid.value)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
+
+
+
+    @staticmethod
+    def getServiceList(bus):
+        if not bus:
+            return
+
+        dbusObj = SysMgr.libdbusObj
+        dbusErrP = DbusAnalyzer.getErrP()
+
+        conn = DbusAnalyzer.getBus(bus)
+        if not conn:
+            return
+
+        # create a message for method call #
+        des = 'org.freedesktop.DBus'
+        path = '/'
+        iface = des
+        method = 'ListNames'
+        msg = dbusObj.dbus_message_new_method_call(\
+            des.encode(), path.encode(), \
+            iface.encode(), method.encode())
+        if not msg:
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to create a DBus message")
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(\
+            conn, msg, -1, dbusErrP)
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to call a DBus remote method")
+            return
+
+        # prepare args #
+        array = c_char('a'.encode())
+        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
+        char = c_char('s'.encode())
+        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        null = c_char('\0'.encode())
+        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+
+        # parse args #
+        cntRes = c_int(0)
+        arrayRes = (POINTER(c_char_p))()
+        res = dbusObj.dbus_message_get_args(\
+            reply, dbusErrP, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING, \
+            byref(arrayRes), byref(cntRes), DBUS_TYPE_INVALID)
+        if not res:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("Fail to parse DBus message args")
+            return
+
+        slist = []
+        for idx in range(0, cntRes.value):
+            slist.append(str(arrayRes[idx].decode()))
+
+        dbusObj.dbus_free_string_array(arrayRes)
+
+        # clean up #
+        dbusObj.dbus_message_unref(msg)
+        dbusObj.dbus_message_unref(reply)
+        dbusObj.dbus_connection_unref(conn)
+
+        return slist
+
+
 
     @staticmethod
     def prepareDbusMethods():
@@ -31922,11 +32205,9 @@ class DbusAnalyzer(object):
             if not SysMgr.libgObj:
                 SysMgr.libgObj = SysMgr.loadLib(SysMgr.libgobjPath)
 
-            '''
             # load standard libdbus library #
             if not SysMgr.libdbusObj:
                 SysMgr.libdbusObj = SysMgr.loadLib(SysMgr.libdbusPath)
-            '''
         except SystemExit:
             sys.exit(0)
         except:
@@ -31997,9 +32278,43 @@ class DbusAnalyzer(object):
         gioObj.g_dbus_message_get_reply_serial.argtypes = [c_ulong]
         gioObj.g_dbus_message_get_reply_serial.restype = c_ulong
 
-        '''
         # define dbus methods #
         dbusObj = SysMgr.libdbusObj
+
+        dbusObj.dbus_bus_get.argtypes = [c_uint, c_void_p]
+        dbusObj.dbus_bus_get.restype = c_void_p
+
+        dbusObj.dbus_connection_open.argtypes = [c_char_p, c_void_p]
+        dbusObj.dbus_connection_open.restype = c_void_p
+
+        dbusObj.dbus_parse_address.argtypes = \
+            [c_void_p, c_void_p, POINTER(c_int), c_void_p]
+        dbusObj.dbus_parse_address.restype = c_bool
+
+        dbusObj.dbus_bus_request_name.argtypes = \
+            [c_void_p, c_char_p, c_uint, c_void_p]
+        dbusObj.dbus_bus_request_name.restype = c_int
+
+        dbusObj.dbus_message_unref.argtypes = [c_void_p]
+        dbusObj.dbus_message_unref.restype = None
+
+        dbusObj.dbus_connection_unref.argtypes = [c_void_p]
+        dbusObj.dbus_connection_unref.restype = None
+
+        dbusObj.dbus_message_new_method_call.argtypes = \
+            [c_char_p, c_char_p, c_char_p, c_char_p]
+        dbusObj.dbus_message_new_method_call.restype = c_void_p
+
+        dbusObj.dbus_connection_send_with_reply_and_block.argtypes = \
+            [c_void_p, c_void_p, c_int, c_void_p]
+        dbusObj.dbus_connection_send_with_reply_and_block.restype = c_void_p
+
+        dbusObj.dbus_message_get_args.argtypes = \
+            [c_void_p, c_void_p, c_int]
+        dbusObj.dbus_message_get_args.restype = c_bool
+
+        dbusObj.dbus_message_append_args.argtypes = [c_void_p, c_int]
+        dbusObj.dbus_message_append_args.restype = c_bool
 
         dbusObj.dbus_message_demarshal.argtypes = \
             [c_char_p, c_int, c_void_p]
@@ -32014,7 +32329,6 @@ class DbusAnalyzer(object):
 
         dbusObj.dbus_message_get_type.argtypes = [c_void_p]
         dbusObj.dbus_message_get_type.restype = c_int
-        '''
 
 
 
@@ -32231,18 +32545,11 @@ class DbusAnalyzer(object):
                     updateDataFromPipe(rdPipeList)
 
         def updateData(data):
-            tid = data[0]
-            params = data[1]
-            bus = data[2]
+            tid, params, bus, service = data
 
             # convert string to dict #
-            try:
-                jsonData = UtilMgr.convStr2Dict(params)
-                if not jsonData:
-                    return
-            except SystemExit:
-                sys.exit(0)
-            except:
+            jsonData = UtilMgr.convStr2Dict(params)
+            if not jsonData:
                 return
 
             # check message type #
@@ -32257,9 +32564,6 @@ class DbusAnalyzer(object):
                     return
             except:
                 return
-
-            # get ctypes object #
-            SysMgr.importPkgItems('ctypes')
 
             libgioObj = SysMgr.libgioObj
             libgObj = SysMgr.libgObj
@@ -32294,6 +32598,8 @@ class DbusAnalyzer(object):
 
                     # decode from base64 #
                     call = UtilMgr.decodeBase64(ecall)
+                    if type(call) is bytes:
+                        call = call.decode('latin-1')
 
                     # update message size #
                     if length == 0:
@@ -32311,13 +32617,13 @@ class DbusAnalyzer(object):
                         call = call + ('\0' * (length - len(call)))
 
                     # check previous data #
-                    if not tid in DbusAnalyzer.previousData:
-                        DbusAnalyzer.previousData[tid] = dict()
-                        DbusAnalyzer.previousData[tid]['recvmsg'] = ''
-                        DbusAnalyzer.previousData[tid]['sendmsg'] = ''
+                    if not tid in DbusAnalyzer.prevData:
+                        DbusAnalyzer.prevData[tid] = dict()
+                        DbusAnalyzer.prevData[tid]['recvmsg'] = ''
+                        DbusAnalyzer.prevData[tid]['sendmsg'] = ''
 
                     try:
-                        prevData = DbusAnalyzer.previousData[tid][ctype]
+                        prevData = DbusAnalyzer.prevData[tid][ctype]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -32327,14 +32633,14 @@ class DbusAnalyzer(object):
                     if ctype == 'recvmsg':
                         # check this message #
                         if call[0] == 'l' or call[0] == 'B':
-                            DbusAnalyzer.previousData[tid][ctype] = call
+                            DbusAnalyzer.prevData[tid][ctype] = call
                         else:
                             # check prevous message #
                             if len(prevData) > 0 and \
                                 (prevData[0] == 'l' or prevData[0] == 'B'):
                                 call = prevData + call
                             else:
-                                DbusAnalyzer.previousData[tid][ctype] = call
+                                DbusAnalyzer.prevData[tid][ctype] = call
                                 continue
                     elif ctype == 'sendmsg':
                         # check this message #
@@ -32346,7 +32652,7 @@ class DbusAnalyzer(object):
                             else:
                                 call = call + prevData
                         else:
-                            DbusAnalyzer.previousData[tid][ctype] = call
+                            DbusAnalyzer.prevData[tid][ctype] = call
                             continue
                     else:
                         ThreadAnalyzer.dbusData['totalErr'] += 1
@@ -32357,8 +32663,7 @@ class DbusAnalyzer(object):
                         continue
 
                     # cast bytes to void_p #
-                    #buf = c_char_p(call.encode('latin-1'))
-                    buf = c_char_p(call)
+                    buf = c_char_p(call.encode('latin-1'))
 
                     errp = POINTER(DbusAnalyzer.errObj)()
 
@@ -32386,9 +32691,24 @@ class DbusAnalyzer(object):
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
-                    # get properties from message #
+                    # get address of the message #
                     addr = c_ulong(gdmsg)
 
+                    # get sender #
+                    src = libgioObj.g_dbus_message_get_sender(addr)
+                    if src and src.decode() in service:
+                        srcInfo = service[src]
+                    else:
+                        srcInfo = '??'
+
+                    # get receiver #
+                    des = libgioObj.g_dbus_message_get_destination(addr)
+                    if des and des.decode() in service:
+                        desInfo = service[des]
+                    else:
+                        desInfo = '??'
+
+                    # get message type #
                     try:
                         nrType = libgioObj.g_dbus_message_get_message_type(addr)
                         mtype = DbusAnalyzer.GDBusMessageType[nrType]
@@ -32415,13 +32735,14 @@ class DbusAnalyzer(object):
                             backtrace = ''
 
                         msgStr = \
-                            ("Tid: %s(%s) / Direction: %s / "
+                            ("Target: %s(%s) / Source: %s / "
+                            "Destination: %s / Direction: %s / "
                             "Time: %g\nSize: %s\n%s%s") % \
-                            (tid, jsonData['comm'], \
+                            (jsonData['comm'], tid, srcInfo, desInfo, \
                                 direction, jsonData['timediff'], \
                                 UtilMgr.convertSize2Unit(hsize),
                                 libgioObj.g_dbus_message_print(\
-                                    c_ulong(gdmsg), c_ulong(0)),\
+                                    c_ulong(gdmsg), c_ulong(0)).decode(),\
                                 backtrace)
 
                         if SysMgr.customCmd and \
@@ -32493,8 +32814,6 @@ class DbusAnalyzer(object):
 
                     # get properties from message #
                     interface = libgioObj.g_dbus_message_get_interface(addr)
-                    src = libgioObj.g_dbus_message_get_sender(addr)
-                    des = libgioObj.g_dbus_message_get_destination(addr)
                     member = libgioObj.g_dbus_message_get_member(addr)
                     #path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
@@ -32502,7 +32821,8 @@ class DbusAnalyzer(object):
 
                     # save message info #
                     mname = '%3s %s(%s) [%s]' % \
-                        (direction, interface.decode(), member.decode(), mtype)
+                        (direction, interface.decode(), \
+                            member.decode(), mtype)
 
                     # define data type #
                     if direction == 'OUT':
@@ -32603,10 +32923,13 @@ class DbusAnalyzer(object):
                         index = pipeList.index(robj)
                         tid = taskList[index]
                         bus = busList[index]
+                        service = serviceList[index]
                     except SystemExit:
                         sys.exit(0)
                     except:
                         tid = '?'
+                        bus = None
+                        service = None
 
                     # handle data arrived #
                     while 1:
@@ -32621,7 +32944,7 @@ class DbusAnalyzer(object):
                             except:
                                 pass
                         elif output and len(output) > 0:
-                            updateData((tid, output, bus))
+                            updateData((tid, output, bus, service))
 
                         break
             except SystemExit:
@@ -32642,6 +32965,7 @@ class DbusAnalyzer(object):
 
             return taskList
 
+        # check permission #
         SysMgr.checkPerm()
 
         # check filter #
@@ -32688,7 +33012,9 @@ class DbusAnalyzer(object):
                 SysMgr.getCommList(taskList))
 
         # define common list #
+        busList = []
         pipeList = []
+        serviceList = []
         threadingList = []
         SysMgr.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
@@ -32705,11 +33031,32 @@ class DbusAnalyzer(object):
             ConfigMgr.sysList.index('sys_sendmsg'))
 
         # create child processes to attach each targets #
-        busList = []
         for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
 
+            # get bus type #
+            cmdline = SysMgr.getCmdline(tid)
+            if '--system' in cmdline:
+                bus = 'system'
+            elif '--session' in cmdline:
+                bus = 'session'
+            else:
+                bus = None
+            busList.append(bus)
+
+            # get servce list #
+            services = DbusAnalyzer.getServiceList(bus)
+            if services:
+                serviceDict = {}
+                for idx, service in enumerate(services):
+                    serviceDict[service] = \
+                        DbusAnalyzer.getServiceProc(bus, service)
+                serviceList.append(serviceDict)
+            else:
+                serviceList.append(dict())
+
+            # create a new process #
             pid = SysMgr.createProcess(chPgid=False)
 
             # parent #
@@ -32724,13 +33071,6 @@ class DbusAnalyzer(object):
                         target=executeLoop, args=[[rdPipe]])
                     tobj.daemon = True
                     threadingList.append(tobj)
-
-                # get bus type #
-                cmdline = SysMgr.getCmdline(tid)
-                if '--session' in cmdline:
-                    busList.append('session')
-                else:
-                    busList.append('system')
             # child #
             elif pid == 0:
                 # redirect stdout to pipe #
@@ -32952,8 +33292,6 @@ class DltAnalyzer(object):
 
     @staticmethod
     def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
-        SysMgr.importPkgItems('ctypes')
-
         DLT_MSIN_MTIN = 0xf0 # message type info #
         DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
 
@@ -33696,9 +34034,9 @@ class DltAnalyzer(object):
                 resp.status = DltAnalyzer.SERVICERESPONSE['DLT_SERVICE_RESPONSE_ERROR']
                 dltObj.dlt_client_main_loop(byref(dltClient), byref(resp), 0)
                 appids = resp.log_info_type.count_app_ids
-                for idx in xrange(0, appids):
+                for idx in range(0, appids):
                     app = resp.log_info_type.app_ids[idx]
-                    for num in xrange(0, app.count_context_ids):
+                    for num in range(0, app.count_context_ids):
                         con = app.context_id_info[num]
                         SysMgr.printPipe("[%s] [%s] %s" % \
                             (app.app_id, con.context_id, con.log_level))
@@ -35413,7 +35751,7 @@ struct msghdr {
             if offset == 0:
                 if size == 0:
                     size = 1
-                for idx in xrange(0, size):
+                for idx in range(0, size):
                     ret = self.accessMem(\
                         self.pokeIdx, addr + (idx * wordSize), data)
                     if ret < 0:
@@ -35472,7 +35810,7 @@ struct msghdr {
         fdata = data[:offset] + origData + data[offset+origSize:]
 
         # convert type from bytes to word #
-        for idx in xrange(0, len(fdata), wordSize):
+        for idx in range(0, len(fdata), wordSize):
             data = UtilMgr.convertBstr2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
@@ -35537,8 +35875,7 @@ struct msghdr {
                 try:
                     lbuf = (c_char*size)()
                     liov = (self.iovec*1)()[0]
-                    liov.iov_base = \
-                        cast(byref(lbuf), c_void_p)
+                    liov.iov_base = cast(byref(lbuf), c_void_p)
                     liov.iov_len = size
 
                     riov = (self.iovec*1)()[0]
@@ -35650,7 +35987,7 @@ struct msghdr {
             msginfo['msg_iov'] = {}
 
             # get iov info #
-            for idx in xrange(0, iovlen):
+            for idx in range(0, iovlen):
                 offset = idx * sizeof(self.iovec)
                 msginfo['msg_iov'][idx] = {}
 
@@ -35665,7 +36002,7 @@ struct msghdr {
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
                 # encode to base64 #
-                #iovobjdata = iovobjdata.decode('latin-1')
+                iovobjdata = iovobjdata.decode('latin-1')
                 iovobjdata = UtilMgr.encodeBase64(iovobjdata)
 
                 # save size and data #
@@ -36831,7 +37168,7 @@ struct msghdr {
 
 
 
-    def printBacktraceTree(self, diffstr, tinfo, cont=True):
+    def getBacktraceTree(self, diffstr, tinfo, cont=True):
         backtrace = self.getBacktrace()
         depth = len(backtrace)
         diffindent = ' ' * len(diffstr)
@@ -36866,9 +37203,7 @@ struct msghdr {
                 (diffindent, tinfoindent, \
                     (sidx-(commonPos)) * '  ', \
                     item[1], hex(item[0]).rstrip('L'), item[2])
-        SysMgr.printPipe(btString, newline=False)
-
-        return depth
+        return btString, depth
 
 
 
@@ -36980,10 +37315,11 @@ struct msghdr {
                             cont = False
                         else:
                             cont = True
-                        depth = self.printBacktraceTree(diffstr, tinfo, cont)
+                        btstr, depth = \
+                            self.getBacktraceTree(diffstr, tinfo, cont)
                         indent = '  ' * depth
                     else:
-                        indent = ''
+                        btstr = indent = ''
 
                     # build current symbol string #
                     callString = '\n%s %s%s%s/%s%s [%s]' % \
@@ -36994,11 +37330,16 @@ struct msghdr {
                     if SysMgr.printFile:
                         self.addSample(sym, fname)
 
+                        # print history #
                         if SysMgr.showAll:
+                            if btstr:
+                                callString = '%s%s' % (btstr, callString)
                             self.callPrint.append(callString)
                     # console output #
                     else:
                         # print string #
+                        if btstr:
+                            SysMgr.printPipe(btstr, newline=False)
                         SysMgr.printPipe(callString, newline=False)
 
                     # check command #
@@ -37981,7 +38322,7 @@ struct msghdr {
                     pass
                 # skip instructions for performance #
                 elif self.mode == 'inst' and self.skipInst > 0:
-                    for i in xrange(0, self.skipInst):
+                    for i in range(0, self.skipInst):
                         self.ptrace(self.cmd)
                 # setup trap #
                 else:
@@ -43426,7 +43767,7 @@ class ThreadAnalyzer(object):
                             filterTotal = list(map(long, \
                                 cpuProcUsage["[ TOTAL ]"]['usage'].split()))
 
-                            for idx in xrange(0, len(filterTotal)):
+                            for idx in range(0, len(filterTotal)):
                                 filterTotal[idx] += cpuList[idx]
 
                             cpuProcUsage["[ TOTAL ]"]['usage'] = \
@@ -44434,7 +44775,7 @@ class ThreadAnalyzer(object):
             inc = long(ymax / 10)
             if inc == 0:
                 inc = 1
-            yticks(xrange(0, ymax + inc, inc), fontsize=5)
+            yticks(range(0, ymax + inc, inc), fontsize=5)
 
             # add % unit to each value #
             try:
@@ -44915,7 +45256,7 @@ class ThreadAnalyzer(object):
             inc = long(ymax / 10)
             if inc == 0:
                 inc = 1
-            yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+            yticks(range(ymin, ymax + inc, inc), fontsize=5)
 
             xticks(fontsize=4)
             if len(timeline) > 1:
@@ -45394,7 +45735,7 @@ class ThreadAnalyzer(object):
                 inc = 1
 
             # set yticks #
-            yticks(xrange(ymin, ymax + inc, inc), fontsize=5)
+            yticks(range(ymin, ymax + inc, inc), fontsize=5)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -46265,7 +46606,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         # initialize swapper thread per core #
-        for n in xrange(0, SysMgr.maxCore + 1):
+        for n in range(0, SysMgr.maxCore + 1):
             try:
                 if len(SysMgr.perCoreList) > 0 and \
                     n not in SysMgr.perCoreList:
@@ -46989,7 +47330,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(\
             "%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
 
-        for icount in xrange(0, len(self.depData)):
+        for icount in range(0, len(self.depData)):
             SysMgr.addPrint(self.depData[icount] + '\n')
 
         SysMgr.doPrint()
@@ -47144,7 +47485,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         cnt = long(0)
-        for icount in xrange(0, len(self.futexData)):
+        for icount in range(0, len(self.futexData)):
             try:
                 value = self.futexData[icount]
 
@@ -47253,7 +47594,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         cnt = long(0)
-        for icount in xrange(0, len(self.flockData)):
+        for icount in range(0, len(self.flockData)):
             try:
                 pos = self.flockData[icount][4].rfind('0x')
                 dev = self.flockData[icount][4][:pos]
@@ -47423,7 +47764,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         # remove calls of unavailable threads #
-        for icount in xrange(0, len(self.syscallData)):
+        for icount in range(0, len(self.syscallData)):
             try:
                 self.threadData[self.syscallData[icount][2]]
             except:
@@ -47435,7 +47776,7 @@ class ThreadAnalyzer(object):
         cnt = long(0)
         proto = ConfigMgr.SYSCALL_PROTOTYPES
         startTime = float(SysMgr.startTime)
-        for icount in xrange(0, len(self.syscallData)):
+        for icount in range(0, len(self.syscallData)):
             try:
                 prevData = self.syscallData[icount-1]
                 nowData = self.syscallData[icount]
@@ -47724,7 +48065,7 @@ class ThreadAnalyzer(object):
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
+                    for icount in range(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
 
@@ -47792,7 +48133,7 @@ class ThreadAnalyzer(object):
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
+                    for icount in range(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
 
@@ -47866,7 +48207,7 @@ class ThreadAnalyzer(object):
                     timeLine = ''
                     timeLineLen = titleLineLen
                     lval = long(float(self.totalTime) / intervalEnable) + 1
-                    for icount in xrange(0, lval):
+                    for icount in range(0, lval):
                         newFlag = ' '
                         dieFlag = ' '
 
@@ -47956,7 +48297,7 @@ class ThreadAnalyzer(object):
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
         lval = long(float(self.totalTime) / intervalEnable) + 2
-        for icount in xrange(1, lval):
+        for icount in range(1, lval):
             checkEvent = ' '
             cnt = icount - 1
 
@@ -48006,7 +48347,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 try:
                     # revise core usage in DVFS system #
                     if self.threadData[key]['coreSchedCnt'] == 0 and \
@@ -48039,7 +48380,7 @@ class ThreadAnalyzer(object):
         timeLine = ''
         timeLineLen = titleLineLen
         lval = long(float(self.totalTime) / intervalEnable) + 1
-        for icount in xrange(0, lval):
+        for icount in range(0, lval):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                 timeLineLen = titleLineLen + 4
@@ -48068,7 +48409,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                     timeLineLen = titleLineLen + 4
@@ -48097,7 +48438,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                     timeLineLen = titleLineLen + 4
@@ -48132,7 +48473,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                     timeLineLen = titleLineLen + 4
@@ -48161,7 +48502,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                     timeLineLen = titleLineLen + 4
@@ -48196,7 +48537,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
                     timeLineLen = titleLineLen + 4
@@ -48321,7 +48662,7 @@ class ThreadAnalyzer(object):
             timeLineLen = titleLineLen
             lval = \
                 long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 newFlag = ' '
                 dieFlag = ' '
 
@@ -48474,7 +48815,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             timeLineLen = titleLineLen
             lval = long(float(self.totalTime) / intervalEnable) + 1
-            for icount in xrange(0, lval):
+            for icount in range(0, lval):
                 newFlag = ' '
                 dieFlag = ' '
 
@@ -48545,7 +48886,7 @@ class ThreadAnalyzer(object):
                 timeLineLen = titleLineLen
                 lval = \
                     long(float(self.totalTime) / intervalEnable) + 1
-                for icount in xrange(0, lval):
+                for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
 
@@ -48610,7 +48951,7 @@ class ThreadAnalyzer(object):
                 timeLine = ''
                 timeLineLen = titleLineLen
                 lval = long(float(self.totalTime) / intervalEnable) + 1
-                for icount in xrange(0, lval):
+                for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
 
@@ -48676,7 +49017,7 @@ class ThreadAnalyzer(object):
                 timeLine = ''
                 timeLineLen = titleLineLen
                 lval = long(float(self.totalTime) / intervalEnable) + 1
-                for icount in xrange(0, lval):
+                for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
 
@@ -49435,7 +49776,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49460,7 +49801,7 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49498,7 +49839,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(procInfo)
             total = long(0)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -49539,7 +49880,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(gpuInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                 lineLen = len(gpuInfo)
@@ -49568,7 +49909,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(gpuInfo)
             total = long(0)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                     lineLen = len(gpuInfo)
@@ -49614,7 +49955,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49634,7 +49975,7 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49671,7 +50012,7 @@ class ThreadAnalyzer(object):
             minRss = maxRss = long(0)
             lineLen = len(procInfo)
             intData = ThreadAnalyzer.procIntData
-            for idx in xrange(0,len(intData)):
+            for idx in range(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -49744,7 +50085,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49764,7 +50105,7 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(ThreadAnalyzer.procIntData)):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49801,7 +50142,7 @@ class ThreadAnalyzer(object):
             minVss = maxVss = long(0)
             lineLen = len(procInfo)
             intData = ThreadAnalyzer.procIntData
-            for idx in xrange(0,len(intData)):
+            for idx in range(0,len(intData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -49874,7 +50215,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(procInfo)
-        for i in xrange(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
             if lineLen + 5 > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
@@ -49909,7 +50250,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in xrange(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(ThreadAnalyzer.procIntData)):
                 if lineLen + 5 > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
@@ -49957,7 +50298,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(storageInfo)
-        for i in xrange(1,len(TA.procIntData) + 1):
+        for i in range(1,len(TA.procIntData) + 1):
             if lineLen + 21 > maxLineLen:
                 timeLine += ('\n' + (' ' * (storageInfoLen - 1)) + '| ')
                 lineLen = len(storageInfo)
@@ -49993,7 +50334,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(storageInfo)
-            for idx in xrange(0,len(TA.procIntData)):
+            for idx in range(0,len(TA.procIntData)):
                 if lineLen + 21 > maxLineLen:
                     timeLine += ('\n' + (' ' * (storageInfoLen - 1)) + '| ')
                     lineLen = len(storageInfo)
@@ -50034,7 +50375,7 @@ class ThreadAnalyzer(object):
         # Print timeline #
         timeLine = ''
         lineLen = len(networkInfo)
-        for i in xrange(1,len(TA.procIntData) + 1):
+        for i in range(1,len(TA.procIntData) + 1):
             if lineLen + 21 > maxLineLen:
                 timeLine += ('\n' + (' ' * (networkInfoLen - 1)) + '| ')
                 lineLen = len(networkInfo)
@@ -50068,7 +50409,7 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(networkInfo)
-            for idx in xrange(0,len(TA.procIntData)):
+            for idx in range(0,len(TA.procIntData)):
                 if lineLen + 21 > maxLineLen:
                     timeLine += ('\n' + (' ' * (networkInfoLen - 1)) + '| ')
                     lineLen = len(networkInfo)
@@ -50290,7 +50631,7 @@ class ThreadAnalyzer(object):
                 if depth == 0:
                     indent = '\n'
 
-                for idx in xrange(0, depth):
+                for idx in range(0, depth):
                     indent = '%s%s|' % (indent, ' ' * 5)
 
                 nrChild = len(childs)
@@ -51004,7 +51345,7 @@ class ThreadAnalyzer(object):
                     self.thisInterval = float(time) - ftime
                 # long time running intervals #
                 else:
-                    for idx in xrange(index - 1, -1, -1):
+                    for idx in range(index - 1, -1, -1):
                         if ftime > 0:
                             self.thisInterval = float(time) -ftime
                             break
@@ -51015,7 +51356,7 @@ class ThreadAnalyzer(object):
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = intervalThread['cpuUsage']
                 if intervalThread['cpuUsage'] > self.thisInterval:
-                    for idx in xrange(\
+                    for idx in range(\
                         long(intervalThread['cpuUsage'] / intervalEnable), -1, -1):
                         try:
                             self.intData[idx][key]
@@ -51085,7 +51426,7 @@ class ThreadAnalyzer(object):
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = intervalThread['preempted']
                 if intervalThread['preempted'] > self.thisInterval:
-                    for idx in xrange(index + 1, -1, -1):
+                    for idx in range(index + 1, -1, -1):
                         try:
                             self.intData[idx][key]
                         except:
@@ -51939,7 +52280,7 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]['kernelPages'] += pow(2, order)
 
             # make PTE in page table #
-            for cnt in xrange(0, pow(2, order)):
+            for cnt in range(0, pow(2, order)):
                 pfnv = pfn + cnt
 
                 try:
@@ -51974,7 +52315,7 @@ class ThreadAnalyzer(object):
             pfn = long(d['pfn'])
             order = long(d['order'])
 
-            for cnt in xrange(0, pow(2, order)):
+            for cnt in range(0, pow(2, order)):
                 pfnv = pfn + cnt
 
                 try:
@@ -52819,7 +53160,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[pid]
                 SysMgr.printWarn(\
-                    "Fail to handle new task because it is already exist")
+                    "Fail to handle a new task because it is already exist")
             except:
                 self.threadData[pid] = dict(self.init_threadData)
                 self.threadData[pid]['comm'] = d['comm']
@@ -52850,7 +53191,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[cpid]
                 SysMgr.printWarn(\
-                    "Fail to handle new task because it is already exist")
+                    "Fail to handle a new task because it is already exist")
             except:
                 self.threadData[cpid] = dict(self.init_threadData)
                 self.threadData[cpid]['comm'] = ccomm
