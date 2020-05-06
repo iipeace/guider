@@ -16204,11 +16204,11 @@ Examples:
     - Monitor D-Bus messages
         # {0:1} {1:1}
 
-    - Monitor D-Bus messages for main thread and gdbus threads in dbus-client process
+    - Monitor D-Bus messages for dbus-client process
         # {0:1} {1:1} -g dbus-client
 
-    - Monitor D-Bus messages for all threads in dbus-client process
-        # {0:1} {1:1} -g dbus-client -P
+    - Monitor D-Bus messages including specific word
+        # {0:1} {1:1} -c test
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -16644,10 +16644,13 @@ Examples:
 
                     if SysMgr.isPrintDbusMode():
                         helpStr +=  '''
-    - Print D-Bus messages including specific word for main thread and gdbus threads in a.out process in real-time
-        # {0:1} {1:1} -g a.out -c test
+    - Print D-Bus messages with detailed information in real-time
+        # {0:1} {1:1} -a
 
-    - Print D-Bus messages with backtrace for main thread and gdbus threads in a.out process in real-time
+    - Print D-Bus messages including specific word in real-time
+        # {0:1} {1:1} -c test
+
+    - Print D-Bus messages with backtrace for a.out process in real-time
         # {0:1} {1:1} -g a.out -H
                     '''.format(cmd, mode)
 
@@ -31912,11 +31915,20 @@ class DbusAnalyzer(object):
 
     GDBusMessageType = [
         "INVALID",
-        "METHOD_CALL",
+        "METHOD", # METHOD_CALL
         "METHOD_RETURN",
         "ERROR",
         "SIGNAL"
     ]
+
+    taskInfo = {
+        'min': long(0),
+        'max': long(0),
+        'err': long(0),
+        'cnt': long(0),
+        'size': long(0),
+        'total': long(0)
+    }
 
     @staticmethod
     def getErrP():
@@ -31963,7 +31975,7 @@ class DbusAnalyzer(object):
             address = c_char_p(address.encode())
             conn = dbusObj.dbus_connection_open(address, dbusErrP)
             if not conn:
-                SysMgr.printWarn("Fail to get DBus %s bus" % bus)
+                SysMgr.printWarn("Fail to get D-Bus %s bus" % bus)
                 return None
 
         # request my name #
@@ -32000,7 +32012,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a DBus message")
+            SysMgr.printWarn("Fail to create a D-Bus message")
             return
 
         # call a remote method #
@@ -32009,7 +32021,7 @@ class DbusAnalyzer(object):
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a DBus remote method")
+            SysMgr.printWarn("Fail to call a D-Bus remote method")
             return
 
         # prepare args #
@@ -32027,7 +32039,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse DBus message args")
+            SysMgr.printWarn("Fail to parse D-Bus message args")
             return
 
         # convert value #
@@ -32064,7 +32076,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a DBus message")
+            SysMgr.printWarn("Fail to create a D-Bus message")
             return
 
         # prepare args #
@@ -32080,7 +32092,7 @@ class DbusAnalyzer(object):
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to append DBus message args")
+            SysMgr.printWarn("Fail to append D-Bus message args")
             return
 
         # call a remote method #
@@ -32089,7 +32101,7 @@ class DbusAnalyzer(object):
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a DBus remote method")
+            SysMgr.printWarn("Fail to call a D-Bus remote method")
             return
 
         # parse args #
@@ -32103,7 +32115,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse DBus message args")
+            SysMgr.printWarn("Fail to parse D-Bus message args")
             return
 
         # clean up #
@@ -32142,7 +32154,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a DBus message")
+            SysMgr.printWarn("Fail to create a D-Bus message")
             return
 
         # call a remote method #
@@ -32151,7 +32163,7 @@ class DbusAnalyzer(object):
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a DBus remote method")
+            SysMgr.printWarn("Fail to call a D-Bus remote method")
             return
 
         # prepare args #
@@ -32172,7 +32184,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse DBus message args")
+            SysMgr.printWarn("Fail to parse D-Bus message args")
             return
 
         slist = []
@@ -32212,7 +32224,7 @@ class DbusAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to load library to analyze dbus packets", True)
+                "Fail to load library to analyze D-Bus packets", True)
             sys.exit(0)
 
         # define error object #
@@ -32695,18 +32707,20 @@ class DbusAnalyzer(object):
                     addr = c_ulong(gdmsg)
 
                     # get sender #
+                    srcInfo = '??'
                     src = libgioObj.g_dbus_message_get_sender(addr)
-                    if src and src.decode() in service:
-                        srcInfo = service[src]
-                    else:
-                        srcInfo = '??'
+                    if src:
+                        src = src.decode()
+                        if src in service:
+                            srcInfo = service[src]
 
                     # get receiver #
+                    desInfo = '??'
                     des = libgioObj.g_dbus_message_get_destination(addr)
-                    if des and des.decode() in service:
-                        desInfo = service[des]
-                    else:
-                        desInfo = '??'
+                    if des:
+                        des = des.decode()
+                        if des in service:
+                            desInfo = service[des]
 
                     # get message type #
                     try:
@@ -32723,69 +32737,68 @@ class DbusAnalyzer(object):
                     # check direction #
                     if ctype == 'recvmsg':
                         direction = 'IN'
+                        data = DbusAnalyzer.recvData
+                        msgTable = DbusAnalyzer.msgRecvTable
                     else:
                         direction = 'OUT'
+                        data = DbusAnalyzer.sentData
+                        msgTable = DbusAnalyzer.msgSentTable
+
+                    effectiveReply = False
+                    if mtype == 'METHOD_RETURN':
+                        # get reply-serial #
+                        repSerial = \
+                            libgioObj.g_dbus_message_get_reply_serial(\
+                                c_ulong(gdmsg))
+                        if repSerial in msgTable:
+                            effectiveReply = True
 
                     # print message #
-                    if SysMgr.isPrintDbusMode():
+                    if SysMgr.isPrintDbusMode() or SysMgr.customCmd:
                         if len(jsonData['backtrace']) > 2:
                             backtrace = \
                                 'Backtrace: %s\n' % jsonData['backtrace']
                         else:
                             backtrace = ''
 
-                        msgStr = \
-                            ("Target: %s(%s) / Source: %s / "
-                            "Destination: %s / Direction: %s / "
-                            "Time: %g\nSize: %s\n%s%s") % \
-                            (jsonData['comm'], tid, srcInfo, desInfo, \
-                                direction, jsonData['timediff'], \
-                                UtilMgr.convertSize2Unit(hsize),
-                                libgioObj.g_dbus_message_print(\
-                                    c_ulong(gdmsg), c_ulong(0)).decode(),\
-                                backtrace)
+                        if SysMgr.showAll:
+                            addInfo = "%s%s" % \
+                                (libgioObj.g_dbus_message_print(\
+                                    c_ulong(gdmsg), c_ulong(0)).decode(), \
+                                    backtrace)
+                        else:
+                            addInfo = ""
 
-                        if SysMgr.customCmd and \
+                        msgStr = \
+                            ("[%s] Target: %s(%s) / Sender: %s / Receiver: %s"
+                            " / Direction: %s / Time: %g / Size: %s\n%s") % \
+                            (mtype, jsonData['comm'], tid, srcInfo, desInfo, \
+                                direction, jsonData['timediff'], \
+                                UtilMgr.convertSize2Unit(hsize), addInfo)
+
+                        if effectiveReply:
+                            pass
+                        elif SysMgr.customCmd and \
                             not UtilMgr.isEffectiveStr(\
                                 msgStr, SysMgr.customCmd, ignCap=True):
                             continue
 
-                        SysMgr.printPipe(msgStr, flush=True)
+                        if SysMgr.isPrintDbusMode():
+                            SysMgr.printPipe(msgStr, flush=True)
+                            continue
 
-                        continue
-
-                    # check sent data #
-                    if tid not in DbusAnalyzer.sentData:
-                        DbusAnalyzer.sentData[tid] = dict()
-                    # check recv data #
-                    if tid not in DbusAnalyzer.recvData:
-                        DbusAnalyzer.recvData[tid] = dict()
+                    # set task default dict #
+                    DbusAnalyzer.sentData.setdefault(tid, dict())
+                    DbusAnalyzer.recvData.setdefault(tid, dict())
 
                     # return check #
-                    if mtype == 'METHOD_RETURN' or \
-                        mtype == 'INVALID' or \
-                        mtype == 'ERROR':
-
-                        # get reply-serial #
-                        repSerial = \
-                            libgioObj.g_dbus_message_get_reply_serial(\
-                                c_ulong(gdmsg))
-
-                        # INBOUND #
-                        if direction == 'IN':
-                            data = DbusAnalyzer.sentData
-                            msgTable = DbusAnalyzer.msgSentTable
-                        # OUTBOUND #
-                        else:
-                            data = DbusAnalyzer.recvData
-                            msgTable = DbusAnalyzer.msgRecvTable
-
+                    if mtype == 'METHOD_RETURN':
                         if repSerial in msgTable:
                             targetIf, prevTime = msgTable[repSerial]
                         else:
                             targetIf = prevTime = None
 
-                        # update elapsed time #
+                        # handle method return #
                         if targetIf in data[tid] and prevTime:
                             lastData = data[tid][targetIf]
                             elapsed = jsonData['time'] - prevTime
@@ -32796,15 +32809,6 @@ class DbusAnalyzer(object):
 
                             if elapsed > lastData['max']:
                                 data[tid][targetIf]['max'] = elapsed
-
-                            # check error return #
-                            if mtype == 'INVALID' or \
-                                mtype == 'ERROR':
-                                errstr = \
-                                    libgioObj.g_dbus_message_get_error_name(addr)
-                                if errstr:
-                                    data[tid][targetIf]['err'] += 1
-                                    ThreadAnalyzer.dbusData['totalErr'] += 1
 
                             data[tid][targetIf]['total'] += elapsed
                             data[tid][targetIf]['cnt'] += 1
@@ -32819,33 +32823,30 @@ class DbusAnalyzer(object):
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
                     serial = libgioObj.g_dbus_message_get_serial(addr)
 
-                    # save message info #
-                    mname = '%3s %s(%s) [%s]' % \
-                        (direction, interface.decode(), \
-                            member.decode(), mtype)
-
-                    # define data type #
-                    if direction == 'OUT':
-                        data = DbusAnalyzer.sentData
-                        msgTable = DbusAnalyzer.msgSentTable
+                    # handle error message #
+                    if mtype == 'ERROR' or mtype == 'INVALID':
+                        interface = libgioObj.g_dbus_message_get_error_name(addr)
+                        if interface:
+                            member = arg0.decode()
+                            mname = '[%6s] %3s %s(%s)' % \
+                                (mtype, direction, interface.decode(), member)
+                            data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
+                            data[tid][mname]['cnt'] += 1
+                            data[tid][mname]['err'] += 1
+                            ThreadAnalyzer.dbusData['totalErr'] += 1
+                        else:
+                            continue
+                    # handle normal message #
                     else:
-                        data = DbusAnalyzer.recvData
-                        msgTable = DbusAnalyzer.msgRecvTable
+                        mname = '[%6s] %3s %s(%s)' % \
+                            (mtype, direction, interface.decode(), member.decode())
 
                     # save serial number except for signal #
                     if mtype != 'SIGNAL':
                         msgTable[serial] = (mname, jsonData['time'])
 
                     # initialize new interface #
-                    if not mname in data[tid]:
-                        data[tid][mname] = {
-                            'min': long(0),
-                            'max': long(0),
-                            'err': long(0),
-                            'cnt': long(0),
-                            'size': long(0),
-                            'total': long(0)
-                        }
+                    data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
 
                     # increase count #
                     cnt += 1
@@ -32971,7 +32972,10 @@ class DbusAnalyzer(object):
         # check filter #
         taskList = []
         if len(SysMgr.filterGroup) == 0:
+            onlyDaemon = True
             taskList += getDefaultTasks('dbus-daemon')
+        else:
+            onlyDaemon = False
 
         # prepare D-Bus methods to analyze BLOB data #
         DbusAnalyzer.prepareDbusMethods()
@@ -33025,8 +33029,9 @@ class DbusAnalyzer(object):
         SysMgr.sort = 'd'
 
         # set target syscalls #
-        SysMgr.syscallList.append(\
-            ConfigMgr.sysList.index('sys_recvmsg'))
+        if not onlyDaemon:
+            SysMgr.syscallList.append(\
+                ConfigMgr.sysList.index('sys_recvmsg'))
         SysMgr.syscallList.append(\
             ConfigMgr.sysList.index('sys_sendmsg'))
 
@@ -35972,9 +35977,8 @@ struct msghdr {
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
-                self.readMem(header.contents.msg_name, namelen)
-            msginfo['msg_name'] = \
-                msginfo['msg_name'].decode('latin-1')
+                self.readMem(header.contents.msg_name, namelen).\
+                    decode('latin-1')
 
         # get iov header info #
         iovaddr = cast(\
@@ -36002,8 +36006,9 @@ struct msghdr {
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
                 # encode to base64 #
-                iovobjdata = iovobjdata.decode('latin-1')
                 iovobjdata = UtilMgr.encodeBase64(iovobjdata)
+                if sys.version_info >= (3, 0):
+                    iovobjdata = iovobjdata.decode('latin-1')
 
                 # save size and data #
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
