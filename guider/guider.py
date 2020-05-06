@@ -15363,6 +15363,8 @@ Examples:
 Commands:
     kill
     prtctx
+    start
+    stop
     ret:VAL
     exec:CMD
     sleep:SEC
@@ -15446,6 +15448,9 @@ Examples:
 
     - Handle write function calls for a specific thread and print the 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
+
+    - Handle a write function call as a tracing start point for all functions
+        # {0:1} {1:1} -g a.out -c write\\|start
 
     - Handle write function calls for a specific thread and jump to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
@@ -34696,6 +34701,10 @@ struct msghdr {
                 cmdformat = "ADDR|REG:SIZE"
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
+            elif cmd == 'start':
+                cmdformat = "START"
+            elif cmd == 'stop':
+                cmdformat = "STOP"
 
             SysMgr.printErr(\
                 "Wrong command '%s', input in the format {%s:%s}" % \
@@ -34943,6 +34952,15 @@ struct msghdr {
                         "\n[%s] %s: %s(%sbyte)" % \
                             (cmdstr, hex(addr), [ret], size),\
                                 newline=False, flush=True)
+
+                elif cmd == 'start':
+                    SysMgr.printPipe(\
+                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+
+                    SysMgr.customCmd = None
+
+                    self.loadSymbols()
+                    self.updateBpList()
 
                 elif cmd == 'jump':
                     if len(cmdset) == 1:
@@ -37232,6 +37250,9 @@ struct msghdr {
                 addr += 1
             elif addr-1 in self.bpList:
                 addr -= 1
+            else:
+                if self.loadSymbols():
+                    self.updateBpList(verb=False)
 
             '''
             # toDo: update breakpoint list including original data
