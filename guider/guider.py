@@ -32766,17 +32766,22 @@ class DbusAnalyzer(object):
                         else:
                             backtrace = ''
 
-                        if SysMgr.showAll:
-                            addInfo = "%s%s" % \
+                        if SysMgr.isDbusTopMode() or SysMgr.showAll:
+                            addInfo = "\n%s%s" % \
                                 (libgioObj.g_dbus_message_print(\
                                     c_ulong(gdmsg), c_ulong(0)).decode(), \
                                     backtrace)
                         else:
-                            addInfo = ""
+                            path = libgioObj.g_dbus_message_get_path(addr)
+                            interface = libgioObj.g_dbus_message_get_interface(addr)
+                            member = libgioObj.g_dbus_message_get_member(addr)
+                            arg0 = libgioObj.g_dbus_message_get_arg0(addr)
+
+                            addInfo = " %s %s %s %s" % \
+                                    (path, interface, member, arg0)
 
                         msgStr = \
-                            ("[%s] Target: %s(%s) / Sender: %s / Receiver: %s"
-                            " / Direction: %s / Time: %g / Size: %s\n%s") % \
+                            "[%s] %s(%s) %s->%s %s %g %s%s" % \
                             (mtype, jsonData['comm'], tid, srcInfo, desInfo, \
                                 direction, jsonData['timediff'], \
                                 UtilMgr.convertSize2Unit(hsize), addInfo)
@@ -32822,9 +32827,9 @@ class DbusAnalyzer(object):
                         continue
 
                     # get properties from message #
+                    #path = libgioObj.g_dbus_message_get_path(addr)
                     interface = libgioObj.g_dbus_message_get_interface(addr)
                     member = libgioObj.g_dbus_message_get_member(addr)
-                    #path = libgioObj.g_dbus_message_get_path(addr)
                     arg0 = libgioObj.g_dbus_message_get_arg0(addr)
                     serial = libgioObj.g_dbus_message_get_serial(addr)
 
