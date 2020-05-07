@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200506"
+__revision__ = "200507"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3350,7 +3350,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertWord2Bstr(word):
+    def convWord2Str(word):
         try:
             return struct.pack('L', word)
         except SystemExit:
@@ -3599,7 +3599,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertBstr2Word(bstring):
+    def convStr2Word(bstring):
         try:
             return struct.unpack('L', bstring)[0]
         except SystemExit:
@@ -3633,7 +3633,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertSize2Unit(size, isInt=False):
+    def convSize2Unit(size, isInt=False):
         sizeKB = long(1024)
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
@@ -3709,7 +3709,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertUnit2Time(data):
+    def convUnit2Time(data):
         if str(data).isdigit():
             ret = long(data)
         elif data.upper().endswith('S'):
@@ -3732,7 +3732,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertUnit2Size(value):
+    def convUnit2Size(value):
         sizeKB = long(1024)
         sizeMB = sizeKB << 10
         sizeGB = sizeMB << 10
@@ -3977,7 +3977,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertUlong2Long(retval):
+    def convUlong2Long(retval):
         retval = (retval & 0xffffffffffffffff)
         if retval & 0x8000000000000000:
             retval = retval - 0x10000000000000000
@@ -4238,7 +4238,7 @@ class NetworkMgr(object):
                 SysMgr.printInfo(\
                     "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
                     (targetPath, \
-                    UtilMgr.convertSize2Unit(os.path.getsize(targetPath)), \
+                    UtilMgr.convSize2Unit(os.path.getsize(targetPath)), \
                     targetIp, targetPort, origPath))
             except:
                 SysMgr.printErr(\
@@ -4265,7 +4265,7 @@ class NetworkMgr(object):
                     'Failed to find %s to transfer' % origPath)
                 return
 
-            convert = UtilMgr.convertSize2Unit
+            convert = UtilMgr.convSize2Unit
 
             try:
                 # receive file size #
@@ -8932,7 +8932,7 @@ class FunctionAnalyzer(object):
         self.totalTime = \
             float(self.finishTime) - float(SysMgr.startTime)
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         convertNum = UtilMgr.convertNumber
 
         SysMgr.printLogo(big=True)
@@ -9890,7 +9890,7 @@ class FunctionAnalyzer(object):
         title = 'Function Free-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         size = convertFunc(self.pageUnknownFreeCnt << 12)
 
         if SysMgr.userEnable:
@@ -9995,7 +9995,7 @@ class FunctionAnalyzer(object):
         title = 'Function Alloc-Free-Page Info'
         lineLength = SysMgr.lineLength
         diff = self.pageAllocCnt - self.pageUsageCnt
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         size = convertFunc(diff << 12)
 
         # Print page alloc-free pair in user space #
@@ -10235,7 +10235,7 @@ class FunctionAnalyzer(object):
         pageAllocIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_ALLOC')
         argIndex = FunctionAnalyzer.symStackIdxTable.index('ARGUMENT')
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         userSize = convertFunc(self.pageUsageCnt << 12)
         allocSize = convertFunc(self.pageAllocCnt << 12)
         freeSize = convertFunc(self.pageFreeCnt << 12)
@@ -10434,7 +10434,7 @@ class FunctionAnalyzer(object):
         title = 'Function Expand-Heap'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         # Print heap usage in user space #
         SysMgr.clearPrint()
@@ -10857,7 +10857,7 @@ class FunctionAnalyzer(object):
         title = 'Function Write-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         convertNum = UtilMgr.convertNumber
         size = convertFunc(self.blockWrUsageCnt << 9)
 
@@ -11011,7 +11011,7 @@ class FunctionAnalyzer(object):
         title = 'Function Read-Block Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         convertNum = UtilMgr.convertNumber
         size = convertFunc(self.blockRdUsageCnt << 9)
 
@@ -11146,7 +11146,7 @@ class LeakAnalyzer(object):
         # Get file size #
         try:
             stat = os.stat(file)
-            size = UtilMgr.convertSize2Unit(stat.st_size)
+            size = UtilMgr.convSize2Unit(stat.st_size)
         except SystemExit:
             sys.exit(0)
         except:
@@ -11155,10 +11155,9 @@ class LeakAnalyzer(object):
         # Open log file #
         try:
             SysMgr.printInfo(\
-                "start loading data from %s [%s]" % (file, size))
+                "start loading %s [%s]" % (file, size))
 
-            with open(file, 'r') as fd:
-                lines = fd.readlines()[1:]
+            fd = open(file, 'r')
         except SystemExit:
             sys.exit(0)
         except:
@@ -11167,8 +11166,7 @@ class LeakAnalyzer(object):
 
         SysMgr.printInfo("start processing data...")
 
-        self.callData = self.parseLines(lines)
-        del lines
+        self.callData = self.parseLines(fd)
 
         # Get process object #
         try:
@@ -11192,15 +11190,15 @@ class LeakAnalyzer(object):
 
 
     def printLeakage(self):
-        convertFunc = UtilMgr.convertSize2Unit
+        convert = UtilMgr.convSize2Unit
 
         # function leakage info #
         title = 'Function Leakage Info'
         SysMgr.printPipe(\
             '\n[%s] [TotalSize: %s] [CallCount: %s] [FuncCount: %s]' % \
-                (title, convertFunc(self.totalLeakSize, True), \
-                convertFunc(len(self.callData), True), \
-                convertFunc(len(self.symData), True)))
+                (title, convert(self.totalLeakSize), \
+                convert(len(self.callData)), \
+                convert(len(self.symData))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
@@ -11216,15 +11214,15 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(\
                 "{0:>7} | {1:>7} | {2:>7} |{3:^46} | {4:<74} |".\
-                    format(convertFunc(val['lastPosSize']), val['count'], \
-                    convertFunc(long(val['lastPosSize'] / val['count'])), \
+                    format(convert(val['lastPosSize']), convert(val['count']), \
+                    convert(long(val['lastPosSize'] / val['count'])), \
                     sym, val['path']))
 
             for substack, size in sorted(val['substack'].items(), \
                 key=lambda e: e[1], reverse=True):
                 SysMgr.printPipe(\
                     "{0:>7} | {1:>7} | {2:<132} |".\
-                        format('', convertFunc(size), substack))
+                        format('', convert(size), substack))
 
             count += 1
 
@@ -11237,9 +11235,9 @@ class LeakAnalyzer(object):
         title = 'File Leakage Info'
         SysMgr.printPipe(\
             '\n[%s] [TotalSize: %s] [CallCount: %s] [FileCount: %s]' % \
-                (title, convertFunc(self.totalLeakSize, True), \
-                convertFunc(len(self.callData), True), \
-                convertFunc(len(self.fileData), True)))
+                (title, convert(self.totalLeakSize), \
+                convert(len(self.callData)), \
+                convert(len(self.fileData))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
@@ -11255,8 +11253,8 @@ class LeakAnalyzer(object):
 
             SysMgr.printPipe(\
                 "{0:>7} | {1:>7} | {2:>7} | {3:<122} |".format(\
-                    convertFunc(val['lastPosSize']), val['count'], \
-                    convertFunc(long(val['lastPosSize'] / val['count'])), file))
+                    convert(val['lastPosSize']), convert(val['count']), \
+                    convert(long(val['lastPosSize'] / val['count'])), file))
 
             count += 1
 
@@ -11271,8 +11269,8 @@ class LeakAnalyzer(object):
         title = 'Leakage History'
         SysMgr.printPipe(\
             '\n[%s] [Total: %s] [CallCount: %s]' % \
-                (title, convertFunc(self.totalLeakSize, True), \
-                convertFunc(len(self.callData), True)))
+                (title, convert(self.totalLeakSize, True), \
+                    convert(len(self.callData), True)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
@@ -11288,7 +11286,7 @@ class LeakAnalyzer(object):
             SysMgr.printPipe(\
                 "{0:>16} | {1:>6} |{2:50}| {3:<73} |".\
                     format(time, \
-                    convertFunc(long(items['size'])), \
+                    convert(long(items['size'])), \
                     items['data'][:-1], ' <- '.join(stack)))
             count += 1
         SysMgr.printPipe(oneLine)
@@ -11364,7 +11362,13 @@ class LeakAnalyzer(object):
             UtilMgr.printProgress(cnt, total)
             cnt += 1
 
-            ret = proc.getSymbolInfo(long(pos, 16))
+            try:
+                ret = proc.getSymbolInfo(long(pos, 16))
+            except:
+                SysMgr.printWarn(\
+                    "Fail to get symbol for %s" % pos, reason=True)
+                continue
+
             if ret and len(ret) > 3:
                 val['sym'] = ret[0]
                 val['path'] = ret[1]
@@ -11396,11 +11400,15 @@ class LeakAnalyzer(object):
 
 
 
-    def parseLines(self, lines):
+    def parseLines(self, fd):
         callinfo = {}
 
-        for idx, line in enumerate(lines):
-            UtilMgr.printProgress(idx, len(lines))
+        while 1:
+            line = fd.readline()
+            if not line:
+                break
+
+            UtilMgr.printProgress()
 
             items = line.split(', ')
 
@@ -11425,6 +11433,11 @@ class LeakAnalyzer(object):
                     item[name] = body.split()
                 else:
                     item[name] = body
+
+            if not item or \
+                not 'size' in item or \
+                not item['size'].isdigit():
+                continue
 
             # save pos in common area #
             for pos in item['stack']:
@@ -11603,7 +11616,7 @@ class FileAnalyzer(object):
 
         # define alias #
         pageSize = SysMgr.pageSize
-        convert = UtilMgr.convertSize2Unit
+        convert = UtilMgr.convSize2Unit
 
         # Print process list #
         SysMgr.printPipe((\
@@ -11916,7 +11929,7 @@ class FileAnalyzer(object):
         SysMgr.printInfoBuffer()
 
         # define alias #
-        convert = UtilMgr.convertSize2Unit
+        convert = UtilMgr.convSize2Unit
         pageSize = SysMgr.pageSize
 
         # Print process list #
@@ -13169,6 +13182,7 @@ class SysMgr(object):
     threadEnable = False
     nsEnable = False
     termFlag = True
+    exitFlag = False
     tgidEnable = True
     taskEnable = True
     processEnable = True
@@ -13908,13 +13922,9 @@ class SysMgr(object):
                 if len(value) == 1:
                     sig = signal.SIGKILL
                 else:
-                    sig = value[1]
-                    if sig.upper() in sigList:
-                        sig = sigList.index(sig.upper())
-                    elif ('SIG%s' % sig).upper() in sigList:
-                        sig = sigList.index('SIG%s' % sig.upper())
-                    elif sig.isdigit():
-                        sig = long(sig)
+                    sig = SysMgr.getSigNum(value[1])
+                    if not sig:
+                        raise Exception("wrong signal %s" % value[1])
 
                 if len(value) > 2 and value[2].upper() == 'CONT':
                     flag = 'CONT'
@@ -14590,8 +14600,8 @@ class SysMgr(object):
         wIoMsTotal = curWIoMsTotal - prevWIoMsTotal
 
         retstr = '%s/%s' % (\
-            UtilMgr.convertSize2Unit(readMsTotal),\
-            UtilMgr.convertSize2Unit(writeMsTotal))
+            UtilMgr.convSize2Unit(readMsTotal),\
+            UtilMgr.convSize2Unit(writeMsTotal))
 
         return retstr
 
@@ -14779,7 +14789,7 @@ class SysMgr(object):
             'C' in options or 'E' in options or \
             'D' in options or 'k' in options or \
             'j' in options or 'y' in options or \
-            'Y' in options:
+            'Y' in options or 'q' in options:
             return True
         else:
             return False
@@ -15005,6 +15015,7 @@ class SysMgr(object):
                 not SysMgr.isAddr2symMode() and \
                 not SysMgr.isSym2addrMode() and \
                 not SysMgr.isTopDiffMode() and \
+                not SysMgr.isTopSumMode() and \
                 not SysMgr.isPrintDirMode() and \
                 not SysMgr.isReportMode() and \
                 not SysMgr.isHelpMode():
@@ -15135,6 +15146,7 @@ class SysMgr(object):
                 },
             'util': {
                 'topdiff': 'Diff',
+                'topsum': 'Summary',
                 'kill/tkill': 'Signal',
                 'pause': 'Thread',
                 'limitcpu': 'CPU',
@@ -15259,9 +15271,9 @@ Options:
             f:float | F:wfc | h:sigHandler | H:sched
             i:irq | j:journal | k:kmsg | L:cmdline
             m:memory | n:net | N:namespace | o:oomScore
-            p:pipe | P:perf | r:report | R:fileReport
-            s:stack | S:pss | t:thread | u:uss | w:wss
-            W:wchan | y:syslog | Y:delay
+            p:pipe | P:perf | q:quit | r:report
+            R:fileReport | s:stack | S:pss | t:thread
+            u:uss | w:wss | W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage
             c:cpu | e:encode | G:gpu | L:log
@@ -16557,6 +16569,25 @@ Examples:
         # {0:1} {1:1} tc*.out
                     '''.format(cmd, mode)
 
+                # topsum #
+                elif SysMgr.isTopSumMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} FILE [OPTIONS] [--help]
+
+Description:
+    Summary a top output file
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Summary a top output file
+        # {0:1} {1:1} output
+
+    - Summary a top output file into summary.out
+        # {0:1} {1:1} output -o guider.out
+                    '''.format(cmd, mode)
+
                 # kill / send #
                 elif SysMgr.isSendMode():
                     helpStr = '''
@@ -16819,14 +16850,19 @@ Description:
 Options:
     -I  <FILE>                  set input path
     -o  <DIR|FILE>              save output data
+    -c  <SIZE>                  set termination condition for RSS
     -g  <PID|COMM>              set target process
+    -k  <{{START,}}TERM>          set signal
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
-    - Create an output file including memory leakage hints of a specific process
-        # {0:1} kill -35 a.out
+    - Create an output file for memory leakage hints of a specific process after sending signal 36
+        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -k 36
+
+    - Create an output file for memory leakage hints of a specific process when it's RSS reached the specific size
+        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -c 20m -k 35,36
 
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -I leaks.out -g a.out
@@ -18275,10 +18311,10 @@ Copyright:
         try:
             cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
             perfbuf = '%sCycle: %s / ' % \
-                (perfbuf, UtilMgr.convertSize2Unit(cpucycle))
+                (perfbuf, UtilMgr.convSize2Unit(cpucycle))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
             perfbuf = '%sInst: %s / ' % \
-                (perfbuf, UtilMgr.convertSize2Unit(inst))
+                (perfbuf, UtilMgr.convSize2Unit(inst))
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
         except SystemExit:
@@ -18292,7 +18328,7 @@ Copyright:
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
             perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
-                (perfbuf, UtilMgr.convertSize2Unit(cachemiss),\
+                (perfbuf, UtilMgr.convSize2Unit(cachemiss),\
                 cachemissrate)
         except SystemExit:
             sys.exit(0)
@@ -18305,7 +18341,7 @@ Copyright:
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
             perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
-                (perfbuf, UtilMgr.convertSize2Unit(branchmiss),\
+                (perfbuf, UtilMgr.convSize2Unit(branchmiss),\
                 branchmissrate)
         except SystemExit:
             sys.exit(0)
@@ -18315,7 +18351,7 @@ Copyright:
         # CPU stats #
         try:
             perfbuf = '%sClk: %s / ' % \
-                (perfbuf, UtilMgr.convertSize2Unit(\
+                (perfbuf, UtilMgr.convSize2Unit(\
                     value['PERF_COUNT_SW_CPU_CLOCK']))
         except SystemExit:
             sys.exit(0)
@@ -19431,11 +19467,11 @@ Copyright:
         # print options #
         if enableStat != '':
             SysMgr.printInfo(\
-                "enabled record options [ %s]" % enableStat)
+                "enabled runtime options [ %s]" % enableStat)
 
         if disableStat != '':
             SysMgr.printWarn(\
-                "disabled record options [ %s]" % disableStat)
+                "disabled runtime options [ %s]" % disableStat)
 
 
 
@@ -19501,6 +19537,9 @@ Copyright:
 
     @staticmethod
     def stopHandler(signum, frame):
+        if SysMgr.exitFlag:
+            os._exit(0)
+
         # masking signal #
         signal.signal(signum, signal.SIG_IGN)
 
@@ -19511,8 +19550,7 @@ Copyright:
             SysMgr.isSystemMode():
             SysMgr.condExit = True
 
-        elif SysMgr.isTopMode() or \
-            SysMgr.isTraceMode():
+        elif SysMgr.isTopMode() or SysMgr.isTraceMode():
             if SysMgr.printFile:
                 # reload data written to file #
                 if SysMgr.pipeEnable:
@@ -19528,7 +19566,7 @@ Copyright:
                 ThreadAnalyzer.printIntervalUsage()
 
                 fsize = \
-                    UtilMgr.convertSize2Unit(\
+                    UtilMgr.convSize2Unit(\
                         long(os.path.getsize(SysMgr.inputFile)))
 
                 SysMgr.printInfo(\
@@ -19615,7 +19653,7 @@ Copyright:
 
             # print output info #
             fsize = \
-                UtilMgr.convertSize2Unit(\
+                UtilMgr.convSize2Unit(\
                     long(os.path.getsize(SysMgr.inputFile)))
 
             SysMgr.printInfo(\
@@ -19634,6 +19672,9 @@ Copyright:
 
     @staticmethod
     def exitHandler(signum, frame):
+        if SysMgr.exitFlag:
+            os._exit(0)
+
         # block signals for stable termination #
         SysMgr.setIgnoreSignal()
 
@@ -19769,7 +19810,7 @@ Copyright:
 
         SysMgr.printInfo(\
             "wait for writing data to %s [%s] " % \
-                (outputFile, UtilMgr.convertSize2Unit(size)))
+                (outputFile, UtilMgr.convSize2Unit(size)))
 
         try:
             if compressor:
@@ -19813,7 +19854,7 @@ Copyright:
             f.close()
 
             try:
-                fsize = UtilMgr.convertSize2Unit(\
+                fsize = UtilMgr.convSize2Unit(\
                     long(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
@@ -19987,11 +20028,16 @@ Copyright:
 
 
     @staticmethod
-    def doPrint(newline=True, clear=False):
+    def doPrint(newline=True, clear=False, flush=True, addLine=False):
         if len(SysMgr.bufferString) == 0:
             return
 
-        SysMgr.printPipe(SysMgr.bufferString, newline)
+        if addLine:
+            output = '%s\n' % SysMgr.bufferString
+        else:
+            output = SysMgr.bufferString
+
+        SysMgr.printPipe(output, newline=newline, flush=flush)
 
         if clear:
             SysMgr.clearPrint()
@@ -20667,7 +20713,7 @@ Copyright:
 
         try:
             fsize = \
-                UtilMgr.convertSize2Unit(\
+                UtilMgr.convSize2Unit(\
                 long(os.path.getsize(SysMgr.imagePath)))
         except:
             fsize = '?'
@@ -20689,9 +20735,9 @@ Copyright:
                 SysMgr.printWarn((\
                     "New data is going to be overwritten to the buffer"
                     " because of buffer overflow\n"
-                    "\tIncrease Buffer size (%dKB) with -b option"
+                    "\tIncrease Buffer size (%s) with -b option"
                     " if you want to prevent data loss") % \
-                        (SysMgr.bufferSize >> 10), True)
+                        UtilMgr.convSize2Unit(SysMgr.bufferSize), True)
                 SysMgr.bufferOverflowed = True
 
             if len(SysMgr.procBuffer) == 1:
@@ -20735,7 +20781,7 @@ Copyright:
             SysMgr.doPrint()
         # pipe mode #
         elif SysMgr.pipeEnable:
-            SysMgr.doPrint()
+            SysMgr.doPrint(addLine=True)
         # buffered mode #
         else:
             SysMgr.addProcBuffer(SysMgr.bufferString)
@@ -20961,7 +21007,7 @@ Copyright:
         # print to file #
         if SysMgr.fileForPrint:
             try:
-                if SysMgr.isTopMode():
+                if SysMgr.isTopMode() or SysMgr.isTopSumMode():
                     SysMgr.fileForPrint.writelines(line)
                 else:
                     SysMgr.fileForPrint.write(line + retstr)
@@ -21267,7 +21313,7 @@ Copyright:
     def parseRuntimeOption(value):
         SysMgr.countEnable = True
         convertNum = UtilMgr.convertNumber
-        convertTime = UtilMgr.convertUnit2Time
+        convertTime = UtilMgr.convUnit2Time
 
         # split params #
         if value:
@@ -21362,16 +21408,24 @@ Copyright:
 
 
     @staticmethod
-    def reloadFileBuffer():
+    def reloadFileBuffer(path=None):
+        if path:
+            try:
+                fd = open(path, 'r')
+            except:
+                SysMgr.printOpenErr(path)
+                sys.exit(0)
+        else:
+            fd = SysMgr.fileForPrint
+
         try:
-            SysMgr.fileForPrint.seek(0, 0)
+            fd.seek(0, 0)
             SysMgr.procBuffer = \
-                SysMgr.fileForPrint.read().replace(\
-                    '\n\n', 'NEWSTAT\n\n')
+                fd.read().replace('\n\n', 'NEWSTAT\n\n')
             SysMgr.procBuffer = \
                 SysMgr.procBuffer.split('NEWSTAT')
-            SysMgr.fileForPrint.seek(0, 0)
-            SysMgr.fileForPrint.truncate()
+            fd.seek(0, 0)
+            fd.truncate()
         except:
             return
 
@@ -21540,7 +21594,9 @@ Copyright:
                 SysMgr.groupProcEnable = True
 
             elif option == 'p':
-                if SysMgr.findOption('i'):
+                if not SysMgr.isThreadRecordMode():
+                    pass
+                elif SysMgr.findOption('i'):
                     SysMgr.printErr(\
                         "wrong option with -p, -i option is already used")
                     sys.exit(0)
@@ -21772,6 +21828,9 @@ Copyright:
 
                 if 'C' in options:
                     SysMgr.cgroupEnable = True
+
+                if 'q' in options:
+                    SysMgr.exitFlag = True
 
                 if not SysMgr.isEffectiveEnableOption(options):
                     SysMgr.printErr(\
@@ -22957,6 +23016,21 @@ Copyright:
 
             ThreadAnalyzer.doDiffReports(argList)
 
+        # TOPSUM MODE #
+        elif SysMgr.isTopSumMode():
+            # remove option args #
+            SysMgr.removeOptionArgs()
+
+            # make list of arguments #
+            if len(sys.argv) > 2:
+                fname = sys.argv[2]
+            else:
+                fname = None
+
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            ThreadAnalyzer.doSumReport(fname)
+
         # PAUSE MODE #
         elif SysMgr.isPauseMode():
             # convert comm to pid #
@@ -23286,6 +23360,15 @@ Copyright:
     @staticmethod
     def isTopDiffMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'topdiff':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isTopSumMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'topsum':
             return True
         else:
             return False
@@ -24174,7 +24257,7 @@ Copyright:
 
                 # rss #
                 rss = long(statList[gstatList.index("RSS")])
-                rss = UtilMgr.convertSize2Unit(rss << 12, True)
+                rss = UtilMgr.convSize2Unit(rss << 12, True)
             except:
                 pass
 
@@ -24982,7 +25065,7 @@ Copyright:
 
                 SysMgr.printInfo(\
                     "%s [%s] is uploaded to %s:%s successfully" % \
-                        (targetPath, UtilMgr.convertSize2Unit(\
+                        (targetPath, UtilMgr.convSize2Unit(\
                             os.path.getsize(targetPath)), addr, remotePath))
             except:
                 SysMgr.printErr(\
@@ -25045,7 +25128,7 @@ Copyright:
                 SysMgr.printInfo(\
                     "%s [%s] is downloaded from %s:%s successfully" % \
                     (targetPath, \
-                    UtilMgr.convertSize2Unit(\
+                    UtilMgr.convSize2Unit(\
                         os.path.getsize(targetPath)), addr, origPath))
             except:
                 SysMgr.printErr(\
@@ -26574,9 +26657,9 @@ Copyright:
                     if 'subFiles' not in result[parentAbsPath]:
                         result[parentAbsPath]['subFiles'] = dict()
                     result[parentAbsPath]['subFiles'][subAbsPath] = \
-                        dict(size=UtilMgr.convertSize2Unit(size), type='file')
+                        dict(size=UtilMgr.convSize2Unit(size), type='file')
 
-            result[parentAbsPath]['size'] = UtilMgr.convertSize2Unit(totalSize)
+            result[parentAbsPath]['size'] = UtilMgr.convSize2Unit(totalSize)
             result[parentAbsPath]['nrDir'] = UtilMgr.convertNumber(totalDir)
             result[parentAbsPath]['nrFile'] = UtilMgr.convertNumber(totalFile)
 
@@ -26637,7 +26720,7 @@ Copyright:
                         size = os.stat(fullPath).st_size
                         totalSize += size
                         size = ' <%s>' % \
-                               UtilMgr.convertSize2Unit(size)
+                               UtilMgr.convSize2Unit(size)
                     except:
                         SysMgr.printWarn( \
                             'Fail to get size of %s' % fullPath, reason=True)
@@ -26651,7 +26734,7 @@ Copyright:
 
             if totalSize:
                 tsize = 'SIZE: %s, ' % \
-                        UtilMgr.convertSize2Unit(totalSize)
+                        UtilMgr.convSize2Unit(totalSize)
             else:
                 tsize = ''
 
@@ -26810,8 +26893,7 @@ Copyright:
     @staticmethod
     def doLeaktrace():
         if not SysMgr.inputParam:
-            SysMgr.printErr(\
-                "No PATH with -I")
+            SysMgr.printErr("No PATH with -I")
             sys.exit(0)
 
         targetList = SysMgr.filterGroup
@@ -26839,6 +26921,89 @@ Copyright:
             sys.exit(0)
         else:
             pid = pids[0]
+            comm = SysMgr.getComm(pid)
+
+        # create a task object #
+        tobj = ThreadAnalyzer(None, onlyInstance=True)
+        rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+
+        # get termination signal #
+        if len(SysMgr.killFilter) > 1:
+            val = SysMgr.killFilter[0]
+
+            # send signal #
+            try:
+                sig = SysMgr.getSigNum(val[0])
+                if not sig:
+                    raise Exception("wrong signal %s" % val[0])
+
+                os.kill(long(pid), sig)
+                SysMgr.printStat(\
+                    'sent %s to %s(%s)' % \
+                        (ConfigMgr.SIG_LIST[sig], comm, pid))
+            except:
+                SysMgr.printErr(\
+                    "Fail to send signal %s" % sig, reason=True)
+                sys.exit(0)
+
+        # check condition #
+        size = 0
+        if SysMgr.customCmd:
+            size = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
+
+            while 1:
+                mlist = SysMgr.getMemStat(pid)
+                if not mlist:
+                    SysMgr.printErr(\
+                        "Fail to get RSS of %s(%s)" % (comm, pid))
+                    sys.exit(0)
+
+                current = long(mlist[rssIdx]) << 12
+                SysMgr.printInfo(\
+                    'the RSS of %s(%s) is %s' % \
+                        (comm, pid, UtilMgr.convSize2Unit(current)))
+
+                if size <= current:
+                    break
+                time.sleep(1)
+
+        # get termination signal #
+        if not SysMgr.killFilter:
+            val = ['36']
+        elif len(SysMgr.killFilter) > 1:
+            val = SysMgr.killFilter[1]
+        else:
+            val = SysMgr.killFilter[0]
+
+        # send signal #
+        try:
+            sig = SysMgr.getSigNum(val[0])
+            if not sig:
+                raise Exception("wrong signal %s" % val[0])
+
+            os.kill(long(pid), sig)
+            SysMgr.printStat(\
+                'sent %s to %s(%s)' % \
+                    (ConfigMgr.SIG_LIST[sig], comm, pid))
+        except:
+            SysMgr.printErr(\
+                "Fail to send signal %s" % sig, reason=True)
+            sys.exit(0)
+
+        SysMgr.printStat('wait for %s' % SysMgr.inputParam)
+
+        # ready to file is done #
+        while 1:
+            tobj.saveFileStat([[pid], []])
+            if not SysMgr.inputParam in tobj.fileData:
+                break
+            time.sleep(1)
+            tobj.reinitStats()
+
+        # ready to file is created #
+        while not os.path.exists(SysMgr.inputParam) or \
+            os.stat(SysMgr.inputParam).st_size == 0:
+            time.sleep(1)
 
         # create leaktracer parser #
         try:
@@ -27407,7 +27572,7 @@ Copyright:
                     memList = line.split()
                     memData[memList[0][:-1]] = long(memList[1])
 
-                conv = UtilMgr.convertSize2Unit
+                conv = UtilMgr.convSize2Unit
                 memTotal = conv(memData['MemTotal'] << 10)
                 memFree = conv(memData['MemFree'] << 10)
                 memFreePer = (memData['MemFree'] / float(memData['MemTotal'])) * 100
@@ -27453,7 +27618,7 @@ Copyright:
                 vmData = {}
 
                 zonestr = '\n\t'
-                conv = UtilMgr.convertSize2Unit
+                conv = UtilMgr.convSize2Unit
                 for line in vmBuf:
                     vmList = line.split()
                     item = vmList[0]
@@ -27511,7 +27676,7 @@ Copyright:
                         continue
 
                 zonestr = '\n\t'
-                conv = UtilMgr.convertSize2Unit
+                conv = UtilMgr.convSize2Unit
                 for zone, items in sorted(memData.items()):
                     zonestr += '[%9s] ' % zone
                     for name, val in sorted(items.items()):
@@ -27525,7 +27690,7 @@ Copyright:
         def allocMemory(size):
             SysMgr.setDefaultSignal()
 
-            conv = UtilMgr.convertSize2Unit
+            conv = UtilMgr.convSize2Unit
 
             # allocate memory #
             try:
@@ -27615,11 +27780,11 @@ Copyright:
             else:
                 raise Exception()
 
-            interval = UtilMgr.convertUnit2Time(interval)
+            interval = UtilMgr.convUnit2Time(interval)
             count = long(count)
 
             # convert memory size #
-            size = UtilMgr.convertUnit2Size(size)
+            size = UtilMgr.convUnit2Size(size)
             if not size:
                 raise Exception()
         except SystemExit:
@@ -27995,6 +28160,23 @@ Copyright:
 
 
     @staticmethod
+    def getSigNum(val):
+        if val.isdigit():
+            return long(val)
+
+        val = val.upper()
+        if val in ConfigMgr.SIG_LIST:
+            return ConfigMgr.SIG_LIST.index(val)
+
+        val = 'SIG%s' % val
+        if val in ConfigMgr.SIG_LIST:
+            return ConfigMgr.SIG_LIST.index(val)
+
+        return None
+
+
+
+    @staticmethod
     def sendSignalArgs(argList, isThread=False):
         sig = signal.SIGQUIT
         SIG_LIST = ConfigMgr.SIG_LIST
@@ -28007,13 +28189,8 @@ Copyright:
         isFound = False
         for val in options:
             try:
-                if val[1:].upper() in SIG_LIST:
-                    sig = SIG_LIST.index(val[1:].upper())
-                elif ('SIG%s' % val[1:]).upper() in SIG_LIST:
-                    sig = SIG_LIST.index('SIG%s' % val[1:].upper())
-                elif val[1:].isdigit():
-                    sig = long(val[1:])
-                else:
+                ret = SysMgr.getSigNum(val[1:])
+                if not ret:
                     continue
 
                 isFound = True
@@ -29160,7 +29337,7 @@ Copyright:
             try:
                 SysMgr.fileForPrint.flush()
 
-                fsize = UtilMgr.convertSize2Unit(\
+                fsize = UtilMgr.convSize2Unit(\
                     long(os.fstat(SysMgr.fileForPrint.fileno()).st_size))
 
                 SysMgr.printInfo(\
@@ -31122,7 +31299,7 @@ Copyright:
         cnt = long(0)
         prevOwner = None
         now = time.mktime(time.gmtime())
-        convertSizeFunc = UtilMgr.convertSize2Unit
+        convertSizeFunc = UtilMgr.convSize2Unit
         convertTimeFunc = UtilMgr.convertTime
 
         # merge stats per-owner #
@@ -31308,7 +31485,7 @@ Copyright:
                 "Dev", "TYPE", "Size", "Packet", "Error", "Drop", "Multicast"))
         SysMgr.infoBufferPrint(twoLine)
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         cnt = 1
         totalStat = \
@@ -31516,12 +31693,12 @@ Copyright:
                 read = readSize = \
                     (long(afterInfo['sectorRead']) - \
                         long(beforeInfo['sectorRead'])) << 9
-                readSize = UtilMgr.convertSize2Unit(readSize)
+                readSize = UtilMgr.convSize2Unit(readSize)
 
                 write = writeSize = \
                     (long(afterInfo['sectorWrite']) - \
                         long(beforeInfo['sectorWrite'])) << 9
-                writeSize = UtilMgr.convertSize2Unit(writeSize)
+                writeSize = UtilMgr.convSize2Unit(writeSize)
 
                 totalInfo['read'] += read
                 totalInfo['write'] += write
@@ -31550,9 +31727,9 @@ Copyright:
                 except:
                     pass
 
-                total = UtilMgr.convertSize2Unit(total)
-                free = UtilMgr.convertSize2Unit(free)
-                avail = UtilMgr.convertSize2Unit(avail)
+                total = UtilMgr.convSize2Unit(total)
+                free = UtilMgr.convSize2Unit(free)
+                avail = UtilMgr.convSize2Unit(avail)
             except:
                 pass
 
@@ -31634,15 +31811,15 @@ Copyright:
                     usage = long(0)
 
                 totalInfo['total'] = \
-                    UtilMgr.convertSize2Unit(totalInfo['total'])
+                    UtilMgr.convSize2Unit(totalInfo['total'])
                 totalInfo['free'] = \
-                    UtilMgr.convertSize2Unit(totalInfo['free'])
+                    UtilMgr.convSize2Unit(totalInfo['free'])
                 totalInfo['favail'] = \
-                    UtilMgr.convertSize2Unit(totalInfo['favail'])
+                    UtilMgr.convSize2Unit(totalInfo['favail'])
                 totalInfo['read'] = \
-                    UtilMgr.convertSize2Unit(totalInfo['read'])
+                    UtilMgr.convSize2Unit(totalInfo['read'])
                 totalInfo['write'] = \
-                    UtilMgr.convertSize2Unit(totalInfo['write'])
+                    UtilMgr.convSize2Unit(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
             except:
                 totalInfo['use'] = '?%'
@@ -31708,7 +31885,7 @@ Copyright:
             after['Mlocked'] = '0'
 
         # define convert function #
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         # print memory info #
         SysMgr.infoBufferPrint('\n[System Memory Info]')
@@ -32361,7 +32538,7 @@ class DbusAnalyzer(object):
                     "Fail to update system stat", True)
 
             convertNum = UtilMgr.convertNumber
-            convertSize = UtilMgr.convertSize2Unit
+            convertSize = UtilMgr.convSize2Unit
 
             for pid in taskList:
                 try:
@@ -32773,18 +32950,23 @@ class DbusAnalyzer(object):
                                     backtrace)
                         else:
                             path = libgioObj.g_dbus_message_get_path(addr)
+                            if not path:
+                                path = ''
                             interface = libgioObj.g_dbus_message_get_interface(addr)
+                            if not interface:
+                                interface = ''
                             member = libgioObj.g_dbus_message_get_member(addr)
-                            arg0 = libgioObj.g_dbus_message_get_arg0(addr)
+                            if not member:
+                                member = ''
 
-                            addInfo = " %s %s %s %s" % \
-                                    (path, interface, member, arg0)
+                            addInfo = " %s %s %s" % \
+                                    (path, interface, member)
 
                         msgStr = \
                             "[%s] %s(%s) %s->%s %s %g %s%s" % \
                             (mtype, jsonData['comm'], tid, srcInfo, desInfo, \
                                 direction, jsonData['timediff'], \
-                                UtilMgr.convertSize2Unit(hsize), addInfo)
+                                UtilMgr.convSize2Unit(hsize), addInfo)
 
                         if effectiveReply:
                             pass
@@ -35441,7 +35623,7 @@ struct msghdr {
                 origWord = self.readMem(addr)
             else:
                 origWord = self.accessMem(self.peekIdx, addr)
-                origWord = UtilMgr.convertWord2Bstr(origWord)
+                origWord = UtilMgr.convWord2Str(origWord)
 
             if not origWord:
                 return False
@@ -35786,7 +35968,7 @@ struct msghdr {
                         break
                 return ret
             else:
-                data = UtilMgr.convertWord2Bstr(long(data))
+                data = UtilMgr.convWord2Str(long(data))
                 if not data:
                     return -1
 
@@ -35839,7 +36021,7 @@ struct msghdr {
 
         # convert type from bytes to word #
         for idx in range(0, len(fdata), wordSize):
-            data = UtilMgr.convertBstr2Word(fdata[idx:idx+wordSize])
+            data = UtilMgr.convStr2Word(fdata[idx:idx+wordSize])
 
             ret = self.accessMem(self.pokeIdx, addr+idx, data)
             if ret == -1:
@@ -35850,7 +36032,7 @@ struct msghdr {
 
 
     def updateBpList(self, verb=True):
-        if hasattr(self, 'mode') and self.mode != 'break':
+        if not hasattr(self, 'mode') or self.mode != 'break':
             return
 
         # update file list #
@@ -35948,7 +36130,7 @@ struct msghdr {
                 return word
 
             # convert a word to a byte string #
-            word = UtilMgr.convertWord2Bstr(word)
+            word = UtilMgr.convWord2Str(word)
             if not word:
                 return None
 
@@ -36703,7 +36885,7 @@ struct msghdr {
                             rvalue = '"%s"' % rvalue.decode("utf-8")
                             rvalue = re.sub('\W+','', rvalue)
                         except:
-                            rvalue = hex(UtilMgr.convertBstr2Word(rvalue))
+                            rvalue = hex(UtilMgr.convStr2Word(rvalue))
                             rvalue = rvalue.rstrip('L')
                     else:
                         rvalue = '?'
@@ -41411,7 +41593,7 @@ class ElfAnalyzer(object):
 
         # check size #
         if self.fileSize < EI_NIDENT:
-            size = UtilMgr.convertSize2Unit(self.fileSize)
+            size = UtilMgr.convSize2Unit(self.fileSize)
             SysMgr.printWarn(\
                 errStr % (path, "it's size is just %s" % size), debug)
             self.ret = None
@@ -42323,6 +42505,17 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def doSumReport(fname):
+        if not fname:
+            SysMgr.printErr("No input file")
+            sys.exit(0)
+
+        SysMgr.reloadFileBuffer(fname)
+        ThreadAnalyzer.printIntervalUsage()
+
+
+
+    @staticmethod
     def doDiffReports(flist):
         def getProcName(pinfo):
             namelist = pinfo.split('(')
@@ -43117,7 +43310,8 @@ class ThreadAnalyzer(object):
                 NetworkMgr.setServerNetwork(None, None)
 
             # set configuration from file #
-            self.getConf()
+            if not SysMgr.fileTopEnable:
+                self.getConf()
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
@@ -43514,6 +43708,7 @@ class ThreadAnalyzer(object):
         self.nrPrevProcess = self.nrProcess
         self.nrThread = long(0)
         self.nrProcess = long(0)
+        self.nrFd = long(0)
         SysMgr.jsonData = {}
 
 
@@ -43615,12 +43810,12 @@ class ThreadAnalyzer(object):
                     sline = line[strPos:].split()
 
                     try:
-                        totalRam = UtilMgr.convertUnit2Size(sline[1][:-1])
+                        totalRam = UtilMgr.convUnit2Size(sline[1][:-1])
                     except:
                         pass
 
                     try:
-                        totalSwap = UtilMgr.convertUnit2Size(sline[3][:-1])
+                        totalSwap = UtilMgr.convUnit2Size(sline[3][:-1])
                     except:
                         totalSwap = None
 
@@ -44002,11 +44197,11 @@ class ThreadAnalyzer(object):
                         busy, read, write, free = item.split('/')
                         busyList.append(busy)
                         readList.append(\
-                            UtilMgr.convertUnit2Size(read) >> 10)
+                            UtilMgr.convUnit2Size(read) >> 10)
                         writeList.append(\
-                            UtilMgr.convertUnit2Size(write) >> 10)
+                            UtilMgr.convUnit2Size(write) >> 10)
                         freeList.append(\
-                            UtilMgr.convertUnit2Size(free) >> 10)
+                            UtilMgr.convUnit2Size(free) >> 10)
 
                     # save previous info #
                     storageUsage[sname]['busy'] = busyList
@@ -44033,9 +44228,9 @@ class ThreadAnalyzer(object):
                     for item in intervalList.split():
                         recv, tran = item.split('/')
                         recvList.append(\
-                            UtilMgr.convertUnit2Size(recv) >> 10)
+                            UtilMgr.convUnit2Size(recv) >> 10)
                         tranList.append(\
-                            UtilMgr.convertUnit2Size(tran) >> 10)
+                            UtilMgr.convUnit2Size(tran) >> 10)
 
                     # save previous info #
                     networkUsage[sname]['recv'] = recvList
@@ -44172,7 +44367,7 @@ class ThreadAnalyzer(object):
             def autopct(pct):
                 total = sum(values)
                 val = long(round(pct*total/100.0)) << 20
-                val = UtilMgr.convertSize2Unit(val, True)
+                val = UtilMgr.convSize2Unit(val, True)
                 usage = '{v:s} ({p:.0f}%)'.format(p=pct,v=val)
                 line = '=' * 7
                 string = '{s:1}\n{l:1}{d:1}'.\
@@ -44237,23 +44432,23 @@ class ThreadAnalyzer(object):
                     value[propList.index('swap')])
 
                 # set private dirty size #
-                pdrt = UtilMgr.convertSize2Unit(\
+                pdrt = UtilMgr.convSize2Unit(\
                     value[propList.index('pdirty')] << 10, True)
 
                 # set shared dirty size #
-                sdrt = UtilMgr.convertSize2Unit(\
+                sdrt = UtilMgr.convSize2Unit(\
                     value[propList.index('sdirty')] << 10, True)
 
                 # set rss size #
-                rss = UtilMgr.convertSize2Unit(\
+                rss = UtilMgr.convSize2Unit(\
                     value[propList.index('rss')] << 20, True)
 
                 # set swap size #
-                swap = UtilMgr.convertSize2Unit(\
+                swap = UtilMgr.convSize2Unit(\
                     value[propList.index('swap')] << 20, True)
 
                 # set locked size #
-                locked = UtilMgr.convertSize2Unit(\
+                locked = UtilMgr.convSize2Unit(\
                     value[propList.index('locked')] << 10, True)
 
                 self.details.append((\
@@ -44282,23 +44477,23 @@ class ThreadAnalyzer(object):
 
             rss = item['[TOTAL]'][propList.index('rss')]
             swap = item['[TOTAL]'][propList.index('swap')]
-            total = UtilMgr.convertSize2Unit((rss+swap) << 20)
+            total = UtilMgr.convSize2Unit((rss+swap) << 20)
 
-            rss = UtilMgr.convertSize2Unit(rss << 20)
-            swap = UtilMgr.convertSize2Unit(swap << 20)
+            rss = UtilMgr.convSize2Unit(rss << 20)
+            swap = UtilMgr.convSize2Unit(swap << 20)
 
-            vmem = UtilMgr.convertSize2Unit(\
+            vmem = UtilMgr.convSize2Unit(\
                 item['[TOTAL]'][propList.index('vmem')] << 20)
 
-            pss = UtilMgr.convertSize2Unit(\
+            pss = UtilMgr.convSize2Unit(\
                 item['[TOTAL]'][propList.index('pss')] << 20)
 
-            lock = UtilMgr.convertSize2Unit(\
+            lock = UtilMgr.convSize2Unit(\
                 item['[TOTAL]'][propList.index('locked')] << 10)
 
             dirty = item['[TOTAL]'][propList.index('pdirty')] + \
                 item['[TOTAL]'][propList.index('sdirty')]
-            dirty = UtilMgr.convertSize2Unit(dirty << 10)
+            dirty = UtilMgr.convSize2Unit(dirty << 10)
 
             totalList =\
                 [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
@@ -44451,7 +44646,7 @@ class ThreadAnalyzer(object):
 
             try:
                 boundaryList = \
-                    list(map(UtilMgr.convertUnit2Size, \
+                    list(map(UtilMgr.convUnit2Size, \
                         SysMgr.boundaryLine))
             except:
                 SysMgr.printErr(\
@@ -44472,7 +44667,7 @@ class ThreadAnalyzer(object):
 
                     labelList.append(\
                         '[ Boundary %s ]' % \
-                            UtilMgr.convertSize2Unit(boundary))
+                            UtilMgr.convSize2Unit(boundary))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -44842,12 +45037,12 @@ class ThreadAnalyzer(object):
                 maxIdx = usage.index(max(usage))
 
                 minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 10))
-                maxsize = convertSize2Unit(usage[maxIdx] << 10)
-                totalsize = convertSize2Unit(long(sum(usage)) << 10)
+                    (prefix, convSize2Unit(usage[minIdx] << 10))
+                maxsize = convSize2Unit(usage[maxIdx] << 10)
+                totalsize = convSize2Unit(long(sum(usage)) << 10)
                 maxval = '%s%s' % (prefix, maxsize)
                 lastval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[-1] << 10))
+                    (prefix, convSize2Unit(usage[-1] << 10))
 
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,\
@@ -44885,7 +45080,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convertSize2Unit = UtilMgr.convertSize2Unit
+            convSize2Unit = UtilMgr.convSize2Unit
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -44984,11 +45179,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convertSize2Unit(wrUsage[-1] << 10))
+                        (prefix, convSize2Unit(wrUsage[-1] << 10))
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -45023,11 +45218,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convertSize2Unit(rdUsage[-1] << 10))
+                        (prefix, convSize2Unit(rdUsage[-1] << 10))
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -45079,11 +45274,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convertSize2Unit(wrUsage[-1] << 10))
+                        (prefix, convSize2Unit(wrUsage[-1] << 10))
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -45117,11 +45312,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
                     maxval = '%s%s' % (prefix, maxsize)
                     lastval = '%s%s' % \
-                        (prefix, convertSize2Unit(rdUsage[-1] << 10))
+                        (prefix, convSize2Unit(rdUsage[-1] << 10))
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -45182,11 +45377,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(wrUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(wrUsage)) << 10)
+                    maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
                     maxval = '%s[%s]%s' % (prefix, maxsize, idx)
                     lastval = '%s[%s]%s' % \
-                        (prefix, convertSize2Unit(wrUsage[-1] << 10), idx)
+                        (prefix, convSize2Unit(wrUsage[-1] << 10), idx)
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
                         pass
@@ -45221,11 +45416,11 @@ class ThreadAnalyzer(object):
                     if ymax < maxUsage:
                         ymax = maxUsage
 
-                    maxsize = convertSize2Unit(rdUsage[maxIdx] << 10)
-                    totalsize = convertSize2Unit(long(sum(rdUsage)) << 10)
+                    maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
+                    totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
                     maxval = '%s[%s]%s' % (prefix, maxsize, idx)
                     lastval = '%s[%s]%s' % \
-                        (prefix, convertSize2Unit(rdUsage[-1] << 10), idx)
+                        (prefix, convSize2Unit(rdUsage[-1] << 10), idx)
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
                         pass
@@ -45311,7 +45506,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [convertSize2Unit(val << 10) for val in ytickLabel]
+                    [convSize2Unit(val << 10) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ''
@@ -45352,10 +45547,10 @@ class ThreadAnalyzer(object):
                     ymax = maxusage
 
                 minval = '%s%s' % \
-                    (prefix, convertSize2Unit(usage[minIdx] << 20))
-                maxsize = convertSize2Unit(usage[maxIdx] << 20)
+                    (prefix, convSize2Unit(usage[minIdx] << 20))
+                maxsize = convSize2Unit(usage[maxIdx] << 20)
                 maxval = '%s%s' % (prefix, maxsize)
-                lastsize = convertSize2Unit(usage[-1] << 20)
+                lastsize = convSize2Unit(usage[-1] << 20)
                 lastval = '%s%s' % (prefix, lastsize)
 
                 if usage[minIdx] > 0:
@@ -45387,7 +45582,7 @@ class ThreadAnalyzer(object):
             labelList = []
 
             # set convert size #
-            convertSize2Unit = UtilMgr.convertSize2Unit
+            convSize2Unit = UtilMgr.convSize2Unit
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -45472,11 +45667,11 @@ class ThreadAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convertSize2Unit(usage[minIdx] << 20))
-                        maxsize = convertSize2Unit(usage[maxIdx] << 20)
+                            (key, convSize2Unit(usage[minIdx] << 20))
+                        maxsize = convSize2Unit(usage[maxIdx] << 20)
                         maxval = '%s [%s]' % (key, maxsize)
                         lastval = '%s [%s]' % \
-                            (key, convertSize2Unit(usage[-1] << 20))
+                            (key, convSize2Unit(usage[-1] << 20))
 
                         if usage[minIdx] == usage[maxIdx] == 0:
                             continue
@@ -45583,10 +45778,10 @@ class ThreadAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convertSize2Unit(usage[minIdx] << 20))
-                        diffsize = convertSize2Unit(item['vssDiff'] << 20)
+                            (key, convSize2Unit(usage[minIdx] << 20))
+                        diffsize = convSize2Unit(item['vssDiff'] << 20)
                         lastval = '%s [%s/+%s]' % \
-                            (key, convertSize2Unit(usage[maxIdx] << 20),\
+                            (key, convSize2Unit(usage[maxIdx] << 20),\
                                 diffsize)
 
                         if usage[minIdx] == usage[maxIdx] == 0:
@@ -45649,10 +45844,10 @@ class ThreadAnalyzer(object):
 
                         key = '%s%s' % (prefix, key)
                         minval = '%s [%s]' % \
-                            (key, convertSize2Unit(usage[minIdx] << 20))
-                        maxsize = convertSize2Unit(usage[maxIdx] << 20)
+                            (key, convSize2Unit(usage[minIdx] << 20))
+                        maxsize = convSize2Unit(usage[maxIdx] << 20)
                         maxval = '%s [%s]' % (key, maxsize)
-                        lastsize = convertSize2Unit(usage[-1] << 20)
+                        lastsize = convSize2Unit(usage[-1] << 20)
                         lastval = '%s [%s]' % (key, lastsize)
 
                         if usage[minIdx] == usage[maxIdx] == 0:
@@ -45696,7 +45891,7 @@ class ThreadAnalyzer(object):
                         if totalRam:
                             label = \
                                 '%s[ RAM Total ] - %s\nRAM Available - %s' % \
-                                    (prefix, convertSize2Unit(totalRam), lastsize)
+                                    (prefix, convSize2Unit(totalRam), lastsize)
                             labelList.append(label)
                         else:
                             labelList.append(\
@@ -45720,7 +45915,7 @@ class ThreadAnalyzer(object):
                         if totalSwap:
                             label = \
                                 '%s[ Swap Total ] - %s\nSwap Usage - %s' % \
-                                (prefix, convertSize2Unit(totalSwap), lastsize)
+                                (prefix, convSize2Unit(totalSwap), lastsize)
                             labelList.append(label)
                         else:
                             labelList.append(\
@@ -45775,7 +45970,7 @@ class ThreadAnalyzer(object):
 
                 # convert label units #
                 ytickLabel = \
-                    [convertSize2Unit(val << 20) for val in ytickLabel]
+                    [convSize2Unit(val << 20) for val in ytickLabel]
 
                 # remove redundant ticks #
                 lastTick = ''
@@ -46012,7 +46207,7 @@ class ThreadAnalyzer(object):
             # get output size #
             try:
                 fsize = \
-                    UtilMgr.convertSize2Unit(\
+                    UtilMgr.convSize2Unit(\
                         long(os.path.getsize(outputFile)))
             except:
                 fsize = '?'
@@ -46597,7 +46792,7 @@ class ThreadAnalyzer(object):
         # print system information #
         SysMgr.printInfoBuffer()
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         convertNum = UtilMgr.convertNumber
 
         # check trace event #
@@ -48011,8 +48206,8 @@ class ThreadAnalyzer(object):
 
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
-                    start = UtilMgr.convertSize2Unit(optSize)
-                    end = UtilMgr.convertSize2Unit(optSize << 1)
+                    start = UtilMgr.convSize2Unit(optSize)
+                    end = UtilMgr.convSize2Unit(optSize << 1)
                     SysMgr.printPipe(\
                         "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:<20}".\
                         format('', '[%7s - %7s]' % (start, end), cnt))
@@ -48665,7 +48860,7 @@ class ThreadAnalyzer(object):
                 ytickLabel = list(map(long, ytickLabel))
 
                 # convert label units #
-                convertNum = UtilMgr.convertSize2Unit
+                convertNum = UtilMgr.convSize2Unit
                 ytickLabel = \
                     [convertNum(val << 20, True) for val in ytickLabel]
 
@@ -49376,7 +49571,7 @@ class ThreadAnalyzer(object):
 
         # Get Storage resource usage #
         elif len(tokenList) == 12 and tokenList[0][0] == '/':
-            convertUnit2Size = UtilMgr.convertUnit2Size
+            convUnit2Size = UtilMgr.convUnit2Size
 
             TA.procIntData[index]['total'].setdefault('storage', dict())
 
@@ -49391,16 +49586,16 @@ class ThreadAnalyzer(object):
                 TA.procTotData['total']['storage'].setdefault(dev, dict())
 
                 # get busy time and average queue-length #
-                busy = convertUnit2Size(tokenList[1].strip()[:-1])
+                busy = convUnit2Size(tokenList[1].strip()[:-1])
                 avq = tokenList[2].strip()
 
                 # get storage stats in MB #
-                read = convertUnit2Size(tokenList[3].strip())
-                write = convertUnit2Size(tokenList[4].strip())
+                read = convUnit2Size(tokenList[3].strip())
+                write = convUnit2Size(tokenList[4].strip())
 
                 freestat = tokenList[5].strip().split('(')
-                free = convertUnit2Size(freestat[0].strip())
-                freeDiff = convertUnit2Size(freestat[1][:-1].strip())
+                free = convUnit2Size(freestat[0].strip())
+                freeDiff = convUnit2Size(freestat[1][:-1].strip())
 
                 # busy #
                 try:
@@ -49450,7 +49645,7 @@ class ThreadAnalyzer(object):
                 tokenList[0].strip() == 'Dev':
                 return
 
-            convertUnit2Size = UtilMgr.convertUnit2Size
+            convUnit2Size = UtilMgr.convUnit2Size
 
             TA.procIntData[index]['total'].setdefault('netdev', dict())
 
@@ -49464,8 +49659,8 @@ class ThreadAnalyzer(object):
                 TA.procTotData['total']['netdev'].setdefault(dev, dict())
 
                 # get storage stats in MB #
-                recv = convertUnit2Size(tokenList[2].strip())
-                tran = convertUnit2Size(tokenList[7].strip())
+                recv = convUnit2Size(tokenList[2].strip())
+                tran = convUnit2Size(tokenList[7].strip())
 
                 # recv #
                 try:
@@ -49618,7 +49813,7 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def summarizeIntervalUsage():
+    def summarizeInterval():
         if 'total' not in ThreadAnalyzer.procTotData:
             ThreadAnalyzer.procTotData['total'] = \
                 dict(ThreadAnalyzer.init_procTotData)
@@ -50315,7 +50510,7 @@ class ThreadAnalyzer(object):
     def printStorageInterval():
         TA = ThreadAnalyzer
 
-        convertSize2Unit = UtilMgr.convertSize2Unit
+        convSize2Unit = UtilMgr.convSize2Unit
 
         SysMgr.printPipe('\n[Top Storage Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -50353,9 +50548,9 @@ class ThreadAnalyzer(object):
             try:
                 total = '%s/%s/%s/%s' % \
                    ('%.1f' % (val['busy'] / len(TA.procIntData)),\
-                   convertSize2Unit(val['read'], True),\
-                   convertSize2Unit(val['write'], True),\
-                   convertSize2Unit(val['free'], True))
+                   convSize2Unit(val['read'], True),\
+                   convSize2Unit(val['write'], True),\
+                   convSize2Unit(val['free'], True))
             except:
                 continue
 
@@ -50374,9 +50569,9 @@ class ThreadAnalyzer(object):
                     stats = TA.procIntData[idx]['total']['storage'][dev]
                     usage = '%s/%s/%s/%s' % \
                         (stats['busy'],\
-                        convertSize2Unit(stats['read'], True),\
-                        convertSize2Unit(stats['write'], True),\
-                        convertSize2Unit(stats['free'], True))
+                        convSize2Unit(stats['read'], True),\
+                        convSize2Unit(stats['write'], True),\
+                        convSize2Unit(stats['free'], True))
                 except:
                     continue
 
@@ -50393,7 +50588,7 @@ class ThreadAnalyzer(object):
     def printNetworkInterval():
         TA = ThreadAnalyzer
 
-        convertSize2Unit = UtilMgr.convertSize2Unit
+        convSize2Unit = UtilMgr.convSize2Unit
 
         SysMgr.printPipe('\n[Top Network Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -50429,8 +50624,8 @@ class ThreadAnalyzer(object):
 
             try:
                 total = '%s/%s' % \
-                   (convertSize2Unit(val['recv'], True),\
-                   convertSize2Unit(val['tran'], True))
+                   (convSize2Unit(val['recv'], True),\
+                   convSize2Unit(val['tran'], True))
             except:
                 continue
 
@@ -50448,8 +50643,8 @@ class ThreadAnalyzer(object):
                 try:
                     stats = TA.procIntData[idx]['total']['netdev'][dev]
                     usage = '%s/%s' % \
-                        (convertSize2Unit(stats['recv'], True),\
-                        convertSize2Unit(stats['tran'], True))
+                        (convSize2Unit(stats['recv'], True),\
+                        convSize2Unit(stats['tran'], True))
                 except:
                     continue
 
@@ -50471,7 +50666,7 @@ class ThreadAnalyzer(object):
             pass
         else:
             # build summary interval table #
-            ThreadAnalyzer.summarizeIntervalUsage()
+            ThreadAnalyzer.summarizeInterval()
 
             # print interval info #
             ThreadAnalyzer.printTimeline()
@@ -50535,7 +50730,7 @@ class ThreadAnalyzer(object):
             return
 
         convertNum = UtilMgr.convertNumber
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         for pid in tuple(SysMgr.procInstance.keys()):
             path = '%s/%s' % (SysMgr.procPath, pid)
@@ -50605,7 +50800,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         SysMgr.printPipe((\
             "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} "
@@ -55482,8 +55677,8 @@ class ThreadAnalyzer(object):
         # convert network usage #
         try:
             netIO = '%s/%s' % \
-                (UtilMgr.convertSize2Unit(netIn, True),\
-                UtilMgr.convertSize2Unit(netOut, True))
+                (UtilMgr.convSize2Unit(netIn, True),\
+                UtilMgr.convSize2Unit(netOut, True))
         except:
             netIO = '-/-'
 
@@ -56291,7 +56486,7 @@ class ThreadAnalyzer(object):
         if not maps:
             return [], 0, 0, 0
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         for key, item in sorted(maps.items(), reverse=True):
             tmpstr = ''
@@ -56459,13 +56654,13 @@ class ThreadAnalyzer(object):
             nrIrq = long(0)
 
         try:
-            memTotal = UtilMgr.convertSize2Unit(\
+            memTotal = UtilMgr.convSize2Unit(\
                 self.memData['MemTotal'] << 10)
         except:
             memTotal = long(0)
 
         try:
-            swapTotal = UtilMgr.convertSize2Unit(\
+            swapTotal = UtilMgr.convSize2Unit(\
                 self.memData['SwapTotal'] << 10)
         except:
             swapTotal = long(0)
@@ -56525,7 +56720,7 @@ class ThreadAnalyzer(object):
                     else:
                         diff = val - self.prevZoneData[node][info]
 
-                    diff = UtilMgr.convertSize2Unit(diff << 12)
+                    diff = UtilMgr.convSize2Unit(diff << 12)
                     ninfo = 'diff'
 
                     if SysMgr.jsonOutputEnable:
@@ -56541,7 +56736,7 @@ class ThreadAnalyzer(object):
                     zoneData = '%s%s' % (zoneData, zoneStat)
                     lenZone += lenZoneStat
 
-                stat = UtilMgr.convertSize2Unit(val << 12)
+                stat = UtilMgr.convSize2Unit(val << 12)
 
                 if SysMgr.jsonOutputEnable:
                     SysMgr.jsonData['zone'][node][info] = stat
@@ -56649,7 +56844,7 @@ class ThreadAnalyzer(object):
 
         SysMgr.addPrint('%s\n' % twoLine)
 
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
 
         if SysMgr.jsonOutputEnable:
             SysMgr.jsonData.setdefault('net', dict())
@@ -56726,7 +56921,7 @@ class ThreadAnalyzer(object):
         # update storage usage #
         SysMgr.sysInstance.updateStorageInfo()
 
-        convertSize2Unit = UtilMgr.convertSize2Unit
+        convSize2Unit = UtilMgr.convSize2Unit
 
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint((\
@@ -56796,7 +56991,7 @@ class ThreadAnalyzer(object):
                 readSize = value['read'] - \
                     prevStorageData[origDev]['read']
 
-                readSize = convertSize2Unit(readSize << 20)
+                readSize = convSize2Unit(readSize << 20)
             except:
                 readSize = long(0)
 
@@ -56805,13 +57000,13 @@ class ThreadAnalyzer(object):
                 writeSize = value['write'] - \
                     prevStorageData[origDev]['write']
 
-                writeSize = convertSize2Unit(writeSize << 20)
+                writeSize = convSize2Unit(writeSize << 20)
             except:
                 writeSize = long(0)
 
-            total = convertSize2Unit(value['total'] << 20)
+            total = convSize2Unit(value['total'] << 20)
 
-            free = convertSize2Unit(value['free'] << 20)
+            free = convSize2Unit(value['free'] << 20)
 
             # get free space change on this interval #
             try:
@@ -56826,12 +57021,12 @@ class ThreadAnalyzer(object):
                     op = '+'
 
                 freeDiff = '%s%s' % \
-                    (op, convertSize2Unit(long(abs(freeDiff)) << 20))
+                    (op, convSize2Unit(long(abs(freeDiff)) << 20))
             except:
                 freeDiff = long(0)
 
-            use = convertSize2Unit(value['usageper'])
-            avail = convertSize2Unit(value['favail'])
+            use = convSize2Unit(value['usageper'])
+            avail = convSize2Unit(value['favail'])
             fs = value['mount']['fs']
             path = value['mount']['path']
             option = value['mount']['option']
@@ -57197,7 +57392,7 @@ class ThreadAnalyzer(object):
 
         # define convert function #
         convertNum = UtilMgr.convertNumber
-        convertFunc = UtilMgr.convertSize2Unit
+        convertFunc = UtilMgr.convSize2Unit
         convertTime = UtilMgr.convertTime
 
         totalStats = {\
@@ -58459,7 +58654,7 @@ class ThreadAnalyzer(object):
                 os.rename(SysMgr.inputFile, filePath)
 
                 try:
-                    fsize = UtilMgr.convertSize2Unit(\
+                    fsize = UtilMgr.convSize2Unit(\
                         long(os.path.getsize(filePath)))
                 except:
                     fsize = '?'
