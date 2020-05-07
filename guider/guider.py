@@ -32173,7 +32173,7 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getIntrospection(bus):
+    def getIntrospection(bus, des=None):
         if not bus:
             return
 
@@ -32184,11 +32184,14 @@ class DbusAnalyzer(object):
         if not conn:
             return
 
-        # create a message for method call #
-        des = 'org.freedesktop.DBus'
-        path = '/'
-        iface = des + '.Introspectable'
+        # prepare method args #
+        if not des:
+            des = 'org.freedesktop.DBus'
+        path = '/' + des.replace('.', '/')
+        iface = 'org.freedesktop.DBus.Introspectable'
         method = 'Introspect'
+
+        # create a message for method call #
         msg = dbusObj.dbus_message_new_method_call(\
             des.encode(), path.encode(), \
             iface.encode(), method.encode())
@@ -33116,7 +33119,7 @@ class DbusAnalyzer(object):
                         index = pipeList.index(robj)
                         tid = taskList[index]
                         bus = busList[index]
-                        service = serviceList[index]
+                        service = serviceList[tid][index]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -33210,7 +33213,8 @@ class DbusAnalyzer(object):
         # define common list #
         busList = []
         pipeList = []
-        serviceList = []
+        serviceList = {}
+        interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
@@ -33243,15 +33247,28 @@ class DbusAnalyzer(object):
             busList.append(bus)
 
             # get servce list #
-            services = DbusAnalyzer.getServiceList(bus)
+            if bus:
+                services = DbusAnalyzer.getServiceList(bus)
+            else:
+                services = None
+
+            # register services #
+            serviceList[tid] = []
             if services:
                 serviceDict = {}
+
                 for idx, service in enumerate(services):
                     serviceDict[service] = \
                         DbusAnalyzer.getServiceProc(bus, service)
-                serviceList.append(serviceDict)
+
+                    # get methods and properties of services #
+                    if not service.startswith(':'):
+                        interfaceList[service] = \
+                            DbusAnalyzer.getIntrospection(bus, service)
+
+                serviceList[tid].append(serviceDict)
             else:
-                serviceList.append(dict())
+                serviceList[tid].append(dict())
 
             # create a new process #
             pid = SysMgr.createProcess(chPgid=False)
