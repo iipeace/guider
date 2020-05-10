@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200507"
+__revision__ = "200510"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3957,10 +3957,13 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convDict2Str(dictObj):
+    def convDict2Str(dictObj, pretty=False, indent=2):
         try:
             jsonStr = SysMgr.getPkg('json').\
-                dumps(dictObj, indent=2, ensure_ascii=False)
+                dumps(dictObj, indent=indent, ensure_ascii=False)
+
+            if pretty:
+                return jsonStr
         except SystemExit:
             sys.exit(0)
         except:
@@ -26047,7 +26050,7 @@ Copyright:
 
         cv = UtilMgr.convertNumber
 
-        serviceList = {}
+        busServiceList = {}
         filteredList = {}
 
         SysMgr.cmdlineEnable = True
@@ -26060,7 +26063,7 @@ Copyright:
                 for node in items[2]:
                     if not node.endswith('.service'):
                         continue
-                    elif node in serviceList:
+                    elif node in busServiceList:
                         continue
                     elif not UtilMgr.isEffectiveStr(node, ignCap=True):
                         continue
@@ -26069,8 +26072,8 @@ Copyright:
                     if os.path.islink(fpath):
                         continue
 
-                    serviceList[node] = getAttr(fpath)
-                    serviceList[node]["path"] = fpath
+                    busServiceList[node] = getAttr(fpath)
+                    busServiceList[node]["path"] = fpath
 
         # parse filter #
         attrList = []
@@ -26083,12 +26086,12 @@ Copyright:
                 valList.append(args[1])
 
         # print service files #
-        if len(serviceList) > 0:
+        if len(busServiceList) > 0:
             SysMgr.printPipe(\
                 'Target Service [ NrItems: %s ]\n%s' % \
-                    (cv(len(serviceList)), twoLine))
+                    (cv(len(busServiceList)), twoLine))
             nrItems = 0
-            for node, value in sorted(serviceList.items(), key=lambda e:e[0]):
+            for node, value in sorted(busServiceList.items(), key=lambda e:e[0]):
                 cnt = 0
                 for attr, val in sorted(value.items()):
                     if not UtilMgr.isEffectiveStr(attr, attrList, ignCap=True):
@@ -32031,6 +32034,7 @@ class DbusAnalyzer(object):
     """ Analyzer for D-Bus """
 
     errObj = None
+    dbusErrObj = None
     sentData = {}
     recvData = {}
     prevData = {}
@@ -32113,9 +32117,23 @@ class DbusAnalyzer(object):
     }
 
     @staticmethod
+    def getErrInfo():
+        if DbusAnalyzer.dbusErrObj:
+            errObj = DbusAnalyzer.dbusErrObj
+            return "%s: %s" % (errObj.name, errObj.message)
+        else:
+            return "N/A"
+
+
+
+    @staticmethod
     def getErrP():
+        if DbusAnalyzer.dbusErrObj:
+            dbusErrP = byref(DbusAnalyzer.dbusErrObj)
+            SysMgr.libdbusObj.dbus_error_init(dbusErrP)
+            return dbusErrP
+
         # define error object #
-        '''
         class DBusError(Structure):
             _fields_ = (
                 ("name", c_char_p),
@@ -32123,13 +32141,9 @@ class DbusAnalyzer(object):
                 ("padding2", c_void_p * 2),
             )
 
-        dbusErr = DBusError()
+        DbusAnalyzer.dbusErrObj = dbusErr = DBusError()
         dbusErrP = byref(dbusErr)
         SysMgr.libdbusObj.dbus_error_init(dbusErrP)
-        '''
-
-        dbusErrP = 0
-
         return dbusErrP
 
 
@@ -32137,7 +32151,6 @@ class DbusAnalyzer(object):
     @staticmethod
     def getBus(bus):
         dbusObj = SysMgr.libdbusObj
-        dbusErrP = DbusAnalyzer.getErrP()
 
         if bus == 'system':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
@@ -32148,16 +32161,17 @@ class DbusAnalyzer(object):
             return None
 
         # get connection #
-        conn = dbusObj.dbus_bus_get(bustype, dbusErrP)
+        conn = dbusObj.dbus_bus_get(bustype, DbusAnalyzer.getErrP())
         if not conn:
             if 'DBUS_SESSION_BUS_ADDRESS' in os.environ:
                 address = os.environ['DBUS_SESSION_BUS_ADDRESS']
-            else:
-                address = ''
-            address = c_char_p(address.encode())
-            conn = dbusObj.dbus_connection_open(address, dbusErrP)
+                address = c_char_p(address.encode())
+                conn = dbusObj.dbus_connection_open(\
+                    address, DbusAnalyzer.getErrP())
             if not conn:
-                SysMgr.printWarn("Fail to get D-Bus %s bus" % bus)
+                SysMgr.printWarn(\
+                    "Fail to get D-Bus %s bus because %s" % \
+                        (bus, DbusAnalyzer.getErrInfo()))
                 return None
 
         # request my name #
@@ -32166,30 +32180,39 @@ class DbusAnalyzer(object):
         DBUS_NAME_FLAG_REPLACE_EXISTING = c_uint(0x2)
         ret = dbusObj.dbus_bus_request_name(\
             conn, c_char_p(name.encode()), \
-            DBUS_NAME_FLAG_REPLACE_EXISTING, dbusErrP);
+            DBUS_NAME_FLAG_REPLACE_EXISTING, DbusAnalyzer.getErrP())
 
         return conn
 
 
 
     @staticmethod
-    def getIntrospection(bus, des=None):
+    def getStats(bus, request, des=None):
         if not bus:
             return
 
         dbusObj = SysMgr.libdbusObj
-        dbusErrP = DbusAnalyzer.getErrP()
 
         conn = DbusAnalyzer.getBus(bus)
         if not conn:
             return
 
         # prepare method args #
+        path = '/'
         if not des:
             des = 'org.freedesktop.DBus'
-        path = '/' + des.replace('.', '/')
-        iface = 'org.freedesktop.DBus.Introspectable'
-        method = 'Introspect'
+        path += des.replace('.', '/')
+        if request == 'introspect':
+            iface = 'org.freedesktop.DBus.Introspectable'
+            method = 'Introspect'
+            timeout = c_int(100)
+        elif request == 'allmatch':
+            iface = 'org.freedesktop.DBus.Debug.Stats'
+            method = 'GetAllMatchRules'
+            timeout = c_int(-1)
+        else:
+            SysMgr.printErr('Unknown request %s' % request)
+            sys.exit(0)
 
         # create a message for method call #
         msg = dbusObj.dbus_message_new_method_call(\
@@ -32202,40 +32225,239 @@ class DbusAnalyzer(object):
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(\
-            conn, msg, -1, dbusErrP)
+            conn, msg, timeout, DbusAnalyzer.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a D-Bus remote method")
+            SysMgr.printWarn(\
+                "Fail to call a D-Bus remote method because %s" % \
+                    DbusAnalyzer.getErrInfo())
             return
 
         # prepare args #
+        array = c_char('a'.encode())
+        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
+        dicte = c_char('e'.encode())
+        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
         char = c_char('s'.encode())
         DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
         null = c_char('\0'.encode())
         DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
 
-        # parse args #
-        strRes = c_char_p(''.encode())
-        res = dbusObj.dbus_message_get_args(\
-            reply, dbusErrP, DBUS_TYPE_STRING, \
-            byref(strRes), DBUS_TYPE_INVALID)
-        if not res:
+        # introspect #
+        if request == 'introspect':
+            strRes = c_char_p(''.encode())
+            res = dbusObj.dbus_message_get_args(\
+                reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING, \
+                byref(strRes), DBUS_TYPE_INVALID)
+            if not res:
+                dbusObj.dbus_message_unref(msg)
+                dbusObj.dbus_message_unref(reply)
+                dbusObj.dbus_connection_unref(conn)
+                SysMgr.printWarn(\
+                    "Fail to parse D-Bus message args because %s" % \
+                        DbusAnalyzer.getErrInfo())
+                return
+
+	    # parse args #
+            strRes = c_char_p(''.encode())
+            res = dbusObj.dbus_message_get_args(\
+                    reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING, \
+                    byref(strRes), DBUS_TYPE_INVALID)
+            if not res:
+                SysMgr.printWarn(\
+                    "Fail to parse D-Bus message args because %s" % \
+                        DbusAnalyzer.getErrInfo())
+                return
+
+            # convert value #
+            buf = str(strRes.value.decode())
+
+            # clean up #
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse D-Bus message args")
+
+            return buf
+
+        # allmatch #
+        perProcList = {}
+        perSigList = {}
+
+        class DBusMessageIter(Structure):
+            _fields_ = (
+                ("dummy1", c_void_p),
+                ("dummy2", c_void_p),
+                ("dummy3", c_uint32),
+                ("dummy4", c_int),
+                ("dummy5", c_int),
+                ("dummy6", c_int),
+                ("dummy7", c_int),
+                ("dummy8", c_int),
+                ("dummy9", c_int),
+                ("dummy10", c_int),
+                ("dummy11", c_int),
+                ("pad1", c_int),
+                ("pad2", c_void_p),
+                ("pad3", c_void_p),
+            )
+
+        # initialize message iterator #
+        rootIter = DBusMessageIter()
+        rootIterP = byref(rootIter)
+        arrayIter = DBusMessageIter()
+        arrayIterP = byref(arrayIter)
+        dictIter = DBusMessageIter()
+        dictIterP = byref(dictIter)
+        arraySigIter = DBusMessageIter()
+        arraySigIterP = byref(arraySigIter)
+
+        procInfo = c_char_p(''.encode())
+        sigInfo = c_char_p(''.encode())
+
+        # initialize iteration #
+        ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
+        if not ret:
+            SysMgr.printWarn("Fail to initialize D-Bus message iteration")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            dbusObj.dbus_connection_unref(conn)
             return
 
-        # convert value #
-        buf = str(strRes.value.decode())
+        ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
+        if ret != DBUS_TYPE_ARRAY.value:
+            SysMgr.printWarn("Fail to parse array in D-Bus message")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_message_unref(reply)
+            dbusObj.dbus_connection_unref(conn)
+            return
+
+        # get item count #
+        cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
+        dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
+
+        SysMgr.printStat('start collecting signal subscription info')
+
+        # array item loop #
+        while 1:
+            ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
+            if ret != DBUS_TYPE_DICT_ENTRY.value:
+                SysMgr.printWarn("Fail to parse dict in D-Bus message")
+                dbusObj.dbus_message_unref(msg)
+                dbusObj.dbus_message_unref(reply)
+                dbusObj.dbus_connection_unref(conn)
+                return
+
+            dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
+
+            # dictionary item loop #
+            while 1:
+                ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                if ret != DBUS_TYPE_STRING.value:
+                    SysMgr.printWarn(\
+                        "Fail to parse 1st string in D-Bus message")
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    dbusObj.dbus_connection_unref(conn)
+                    return
+
+                # get process id #
+                dbusObj.dbus_message_iter_get_basic(dictIterP, byref(procInfo))
+                if not procInfo.value:
+                    SysMgr.printWarn(\
+                        "Fail to parse process info in D-Bus message")
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    dbusObj.dbus_connection_unref(conn)
+                    return
+
+                if not dbusObj.dbus_message_iter_next(dictIterP):
+                    break
+
+                ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                if ret != DBUS_TYPE_ARRAY.value:
+                    SysMgr.printWarn("Fail to parse array in D-Bus message")
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    dbusObj.dbus_connection_unref(conn)
+                    return
+
+                # check array size #
+                if dbusObj.dbus_message_iter_get_element_count(dictIterP) == 0:
+                    if not dbusObj.dbus_message_iter_next(dictIterP):
+                        break
+                    continue
+
+                # allocate a new task dict #
+                procId = procInfo.value.decode()
+                procSigList = perProcList[procId] = dict()
+
+                # parse signal array #
+                dbusObj.dbus_message_iter_recurse(dictIterP, arraySigIterP)
+
+                while 1:
+                    ret = dbusObj.dbus_message_iter_get_arg_type(arraySigIterP)
+                    if ret != DBUS_TYPE_STRING.value:
+                        SysMgr.printWarn(\
+                            "Fail to parse 2nd string in D-Bus message")
+                        dbusObj.dbus_message_unref(msg)
+                        dbusObj.dbus_message_unref(reply)
+                        dbusObj.dbus_connection_unref(conn)
+                        return
+
+                    # get signal info #
+                    dbusObj.dbus_message_iter_get_basic(\
+                        arraySigIterP, byref(sigInfo))
+                    if not sigInfo.value:
+                        SysMgr.printWarn(\
+                            "Fail to parse signal info in D-Bus message")
+                        dbusObj.dbus_message_unref(msg)
+                        dbusObj.dbus_message_unref(reply)
+                        dbusObj.dbus_connection_unref(conn)
+                        return
+
+                    # parse items #
+                    sinfo = {}
+                    for item in sigInfo.value.decode().split(','):
+                        slist = item.strip('"').split('=')
+                        sinfo[slist[0]] = slist[1].strip("'")
+
+                    # save items to list #
+                    if 'sender' in sinfo and \
+                        'interface' in sinfo and \
+                        'member' in sinfo:
+                        sender = sinfo['sender']
+                        iface = sinfo['interface']
+                        member = sinfo['member']
+                        addr = '%s.%s' % (iface, member)
+
+                        # save perProc items #
+                        procSigList.setdefault(sender, dict())
+                        procSigList[sender].setdefault(addr, list())
+                        if 'arg0' in sinfo:
+                            procSigList[sender][addr].append(sinfo['arg0'])
+
+                        # save perSignal items #
+                        perSigList.setdefault(sender, dict())
+                        sigProcList = perSigList[sender]
+                        sigProcList.setdefault(addr, dict())
+                        sigProcList[addr].setdefault(procId)
+
+                    if not dbusObj.dbus_message_iter_next(arraySigIterP):
+                        break
+
+                if not dbusObj.dbus_message_iter_next(dictIterP):
+                    break
+
+            if not dbusObj.dbus_message_iter_next(arrayIterP):
+                break
 
         # clean up #
         dbusObj.dbus_message_unref(msg)
         dbusObj.dbus_message_unref(reply)
         dbusObj.dbus_connection_unref(conn)
 
-        return buf
+        return perProcList, perSigList
 
 
 
@@ -32245,7 +32467,6 @@ class DbusAnalyzer(object):
             return
 
         dbusObj = SysMgr.libdbusObj
-        dbusErrP = DbusAnalyzer.getErrP()
 
         conn = DbusAnalyzer.getBus(bus)
         if not conn:
@@ -32282,11 +32503,13 @@ class DbusAnalyzer(object):
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(\
-            conn, msg, -1, dbusErrP)
+            conn, msg, -1, DbusAnalyzer.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a D-Bus remote method")
+            SysMgr.printWarn(\
+                "Fail to call a D-Bus remote method because %s" % \
+                    DbusAnalyzer.getErrInfo())
             return
 
         # parse args #
@@ -32294,13 +32517,15 @@ class DbusAnalyzer(object):
         uint32 = c_char('u'.encode())
         DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         res = dbusObj.dbus_message_get_args(\
-            reply, dbusErrP, DBUS_TYPE_UINT32, \
+            reply, DbusAnalyzer.getErrP(), DBUS_TYPE_UINT32, \
             byref(pid), DBUS_TYPE_INVALID)
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse D-Bus message args")
+            SysMgr.printWarn(\
+                "Fail to parse D-Bus message args because %s" % \
+                    DbusAnalyzer.getErrInfo())
             return
 
         # clean up #
@@ -32318,12 +32543,11 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getServiceList(bus):
+    def getbusServiceList(bus):
         if not bus:
             return
 
         dbusObj = SysMgr.libdbusObj
-        dbusErrP = DbusAnalyzer.getErrP()
 
         conn = DbusAnalyzer.getBus(bus)
         if not conn:
@@ -32344,11 +32568,13 @@ class DbusAnalyzer(object):
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(\
-            conn, msg, -1, dbusErrP)
+            conn, msg, -1, DbusAnalyzer.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to call a D-Bus remote method")
+            SysMgr.printWarn(\
+                "Fail to call a D-Bus remote method because %s" % \
+                    DbusAnalyzer.getErrInfo())
             return
 
         # prepare args #
@@ -32363,13 +32589,16 @@ class DbusAnalyzer(object):
         cntRes = c_int(0)
         arrayRes = (POINTER(c_char_p))()
         res = dbusObj.dbus_message_get_args(\
-            reply, dbusErrP, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING, \
-            byref(arrayRes), byref(cntRes), DBUS_TYPE_INVALID)
+            reply, DbusAnalyzer.getErrP(), DBUS_TYPE_ARRAY, \
+            DBUS_TYPE_STRING, byref(arrayRes), \
+            byref(cntRes), DBUS_TYPE_INVALID)
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to parse D-Bus message args")
+            SysMgr.printWarn(\
+                "Fail to parse D-Bus message args because %s" % \
+                    DbusAnalyzer.getErrInfo())
             return
 
         slist = []
@@ -32895,17 +33124,17 @@ class DbusAnalyzer(object):
                     srcInfo = '??'
                     src = libgioObj.g_dbus_message_get_sender(addr)
                     if src:
-                        src = src.decode()
-                        if src in service:
-                            srcInfo = service[src]
+                        srcInfo = src = src.decode()
+                    if service and src in service:
+                        srcInfo = service[src]
 
                     # get receiver #
                     desInfo = '??'
                     des = libgioObj.g_dbus_message_get_destination(addr)
                     if des:
-                        des = des.decode()
-                        if des in service:
-                            desInfo = service[des]
+                        desInfo = des = des.decode()
+                    if service and des in service:
+                        desInfo = service[des]
 
                     # get message type #
                     try:
@@ -32955,15 +33184,18 @@ class DbusAnalyzer(object):
                             path = libgioObj.g_dbus_message_get_path(addr)
                             if not path:
                                 path = ''
-                            interface = libgioObj.g_dbus_message_get_interface(addr)
-                            if not interface:
-                                interface = ''
+
+                            iface = \
+                                libgioObj.g_dbus_message_get_interface(addr)
+                            if not iface:
+                                iface = ''
+
                             member = libgioObj.g_dbus_message_get_member(addr)
                             if not member:
                                 member = ''
 
-                            addInfo = " %s %s %s" % \
-                                    (path, interface, member)
+                            addInfo = " %s.%s" % \
+                                (iface.decode(), member.decode())
 
                         msgStr = \
                             "[%s] %s(%s) %s->%s %s %g %s%s" % \
@@ -33020,21 +33252,21 @@ class DbusAnalyzer(object):
 
                     # handle error message #
                     if mtype == 'ERROR' or mtype == 'INVALID':
-                        interface = libgioObj.g_dbus_message_get_error_name(addr)
-                        if interface:
-                            member = arg0.decode()
-                            mname = '[%6s] %3s %s(%s)' % \
-                                (mtype, direction, interface.decode(), member)
-                            data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
-                            data[tid][mname]['cnt'] += 1
-                            data[tid][mname]['err'] += 1
-                            ThreadAnalyzer.dbusData['totalErr'] += 1
-                        else:
+                        ename = libgioObj.g_dbus_message_get_error_name(addr)
+                        if not ename:
                             continue
+
+                        mname = '[%6s] %3s %s: %s' % \
+                            (mtype, direction, ename.decode(), arg0.decode())
+                        data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
+                        data[tid][mname]['cnt'] += 1
+                        data[tid][mname]['err'] += 1
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                     # handle normal message #
                     else:
-                        mname = '[%6s] %3s %s(%s)' % \
-                            (mtype, direction, interface.decode(), member.decode())
+                        mname = '[%6s] %3s %s.%s' % \
+                            (mtype, direction, \
+                                interface.decode(), member.decode())
 
                     # save serial number except for signal #
                     if mtype != 'SIGNAL':
@@ -33119,7 +33351,10 @@ class DbusAnalyzer(object):
                         index = pipeList.index(robj)
                         tid = taskList[index]
                         bus = busList[index]
-                        service = serviceList[tid][index]
+                        try:
+                            service = busServiceList[tid][index]
+                        except:
+                            service = None
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -33213,7 +33448,7 @@ class DbusAnalyzer(object):
         # define common list #
         busList = []
         pipeList = []
-        serviceList = {}
+        busServiceList = {}
         interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
@@ -33248,27 +33483,27 @@ class DbusAnalyzer(object):
 
             # get servce list #
             if bus:
-                services = DbusAnalyzer.getServiceList(bus)
+                services = DbusAnalyzer.getbusServiceList(bus)
             else:
                 services = None
 
             # register services #
-            serviceList[tid] = []
+            busServiceList[tid] = []
             if services:
-                serviceDict = {}
+                serviceProcList = {}
 
                 for idx, service in enumerate(services):
-                    serviceDict[service] = \
+                    serviceProcList[service] = \
                         DbusAnalyzer.getServiceProc(bus, service)
 
                     # get methods and properties of services #
                     if not service.startswith(':'):
                         interfaceList[service] = \
-                            DbusAnalyzer.getIntrospection(bus, service)
+                            DbusAnalyzer.getStats(bus, 'introspect', service)
 
-                serviceList[tid].append(serviceDict)
+                busServiceList[tid].append(serviceProcList)
             else:
-                serviceList[tid].append(dict())
+                busServiceList[tid].append(dict())
 
             # create a new process #
             pid = SysMgr.createProcess(chPgid=False)
@@ -34375,7 +34610,7 @@ class DltAnalyzer(object):
                             msg.storageheader, msg.headerextra.ecu)
                     else:
                         dltObj.dlt_set_storageheader(\
-                            msg.storageheader, c_char_p(''))
+                            msg.storageheader, c_char_p(''.encode()))
 
                     DltAnalyzer.handleMessage(dltObj, msg, buf, mode, verbose)
             except SystemExit:
