@@ -39,4 +39,4 @@ def stop_command_run(request_id):
 
 
 if __name__ == '__main__':
-    get_data_by_command(1, "GUIDER reptop -J")
+    get_data_by_command(sys.argv[1], 1, "GUIDER reptop -J")
