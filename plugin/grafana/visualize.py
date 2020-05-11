@@ -19,7 +19,7 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe.replace('\n', '</br>')
-        print(result)
+            print(result)
         pipe.close()
         stop_command_run(request_id)
     except Exception as e:
@@ -39,4 +39,4 @@ def stop_command_run(request_id):
 
 
 if __name__ == '__main__':
-    get_data_by_command(sys.argv[1], 1, "GUIDER reptop -J")
+    get_data_by_command(sys.argv[1], 1, "GUIDER top -J")
