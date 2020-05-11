@@ -8,5 +8,5 @@
 
 ### Run
 ```sh
-$ python3 visualization.py {Guider Server IP}
+$ python3 visualize.py {Guider Server IP}
 ```
