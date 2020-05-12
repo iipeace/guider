@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200510"
+__revision__ = "200512"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12965,6 +12965,7 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
+    defaultOutPath = 'guider.out'
     tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
@@ -13517,7 +13518,7 @@ class SysMgr(object):
     @staticmethod
     def setVisualAttr():
         if len(sys.argv) <= 2:
-            sys.argv.append('guider.out')
+            sys.argv.append(SysMgr.defaultOutPath)
 
         SysMgr.graphEnable = True
 
@@ -15168,6 +15169,7 @@ class SysMgr(object):
                 'printcrp': 'Cgroup',
                 'printdir': 'Dir',
                 'printdbus': 'D-Bus',
+                'printsig': 'D-Bus',
                 'printns': 'Namespace',
                 'printsvc': 'systemd',
                 },
@@ -16715,6 +16717,33 @@ Examples:
 
     - Print DLT messages sorted by line from specific files
         # {0:1} {1:1} -I "./*.dlt" -S
+                    '''.format(cmd, mode)
+
+                # printsig #
+                elif SysMgr.isPrintSigMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show D-Bus signal subscription info
+
+Options:
+    -o  <DIR|FILE>              save output data
+    -a                          show all stats
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print D-Bus signal subscription info
+        # {0:1} {1:1}
+
+    - Print D-Bus signal subscription info with specific values
+        # {0:1} {1:1} -a
+
+    - Print D-Bus signal subscription info to a specific file
+        # {0:1} {1:1} -o sig.out
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -20917,6 +20946,8 @@ Copyright:
         # pager output #
         if SysMgr.pipeForPrint:
             try:
+                if type(line) is list:
+                    line = ''.join(line)
                 # convert to extended ascii #
                 nline = SysMgr.convertExtAscii(line + retstr)
                 SysMgr.pipeForPrint.write(nline)
@@ -20940,7 +20971,7 @@ Copyright:
                 # dir #
                 if os.path.isdir(SysMgr.printFile):
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.printFile, 'guider.out')
+                        os.path.join(SysMgr.printFile, SysMgr.defaultOutPath)
                 # file #
                 else:
                     SysMgr.inputFile = SysMgr.printFile
@@ -23028,7 +23059,7 @@ Copyright:
             if len(sys.argv) > 2:
                 fname = sys.argv[2]
             else:
-                fname = None
+                fname = SysMgr.defaultOutPath
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -23146,6 +23177,12 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusAnalyzer.runDbusSnooper(mode='print')
+
+        # PRINTSIG MODE #
+        elif SysMgr.isPrintSigMode():
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            DbusAnalyzer.runDbusSnooper(mode='signal')
 
         # PRINTSYSLOG MODE #
         elif SysMgr.isPrintSyslogMode():
@@ -23471,6 +23508,15 @@ Copyright:
     @staticmethod
     def isPrintDbusMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'printdbus':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintSigMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsig':
             return True
         else:
             return False
@@ -32201,7 +32247,15 @@ class DbusAnalyzer(object):
         path = '/'
         if not des:
             des = 'org.freedesktop.DBus'
-        path += des.replace('.', '/')
+        if not des.startswith(':'):
+            path += des.replace('.', '/')
+        if dbusObj.dbus_validate_path(\
+            c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
+            SysMgr.printWarn(\
+                "Fail to create a D-Bus message because %s" % \
+                    DbusAnalyzer.getErrInfo())
+            return
+
         if request == 'introspect':
             iface = 'org.freedesktop.DBus.Introspectable'
             method = 'Introspect'
@@ -32336,7 +32390,7 @@ class DbusAnalyzer(object):
         cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
-        SysMgr.printStat('start collecting signal subscription info')
+        SysMgr.printStat('start collecting signals for %s bus' % bus)
 
         # array item loop #
         while 1:
@@ -32423,19 +32477,27 @@ class DbusAnalyzer(object):
                         sinfo[slist[0]] = slist[1].strip("'")
 
                     # save items to list #
-                    if 'sender' in sinfo and \
-                        'interface' in sinfo and \
-                        'member' in sinfo:
-                        sender = sinfo['sender']
+                    if 'interface' in sinfo:
                         iface = sinfo['interface']
-                        member = sinfo['member']
-                        addr = '%s.%s' % (iface, member)
+
+                        if 'sender' in sinfo:
+                            sender = sinfo['sender']
+                        else:
+                            sender = iface
+
+                        if 'member' in sinfo:
+                            member = '.%s' % sinfo['member']
+                        else:
+                            member= ''
+
+                        addr = '%s%s' % (iface, member)
 
                         # save perProc items #
                         procSigList.setdefault(sender, dict())
-                        procSigList[sender].setdefault(addr, list())
+                        procSigList[sender].setdefault(addr, dict())
                         if 'arg0' in sinfo:
-                            procSigList[sender][addr].append(sinfo['arg0'])
+                            argList = [ '%s' % sinfo[i] for i in sorted(list(sinfo.keys())) if i.startswith('arg') ]
+                            procSigList[sender][addr].setdefault(', '.join(argList))
 
                         # save perSignal items #
                         perSigList.setdefault(sender, dict())
@@ -32755,6 +32817,135 @@ class DbusAnalyzer(object):
 
         dbusObj.dbus_message_get_type.argtypes = [c_void_p]
         dbusObj.dbus_message_get_type.restype = c_int
+
+
+
+    @staticmethod
+    def printSignalInfo(tid, perProc, perSig, procInfo):
+        conv = UtilMgr.convertNumber
+
+        totalSubscription = 0
+        procId = '%s(%s)' % (SysMgr.getComm(tid), tid)
+
+        # create a table for perProc signals #
+        nrPerProcSignals = {}
+        for cli, items in perProc.items():
+            nrPerProcSignals.setdefault(\
+                cli, dict({'nrSender': 0, 'nrSignal': 0}))
+
+            for sender, iface in items.items():
+                nrPerProcSignals[cli]['nrSender'] += 1
+                nrPerProcSignals[cli]['nrSignal'] += len(iface)
+                totalSubscription += len(iface)
+
+        # print perProc signals #
+        SysMgr.printPipe((\
+            '\nD-Bus Signal Proxy Info [Target: %s] '
+            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+                (procId, conv(len(perProc)), conv(totalSubscription), twoLine))
+        SysMgr.printPipe(\
+            "{0:^23} {1:<23} {2:^10} {3:>1}".format(\
+                'Client', 'Server', 'Interface', 'Args'))
+        SysMgr.printPipe(oneLine)
+        for cli, stats in sorted(\
+            nrPerProcSignals.items(), \
+            key=lambda e: e[1]['nrSignal'], reverse=True):
+            if cli in procInfo:
+                proc = procInfo[cli]
+            else:
+                proc = cli
+
+            # print process stat #
+            SysMgr.printPipe(\
+                "{0:>23} [nrSender: {1:1}, nrSignal: {2:1}]".format(\
+                    proc, conv(stats['nrSender']), conv(stats['nrSignal'])))
+
+            # print signal stat #
+            for sender, iface in sorted(\
+                perProc[cli].items(),
+                key=lambda e: len(e[1]), reverse=True):
+                if sender in procInfo:
+                    sproc = procInfo[sender]
+                else:
+                    sproc = sender
+
+                SysMgr.printPipe(\
+                    "{0:>23} {1:<23} [nrSignal: {2:1}]".format(\
+                        ' ', sproc, conv(len(iface))))
+
+                if not SysMgr.showAll:
+                    continue
+
+                for name, arg in iface.items():
+                    SysMgr.printPipe(\
+                        "{0:>23} {1:<23} {2:<12}".format(\
+                            ' ', ' ', name))
+                    for key in sorted(list(arg.keys())):
+                        SysMgr.printPipe(\
+                            "{0:>23} {1:<23} {2:<10} ({3:<1})".format(\
+                                ' ', ' ', ' ', key))
+            SysMgr.printPipe(oneLine)
+        if len(nrPerProcSignals) == 0:
+            SysMgr.printPipe('\tNone\n%s' % oneLine)
+
+        # create a table for perSignal signals #
+        nrPerSigProcs = {}
+        for sender, items in perSig.items():
+            nrPerSigProcs.setdefault(\
+                sender, dict({'nrReceiver': 0, 'nrSignal': 0}))
+
+            for iface, receiver in items.items():
+                nrPerSigProcs[sender]['nrSignal'] += 1
+                nrPerSigProcs[sender]['nrReceiver'] += len(receiver)
+
+        # print perSignal processes #
+        SysMgr.printPipe((\
+            '\nD-Bus Signal Stub Info [Target: %s] '
+            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+                (procId, conv(len(perSig)), conv(totalSubscription), twoLine))
+        SysMgr.printPipe(\
+            "{0:^23} {1:^12} {2:<23}".format(\
+                'Server', 'Interface', 'Client'))
+        SysMgr.printPipe(oneLine)
+        for serv, stats in sorted(\
+            nrPerSigProcs.items(), \
+            key=lambda e: e[1]['nrReceiver'], reverse=True):
+            if serv in procInfo:
+                proc = procInfo[serv]
+            else:
+                proc = cli
+
+            # print process stat #
+            SysMgr.printPipe(\
+                "{0:>23} [nrReceiver: {1:1}, nrSignal: {2:1}]".format(\
+                    proc, conv(stats['nrReceiver']), conv(stats['nrSignal'])))
+
+            # print signal stat #
+            for iface, receiver in sorted(\
+                perSig[serv].items(),
+                key=lambda e: len(e[1]), reverse=True):
+                SysMgr.printPipe(\
+                    "{0:>23} {1:<12} [nrReceiver: {2:1}]".format(\
+                        ' ', iface, conv(len(receiver))))
+
+                if not SysMgr.showAll:
+                    continue
+
+                procs = [ procInfo[name] if name in procInfo else name for name in list(receiver.keys()) ]
+                for name in sorted(procs):
+                    if name in procInfo:
+                        cproc = procInfo[name]
+                    else:
+                        cproc = name
+
+                    SysMgr.printPipe(\
+                        "{0:>23} {1:<12} {2:<23}".format(\
+                            ' ', ' ', cproc))
+            SysMgr.printPipe(oneLine)
+        if len(nrPerSigProcs) == 0:
+            SysMgr.printPipe('\tNone\n%s' % oneLine)
+
+
 
 
 
@@ -33490,10 +33681,10 @@ class DbusAnalyzer(object):
             # register services #
             busServiceList[tid] = []
             if services:
-                serviceProcList = {}
+                busProcList = {}
 
                 for idx, service in enumerate(services):
-                    serviceProcList[service] = \
+                    busProcList[service] = \
                         DbusAnalyzer.getServiceProc(bus, service)
 
                     # get methods and properties of services #
@@ -33501,9 +33692,17 @@ class DbusAnalyzer(object):
                         interfaceList[service] = \
                             DbusAnalyzer.getStats(bus, 'introspect', service)
 
-                busServiceList[tid].append(serviceProcList)
+                busServiceList[tid].append(busProcList)
             else:
                 busServiceList[tid].append(dict())
+
+            # print signals #
+            if mode == 'signal':
+                ret = DbusAnalyzer.getStats(bus, 'allmatch')
+                if ret:
+                    perProc, perSig = ret
+                    DbusAnalyzer.printSignalInfo(tid, perProc, perSig, busProcList)
+                continue
 
             # create a new process #
             pid = SysMgr.createProcess(chPgid=False)
@@ -33547,6 +33746,10 @@ class DbusAnalyzer(object):
             # error #
             else:
                 sys.exit(0)
+
+        # check signal mode #
+        if mode == 'signal':
+            return
 
         # start worker threads #
         for tobj in threadingList:
@@ -44567,7 +44770,7 @@ class ThreadAnalyzer(object):
             graphStats, chartStats = ThreadAnalyzer.getDrawStats(logFile)
         # get stats from multiple files for comparison #
         else:
-            logFile = 'guider.out'
+            logFile = SysMgr.defaultOutPath
 
             # define integrated stats #
             graphStats = dict()
