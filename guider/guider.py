@@ -12908,7 +12908,6 @@ class SysMgr(object):
     kernelVersion = None
     isLinux = True
     isAndroid = False
-    helpEnable = False
     drawMode = False
     archOption = None
 
@@ -15207,9 +15206,6 @@ class SysMgr(object):
         # help #
         if len(sys.argv) <= 1 or \
             SysMgr.isHelpMode():
-            # enable help mode #
-            SysMgr.helpEnable = True
-
             # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
                 cmd = os.environ['CMDLINE']
@@ -20851,6 +20847,7 @@ Copyright:
 
     @staticmethod
     def printPipe(line='', newline=True, flush=False, pager=True):
+        # check logging option #
         if SysMgr.loggingEnable:
             if SysMgr.dltEnable:
                 DltAnalyzer.doLogDlt(msg=line)
@@ -20861,7 +20858,7 @@ Copyright:
             if SysMgr.journalEnable:
                 LogMgr.doLogJournal(msg=line)
 
-        # print to socket #
+        # socket output #
         if len(SysMgr.addrListForPrint) > 0:
             addrListForPrint = dict(SysMgr.addrListForPrint)
             for addr, cli in addrListForPrint.items():
@@ -20890,22 +20887,16 @@ Copyright:
                     start = end
                     end += udpSeg
 
+        # check print status #
         if not SysMgr.printEnable:
             return
 
-        # check newline argument #
-        if newline:
-            retstr = '\n'
-        else:
-            retstr = ''
-
         # pager initialization #
-        if pager and \
-            (SysMgr.pipeForPrint == \
-                SysMgr.printFile == None) and \
-            (SysMgr.helpEnable or \
-                SysMgr.isTopMode() == \
-                SysMgr.printStreamEnable == False):
+        if not pager or SysMgr.printStreamEnable:
+            pass
+        elif SysMgr.pipeForPrint or SysMgr.printFile:
+            pass
+        elif not SysMgr.isTopMode():
             try:
                 if SysMgr.isLinux:
                     if UtilMgr.which('less'):
@@ -20947,26 +20938,26 @@ Copyright:
         if SysMgr.pipeForPrint:
             try:
                 if type(line) is list:
-                    line = ''.join(line)
-                # convert to extended ascii #
-                nline = SysMgr.convertExtAscii(line + retstr)
-                SysMgr.pipeForPrint.write(nline)
+                    SysMgr.pipeForPrint.writelines(line)
+                else:
+                    SysMgr.pipeForPrint.write(line)
+
+                if newline:
+                    SysMgr.pipeForPrint.write('\n')
+
                 return
-            except UnicodeEncodeError:
-                SysMgr.encodeEnable = False
-                SysMgr.pipeForPrint.write(line + retstr)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to print to pipe\n", True)
+                    "Fail to print to pager\n", True)
                 SysMgr.pipeForPrint = None
 
-        # file output #
+        # file initialization #
         if SysMgr.printFile and \
             not SysMgr.fileForPrint:
 
-            # runtime #
+            # profile #
             if SysMgr.isRuntimeMode():
                 # dir #
                 if os.path.isdir(SysMgr.printFile):
@@ -21007,7 +20998,7 @@ Copyright:
             SysMgr.inputFile = \
                 os.path.normpath(SysMgr.inputFile)
 
-            # backup a exist output file #
+            # backup an exist file #
             if os.path.isfile(SysMgr.inputFile):
                 backupFile = '%s.old' % SysMgr.inputFile
 
@@ -21022,12 +21013,12 @@ Copyright:
                         "Fail to backup %s to %s" % \
                             (SysMgr.inputFile, backupFile), True)
 
-            # open output file #
+            # open file #
             try:
                 SysMgr.fileForPrint = \
                     open(SysMgr.inputFile, 'w+')
 
-                # print output file name #
+                # print file name #
                 if SysMgr.printFile:
                     SysMgr.printInfo(\
                         "start writing statistics to %s" % \
@@ -21038,13 +21029,16 @@ Copyright:
                 SysMgr.printOpenErr(SysMgr.inputFile)
                 sys.exit(0)
 
-        # print to file #
+        # file output #
         if SysMgr.fileForPrint:
             try:
                 if SysMgr.isTopMode() or SysMgr.isTopSumMode():
                     SysMgr.fileForPrint.writelines(line)
                 else:
-                    SysMgr.fileForPrint.write(line + retstr)
+                    SysMgr.fileForPrint.write(line)
+
+                if newline:
+                    SysMgr.fileForPrint.write('\n')
 
                 if flush:
                     SysMgr.fileForPrint.flush()
@@ -21053,20 +21047,28 @@ Copyright:
             except:
                 SysMgr.printErr(\
                     "Fail to write to file", True)
-        # print to console #
+        # console output #
         else:
             ttyCols = SysMgr.ttyCols
 
             # cut output by terminal size #
             try:
                 if ttyCols == 0 or SysMgr.jsonOutputEnable:
-                    line = '\n'.join([nline for nline in line.split('\n')])
+                    if type(line) is list:
+                        line = '\n'.join(line)
+                    else:
+                        line = '\n'.join([nline for nline in line.split('\n')])
                 else:
-                    line = '\n'.join(\
-                        [nline[:ttyCols-1] for nline in line.split('\n')])
+                    if type(line) is list:
+                        line = '\n'.join(\
+                            [nline[:ttyCols-1] for nline in '\n'.join(line).split('\n')])
+                    else:
+                        line = '\n'.join(\
+                            [nline[:ttyCols-1] for nline in line.split('\n')])
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.printWarn("Fail to print to console", reason=True)
                 return
 
             # convert to extended ascii #
@@ -21074,21 +21076,20 @@ Copyright:
 
             # print string to console #
             try:
+                sys.stdout.write(nline)
                 if newline:
-                    sys.stdout.write(nline + '\n')
-                else:
-                    sys.stdout.write(nline)
+                    sys.stdout.write('\n')
             except SystemExit:
                 sys.exit(0)
             except:
                 if SysMgr.encodeEnable:
                     SysMgr.encodeEnable = False
 
+                    sys.stdout.write(line)
                     if newline:
-                        sys.stdout.write(line + '\n')
-                    else:
-                        sys.stdout.write(line)
+                        sys.stdout.write('\n')
 
+            # flush buffer #
             if flush or SysMgr.remoteRun:
                 sys.stdout.flush()
 
@@ -36837,9 +36838,12 @@ struct msghdr {
 
         # set flag value #
         if flag == True:
-            value = b'1'
+            value = 1
         else:
-            value = b'0'
+            value = 0
+
+        if sys.version_info < (3, 0, 0):
+            value = bytes(value)
 
         Debugger.globalEvent[0] = value # pylint: disable=unsupported-assignment-operation
 
@@ -36851,7 +36855,7 @@ struct msghdr {
             return False
 
         ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
-        if ret == b'1':
+        if ret == b'1' or 1:
             return True
         else:
             return False
