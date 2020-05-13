@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200512"
+__revision__ = "200513"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12968,6 +12968,7 @@ class SysMgr(object):
     tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
+    lmkPath = '/sys/module/lowmemorykiller/parameters/minfree'
     pythonPath = sys.executable
     addr2linePath = []
     objdumpPath = []
@@ -13104,6 +13105,7 @@ class SysMgr(object):
     statFd = None
     memFd = None
     zoneFd = None
+    lmkFd = None
     irqFd = None
     softirqFd = None
     vmstatFd = None
@@ -20892,11 +20894,11 @@ Copyright:
             return
 
         # pager initialization #
-        if not pager or SysMgr.printStreamEnable:
+        if not pager:
             pass
-        elif SysMgr.pipeForPrint or SysMgr.printFile:
+        elif SysMgr.pipeForPrint or SysMgr.printFile or SysMgr.printStreamEnable:
             pass
-        elif not SysMgr.isTopMode():
+        elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
                 if SysMgr.isLinux:
                     if UtilMgr.which('less'):
@@ -23257,10 +23259,16 @@ Copyright:
 
         # MEMTEST MODE #
         elif SysMgr.isMemTestMode():
+            # remove option args #
+            SysMgr.removeOptionArgs()
+
             SysMgr.doMemTest()
 
         # SETCPU MODE #
         elif SysMgr.isSetCpuMode():
+            # remove option args #
+            SysMgr.removeOptionArgs()
+
             SysMgr.doSetCpu()
 
         # SETSCHED MODE #
@@ -24027,6 +24035,7 @@ Copyright:
         SysMgr.uptime = SysMgr.getUptime()
         SysMgr.uptimeDiff = \
             SysMgr.uptime - SysMgr.prevUptime
+        return SysMgr.uptime
 
 
 
@@ -27625,7 +27634,8 @@ Copyright:
                 conv = UtilMgr.convSize2Unit
                 memTotal = conv(memData['MemTotal'] << 10)
                 memFree = conv(memData['MemFree'] << 10)
-                memFreePer = (memData['MemFree'] / float(memData['MemTotal'])) * 100
+                memFreePer = \
+                    (memData['MemFree'] / float(memData['MemTotal'])) * 100
                 try:
                     memAvail = conv(memData['MemAvailable'] << 10)
                     memAvailPer = \
@@ -27633,6 +27643,7 @@ Copyright:
                     memAvailPer = '%.1f%%' % memAvailPer
                 except:
                     memAvail = memAvailPer = '-'
+                memCache = conv(memData['Cached'] << 10)
                 swapTotal = conv(memData['SwapTotal'] << 10)
                 swapFree = conv(memData['SwapFree'] << 10)
                 if swapTotal == '0':
@@ -27642,9 +27653,10 @@ Copyright:
                         (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
 
                 memstr = ('\n\t[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
-                    'MemAvail: %s(%s), swapTotal: %s, swapFree: %s(%.1f%%)') % \
-                        ('Total', memTotal, memFree, memFreePer, memAvail, \
-                            memAvailPer, swapTotal, swapFree, swapFreePer)
+                    'MemAvail: %s(%s), Cached: %s, SwapTotal: %s, '
+                    'SwapFree: %s(%.1f%%)') % \
+                        ('TOTAL', memTotal, memFree, memFreePer, memAvail, \
+                            memAvailPer, memCache, swapTotal, swapFree, swapFreePer)
 
                 return memstr
 
@@ -27737,14 +27749,46 @@ Copyright:
 
             return ''
 
-        def allocMemory(size):
-            SysMgr.setDefaultSignal()
+        def getLMKinfo():
+            # save LMK info #
+            try:
+                memBuf = None
+                SysMgr.lmkFd.seek(0)
+                memBuf = SysMgr.lmkFd.readline()
+            except:
+                try:
+                    memPath = SysMgr.lmkPath
+                    SysMgr.lmkFd = open(memPath, 'r')
+                    memBuf = SysMgr.lmkFd.readline()
+                except:
+                    SysMgr.printOpenWarn(memPath)
 
-            conv = UtilMgr.convSize2Unit
+            # threshold list #
+            threshold = \
+                ['FGAPP', 'VISAPP', 'SECSER', 'HIDAPP', 'CONPRO', 'EMPAPP']
+
+            if memBuf:
+                stats = memBuf.split(',')
+                if stats:
+                    stats = list(map(long, stats))
+
+                lmkstr = '\n\t[%9s] ' % 'LMK'
+
+                for idx, item in enumerate(stats):
+                    lmkstr = '%s%s: %s, ' % \
+                        (lmkstr, threshold[idx], \
+                            UtilMgr.convSize2Unit(item << 12))
+
+                return '%s' % lmkstr[:-2]
+
+            return ''
+
+        def allocMemory(size, wrPipe=None, ret=False):
+            SysMgr.setDefaultSignal()
 
             # allocate memory #
             try:
-                buffer = bytearray(size)
+                SysMgr.procBuffer = bytearray(size)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -27752,6 +27796,20 @@ Copyright:
                     "Fail to allocate memory", True)
                 sys.exit(0)
 
+            if wrPipe:
+                os.write(wrPipe, '1'.encode())
+
+            if ret:
+                return
+
+            SysMgr.waitEvent()
+
+            sys.exit(0)
+
+        def printUsage(obj, pid, size, alloc=True):
+            conv = UtilMgr.convSize2Unit
+
+            # get system stat #
             try:
                 memstr = getMeminfo()
             except SystemExit:
@@ -27760,6 +27818,7 @@ Copyright:
                 SysMgr.printErr("Fail to get memory stat", True)
                 return
 
+            # get vmstat #
             try:
                 vmstr = getVminfo()
             except SystemExit:
@@ -27768,6 +27827,7 @@ Copyright:
                 SysMgr.printErr("Fail to get virtual memory stat", True)
                 return
 
+            # get zone stat #
             try:
                 zonestr = getZoneinfo()
             except SystemExit:
@@ -27776,23 +27836,26 @@ Copyright:
                 SysMgr.printErr("Fail to get zone memory stat", True)
                 return
 
-            if SysMgr.isRoot():
-                # create task object #
-                pid = str(SysMgr.pid)
-                obj = ThreadAnalyzer(onlyInstance=True)
-                procPath = '%s/%s' % (SysMgr.procPath, pid)
+            # get LMK stat #
+            try:
+                lmkstr = getLMKinfo()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("Fail to get LMK stat", reason=True)
 
-                # save memory stat #
-                obj.saveProcData(procPath, pid)
-                obj.saveProcStats()
-                obj.saveProcData(procPath, pid)
+            # get process stat #
+            pid = str(pid)
+            procPath = '%s/%s' % (SysMgr.procPath, pid)
+            obj.saveProcStat()
+            if SysMgr.isRoot():
                 obj.saveProcSmapsData(procPath, pid)
                 ret = obj.getMemDetails(pid, obj.procData[pid]['maps'])
                 statstr = "RSS: %s, PSS: %s, USS: %s" % \
                     (conv(ret[1] << 10), conv(ret[2] << 10), conv(ret[3] << 10))
             else:
                 # save RSS stat #
-                mlist = SysMgr.getMemStat('self')
+                mlist = SysMgr.getMemStat(pid)
                 if not mlist:
                     SysMgr.printErr(\
                         "Fail to get memory size of Guider")
@@ -27802,13 +27865,39 @@ Copyright:
                 rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
                 statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
 
-            SysMgr.printInfo((\
-                'allocated %s, used total (%s) via Guider %s%s%s') % \
-                    (conv(len(buffer), True), statstr, memstr, vmstr, zonestr))
+            # get new task #
+            newTasks = set(obj.procData.keys()) - set(obj.prevProcData.keys())
+            if newTasks:
+                newstr = '\n\t[%9s]  ' % 'NEW'
+                for pid in sorted(newTasks):
+                    comm = obj.procData[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(obj.procData[pid]['stat'][obj.rssIdx])<<12)
+                    newstr = '%s %s(%s)[%s], ' % (newstr, comm, pid, rss)
+                newstr = newstr[:-2]
+            else:
+                newstr = ''
 
-            SysMgr.waitEvent()
+            # get die task #
+            dieTasks =  set(obj.prevProcData.keys()) - set(obj.procData.keys())
+            if dieTasks:
+                diestr = '\n\t[%9s]  ' % 'DIE'
+                for pid in sorted(dieTasks):
+                    comm = obj.prevProcData[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(obj.prevProcData[pid]['stat'][obj.rssIdx])<<12)
+                    diestr = '%s %s(%s)[%s], ' % (diestr, comm, pid, rss)
+                diestr = diestr[:-2]
+            else:
+                diestr = ''
 
-            sys.exit(0)
+            if alloc:
+                allocstr = \
+                    ' allocated %s, used total (%s) via Guider additionally ' % \
+                        (conv(size, True), statstr)
+            else:
+                allocstr = ' [%9s] %s' % ('TIME', SysMgr.updateUptime())
+
+            SysMgr.printInfo('%s%s%s%s%s%s%s' % \
+                (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr))
 
         # convert time #
         try:
@@ -27825,8 +27914,6 @@ Copyright:
             elif len(value) == 1:
                 size = value[0]
                 interval = count = long(0)
-            elif '.' in size:
-                raise Exception()
             else:
                 raise Exception()
 
@@ -27850,10 +27937,18 @@ Copyright:
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
+        # create task object #
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveProcStat()
+        pid = SysMgr.pid
+
         pidList = list()
         if count > 0:
             for idx in range(0, count):
                 try:
+                    # create a pipe #
+                    rd, wr = os.pipe()
+
                     pid = SysMgr.createProcess()
                 except SystemExit:
                     pass
@@ -27864,7 +27959,7 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(size)
+                        allocMemory(size, wr)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27872,10 +27967,20 @@ Copyright:
                         sys.exit(0)
                 else:
                     pidList.append(pid)
+                    os.close(wr)
+
+                    os.read(rd, 1)
+                    os.close(rd)
+
+                    # print stats #
+                    printUsage(obj, pid, size)
 
                 time.sleep(interval)
         elif interval > 0:
             while 1:
+                # create a pipe #
+                rd, wr = os.pipe()
+
                 try:
                     pid = SysMgr.createProcess()
                 except SystemExit:
@@ -27887,7 +27992,7 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(size)
+                        allocMemory(size, wr)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27895,11 +28000,27 @@ Copyright:
                         sys.exit(0)
                 else:
                     pidList.append(pid)
+                    os.close(wr)
+
+                    os.read(rd, 1)
+                    os.close(rd)
+
+                    # print stats #
+                    printUsage(obj, pid, size)
 
                 time.sleep(interval)
         else:
             try:
-                allocMemory(size)
+                interval = 1
+
+                pidList.append(pid)
+
+                allocMemory(size, ret=True)
+
+                # print stats #
+                printUsage(obj, pid, size)
+
+                time.sleep(interval)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -27908,7 +28029,10 @@ Copyright:
 
         # wait for childs #
         if len(pidList) > 0:
-            SysMgr.waitEvent()
+            while 1:
+                printUsage(obj, pid, size, alloc=False)
+
+                time.sleep(interval)
 
 
 
@@ -33846,7 +33970,7 @@ class DltAnalyzer(object):
                 convertFunc(DltAnalyzer.dltData['cnt'])))
 
         # update daemon stat #
-        DltAnalyzer.procInfo.saveProcStats()
+        DltAnalyzer.procInfo.saveProcInstance()
         for pid in DltAnalyzer.pids:
             DltAnalyzer.procInfo.saveProcData(\
                 '%s/%s' % (SysMgr.procPath, pid), pid)
@@ -43651,8 +43775,7 @@ class ThreadAnalyzer(object):
                 'changed': True, 'new': bool(False), 'majflt': long(0), \
                 'ttime': long(0), 'cttime': long(0), 'utime': long(0), \
                 'stime': long(0), 'taskPath': None, 'statm': None, \
-                'mainID': '', 'btime': long(0), 'maps': None, 'status': None, \
-                'procComm': ''}
+                'mainID': '', 'btime': long(0), 'maps': None, 'status': None}
 
             self.init_cpuData = \
                 {'user': long(0), 'system': long(0), 'nice': long(0), \
@@ -44147,7 +44270,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcStats(self):
+    def saveProcInstance(self):
         del self.prevProcData
         self.prevProcData = self.procData
         self.procData = {}
@@ -54780,6 +54903,73 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveProcStat(self):
+        # get process list #
+        try:
+            pids = os.listdir(SysMgr.procPath)
+        except:
+            SysMgr.printOpenErr(SysMgr.procPath)
+            sys.exit(0)
+
+        # reset and save proc instance #
+        self.saveProcInstance()
+
+        # get thread list #
+        for pid in pids:
+            if not pid.isdigit():
+                continue
+
+            self.nrProcess += 1
+
+            # make path of tid #
+            procPath = "%s/%s" % (SysMgr.procPath, pid)
+            taskPath = "%s/task" % procPath
+
+            # save info per process #
+            if SysMgr.processEnable:
+                # save stat of process #
+                ret = self.saveProcData(procPath, pid)
+
+                # calculate number of threads #
+                if pid in self.procData:
+                    self.nrThread += \
+                        long(self.procData[pid]['stat'][self.nrthreadIdx])
+
+                continue
+
+            # save info per thread #
+            try:
+                tids = os.listdir(taskPath)
+            except:
+                SysMgr.printOpenWarn(taskPath)
+                continue
+
+            for tid in tids:
+                if not tid.isdigit():
+                    continue
+
+                self.nrThread += 1
+
+                threadPath = "%s/%s" % (taskPath, tid)
+
+                # save stat of thread #
+                ret = self.saveProcData(threadPath, tid, pid)
+
+                # main thread #
+                if pid == tid:
+                    self.procData[tid]['isMain'] = True
+                    self.procData[tid]['tids'] = []
+                # sibling thread #
+                else:
+                    try:
+                        self.procData[pid]['tids'].append(tid)
+                    except:
+                        self.procData[pid] = dict(self.init_procData)
+                        self.procData[pid]['tids'] = []
+                        self.procData[pid]['tids'].append(tid)
+
+
+
     def saveSystemStat(self):
         # update uptime #
         SysMgr.updateUptime()
@@ -54971,69 +55161,8 @@ class ThreadAnalyzer(object):
             not SysMgr.taskEnable:
             return
 
-        # get process list #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            sys.exit(0)
-
-        # reset and save proc instance #
-        self.saveProcStats()
-
-        # get thread list #
-        for pid in pids:
-            if not pid.isdigit():
-                continue
-
-            self.nrProcess += 1
-
-            # make path of tid #
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
-            taskPath = "%s/task" % procPath
-
-            # save info per process #
-            if SysMgr.processEnable:
-                # save stat of process #
-                ret = self.saveProcData(procPath, pid)
-
-                # calculate number of threads #
-                if pid in self.procData:
-                    self.nrThread += \
-                        long(self.procData[pid]['stat'][self.nrthreadIdx])
-
-                continue
-
-            # save info per thread #
-            try:
-                tids = os.listdir(taskPath)
-            except:
-                SysMgr.printOpenWarn(taskPath)
-                continue
-
-            for tid in tids:
-                if not tid.isdigit():
-                    continue
-
-                self.nrThread += 1
-
-                threadPath = "%s/%s" % (taskPath, tid)
-
-                # save stat of thread #
-                ret = self.saveProcData(threadPath, tid, pid)
-
-                # main thread #
-                if pid == tid:
-                    self.procData[tid]['isMain'] = True
-                    self.procData[tid]['tids'] = []
-                # sibling thread #
-                else:
-                    try:
-                        self.procData[pid]['tids'].append(tid)
-                    except:
-                        self.procData[pid] = dict(self.init_procData)
-                        self.procData[pid]['tids'] = []
-                        self.procData[pid]['tids'].append(tid)
+        # save proc stats #
+        self.saveProcStat()
 
 
 
