@@ -38827,16 +38827,15 @@ struct msghdr {
         if retstr:
             return stat
 
-        # convert string to list #
-        statList = stat.split(')')[1].split()
-
-        if status:
-            try:
-                return statList[0]
-            except:
-                return None
-
-        return statList
+        try:
+            if status:
+                return stat.split(') ', 1)[1][0]
+            else:
+                return stat.split(')')[1].split()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
 
 
 
