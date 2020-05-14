@@ -36775,15 +36775,20 @@ struct msghdr {
             # get iov info #
             for idx in range(0, iovlen):
                 offset = idx * sizeof(self.iovec)
-                msginfo['msg_iov'][idx] = {}
 
                 # get iov object #
                 iovobj = self.readMem(\
                     iovaddr+offset, sizeof(self.iovec))
                 iovobj = cast(iovobj, self.iovec_ptr)
 
-                # get iov data #
+                # get iov size #
                 iovobjlen = long(iovobj.contents.iov_len)
+                if iovobjlen == 0:
+                    continue
+
+                msginfo['msg_iov'][idx] = {}
+
+                # get iov data #
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
