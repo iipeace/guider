@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200513"
+__revision__ = "200514"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13092,6 +13092,7 @@ class SysMgr(object):
     layout = None
 
     showAll = False
+    optStrace = False
     disableAll = False
     intervalNow = long(0)
     recordStatus = False
@@ -20893,10 +20894,19 @@ Copyright:
         if not SysMgr.printEnable:
             return
 
+        # convert list to string #
+        if type(line) is list:
+            if line[0][-1] == '\n':
+                line = ''.join(line)
+            else:
+                line = '\n'.join(line)
+
         # pager initialization #
         if not pager:
             pass
-        elif SysMgr.pipeForPrint or SysMgr.printFile or SysMgr.printStreamEnable:
+        elif SysMgr.pipeForPrint or \
+            SysMgr.printFile or \
+            SysMgr.printStreamEnable:
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
@@ -20939,12 +20949,9 @@ Copyright:
         # pager output #
         if SysMgr.pipeForPrint:
             try:
-                if type(line) is list:
-                    SysMgr.pipeForPrint.writelines(line)
-                else:
-                    SysMgr.pipeForPrint.write(line)
+                SysMgr.pipeForPrint.write(line)
 
-                if newline:
+                if newline and line[-1] != '\n':
                     SysMgr.pipeForPrint.write('\n')
 
                 return
@@ -21034,12 +21041,9 @@ Copyright:
         # file output #
         if SysMgr.fileForPrint:
             try:
-                if SysMgr.isTopMode() or SysMgr.isTopSumMode():
-                    SysMgr.fileForPrint.writelines(line)
-                else:
-                    SysMgr.fileForPrint.write(line)
+                SysMgr.fileForPrint.write(line)
 
-                if newline:
+                if newline and line[-1] != '\n':
                     SysMgr.fileForPrint.write('\n')
 
                 if flush:
@@ -21056,17 +21060,10 @@ Copyright:
             # cut output by terminal size #
             try:
                 if ttyCols == 0 or SysMgr.jsonOutputEnable:
-                    if type(line) is list:
-                        line = '\n'.join(line)
-                    else:
-                        line = '\n'.join([nline for nline in line.split('\n')])
+                    line = '\n'.join([nline for nline in line.split('\n')])
                 else:
-                    if type(line) is list:
-                        line = '\n'.join(\
-                            [nline[:ttyCols-1] for nline in '\n'.join(line).split('\n')])
-                    else:
-                        line = '\n'.join(\
-                            [nline[:ttyCols-1] for nline in line.split('\n')])
+                    line = '\n'.join(\
+                        [nline[:ttyCols-1] for nline in line.split('\n')])
             except SystemExit:
                 sys.exit(0)
             except:
@@ -21079,8 +21076,6 @@ Copyright:
             # print string to console #
             try:
                 sys.stdout.write(nline)
-                if newline:
-                    sys.stdout.write('\n')
             except SystemExit:
                 sys.exit(0)
             except:
@@ -21088,8 +21083,9 @@ Copyright:
                     SysMgr.encodeEnable = False
 
                     sys.stdout.write(line)
-                    if newline:
-                        sys.stdout.write('\n')
+
+            if newline:
+                sys.stdout.write('\n')
 
             # flush buffer #
             if flush or SysMgr.remoteRun:
@@ -32273,7 +32269,7 @@ class DbusAnalyzer(object):
     GDBusMessageType = [
         "INVALID",
         "METHOD", # METHOD_CALL
-        "METHOD_RETURN",
+        "RETURN", # METHOD_RETURN
         "ERROR",
         "SIGNAL"
     ]
@@ -33475,7 +33471,7 @@ class DbusAnalyzer(object):
                         msgTable = DbusAnalyzer.msgSentTable
 
                     effectiveReply = False
-                    if mtype == 'METHOD_RETURN':
+                    if mtype == 'RETURN':
                         # get reply-serial #
                         repSerial = \
                             libgioObj.g_dbus_message_get_reply_serial(\
@@ -33535,7 +33531,7 @@ class DbusAnalyzer(object):
                     DbusAnalyzer.recvData.setdefault(tid, dict())
 
                     # return check #
-                    if mtype == 'METHOD_RETURN':
+                    if mtype == 'RETURN':
                         if repSerial in msgTable:
                             targetIf, prevTime = msgTable[repSerial]
                         else:
@@ -33857,6 +33853,7 @@ class DbusAnalyzer(object):
                 # set options #
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
+                SysMgr.optStrace = True
                 SysMgr.intervalEnable = long(0)
                 SysMgr.printFile = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
@@ -36758,7 +36755,7 @@ struct msghdr {
         # get msg info #
         namelen = long(header.contents.msg_namelen)
         msginfo['msg_namelen'] = namelen
-        if namelen == 0:
+        if SysMgr.optStrace or namelen == 0:
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
@@ -38545,19 +38542,20 @@ struct msghdr {
                     "Fail to convert %s to JSON for marshalling" % [jsonData], True)
             return
 
-        # convert args to string ##
-        if len(args) > 0:
-            argText = ', '.join(str(arg) for arg in args)
-        else:
-            argText = ', '.join(str(arg[2]) for arg in self.args)
+        if not self.isRealtime or SysMgr.showAll:
+            # convert args to string ##
+            if len(args) > 0:
+                argText = ', '.join(str(arg) for arg in args)
+            else:
+                argText = ', '.join(str(arg[2]) for arg in self.args)
 
-        # build call string #
-        if deferrable:
-            callString = '%s) %s' % (argText, bts)
-        else:
-            callString = \
-                '%3.6f %s(%s) %s(%s) %s' % \
-                    (diff, self.comm, self.pid, self.syscall, argText, bts)
+            # build call string #
+            if deferrable:
+                callString = '%s) %s' % (argText, bts)
+            else:
+                callString = \
+                    '%3.6f %s(%s) %s(%s) %s' % \
+                        (diff, self.comm, self.pid, self.syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -38584,7 +38582,7 @@ struct msghdr {
             SysMgr.ttyCols = ttyColsOrig
 
         # print call history #
-        if SysMgr.printFile:
+        if SysMgr.showAll and SysMgr.printFile:
             if deferrable:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
@@ -38627,6 +38625,12 @@ struct msghdr {
         if self.status == 'deferrable':
             self.handleDefSyscall()
 
+        # ignore return #
+        if SysMgr.optStrace and self.status == 'exit':
+            self.status = 'enter'
+            self.clearArgs()
+            return
+
         # get register set #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -38634,17 +38638,18 @@ struct msghdr {
                     (self.comm, self.pid))
             sys.exit(0)
 
-        # check SYSEMU condition #
+        # get syscall number #
+        nrSyscall = self.getNrSyscall()
+
+        # check syscall condition #
         if len(SysMgr.syscallList) > 0 and \
-            not self.getNrSyscall() in SysMgr.syscallList:
+            not nrSyscall in SysMgr.syscallList:
             #self.cmd = self.sysemuCmd
             self.status = 'skip'
             return
 
-        nrSyscall = self.getNrSyscall()
-        proto = ConfigMgr.SYSCALL_PROTOTYPES
-
         try:
+            proto = ConfigMgr.SYSCALL_PROTOTYPES
             self.syscall = name = ConfigMgr.sysList[nrSyscall][4:]
         except:
             return
@@ -38695,7 +38700,7 @@ struct msghdr {
 
             self.handleSyscallOutput(args)
 
-            # check SYSEMU condition #
+            # check syscall condition #
             if len(SysMgr.syscallList) > 0:
                 self.clearArgs()
 
@@ -39130,23 +39135,20 @@ struct msghdr {
                 # update time #
                 self.current = time.time()
 
+                if not SysMgr.optStrace:
+                    # handle clone event #
+                    if self.isCloned(ostat):
+                        self.handoverNewTarget()
+                        continue
+
+                    # handle fork event #
+                    if self.isForked(ostat):
+                        if self.mode == 'syscall':
+                            self.handoverNewTarget()
+                        continue
+
                 # get status of process #
                 stat = self.getStatus(ostat)
-
-                # handle clone event #
-                if self.isCloned(ostat):
-                    self.handoverNewTarget()
-                    continue
-
-                # handle fork event #
-                if self.isForked(ostat):
-                    if self.mode == 'syscall':
-                        self.handoverNewTarget()
-                    continue
-
-                # check status of process #
-                if not UtilMgr.isNumber(stat):
-                    raise Exception("Unknown status type")
 
                 # handle signal #
                 if self.mode == 'signal':
