@@ -21139,7 +21139,10 @@ Copyright:
         msg = ('\n%s%s%s%s%s\n' % \
             (ConfigMgr.WARNING, '[Warning] ', line, rstring, ConfigMgr.ENDC))
 
-        SysMgr.stderr.write(msg)
+        if 'REMOTERUN' in os.environ:
+            print(msg.replace('\n', ''))
+        else:
+            SysMgr.stderr.write(msg)
 
 
 
@@ -21164,7 +21167,10 @@ Copyright:
         msg = ('\n%s%s%s%s%s\n' % \
             (ConfigMgr.FAIL, '[Error] ', line, rstring, ConfigMgr.ENDC))
 
-        SysMgr.stderr.write(msg)
+        if 'REMOTERUN' in os.environ:
+            print(msg.replace('\n', ''))
+        else:
+            SysMgr.stderr.write(msg)
 
 
 
@@ -25524,9 +25530,9 @@ Copyright:
                     isHistory = True
 
                 # handle local command #
-                if len(uinput) == 0:
-                    continue
-                elif uinput == '!' or uinput.upper() == 'HISTORY':
+                if not uinput or \
+                    uinput == '!' or \
+                    uinput.upper() == 'HISTORY':
                     printHistory(hlist)
                     continue
                 elif uinput.upper().startswith('PING'):
@@ -25536,7 +25542,8 @@ Copyright:
                     break
 
                 # backup command #
-                if not isHistory:
+                if not isHistory and \
+                    (not hlist or hlist[-1] != uinput):
                     hlist.append(uinput)
 
                 # launch remote command #
