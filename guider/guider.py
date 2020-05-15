@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200514"
+__revision__ = "200515"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26298,7 +26298,7 @@ Copyright:
                     targetBpFileList.setdefault(pid, dict())
 
                     # create object #
-                    procObj = Debugger(pid=pid, execCmd=execCmd)
+                    procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
                     if not procObj:
                         continue
 
@@ -32565,7 +32565,8 @@ class DbusAnalyzer(object):
 
                 # allocate a new task dict #
                 procId = procInfo.value.decode()
-                procSigList = perProcList[procId] = dict()
+                perProcList.setdefault(procId, dict())
+                procSigList = perProcList[procId]
 
                 # parse signal array #
                 dbusObj.dbus_message_iter_recurse(dictIterP, arraySigIterP)
@@ -32716,8 +32717,13 @@ class DbusAnalyzer(object):
         dbusObj.dbus_message_unref(reply)
         dbusObj.dbus_connection_unref(conn)
 
+        # get comm #
+        comm = SysMgr.getComm(pid.value)
+        if not comm:
+            comm = '??'
+
         try:
-            return '%s(%s)' % (SysMgr.getComm(pid.value), pid.value)
+            return '%s(%s)' % (comm, pid.value)
         except SystemExit:
             sys.exit(0)
         except:
@@ -32952,10 +32958,10 @@ class DbusAnalyzer(object):
         nrPerProcSignals = {}
         for cli, items in perProc.items():
             nrPerProcSignals.setdefault(\
-                cli, dict({'nrSender': 0, 'nrSignal': 0}))
+                cli, dict({'nrStub': 0, 'nrSignal': 0}))
 
             for sender, iface in items.items():
-                nrPerProcSignals[cli]['nrSender'] += 1
+                nrPerProcSignals[cli]['nrStub'] += 1
                 nrPerProcSignals[cli]['nrSignal'] += len(iface)
                 totalSubscription += len(iface)
 
@@ -32968,36 +32974,53 @@ class DbusAnalyzer(object):
             "{0:^23} {1:<23} {2:^10} {3:>1}".format(\
                 'Client', 'Server', 'Interface', 'Args'))
         SysMgr.printPipe(oneLine)
-        for cli, stats in sorted(\
-            nrPerProcSignals.items(), \
+        for cli, stats in sorted(nrPerProcSignals.items(),\
             key=lambda e: e[1]['nrSignal'], reverse=True):
             if cli in procInfo:
                 proc = procInfo[cli]
             else:
                 proc = cli
 
+            # print signal stat #
+            mergedList = {}
+            for sender, iface in perProc[cli].items():
+                if sender in procInfo:
+                    sender = procInfo[sender]
+                else:
+                    tokens = sender.split('.')
+                    pos = len(tokens) - 1
+                    while 1:
+                        if pos == 0:
+                            break
+
+                        key = '.'.join(tokens[:pos])
+                        if key in procInfo:
+                            procInfo[sender] = procInfo[key]
+                            sender = procInfo[key]
+                            break
+
+                        pos -= 1
+
+                if sender in mergedList:
+                    mergedList[sender].update(iface)
+                else:
+                    mergedList[sender] = dict(iface)
+
             # print process stat #
             SysMgr.printPipe(\
-                "{0:>23} [nrSender: {1:1}, nrSignal: {2:1}]".format(\
-                    proc, conv(stats['nrSender']), conv(stats['nrSignal'])))
+                "{0:>23} [nrStub: {1:1}, nrSignal: {2:1}]".format(\
+                    proc, conv(len(mergedList)), conv(stats['nrSignal'])))
 
             # print signal stat #
-            for sender, iface in sorted(\
-                perProc[cli].items(),
+            for sender, iface in sorted(mergedList.items(),\
                 key=lambda e: len(e[1]), reverse=True):
-                if sender in procInfo:
-                    sproc = procInfo[sender]
-                else:
-                    sproc = sender
-
                 SysMgr.printPipe(\
                     "{0:>23} {1:<23} [nrSignal: {2:1}]".format(\
-                        ' ', sproc, conv(len(iface))))
-
+                        ' ', sender, conv(len(iface))))
                 if not SysMgr.showAll:
                     continue
 
-                for name, arg in iface.items():
+                for name, arg in sorted(iface.items()):
                     SysMgr.printPipe(\
                         "{0:>23} {1:<23} {2:<12}".format(\
                             ' ', ' ', name))
@@ -33009,15 +33032,22 @@ class DbusAnalyzer(object):
         if len(nrPerProcSignals) == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        # create a table for perSignal signals #
+        # create a table for perSignal processes #
         nrPerSigProcs = {}
         for sender, items in perSig.items():
-            nrPerSigProcs.setdefault(\
-                sender, dict({'nrReceiver': 0, 'nrSignal': 0}))
+            if sender in procInfo:
+                proc = procInfo[sender]
+            else:
+                proc = sender
 
+            nrPerSigProcs.setdefault(\
+                proc, dict({'proxyList': dict(), 'nrSignal': 0, 'interface': dict()}))
+            nrPerSigProcs[proc]['interface'].setdefault(sender, dict())
+            nrPerSigProcs[proc]['interface'][sender].update(items)
+
+            nrPerSigProcs[proc]['nrSignal'] += len(items)
             for iface, receiver in items.items():
-                nrPerSigProcs[sender]['nrSignal'] += 1
-                nrPerSigProcs[sender]['nrReceiver'] += len(receiver)
+                nrPerSigProcs[proc]['proxyList'].update(receiver)
 
         # print perSignal processes #
         SysMgr.printPipe((\
@@ -33028,40 +33058,43 @@ class DbusAnalyzer(object):
             "{0:^23} {1:^12} {2:<23}".format(\
                 'Server', 'Interface', 'Client'))
         SysMgr.printPipe(oneLine)
-        for serv, stats in sorted(\
-            nrPerSigProcs.items(), \
-            key=lambda e: e[1]['nrReceiver'], reverse=True):
-            if serv in procInfo:
-                proc = procInfo[serv]
-            else:
-                proc = cli
-
-            # print process stat #
+        for serv, stats in sorted(nrPerSigProcs.items(),\
+            key=lambda e: len(e[1]['proxyList']), reverse=True):
+            # print stub process stat #
             SysMgr.printPipe(\
-                "{0:>23} [nrReceiver: {1:1}, nrSignal: {2:1}]".format(\
-                    proc, conv(stats['nrReceiver']), conv(stats['nrSignal'])))
+                "{0:>23} [nrProxy: {1:1}, nrSignal: {2:1}]".format(\
+                    serv, conv(len(stats['proxyList'])), conv(stats['nrSignal'])))
 
-            # print signal stat #
-            for iface, receiver in sorted(\
-                perSig[serv].items(),
+            # print interface stat #
+            for iface, receiver in sorted(stats['interface'].items(),\
                 key=lambda e: len(e[1]), reverse=True):
+                procList = {}
+                for signame, procs in receiver.items():
+                    procList.update(procs)
+
                 SysMgr.printPipe(\
-                    "{0:>23} {1:<12} [nrReceiver: {2:1}]".format(\
-                        ' ', iface, conv(len(receiver))))
+                    "{0:>23} {1:<12} [nrProxy: {2:1}] [nrSignal: {3:1}]".format(\
+                        ' ', iface, conv(len(procList)), conv(len(receiver))))
 
                 if not SysMgr.showAll:
                     continue
 
-                procs = [ procInfo[name] if name in procInfo else name for name in list(receiver.keys()) ]
-                for name in sorted(procs):
-                    if name in procInfo:
-                        cproc = procInfo[name]
-                    else:
-                        cproc = name
-
+                for signame, procs in sorted(receiver.items(),\
+                    key=lambda e: len(e[1]), reverse=True):
                     SysMgr.printPipe(\
-                        "{0:>23} {1:<12} {2:<23}".format(\
-                            ' ', ' ', cproc))
+                        "{0:>23} {1:<12} {2:<23} [nrProxy: {3:<1}]".format(\
+                            ' ', ' ', signame, conv(len(procs))))
+                    procs = [ procInfo[name] if name in procInfo else name for name in list(procs.keys()) ]
+                    # print proxy process stat #
+                    for name in sorted(procs):
+                        if name in procInfo:
+                            cproc = procInfo[name]
+                        else:
+                            cproc = name
+
+                        SysMgr.printPipe(\
+                            "{0:>23} {1:<12} {2:<12} {3:<1}".format(\
+                                ' ', ' ', ' ', cproc))
             SysMgr.printPipe(oneLine)
         if len(nrPerSigProcs) == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
@@ -33439,6 +33472,8 @@ class DbusAnalyzer(object):
                         srcInfo = src = src.decode()
                     if service and src in service:
                         srcInfo = service[src]
+                    elif src in gBusServiceList:
+                        srcInfo = gBusServiceList[src]
 
                     # get receiver #
                     desInfo = '??'
@@ -33447,6 +33482,8 @@ class DbusAnalyzer(object):
                         desInfo = des = des.decode()
                     if service and des in service:
                         desInfo = service[des]
+                    elif des in gBusServiceList:
+                        desInfo = gBusServiceList[des]
 
                     # get message type #
                     try:
@@ -33761,6 +33798,7 @@ class DbusAnalyzer(object):
         busList = []
         pipeList = []
         busServiceList = {}
+        gBusServiceList = {}
         interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
@@ -33804,12 +33842,14 @@ class DbusAnalyzer(object):
             if services:
                 busProcList = {}
 
+                # register process #
                 for idx, service in enumerate(services):
-                    busProcList[service] = \
-                        DbusAnalyzer.getServiceProc(bus, service)
+                    pinfo = DbusAnalyzer.getServiceProc(bus, service)
+                    busProcList[service] = pinfo
+                    gBusServiceList.setdefault(service, pinfo)
 
-                    # get methods and properties of services #
-                    if not service.startswith(':'):
+                    # register methods and properties #
+                    if False and not service.startswith(':'):
                         interfaceList[service] = \
                             DbusAnalyzer.getStats(bus, 'introspect', service)
 
@@ -34960,8 +35000,9 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
 
-    def __init__(self, pid=None, execCmd=None, attach=True):
+    def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
+        self.mode = mode
         self.status = 'enter'
         self.runStatus = False
         self.attached = attach
@@ -36609,7 +36650,7 @@ struct msghdr {
 
 
     def updateBpList(self, verb=True):
-        if not hasattr(self, 'mode') or self.mode != 'break':
+        if self.mode != 'break':
             return
 
         # update file list #
