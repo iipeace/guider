@@ -1,4 +1,5 @@
 import json
+import pprint
 import sys
 
 from common.guider import GuiderInstance, RequestManager
@@ -6,6 +7,7 @@ from common.guider import GuiderInstance, RequestManager
 
 def get_data_by_command(target_addr, request_id, cmd):
     result = dict(result=0, data=dict(), errMsg='')
+    pipe = None
     if cmd is None or cmd is '' or target_addr is None or target_addr is '':
         result['result'] = -1
         result['errorMsg'] = 'Required data missing'
@@ -19,11 +21,11 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe.replace('\n', '</br>')
-            print(result)
+            pprint.pprint(result)
         pipe.close()
         stop_command_run(request_id)
     except Exception as e:
-        print(e)
+        pprint.pprint(e)
         if pipe:
             pipe.close()
         stop_command_run(request_id)
