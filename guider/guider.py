@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200515"
+__revision__ = "200516"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11789,16 +11789,9 @@ class FileAnalyzer(object):
             return
 
         if not fd:
-            path = '%s/%s/maps' % (SysMgr.procPath, pid)
-
-            # open maps #
-            try:
-                fd = open(path, 'r')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(path)
-                return
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
 
         # read maps #
         fd.seek(0, 0)
@@ -11813,18 +11806,48 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def getEmptyMapAddr(pid, fd=None, size=0, onlyExec=False):
+        if not fd:
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
+
+        # search empty space #
+        mapBuf = fd.readlines()
+        for item in mapBuf:
+            mdict = FileAnalyzer.parseMapLine(item)
+            if not mdict:
+                mapLine = item.split()
+                addrs = \
+                    list(map(lambda x: long(x, 16), mapLine[0].split('-')))
+                perm = mapLine[1]
+                if onlyExec and not 'x' in perm:
+                    continue
+
+                return addrs[0]
+
+
+
+    @staticmethod
+    def getMapFd(pid):
+        # open maps #
+        try:
+            path = '%s/%s/maps' % (SysMgr.procPath, pid)
+            return open(path, 'r')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return None
+
+
+
+    @staticmethod
     def getProcMapInfo(pid, fd=None):
         if not fd:
-            path = '%s/%s/maps' % (SysMgr.procPath, pid)
-
-            # open maps #
-            try:
-                fd = open(path, 'r')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(path)
-                return
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
 
         # read maps #
         fd.seek(0, 0)
@@ -37369,11 +37392,8 @@ struct msghdr {
 
         # check of maps fd #
         if not self.mapFd:
-            mpath = '%s/%s/maps' % (SysMgr.procPath, self.pid)
-            try:
-                self.mapFd = open(mpath, 'r')
-            except:
-                SysMgr.printOpenWarn(mpath)
+            self.mapFd = FileAnalyzer.getMapFd(self.pid)
+            if not self.mapFd:
                 return None
 
         # scan process memory map #
