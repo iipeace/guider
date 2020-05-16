@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200516"
+__revision__ = "200517"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21171,7 +21171,9 @@ Copyright:
 
     @staticmethod
     def printErr(line, reason=False):
+        # print backtrace #
         #SysMgr.printBacktrace()
+
         if not SysMgr.logEnable:
             return
 
@@ -30079,10 +30081,9 @@ Copyright:
         if self.cmdList["sched/sched_process_wait"]:
             if SysMgr.writeCmd(\
                 'sched/sched_process_wait/filter', cmd) < 0:
-                SysMgr.printErr(\
+                SysMgr.printWarn(\
                     "Fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
-                sys.exit(0)
 
             SysMgr.writeCmd('sched/sched_process_wait/enable', '1')
 
@@ -36394,6 +36395,66 @@ struct msghdr {
 
 
 
+    def allocPages(self, size=4096):
+        # get original regset #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+
+        # get backup regset #
+        if self.getRegs(temp=True) != 0:
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+
+        # backup a current text page #
+        curPage = self.accessMem(self.peekIdx, self.pc)
+
+        # prepare for calling mmap syscall #
+        sysid = ConfigMgr.getMmapId()
+        setattr(self.regs, self.retreg, sysid)
+        self.writeArgs([sysid, 0, size, 7, 0x22, 0, 0])
+        addr = self.getAddrBySymbol('syscall')
+        self.setPC(addr[0][0])
+        self.setRegs()
+
+        # launch mmap syscall #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs and change the 6th argument #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        self.writeArgs([0, size, 7, 0x22, 0, 0])
+        self.setRegs()
+
+        # continue and stop at return #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs to check results #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        newAddr = self.getRetVal()
+
+        # restore regs #
+        self.setRegs(temp=True)
+
+        return newAddr
+
+
+
     def kill(self):
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_KILL')
@@ -40044,7 +40105,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def setRegs(self):
+    def setRegs(self, temp=False):
         pid = self.pid
         wordSize = ConfigMgr.wordSize
 
@@ -40057,8 +40118,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             NT_PRSTATUS = 1
             nrWords = sizeof(self.regs) * wordSize
 
-            ret = self.ptrace(\
-                cmd, NT_PRSTATUS, addressof(self.iovecObj))
+            if temp:
+                addr = addressof(self.tempIovecObj)
+            else:
+                addr = addressof(self.iovecObj)
+
+            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
                 raise Exception()
         except SystemExit:
@@ -40066,8 +40131,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             self.supportSetRegset = False
 
+            if temp:
+                addr = addressof(self.tempRegs)
+            else:
+                addr = addressof(self.regs)
+
             cmd = self.setregsCmd
-            ret = self.ptrace(cmd, 0, addressof(self.regs))
+
+            ret = self.ptrace(cmd, 0, addr)
 
         # check ret value #
         if ret >= 0:
@@ -48671,7 +48742,15 @@ class ThreadAnalyzer(object):
                 else:
                     nextData = None
 
-                syscall = ConfigMgr.sysList[int(nowData[4])]
+                try:
+                    syscall = ConfigMgr.sysList[int(nowData[4])]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        'Fail to recognize syscall %s for %s number' % \
+                            (nowData[0], nowData[4]), True)
+                    continue
 
                 if nowData[0] == 'ENT':
                     # all #
