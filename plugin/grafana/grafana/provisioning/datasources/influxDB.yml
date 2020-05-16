@@ -1,9 +1,0 @@
-datasources:
-  - name: InfluxDB
-    type: influxdb
-    database: guider
-    user: guider
-    password: guider
-    url: http://localhost:8086
-    isDefault: true
-

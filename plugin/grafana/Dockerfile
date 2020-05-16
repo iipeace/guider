@@ -13,7 +13,6 @@ ENV GRAFANA_VERSION  6.6.2
 # Clear previous sources
 RUN rm /var/lib/apt/lists/* -vf
 
-# Base dependencies
 RUN apt-get -y update && \
  apt-get -y dist-upgrade && \
  apt-get -y install \
@@ -24,6 +23,8 @@ RUN apt-get -y update && \
   htop \
   gnupg \
   libfontconfig \
+  mysql-client \
+  mysql-server \
   nano \
   net-tools \
   supervisor \
@@ -48,14 +49,12 @@ RUN wget https://dl.influxdata.com/influxdb/releases/influxdb_${INFLUXDB_VERSION
 
 # Configure InfluxDB
 COPY influxdb/influxdb.conf /etc/influxdb/influxdb.conf
-COPY influxdb/init.sh /etc/init.d/influxdb
 
 # Install Grafana
 RUN wget https://dl.grafana.com/oss/release/grafana_${GRAFANA_VERSION}_amd64.deb && \
 	dpkg -i grafana_${GRAFANA_VERSION}_amd64.deb && rm grafana_${GRAFANA_VERSION}_amd64.deb
 
-# Configure Grafana with provisioning
-ADD grafana/provisioning /etc/grafana/provisioning
+# Configure Grafana
 COPY grafana/grafana.ini /etc/grafana/grafana.ini
 
 # Cleanup
