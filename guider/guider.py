@@ -252,6 +252,27 @@ class ConfigMgr(object):
     }
 
     # Define mmap prot type #
+    MAP_TYPE = {
+	#0x0000: "MAP_FILE",
+	0x0001: "MAP_SHARED",
+	0x0002: "MAP_PRIVATE",
+	#0x0003: "MAP_SHARED_VALIDATE",
+	#0x000f: "MAP_TYPE",
+	0x0010: "MAP_FIXED",
+	0x0020: "MAP_ANONYMOUS",
+	0x0100: "MAP_GROWSDOWN",
+	0x0800: "MAP_DENYWRITE",
+	0x1000: "MAP_EXECUTABLE",
+	0x2000: "MAP_LOCKED",
+	0x4000: "MAP_NORESERVE",
+	0x8000: "MAP_POPULATE",
+	0x10000: "MAP_NONBLOCK",
+	0x20000: "MAP_STACK",
+	0x40000: "MAP_HUGETLB",
+	0x80000: "MAP_SYNC",
+    }
+
+    # Define mmap prot type #
     PROT_TYPE = {
         0x0: "PROT_NONE",  # Page can not be accessed
         0x1: "PROT_READ",  # Page can be read
@@ -3419,8 +3440,8 @@ class UtilMgr(object):
                 elif bit == 1 and 0 in flist:
                     string = '%s%s|' % (string, flist[0])
             except:
-                SysMgr.printErr(\
-                    "Fail to get flag info for %s" % value, True)
+                SysMgr.printWarn(\
+                    "Fail to get flag info for %s" % value, reason=True)
         if len(string) > 0:
             return string[:-1]
         else:
@@ -36390,12 +36411,12 @@ struct msghdr {
             os.kill(pid, signal.SIGSTOP)
             return 0
         except:
-            SysMgr.printSigError(pid, 'SIGSTOP')
+            ysMgr.printSigError(pid, 'SIGSTOP')
             return -1
 
 
 
-    def allocPages(self, size=4096):
+    def mmap(self, size=4096, perm='rwx'):
         # get original regset #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -36413,12 +36434,31 @@ struct msghdr {
         # backup a current text page #
         curPage = self.accessMem(self.peekIdx, self.pc)
 
-        # prepare for calling mmap syscall #
+        # set mmap syscall number #
         sysid = ConfigMgr.getMmapId()
         setattr(self.regs, self.retreg, sysid)
-        self.writeArgs([sysid, 0, size, 7, 0x22, 0, 0])
+
+        # set prot args #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        # set flags #
+        flags = 0x22
+
+        # set args #
+        self.writeArgs([sysid, 0, size, prot, flags, 0, 0])
+
+        # set PC to syscall function addr #
         addr = self.getAddrBySymbol('syscall')
         self.setPC(addr[0][0])
+
+        # apply register set #
         self.setRegs()
 
         # launch mmap syscall #
@@ -36432,7 +36472,7 @@ struct msghdr {
                 "Fail to get register values of %s(%s)" % \
                     (self.comm, self.pid))
             return
-        self.writeArgs([0, size, 7, 0x22, 0, 0])
+        self.writeArgs([0, size, prot, flags, 0, 0])
         self.setRegs()
 
         # continue and stop at return #
@@ -36452,6 +36492,82 @@ struct msghdr {
         self.setRegs(temp=True)
 
         return newAddr
+
+
+
+    def mprotect(self, maddr, size, perm='rwx'):
+        # get original regset #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+
+        # get backup regset #
+        if self.getRegs(temp=True) != 0:
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+
+        # backup a current text page #
+        curPage = self.accessMem(self.peekIdx, self.pc)
+
+        # set mprotect syscall number #
+        sysid = ConfigMgr.sysList.index('sys_mprotect')
+        setattr(self.regs, self.retreg, sysid)
+
+        # set prot args #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        # set args #
+        self.writeArgs([sysid, maddr, size, prot])
+
+        # set PC to syscall function addr #
+        addr = self.getAddrBySymbol('syscall')
+        self.setPC(addr[0][0])
+
+        # apply register set #
+        self.setRegs()
+
+        # launch mmap syscall #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs and change the 6th argument #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        self.writeArgs([maddr, size, prot])
+        self.setRegs()
+
+        # continue and stop at return #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs to check results #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        ret = self.getRetVal()
+
+        # restore regs #
+        self.setRegs(temp=True)
+
+        return ret
 
 
 
@@ -37017,7 +37133,8 @@ struct msghdr {
                 return UtilMgr.getFlagString(\
                     value, ConfigMgr.PROT_TYPE)
             elif argname == 'flags':
-                pass
+                return UtilMgr.getFlagString(\
+                    value, ConfigMgr.MAP_TYPE)
 
         if syscall.startswith('fcntl'):
             if argname == 'cmd':
