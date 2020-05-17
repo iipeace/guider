@@ -80,7 +80,6 @@ def insert_db(guider_data):
             continue
         if len(json_body["fields"]) > 0:
             influx_data.append(json_body)
-    pprint.pprint(influx_data)
     client.write_points(influx_data)
 
 
