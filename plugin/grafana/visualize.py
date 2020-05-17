@@ -4,6 +4,7 @@ import sys
 
 from common.guider import GuiderInstance, RequestManager
 from influxdb import InfluxDBClient
+from datetime import datetime
 
 
 def get_data_by_command(target_addr, request_id, cmd):
@@ -21,13 +22,15 @@ def get_data_by_command(target_addr, request_id, cmd):
             str_pipe = pipe.getData()
             if not str_pipe:
                 break
-            result['data'] = str_pipe.replace('\n', '</br>')
-            insert_db(result)
-            pprint.pprint(result)
+            result['data'] = str_pipe.replace('\n', '')
+            if result['data'] and result['data'][2:8] == "system":
+                result['data'] = json.loads(result['data'])
+                insert_db(result['data'])
+                pprint.pprint(result)
         pipe.close()
         stop_command_run(request_id)
-    except Exception as e:
-        print(e)
+    except Exception as err:
+        print(err)
         if pipe:
             pipe.close()
         stop_command_run(request_id)
@@ -53,22 +56,41 @@ def setup_db(host, port):
 
     if not {'name': db_name} in client.get_list_database():
         client.create_database(db_name)
-        client.create_retention_policy('awesome_policy', '3d', 3, default=True)
+        client.create_retention_policy('awesome_policy', config['influxDBClientConfig']['retention_policy'], 1,
+                                       default=True)
     client.switch_user(db_user, db_user_password)
 
     return client
 
 
 def insert_db(guider_data):
-    pass
+    influx_data = list()
+    for super_key in guider_data.keys():
+        json_body = dict()
+        json_body['tags'] = dict()
+        json_body['tags']['host'] = config['tags']['host']
+        json_body['tags']['region'] = config['tags']['region']
+        json_body['time'] = datetime.fromtimestamp(guider_data['timestamp']).strftime('%Y-%m-%dT%H:%M:%S')
+        json_body['measurement'] = super_key
+        json_body['fields'] = dict()
+        if super_key == "mem":
+            json_body['fields'] = guider_data[super_key]
+        else:
+            # TODO super_key: cpu, block, net, process, storage, swap, system, task
+            continue
+        if len(json_body["fields"]) > 0:
+            influx_data.append(json_body)
+    pprint.pprint(influx_data)
+    client.write_points(influx_data)
 
 
 if __name__ == '__main__':
     global config
+    global client
     with open('./visualization.conf', 'r') as config_file:
         config = json.load(config_file)
     try:
-        setup_db(config['influxDBClientConfig']['host'], config['influxDBClientConfig']['port'])
+        client = setup_db(config['influxDBClientConfig']['host'], config['influxDBClientConfig']['port'])
+        get_data_by_command(sys.argv[1], 1, 'GUIDER top -J')
     except Exception as e:
         print(e)
-    get_data_by_command(sys.argv[1], 1, 'GUIDER top -J')
