@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200510"
+__revision__ = "200515"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12908,7 +12908,6 @@ class SysMgr(object):
     kernelVersion = None
     isLinux = True
     isAndroid = False
-    helpEnable = False
     drawMode = False
     archOption = None
 
@@ -12965,9 +12964,11 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
+    defaultOutPath = 'guider.out'
     tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
+    lmkPath = '/sys/module/lowmemorykiller/parameters/minfree'
     pythonPath = sys.executable
     addr2linePath = []
     objdumpPath = []
@@ -13091,6 +13092,7 @@ class SysMgr(object):
     layout = None
 
     showAll = False
+    optStrace = False
     disableAll = False
     intervalNow = long(0)
     recordStatus = False
@@ -13104,6 +13106,7 @@ class SysMgr(object):
     statFd = None
     memFd = None
     zoneFd = None
+    lmkFd = None
     irqFd = None
     softirqFd = None
     vmstatFd = None
@@ -13517,7 +13520,7 @@ class SysMgr(object):
     @staticmethod
     def setVisualAttr():
         if len(sys.argv) <= 2:
-            sys.argv.append('guider.out')
+            sys.argv.append(SysMgr.defaultOutPath)
 
         SysMgr.graphEnable = True
 
@@ -15168,6 +15171,7 @@ class SysMgr(object):
                 'printcrp': 'Cgroup',
                 'printdir': 'Dir',
                 'printdbus': 'D-Bus',
+                'printsig': 'D-Bus',
                 'printns': 'Namespace',
                 'printsvc': 'systemd',
                 },
@@ -15205,9 +15209,6 @@ class SysMgr(object):
         # help #
         if len(sys.argv) <= 1 or \
             SysMgr.isHelpMode():
-            # enable help mode #
-            SysMgr.helpEnable = True
-
             # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
                 cmd = os.environ['CMDLINE']
@@ -16715,6 +16716,33 @@ Examples:
 
     - Print DLT messages sorted by line from specific files
         # {0:1} {1:1} -I "./*.dlt" -S
+                    '''.format(cmd, mode)
+
+                # printsig #
+                elif SysMgr.isPrintSigMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show D-Bus signal subscription info
+
+Options:
+    -o  <DIR|FILE>              save output data
+    -a                          show all stats
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr +=  '''
+Examples:
+    - Print D-Bus signal subscription info
+        # {0:1} {1:1}
+
+    - Print D-Bus signal subscription info with specific values
+        # {0:1} {1:1} -a
+
+    - Print D-Bus signal subscription info to a specific file
+        # {0:1} {1:1} -o sig.out
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -20822,6 +20850,7 @@ Copyright:
 
     @staticmethod
     def printPipe(line='', newline=True, flush=False, pager=True):
+        # check logging option #
         if SysMgr.loggingEnable:
             if SysMgr.dltEnable:
                 DltAnalyzer.doLogDlt(msg=line)
@@ -20832,7 +20861,7 @@ Copyright:
             if SysMgr.journalEnable:
                 LogMgr.doLogJournal(msg=line)
 
-        # print to socket #
+        # socket output #
         if len(SysMgr.addrListForPrint) > 0:
             addrListForPrint = dict(SysMgr.addrListForPrint)
             for addr, cli in addrListForPrint.items():
@@ -20861,22 +20890,25 @@ Copyright:
                     start = end
                     end += udpSeg
 
+        # check print status #
         if not SysMgr.printEnable:
             return
 
-        # check newline argument #
-        if newline:
-            retstr = '\n'
-        else:
-            retstr = ''
+        # convert list to string #
+        if type(line) is list:
+            if line[0][-1] == '\n':
+                line = ''.join(line)
+            else:
+                line = '\n'.join(line)
 
         # pager initialization #
-        if pager and \
-            (SysMgr.pipeForPrint == \
-                SysMgr.printFile == None) and \
-            (SysMgr.helpEnable or \
-                SysMgr.isTopMode() == \
-                SysMgr.printStreamEnable == False):
+        if not pager:
+            pass
+        elif SysMgr.pipeForPrint or \
+            SysMgr.printFile or \
+            SysMgr.printStreamEnable:
+            pass
+        elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
                 if SysMgr.isLinux:
                     if UtilMgr.which('less'):
@@ -20917,30 +20949,29 @@ Copyright:
         # pager output #
         if SysMgr.pipeForPrint:
             try:
-                # convert to extended ascii #
-                nline = SysMgr.convertExtAscii(line + retstr)
-                SysMgr.pipeForPrint.write(nline)
+                SysMgr.pipeForPrint.write(line)
+
+                if newline and line[-1] != '\n':
+                    SysMgr.pipeForPrint.write('\n')
+
                 return
-            except UnicodeEncodeError:
-                SysMgr.encodeEnable = False
-                SysMgr.pipeForPrint.write(line + retstr)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to print to pipe\n", True)
+                    "Fail to print to pager\n", True)
                 SysMgr.pipeForPrint = None
 
-        # file output #
+        # file initialization #
         if SysMgr.printFile and \
             not SysMgr.fileForPrint:
 
-            # runtime #
+            # profile #
             if SysMgr.isRuntimeMode():
                 # dir #
                 if os.path.isdir(SysMgr.printFile):
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.printFile, 'guider.out')
+                        os.path.join(SysMgr.printFile, SysMgr.defaultOutPath)
                 # file #
                 else:
                     SysMgr.inputFile = SysMgr.printFile
@@ -20976,7 +21007,7 @@ Copyright:
             SysMgr.inputFile = \
                 os.path.normpath(SysMgr.inputFile)
 
-            # backup a exist output file #
+            # backup an exist file #
             if os.path.isfile(SysMgr.inputFile):
                 backupFile = '%s.old' % SysMgr.inputFile
 
@@ -20991,12 +21022,12 @@ Copyright:
                         "Fail to backup %s to %s" % \
                             (SysMgr.inputFile, backupFile), True)
 
-            # open output file #
+            # open file #
             try:
                 SysMgr.fileForPrint = \
                     open(SysMgr.inputFile, 'w+')
 
-                # print output file name #
+                # print file name #
                 if SysMgr.printFile:
                     SysMgr.printInfo(\
                         "start writing statistics to %s" % \
@@ -21007,13 +21038,13 @@ Copyright:
                 SysMgr.printOpenErr(SysMgr.inputFile)
                 sys.exit(0)
 
-        # print to file #
+        # file output #
         if SysMgr.fileForPrint:
             try:
-                if SysMgr.isTopMode() or SysMgr.isTopSumMode():
-                    SysMgr.fileForPrint.writelines(line)
-                else:
-                    SysMgr.fileForPrint.write(line + retstr)
+                SysMgr.fileForPrint.write(line)
+
+                if newline and line[-1] != '\n':
+                    SysMgr.fileForPrint.write('\n')
 
                 if flush:
                     SysMgr.fileForPrint.flush()
@@ -21022,7 +21053,7 @@ Copyright:
             except:
                 SysMgr.printErr(\
                     "Fail to write to file", True)
-        # print to console #
+        # console output #
         else:
             ttyCols = SysMgr.ttyCols
 
@@ -21036,6 +21067,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.printWarn("Fail to print to console", reason=True)
                 return
 
             # convert to extended ascii #
@@ -21043,21 +21075,19 @@ Copyright:
 
             # print string to console #
             try:
-                if newline:
-                    sys.stdout.write(nline + '\n')
-                else:
-                    sys.stdout.write(nline)
+                sys.stdout.write(nline)
             except SystemExit:
                 sys.exit(0)
             except:
                 if SysMgr.encodeEnable:
                     SysMgr.encodeEnable = False
 
-                    if newline:
-                        sys.stdout.write(line + '\n')
-                    else:
-                        sys.stdout.write(line)
+                    sys.stdout.write(line)
 
+            if newline:
+                sys.stdout.write('\n')
+
+            # flush buffer #
             if flush or SysMgr.remoteRun:
                 sys.stdout.flush()
 
@@ -21109,7 +21139,10 @@ Copyright:
         msg = ('\n%s%s%s%s%s\n' % \
             (ConfigMgr.WARNING, '[Warning] ', line, rstring, ConfigMgr.ENDC))
 
-        SysMgr.stderr.write(msg)
+        if 'REMOTERUN' in os.environ:
+            print(msg.replace('\n', ''))
+        else:
+            SysMgr.stderr.write(msg)
 
 
 
@@ -21134,7 +21167,10 @@ Copyright:
         msg = ('\n%s%s%s%s%s\n' % \
             (ConfigMgr.FAIL, '[Error] ', line, rstring, ConfigMgr.ENDC))
 
-        SysMgr.stderr.write(msg)
+        if 'REMOTERUN' in os.environ:
+            print(msg.replace('\n', ''))
+        else:
+            SysMgr.stderr.write(msg)
 
 
 
@@ -23028,7 +23064,7 @@ Copyright:
             if len(sys.argv) > 2:
                 fname = sys.argv[2]
             else:
-                fname = None
+                fname = SysMgr.defaultOutPath
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -23147,6 +23183,12 @@ Copyright:
 
             DbusAnalyzer.runDbusSnooper(mode='print')
 
+        # PRINTSIG MODE #
+        elif SysMgr.isPrintSigMode():
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            DbusAnalyzer.runDbusSnooper(mode='signal')
+
         # PRINTSYSLOG MODE #
         elif SysMgr.isPrintSyslogMode():
             # set console info #
@@ -23219,10 +23261,16 @@ Copyright:
 
         # MEMTEST MODE #
         elif SysMgr.isMemTestMode():
+            # remove option args #
+            SysMgr.removeOptionArgs()
+
             SysMgr.doMemTest()
 
         # SETCPU MODE #
         elif SysMgr.isSetCpuMode():
+            # remove option args #
+            SysMgr.removeOptionArgs()
+
             SysMgr.doSetCpu()
 
         # SETSCHED MODE #
@@ -23471,6 +23519,15 @@ Copyright:
     @staticmethod
     def isPrintDbusMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'printdbus':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintSigMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsig':
             return True
         else:
             return False
@@ -23980,6 +24037,7 @@ Copyright:
         SysMgr.uptime = SysMgr.getUptime()
         SysMgr.uptimeDiff = \
             SysMgr.uptime - SysMgr.prevUptime
+        return SysMgr.uptime
 
 
 
@@ -25472,9 +25530,9 @@ Copyright:
                     isHistory = True
 
                 # handle local command #
-                if len(uinput) == 0:
-                    continue
-                elif uinput == '!' or uinput.upper() == 'HISTORY':
+                if not uinput or \
+                    uinput == '!' or \
+                    uinput.upper() == 'HISTORY':
                     printHistory(hlist)
                     continue
                 elif uinput.upper().startswith('PING'):
@@ -25484,7 +25542,8 @@ Copyright:
                     break
 
                 # backup command #
-                if not isHistory:
+                if not isHistory and \
+                    (not hlist or hlist[-1] != uinput):
                     hlist.append(uinput)
 
                 # launch remote command #
@@ -26246,7 +26305,7 @@ Copyright:
                     targetBpFileList.setdefault(pid, dict())
 
                     # create object #
-                    procObj = Debugger(pid=pid, execCmd=execCmd)
+                    procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
                     if not procObj:
                         continue
 
@@ -27578,7 +27637,8 @@ Copyright:
                 conv = UtilMgr.convSize2Unit
                 memTotal = conv(memData['MemTotal'] << 10)
                 memFree = conv(memData['MemFree'] << 10)
-                memFreePer = (memData['MemFree'] / float(memData['MemTotal'])) * 100
+                memFreePer = \
+                    (memData['MemFree'] / float(memData['MemTotal'])) * 100
                 try:
                     memAvail = conv(memData['MemAvailable'] << 10)
                     memAvailPer = \
@@ -27586,6 +27646,7 @@ Copyright:
                     memAvailPer = '%.1f%%' % memAvailPer
                 except:
                     memAvail = memAvailPer = '-'
+                memCache = conv(memData['Cached'] << 10)
                 swapTotal = conv(memData['SwapTotal'] << 10)
                 swapFree = conv(memData['SwapFree'] << 10)
                 if swapTotal == '0':
@@ -27595,9 +27656,10 @@ Copyright:
                         (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
 
                 memstr = ('\n\t[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
-                    'MemAvail: %s(%s), swapTotal: %s, swapFree: %s(%.1f%%)') % \
-                        ('Total', memTotal, memFree, memFreePer, memAvail, \
-                            memAvailPer, swapTotal, swapFree, swapFreePer)
+                    'MemAvail: %s(%s), Cached: %s, SwapTotal: %s, '
+                    'SwapFree: %s(%.1f%%)') % \
+                        ('TOTAL', memTotal, memFree, memFreePer, memAvail, \
+                            memAvailPer, memCache, swapTotal, swapFree, swapFreePer)
 
                 return memstr
 
@@ -27690,14 +27752,46 @@ Copyright:
 
             return ''
 
-        def allocMemory(size):
-            SysMgr.setDefaultSignal()
+        def getLMKinfo():
+            # save LMK info #
+            try:
+                memBuf = None
+                SysMgr.lmkFd.seek(0)
+                memBuf = SysMgr.lmkFd.readline()
+            except:
+                try:
+                    memPath = SysMgr.lmkPath
+                    SysMgr.lmkFd = open(memPath, 'r')
+                    memBuf = SysMgr.lmkFd.readline()
+                except:
+                    SysMgr.printOpenWarn(memPath)
 
-            conv = UtilMgr.convSize2Unit
+            # threshold list #
+            threshold = \
+                ['FGAPP', 'VISAPP', 'SECSER', 'HIDAPP', 'CONPRO', 'EMPAPP']
+
+            if memBuf:
+                stats = memBuf.split(',')
+                if stats:
+                    stats = list(map(long, stats))
+
+                lmkstr = '\n\t[%9s] ' % 'LMK'
+
+                for idx, item in enumerate(stats):
+                    lmkstr = '%s%s: %s, ' % \
+                        (lmkstr, threshold[idx], \
+                            UtilMgr.convSize2Unit(item << 12))
+
+                return '%s' % lmkstr[:-2]
+
+            return ''
+
+        def allocMemory(size, wrPipe=None, ret=False):
+            SysMgr.setDefaultSignal()
 
             # allocate memory #
             try:
-                buffer = bytearray(size)
+                SysMgr.procBuffer = bytearray(size)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -27705,6 +27799,20 @@ Copyright:
                     "Fail to allocate memory", True)
                 sys.exit(0)
 
+            if wrPipe:
+                os.write(wrPipe, '1'.encode())
+
+            if ret:
+                return
+
+            SysMgr.waitEvent()
+
+            sys.exit(0)
+
+        def printUsage(obj, pid, size, alloc=True):
+            conv = UtilMgr.convSize2Unit
+
+            # get system stat #
             try:
                 memstr = getMeminfo()
             except SystemExit:
@@ -27713,6 +27821,7 @@ Copyright:
                 SysMgr.printErr("Fail to get memory stat", True)
                 return
 
+            # get vmstat #
             try:
                 vmstr = getVminfo()
             except SystemExit:
@@ -27721,6 +27830,7 @@ Copyright:
                 SysMgr.printErr("Fail to get virtual memory stat", True)
                 return
 
+            # get zone stat #
             try:
                 zonestr = getZoneinfo()
             except SystemExit:
@@ -27729,23 +27839,26 @@ Copyright:
                 SysMgr.printErr("Fail to get zone memory stat", True)
                 return
 
-            if SysMgr.isRoot():
-                # create task object #
-                pid = str(SysMgr.pid)
-                obj = ThreadAnalyzer(onlyInstance=True)
-                procPath = '%s/%s' % (SysMgr.procPath, pid)
+            # get LMK stat #
+            try:
+                lmkstr = getLMKinfo()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn("Fail to get LMK stat", reason=True)
 
-                # save memory stat #
-                obj.saveProcData(procPath, pid)
-                obj.saveProcStats()
-                obj.saveProcData(procPath, pid)
+            # get process stat #
+            pid = str(pid)
+            procPath = '%s/%s' % (SysMgr.procPath, pid)
+            obj.saveProcStat()
+            if SysMgr.isRoot():
                 obj.saveProcSmapsData(procPath, pid)
                 ret = obj.getMemDetails(pid, obj.procData[pid]['maps'])
                 statstr = "RSS: %s, PSS: %s, USS: %s" % \
                     (conv(ret[1] << 10), conv(ret[2] << 10), conv(ret[3] << 10))
             else:
                 # save RSS stat #
-                mlist = SysMgr.getMemStat('self')
+                mlist = SysMgr.getMemStat(pid)
                 if not mlist:
                     SysMgr.printErr(\
                         "Fail to get memory size of Guider")
@@ -27755,13 +27868,39 @@ Copyright:
                 rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
                 statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
 
-            SysMgr.printInfo((\
-                'allocated %s, used total (%s) via Guider %s%s%s') % \
-                    (conv(len(buffer), True), statstr, memstr, vmstr, zonestr))
+            # get new task #
+            newTasks = set(obj.procData.keys()) - set(obj.prevProcData.keys())
+            if newTasks:
+                newstr = '\n\t[%9s]  ' % 'NEW'
+                for pid in sorted(newTasks):
+                    comm = obj.procData[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(obj.procData[pid]['stat'][obj.rssIdx])<<12)
+                    newstr = '%s %s(%s)[%s], ' % (newstr, comm, pid, rss)
+                newstr = newstr[:-2]
+            else:
+                newstr = ''
 
-            SysMgr.waitEvent()
+            # get die task #
+            dieTasks =  set(obj.prevProcData.keys()) - set(obj.procData.keys())
+            if dieTasks:
+                diestr = '\n\t[%9s]  ' % 'DIE'
+                for pid in sorted(dieTasks):
+                    comm = obj.prevProcData[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(obj.prevProcData[pid]['stat'][obj.rssIdx])<<12)
+                    diestr = '%s %s(%s)[%s], ' % (diestr, comm, pid, rss)
+                diestr = diestr[:-2]
+            else:
+                diestr = ''
 
-            sys.exit(0)
+            if alloc:
+                allocstr = \
+                    ' allocated %s, used total (%s) via Guider additionally ' % \
+                        (conv(size, True), statstr)
+            else:
+                allocstr = ' [%9s] %s' % ('TIME', SysMgr.updateUptime())
+
+            SysMgr.printInfo('%s%s%s%s%s%s%s' % \
+                (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr))
 
         # convert time #
         try:
@@ -27778,8 +27917,6 @@ Copyright:
             elif len(value) == 1:
                 size = value[0]
                 interval = count = long(0)
-            elif '.' in size:
-                raise Exception()
             else:
                 raise Exception()
 
@@ -27803,10 +27940,18 @@ Copyright:
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
         signal.alarm(SysMgr.intervalEnable)
 
+        # create task object #
+        obj = ThreadAnalyzer(onlyInstance=True)
+        obj.saveProcStat()
+        pid = SysMgr.pid
+
         pidList = list()
         if count > 0:
             for idx in range(0, count):
                 try:
+                    # create a pipe #
+                    rd, wr = os.pipe()
+
                     pid = SysMgr.createProcess()
                 except SystemExit:
                     pass
@@ -27817,7 +27962,7 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(size)
+                        allocMemory(size, wr)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27825,10 +27970,20 @@ Copyright:
                         sys.exit(0)
                 else:
                     pidList.append(pid)
+                    os.close(wr)
+
+                    os.read(rd, 1)
+                    os.close(rd)
+
+                    # print stats #
+                    printUsage(obj, pid, size)
 
                 time.sleep(interval)
         elif interval > 0:
             while 1:
+                # create a pipe #
+                rd, wr = os.pipe()
+
                 try:
                     pid = SysMgr.createProcess()
                 except SystemExit:
@@ -27840,7 +27995,7 @@ Copyright:
 
                 if pid == 0:
                     try:
-                        allocMemory(size)
+                        allocMemory(size, wr)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27848,11 +28003,27 @@ Copyright:
                         sys.exit(0)
                 else:
                     pidList.append(pid)
+                    os.close(wr)
+
+                    os.read(rd, 1)
+                    os.close(rd)
+
+                    # print stats #
+                    printUsage(obj, pid, size)
 
                 time.sleep(interval)
         else:
             try:
-                allocMemory(size)
+                interval = 1
+
+                pidList.append(pid)
+
+                allocMemory(size, ret=True)
+
+                # print stats #
+                printUsage(obj, pid, size)
+
+                time.sleep(interval)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -27861,7 +28032,10 @@ Copyright:
 
         # wait for childs #
         if len(pidList) > 0:
-            SysMgr.waitEvent()
+            while 1:
+                printUsage(obj, pid, size, alloc=False)
+
+                time.sleep(interval)
 
 
 
@@ -32102,7 +32276,7 @@ class DbusAnalyzer(object):
     GDBusMessageType = [
         "INVALID",
         "METHOD", # METHOD_CALL
-        "METHOD_RETURN",
+        "RETURN", # METHOD_RETURN
         "ERROR",
         "SIGNAL"
     ]
@@ -32201,7 +32375,15 @@ class DbusAnalyzer(object):
         path = '/'
         if not des:
             des = 'org.freedesktop.DBus'
-        path += des.replace('.', '/')
+        if not des.startswith(':'):
+            path += des.replace('.', '/')
+        if dbusObj.dbus_validate_path(\
+            c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
+            SysMgr.printWarn(\
+                "Fail to create a D-Bus message because %s" % \
+                    DbusAnalyzer.getErrInfo())
+            return
+
         if request == 'introspect':
             iface = 'org.freedesktop.DBus.Introspectable'
             method = 'Introspect'
@@ -32336,7 +32518,7 @@ class DbusAnalyzer(object):
         cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
-        SysMgr.printStat('start collecting signal subscription info')
+        SysMgr.printStat('start collecting signals for %s bus' % bus)
 
         # array item loop #
         while 1:
@@ -32390,7 +32572,8 @@ class DbusAnalyzer(object):
 
                 # allocate a new task dict #
                 procId = procInfo.value.decode()
-                procSigList = perProcList[procId] = dict()
+                perProcList.setdefault(procId, dict())
+                procSigList = perProcList[procId]
 
                 # parse signal array #
                 dbusObj.dbus_message_iter_recurse(dictIterP, arraySigIterP)
@@ -32423,19 +32606,27 @@ class DbusAnalyzer(object):
                         sinfo[slist[0]] = slist[1].strip("'")
 
                     # save items to list #
-                    if 'sender' in sinfo and \
-                        'interface' in sinfo and \
-                        'member' in sinfo:
-                        sender = sinfo['sender']
+                    if 'interface' in sinfo:
                         iface = sinfo['interface']
-                        member = sinfo['member']
-                        addr = '%s.%s' % (iface, member)
+
+                        if 'sender' in sinfo:
+                            sender = sinfo['sender']
+                        else:
+                            sender = iface
+
+                        if 'member' in sinfo:
+                            member = '.%s' % sinfo['member']
+                        else:
+                            member= ''
+
+                        addr = '%s%s' % (iface, member)
 
                         # save perProc items #
                         procSigList.setdefault(sender, dict())
-                        procSigList[sender].setdefault(addr, list())
+                        procSigList[sender].setdefault(addr, dict())
                         if 'arg0' in sinfo:
-                            procSigList[sender][addr].append(sinfo['arg0'])
+                            argList = [ '%s' % sinfo[i] for i in sorted(list(sinfo.keys())) if i.startswith('arg') ]
+                            procSigList[sender][addr].setdefault(', '.join(argList))
 
                         # save perSignal items #
                         perSigList.setdefault(sender, dict())
@@ -32533,8 +32724,13 @@ class DbusAnalyzer(object):
         dbusObj.dbus_message_unref(reply)
         dbusObj.dbus_connection_unref(conn)
 
+        # get comm #
+        comm = SysMgr.getComm(pid.value)
+        if not comm:
+            comm = '??'
+
         try:
-            return '%s(%s)' % (SysMgr.getComm(pid.value), pid.value)
+            return '%s(%s)' % (comm, pid.value)
         except SystemExit:
             sys.exit(0)
         except:
@@ -32755,6 +32951,162 @@ class DbusAnalyzer(object):
 
         dbusObj.dbus_message_get_type.argtypes = [c_void_p]
         dbusObj.dbus_message_get_type.restype = c_int
+
+
+
+    @staticmethod
+    def printSignalInfo(tid, perProc, perSig, procInfo):
+        conv = UtilMgr.convertNumber
+
+        totalSubscription = 0
+        procId = '%s(%s)' % (SysMgr.getComm(tid), tid)
+
+        # create a table for perProc signals #
+        nrPerProcSignals = {}
+        for cli, items in perProc.items():
+            nrPerProcSignals.setdefault(\
+                cli, dict({'nrStub': 0, 'nrSignal': 0}))
+
+            for sender, iface in items.items():
+                nrPerProcSignals[cli]['nrStub'] += 1
+                nrPerProcSignals[cli]['nrSignal'] += len(iface)
+                totalSubscription += len(iface)
+
+        # print perProc signals #
+        SysMgr.printPipe((\
+            '\nD-Bus Signal Proxy Info [Target: %s] '
+            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+                (procId, conv(len(perProc)), conv(totalSubscription), twoLine))
+        SysMgr.printPipe(\
+            "{0:^23} {1:<23} {2:^10} {3:>1}".format(\
+                'Client', 'Server', 'Interface', 'Args'))
+        SysMgr.printPipe(oneLine)
+        for cli, stats in sorted(nrPerProcSignals.items(),\
+            key=lambda e: e[1]['nrSignal'], reverse=True):
+            if cli in procInfo:
+                proc = procInfo[cli]
+            else:
+                proc = cli
+
+            # print signal stat #
+            mergedList = {}
+            for sender, iface in perProc[cli].items():
+                if sender in procInfo:
+                    sender = procInfo[sender]
+                else:
+                    tokens = sender.split('.')
+                    pos = len(tokens) - 1
+                    while 1:
+                        if pos == 0:
+                            break
+
+                        key = '.'.join(tokens[:pos])
+                        if key in procInfo:
+                            procInfo[sender] = procInfo[key]
+                            sender = procInfo[key]
+                            break
+
+                        pos -= 1
+
+                if sender in mergedList:
+                    mergedList[sender].update(iface)
+                else:
+                    mergedList[sender] = dict(iface)
+
+            # print process stat #
+            SysMgr.printPipe(\
+                "{0:>23} [nrStub: {1:1}, nrSignal: {2:1}]".format(\
+                    proc, conv(len(mergedList)), conv(stats['nrSignal'])))
+
+            # print signal stat #
+            for sender, iface in sorted(mergedList.items(),\
+                key=lambda e: len(e[1]), reverse=True):
+                SysMgr.printPipe(\
+                    "{0:>23} {1:<23} [nrSignal: {2:1}]".format(\
+                        ' ', sender, conv(len(iface))))
+                if not SysMgr.showAll:
+                    continue
+
+                for name, arg in sorted(iface.items()):
+                    SysMgr.printPipe(\
+                        "{0:>23} {1:<23} {2:<12}".format(\
+                            ' ', ' ', name))
+                    for key in sorted(list(arg.keys())):
+                        SysMgr.printPipe(\
+                            "{0:>23} {1:<23} {2:<10} ({3:<1})".format(\
+                                ' ', ' ', ' ', key))
+            SysMgr.printPipe(oneLine)
+        if len(nrPerProcSignals) == 0:
+            SysMgr.printPipe('\tNone\n%s' % oneLine)
+
+        # create a table for perSignal processes #
+        nrPerSigProcs = {}
+        for sender, items in perSig.items():
+            if sender in procInfo:
+                proc = procInfo[sender]
+            else:
+                proc = sender
+
+            nrPerSigProcs.setdefault(\
+                proc, dict({'proxyList': dict(), 'nrSignal': 0, 'interface': dict()}))
+            nrPerSigProcs[proc]['interface'].setdefault(sender, dict())
+            nrPerSigProcs[proc]['interface'][sender].update(items)
+
+            nrPerSigProcs[proc]['nrSignal'] += len(items)
+            for iface, receiver in items.items():
+                nrPerSigProcs[proc]['proxyList'].update(receiver)
+
+        # print perSignal processes #
+        SysMgr.printPipe((\
+            '\nD-Bus Signal Stub Info [Target: %s] '
+            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+                (procId, conv(len(perSig)), conv(totalSubscription), twoLine))
+        SysMgr.printPipe(\
+            "{0:^23} {1:^12} {2:<23}".format(\
+                'Server', 'Interface', 'Client'))
+        SysMgr.printPipe(oneLine)
+        for serv, stats in sorted(nrPerSigProcs.items(),\
+            key=lambda e: len(e[1]['proxyList']), reverse=True):
+            # print stub process stat #
+            SysMgr.printPipe(\
+                "{0:>23} [nrProxy: {1:1}, nrSignal: {2:1}]".format(\
+                    serv, conv(len(stats['proxyList'])), conv(stats['nrSignal'])))
+
+            # print interface stat #
+            for iface, receiver in sorted(stats['interface'].items(),\
+                key=lambda e: len(e[1]), reverse=True):
+                procList = {}
+                for signame, procs in receiver.items():
+                    procList.update(procs)
+
+                SysMgr.printPipe(\
+                    "{0:>23} {1:<12} [nrProxy: {2:1}] [nrSignal: {3:1}]".format(\
+                        ' ', iface, conv(len(procList)), conv(len(receiver))))
+
+                if not SysMgr.showAll:
+                    continue
+
+                for signame, procs in sorted(receiver.items(),\
+                    key=lambda e: len(e[1]), reverse=True):
+                    SysMgr.printPipe(\
+                        "{0:>23} {1:<12} {2:<23} [nrProxy: {3:<1}]".format(\
+                            ' ', ' ', signame, conv(len(procs))))
+                    procs = [ procInfo[name] if name in procInfo else name for name in list(procs.keys()) ]
+                    # print proxy process stat #
+                    for name in sorted(procs):
+                        if name in procInfo:
+                            cproc = procInfo[name]
+                        else:
+                            cproc = name
+
+                        SysMgr.printPipe(\
+                            "{0:>23} {1:<12} {2:<12} {3:<1}".format(\
+                                ' ', ' ', ' ', cproc))
+            SysMgr.printPipe(oneLine)
+        if len(nrPerSigProcs) == 0:
+            SysMgr.printPipe('\tNone\n%s' % oneLine)
+
+
 
 
 
@@ -33127,6 +33479,8 @@ class DbusAnalyzer(object):
                         srcInfo = src = src.decode()
                     if service and src in service:
                         srcInfo = service[src]
+                    elif src in gBusServiceList:
+                        srcInfo = gBusServiceList[src]
 
                     # get receiver #
                     desInfo = '??'
@@ -33135,6 +33489,8 @@ class DbusAnalyzer(object):
                         desInfo = des = des.decode()
                     if service and des in service:
                         desInfo = service[des]
+                    elif des in gBusServiceList:
+                        desInfo = gBusServiceList[des]
 
                     # get message type #
                     try:
@@ -33159,7 +33515,7 @@ class DbusAnalyzer(object):
                         msgTable = DbusAnalyzer.msgSentTable
 
                     effectiveReply = False
-                    if mtype == 'METHOD_RETURN':
+                    if mtype == 'RETURN':
                         # get reply-serial #
                         repSerial = \
                             libgioObj.g_dbus_message_get_reply_serial(\
@@ -33219,7 +33575,7 @@ class DbusAnalyzer(object):
                     DbusAnalyzer.recvData.setdefault(tid, dict())
 
                     # return check #
-                    if mtype == 'METHOD_RETURN':
+                    if mtype == 'RETURN':
                         if repSerial in msgTable:
                             targetIf, prevTime = msgTable[repSerial]
                         else:
@@ -33449,6 +33805,7 @@ class DbusAnalyzer(object):
         busList = []
         pipeList = []
         busServiceList = {}
+        gBusServiceList = {}
         interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
@@ -33490,20 +33847,30 @@ class DbusAnalyzer(object):
             # register services #
             busServiceList[tid] = []
             if services:
-                serviceProcList = {}
+                busProcList = {}
 
+                # register process #
                 for idx, service in enumerate(services):
-                    serviceProcList[service] = \
-                        DbusAnalyzer.getServiceProc(bus, service)
+                    pinfo = DbusAnalyzer.getServiceProc(bus, service)
+                    busProcList[service] = pinfo
+                    gBusServiceList.setdefault(service, pinfo)
 
-                    # get methods and properties of services #
-                    if not service.startswith(':'):
+                    # register methods and properties #
+                    if False and not service.startswith(':'):
                         interfaceList[service] = \
                             DbusAnalyzer.getStats(bus, 'introspect', service)
 
-                busServiceList[tid].append(serviceProcList)
+                busServiceList[tid].append(busProcList)
             else:
                 busServiceList[tid].append(dict())
+
+            # print signals #
+            if mode == 'signal':
+                ret = DbusAnalyzer.getStats(bus, 'allmatch')
+                if ret:
+                    perProc, perSig = ret
+                    DbusAnalyzer.printSignalInfo(tid, perProc, perSig, busProcList)
+                continue
 
             # create a new process #
             pid = SysMgr.createProcess(chPgid=False)
@@ -33533,6 +33900,7 @@ class DbusAnalyzer(object):
                 # set options #
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
+                SysMgr.optStrace = True
                 SysMgr.intervalEnable = long(0)
                 SysMgr.printFile = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
@@ -33547,6 +33915,10 @@ class DbusAnalyzer(object):
             # error #
             else:
                 sys.exit(0)
+
+        # check signal mode #
+        if mode == 'signal':
+            return
 
         # start worker threads #
         for tobj in threadingList:
@@ -33642,7 +34014,7 @@ class DltAnalyzer(object):
                 convertFunc(DltAnalyzer.dltData['cnt'])))
 
         # update daemon stat #
-        DltAnalyzer.procInfo.saveProcStats()
+        DltAnalyzer.procInfo.saveProcInstance()
         for pid in DltAnalyzer.pids:
             DltAnalyzer.procInfo.saveProcData(\
                 '%s/%s' % (SysMgr.procPath, pid), pid)
@@ -34635,8 +35007,9 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
 
-    def __init__(self, pid=None, execCmd=None, attach=True):
+    def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
+        self.mode = mode
         self.status = 'enter'
         self.runStatus = False
         self.attached = attach
@@ -36284,7 +36657,7 @@ struct msghdr {
 
 
     def updateBpList(self, verb=True):
-        if not hasattr(self, 'mode') or self.mode != 'break':
+        if self.mode != 'break':
             return
 
         # update file list #
@@ -36430,7 +36803,7 @@ struct msghdr {
         # get msg info #
         namelen = long(header.contents.msg_namelen)
         msginfo['msg_namelen'] = namelen
-        if namelen == 0:
+        if SysMgr.optStrace or namelen == 0:
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
@@ -36450,15 +36823,20 @@ struct msghdr {
             # get iov info #
             for idx in range(0, iovlen):
                 offset = idx * sizeof(self.iovec)
-                msginfo['msg_iov'][idx] = {}
 
                 # get iov object #
                 iovobj = self.readMem(\
                     iovaddr+offset, sizeof(self.iovec))
                 iovobj = cast(iovobj, self.iovec_ptr)
 
-                # get iov data #
+                # get iov size #
                 iovobjlen = long(iovobj.contents.iov_len)
+                if iovobjlen == 0:
+                    continue
+
+                msginfo['msg_iov'][idx] = {}
+
+                # get iov data #
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
@@ -36634,9 +37012,12 @@ struct msghdr {
 
         # set flag value #
         if flag == True:
-            value = b'1'
+            value = 1
         else:
-            value = b'0'
+            value = 0
+
+        if sys.version_info < (3, 0, 0):
+            value = bytes(value)
 
         Debugger.globalEvent[0] = value # pylint: disable=unsupported-assignment-operation
 
@@ -36648,7 +37029,7 @@ struct msghdr {
             return False
 
         ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
-        if ret == b'1':
+        if ret == b'1' or 1:
             return True
         else:
             return False
@@ -38214,19 +38595,20 @@ struct msghdr {
                     "Fail to convert %s to JSON for marshalling" % [jsonData], True)
             return
 
-        # convert args to string ##
-        if len(args) > 0:
-            argText = ', '.join(str(arg) for arg in args)
-        else:
-            argText = ', '.join(str(arg[2]) for arg in self.args)
+        if not self.isRealtime or SysMgr.showAll:
+            # convert args to string ##
+            if len(args) > 0:
+                argText = ', '.join(str(arg) for arg in args)
+            else:
+                argText = ', '.join(str(arg[2]) for arg in self.args)
 
-        # build call string #
-        if deferrable:
-            callString = '%s) %s' % (argText, bts)
-        else:
-            callString = \
-                '%3.6f %s(%s) %s(%s) %s' % \
-                    (diff, self.comm, self.pid, self.syscall, argText, bts)
+            # build call string #
+            if deferrable:
+                callString = '%s) %s' % (argText, bts)
+            else:
+                callString = \
+                    '%3.6f %s(%s) %s(%s) %s' % \
+                        (diff, self.comm, self.pid, self.syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -38253,7 +38635,7 @@ struct msghdr {
             SysMgr.ttyCols = ttyColsOrig
 
         # print call history #
-        if SysMgr.printFile:
+        if SysMgr.showAll and SysMgr.printFile:
             if deferrable:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
@@ -38296,6 +38678,12 @@ struct msghdr {
         if self.status == 'deferrable':
             self.handleDefSyscall()
 
+        # ignore return #
+        if SysMgr.optStrace and self.status == 'exit':
+            self.status = 'enter'
+            self.clearArgs()
+            return
+
         # get register set #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -38303,17 +38691,18 @@ struct msghdr {
                     (self.comm, self.pid))
             sys.exit(0)
 
-        # check SYSEMU condition #
+        # get syscall number #
+        nrSyscall = self.getNrSyscall()
+
+        # check syscall condition #
         if len(SysMgr.syscallList) > 0 and \
-            not self.getNrSyscall() in SysMgr.syscallList:
+            not nrSyscall in SysMgr.syscallList:
             #self.cmd = self.sysemuCmd
             self.status = 'skip'
             return
 
-        nrSyscall = self.getNrSyscall()
-        proto = ConfigMgr.SYSCALL_PROTOTYPES
-
         try:
+            proto = ConfigMgr.SYSCALL_PROTOTYPES
             self.syscall = name = ConfigMgr.sysList[nrSyscall][4:]
         except:
             return
@@ -38364,7 +38753,7 @@ struct msghdr {
 
             self.handleSyscallOutput(args)
 
-            # check SYSEMU condition #
+            # check syscall condition #
             if len(SysMgr.syscallList) > 0:
                 self.clearArgs()
 
@@ -38496,16 +38885,15 @@ struct msghdr {
         if retstr:
             return stat
 
-        # convert string to list #
-        statList = stat.split(')')[1].split()
-
-        if status:
-            try:
-                return statList[0]
-            except:
-                return None
-
-        return statList
+        try:
+            if status:
+                return stat.split(') ', 1)[1][0]
+            else:
+                return stat.split(')')[1].split()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
 
 
 
@@ -38800,23 +39188,20 @@ struct msghdr {
                 # update time #
                 self.current = time.time()
 
+                if not SysMgr.optStrace:
+                    # handle clone event #
+                    if self.isCloned(ostat):
+                        self.handoverNewTarget()
+                        continue
+
+                    # handle fork event #
+                    if self.isForked(ostat):
+                        if self.mode == 'syscall':
+                            self.handoverNewTarget()
+                        continue
+
                 # get status of process #
                 stat = self.getStatus(ostat)
-
-                # handle clone event #
-                if self.isCloned(ostat):
-                    self.handoverNewTarget()
-                    continue
-
-                # handle fork event #
-                if self.isForked(ostat):
-                    if self.mode == 'syscall':
-                        self.handoverNewTarget()
-                    continue
-
-                # check status of process #
-                if not UtilMgr.isNumber(stat):
-                    raise Exception("Unknown status type")
 
                 # handle signal #
                 if self.mode == 'signal':
@@ -43444,8 +43829,7 @@ class ThreadAnalyzer(object):
                 'changed': True, 'new': bool(False), 'majflt': long(0), \
                 'ttime': long(0), 'cttime': long(0), 'utime': long(0), \
                 'stime': long(0), 'taskPath': None, 'statm': None, \
-                'mainID': '', 'btime': long(0), 'maps': None, 'status': None, \
-                'procComm': ''}
+                'mainID': '', 'btime': long(0), 'maps': None, 'status': None}
 
             self.init_cpuData = \
                 {'user': long(0), 'system': long(0), 'nice': long(0), \
@@ -43940,7 +44324,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveProcStats(self):
+    def saveProcInstance(self):
         del self.prevProcData
         self.prevProcData = self.procData
         self.procData = {}
@@ -44567,7 +44951,7 @@ class ThreadAnalyzer(object):
             graphStats, chartStats = ThreadAnalyzer.getDrawStats(logFile)
         # get stats from multiple files for comparison #
         else:
-            logFile = 'guider.out'
+            logFile = SysMgr.defaultOutPath
 
             # define integrated stats #
             graphStats = dict()
@@ -54573,6 +54957,73 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveProcStat(self):
+        # get process list #
+        try:
+            pids = os.listdir(SysMgr.procPath)
+        except:
+            SysMgr.printOpenErr(SysMgr.procPath)
+            sys.exit(0)
+
+        # reset and save proc instance #
+        self.saveProcInstance()
+
+        # get thread list #
+        for pid in pids:
+            if not pid.isdigit():
+                continue
+
+            self.nrProcess += 1
+
+            # make path of tid #
+            procPath = "%s/%s" % (SysMgr.procPath, pid)
+            taskPath = "%s/task" % procPath
+
+            # save info per process #
+            if SysMgr.processEnable:
+                # save stat of process #
+                ret = self.saveProcData(procPath, pid)
+
+                # calculate number of threads #
+                if pid in self.procData:
+                    self.nrThread += \
+                        long(self.procData[pid]['stat'][self.nrthreadIdx])
+
+                continue
+
+            # save info per thread #
+            try:
+                tids = os.listdir(taskPath)
+            except:
+                SysMgr.printOpenWarn(taskPath)
+                continue
+
+            for tid in tids:
+                if not tid.isdigit():
+                    continue
+
+                self.nrThread += 1
+
+                threadPath = "%s/%s" % (taskPath, tid)
+
+                # save stat of thread #
+                ret = self.saveProcData(threadPath, tid, pid)
+
+                # main thread #
+                if pid == tid:
+                    self.procData[tid]['isMain'] = True
+                    self.procData[tid]['tids'] = []
+                # sibling thread #
+                else:
+                    try:
+                        self.procData[pid]['tids'].append(tid)
+                    except:
+                        self.procData[pid] = dict(self.init_procData)
+                        self.procData[pid]['tids'] = []
+                        self.procData[pid]['tids'].append(tid)
+
+
+
     def saveSystemStat(self):
         # update uptime #
         SysMgr.updateUptime()
@@ -54764,69 +55215,8 @@ class ThreadAnalyzer(object):
             not SysMgr.taskEnable:
             return
 
-        # get process list #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            sys.exit(0)
-
-        # reset and save proc instance #
-        self.saveProcStats()
-
-        # get thread list #
-        for pid in pids:
-            if not pid.isdigit():
-                continue
-
-            self.nrProcess += 1
-
-            # make path of tid #
-            procPath = "%s/%s" % (SysMgr.procPath, pid)
-            taskPath = "%s/task" % procPath
-
-            # save info per process #
-            if SysMgr.processEnable:
-                # save stat of process #
-                ret = self.saveProcData(procPath, pid)
-
-                # calculate number of threads #
-                if pid in self.procData:
-                    self.nrThread += \
-                        long(self.procData[pid]['stat'][self.nrthreadIdx])
-
-                continue
-
-            # save info per thread #
-            try:
-                tids = os.listdir(taskPath)
-            except:
-                SysMgr.printOpenWarn(taskPath)
-                continue
-
-            for tid in tids:
-                if not tid.isdigit():
-                    continue
-
-                self.nrThread += 1
-
-                threadPath = "%s/%s" % (taskPath, tid)
-
-                # save stat of thread #
-                ret = self.saveProcData(threadPath, tid, pid)
-
-                # main thread #
-                if pid == tid:
-                    self.procData[tid]['isMain'] = True
-                    self.procData[tid]['tids'] = []
-                # sibling thread #
-                else:
-                    try:
-                        self.procData[pid]['tids'].append(tid)
-                    except:
-                        self.procData[pid] = dict(self.init_procData)
-                        self.procData[pid]['tids'] = []
-                        self.procData[pid]['tids'].append(tid)
+        # save proc stats #
+        self.saveProcStat()
 
 
 
