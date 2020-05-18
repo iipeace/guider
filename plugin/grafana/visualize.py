@@ -25,8 +25,8 @@ def get_data_by_command(target_addr, request_id, cmd):
             result['data'] = str_pipe.replace('\n', '')
             if result['data'] and result['data'][2:8] == "system":
                 result['data'] = json.loads(result['data'])
-                insert_db(result['data'])
                 pprint.pprint(result)
+                insert_db(result['data'])
         pipe.close()
         stop_command_run(request_id)
     except Exception as err:
