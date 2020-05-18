@@ -16929,7 +16929,7 @@ Description:
 Options:
     -I  <FILE>                  set input path
     -o  <DIR|FILE>              save output data
-    -c  <SIZE>                  set termination condition for RSS
+    -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
     -g  <PID|COMM>              set target process
     -k  <{{START,}}TERM>          set signal
     -v                          verbose
@@ -16937,11 +16937,12 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Create an output file for memory leakage hints of a specific process after sending signal 36
+    - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -k 36
 
     - Create an output file for memory leakage hints of a specific process when it's RSS reached the specific size
         # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -c 20m -k 35,36
+        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -c 15m,20m -k 35,36
 
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -I leaks.out -g a.out
@@ -27041,30 +27042,85 @@ Copyright:
         tobj = ThreadAnalyzer(None, onlyInstance=True)
         rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
 
-        # get termination signal #
-        if len(SysMgr.killFilter) > 1:
-            val = SysMgr.killFilter[0]
+        # get signals #
+        if SysMgr.killFilter:
+            sigList = SysMgr.killFilter
 
-            # send signal #
+            if len(sigList) >= 2:
+                startSig = SysMgr.getSigNum(sigList[0][0])
+                if not startSig:
+                    SysMgr.printErr(\
+                        "wrong signal %s for start" % sigList[0][0])
+                    sys.exit(0)
+
+                stopSig = SysMgr.getSigNum(sigList[1][0])
+                if not stopSig:
+                    SysMgr.printErr(\
+                        "wrong signal %s for stop" % sigList[1][0])
+                    sys.exit(0)
+            else:
+                startSig = None
+                stopSig = SysMgr.getSigNum(sigList[0][0])
+                if not stopSig:
+                    SysMgr.printErr("wrong signal %s for stop" % sigList[0][0])
+                    sys.exit(0)
+        else:
+            startSig = stopSig = None
+
+        # START #
+        startSize = endSize =  0
+        if SysMgr.customCmd:
+            if len(SysMgr.customCmd) >= 2:
+                startSize = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
+                endSize = UtilMgr.convUnit2Size(SysMgr.customCmd[1])
+            else:
+                endSize = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
+
+            if startSize > 0:
+                # wait for RSS to start #
+                while 1:
+                    mlist = SysMgr.getMemStat(pid)
+                    if not mlist:
+                        SysMgr.printErr(\
+                            "Fail to get RSS of %s(%s)" % (comm, pid))
+                        sys.exit(0)
+
+                    current = long(mlist[rssIdx]) << 12
+                    SysMgr.printInfo(\
+                        'the RSS of %s(%s) is %s' % \
+                            (comm, pid, UtilMgr.convSize2Unit(current)))
+
+                    if startSize <= current:
+                        break
+                    time.sleep(1)
+
+                # send signal to start #
+                try:
+                    os.kill(long(pid), startSig)
+                    SysMgr.printStat(\
+                        'sent %s to %s(%s) to start profiling' % \
+                            (ConfigMgr.SIG_LIST[startSig], comm, pid))
+                except:
+                    SysMgr.printErr(\
+                        "Fail to send signal %s to start profiling" % \
+                            ConfigMgr.SIG_LIST[startSig], reason=True)
+                    sys.exit(0)
+
+        elif startSig:
             try:
-                sig = SysMgr.getSigNum(val[0])
-                if not sig:
-                    raise Exception("wrong signal %s" % val[0])
-
-                os.kill(long(pid), sig)
+                os.kill(long(pid), startSig)
                 SysMgr.printStat(\
-                    'sent %s to %s(%s)' % \
-                        (ConfigMgr.SIG_LIST[sig], comm, pid))
+                    'sent %s to %s(%s) to start profiling' % \
+                        (ConfigMgr.SIG_LIST[startSig], comm, pid))
             except:
                 SysMgr.printErr(\
-                    "Fail to send signal %s" % sig, reason=True)
+                    "Fail to send signal %s to start profiling" % \
+                        ConfigMgr.SIG_LIST[startSig], reason=True)
                 sys.exit(0)
 
-        # check condition #
-        size = 0
-        if SysMgr.customCmd:
-            size = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
-
+        # STOP #
+        if endSize > 0:
+            # wait for RSS to stop #
             while 1:
                 mlist = SysMgr.getMemStat(pid)
                 if not mlist:
@@ -27077,32 +27133,32 @@ Copyright:
                     'the RSS of %s(%s) is %s' % \
                         (comm, pid, UtilMgr.convSize2Unit(current)))
 
-                if size <= current:
+                if endSize <= current:
                     break
                 time.sleep(1)
 
-        # get termination signal #
-        if not SysMgr.killFilter:
-            val = ['36']
-        elif len(SysMgr.killFilter) > 1:
-            val = SysMgr.killFilter[1]
-        else:
-            val = SysMgr.killFilter[0]
-
-        # send signal #
-        try:
-            sig = SysMgr.getSigNum(val[0])
-            if not sig:
-                raise Exception("wrong signal %s" % val[0])
-
-            os.kill(long(pid), sig)
-            SysMgr.printStat(\
-                'sent %s to %s(%s)' % \
-                    (ConfigMgr.SIG_LIST[sig], comm, pid))
-        except:
-            SysMgr.printErr(\
-                "Fail to send signal %s" % sig, reason=True)
-            sys.exit(0)
+            # send signal to stop #
+            try:
+                os.kill(long(pid), stopSig)
+                SysMgr.printStat(\
+                    'sent %s to %s(%s) to stop profiling' % \
+                        (ConfigMgr.SIG_LIST[stopSig], comm, pid))
+            except:
+                SysMgr.printErr(\
+                    "Fail to send signal %s to stop profiling" % \
+                        ConfigMgr.SIG_LIST[stopSig], reason=True)
+                sys.exit(0)
+        elif stopSig:
+            try:
+                os.kill(long(pid), stopSig)
+                SysMgr.printStat(\
+                    'sent %s to %s(%s) to stop profiling' % \
+                        (ConfigMgr.SIG_LIST[stopSig], comm, pid))
+            except:
+                SysMgr.printErr(\
+                    "Fail to send signal %s to stop profiling" % \
+                        ConfigMgr.SIG_LIST[stopSig], reason=True)
+                sys.exit(0)
 
         SysMgr.printStat('wait for %s' % SysMgr.inputParam)
 
