@@ -70,7 +70,7 @@ def insert_db(guider_data):
         json_body['tags'] = dict()
         json_body['tags']['host'] = config['tags']['host']
         json_body['tags']['region'] = config['tags']['region']
-        json_body['time'] = datetime.fromtimestamp(guider_data['timestamp']).strftime('%Y-%m-%dT%H:%M:%S')
+        json_body['time'] = guider_data['datetime']
         json_body['measurement'] = super_key
         json_body['fields'] = dict()
         if super_key == "mem":
