@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200515"
+__revision__ = "200518"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -249,6 +249,27 @@ class ConfigMgr(object):
         0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
         0x02: "SCM_CREDENTIALS", # rw: struct ucred
         0x03: "SCM_SECURITY"
+    }
+
+    # Define mmap prot type #
+    MAP_TYPE = {
+	#0x0000: "MAP_FILE",
+	0x0001: "MAP_SHARED",
+	0x0002: "MAP_PRIVATE",
+	#0x0003: "MAP_SHARED_VALIDATE",
+	#0x000f: "MAP_TYPE",
+	0x0010: "MAP_FIXED",
+	0x0020: "MAP_ANONYMOUS",
+	0x0100: "MAP_GROWSDOWN",
+	0x0800: "MAP_DENYWRITE",
+	0x1000: "MAP_EXECUTABLE",
+	0x2000: "MAP_LOCKED",
+	0x4000: "MAP_NORESERVE",
+	0x8000: "MAP_POPULATE",
+	0x10000: "MAP_NONBLOCK",
+	0x20000: "MAP_STACK",
+	0x40000: "MAP_HUGETLB",
+	0x80000: "MAP_SYNC",
     }
 
     # Define mmap prot type #
@@ -3419,8 +3440,8 @@ class UtilMgr(object):
                 elif bit == 1 and 0 in flist:
                     string = '%s%s|' % (string, flist[0])
             except:
-                SysMgr.printErr(\
-                    "Fail to get flag info for %s" % value, True)
+                SysMgr.printWarn(\
+                    "Fail to get flag info for %s" % value, reason=True)
         if len(string) > 0:
             return string[:-1]
         else:
@@ -11789,16 +11810,9 @@ class FileAnalyzer(object):
             return
 
         if not fd:
-            path = '%s/%s/maps' % (SysMgr.procPath, pid)
-
-            # open maps #
-            try:
-                fd = open(path, 'r')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenErr(path)
-                return
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
 
         # read maps #
         fd.seek(0, 0)
@@ -11813,18 +11827,48 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def getEmptyMapAddr(pid, fd=None, size=0, onlyExec=False):
+        if not fd:
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
+
+        # search empty space #
+        mapBuf = fd.readlines()
+        for item in mapBuf:
+            mdict = FileAnalyzer.parseMapLine(item)
+            if not mdict:
+                mapLine = item.split()
+                addrs = \
+                    list(map(lambda x: long(x, 16), mapLine[0].split('-')))
+                perm = mapLine[1]
+                if onlyExec and not 'x' in perm:
+                    continue
+
+                return addrs[0]
+
+
+
+    @staticmethod
+    def getMapFd(pid):
+        # open maps #
+        try:
+            path = '%s/%s/maps' % (SysMgr.procPath, pid)
+            return open(path, 'r')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenWarn(path)
+            return None
+
+
+
+    @staticmethod
     def getProcMapInfo(pid, fd=None):
         if not fd:
-            path = '%s/%s/maps' % (SysMgr.procPath, pid)
-
-            # open maps #
-            try:
-                fd = open(path, 'r')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(path)
-                return
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
 
         # read maps #
         fd.seek(0, 0)
@@ -15290,6 +15334,7 @@ Options:
     -o  <DIR>                   save output data
     -a                          show all stats and events
     -T  <NUM>                   set top number
+    -t  <START:END>             set range
     -L  <RES:PER>               set graph Layout
     -l  <BOUNDARY>              set boundary lines
     -E  <DIR>                   set cache dir path
@@ -15364,6 +15409,9 @@ Examples:
 
     - Draw graphs of resource usage with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
+
+    - Draw graphs of resource usage after cutting range
+        # {0:1} {1:1} guider.out -t 1234:1239
 
     - Draw graphs of resource usage of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -21148,7 +21196,9 @@ Copyright:
 
     @staticmethod
     def printErr(line, reason=False):
+        # print backtrace #
         #SysMgr.printBacktrace()
+
         if not SysMgr.logEnable:
             return
 
@@ -21937,7 +21987,9 @@ Copyright:
                 SysMgr.perCoreList = \
                     list(map(long, SysMgr.perCoreList))
 
-            elif option == 't' and not SysMgr.isRecordMode():
+            elif option == 't' and \
+                not SysMgr.isRecordMode() and \
+                not SysMgr.isDrawMode():
                 SysMgr.syscallList = value.split(',')
                 SysMgr.syscallList = \
                     SysMgr.clearList(SysMgr.syscallList)
@@ -30056,10 +30108,9 @@ Copyright:
         if self.cmdList["sched/sched_process_wait"]:
             if SysMgr.writeCmd(\
                 'sched/sched_process_wait/filter', cmd) < 0:
-                SysMgr.printErr(\
+                SysMgr.printWarn(\
                     "Fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
-                sys.exit(0)
 
             SysMgr.writeCmd('sched/sched_process_wait/enable', '1')
 
@@ -36366,8 +36417,127 @@ struct msghdr {
             os.kill(pid, signal.SIGSTOP)
             return 0
         except:
-            SysMgr.printSigError(pid, 'SIGSTOP')
+            ysMgr.printSigError(pid, 'SIGSTOP')
             return -1
+
+
+
+    def remoteSyscall(self, syscall, args):
+        # get original regset #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+
+        # get backup regset #
+        self.backupRegs()
+
+        # backup a current text page #
+        curPage = self.accessMem(self.peekIdx, self.pc)
+
+        # set syscall number #
+        if type(syscall) is long:
+            sysid = syscall
+        elif type(syscall) is str:
+            syscall = syscall.lower()
+            if not syscall.startswith('sys_'):
+                syscall = 'sys_%s' % syscall
+
+            if syscall == 'sys_mmap':
+                sysid = ConfigMgr.getMmapId()
+            else:
+                try:
+                    sysid = ConfigMgr.sysList.index(syscall)
+                except:
+                    SysMgr.printErr("Fail to find %s" % syscall, True)
+                    return
+        else:
+            SysMgr.printErr(\
+                "Fail to recognize syscall %s" % syscall, True)
+            return
+        setattr(self.regs, self.retreg, sysid)
+
+        # set args #
+        if not args:
+            args = []
+        self.writeArgs([sysid] + args)
+
+        # set PC to syscall function addr #
+        addr = self.getAddrBySymbol('syscall')
+        if not addr:
+            SysMgr.printErr(\
+                "Fail to find syscall address")
+            return
+        self.setPC(addr[0][0])
+
+        # apply register set #
+        self.setRegs()
+
+        # launch mmap syscall #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs and change the 6th argument #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        self.writeArgs(args)
+        self.setRegs()
+
+        # continue and stop at return #
+        self.ptrace(self.syscallCmd)
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs to check results #
+        if not self.updateRegs():
+            SysMgr.printErr(\
+                "Fail to get register values of %s(%s)" % \
+                    (self.comm, self.pid))
+            return
+        ret = self.getRetVal()
+
+        # restore regs #
+        self.setRegs(temp=True)
+
+        return ret
+
+
+
+    def mmap(self, size=4096, perm='rwx'):
+        # set prot #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        # set flags #
+        flags = 0x22
+
+        return self.remoteSyscall('mmap', [0, size, prot, flags, 0, 0])
+
+
+
+    def mprotect(self, maddr, size, perm='rwx'):
+        # set prot #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        return self.remoteSyscall('sys_mprotect', [maddr, size, prot])
 
 
 
@@ -36933,7 +37103,8 @@ struct msghdr {
                 return UtilMgr.getFlagString(\
                     value, ConfigMgr.PROT_TYPE)
             elif argname == 'flags':
-                pass
+                return UtilMgr.getFlagString(\
+                    value, ConfigMgr.MAP_TYPE)
 
         if syscall.startswith('fcntl'):
             if argname == 'cmd':
@@ -37369,11 +37540,8 @@ struct msghdr {
 
         # check of maps fd #
         if not self.mapFd:
-            mpath = '%s/%s/maps' % (SysMgr.procPath, self.pid)
-            try:
-                self.mapFd = open(mpath, 'r')
-            except:
-                SysMgr.printOpenWarn(mpath)
+            self.mapFd = FileAnalyzer.getMapFd(self.pid)
+            if not self.mapFd:
                 return None
 
         # scan process memory map #
@@ -40024,7 +40192,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def setRegs(self):
+    def setRegs(self, temp=False):
         pid = self.pid
         wordSize = ConfigMgr.wordSize
 
@@ -40037,8 +40205,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             NT_PRSTATUS = 1
             nrWords = sizeof(self.regs) * wordSize
 
-            ret = self.ptrace(\
-                cmd, NT_PRSTATUS, addressof(self.iovecObj))
+            if temp:
+                addr = addressof(self.tempIovecObj)
+            else:
+                addr = addressof(self.iovecObj)
+
+            ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
                 raise Exception()
         except SystemExit:
@@ -40046,14 +40218,28 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             self.supportSetRegset = False
 
+            if temp:
+                addr = addressof(self.tempRegs)
+            else:
+                addr = addressof(self.regs)
+
             cmd = self.setregsCmd
-            ret = self.ptrace(cmd, 0, addressof(self.regs))
+
+            ret = self.ptrace(cmd, 0, addr)
 
         # check ret value #
         if ret >= 0:
             return True
         else:
             return False
+
+
+
+    def backupRegs(self):
+        memmove(\
+            addressof(self.tempRegs), \
+            addressof(self.regs), \
+            sizeof(self.regs))
 
 
 
@@ -44907,31 +45093,101 @@ class ThreadAnalyzer(object):
                 "Fail to find Detailed Statistics in %s" % logFile)
             sys.exit(0)
 
+        # get indexes for trim #
+        trim = SysMgr.getOption('t')
+        if trim:
+            trim = trim.split(':')
+            try:
+                if len(trim) == 1:
+                    condMin = long(trim[0])
+                    condMax = sys.maxsize
+                elif len(trim) >= 2:
+                    condMin = long(trim[0])
+                    condMax = long(trim[1])
+            except:
+                SysMgr.printErr(\
+                    "Fail to recognize %s as START:END time" % \
+                        ':'.join(trim))
+                sys.exit(0)
+
+            # define default values #
+            imin = timeline[0]
+            imax = timeline[-1]
+
+            # get min index #
+            for itime in timeline:
+                if itime >= condMin:
+                    imin = itime
+                    break
+
+            # get max index #
+            for itime in timeline:
+                if itime >= condMax:
+                    imax = itime
+                    break
+
+            # convert index range #
+            imin = timeline.index(imin)
+            imax = timeline.index(imax)
+
+            # trim intervals #
+            for name, value in cpuProcUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, value in blkProcUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, value in memProcUsage.items():
+                if 'vssUsage' in value:
+                    value['vssUsage'] = value['vssUsage'].split()[imin:imax]
+                    value['vssUsage'] = ' '.join(value['vssUsage'])
+                if 'rssUsage' in value:
+                    value['rssUsage'] = value['rssUsage'].split()[imin:imax]
+                    value['rssUsage'] = ' '.join(value['rssUsage'])
+
+            for name, value in gpuUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, dev in storageUsage.items():
+                for item, value in dev.items():
+                    storageUsage[name][item] = value[imin:imax]
+
+            for name, dev in networkUsage.items():
+                for item, value in dev.items():
+                    networkUsage[name][item] = value[imin:imax]
+        else:
+            # set range index #
+            imin = 0
+            imax = -1
+
         # set graph argument list #
         graphStats = {
-            'timeline': timeline,
-            'eventList': eventList,
-            'cpuUsage': cpuUsage,
+            'timeline': timeline[imin:imax],
+            'eventList': eventList[imin:imax],
+            'cpuUsage': cpuUsage[imin:imax],
             'cpuProcUsage': cpuProcUsage,
-            'blkWait': blkWait,
+            'blkWait': blkWait[imin:imax],
             'blkProcUsage': blkProcUsage,
-            'blkRead': blkRead,
-            'blkWrite': blkWrite,
-            'netRead': netRead,
-            'netWrite': netWrite,
-            'memFree': memFree,
-            'memAnon': memAnon,
-            'memCache': memCache,
+            'blkRead': blkRead[imin:imax],
+            'blkWrite': blkWrite[imin:imax],
+            'netRead': netRead[imin:imax],
+            'netWrite': netWrite[imin:imax],
+            'memFree': memFree[imin:imax],
+            'memAnon': memAnon[imin:imax],
+            'memCache': memCache[imin:imax],
             'memProcUsage': memProcUsage,
             'gpuUsage': gpuUsage,
             'totalRam': totalRam,
-            'swapUsage': swapUsage,
+            'swapUsage': swapUsage[imin:imax],
             'totalSwap': totalSwap,
-            'reclaimBg': reclaimBg,
-            'reclaimDr': reclaimDr,
+            'reclaimBg': reclaimBg[imin:imax],
+            'reclaimDr': reclaimDr[imin:imax],
             'storageUsage': storageUsage,
             'networkUsage': networkUsage,
-            'nrCore': nrCore,
+            'nrCore': nrCore[imin:imax],
         }
 
         return graphStats, chartStats
@@ -48651,7 +48907,15 @@ class ThreadAnalyzer(object):
                 else:
                     nextData = None
 
-                syscall = ConfigMgr.sysList[int(nowData[4])]
+                try:
+                    syscall = ConfigMgr.sysList[int(nowData[4])]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        'Fail to recognize syscall %s for %s number' % \
+                            (nowData[0], nowData[4]), True)
+                    continue
 
                 if nowData[0] == 'ENT':
                     # all #
@@ -56765,6 +57029,7 @@ class ThreadAnalyzer(object):
 
             # timestamp #
             self.reportData['timestamp'] = SysMgr.uptime
+            self.reportData['datetime'] = time.strftime('%Y-%m-%dT%H:%M:%S')
 
             # system #
             self.reportData['system'] = {
