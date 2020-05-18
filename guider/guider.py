@@ -36416,7 +36416,7 @@ struct msghdr {
 
 
 
-    def mmap(self, size=4096, perm='rwx'):
+    def remoteSyscall(self, syscall, args):
         # get original regset #
         if not self.updateRegs():
             SysMgr.printErr(\
@@ -36425,37 +36425,44 @@ struct msghdr {
             return
 
         # get backup regset #
-        if self.getRegs(temp=True) != 0:
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
-            return
+        self.backupRegs()
 
         # backup a current text page #
         curPage = self.accessMem(self.peekIdx, self.pc)
 
-        # set mmap syscall number #
-        sysid = ConfigMgr.getMmapId()
+        # set syscall number #
+        if type(syscall) is long:
+            sysid = syscall
+        elif type(syscall) is str:
+            syscall = syscall.lower()
+            if not syscall.startswith('sys_'):
+                syscall = 'sys_%s' % syscall
+
+            if syscall == 'sys_mmap':
+                sysid = ConfigMgr.getMmapId()
+            else:
+                try:
+                    sysid = ConfigMgr.sysList.index(syscall)
+                except:
+                    SysMgr.printErr("Fail to find %s" % syscall, True)
+                    return
+        else:
+            SysMgr.printErr(\
+                "Fail to recognize syscall %s" % syscall, True)
+            return
         setattr(self.regs, self.retreg, sysid)
 
-        # set prot args #
-        prot = 0
-        perm = perm.lower()
-        if 'r' in perm:
-            prot |= 0x1
-        if 'w' in perm:
-            prot |= 0x2
-        if 'x' in perm:
-            prot |= 0x4
-
-        # set flags #
-        flags = 0x22
-
         # set args #
-        self.writeArgs([sysid, 0, size, prot, flags, 0, 0])
+        if not args:
+            args = []
+        self.writeArgs([sysid] + args)
 
         # set PC to syscall function addr #
         addr = self.getAddrBySymbol('syscall')
+        if not addr:
+            SysMgr.printErr(\
+                "Fail to find syscall address")
+            return
         self.setPC(addr[0][0])
 
         # apply register set #
@@ -36472,83 +36479,7 @@ struct msghdr {
                 "Fail to get register values of %s(%s)" % \
                     (self.comm, self.pid))
             return
-        self.writeArgs([0, size, prot, flags, 0, 0])
-        self.setRegs()
-
-        # continue and stop at return #
-        self.ptrace(self.syscallCmd)
-        ret = self.waitpid()
-        stat = self.getStatus(ret[1])
-
-        # read regs to check results #
-        if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
-            return
-        newAddr = self.getRetVal()
-
-        # restore regs #
-        self.setRegs(temp=True)
-
-        return newAddr
-
-
-
-    def mprotect(self, maddr, size, perm='rwx'):
-        # get original regset #
-        if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
-            return
-
-        # get backup regset #
-        if self.getRegs(temp=True) != 0:
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
-            return
-
-        # backup a current text page #
-        curPage = self.accessMem(self.peekIdx, self.pc)
-
-        # set mprotect syscall number #
-        sysid = ConfigMgr.sysList.index('sys_mprotect')
-        setattr(self.regs, self.retreg, sysid)
-
-        # set prot args #
-        prot = 0
-        perm = perm.lower()
-        if 'r' in perm:
-            prot |= 0x1
-        if 'w' in perm:
-            prot |= 0x2
-        if 'x' in perm:
-            prot |= 0x4
-
-        # set args #
-        self.writeArgs([sysid, maddr, size, prot])
-
-        # set PC to syscall function addr #
-        addr = self.getAddrBySymbol('syscall')
-        self.setPC(addr[0][0])
-
-        # apply register set #
-        self.setRegs()
-
-        # launch mmap syscall #
-        self.ptrace(self.syscallCmd)
-        ret = self.waitpid()
-        stat = self.getStatus(ret[1])
-
-        # read regs and change the 6th argument #
-        if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
-            return
-        self.writeArgs([maddr, size, prot])
+        self.writeArgs(args)
         self.setRegs()
 
         # continue and stop at return #
@@ -36568,6 +36499,39 @@ struct msghdr {
         self.setRegs(temp=True)
 
         return ret
+
+
+
+    def mmap(self, size=4096, perm='rwx'):
+        # set prot #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        # set flags #
+        flags = 0x22
+
+        return self.remoteSyscall('mmap', [0, size, prot, flags, 0, 0])
+
+
+
+    def mprotect(self, maddr, size, perm='rwx'):
+        # set prot #
+        prot = 0
+        perm = perm.lower()
+        if 'r' in perm:
+            prot |= 0x1
+        if 'w' in perm:
+            prot |= 0x2
+        if 'x' in perm:
+            prot |= 0x4
+
+        return self.remoteSyscall('sys_mprotect', [maddr, size, prot])
 
 
 
@@ -40262,6 +40226,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             return True
         else:
             return False
+
+
+
+    def backupRegs(self):
+        memmove(\
+            addressof(self.tempRegs), \
+            addressof(self.regs), \
+            sizeof(self.regs))
 
 
 
