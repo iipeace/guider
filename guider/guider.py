@@ -15334,6 +15334,7 @@ Options:
     -o  <DIR>                   save output data
     -a                          show all stats and events
     -T  <NUM>                   set top number
+    -t  <START:END>             set range
     -L  <RES:PER>               set graph Layout
     -l  <BOUNDARY>              set boundary lines
     -E  <DIR>                   set cache dir path
@@ -15408,6 +15409,9 @@ Examples:
 
     - Draw graphs of resource usage with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
+
+    - Draw graphs of resource usage after cutting range
+        # {0:1} {1:1} guider.out -t 1234:1239
 
     - Draw graphs of resource usage of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -21983,7 +21987,9 @@ Copyright:
                 SysMgr.perCoreList = \
                     list(map(long, SysMgr.perCoreList))
 
-            elif option == 't' and not SysMgr.isRecordMode():
+            elif option == 't' and \
+                not SysMgr.isRecordMode() and \
+                not SysMgr.isDrawMode():
                 SysMgr.syscallList = value.split(',')
                 SysMgr.syscallList = \
                     SysMgr.clearList(SysMgr.syscallList)
@@ -45087,31 +45093,101 @@ class ThreadAnalyzer(object):
                 "Fail to find Detailed Statistics in %s" % logFile)
             sys.exit(0)
 
+        # get indexes for trim #
+        trim = SysMgr.getOption('t')
+        if trim:
+            trim = trim.split(':')
+            try:
+                if len(trim) == 1:
+                    condMin = long(trim[0])
+                    condMax = sys.maxsize
+                elif len(trim) >= 2:
+                    condMin = long(trim[0])
+                    condMax = long(trim[1])
+            except:
+                SysMgr.printErr(\
+                    "Fail to recognize %s as START:END time" % \
+                        ':'.join(trim))
+                sys.exit(0)
+
+            # define default values #
+            imin = timeline[0]
+            imax = timeline[-1]
+
+            # get min index #
+            for itime in timeline:
+                if itime >= condMin:
+                    imin = itime
+                    break
+
+            # get max index #
+            for itime in timeline:
+                if itime >= condMax:
+                    imax = itime
+                    break
+
+            # convert index range #
+            imin = timeline.index(imin)
+            imax = timeline.index(imax)
+
+            # trim intervals #
+            for name, value in cpuProcUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, value in blkProcUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, value in memProcUsage.items():
+                if 'vssUsage' in value:
+                    value['vssUsage'] = value['vssUsage'].split()[imin:imax]
+                    value['vssUsage'] = ' '.join(value['vssUsage'])
+                if 'rssUsage' in value:
+                    value['rssUsage'] = value['rssUsage'].split()[imin:imax]
+                    value['rssUsage'] = ' '.join(value['rssUsage'])
+
+            for name, value in gpuUsage.items():
+                value['usage'] = value['usage'].split()[imin:imax]
+                value['usage'] = ' '.join(value['usage'])
+
+            for name, dev in storageUsage.items():
+                for item, value in dev.items():
+                    storageUsage[name][item] = value[imin:imax]
+
+            for name, dev in networkUsage.items():
+                for item, value in dev.items():
+                    networkUsage[name][item] = value[imin:imax]
+        else:
+            # set range index #
+            imin = 0
+            imax = -1
+
         # set graph argument list #
         graphStats = {
-            'timeline': timeline,
-            'eventList': eventList,
-            'cpuUsage': cpuUsage,
+            'timeline': timeline[imin:imax],
+            'eventList': eventList[imin:imax],
+            'cpuUsage': cpuUsage[imin:imax],
             'cpuProcUsage': cpuProcUsage,
-            'blkWait': blkWait,
+            'blkWait': blkWait[imin:imax],
             'blkProcUsage': blkProcUsage,
-            'blkRead': blkRead,
-            'blkWrite': blkWrite,
-            'netRead': netRead,
-            'netWrite': netWrite,
-            'memFree': memFree,
-            'memAnon': memAnon,
-            'memCache': memCache,
+            'blkRead': blkRead[imin:imax],
+            'blkWrite': blkWrite[imin:imax],
+            'netRead': netRead[imin:imax],
+            'netWrite': netWrite[imin:imax],
+            'memFree': memFree[imin:imax],
+            'memAnon': memAnon[imin:imax],
+            'memCache': memCache[imin:imax],
             'memProcUsage': memProcUsage,
             'gpuUsage': gpuUsage,
             'totalRam': totalRam,
-            'swapUsage': swapUsage,
+            'swapUsage': swapUsage[imin:imax],
             'totalSwap': totalSwap,
-            'reclaimBg': reclaimBg,
-            'reclaimDr': reclaimDr,
+            'reclaimBg': reclaimBg[imin:imax],
+            'reclaimDr': reclaimDr[imin:imax],
             'storageUsage': storageUsage,
             'networkUsage': networkUsage,
-            'nrCore': nrCore,
+            'nrCore': nrCore[imin:imax],
         }
 
         return graphStats, chartStats
