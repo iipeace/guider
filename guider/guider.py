@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200517"
+__revision__ = "200518"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -56953,6 +56953,7 @@ class ThreadAnalyzer(object):
 
             # timestamp #
             self.reportData['timestamp'] = SysMgr.uptime
+            self.reportData['datetime'] = time.strftime('%Y-%m-%dT%H:%M:%S')
 
             # system #
             self.reportData['system'] = {
