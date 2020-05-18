@@ -20864,7 +20864,7 @@ Copyright:
             SysMgr.doPrint(addLine=True)
         # buffered mode #
         else:
-            SysMgr.addProcBuffer(SysMgr.bufferString)
+            SysMgr.addProcBuffer(SysMgr.bufferString+'\n')
 
         # flush buffer #
         SysMgr.clearPrint()
@@ -37292,15 +37292,8 @@ struct msghdr {
                 sys.exit(0)
 
         def finishPrint():
-            # realtime mode #
-            if not SysMgr.printFile:
-                if not SysMgr.printStreamEnable:
-                    SysMgr.clearScreen()
-
-                SysMgr.doPrint()
-            # buffered mode #
-            else:
-                SysMgr.addProcBuffer(SysMgr.bufferString)
+            # print stats #
+            SysMgr.printTopStats()
 
             # check and update repeat count #
             checkInterval()
@@ -43389,7 +43382,35 @@ class ThreadAnalyzer(object):
             SysMgr.printErr("No input file")
             sys.exit(0)
 
+        # load file #
         SysMgr.reloadFileBuffer(fname)
+
+        # recognize data #
+        start = end = -1
+        reverse = True
+        for idx, item in enumerate(SysMgr.procBuffer):
+            if 'Top Summary Info' in item:
+                reverse = False
+            if start == -1 and '[Top Info] ' in item:
+                start = idx
+            if start >= 0 and not '[Top Info]' in item:
+                end = idx
+                break
+
+        # check data #
+        if start == end == -1:
+            SysMgr.printErr(\
+                "Fail to recognize %s" % fname)
+            sys.exit(0)
+
+        # check data #
+        SysMgr.procBuffer = SysMgr.procBuffer[start:end]
+
+        # reverse sequence #
+        if reverse:
+            SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
+
+        # print summary #
         ThreadAnalyzer.printIntervalUsage()
 
 
