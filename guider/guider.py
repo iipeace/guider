@@ -57085,7 +57085,10 @@ class ThreadAnalyzer(object):
 
             # timestamp #
             self.reportData['timestamp'] = SysMgr.uptime
-            self.reportData['datetime'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+            datetime = SysMgr.getPkg('datetime', False)
+            if datetime:
+                self.reportData['utctime'] = \
+                    datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
             # system #
             self.reportData['system'] = {
