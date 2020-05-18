@@ -20911,7 +20911,7 @@ Copyright:
                 LogMgr.doLogJournal(msg=line)
 
         # socket output #
-        if len(SysMgr.addrListForPrint) > 0:
+        if line and len(SysMgr.addrListForPrint) > 0:
             addrListForPrint = dict(SysMgr.addrListForPrint)
             for addr, cli in addrListForPrint.items():
                 udpSeg = 65507 # maxium UDP diagram size
@@ -20945,7 +20945,9 @@ Copyright:
 
         # convert list to string #
         if type(line) is list:
-            if line[0][-1] == '\n':
+            if not line:
+                line = ''
+            elif line[0][-1] == '\n':
                 line = ''.join(line)
             else:
                 line = '\n'.join(line)
@@ -20998,10 +21000,11 @@ Copyright:
         # pager output #
         if SysMgr.pipeForPrint:
             try:
-                SysMgr.pipeForPrint.write(line)
+                if line:
+                    SysMgr.pipeForPrint.write(line)
 
-                if newline and line[-1] != '\n':
-                    SysMgr.pipeForPrint.write('\n')
+                    if newline and line[-1] != '\n':
+                        SysMgr.pipeForPrint.write('\n')
 
                 return
             except SystemExit:
@@ -21090,10 +21093,11 @@ Copyright:
         # file output #
         if SysMgr.fileForPrint:
             try:
-                SysMgr.fileForPrint.write(line)
+                if line:
+                    SysMgr.fileForPrint.write(line)
 
-                if newline and line[-1] != '\n':
-                    SysMgr.fileForPrint.write('\n')
+                    if newline and line[-1] != '\n':
+                        SysMgr.fileForPrint.write('\n')
 
                 if flush:
                     SysMgr.fileForPrint.flush()
@@ -44233,6 +44237,13 @@ class ThreadAnalyzer(object):
             elif SysMgr.dbusTopEnable:
                 DbusAnalyzer.runDbusSnooper(mode='top')
 
+            # print system general info in advance #
+            if SysMgr.printFile and SysMgr.pipeEnable and SysMgr.exitFlag:
+                SysMgr.printLogo(big=True)
+                SysMgr.sysInstance.saveSysStat()
+                SysMgr.printInfoBuffer()
+                SysMgr.printPipe('\n')
+
             # request service to remote server #
             self.requestService()
 
@@ -45168,6 +45179,10 @@ class ThreadAnalyzer(object):
         if not totalRam:
             SysMgr.printErr(\
                 "Fail to find Detailed Statistics in %s" % logFile)
+            sys.exit(0)
+        elif not timeline:
+            SysMgr.printErr(\
+                "Fail to find interval data in %s" % logFile)
             sys.exit(0)
 
         # get indexes for trim #
