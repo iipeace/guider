@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200518"
+__revision__ = "200519"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11432,7 +11432,10 @@ class LeakAnalyzer(object):
             if not line:
                 break
 
-            UtilMgr.printProgress()
+            # print progress #
+            cur = fd.tell()
+            total = os.fstat(fd.fileno()).st_size
+            UtilMgr.printProgress(cur, total)
 
             items = line.split(', ')
 
@@ -16917,7 +16920,7 @@ Description:
 
     Get libleaktracer.so from https://github.com/iipeace/portable/tree/master/leaktracer
 
-    Run below commands to get leaktracer output
+    Run the target process with below specific environment variables
     $ LD_PRELOAD=./libleaktracer.so \\
         LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
@@ -16925,6 +16928,11 @@ Description:
         LEAKTRACER_ONSIG_REPORTFILENAME=leaks.out \\
         LEAKTRACER_ONSIG_STARTALLTHREAD=35 \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
+
+    If the target process is on secure-execution mode,
+    libleaktracer.so should be in standard search directoriesspecified in /etc/ld.so.conf,
+    And all slashes in it's preload path will be ignored
+
 
 Options:
     -I  <FILE>                  set input path
@@ -16958,6 +16966,7 @@ Description:
     Show environment variables for a specific process
 
 Options:
+    -g  <PID|COMM>              set target process
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -16965,6 +16974,7 @@ Options:
 Examples:
     - Print environment variables for a specific process
         # {0:1} {1:1} -g 1234
+        # {0:1} {1:1} -g a.out
                     '''.format(cmd, mode)
 
                 # printns #
@@ -25897,23 +25907,28 @@ Copyright:
 
         if len(SysMgr.filterGroup) == 0:
             SysMgr.filterGroup.append(SysMgr.pid)
-        elif len(SysMgr.filterGroup) > 1:
-            SysMgr.printErr(\
-                "wrong option value with -g, input only one tid")
             sys.exit(0)
 
-        pid = long(SysMgr.filterGroup[0])
-
-        envs = SysMgr.getEnv(pid)
-        if not envs:
+        pids = SysMgr.convertPidList(SysMgr.filterGroup, exceptMe=True)
+        if not pids:
+            SysMgr.printErr("Fail to find %s process" % \
+                ', '.join(SysMgr.filterGroup))
             sys.exit(0)
 
-        SysMgr.printPipe()
+        for pid in pids:
+            SysMgr.printPipe(\
+                '\n[ %s(%s) ]' % (SysMgr.getComm(pid), pid))
 
-        for env in envs:
-            SysMgr.printPipe(env)
+            envs = SysMgr.getEnv(pid)
+            if not envs:
+                sys.exit(0)
 
-        SysMgr.printPipe()
+            SysMgr.printPipe()
+
+            for env in envs:
+                SysMgr.printPipe(env)
+
+        SysMgr.printPipe('\n')
 
         sys.exit(0)
 
@@ -27011,6 +27026,42 @@ Copyright:
 
     @staticmethod
     def doLeaktrace():
+        def waitAndKill(pid, comm, cond, sig, purpose):
+            # define RSS index #
+            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+
+            # wait for RSS #
+            previous = None
+            while 1:
+                mlist = SysMgr.getMemStat(pid)
+                if not mlist:
+                    SysMgr.printErr(\
+                        "Fail to get RSS of %s(%s)" % (comm, pid))
+                    sys.exit(0)
+
+                current = long(mlist[rssIdx]) << 12
+                currentUnit = UtilMgr.convSize2Unit(current)
+                if previous != currentUnit:
+                    SysMgr.printInfo(\
+                        'the RSS of %s(%s) is %s' % (comm, pid, currentUnit))
+                previous = currentUnit
+
+                if startSize <= current:
+                    break
+                time.sleep(1)
+
+            # send signal #
+            try:
+                os.kill(long(pid), sig)
+                SysMgr.printStat(\
+                    'sent %s to %s(%s) to %s profiling' % \
+                        (ConfigMgr.SIG_LIST[sig], comm, pid, purpose))
+            except:
+                SysMgr.printErr(\
+                    "Fail to send signal %s to %s profiling" % \
+                        (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
+                sys.exit(0)
+
         if not SysMgr.inputParam:
             SysMgr.printErr("No PATH with -I")
             sys.exit(0)
@@ -27044,7 +27095,34 @@ Copyright:
 
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
-        rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+
+        # check preload result #
+        ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
+        if ret:
+            SysMgr.printStat(\
+                '%s is preloaded to %s(%s)' % (ret, comm, pid))
+        if not ret:
+            envList = SysMgr.getEnv(pid)
+            envDict = {}
+            for item in envList:
+                envset = item.split('=', 1)
+                if len(envset) > 1:
+                    envDict[envset[0]] = envset[1]
+            if not 'LD_PRELOAD' in envDict or \
+                not 'libleaktracer' in envDict['LD_PRELOAD']:
+                SysMgr.printErr(\
+                    'Fail to find libleaktracer.so on memory map '
+                    'because the library is not preloaded')
+                sys.exit(0)
+
+            SysMgr.printErr(\
+                'Fail to find libleaktracer.so on memory map '
+                'because the library is not preloaded\n'
+                '\tIf the target process is on secure-execution mode,\n'
+                '\tlibleaktracer.so should be in standard search directories'
+                'specified in /etc/ld.so.conf,\n'
+                '\tAnd all slashes in it\'s preload path will be ignored.')
+            sys.exit(0)
 
         # get signals #
         if SysMgr.killFilter:
@@ -27081,35 +27159,7 @@ Copyright:
                 endSize = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
 
             if startSize > 0:
-                # wait for RSS to start #
-                while 1:
-                    mlist = SysMgr.getMemStat(pid)
-                    if not mlist:
-                        SysMgr.printErr(\
-                            "Fail to get RSS of %s(%s)" % (comm, pid))
-                        sys.exit(0)
-
-                    current = long(mlist[rssIdx]) << 12
-                    SysMgr.printInfo(\
-                        'the RSS of %s(%s) is %s' % \
-                            (comm, pid, UtilMgr.convSize2Unit(current)))
-
-                    if startSize <= current:
-                        break
-                    time.sleep(1)
-
-                # send signal to start #
-                try:
-                    os.kill(long(pid), startSig)
-                    SysMgr.printStat(\
-                        'sent %s to %s(%s) to start profiling' % \
-                            (ConfigMgr.SIG_LIST[startSig], comm, pid))
-                except:
-                    SysMgr.printErr(\
-                        "Fail to send signal %s to start profiling" % \
-                            ConfigMgr.SIG_LIST[startSig], reason=True)
-                    sys.exit(0)
-
+                waitAndKill(pid, comm, startSize, startSig, 'start')
         elif startSig:
             try:
                 os.kill(long(pid), startSig)
@@ -27124,34 +27174,7 @@ Copyright:
 
         # STOP #
         if endSize > 0:
-            # wait for RSS to stop #
-            while 1:
-                mlist = SysMgr.getMemStat(pid)
-                if not mlist:
-                    SysMgr.printErr(\
-                        "Fail to get RSS of %s(%s)" % (comm, pid))
-                    sys.exit(0)
-
-                current = long(mlist[rssIdx]) << 12
-                SysMgr.printInfo(\
-                    'the RSS of %s(%s) is %s' % \
-                        (comm, pid, UtilMgr.convSize2Unit(current)))
-
-                if endSize <= current:
-                    break
-                time.sleep(1)
-
-            # send signal to stop #
-            try:
-                os.kill(long(pid), stopSig)
-                SysMgr.printStat(\
-                    'sent %s to %s(%s) to stop profiling' % \
-                        (ConfigMgr.SIG_LIST[stopSig], comm, pid))
-            except:
-                SysMgr.printErr(\
-                    "Fail to send signal %s to stop profiling" % \
-                        ConfigMgr.SIG_LIST[stopSig], reason=True)
-                sys.exit(0)
+            waitAndKill(pid, comm, endSize, stopSig, 'stop')
         elif stopSig:
             try:
                 os.kill(long(pid), stopSig)
@@ -27166,7 +27189,7 @@ Copyright:
 
         SysMgr.printStat('wait for %s' % SysMgr.inputParam)
 
-        # ready to file is done #
+        # wait for the output file is closed #
         while 1:
             tobj.saveFileStat([[pid], []])
             if not SysMgr.inputParam in tobj.fileData:
@@ -27174,7 +27197,7 @@ Copyright:
             time.sleep(1)
             tobj.reinitStats()
 
-        # ready to file is created #
+        # wait for the output file is written #
         while not os.path.exists(SysMgr.inputParam) or \
             os.stat(SysMgr.inputParam).st_size == 0:
             time.sleep(1)
@@ -28478,8 +28501,8 @@ Copyright:
         isFound = False
         for val in options:
             try:
-                ret = SysMgr.getSigNum(val[1:])
-                if not ret:
+                sig = SysMgr.getSigNum(val[1:])
+                if not sig:
                     continue
 
                 isFound = True
@@ -36477,7 +36500,7 @@ struct msghdr {
             os.kill(pid, signal.SIGSTOP)
             return 0
         except:
-            ysMgr.printSigError(pid, 'SIGSTOP')
+            SysMgr.printSigError(pid, 'SIGSTOP')
             return -1
 
 
