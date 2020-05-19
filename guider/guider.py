@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200519"
+__revision__ = "200520"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27029,24 +27029,30 @@ Copyright:
         def waitAndKill(pid, comm, cond, sig, purpose):
             # define RSS index #
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+            condUnit = UtilMgr.convSize2Unit(cond)
 
             # wait for RSS #
             previous = None
             while 1:
                 mlist = SysMgr.getMemStat(pid)
                 if not mlist:
-                    SysMgr.printErr(\
-                        "Fail to get RSS of %s(%s)" % (comm, pid))
+                    if not SysMgr.isAlive(pid):
+                        SysMgr.printErr(\
+                            "%s(%s) is terminated" % (comm, pid))
+                    else:
+                        SysMgr.printErr(\
+                            "Fail to get RSS of %s(%s)" % (comm, pid))
                     sys.exit(0)
 
                 current = long(mlist[rssIdx]) << 12
                 currentUnit = UtilMgr.convSize2Unit(current)
                 if previous != currentUnit:
                     SysMgr.printInfo(\
-                        'the RSS of %s(%s) is %s' % (comm, pid, currentUnit))
+                        '%s(%s)\'s RSS for %s: current(%s) / dest(%s)' % \
+                            (comm, pid, purpose, currentUnit, condUnit))
                 previous = currentUnit
 
-                if startSize <= current:
+                if cond <= current:
                     break
                 time.sleep(1)
 
