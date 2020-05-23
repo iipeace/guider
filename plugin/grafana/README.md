@@ -14,7 +14,7 @@ Grafana: 6.6.2
 * Start container
   * Method 1: Use DockerHub
   ```sh
-  docker pull yoonje/influxdb-grafana-for-guider
+  docker pull yoonje/guider-influxdb-grafana
   ```
   ```sh  
   docker run --ulimit nofile=66000:66000 \
