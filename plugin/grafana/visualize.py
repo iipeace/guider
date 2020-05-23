@@ -23,6 +23,7 @@ def get_data_by_command(target_addr, request_id, cmd):
             if not str_pipe:
                 break
             result['data'] = str_pipe.replace('\n', '')
+            # TODO need to refactoring! result['data'][2:8] == "system" is bad code.
             if result['data'] and result['data'][2:8] == "system":
                 result['data'] = json.loads(result['data'])
                 pprint.pprint(result)
@@ -73,10 +74,16 @@ def insert_db(guider_data):
         json_body['time'] = guider_data['utctime']
         json_body['measurement'] = super_key
         json_body['fields'] = dict()
-        if super_key == "mem":
+        if super_key == "cpu":
+            # TODO processing data field per cpu core
+            json_body['fields']['idle'] = guider_data[super_key]['idle']
+            json_body['fields']['iowait'] = guider_data[super_key]['iowait']
+            json_body['fields']['irq'] = guider_data[super_key]['irq']
+            json_body['fields']['kernel'] = guider_data[super_key]['kernel']
+        elif super_key == "mem" or super_key == "net":
             json_body['fields'] = guider_data[super_key]
         else:
-            # TODO super_key: cpu, block, net, process, storage, swap, system, task
+            # TODO another super key processing : system, block, process, task, storage
             continue
         if len(json_body["fields"]) > 0:
             influx_data.append(json_body)
