@@ -87,7 +87,7 @@ $ pip3 install -r requirements.txt
 ### Run
 * Run the guider on the PC to measure performance. Only ports between 50 and 999 are available.
     ```sh
-    $ python3 guider.py server -x {PORT}
+    $ cd ../../guider/ && python3 guider.py server -x {PORT}
     ```
 * Run visualization client. Only ports between 50 and 999 are available.
     ```sh
