@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200520"
+__revision__ = "200524"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -82,6 +82,9 @@ class ConfigMgr(object):
         ENDC = ''
         BOLD = ''
         UNDERLINE = ''
+
+    # Define configuration info #
+    confData = {}
 
     # Define support architecture #
     supportArch = {
@@ -197,6 +200,15 @@ class ConfigMgr(object):
         24: "AF_PPPOX",
         25: "AF_WANPIPE",
         31: "AF_BLUETOOTH",
+    }
+
+    # Define DLOPEN type #
+    DLOPEN_TYPE = {
+        1: "RTLD_LAZY",
+        2: "RTLD_NOW",
+        3: "RTLD_BINDING_MASK",
+        4: "RTLD_NOLOAD",
+        8: "RTLD_DEEPBIND",
     }
 
     # Define socket type #
@@ -3633,7 +3645,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertNumber(number):
+    def convNum(number):
         try:
             return format(long(number), ",")
         except SystemExit:
@@ -3700,7 +3712,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertTime(time):
+    def convTime(time):
         # convert seconds to time #
         try:
             m, s = divmod(time, 60)
@@ -8890,7 +8902,7 @@ class FunctionAnalyzer(object):
         if self.syscallCnt == 0:
             return
 
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         SysMgr.clearPrint()
         SysMgr.printPipe(\
@@ -8957,7 +8969,7 @@ class FunctionAnalyzer(object):
             float(self.finishTime) - float(SysMgr.startTime)
 
         convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         SysMgr.printLogo(big=True)
 
@@ -9239,7 +9251,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('SYSCALL')
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         # Make syscall event list #
         sysList = ConfigMgr.sysList
@@ -9400,7 +9412,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('CUSTOM')
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         # Make custom event list #
         customList = ', '.join(list(self.customEventTable.keys()))
@@ -9650,7 +9662,7 @@ class FunctionAnalyzer(object):
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         cpuTickIndex = FunctionAnalyzer.symStackIdxTable.index('CPU_TICK')
-        tCnt = UtilMgr.convertNumber(self.periodicEventCnt)
+        tCnt = UtilMgr.convNum(self.periodicEventCnt)
 
         # average tick interval #
         if self.periodicContEventCnt > 0:
@@ -10263,8 +10275,8 @@ class FunctionAnalyzer(object):
         userSize = convertFunc(self.pageUsageCnt << 12)
         allocSize = convertFunc(self.pageAllocCnt << 12)
         freeSize = convertFunc(self.pageFreeCnt << 12)
-        allocCnt = UtilMgr.convertNumber(self.pageAllocEventCnt)
-        freeCnt = UtilMgr.convertNumber(self.pageFreeEventCnt)
+        allocCnt = UtilMgr.convNum(self.pageAllocEventCnt)
+        freeCnt = UtilMgr.convNum(self.pageFreeEventCnt)
 
         # Calculate page lifetime #
         for pfn, item in self.pageTable.items():
@@ -10467,9 +10479,9 @@ class FunctionAnalyzer(object):
             (title, \
             convertFunc(self.heapExpSize - self.heapRedSize), \
             convertFunc(self.heapExpSize), \
-            UtilMgr.convertNumber(self.heapExpEventCnt), \
+            UtilMgr.convNum(self.heapExpEventCnt), \
             convertFunc(self.heapRedSize), \
-            UtilMgr.convertNumber(self.heapRedEventCnt)))
+            UtilMgr.convNum(self.heapRedEventCnt)))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^47}|{2:_^49}|{3:_^46}".\
@@ -10527,7 +10539,7 @@ class FunctionAnalyzer(object):
         SysMgr.clearPrint()
         SysMgr.printPipe(\
             '[%s History] [Cnt: %s]' % \
-            (title, UtilMgr.convertNumber(len(self.heapTable))))
+            (title, UtilMgr.convNum(len(self.heapTable))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
@@ -10882,7 +10894,7 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkWrIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_WRITE')
         convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
         size = convertFunc(self.blockWrUsageCnt << 9)
 
         # Print block write in user space #
@@ -11036,7 +11048,7 @@ class FunctionAnalyzer(object):
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         blkRdIndex = FunctionAnalyzer.symStackIdxTable.index('BLK_READ')
         convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
         size = convertFunc(self.blockRdUsageCnt << 9)
 
         # Print block read in user space #
@@ -13011,7 +13023,9 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
-    defaultOutPath = 'guider.out'
+    outFileName = 'guider.out'
+    confFileName = 'guider.conf'
+    cmdFileName = 'guider.cmd'
     tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
     syslogPath = '/var/log/syslog'
@@ -13567,7 +13581,7 @@ class SysMgr(object):
     @staticmethod
     def setVisualAttr():
         if len(sys.argv) <= 2:
-            sys.argv.append(SysMgr.defaultOutPath)
+            sys.argv.append(SysMgr.outFileName)
 
         SysMgr.graphEnable = True
 
@@ -14303,6 +14317,34 @@ class SysMgr(object):
 
 
     @staticmethod
+    def loadConfig(fname, verb=True):
+        try:
+            targetList = []
+            with open(fname, 'r') as fd:
+                for line in fd.readlines():
+                    if not line:
+                        continue
+
+                    line = line.strip()
+                    if line.startswith('<') and line.endswith('>'):
+                        entry = line[1:-1]
+                        ConfigMgr.confData[entry] = list()
+                        targetList = ConfigMgr.confData[entry]
+                    elif line and line != '\n' and not line.startswith('#'):
+                        targetList.append(line)
+
+            return ConfigMgr.confData
+        except SystemExit:
+            sys.exit(0)
+        except:
+            if verb:
+                SysMgr.printErr(\
+                    "Fail to load configuration from %s" % fname, reason=True)
+            return None
+
+
+
+    @staticmethod
     def getCwd(pid):
         cwdPath = \
             '%s/%s/cwd' % (SysMgr.procPath, pid)
@@ -14866,7 +14908,7 @@ class SysMgr(object):
             option == 'U' or option == 'v' or option == 'w' or \
             option == 'W' or option == 'x' or option == 'X' or \
             option == 'Y' or option == 'y' or option == 'Z' or \
-            option.isdigit():
+            option == 'B' or option.isdigit():
             return True
         else:
             return False
@@ -15303,6 +15345,7 @@ Usage:
     -g  <COMM|TID{:FILE}>       set filter
     -i  <SEC>                   set interval
     -R  <INTERVAL:TIME:TERM>    set repeat count
+    -C  <PATH>                  set configuration path
     -Q                          print all rows in a stream
     -J                          print in JSON format
     -E  <DIR>                   set cache dir path
@@ -15595,7 +15638,7 @@ Options:
     -u                          run in the background
     -b  <SIZE:KB>               set buffer size
     -t  <SYSCALL>               trace syscall
-    -C  <DIR|FILE>              set command script path
+    -B  <DIR|FILE>              set command script path
     -W                          wait for signal
     -w  <TIME:FILE{:VALUE}>     set additional command
     -M  <FILE>                  set objdump path
@@ -15615,6 +15658,7 @@ Options:
 
   [common]
     -a                          show all stats and events
+    -C  <PATH>                  set configuration path
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
@@ -15846,7 +15890,7 @@ Options:
     -b  <SIZE:KB>               set buffer size
     -D                          trace thread dependency
     -t  <SYSCALL>               trace syscall
-    -C  <DIR|FILE>              set command script path
+    -B  <DIR|FILE>              set command script path
     -w  <TIME:FILE{:VALUE}>     set additional command
     -U  <NAME:FUNC|ADDR:FILE>   set user event
     -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
@@ -15868,6 +15912,7 @@ Options:
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
+    -C  <PATH>                  set configuration path
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -15888,6 +15933,9 @@ Examples:
 
     - convert event data compressed to original one
         # {0:1} guider.dat -s .
+
+    - record default events of all threads and their commands
+        # {0:1} {1:1} -s . -B
 
     - report all analysis results of a specific thread having TID 1234 to ./guider.out
         # {0:1} guider.dat -o . -g 1234 -a
@@ -16932,7 +16980,7 @@ Description:
     If the target process is on secure-execution mode,
     libleaktracer.so should be in standard search directoriesspecified in /etc/ld.so.conf,
     And all slashes in it's preload path will be ignored
-
+    Otherwise add the library path to /etc/ld.so.preload
 
 Options:
     -I  <FILE>                  set input path
@@ -16940,6 +16988,7 @@ Options:
     -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
     -g  <PID|COMM>              set target process
     -k  <{{START,}}TERM>          set signal
+    -C  <PATH>                  set configuration path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -17414,6 +17463,7 @@ Description:
 Options:
     -x  <IP:PORT>               set local address
     -u                          run in the background
+    -C  <PATH>                  set configuration path
     -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
@@ -21033,7 +21083,7 @@ Copyright:
                 # dir #
                 if os.path.isdir(SysMgr.printFile):
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.printFile, SysMgr.defaultOutPath)
+                        os.path.join(SysMgr.printFile, SysMgr.outFileName)
                 # file #
                 else:
                     SysMgr.inputFile = SysMgr.printFile
@@ -21416,8 +21466,8 @@ Copyright:
     @staticmethod
     def parseRuntimeOption(value):
         SysMgr.countEnable = True
-        convertNum = UtilMgr.convertNumber
-        convertTime = UtilMgr.convUnit2Time
+        convertNum = UtilMgr.convNum
+        convTime = UtilMgr.convUnit2Time
 
         # split params #
         if value:
@@ -21434,7 +21484,7 @@ Copyright:
                 if interval:
                     interval = long(interval)
                 else:
-                    interval = convertTime(repeatParams[0])
+                    interval = convTime(repeatParams[0])
 
                 SysMgr.intervalEnable = interval
                 SysMgr.repeatInterval = interval
@@ -21444,7 +21494,7 @@ Copyright:
                     SysMgr.repeatCount = sys.maxsize
                 else:
                     SysMgr.repeatCount = \
-                        long(convertTime(repeatParams[1]) / interval)
+                        long(convTime(repeatParams[1]) / interval)
             except:
                 SysMgr.printErr((\
                     "wrong option value with -R because %s, "
@@ -21452,7 +21502,7 @@ Copyright:
                 sys.exit(0)
         elif len(repeatParams) == 1:
             try:
-                interval = long(convertTime(repeatParams[0]))
+                interval = long(convTime(repeatParams[0]))
 
                 # top mode #
                 if SysMgr.isTopMode():
@@ -21670,6 +21720,14 @@ Copyright:
 
             elif option == 'f':
                 SysMgr.forceEnable = True
+
+            elif option == 'C':
+                if not ConfigMgr.confData:
+                    if not value:
+                        value = SysMgr.confFileName
+                    ret = SysMgr.loadConfig(value)
+                    if not ret:
+                        sys.exit(0)
 
             elif option == 'L':
                 SysMgr.layout = value
@@ -22202,6 +22260,13 @@ Copyright:
                 SysMgr.archOption = value
                 SysMgr.setArch(value)
 
+            elif option == 'C':
+                if not value:
+                    value = SysMgr.confFileName
+                ret = SysMgr.loadConfig(value)
+                if not ret:
+                    sys.exit(0)
+
             elif option == 'E':
                 SysMgr.cacheDirPath = value
                 SysMgr.printInfo(\
@@ -22309,24 +22374,24 @@ Copyright:
             elif option == 'F':
                 SysMgr.fileEnable = True
 
-            elif option == 'C':
+            elif option == 'B':
                 # get output path #
                 if len(value) == 0:
-                    value = 'guider.cmd'
+                    value = SysMgr.cmdFileName
 
                 # change output path #
                 try:
                     if SysMgr.isWritable(value):
                         if os.path.isdir(value):
                             SysMgr.cmdEnable = \
-                                '%s/guider.cmd' % value
+                                '%s/%s' % (value, SysMgr.cmdFileName)
                         else:
                             SysMgr.cmdEnable = value
                     else:
                         raise Exception()
                 except:
                     SysMgr.printErr(\
-                        "wrong option value %s with -C option" % value)
+                        "wrong option value %s with -B option" % value)
                     sys.exit(0)
 
                 # remove double slashs #
@@ -23131,7 +23196,7 @@ Copyright:
             if len(sys.argv) > 2:
                 fname = sys.argv[2]
             else:
-                fname = SysMgr.defaultOutPath
+                fname = SysMgr.outFileName
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -24078,7 +24143,7 @@ Copyright:
         runtime = uptime - long(SysMgr.startRunTime)
         if isSec:
             return runtime
-        return UtilMgr.convertTime(runtime)
+        return UtilMgr.convTime(runtime)
 
 
 
@@ -24391,7 +24456,7 @@ Copyright:
 
             # runtime #
             if runtime != '?':
-                runtime = UtilMgr.convertTime(runtime)
+                runtime = UtilMgr.convTime(runtime)
 
             # socket #
             try:
@@ -26179,7 +26244,7 @@ Copyright:
                 '/lib/systemd/system',
             ]
 
-        cv = UtilMgr.convertNumber
+        cv = UtilMgr.convNum
 
         busServiceList = {}
         filteredList = {}
@@ -26274,7 +26339,7 @@ Copyright:
         obj = ThreadAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
-        cv = UtilMgr.convertNumber
+        cv = UtilMgr.convNum
         for ns, val in sorted(obj.nsData.items(), key=lambda e: e[0]):
             SysMgr.printPipe(\
                 '[%s] (Total: %s)\n%s' % (ns, cv(len(val)), twoLine))
@@ -26794,8 +26859,8 @@ Copyright:
                         dict(size=UtilMgr.convSize2Unit(size), type='file')
 
             result[parentAbsPath]['size'] = UtilMgr.convSize2Unit(totalSize)
-            result[parentAbsPath]['nrDir'] = UtilMgr.convertNumber(totalDir)
-            result[parentAbsPath]['nrFile'] = UtilMgr.convertNumber(totalFile)
+            result[parentAbsPath]['nrDir'] = UtilMgr.convNum(totalDir)
+            result[parentAbsPath]['nrFile'] = UtilMgr.convNum(totalFile)
 
             return (totalSize, totalDir, totalFile)
 
@@ -26873,8 +26938,8 @@ Copyright:
                 tsize = ''
 
             summary = " <%sFILE: %s, DIR: %s>" % \
-                      (tsize, UtilMgr.convertNumber(totalFile),
-                       UtilMgr.convertNumber(totalDir))
+                      (tsize, UtilMgr.convNum(totalFile),
+                       UtilMgr.convNum(totalDir))
 
             # add summary by reverse traverse #
             if level == 0:
@@ -30624,7 +30689,7 @@ Copyright:
 
         # system uptime #
         try:
-            uptime = UtilMgr.convertTime(SysMgr.uptime)
+            uptime = UtilMgr.convTime(SysMgr.uptime)
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
 
@@ -30637,7 +30702,7 @@ Copyright:
         try:
             runtime = \
                 long(SysMgr.uptime) - long(SysMgr.startRunTime)
-            runtime = UtilMgr.convertTime(runtime)
+            runtime = UtilMgr.convTime(runtime)
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Runtime', runtime))
 
@@ -31425,14 +31490,14 @@ Copyright:
                         if target == 'tasks' or target == 'cgroup.procs':
                             taskList = fd.read().splitlines()
                             item[target] = \
-                                UtilMgr.convertNumber(len(taskList))
+                                UtilMgr.convNum(len(taskList))
                             if SysMgr.showAll and \
                                 len(taskList) > 0 and target == 'cgroup.procs':
                                 item['PROCS'] = dict.fromkeys(taskList, {})
                         else:
                             cval = fd.readline()[:-1]
                             if cval.isdigit():
-                                cval = UtilMgr.convertNumber(long(cval))
+                                cval = UtilMgr.convNum(long(cval))
                             elif cval == '':
                                 cval = 'none'
                             item[target] = cval
@@ -31617,7 +31682,7 @@ Copyright:
         prevOwner = None
         now = time.mktime(time.gmtime())
         convertSizeFunc = UtilMgr.convSize2Unit
-        convertTimeFunc = UtilMgr.convertTime
+        convTimeFunc = UtilMgr.convTime
 
         # merge stats per-owner #
         ownerData = dict()
@@ -31719,9 +31784,9 @@ Copyright:
                         convertSizeFunc(stats['rss'], True), \
                         convertSizeFunc(stats['swap'], True), \
                         stats['nattch'], stats['perms'], \
-                        convertTimeFunc(atime)[:10], \
-                        convertTimeFunc(dtime)[:10], \
-                        convertTimeFunc(ctime)[:10]))
+                        convTimeFunc(atime)[:10], \
+                        convTimeFunc(dtime)[:10], \
+                        convTimeFunc(ctime)[:10]))
 
                 cnt += 1
             except:
@@ -33096,7 +33161,7 @@ class DbusAnalyzer(object):
 
     @staticmethod
     def printSignalInfo(tid, perProc, perSig, procInfo):
-        conv = UtilMgr.convertNumber
+        conv = UtilMgr.convNum
 
         totalSubscription = 0
         procId = '%s(%s)' % (SysMgr.getComm(tid), tid)
@@ -33261,7 +33326,7 @@ class DbusAnalyzer(object):
                 SysMgr.printErr(\
                     "Fail to update system stat", True)
 
-            convertNum = UtilMgr.convertNumber
+            convertNum = UtilMgr.convNum
             convertSize = UtilMgr.convSize2Unit
 
             for pid in taskList:
@@ -33382,7 +33447,7 @@ class DbusAnalyzer(object):
                 except:
                     pass
 
-            convertNum = UtilMgr.convertNumber
+            convertNum = UtilMgr.convNum
 
             # update CPU usage of tasks #
             updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
@@ -34141,7 +34206,7 @@ class DltAnalyzer(object):
     @staticmethod
     def printSummary():
         quitLoop = False
-        convertFunc = UtilMgr.convertNumber
+        convertFunc = UtilMgr.convNum
 
         # update uptime #
         SysMgr.updateUptime()
@@ -35177,6 +35242,7 @@ class Debugger(object):
         self.addrList = []
         self.callstack = []
         self.totalCall = long(0)
+        self.syscallAddr = None
         self.callTable = {}
         self.fileTable = {}
         self.bpList = {}
@@ -35206,6 +35272,7 @@ class Debugger(object):
         self.prevBtStr = None
 
         self.lockObj = None
+        self.tempPage = None
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -36225,7 +36292,7 @@ struct msghdr {
         if verb:
             SysMgr.printStat(\
                 r"start injecting %s breakpoints for %s(%s) process..." % \
-                    (UtilMgr.convertNumber(len(addrList)), \
+                    (UtilMgr.convNum(len(addrList)), \
                         SysMgr.getComm(tgid, cache=True), tgid))
 
         # add new breakpoints #
@@ -36473,7 +36540,8 @@ struct msghdr {
             return -1
         else:
             SysMgr.printWarn(\
-                'Attached %s(%s) to guider(%s)' % (self.comm, pid, SysMgr.pid))
+                'Attached %s(%s) to guider(%s)' % \
+                    (self.comm, pid, SysMgr.pid))
             self.attached = True
             return 0
 
@@ -36511,19 +36579,199 @@ struct msghdr {
 
 
 
-    def remoteSyscall(self, syscall, args):
+    def calloc(self, size=None, string=None):
+        # get function address #
+        symbol = 'calloc'
+        ret = self.getAddrBySymbol(symbol)
+        if not ret:
+            SysMgr.printErr(\
+                "Fail to find %s on memory map for %s(%s)" % \
+                    (symbol, self.comm, self.pid))
+            return None
+        func = ret[0][0]
+
+        # check size #
+        if not size:
+            if string:
+                size = len(string) + 1
+            else:
+                SysMgr.printErr(\
+                    "Fail to alloc memory for %s(%s) because no size" % \
+                        (self.comm, self.pid))
+                return None
+
+        # set args #
+        args = [2, 1, size]
+
+        # call calloc $
+        addr = self.remoteUsercall(func, args)
+        if addr < 0:
+            SysMgr.printErr(\
+                "Fail to alloc %s size of memory for %s(%s)" % \
+                    (UtilMgr.convNum(size), self.comm, self.pid))
+            return None
+
+        if string:
+            if not string.endswith('\0'):
+                string += '\0'
+            ret = self.writeMem(addr, string.encode())
+            if ret == -1:
+                SysMgr.printErr(\
+                    "Fail to write '%s' to %s" % (string, hex(addr)))
+
+        return addr
+
+
+
+    def getTempPage(self):
+        if not self.tempPage:
+            self.tempPage = self.mmap()
+        return self.tempPage
+
+
+
+    def dlopen(self, fname, flags=None):
+        # check fname #
+        if not os.path.exists(fname):
+            SysMgr.printErr(\
+                "Fail to find %s for %s(%s)" % \
+                    (fname, self.comm, self.pid))
+            return None
+
+        # get function address #
+        symbol = '__libc_dlopen_mode'
+        ret = self.getAddrBySymbol(symbol)
+        if not ret:
+            SysMgr.printErr(\
+                "Fail to find %s on memory map for %s(%s)" % \
+                    (symbol, self.comm, self.pid))
+            return None
+        func = ret[0][0]
+
+        if not flags:
+            flags = 1 # RTLD_LAZY #
+
+        # alloc a new page for file name string #
+        fnameAddr = self.getTempPage()
+        if not fnameAddr:
+            SysMgr.printErr("Fail to allocate a new page")
+            return None
+
+        # copy file name string to the new page #
+        fname += '\0'
+        ret = self.writeMem(fnameAddr, fname.encode())
+        if ret == -1:
+            SysMgr.printErr(\
+                "Fail to write '%s' to %s" % (fname, hex(fnameAddr)))
+            return None
+
+        # set args #
+        args = [fnameAddr, flags]
+
+        # call dlopen $
+        return self.remoteUsercall(func, args)
+
+
+
+    def getSyscallAddr(self):
+        if not self.syscallAddr:
+            self.syscallAddr = self.getAddrBySymbol('syscall')
+
+        return self.syscallAddr
+
+
+
+    def remoteUsercall(self, usercall, args=[], wait=True):
+        procInfo = '%s(%s)' % (self.comm, self.pid)
+
         # get original regset #
         if not self.updateRegs():
+            return None
+
+        # get backup regset #
+        self.backupRegs()
+        origPc = self.pc
+
+        # change access permission on a page pointed by PC #
+        ret = self.mprotect(self.pc)
+        if ret == -1:
             SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
+                "Fail to change access permission on %s page for %s" % \
+                    (hex(self.pc), procInfo))
+            return None
+
+        # set usercall address #
+        if type(usercall) is long:
+            func = usercall
+        elif type(usercall) is str:
+            # get function address #
+            addr = self.getAddrBySymbol(usercall)
+            if not addr:
+                SysMgr.printErr(\
+                    "Fail to find %s on memory map for %s" % \
+                        (usercall, procInfo))
+                return None
+            func = addr[0][0]
+        else:
+            SysMgr.printErr(\
+                "Fail to recognize %s as a function for %s" % \
+                    (usercall, procInfo), True)
+            return None
+        setattr(self.regs, self.retreg, func)
+
+        # set args #
+        self.writeArgs(args)
+
+        # set trap for return #
+        if self.arch == 'arm' or self.arch == 'aarch64':
+            self.setLR(0)
+        elif self.arch == 'x64':
+            # align sp - wordSize to a multiple of 16
+            wordSize = ConfigMgr.wordSize
+            mod = (self.sp - wordSize) % 16
+            newSP = self.sp - wordSize - mod
+            newSP -= wordSize
+            self.setSP(newSP)
+            ret = self.writeMem(newSP, b'\x00' * wordSize)
+        elif self.arch == 'x86':
+            # toDo: save all args to stack and set trap #
+            SysMgr.printErr(\
+                "Fail to set trap for return because %s is not supported" % \
+                    self.arch)
+            sys.exit(0)
+
+        # update PC to target function addr #
+        self.setPC(func)
+
+        # apply register set #
+        self.setRegs()
+
+        # call function #
+        self.cont()
+        if not wait:
+            return None
+        ret = self.waitpid()
+        stat = self.getStatus(ret[1])
+
+        # read regs to check results #
+        if not self.updateRegs():
+            return None
+        retVal = self.getRetVal()
+
+        # restore regs #
+        self.setRegs(temp=True)
+
+        return retVal
+
+
+
+    def remoteSyscall(self, syscall, args=[]):
+        # get original regset #
+        if not self.updateRegs():
             return
 
         # get backup regset #
         self.backupRegs()
-
-        # backup a current text page #
-        curPage = self.accessMem(self.peekIdx, self.pc)
 
         # set syscall number #
         if type(syscall) is long:
@@ -36548,12 +36796,10 @@ struct msghdr {
         setattr(self.regs, self.retreg, sysid)
 
         # set args #
-        if not args:
-            args = []
         self.writeArgs([sysid] + args)
 
         # set PC to syscall function addr #
-        addr = self.getAddrBySymbol('syscall')
+        addr = self.getSyscallAddr()
         if not addr:
             SysMgr.printErr(\
                 "Fail to find syscall address")
@@ -36570,9 +36816,6 @@ struct msghdr {
 
         # read regs and change the 6th argument #
         if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             return
         self.writeArgs(args)
         self.setRegs()
@@ -36584,9 +36827,6 @@ struct msghdr {
 
         # read regs to check results #
         if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             return
         ret = self.getRetVal()
 
@@ -36615,7 +36855,12 @@ struct msghdr {
 
 
 
-    def mprotect(self, maddr, size, perm='rwx'):
+    def mprotect(self, maddr, size=4096, perm='rwx'):
+        # align address #
+        offset = maddr % SysMgr.pageSize
+        if offset > 0:
+            maddr -= offset
+
         # set prot #
         prot = 0
         perm = perm.lower()
@@ -37366,7 +37611,7 @@ struct msghdr {
             sampleStr = ' [SampleTime: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
-        convert = UtilMgr.convertNumber
+        convert = UtilMgr.convNum
 
         # get CPU Usage #
         cpuUsage = self.getCpuUsage()
@@ -38303,9 +38548,6 @@ struct msghdr {
     def handleBreakpoint(self, printStat=False, checkArg=None):
         # get register set of target #
         if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             sys.exit(0)
 
         # set rewind address #
@@ -38569,9 +38811,6 @@ struct msghdr {
         if not self.isRealtime and SysMgr.funcDepth > 0:
             # get register set of target #
             if not self.updateRegs():
-                SysMgr.printErr(\
-                    "Fail to get register values of %s(%s)" % \
-                        (self.comm, self.pid))
                 sys.exit(0)
 
             self.printContext(regs=False)
@@ -38581,9 +38820,6 @@ struct msghdr {
     def handleUsercall(self):
         # get register set of target #
         if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             sys.exit(0)
 
         # check previous function boundary #
@@ -38900,9 +39136,6 @@ struct msghdr {
         self.status = 'exit'
 
         if self.getRegs(temp=True) != 0:
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             sys.exit(0)
 
         # set return value from register #
@@ -38936,9 +39169,6 @@ struct msghdr {
 
         # get register set #
         if not self.updateRegs():
-            SysMgr.printErr(\
-                "Fail to get register values of %s(%s)" % \
-                    (self.comm, self.pid))
             sys.exit(0)
 
         # get syscall number #
@@ -39678,7 +39908,7 @@ struct msghdr {
 
                 SysMgr.printInfo(\
                     'Do sampling every %s instrunctions' % \
-                        UtilMgr.convertNumber(SysMgr.funcDepth))
+                        UtilMgr.convNum(SysMgr.funcDepth))
 
         # prepare environment for the running target #
         if self.isRunning:
@@ -39828,7 +40058,7 @@ struct msghdr {
 
                 SysMgr.printStat(\
                     r"start removing %s breakpoints from %s(%s) process..." % \
-                        (UtilMgr.convertNumber(len(instance.bpList)), \
+                        (UtilMgr.convNum(len(instance.bpList)), \
                             SysMgr.getComm(tgid, cache=True), tgid))
 
                 # remove all breakpoints #
@@ -39873,7 +40103,7 @@ struct msghdr {
         except:
             elapsed = instance.last - instance.start
 
-        nrLine = UtilMgr.convertNumber(len(instance.callPrint))
+        nrLine = UtilMgr.convNum(len(instance.callPrint))
         callStr = '\n'.join(instance.callPrint)
 
         SysMgr.printPipe(\
@@ -39959,7 +40189,7 @@ struct msghdr {
             suffix = ''
 
         # print call table #
-        convert = UtilMgr.convertNumber
+        convert = UtilMgr.convNum
         nrTotal = float(len(instance.callList))
         try:
             elapsed = instance.callList[-1][1] - instance.start
@@ -40274,6 +40504,26 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
+    def setSP(self, val):
+        if self.arch == 'arm':
+            self.regs.r13 = val
+        elif self.arch == 'aarch64':
+            self.regs.r31 = val
+        elif self.arch == 'x86':
+            self.regs.esp = val
+        elif self.arch == 'x64':
+            self.regs.rsp = val
+
+
+
+    def setLR(self, val):
+        if self.arch == 'arm':
+            self.regs.r14 = val
+        elif self.arch == 'aarch64':
+            self.regs.r30 = val
+
+
+
     def setRegs(self, temp=False):
         pid = self.pid
         wordSize = ConfigMgr.wordSize
@@ -40359,6 +40609,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = self.getregsCmd
 
             ret = self.ptrace(cmd, 0, addr)
+
+        if ret != 0:
+            SysMgr.printErr(\
+                "Fail to get register set of %s(%s)" % \
+                    (self.comm, self.pid))
 
         return ret
 
@@ -44241,9 +44496,12 @@ class ThreadAnalyzer(object):
             if not SysMgr.findOption('x'):
                 NetworkMgr.setServerNetwork(None, None)
 
-            # set configuration from file #
-            if not SysMgr.fileTopEnable:
-                self.getConf()
+            # set configuration #
+            if 'boundary' in ConfigMgr.confData:
+                confData = ConfigMgr.confData
+                if type(confData) is str:
+                    confData = UtilMgr.convStr2Dict('\n'.join(confData))
+                ThreadAnalyzer.reportBoundary = confData
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
@@ -45328,7 +45586,7 @@ class ThreadAnalyzer(object):
             graphStats, chartStats = ThreadAnalyzer.getDrawStats(logFile)
         # get stats from multiple files for comparison #
         else:
-            logFile = SysMgr.defaultOutPath
+            logFile = SysMgr.outFileName
 
             # define integrated stats #
             graphStats = dict()
@@ -47343,7 +47601,7 @@ class ThreadAnalyzer(object):
 
 
     def printComInfo(self):
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         # print thread tree by creation #
         if SysMgr.showAll and self.nrNewTask > 0:
@@ -47806,7 +48064,7 @@ class ThreadAnalyzer(object):
         SysMgr.printInfoBuffer()
 
         convertFunc = UtilMgr.convSize2Unit
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         # check trace event #
         if not (SysMgr.cpuEnable or \
@@ -48391,42 +48649,6 @@ class ThreadAnalyzer(object):
 
 
 
-    def getConf(self):
-        if not SysMgr.inputParam:
-            return
-
-        confBuf = None
-        confDict = None
-
-        try:
-            with open(SysMgr.inputParam, 'r') as fd:
-                confBuf = fd.read()
-        except:
-            SysMgr.printOpenErr(SysMgr.inputParam)
-            sys.exit(0)
-
-        if not confBuf:
-            SysMgr.printErr(\
-                "Fail to read %s to set configuration" % \
-                SysMgr.inputParam)
-            sys.exit(0)
-
-        try:
-            confBuf = confBuf.replace("'", '"')
-            confDict = SysMgr.getPkg('json').loads(confBuf)
-
-            if 'bound' in confDict:
-                ThreadAnalyzer.reportBoundary = confDict['bound']
-            else:
-                raise Exception()
-        except:
-            SysMgr.printErr(\
-                "Fail to load configuration from %s" % \
-                    SysMgr.inputParam)
-            sys.exit(0)
-
-
-
     def printModuleInfo(self):
         if len(self.moduleData) <= 0:
             return
@@ -48583,7 +48805,7 @@ class ThreadAnalyzer(object):
         if len(self.futexData) == 0:
             return
 
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         outputCnt = long(0)
         SysMgr.printPipe(\
@@ -48866,7 +49088,7 @@ class ThreadAnalyzer(object):
         if len(self.syscallData) == 0:
             return
 
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         outputCnt = long(0)
         SysMgr.printPipe(\
@@ -51750,7 +51972,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
         convertFunc = UtilMgr.convSize2Unit
 
         for pid in tuple(SysMgr.procInstance.keys()):
@@ -51804,7 +52026,7 @@ class ThreadAnalyzer(object):
                     convertFunc(long(stat[rssIdx]) << 12), \
                     convertFunc(long(statm[shrIdx]) << 12), \
                     convertNum(val['oomScore']), \
-                    UtilMgr.convertTime(runtime)))
+                    UtilMgr.convTime(runtime)))
 
             cnt += 1
 
@@ -55018,7 +55240,7 @@ class ThreadAnalyzer(object):
         # update uptime #
         SysMgr.updateUptime()
 
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
 
         # print cpu usage #
         cpuUsage = ThreadAnalyzer.dbgObj.getCpuUsage()
@@ -57815,7 +58037,7 @@ class ThreadAnalyzer(object):
 
             nrIrq += 1
             newIrq = '%s: %s / ' % \
-                (irq, UtilMgr.convertNumber(irqDiff))
+                (irq, UtilMgr.convNum(irqDiff))
             lenNewIrq = len(newIrq)
 
             if lenIrq + lenNewIrq >= len(oneLine):
@@ -58422,9 +58644,9 @@ class ThreadAnalyzer(object):
         plist = getParentList()
 
         # define convert function #
-        convertNum = UtilMgr.convertNumber
+        convertNum = UtilMgr.convNum
         convertFunc = UtilMgr.convSize2Unit
-        convertTime = UtilMgr.convertTime
+        convTime = UtilMgr.convTime
 
         totalStats = {\
             'read': long(0), 'write': long(0), \
@@ -58489,7 +58711,7 @@ class ThreadAnalyzer(object):
                 schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
 
             # get lifetime #
-            lifeTime = UtilMgr.convertTime(value['runtime'])
+            lifeTime = UtilMgr.convTime(value['runtime'])
 
             # save status info to get memory status #
             self.saveProcStatusData(value['taskPath'], idx)
@@ -58877,8 +59099,8 @@ class ThreadAnalyzer(object):
                 else:
                     waitPer = 0
 
-                execStr = 'Exec: %s(%.1f%%)' % (convertTime(execTime), execPer)
-                waitStr = 'Wait: %s(%.1f%%)' % (convertTime(waitTime), waitPer)
+                execStr = 'Exec: %s(%.1f%%)' % (convTime(execTime), execPer)
+                waitStr = 'Wait: %s(%.1f%%)' % (convTime(waitTime), waitPer)
                 sliceStr = 'NrTimeslice: %s' % convertNum(value['nrSlice'])
 
                 schedStr = '%s / %s / %s' % (execStr, waitStr, sliceStr)
@@ -59106,7 +59328,7 @@ class ThreadAnalyzer(object):
 
             try:
                 runtime = value['runtime'] + SysMgr.uptimeDiff
-                lifeTime = UtilMgr.convertTime(runtime)
+                lifeTime = UtilMgr.convTime(runtime)
                 if len(lifeTime.split(':')) > 3:
                     lifeTime = lifeTime[:lifeTime.rfind(':')]
             except:
@@ -59536,7 +59758,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['user'] = data['utime']
                 evtdata[rank]['kernel'] = data['stime']
                 evtdata[rank]['runtime'] = \
-                    UtilMgr.convertTime(data['runtime'])
+                    UtilMgr.convTime(data['runtime'])
 
                 rank += 1
 
@@ -59571,7 +59793,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['rss'] = rss
                 evtdata[rank]['text'] = text
                 evtdata[rank]['runtime'] = \
-                    UtilMgr.convertTime(data['runtime'])
+                    UtilMgr.convTime(data['runtime'])
 
                 # swap #
                 try:
@@ -59627,7 +59849,7 @@ class ThreadAnalyzer(object):
                 evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
                 evtdata[rank]['iowait'] = data['btime']
                 evtdata[rank]['runtime'] = \
-                    UtilMgr.convertTime(data['runtime'])
+                    UtilMgr.convTime(data['runtime'])
 
                 rank += 1
 
@@ -59908,7 +60130,7 @@ class ThreadAnalyzer(object):
             processData['cpu']['kernel']['pct'] = data['stime']
             processData['cpu']['total']['pct'] = data['ttime']
             processData['cpu']['runtime'] = \
-                UtilMgr.convertTime(data['runtime'])
+                UtilMgr.convTime(data['runtime'])
 
             rss = long(data['stat'][self.rssIdx]) >> 8
 
