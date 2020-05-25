@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200524"
+__revision__ = "200525"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,6 +27,7 @@ try:
     import signal
     import atexit
     import struct
+    #from ctypes import *
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
@@ -16692,7 +16693,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # kill / send #
-                elif SysMgr.isSendMode():
+                elif SysMgr.isKillMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -<SIGNUM|SIGNAME> <PID|COMM> [OPTIONS] [--help]
@@ -16701,6 +16702,7 @@ Description:
     Send specific signal to specific tasks or all running Guiders
 
 Options:
+    -g  <TID|COMM>              set filter
     -l                          print signal list
     -v                          verbose
                         '''.format(cmd, mode)
@@ -21788,7 +21790,7 @@ Copyright:
                 SysMgr.jsonOutputEnable = True
 
             elif option == 'k':
-                if not SysMgr.isSendMode():
+                if not SysMgr.isKillMode():
                     SysMgr.parseKillOption(value)
 
             elif option == 'd':
@@ -22008,7 +22010,7 @@ Copyright:
                     SysMgr.printInfo(\
                         "set %s as a boundary line" % \
                         ', '.join(SysMgr.boundaryLine))
-                elif SysMgr.isSendMode():
+                elif SysMgr.isKillMode():
                     pass
                 else:
                     SysMgr.addr2linePath = value.split(',')
@@ -22685,7 +22687,7 @@ Copyright:
 
 
     @staticmethod
-    def isSendMode():
+    def isKillMode():
         if len(sys.argv) < 2:
             return False
         elif sys.argv[1] == 'kill' or \
@@ -23146,8 +23148,8 @@ Copyright:
 
             SysMgr.sendSignalProcs(signal.SIGINT, argList)
 
-        # SEND MODE #
-        elif SysMgr.isSendMode():
+        # KILL MODE #
+        elif SysMgr.isKillMode():
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
@@ -27833,43 +27835,43 @@ Copyright:
                 except:
                     SysMgr.printOpenWarn(memPath)
 
-            if memBuf:
-                memData = {}
+            if not memBuf:
+                return ''
 
-                for line in memBuf:
-                    memList = line.split()
-                    memData[memList[0][:-1]] = long(memList[1])
+            memData = {}
 
-                conv = UtilMgr.convSize2Unit
-                memTotal = conv(memData['MemTotal'] << 10)
-                memFree = conv(memData['MemFree'] << 10)
-                memFreePer = \
-                    (memData['MemFree'] / float(memData['MemTotal'])) * 100
-                try:
-                    memAvail = conv(memData['MemAvailable'] << 10)
-                    memAvailPer = \
-                        (memData['MemAvailable'] / float(memData['MemTotal'])) * 100
-                    memAvailPer = '%.1f%%' % memAvailPer
-                except:
-                    memAvail = memAvailPer = '-'
-                memCache = conv(memData['Cached'] << 10)
-                swapTotal = conv(memData['SwapTotal'] << 10)
-                swapFree = conv(memData['SwapFree'] << 10)
-                if swapTotal == '0':
-                    swapFreePer = 100.0
-                else:
-                    swapFreePer = \
-                        (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
+            for line in memBuf:
+                memList = line.split()
+                memData[memList[0][:-1]] = long(memList[1])
 
-                memstr = ('\n\t[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
-                    'MemAvail: %s(%s), Cached: %s, SwapTotal: %s, '
-                    'SwapFree: %s(%.1f%%)') % \
-                        ('TOTAL', memTotal, memFree, memFreePer, memAvail, \
-                            memAvailPer, memCache, swapTotal, swapFree, swapFreePer)
+            conv = UtilMgr.convSize2Unit
+            memTotal = conv(memData['MemTotal'] << 10)
+            memFree = conv(memData['MemFree'] << 10)
+            memFreePer = \
+                (memData['MemFree'] / float(memData['MemTotal'])) * 100
+            try:
+                memAvail = conv(memData['MemAvailable'] << 10)
+                memAvailPer = \
+                    (memData['MemAvailable'] / float(memData['MemTotal'])) * 100
+                memAvailPer = '%.1f%%' % memAvailPer
+            except:
+                memAvail = memAvailPer = '-'
+            memCache = conv(memData['Cached'] << 10)
+            swapTotal = conv(memData['SwapTotal'] << 10)
+            swapFree = conv(memData['SwapFree'] << 10)
+            if swapTotal == '0':
+                swapFreePer = 100.0
+            else:
+                swapFreePer = \
+                    (memData['SwapFree'] / float(memData['SwapTotal'])) * 100
 
-                return memstr
+            memstr = ('\n[%9s] MemTotal: %s, MemFree: %s(%.1f%%), '
+                'MemAvail: %s(%s), Cached: %s, SwapTotal: %s, '
+                'SwapFree: %s(%.1f%%)') % \
+                    ('TOTAL', memTotal, memFree, memFreePer, memAvail, \
+                        memAvailPer, memCache, swapTotal, swapFree, swapFreePer)
 
-            return ''
+            return memstr
 
         def getVminfo():
             # save mem info #
@@ -27885,33 +27887,33 @@ Copyright:
                 except:
                     SysMgr.printOpenWarn(vmstatPath)
 
-            if vmBuf:
-                vmData = {}
+            if not vmBuf:
+                return ''
 
-                zonestr = '\n\t'
-                conv = UtilMgr.convSize2Unit
-                for line in vmBuf:
-                    vmList = line.split()
-                    item = vmList[0]
-                    if item.startswith('pgscan_') or \
-                        item.startswith('pgstreal_') or \
-                        item.startswith('kswapd_') or \
-                        item.startswith('compact_') or \
-                        item.startswith('oom_') or \
-                        item.startswith('pswin'):
-                        vmData[item] = long(vmList[1])
+            vmData = {}
 
-                cnt = 1
-                vmstr = '\n\t[%9s] ' % 'VMSTAT'
-                for vm, item in sorted(vmData.items()):
-                    vmstr += '%s: %s, ' % (vm, conv(item << 12))
-                    if cnt % 4 == 0 and cnt != len(vmData):
-                        vmstr += '\n\t[%9s] ' % 'VMSTAT'
-                    cnt += 1
+            zonestr = '\n'
+            conv = UtilMgr.convSize2Unit
+            for line in vmBuf:
+                vmList = line.split()
+                item = vmList[0]
+                if item.startswith('pgscan_') or \
+                    item.startswith('pgstreal_') or \
+                    item.startswith('kswapd_') or \
+                    item.startswith('compact_') or \
+                    item.startswith('oom_') or \
+                    item.startswith('pswin'):
+                    vmData[item] = long(vmList[1])
 
-                return vmstr[:-2]
+            cnt = 1
+            vmstr = '\n[%9s] ' % 'VMSTAT'
+            for vm, item in sorted(vmData.items()):
+                vmstr += '%s: %s, ' % (vm, conv(item << 12))
+                if cnt % 4 == 0 and cnt != len(vmData):
+                    vmstr += '\n[%9s] ' % 'VMSTAT'
+                cnt += 1
 
-            return ''
+            return vmstr[:-2]
 
         def getZoneinfo():
             # save zone info #
@@ -27928,35 +27930,35 @@ Copyright:
                 except:
                     SysMgr.printOpenWarn(memPath)
 
-            if memBuf:
-                memData = {}
+            if not memBuf:
+                return ''
 
-                zone = None
-                for line in memBuf:
-                    zl = line.split()
-                    item = zl[0]
-                    if item  == 'Node':
-                        zone = '%s-%s' % (zl[1][:-1], zl[3])
-                        memData[zone] = dict()
-                    elif item == 'pages' and zl[1] == 'free':
-                        memData[zone]['free'] = long(zl[2])
-                    elif item == 'min' or item == 'low' or item == 'high' or \
-                        item == 'spanned' or item == 'present' or item == 'managed':
-                        memData[zone][item] = long(zl[1])
-                    else:
-                        continue
+            memData = {}
 
-                zonestr = '\n\t'
-                conv = UtilMgr.convSize2Unit
-                for zone, items in sorted(memData.items()):
-                    zonestr += '[%9s] ' % zone
-                    for name, val in sorted(items.items()):
-                        zonestr += "%s: %7s, " % (name, conv(val << 12))
-                    zonestr = zonestr[:-2] + '\n\t'
+            zone = None
+            for line in memBuf:
+                zl = line.split()
+                item = zl[0]
+                if item  == 'Node':
+                    zone = '%s-%s' % (zl[1][:-1], zl[3])
+                    memData[zone] = dict()
+                elif item == 'pages' and zl[1] == 'free':
+                    memData[zone]['free'] = long(zl[2])
+                elif item == 'min' or item == 'low' or item == 'high' or \
+                    item == 'spanned' or item == 'present' or item == 'managed':
+                    memData[zone][item] = long(zl[1])
+                else:
+                    continue
 
-                return zonestr[:-2]
+            zonestr = '\n'
+            conv = UtilMgr.convSize2Unit
+            for zone, items in sorted(memData.items()):
+                zonestr += '[%9s] ' % zone
+                for name, val in sorted(items.items()):
+                    zonestr += "%s: %7s, " % (name, conv(val << 12))
+                zonestr = zonestr[:-2] + '\n'
 
-            return ''
+            return zonestr[:-2]
 
         def getLMKinfo():
             # save LMK info #
@@ -27976,21 +27978,21 @@ Copyright:
             threshold = \
                 ['FGAPP', 'VISAPP', 'SECSER', 'HIDAPP', 'CONPRO', 'EMPAPP']
 
-            if memBuf:
-                stats = memBuf.split(',')
-                if stats:
-                    stats = list(map(long, stats))
+            if not memBuf:
+                return ''
 
-                lmkstr = '\n\t[%9s] ' % 'LMK'
+            stats = memBuf.split(',')
+            if stats:
+                stats = list(map(long, stats))
 
-                for idx, item in enumerate(stats):
-                    lmkstr = '%s%s: %s, ' % \
-                        (lmkstr, threshold[idx], \
-                            UtilMgr.convSize2Unit(item << 12))
+            lmkstr = '\n[%9s] ' % 'LMK'
 
-                return '%s' % lmkstr[:-2]
+            for idx, item in enumerate(stats):
+                lmkstr = '%s%s: %s, ' % \
+                    (lmkstr, threshold[idx], \
+                        UtilMgr.convSize2Unit(item << 12))
 
-            return ''
+            return '%s' % lmkstr[:-2]
 
         def allocMemory(size, wrPipe=None, ret=False):
             SysMgr.setDefaultSignal()
@@ -28077,7 +28079,7 @@ Copyright:
             # get new task #
             newTasks = set(obj.procData.keys()) - set(obj.prevProcData.keys())
             if newTasks:
-                newstr = '\n\t[%9s]  ' % 'NEW'
+                newstr = '\n[%9s]' % 'NEW'
                 for pid in sorted(newTasks):
                     comm = obj.procData[pid]['stat'][obj.commIdx][1:-1]
                     rss = conv(long(obj.procData[pid]['stat'][obj.rssIdx])<<12)
@@ -28089,7 +28091,7 @@ Copyright:
             # get die task #
             dieTasks =  set(obj.prevProcData.keys()) - set(obj.procData.keys())
             if dieTasks:
-                diestr = '\n\t[%9s]  ' % 'DIE'
+                diestr = '\n[%9s]' % 'DIE'
                 for pid in sorted(dieTasks):
                     comm = obj.prevProcData[pid]['stat'][obj.commIdx][1:-1]
                     rss = conv(long(obj.prevProcData[pid]['stat'][obj.rssIdx])<<12)
@@ -28100,13 +28102,14 @@ Copyright:
 
             if alloc:
                 allocstr = \
-                    ' allocated %s, used total (%s) via Guider additionally ' % \
-                        (conv(size, True), statstr)
+                    '\n[%9s] SIZE: %s, %s' % \
+                        ('ALLOC', conv(size, True), statstr)
             else:
                 allocstr = ' [%9s] %s' % ('TIME', SysMgr.updateUptime())
 
-            SysMgr.printInfo('%s%s%s%s%s%s%s' % \
-                (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr))
+            SysMgr.printPipe('%s%s%s%s%s%s%s' % \
+                (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr),
+                pager=False)
 
         # convert time #
         try:
@@ -28587,10 +28590,13 @@ Copyright:
             sig = signal.SIGINT
 
         # convert pid list #
-        try:
-            argList = (''.join(argList)).split(',')
-        except:
-            pass
+        if SysMgr.filterGroup:
+            argList = SysMgr.filterGroup
+        else:
+            try:
+                argList = (''.join(argList)).split(',')
+            except:
+                pass
 
         # convert comm to pid #
         targetList = SysMgr.convertPidList(argList, exceptMe=True)
@@ -36579,16 +36585,34 @@ struct msghdr {
 
 
 
+    def free(self, addr):
+        # get function address #
+        symbol = 'free'
+        func = self.getAddrBySymbol(symbol, one=True)
+        if not func:
+            return None
+
+        # set args #
+        args = [addr]
+
+        # call calloc $
+        ret = self.remoteUsercall(func, args)
+        if ret < 0:
+            SysMgr.printErr(\
+                "Fail to free %s memory for %s(%s)" % \
+                    (hex(addr), self.comm, self.pid))
+            return None
+
+        return ret
+
+
+
     def calloc(self, size=None, string=None):
         # get function address #
         symbol = 'calloc'
-        ret = self.getAddrBySymbol(symbol)
-        if not ret:
-            SysMgr.printErr(\
-                "Fail to find %s on memory map for %s(%s)" % \
-                    (symbol, self.comm, self.pid))
+        func = self.getAddrBySymbol(symbol, one=True)
+        if not func:
             return None
-        func = ret[0][0]
 
         # check size #
         if not size:
@@ -36601,7 +36625,7 @@ struct msghdr {
                 return None
 
         # set args #
-        args = [2, 1, size]
+        args = [1, size]
 
         # call calloc $
         addr = self.remoteUsercall(func, args)
@@ -36618,6 +36642,7 @@ struct msghdr {
             if ret == -1:
                 SysMgr.printErr(\
                     "Fail to write '%s' to %s" % (string, hex(addr)))
+                return None
 
         return addr
 
@@ -36640,42 +36665,49 @@ struct msghdr {
 
         # get function address #
         symbol = '__libc_dlopen_mode'
-        ret = self.getAddrBySymbol(symbol)
-        if not ret:
-            SysMgr.printErr(\
-                "Fail to find %s on memory map for %s(%s)" % \
-                    (symbol, self.comm, self.pid))
+        func = self.getAddrBySymbol(symbol, one=True)
+        if not func:
             return None
-        func = ret[0][0]
 
-        if not flags:
-            flags = 1 # RTLD_LAZY #
-
-        # alloc a new page for file name string #
-        fnameAddr = self.getTempPage()
-        if not fnameAddr:
+        '''
+        # alloc a memory segment for file name string #
+        addr = self.getTempPage()
+        if not addr:
             SysMgr.printErr("Fail to allocate a new page")
             return None
 
         # copy file name string to the new page #
         fname += '\0'
-        ret = self.writeMem(fnameAddr, fname.encode())
+        ret = self.writeMem(addr, fname.encode())
         if ret == -1:
             SysMgr.printErr(\
-                "Fail to write '%s' to %s" % (fname, hex(fnameAddr)))
+                "Fail to write '%s' to %s" % (fname, hex(addr)))
+            return None
+        '''
+
+        # alloc a memory segment and copy string to there #
+        addr = self.calloc(string=fname)
+        if not addr:
             return None
 
+        if not flags:
+            flags = 1 # RTLD_LAZY #
+
         # set args #
-        args = [fnameAddr, flags]
+        args = [addr, flags]
 
         # call dlopen $
-        return self.remoteUsercall(func, args)
+        ret = self.remoteUsercall(func, args)
+        if ret:
+            self.loadSymbols()
+
+        return ret
 
 
 
     def getSyscallAddr(self):
         if not self.syscallAddr:
-            self.syscallAddr = self.getAddrBySymbol('syscall')
+            self.syscallAddr = self.getAddrBySymbol('syscall', one=True)
 
         return self.syscallAddr
 
@@ -36705,13 +36737,9 @@ struct msghdr {
             func = usercall
         elif type(usercall) is str:
             # get function address #
-            addr = self.getAddrBySymbol(usercall)
-            if not addr:
-                SysMgr.printErr(\
-                    "Fail to find %s on memory map for %s" % \
-                        (usercall, procInfo))
+            func = self.getAddrBySymbol(usercall, one=True)
+            if not func:
                 return None
-            func = addr[0][0]
         else:
             SysMgr.printErr(\
                 "Fail to recognize %s as a function for %s" % \
@@ -36804,7 +36832,7 @@ struct msghdr {
             SysMgr.printErr(\
                 "Fail to find syscall address")
             return
-        self.setPC(addr[0][0])
+        self.setPC(addr)
 
         # apply register set #
         self.setRegs()
@@ -39453,7 +39481,8 @@ struct msghdr {
 
 
     def getAddrBySymbol(\
-        self, symbol, binary=None, inc=False, start=False, end=False):
+        self, symbol, binary=None, inc=False, start=False, end=False, one=False):
+        # check memory map #
         if not self.pmap:
             self.loadSymbols()
 
@@ -39512,6 +39541,16 @@ struct msghdr {
             listString = ', '.join(addrString)
             SysMgr.printWarn(\
                 "Found multiple symbols [ %s ]" % listString)
+
+        # return address for 1st item #
+        if one:
+            if addrList:
+                return addrList[0][0]
+            else:
+                SysMgr.printErr(\
+                    "Fail to find %s symbol for %s(%s)" % \
+                        (symbol, self.comm, self.pid))
+                return None
 
         return addrList
 
@@ -60279,7 +60318,7 @@ def main(args=None):
     # REPORT MODE #
     if SysMgr.isReportMode():
         SysMgr.setReportAttr()
-    # VISUALIZATION MODE #
+    # VISUAL MODE #
     elif SysMgr.isDrawMode():
         SysMgr.setVisualAttr()
 
