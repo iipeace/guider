@@ -1,5 +1,5 @@
 asgiref==3.2.7
-Django==2.1.15
+Django==2.2.10
 django-webpack-loader==0.7.0
 pytz==2019.3
 sqlparse==0.3.1
