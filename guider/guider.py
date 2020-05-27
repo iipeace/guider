@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200525"
+__revision__ = "200527"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12786,6 +12786,14 @@ class LogMgr(object):
         SysMgr.printInfo(\
             "start printing kernel log... [ STOP(Ctrl+c) ]")
 
+        # check device node #
+        try:
+            SysMgr.kmsgFd.readline()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.kmsgFd = None
+
         # syslog #
         if not SysMgr.kmsgFd:
             # get ctypes object #
@@ -12801,7 +12809,7 @@ class LogMgr(object):
             ret = SysMgr.syscall(\
                 'syslog', LogMgr.SYSLOG_ACTION_READ_ALL, buf, size)
             if ret > 0:
-                logBuf = memoryview(buf).tobytes()
+                logBuf = memoryview(buf).tobytes().decode()
                 for line in logBuf.split('\n'):
                     if not UtilMgr.isEffectiveStr(line):
                         continue
@@ -12814,7 +12822,7 @@ class LogMgr(object):
                 if ret < 1:
                     continue
 
-                logBuf = memoryview(buf).tobytes()
+                logBuf = memoryview(buf).tobytes().decode()
                 if not UtilMgr.isEffectiveStr(line):
                     continue
 
@@ -15472,104 +15480,118 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    kill
     prtctx
     start
     stop
+    exit
+    kill
     ret:VAL
     exec:CMD
     sleep:SEC
-    getarg:REG
+    getarg:REGS
     setarg:REG#VAL
-    jump:FUNC#ARG
+    load:LIBPATH
+    jump:FUNC#ARGS
+    usercall:FUNC#ARGS
+    syscall:FUNC#ARGS
     rdmem:ADDR|REG:SIZE
     wrmem:ADDR|REG:VAL:SIZE
     filter:ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE
 
 Examples:
-    - Handle all function calls for a specific thread
+    - Print all function calls for a specific thread
         # {0:1} {1:1} -g 1234
 
-    - Handle all function calls for a specific command
+    - Print all function calls for a specific binary execution
         # {0:1} {1:1} -I "ls"
 
-    - Handle printPeace function calls with backtrace for a specific thread
+    - Print all function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
-    - Handle printPeace function calls for a specific thread
+    - Print printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - Handle printPeace function calls for a specific thread
-        # {0:1} {1:1} -g 1234 -c -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
+    - Print a specific function call for a specific binary execution
+        # {0:1} {1:1} -g 1234 -I ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Handle printPeace function calls for a specific thread only for 2 seconds
+    - Print printPeace function calls only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
-    - Handle specific  function calls for a specific thread and save summary tables, call history to ./guider.out
+    - Print and save printPeace function calls to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
-    - Handle specific function calls including specific word for a specific thread
+    - Print specific function calls including specific word
         # {0:1} {1:1} -g 1234 -c \\*printPeace
         # {0:1} {1:1} -g 1234 -c printPeace\\*
         # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
 
-    - Handle all function calls in specific files for a specific thread
+    - Print all function calls in specific files
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
-    - Handle specific function calls including specific word for a specific thread and stop the thread
+    - Handle specific function calls including specific word as a stop point
         # {0:1} {1:1} -g a.out -c \\*printPeace|stop
         # {0:1} {1:1} -g a.out -c printPeace\\*|stop
         # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
 
-    - Handle all function calls with sleep for 0.1 seconds for a specific thread
+    - Handle all function calls as a 0.1 second sleep point
         # {0:1} {1:1} -g a.out -c \\|sleep:0.1
 
-    - Handle write function calls with sleep for 0.1 seconds only one time for a specific thread
+    - Handle write function calls as a 0.1 second sleep point only one time
         # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:0.1
 
-    - Handle write function calls for a specific thread and kill the thread
+    - Handle write function calls as a kill point
         # {0:1} {1:1} -g a.out -c write\\|kill
 
-    - Handle write function calls for a specific thread and modify specific memory value
+    - Handle write function calls as a memory modification point
         # {0:1} {1:1} -g a.out -c write\\|wrmem:0x1234:aaaa:4
 
-    - Handle write function calls for a specific thread and modify specific memory value from 1st argument value
+    - Handle write function calls as a modification point for memory pointed by 1st argument
         # {0:1} {1:1} -g a.out -c write\\|wrmem:0:aaaa:4
 
-    - Handle printf function calls for a specific thread and print 10-length string that 1st argument point to
+    - Handle printf function calls as a print point for 10-length string that 1st argument point to
         # {0:1} {1:1} -g a.out -c printf\\|rdmem:0:10
 
-    - Handle printf function calls for a specific thread and print 10-length string from the specific address
+    - Handle printf function calls as a print point for 10-length string from the specific address
         # {0:1} {1:1} -g a.out -c printf\\|rdmem:0x1234:10
 
-    - Handle write function calls for a specific thread and return a specific value
+    - Handle write function calls as a return point for a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
 
-    - Handle write function calls for a specific thread and modify the 1st and 2nd arguments
+    - Handle write function calls as a argument modification point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|setarg:0#2:1#5
 
-    - Handle write function calls for a specific thread and print context info
+    - Handle write function calls as a context print point
         # {0:1} {1:1} -g a.out -c write\\|prtctx
 
-    - Handle write function calls for a specific thread with special conditions
+    - Print write function calls if the call meets specific conditions
         # {0:1} {1:1} -g a.out -c write\\|filter:2:EQ:4096
         # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
 
-    - Handle write function calls for a specific thread and print the 1st and 2nd arguments
+    - Handle write function calls as a print point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
 
-    - Handle a write function call as a tracing start point for all functions
+    - Handle a write function call as a starting trace point for all functions
         # {0:1} {1:1} -g a.out -c write\\|start
 
-    - Handle write function calls for a specific thread and jump to the specific address with register values
+    - Handle a write function call as a call point for sleep
+        # {0:1} {1:1} -g a.out -c write\\|usercall:sleep#3
+
+    - Handle a write function call as a syscall point for getpid
+        # {0:1} {1:1} -g a.out -c write\\|syscall:getpid
+
+    - Handle a write function call as a load point for /usr/lib/preload.so
+        # {0:1} {1:1} -g a.out -c write\\|load:/usr/lib/preload.so
+
+    - Handle a write function call as a exit point
+        # {0:1} {1:1} -g a.out -c write\\|exit
+
+    - Handle write function calls as a jump point to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
 
-    - Handle all function calls for a specific thread and execute specific commands
+    - Handle all function calls as a command execution point
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha":"sleep 1"
-
-    - Handle all function calls for a specific thread and execute a specific command in background
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha &"
                 '''.format(cmd, mode)
 
@@ -21655,8 +21677,8 @@ Copyright:
         else:
             SysMgr.parsedAnalOption = True
 
+        # set default processor option #
         if SysMgr.isTopMode():
-            # set default processor option #
             if SysMgr.findOption('a') or \
                 SysMgr.isDrawMode():
                 SysMgr.cpuEnable = True
@@ -23383,6 +23405,8 @@ Copyright:
 
         # CPUTEST MODE #
         elif SysMgr.isCpuTestMode():
+            SysMgr.printStreamEnable = True
+
             SysMgr.doCpuTest()
 
         # IOTEST MODE #
@@ -23397,6 +23421,9 @@ Copyright:
         elif SysMgr.isMemTestMode():
             # remove option args #
             SysMgr.removeOptionArgs()
+
+            SysMgr.ttyCols = 0
+            SysMgr.printStreamEnable = True
 
             SysMgr.doMemTest()
 
@@ -26427,53 +26454,55 @@ Copyright:
                 except:
                     pass
 
+            if mode != 'breakcall':
+                return
+
             # save original data to be injected for multi-threaded process #
-            if mode == 'breakcall':
-                for pid in pidList:
-                    # stop a process #
-                    os.kill(pid, signal.SIGSTOP)
+            for pid in pidList:
+                # stop a process #
+                os.kill(pid, signal.SIGSTOP)
 
-                    # register signal sender for resume #
-                    SysMgr.addExitFunc(\
-                        SysMgr.sendSignalProcs, \
-                        [signal.SIGCONT, [pid], False, False])
+                # register signal sender for resume #
+                SysMgr.addExitFunc(\
+                    SysMgr.sendSignalProcs, \
+                    [signal.SIGCONT, [pid], False, False])
 
-                    bpList.setdefault(pid, dict())
-                    exceptBpList.setdefault(pid, dict())
-                    targetBpList.setdefault(pid, dict())
-                    targetBpFileList.setdefault(pid, dict())
+                bpList.setdefault(pid, dict())
+                exceptBpList.setdefault(pid, dict())
+                targetBpList.setdefault(pid, dict())
+                targetBpFileList.setdefault(pid, dict())
 
-                    # create object #
-                    procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
-                    if not procObj:
-                        continue
+                # create object #
+                procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
+                if not procObj:
+                    continue
 
-                    # load common ELF cache files #
-                    if procObj.loadSymbols():
-                        procObj.updateBpList()
+                # load common ELF cache files #
+                if procObj.loadSymbols():
+                    procObj.updateBpList()
 
-                    # save per-process breakpoint info #
-                    bpList[pid] = \
-                        deepcopy(procObj.bpList)
-                    exceptBpList[pid] = \
-                        deepcopy(procObj.exceptBpList)
-                    targetBpList[pid] = \
-                        deepcopy(procObj.targetBpList)
-                    targetBpFileList[pid] = \
-                        deepcopy(procObj.targetBpFileList)
+                # save per-process breakpoint info #
+                bpList[pid] = \
+                    deepcopy(procObj.bpList)
+                exceptBpList[pid] = \
+                    deepcopy(procObj.exceptBpList)
+                targetBpList[pid] = \
+                    deepcopy(procObj.targetBpList)
+                targetBpFileList[pid] = \
+                    deepcopy(procObj.targetBpFileList)
 
-                    # create a lock for a target multi-threaded process #
-                    if SysMgr.getPids(pid, withSibling=True):
-                        lockList[pid] = \
-                            Debugger.getGlobalLock(pid, len(bpList[pid]))
+                # create a lock for a target multi-threaded process #
+                if SysMgr.getPids(pid, withSibling=True):
+                    lockList[pid] = \
+                        Debugger.getGlobalLock(pid, len(bpList[pid]))
 
-                    procObj.detach()
-                    del procObj
+                procObj.detach()
+                del procObj
 
-                    # remove signal sender #
-                    SysMgr.removeExitFunc(\
-                        SysMgr.sendSignalProcs, \
-                        [signal.SIGCONT, [pid], False, False])
+                # remove signal sender #
+                SysMgr.removeExitFunc(\
+                    SysMgr.sendSignalProcs, \
+                    [signal.SIGCONT, [pid], False, False])
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -27934,6 +27963,7 @@ Copyright:
                 return ''
 
             memData = {}
+            conv = UtilMgr.convSize2Unit
 
             zone = None
             for line in memBuf:
@@ -27947,16 +27977,34 @@ Copyright:
                 elif item == 'min' or item == 'low' or item == 'high' or \
                     item == 'spanned' or item == 'present' or item == 'managed':
                     memData[zone][item] = long(zl[1])
+                elif item == 'protection:':
+                    values = []
+                    for item in zl[1:]:
+                        if item.startswith('('):
+                            item = item[1:]
+                        if item.endswith(',') or \
+                            item.endswith(')'):
+                            item = item[:-1]
+                        values.append(item)
+
+                    values = list(map(lambda x: conv(long(x) << 12), values))
+                    memData[zone]['protection'] = values
                 else:
                     continue
 
             zonestr = '\n'
-            conv = UtilMgr.convSize2Unit
             for zone, items in sorted(memData.items()):
                 zonestr += '[%9s] ' % zone
-                for name, val in sorted(items.items()):
-                    zonestr += "%s: %7s, " % (name, conv(val << 12))
-                zonestr = zonestr[:-2] + '\n'
+                for name, val in sorted(items.items(), \
+                    key=lambda e: long(e[1]) if type(e[1]) != list else sys.maxsize):
+                    if name != 'protection':
+                        zonestr += "%s:%7s, " % (name, conv(val << 12))
+
+                if 'protection' in items:
+                    zonestr += "%s: %7s" % ('protection', ', '.join(items['protection']))
+                    zonestr += ", "
+
+                zonestr = zonestr + '\n'
 
             return zonestr[:-2]
 
@@ -28105,7 +28153,7 @@ Copyright:
                     '\n[%9s] SIZE: %s, %s' % \
                         ('ALLOC', conv(size, True), statstr)
             else:
-                allocstr = ' [%9s] %s' % ('TIME', SysMgr.updateUptime())
+                allocstr = '\n[%9s] %s' % ('TIME', SysMgr.updateUptime())
 
             SysMgr.printPipe('%s%s%s%s%s%s%s' % \
                 (allocstr, memstr, vmstr, zonestr, lmkstr, newstr, diestr),
@@ -28129,7 +28177,11 @@ Copyright:
             else:
                 raise Exception()
 
-            interval = UtilMgr.convUnit2Time(interval)
+            if interval:
+                interval = UtilMgr.convUnit2Time(interval)
+            else:
+                interval = long(0)
+
             count = long(count)
 
             # convert memory size #
@@ -28185,7 +28237,13 @@ Copyright:
                     os.close(rd)
 
                     # print stats #
-                    printUsage(obj, pid, size)
+                    try:
+                        printUsage(obj, pid, size)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "Fail to print memory stats", reason=True)
 
                 time.sleep(interval)
         elif interval > 0:
@@ -28218,7 +28276,13 @@ Copyright:
                     os.close(rd)
 
                     # print stats #
-                    printUsage(obj, pid, size)
+                    try:
+                        printUsage(obj, pid, size)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "Fail to print memory stats", reason=True)
 
                 time.sleep(interval)
         else:
@@ -28230,7 +28294,13 @@ Copyright:
                 allocMemory(size, ret=True)
 
                 # print stats #
-                printUsage(obj, pid, size)
+                try:
+                    printUsage(obj, pid, size)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(\
+                        "Fail to print memory stats", reason=True)
 
                 time.sleep(interval)
             except SystemExit:
@@ -28242,7 +28312,13 @@ Copyright:
         # wait for childs #
         if len(pidList) > 0:
             while 1:
-                printUsage(obj, pid, size, alloc=False)
+                try:
+                    printUsage(obj, pid, size, alloc=False)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(\
+                        "Fail to print memory stats", reason=True)
 
                 time.sleep(interval)
 
@@ -35726,10 +35802,18 @@ struct msghdr {
                 cmdformat = "ADDR|REG:SIZE"
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
+            elif cmd == 'usercall':
+                cmdformat = "USERCALL:FUNC#ARG0#ARG1"
+            elif cmd == 'syscall':
+                cmdformat = "SYSCALL:FUNC#ARG0#ARG1"
+            elif cmd == 'load':
+                cmdformat = "LOAD:LIBPATH"
             elif cmd == 'start':
                 cmdformat = "START"
             elif cmd == 'stop':
                 cmdformat = "STOP"
+            elif cmd == 'exit':
+                cmdformat = "EXIT"
 
             SysMgr.printErr(\
                 "Wrong command '%s', input in the format {%s:%s}" % \
@@ -35987,7 +36071,30 @@ struct msghdr {
                     self.loadSymbols()
                     self.updateBpList()
 
-                elif cmd == 'jump':
+                elif cmd == 'load':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # remove all berakpoints #
+                    self.removeAllBreakpoint()
+
+                    # get function info #
+                    binary = cmdset[1]
+                    ret = self.dlopen(binary)
+                    if ret is None:
+                        ret = 'FAIL'
+                    else:
+                        ret = hex(ret)
+
+                    output = "\n[%s] %s(%s)" % (cmdstr, binary, ret)
+
+                    SysMgr.printPipe(output, newline=False, flush=True)
+
+                    # inject all breakpoints again #
+                    self.loadSymbols()
+                    self.updateBpList()
+
+                elif cmd == 'syscall':
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
@@ -35996,8 +36103,47 @@ struct msghdr {
                     val = func[0]
                     if len(func) > 1:
                         argList = func[1:]
+                        args = ', '.join(argList)
+                        args = '(%s)' % args
                     else:
                         argList = []
+                        args = '()'
+
+                    # convert type to integer #
+                    argList = list(map(long, argList))
+
+                    output = "\n[%s] %s%s" % (cmdstr, val, args)
+
+                    SysMgr.printPipe(output, newline=False, flush=True)
+
+                    # remove a breakpoint for syscall #
+                    self.removeBreakpoint(self.getSyscallAddr())
+
+                    # call function $
+                    ret = self.remoteSyscall(val, argList)
+                    if ret is None:
+                        ret = 0
+
+                    SysMgr.printPipe(\
+                        ' = %s(%s)' % (hex(ret), ret), newline=False, flush=True)
+
+                    # inject a breakpoint for syscall again #
+                    self.injectBreakpoint(self.getSyscallAddr())
+
+                elif cmd == 'usercall':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get function info #
+                    func = cmdset[1].split('#')
+                    val = func[0]
+                    if len(func) > 1:
+                        argList = func[1:]
+                        args = ', '.join(argList)
+                        args = '(%s)' % args
+                    else:
+                        argList = []
+                        args = '()'
 
                     # convert type to integer #
                     argList = list(map(long, argList))
@@ -36014,20 +36160,91 @@ struct msghdr {
                             SysMgr.printErr("No found %s" % val)
                             continue
                         elif len(ret) > 1:
-                            SysMgr.printErr(\
-                                "Found %s addresses for %s" % (len(ret), val))
-                            continue
+                            SysMgr.printWarn(\
+                                "Found %s addresses for %s" % \
+                                    (len(ret), val), True)
                         addr = ret[0][0]
 
-                    output = "\n[%s] %s(%x) -> %s(%x)" % \
-                        (cmdstr, sym, self.pc, val, addr)
+                    output = "\n[%s] %s(%x)%s" % (cmdstr, val, addr, args)
+
+                    if sym == val or \
+                        self.pc == addr:
+                        skip = True
+                        output = "%s (SKIP)" % output
+                    else:
+                        skip = False
+
+                    if not skip:
+                        # remove all berakpoints #
+                        self.removeAllBreakpoint()
+
+                    SysMgr.printPipe(output, newline=False, flush=True)
+
+                    if not skip:
+                        # call function $
+                        ret = self.remoteUsercall(addr, argList)
+                        if ret is None:
+                            ret = 0
+
+                        SysMgr.printPipe(\
+                            ' = %s(%s)' % (hex(ret), ret), newline=False, flush=True)
+
+                        # inject all breakpoints again #
+                        self.updateBpList()
+
+                elif cmd == 'jump':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get function info #
+                    func = cmdset[1].split('#')
+                    val = func[0]
+                    if len(func) > 1:
+                        argList = func[1:]
+                        args = ', '.join(argList)
+                        args = '(%s)' % args
+                    else:
+                        argList = []
+                        args = '()'
+
+                    # convert type to integer #
+                    argList = list(map(long, argList))
+
+                    # get address #
+                    if UtilMgr.isNumber(val):
+                        try:
+                            addr = long(val)
+                        except:
+                            addr = long(val, 16)
+                    else:
+                        ret = self.getAddrBySymbol(val)
+                        if not ret:
+                            SysMgr.printErr("No found %s" % val)
+                            continue
+                        elif len(ret) > 1:
+                            SysMgr.printWarn(\
+                                "Found %s addresses for %s" % \
+                                    (len(ret), val), True)
+                        addr = ret[0][0]
+
+                    output = "\n[%s] %s(%x) -> %s(%x)%s" % \
+                        (cmdstr, sym, self.pc, val, addr, args)
+
+                    if sym == val or \
+                        self.pc == addr:
+                        skip = True
+                        output = "%s (SKIP)" % output
+                    else:
+                        skip = False
+
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     # set register values #
-                    self.setPC(addr)
-                    self.writeArgs(argList)
-                    self.setRegs()
-                    self.updateRegs()
+                    if not skip:
+                        self.setPC(addr)
+                        self.writeArgs(argList)
+                        self.setRegs()
+                        self.updateRegs()
 
                 elif cmd == 'sleep':
                     if len(cmdset) == 1:
@@ -36054,6 +36271,11 @@ struct msghdr {
 
                     self.kill()
 
+                    sys.exit(0)
+
+                elif cmd == 'exit':
+                    SysMgr.printPipe(\
+                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
                     sys.exit(0)
 
                 else:
@@ -36127,6 +36349,25 @@ struct msghdr {
 
         for item in fcache.sortedAddrTable:
             self.removeBreakpoint(addr + item)
+
+
+
+    def removeAllBreakpoint(self, tgid=None):
+        if not tgid:
+            tgid = self.pid
+
+        SysMgr.printStat(\
+            r"start removing %s breakpoints from %s(%s) process..." % \
+                (UtilMgr.convNum(len(self.bpList)), \
+                    SysMgr.getComm(tgid, cache=True), tgid))
+
+        # remove all breakpoints #
+        targetBpList = list(self.bpList.keys())
+        for idx, addr in enumerate(targetBpList):
+            UtilMgr.printProgress(idx, len(targetBpList))
+            self.removeBreakpoint(addr)
+
+        UtilMgr.deleteProgress()
 
 
 
@@ -36724,6 +36965,7 @@ struct msghdr {
         self.backupRegs()
         origPc = self.pc
 
+        '''
         # change access permission on a page pointed by PC #
         ret = self.mprotect(self.pc)
         if ret == -1:
@@ -36731,6 +36973,7 @@ struct msghdr {
                 "Fail to change access permission on %s page for %s" % \
                     (hex(self.pc), procInfo))
             return None
+        '''
 
         # set usercall address #
         if type(usercall) is long:
@@ -36788,6 +37031,7 @@ struct msghdr {
 
         # restore regs #
         self.setRegs(temp=True)
+        self.restoreRegs()
 
         return retVal
 
@@ -36860,6 +37104,7 @@ struct msghdr {
 
         # restore regs #
         self.setRegs(temp=True)
+        self.restoreRegs()
 
         return ret
 
@@ -40095,17 +40340,7 @@ struct msghdr {
                 origPrintFlag = SysMgr.printEnable
                 SysMgr.printEnable = True
 
-                SysMgr.printStat(\
-                    r"start removing %s breakpoints from %s(%s) process..." % \
-                        (UtilMgr.convNum(len(instance.bpList)), \
-                            SysMgr.getComm(tgid, cache=True), tgid))
-
-                # remove all breakpoints #
-                targetBpList = list(instance.bpList.keys())
-                for idx, addr in enumerate(targetBpList):
-                    UtilMgr.printProgress(idx, len(targetBpList))
-                    instance.removeBreakpoint(addr)
-                UtilMgr.deleteProgress()
+                instance.removeAllBreakpoint(tgid)
 
                 SysMgr.printEnable = origPrintFlag
 
@@ -40606,6 +40841,16 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
+    def restoreRegs(self):
+        memmove(\
+            addressof(self.regs), \
+            addressof(self.tempRegs), \
+            sizeof(self.regs))
+
+        self.updateNamedRegs()
+
+
+
     def backupRegs(self):
         memmove(\
             addressof(self.tempRegs), \
@@ -40658,15 +40903,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def updateRegs(self):
-        if self.getRegsCost == 0:
-            start = time.time()
-
-        ret = self.getRegs()
-        if ret != 0:
-            return False
-
-        # set registers #
+    def updateNamedRegs(self):
         if self.arch == 'arm':
             self.fp = self.regs.r11
             self.sp = self.regs.r13
@@ -40686,6 +40923,18 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.fp = self.regs.rbp
             self.sp = self.regs.rsp
             self.pc = self.regs.rip
+
+
+
+    def updateRegs(self):
+        if self.getRegsCost == 0:
+            start = time.time()
+
+        ret = self.getRegs()
+        if ret != 0:
+            return False
+
+        self.updateNamedRegs()
 
         # measure the cost for copying register set of the target process #
         if self.getRegsCost == 0:
