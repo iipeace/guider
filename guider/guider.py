@@ -26621,10 +26621,13 @@ Copyright:
             sys.exit(0)
 
         # check command #
-        if mode == 'exec' and \
-            not SysMgr.customCmd:
-            SysMgr.printErr("Fail to get command")
-            sys.exit(0)
+        if mode == 'exec':
+            if not SysMgr.customCmd:
+                SysMgr.printErr("Fail to get command")
+                sys.exit(0)
+            elif SysMgr.inputParam:
+                SysMgr.printErr("Command is not supported")
+                sys.exit(0)
 
         # set priority #
         if not SysMgr.prio:
@@ -56529,7 +56532,8 @@ class ThreadAnalyzer(object):
 
                 # save target device info #
                 if not 'uevent' in value:
-                    self.gpuCoreList[cand]['uevent'] = open('%s/uevent' % cand, 'r')
+                    self.gpuCoreList[cand]['uevent'] = \
+                        open('%s/uevent' % cand, 'r')
                 fd = self.gpuCoreList[cand]['uevent']
                 fd.seek(0)
                 target = cand[cand.rfind('/')+1:]
@@ -56540,7 +56544,8 @@ class ThreadAnalyzer(object):
 
                 # save target device load #
                 if not 'load' in value:
-                    self.gpuCoreList[cand]['load'] = open('%s/load' % cand, 'r')
+                    self.gpuCoreList[cand]['load'] = \
+                        open('%s/load' % cand, 'r')
                 fd = self.gpuCoreList[cand]['load']
                 fd.seek(0)
                 self.gpuData[target]['CUR_LOAD'] = \
