@@ -17,16 +17,3 @@ matrix:
         - guider draw guider.out
       after_success:
         - cd ..
-
-    - language: node_js
-      node_js:
-        - 10
-      before_install:
-        - cd agent/front-vue
-      install:
-        - npm install
-      script:
-        - npm run lint
-      cache: npm
-      after_success:
-        - cd ..
