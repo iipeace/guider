@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200529"
+__revision__ = "200531"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -56121,6 +56121,60 @@ class ThreadAnalyzer(object):
                         self.procData[pid] = dict(self.init_procData)
                         self.procData[pid]['tids'] = []
                         self.procData[pid]['tids'].append(tid)
+
+
+
+    def saveGenSystemInfo(self):
+        # get psutil object #
+        psutil = SysMgr.getPkg('psutil')
+
+        '''
+        python psutil APIs
+        refer to https://psutil.readthedocs.io/en/latest
+        '''
+
+        # CPU #
+        psutil.cpu_times(percpu=False)
+        psutil.cpu_percent(interval=None, percpu=False)
+        psutil.cpu_count(logical=True)
+        psutil.cpu_stats()
+        psutil.cpu_freq(percpu=False)
+        psutil.getloadavg()
+
+        # MEMORY #
+        psutil.virtual_memory()
+        psutil.swap_memory()
+
+        # DISK #
+        psutil.disk_partitions(all=False)
+        #psutil.disk_usage(path=None)
+        psutil.disk_io_counters(perdisk=False, nowrap=True)
+
+        # NETWORK #
+        psutil.net_io_counters(pernic=False, nowrap=True)
+        psutil.net_connections(kind='inet')
+        psutil.net_if_addrs()
+        psutil.net_if_stats()
+
+        # ETC #
+        psutil.sensors_temperatures(fahrenheit=False)
+        psutil.sensors_fans()
+        psutil.sensors_battery()
+        psutil.users()
+
+        # PROCESS #
+        psutil.process_iter(attrs=None, ad_value=None)
+        psutil.pid_exists(pid=os.getpid())
+        proc = psutil.Process(pid=None)
+        procDict = proc.as_dict(attrs=None, ad_value=None)
+        procMem = proc.memory_full_info()
+        proc.is_running()
+        proc.send_signal()
+        proc.suspend()
+        proc.resume()
+        proc.terminate()
+        proc.kill()
+        proc.wait()
 
 
 
