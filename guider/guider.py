@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200531"
+__revision__ = "200601"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4000,7 +4000,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convDict2Str(dictObj, pretty=False, indent=2):
+    def convDict2Str(dictObj, pretty=True, indent=2):
         try:
             jsonStr = SysMgr.getPkg('json').\
                 dumps(dictObj, indent=indent, ensure_ascii=False)
@@ -37733,19 +37733,29 @@ struct cmsghdr {
         if not ret:
             return addr
 
-        # cast struct msghdr #
+        # cast struct mmsghdr #
         msginfo = {}
         header = cast(ret, self.mmsghdr_ptr)
 
-        return addr
-
-
-
-    def readMsgHdr(self, addr):
-        # read msghdr structure #
-        ret = self.readMem(addr, sizeof(self.msghdr))
+        # get msg info #
+        msglen = header.contents.msg_len
+        msgaddr = addressof(header.contents.msg_hdr)
+        ret = self.readMsgHdr(obj=msgaddr)
         if not ret:
             return addr
+
+        return ret
+
+
+
+    def readMsgHdr(self, addr=None, obj=None):
+        # read msghdr structure #
+        if not obj:
+            ret = self.readMem(addr, sizeof(self.msghdr))
+            if not ret:
+                return addr
+        else:
+            ret = obj
 
         # cast struct msghdr #
         msginfo = {}
