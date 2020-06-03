@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200601"
+__revision__ = "200603"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13031,6 +13031,7 @@ class SysMgr(object):
     ttyCols = 156
     encoding = None
     encodeEnable = True
+    encodeB64Enable = False
     remoteRun = False
     magicString = '@@@@@'
     launchBuffer = ''
@@ -24494,6 +24495,7 @@ Copyright:
         printDict = {}
         myPid = str(SysMgr.pid)
         gstatList = ConfigMgr.STAT_ATTR
+        commIdx = ConfigMgr.STAT_ATTR.index("COMM")
 
         # update uptime #
         SysMgr.updateUptime()
@@ -24528,16 +24530,7 @@ Copyright:
                 with open(statPath, 'r') as fd:
                     statList = fd.readlines()[0].split()
 
-                commIndex = gstatList.index("COMM")
-                if statList[commIndex][-1] != ')':
-                    idx = gstatList.index("COMM") + 1
-                    while 1:
-                        tmpStr = str(statList[idx])
-                        statList[commIndex] = \
-                            "%s %s" % (statList[commIndex], tmpStr)
-                        statList.pop(idx)
-                        if ')' in tmpStr:
-                            break
+                statList = SysMgr.updateStatList(statList, commIdx)
 
                 # runtime #
                 procStart = \
@@ -24972,12 +24965,12 @@ Copyright:
             os.environ["ISMAIN"] = "True"
 
             # disable pager #
+            SysMgr.logEnable = False
             SysMgr.printStreamEnable = True
             SysMgr.printFile = SysMgr.fileForPrint = None
 
             # disable logs #
             if not log:
-                SysMgr.logEnable = False
                 SysMgr.encodeEnable = False
 
             # change standard I/O #
@@ -28500,6 +28493,26 @@ Copyright:
 
 
     @staticmethod
+    def updateStatList(statList, commIdx=None):
+        if not commIdx:
+            commIdx = ConfigMgr.STAT_ATTR.index("COMM")
+
+        # merge comm parts that splited by space #
+        if statList[commIdx][-1] != ')':
+            idx = commIdx + 1
+            while 1:
+                tmpStr = str(statList[idx])
+                statList[commIdx] = \
+                    "%s %s" % (statList[commIdx], tmpStr)
+                statList.pop(idx)
+                if ')' in tmpStr:
+                    break
+
+        return statList
+
+
+
+    @staticmethod
     def doLimitCpu(limitInfo, isProcess=False, verbose=True):
         CLK_PRECISION = 100000
         MAX_BUCKET = CLK_PRECISION / 1000
@@ -28537,15 +28550,7 @@ Copyright:
             statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            if statList[COMM_IDX][-1] != ')':
-                idx = COMM_IDX + 1
-                while 1:
-                    tmpStr = str(statList[idx])
-                    statList[COMM_IDX] = \
-                        "%s %s" % (statList[COMM_IDX], tmpStr)
-                    statList.pop(idx)
-                    if ')' in tmpStr:
-                        break
+            statList = SysMgr.updateStatList(statList, COMM_IDX)
 
             comm = statList[COMM_IDX][1:-1]
             cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
@@ -32705,12 +32710,12 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getBus(bus):
+    def getBus(bus, addr=None):
         dbusObj = SysMgr.libdbusObj
 
         if bus == 'system':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
-        elif bus == 'session':
+        elif bus == 'session' or bus == 'user':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']
         else:
             SysMgr.printWarn("Fail to recognize %s bus" % bus)
@@ -33121,13 +33126,13 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getbusServiceList(bus):
+    def getBusService(bus, addr=None):
         if not bus:
             return
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus)
+        conn = DbusAnalyzer.getBus(bus, addr)
         if not conn:
             return
 
@@ -33642,7 +33647,7 @@ class DbusAnalyzer(object):
             SysMgr.addPrint(\
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
                 "[NrMsg: %s] [NrErr: %s] [CPU: %s]\n") % \
-                    ('D-BUS Info', SysMgr.uptime, \
+                    ('D-Bus Info', SysMgr.uptime, \
                     SysMgr.uptimeDiff, \
                     convertNum(prevDbusData['totalCnt']),
                     convertNum(prevDbusData['totalErr']),
@@ -33712,41 +33717,53 @@ class DbusAnalyzer(object):
             if not jsonData:
                 return
 
-            # check message type #
+            # check message #
             try:
                 ctype = jsonData["name"]
 
-                # check syscall #
-                if jsonData["type"] == "enter" and \
-                    (ctype == "recvmsg" or ctype == "sendmsg"):
-                    pass
-                else:
+                # check time #
+                if jsonData["type"] != "enter":
                     return
             except:
                 return
 
-            libgioObj = SysMgr.libgioObj
-            libgObj = SysMgr.libgObj
-
-            mlist = {}
-            cnt = long(0)
-            gdmsg = long(0)
-
+            # check args #
             try:
-                # check args #
-                if "args" not in jsonData or \
-                    type(jsonData["args"]) is not dict or \
-                    "msg" not in jsonData["args"] or \
-                    type(jsonData["args"]["msg"]) is not dict or \
-                    "msg_iov" not in jsonData["args"]["msg"]:
+                # check syscall #
+                if ctype == "sendmsg" or ctype == "recvmsg":
+                    msgList = jsonData["args"]["msg"]["msg_iov"]
+                    handleMsg(ctype, msgList, jsonData, data)
+                elif ctype == "sendmmsg" or ctype == "recvmmsg":
+                    for idx, value in jsonData["args"]["msg"].items():
+                        msgList = value["msg_iov"]
+                        handleMsg(ctype, msgList, jsonData, data)
+                else:
                     return
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(\
+                    "Fail to handle %s" % [jsonData], reason=True)
 
-                # get D-Bus interface #
-                msgList = jsonData["args"]["msg"]["msg_iov"]
+        def handleMsg(ctype, msgList, jsonData, data):
+            try:
+                tid, params, bus, service = data
+
+                libgioObj = SysMgr.libgioObj
+                libgObj = SysMgr.libgObj
+
+                mlist = {}
+                cnt = long(0)
+                gdmsg = long(0)
+
                 if type(msgList) is not dict:
                     return
 
-                for name, msg in msgList.items():
+                msgs = []
+                for key, msg in sorted(msgList.items()):
+                    msgs.append(msg)
+
+                for idx, msg in enumerate(msgs):
                     # get message info #
                     length = msg['len']
                     ecall = msg['data']
@@ -33760,6 +33777,13 @@ class DbusAnalyzer(object):
                     call = UtilMgr.decodeBase64(ecall)
                     if type(call) is bytes:
                         call = call.decode('latin-1')
+
+                    # check message sequence #
+                    isFirst = isLast = False
+                    if idx == 0:
+                        isFirst = True
+                    if idx == len(msgs)-1:
+                        isLast = True
 
                     # update message size #
                     if length == 0:
@@ -33790,32 +33814,15 @@ class DbusAnalyzer(object):
                         prevData = ''
 
                     # composite data #
-                    if ctype == 'recvmsg':
-                        # check this message #
-                        if call[0] == 'l' or call[0] == 'B':
-                            DbusAnalyzer.prevData[tid][ctype] = call
-                        else:
-                            # check prevous message #
-                            if len(prevData) > 0 and \
-                                (prevData[0] == 'l' or prevData[0] == 'B'):
-                                call = prevData + call
-                            else:
-                                DbusAnalyzer.prevData[tid][ctype] = call
-                                continue
-                    elif ctype == 'sendmsg':
-                        # check this message #
-                        if call[0] == 'l' or call[0] == 'B':
-                            # check previous message #
-                            if len(prevData) > 0 and \
-                                (prevData[0] == 'l' or prevData[0] == 'B'):
-                                pass
-                            else:
-                                call = call + prevData
-                        else:
-                            DbusAnalyzer.prevData[tid][ctype] = call
-                            continue
+                    if isLast:
+                        if DbusAnalyzer.prevData[tid][ctype]:
+                            call = DbusAnalyzer.prevData[tid][ctype] + call
+                        DbusAnalyzer.prevData[tid][ctype] = ''
+                    elif isFirst:
+                        DbusAnalyzer.prevData[tid][ctype] = call
+                        continue
                     else:
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        DbusAnalyzer.prevData[tid][ctype] += call
                         continue
 
                     # check protocol message #
@@ -33858,7 +33865,9 @@ class DbusAnalyzer(object):
                     srcInfo = '??'
                     src = libgioObj.g_dbus_message_get_sender(addr)
                     if src:
-                        srcInfo = src = src.decode()
+                        if type(src) is bytes:
+                            src = src.decode()
+                        srcInfo = src
                     if service and src in service:
                         srcInfo = service[src]
                     elif src in gBusServiceList:
@@ -33868,7 +33877,9 @@ class DbusAnalyzer(object):
                     desInfo = '??'
                     des = libgioObj.g_dbus_message_get_destination(addr)
                     if des:
-                        desInfo = des = des.decode()
+                        if type(des) is bytes:
+                            des = des.decode()
+                        desInfo = des
                     if service and des in service:
                         desInfo = service[des]
                     elif des in gBusServiceList:
@@ -33887,14 +33898,14 @@ class DbusAnalyzer(object):
                         continue
 
                     # check direction #
-                    if ctype == 'recvmsg':
-                        direction = 'IN'
-                        data = DbusAnalyzer.recvData
-                        msgTable = DbusAnalyzer.msgRecvTable
-                    else:
+                    if ctype.startswith('sendm'):
                         direction = 'OUT'
                         data = DbusAnalyzer.sentData
                         msgTable = DbusAnalyzer.msgSentTable
+                    else:
+                        direction = 'IN'
+                        data = DbusAnalyzer.recvData
+                        msgTable = DbusAnalyzer.msgRecvTable
 
                     effectiveReply = False
                     if mtype == 'RETURN':
@@ -33921,16 +33932,16 @@ class DbusAnalyzer(object):
                         else:
                             path = libgioObj.g_dbus_message_get_path(addr)
                             if not path:
-                                path = ''
+                                path = b''
 
                             iface = \
                                 libgioObj.g_dbus_message_get_interface(addr)
                             if not iface:
-                                iface = ''
+                                iface = b''
 
                             member = libgioObj.g_dbus_message_get_member(addr)
                             if not member:
-                                member = ''
+                                member = b''
 
                             addInfo = " %s.%s" % \
                                 (iface.decode(), member.decode())
@@ -34122,9 +34133,9 @@ class DbusAnalyzer(object):
                 SysMgr.printWarn('Fail to read data from pipe', reason=True)
                 return
 
-        def getDefaultTasks(comm):
+        def getDefaultTasks(comm, withSibling=True):
             taskList = []
-            tempList = SysMgr.getPids(comm, withSibling=True)
+            tempList = SysMgr.getPids(comm, withSibling=withSibling)
             for tid in tempList:
                 taskList.append(SysMgr.getTgid(tid))
 
@@ -34142,7 +34153,7 @@ class DbusAnalyzer(object):
         if len(SysMgr.filterGroup) == 0:
             onlyDaemon = True
             taskList += getDefaultTasks('dbus-daemon')
-            taskList += getDefaultTasks('dbus-broker-lau')
+            taskList += getDefaultTasks('dbus-broker')
         else:
             onlyDaemon = False
 
@@ -34193,6 +34204,7 @@ class DbusAnalyzer(object):
         threadingList = []
         SysMgr.filterGroup = taskList
         taskManager = ThreadAnalyzer(onlyInstance=True)
+        taskManager.saveSystemStat()
 
         # set attribute #
         SysMgr.processEnable = False
@@ -34203,27 +34215,68 @@ class DbusAnalyzer(object):
         if not onlyDaemon:
             SysMgr.syscallList.append(\
                 ConfigMgr.sysList.index('sys_recvmsg'))
+            SysMgr.syscallList.append(\
+                ConfigMgr.sysList.index('sys_recvmmsg'))
         SysMgr.syscallList.append(\
             ConfigMgr.sysList.index('sys_sendmsg'))
+        SysMgr.syscallList.append(\
+            ConfigMgr.sysList.index('sys_sendmmsg'))
 
         # create child processes to attach each targets #
         for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
 
+            # get cmdline for parent #
+            try:
+                ppidIdx = SysMgr.topInstance.ppidIdx
+                ppid = taskManager.procData[tid]['stat'][ppidIdx]
+                cmdline = SysMgr.getCmdline(ppid)
+            except:
+                cmdline = ''
+
             # get bus type #
-            cmdline = SysMgr.getCmdline(tid)
+            bus = None
+            listen = None
+            cmdline += SysMgr.getCmdline(tid)
             if '--system' in cmdline:
                 bus = 'system'
             elif '--session' in cmdline:
                 bus = 'session'
-            else:
-                bus = None
+            elif '--scope system' in cmdline:
+                bus = 'system'
+            elif '--scope user' in cmdline:
+                bus = 'user'
+            elif '--config-file=' in cmdline:
+                try:
+                    cpath = cmdline.split('--config-file=', 1)[1]
+                    pos = cpath.find(' --')
+                    if pos > 0:
+                        cpath = cpath[:pos]
+
+                    with open(cpath, "r") as fd:
+                        for item in fd.readlines():
+                            item = item.strip()
+                            if item.startswith('<listen>'):
+                                item = item.lstrip('<listen>')
+                                item = item.split('</listen>')[0]
+                                item = item.strip()
+                                listen = item
+                            if item.startswith('<type>'):
+                                item = item.lstrip('<type>')
+                                item = item.split('</type>')[0]
+                                item = item.strip()
+                                bus = item
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        "Fail to get D-Bus configuration", reason=True)
             busList.append(bus)
 
             # get servce list #
             if bus:
-                services = DbusAnalyzer.getbusServiceList(bus)
+                services = DbusAnalyzer.getBusService(bus, listen)
             else:
                 services = None
 
@@ -34284,6 +34337,7 @@ class DbusAnalyzer(object):
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
                 SysMgr.optStrace = True
+                SysMgr.encodeB64Enable = True
                 SysMgr.intervalEnable = long(0)
                 SysMgr.printFile = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
@@ -37619,6 +37673,9 @@ struct cmsghdr {
     def readMem(self, addr, size=0, retWord=False):
         wordSize = ConfigMgr.wordSize
 
+        if not addr:
+            return None
+
         if addr < wordSize:
             SysMgr.printWarn((\
                 "Fail to read from %s memory "
@@ -37727,28 +37784,39 @@ struct cmsghdr {
 
 
 
-    def readMultiMsgHdr(self, addr):
-        # read msghdr structure #
-        ret = self.readMem(addr, sizeof(self.mmsghdr))
-        if not ret:
+    def readMultiMsgHdr(self, addr, vlen):
+        msgInfo = {}
+        for idx in range(0, vlen):
+            offset = idx * sizeof(self.mmsghdr)
+            # read msghdr structure #
+            ret = self.readMem(addr + offset, sizeof(self.mmsghdr))
+            if not ret:
+                continue
+
+            # cast struct mmsghdr #
+            header = cast(ret, self.mmsghdr_ptr)
+
+            # get msg info #
+            msglen = header.contents.msg_len
+            msgaddr = addressof(header.contents.msg_hdr)
+            ret = self.readMsgHdr(obj=msgaddr)
+            if not ret:
+                continue
+
+            # add msghdr to list #
+            msgInfo[idx] = ret
+
+        if not msgInfo:
             return addr
 
-        # cast struct mmsghdr #
-        msginfo = {}
-        header = cast(ret, self.mmsghdr_ptr)
-
-        # get msg info #
-        msglen = header.contents.msg_len
-        msgaddr = addressof(header.contents.msg_hdr)
-        ret = self.readMsgHdr(obj=msgaddr)
-        if not ret:
-            return addr
-
-        return ret
+        return msgInfo
 
 
 
     def readMsgHdr(self, addr=None, obj=None):
+        if not addr and not obj:
+            return None
+
         # read msghdr structure #
         if not obj:
             ret = self.readMem(addr, sizeof(self.msghdr))
@@ -37802,9 +37870,10 @@ struct cmsghdr {
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
 
                 # encode to base64 #
-                iovobjdata = UtilMgr.encodeBase64(iovobjdata)
-                if sys.version_info >= (3, 0):
-                    iovobjdata = iovobjdata.decode('latin-1')
+                if SysMgr.encodeB64Enable:
+                    iovobjdata = UtilMgr.encodeBase64(iovobjdata)
+                    if sys.version_info >= (3, 0):
+                        iovobjdata = iovobjdata.decode('latin-1')
 
                 # save size and data #
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
@@ -37853,28 +37922,36 @@ struct cmsghdr {
 
 
 
-    def convertValue(self, argtype, argname, value, seq=0, ref=True):
+    def convertValue(self, argtype, argname, value, seq=0, ref=True, argset={}):
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
 
-        if ref and argname == "msg":
-            if syscall == "sendmsg" or syscall == "recvmsg":
+        # handle sendmsg / recvmsg #
+        if syscall == "sendmsg" or syscall == "recvmsg":
+            if ref and argname == "msg":
                 try:
                     return self.readMsgHdr(value)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get msghdr", True, reason=True)
-            elif syscall == "sendmmsg" or syscall == "recvmmsg":
+                        "Fail to get msghdr for %s" % syscall, True, reason=True)
+
+        # handle sendmmsg / recvmmsg #
+        if syscall == "sendmmsg" or syscall == "recvmmsg":
+            if argname == 'vlen':
                 try:
-                    return self.readMultiMsgHdr(value)
+                    if 'msg' in argset:
+                        ret = self.readMultiMsgHdr(argset['msg'], value)
+                        if ret != argset['msg']:
+                            self.changeArg('msg', ret)
+                    return value
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get msghdr", True, reason=True)
+                        "Fail to get mmsghdr for %s" % syscall, True, reason=True)
 
         # handle special syscalls #
         if syscall == "execve":
@@ -38211,6 +38288,15 @@ struct cmsghdr {
         if SysMgr.repeatCount > 0:
             UtilMgr.printProgress(\
                 SysMgr.progressCnt, SysMgr.repeatCount)
+
+
+
+    def changeArg(self, name, value):
+        for idx, item in enumerate(self.args):
+            if item[1] == name:
+                self.args[idx][2] = value
+                return True
+        return False
 
 
 
@@ -39435,7 +39521,7 @@ struct cmsghdr {
 
 
 
-    def getRegArgs(self, ref=True):
+    def getArgs(self, ref=True):
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get argument values from register #
@@ -39449,25 +39535,26 @@ struct cmsghdr {
             [value for value, format in zip(regstr, formats)]
 
         seq = long(0)
+        argset = {}
         for value, format in zip(regstr, formats):
             # get type and name of a argument #
             argtype, argname = format
+            argset[argname] = value
 
             # convert argument value #
-            value = self.convertValue(argtype, argname, value, seq, ref)
-
-            # add argument #
-            self.addArg(argtype, argname, value)
+            value = self.convertValue(argtype, argname, value, seq, ref, argset)
+            if value is not None:
+                self.addArg(argtype, argname, value)
 
             seq += 1
 
 
 
-    def getConvertedArgs(self):
+    def convArgs(self):
         args = []
 
         # converting arguments #
-        self.getRegArgs()
+        self.getArgs()
 
         # pick values from argument list #
         for idx, arg in enumerate(self.args):
@@ -39557,7 +39644,7 @@ struct cmsghdr {
 
             try:
                 SysMgr.printPipe(\
-                    str(UtilMgr.convDict2Str(jsonData)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=False)))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -39626,10 +39713,10 @@ struct cmsghdr {
         args = []
         retval = self.getRetVal(temp=True)
         if retval < 0:
-            # get argument values from previous register set #
-            self.getRegArgs(ref=False)
+            # get arguments from previous register set #
+            self.getArgs(ref=False)
         else:
-            args = self.getConvertedArgs()
+            args = self.convArgs()
 
         self.handleSyscallOutput(args, deferrable=True)
 
@@ -39713,7 +39800,7 @@ struct cmsghdr {
 
                     return
 
-                args = self.getConvertedArgs()
+                args = self.convArgs()
 
             self.handleSyscallOutput(args)
 
@@ -39801,7 +39888,7 @@ struct cmsghdr {
                 }
 
                 SysMgr.printPipe(\
-                    str(UtilMgr.convDict2Str(jsonData)))
+                    str(UtilMgr.convDict2Str(jsonData, pretty=False)))
 
                 self.clearArgs()
 
@@ -56849,16 +56936,7 @@ class ThreadAnalyzer(object):
             statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            commIndex = self.commIdx
-            if statList[commIndex][-1] != ')':
-                idx = commIndex + 1
-                while 1:
-                    tmpStr = str(statList[idx])
-                    statList[commIndex] = \
-                        "%s %s" % (statList[commIndex], tmpStr)
-                    statList.pop(idx)
-                    if ')' in tmpStr:
-                        break
+            statList = SysMgr.updateStatList(statList, self.commIdx)
 
             # convert type of values #
             self.procData[tid]['stat'] = statList
@@ -58986,15 +59064,10 @@ class ThreadAnalyzer(object):
                 focusVal = value['new']
             elif SysMgr.sort == 'o':
                 focusVal = value['oomScore']
-            elif SysMgr.sort == 'd':
-                if 'dbusCnt' in value:
-                    return False
-                else:
-                    return True
             else:
                 focusVal = 1
 
-            if len(SysMgr.filterGroup) == 0 and \
+            if not SysMgr.filterGroup and \
                 not SysMgr.showAll and \
                 not focusVal:
                 return True
@@ -60904,10 +60977,15 @@ def main(args=None):
 
 
 
-# define global line variables #
+# define line variables #
 oneLine = "-" * SysMgr.lineLength
 twoLine = "=" * SysMgr.lineLength
 
+# define print method for debugging #
+def dbgp(msg):
+    SysMgr.printWarn(msg, True)
+
+# main #
 if __name__ == '__main__':
     # set main environment #
     os.environ["ISMAIN"] = "True"
