@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200603"
+__revision__ = "200605"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13288,6 +13288,7 @@ class SysMgr(object):
     exitFlag = False
     tgidEnable = True
     taskEnable = True
+    exceptCommFilter = False
     processEnable = True
     groupProcEnable = False
 
@@ -16384,6 +16385,9 @@ Examples:
     - Monitor D-Bus messages including specific word
         # {0:1} {1:1} -c test
 
+    - Monitor D-Bus messages for a specific session bus
+        # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -16872,6 +16876,9 @@ Examples:
 
     - Print D-Bus messages with backtrace for a.out process in real-time
         # {0:1} {1:1} -g a.out -H
+
+    - Print D-Bus messages for a specific session bus
+        # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
                     '''.format(cmd, mode)
 
                     if SysMgr.isPrintJournalMode():
@@ -32710,8 +32717,9 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getBus(bus, addr=None):
+    def getBus(bus, tid=None, addr=None):
         dbusObj = SysMgr.libdbusObj
+        name = "guider.method.caller".encode()
 
         if bus == 'system':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
@@ -32724,24 +32732,52 @@ class DbusAnalyzer(object):
         # get connection #
         conn = dbusObj.dbus_bus_get(bustype, DbusAnalyzer.getErrP())
         if not conn:
-            if 'DBUS_SESSION_BUS_ADDRESS' in os.environ:
-                address = os.environ['DBUS_SESSION_BUS_ADDRESS']
+            # get connection by session address #
+            ADDRENV = 'DBUS_SESSION_BUS_ADDRESS'
+            if ADDRENV in os.environ:
+                address = os.environ[ADDRENV]
                 address = c_char_p(address.encode())
                 conn = dbusObj.dbus_connection_open(\
                     address, DbusAnalyzer.getErrP())
-            if not conn:
+            else:
+                envList = SysMgr.getEnv(tid)
+                for env in envList:
+                    if env.startswith(ADDRENV):
+                        address = c_char_p(env.lstrip(ADDRENV)[1:].encode())
+                        conn = dbusObj.dbus_connection_open(\
+                            address, DbusAnalyzer.getErrP())
+                        break
+
+            # check error #
+            if conn:
+                ret = dbusObj.dbus_bus_set_unique_name(\
+                    c_void_p(conn), c_char_p(name))
+                ret = dbusObj.dbus_bus_get_unique_name(c_void_p(conn))
+                ret = dbusObj.dbus_bus_register(\
+                    c_void_p(conn), DbusAnalyzer.getErrP())
+                if not ret:
+                    SysMgr.printWarn(\
+                        "Fail to register D-Bus %s bus because %s" % \
+                            (bus, DbusAnalyzer.getErrInfo()))
+                    return None
+            else:
                 SysMgr.printWarn(\
                     "Fail to get D-Bus %s bus because %s" % \
                         (bus, DbusAnalyzer.getErrInfo()))
                 return None
 
-        # request my name #
-        name = "guider.method.caller"
+        '''
+        # request name #
         DBUS_NAME_FLAG_ALLOW_REPLACEMENT = c_uint(0x1)
         DBUS_NAME_FLAG_REPLACE_EXISTING = c_uint(0x2)
         ret = dbusObj.dbus_bus_request_name(\
-            conn, c_char_p(name.encode()), \
-            DBUS_NAME_FLAG_REPLACE_EXISTING, DbusAnalyzer.getErrP())
+            conn, c_char_p(name), DBUS_NAME_FLAG_REPLACE_EXISTING, \
+            DbusAnalyzer.getErrP())
+        if ret < 0:
+            SysMgr.printWarn(\
+                "Fail to request D-Bus bus name to %s because %s" % \
+                    (name.decode(), DbusAnalyzer.getErrInfo()))
+        '''
 
         return conn
 
@@ -33126,13 +33162,13 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getBusService(bus, addr=None):
+    def getBusService(bus, tid=None, addr=None):
         if not bus:
             return
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus, addr)
+        conn = DbusAnalyzer.getBus(bus, tid, addr)
         if not conn:
             return
 
@@ -33295,6 +33331,15 @@ class DbusAnalyzer(object):
 
         dbusObj.dbus_connection_open.argtypes = [c_char_p, c_void_p]
         dbusObj.dbus_connection_open.restype = c_void_p
+
+        dbusObj.dbus_bus_get_unique_name.argtypes = [c_void_p]
+        dbusObj.dbus_bus_get_unique_name.restype = c_char_p
+
+        dbusObj.dbus_bus_set_unique_name.argtypes = [c_void_p, c_char_p]
+        dbusObj.dbus_bus_set_unique_name.restype = c_bool
+
+        dbusObj.dbus_bus_register.argtypes = [c_void_p, c_void_p]
+        dbusObj.dbus_bus_register.restype = c_bool
 
         dbusObj.dbus_parse_address.argtypes = \
             [c_void_p, c_void_p, POINTER(c_int), c_void_p]
@@ -33825,10 +33870,6 @@ class DbusAnalyzer(object):
                         DbusAnalyzer.prevData[tid][ctype] += call
                         continue
 
-                    # check protocol message #
-                    if length == 16:
-                        continue
-
                     # cast bytes to void_p #
                     buf = c_char_p(call.encode('latin-1'))
 
@@ -33870,8 +33911,6 @@ class DbusAnalyzer(object):
                         srcInfo = src
                     if service and src in service:
                         srcInfo = service[src]
-                    elif src in gBusServiceList:
-                        srcInfo = gBusServiceList[src]
 
                     # get receiver #
                     desInfo = '??'
@@ -33882,8 +33921,6 @@ class DbusAnalyzer(object):
                         desInfo = des
                     if service and des in service:
                         desInfo = service[des]
-                    elif des in gBusServiceList:
-                        desInfo = gBusServiceList[des]
 
                     # get message type #
                     try:
@@ -34150,12 +34187,29 @@ class DbusAnalyzer(object):
 
         # check filter #
         taskList = []
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.filterGroup:
             onlyDaemon = True
             taskList += getDefaultTasks('dbus-daemon')
             taskList += getDefaultTasks('dbus-broker')
         else:
             onlyDaemon = False
+            for val in SysMgr.filterGroup:
+                if SysMgr.groupProcEnable:
+                    taskList += SysMgr.getPids(val, withSibling=True)
+                else:
+                    taskList += getDefaultTasks(val)
+        if not taskList:
+            SysMgr.printErr(\
+                "Fail to find task to analyze D-Bus message")
+            sys.exit(0)
+        else:
+            # remove redundant tasks #
+            taskList = SysMgr.clearList(taskList)
+            taskList.sort(key=int)
+            SysMgr.printInfo((\
+                "only specific processes that are involved "
+                "in the process group [ %s ] are shown") % \
+                    SysMgr.getCommList(taskList))
 
         # prepare D-Bus methods to analyze BLOB data #
         DbusAnalyzer.prepareDbusMethods()
@@ -34175,26 +34229,6 @@ class DbusAnalyzer(object):
         DbusAnalyzer.dbgObj.initValues()
         DbusAnalyzer.dbgObj.getCpuUsage()
 
-        # get pids of gdbus threads #
-        for val in SysMgr.filterGroup:
-            if SysMgr.groupProcEnable:
-                taskList += SysMgr.getPids(val, withSibling=True)
-            else:
-                taskList += getDefaultTasks(val)
-
-        if len(taskList) == 0:
-            SysMgr.printErr(\
-                "Fail to find task to analyze D-Bus message")
-            sys.exit(0)
-
-        # remove redundant tasks #
-        taskList = SysMgr.clearList(taskList)
-        taskList.sort(key=int)
-        SysMgr.printInfo((\
-            "only specific processes that are involved "
-            "in the process group [ %s ] are shown") % \
-                SysMgr.getCommList(taskList))
-
         # define common list #
         busList = []
         pipeList = []
@@ -34203,13 +34237,14 @@ class DbusAnalyzer(object):
         interfaceList = {}
         threadingList = []
         SysMgr.filterGroup = taskList
+
+        # initialize system stat #
+        SysMgr.exceptCommFilter = True
         taskManager = ThreadAnalyzer(onlyInstance=True)
         taskManager.saveSystemStat()
-
-        # set attribute #
+        SysMgr.sort = 'd'
         SysMgr.processEnable = False
         SysMgr.cmdlineEnable = True
-        SysMgr.sort = 'd'
 
         # set target syscalls #
         if not onlyDaemon:
@@ -34276,7 +34311,7 @@ class DbusAnalyzer(object):
 
             # get servce list #
             if bus:
-                services = DbusAnalyzer.getBusService(bus, listen)
+                services = DbusAnalyzer.getBusService(bus, tid=tid, addr=listen)
             else:
                 services = None
 
@@ -36360,7 +36395,8 @@ struct cmsghdr {
                             ret = 0
 
                         SysMgr.printPipe(\
-                            ' = %s(%s)' % (hex(ret), ret), newline=False, flush=True)
+                            ' = %s(%s)' % \
+                                (hex(ret), ret), newline=False, flush=True)
 
                         # inject all breakpoints again #
                         self.updateBpList(verb=False)
@@ -56178,6 +56214,10 @@ class ThreadAnalyzer(object):
 
             # save info per process #
             if SysMgr.processEnable:
+                if SysMgr.exceptCommFilter and \
+                    not pid in SysMgr.filterGroup:
+                        continue
+
                 # save stat of process #
                 ret = self.saveProcData(procPath, pid)
 
@@ -56198,6 +56238,10 @@ class ThreadAnalyzer(object):
             for tid in tids:
                 if not tid.isdigit():
                     continue
+
+                if SysMgr.exceptCommFilter and \
+                    not tid in SysMgr.filterGroup:
+                        continue
 
                 self.nrThread += 1
 
@@ -59086,7 +59130,7 @@ class ThreadAnalyzer(object):
                         ppid = procData[idx]['stat'][self.ppidIdx]
 
                         # check current pid #
-                        if idx  == item:
+                        if idx == item:
                             break
                         # check current thread comm #
                         elif item in stat[self.commIdx]:
