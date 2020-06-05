@@ -15592,6 +15592,9 @@ Examples:
     - Handle write function calls as a context print point
         # {0:1} {1:1} -g a.out -c write\\|prtctx
 
+    - Print value of PATH environment variable
+        # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
+
     - Print write function calls if the call meets specific conditions
         # {0:1} {1:1} -g a.out -c write\\|filter:2:EQ:4096
         # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
@@ -35993,6 +35996,19 @@ struct cmsghdr {
 
 
 
+    def convRetArgs(self, argList):
+        for idx, item in enumerate(deepcopy(argList)):
+            if type(item) is str and \
+                item.startswith('@'):
+                try:
+                    argList[idx] = self.retList[item[1:]]
+                except:
+                    pass
+
+        return argList
+
+
+
     def executeCmd(self, cmdList, sym=None, args=[]):
         def printCmdErr(cmdset, cmd):
             if cmd == 'prtctx':
@@ -36123,6 +36139,10 @@ struct cmsghdr {
                     argSet = {}
                     origArgs = args
                     argList = cmdset[1].split(':')
+
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
+
                     for item in argList:
                         idx, val = item.split('#')
                         idx = long(idx)
@@ -36146,7 +36166,10 @@ struct cmsghdr {
                     # make a new argument list #
                     argList = [None] * (nrMax+1)
                     for idx, val in argSet.items():
-                        argList[long(idx)] = val
+                        # convert args for previous return #
+                        val = self.convRetArgs([val])
+
+                        argList[long(idx)] = val[0]
 
                     SysMgr.printPipe(\
                         "\n[%s] %s" % (cmdstr, res),\
@@ -36164,6 +36187,10 @@ struct cmsghdr {
                     # get argument info #
                     argStr = ''
                     argList = cmdset[1].split(':')
+
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
+
                     for item in argList:
                         try:
                             val = args[long(item)]
@@ -36171,6 +36198,9 @@ struct cmsghdr {
                             sys.exit(0)
                         except:
                             val = 'None'
+
+                        # update return #
+                        self.retList[item] = str(val)
 
                         argStr += '%s: %s(%s), ' % (item, hex(val), val)
 
@@ -36192,6 +36222,9 @@ struct cmsghdr {
                     memset = cmdset[1].split(':')
                     if len(memset) != 2 and len(memset) != 3:
                         printCmdErr(cmdval, cmd)
+
+                    # convert args for previous return #
+                    memset = self.convRetArgs(memset)
 
                     # get addr #
                     try:
@@ -36250,6 +36283,9 @@ struct cmsghdr {
                     if len(memset) != 1 and len(memset) != 2:
                         printCmdErr(cmdval, cmd)
 
+                    # convert args for previous return #
+                    memset = self.convRetArgs(memset)
+
                     # get addr #
                     try:
                         addr = long(memset[0])
@@ -36282,6 +36318,10 @@ struct cmsghdr {
 
                     # get memory value #
                     ret = self.readMem(addr, size)
+
+                    # update return #
+                    self.retList[addr] = str(ret)
+
                     if ret == -1:
                         SysMgr.printErr(\
                             "Fail to read from %s" % hex(addr))
@@ -36308,6 +36348,9 @@ struct cmsghdr {
                     # remove all berakpoints #
                     self.removeAllBreakpoint(verb=False)
 
+                    # convert args for previous return #
+                    cmdset = self.convRetArgs(cmdset)
+
                     # get function info #
                     binary = cmdset[1]
                     ret = self.dlopen(binary)
@@ -36333,13 +36376,17 @@ struct cmsghdr {
                     val = func[0]
                     if len(func) > 1:
                         argList = func[1:]
-                        args = ', '.join(argList)
-                        args = '(%s)' % args
+
+                        # convert args for previous return #
+                        argList = self.convRetArgs(argList)
+
+                        argStr = ', '.join(argList)
+                        argStr = '(%s)' % argStr
                     else:
                         argList = []
-                        args = '()'
+                        argStr = '()'
 
-                    output = "\n[%s] %s%s" % (cmdstr, val, args)
+                    output = "\n[%s] %s%s" % (cmdstr, val, argStr)
 
                     SysMgr.printPipe(output, newline=False, flush=True)
 
@@ -36350,6 +36397,9 @@ struct cmsghdr {
                     ret = self.remoteSyscall(val, argList)
                     if ret is None:
                         ret = 0
+
+                    # update return #
+                    self.retList[val] = str(ret)
 
                     SysMgr.printPipe(\
                         ' = %s(%s)' % (hex(ret), ret), \
@@ -36367,11 +36417,15 @@ struct cmsghdr {
                     val = func[0]
                     if len(func) > 1:
                         argList = func[1:]
-                        args = ', '.join(argList)
-                        args = '(%s)' % args
+
+                        # convert args for previous return #
+                        argList = self.convRetArgs(argList)
+
+                        argStr = ', '.join(argList)
+                        argStr = '(%s)' % argStr
                     else:
                         argList = []
-                        args = '()'
+                        argStr = '()'
 
                     # get address #
                     if UtilMgr.isNumber(val):
@@ -36389,7 +36443,7 @@ struct cmsghdr {
 
                         addr = ret[0][0]
 
-                    output = "\n[%s] %s(%x)%s" % (cmdstr, val, addr, args)
+                    output = "\n[%s] %s(%x)%s" % (cmdstr, val, addr, argStr)
 
                     if sym == val or \
                         self.pc == addr:
@@ -36409,6 +36463,9 @@ struct cmsghdr {
                         ret = self.remoteUsercall(addr, argList)
                         if ret is None:
                             ret = 0
+
+                        # update return #
+                        self.retList[val] = str(ret)
 
                         SysMgr.printPipe(\
                             ' = %s(%s)' % \
@@ -36431,6 +36488,9 @@ struct cmsghdr {
                     else:
                         argList = []
                         args = '()'
+
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
 
                     # convert type to integer #
                     argList = list(map(long, argList))
@@ -37340,7 +37400,7 @@ struct cmsghdr {
         # apply register set #
         self.setRegs()
 
-        # launch mmap syscall #
+        # execute syscall #
         self.ptrace(self.syscallCmd)
         ret = self.waitpid()
         stat = self.getStatus(ret[1])
@@ -40269,6 +40329,7 @@ struct cmsghdr {
         self.syscallTime = dict()
         self.syscallTimeStat = dict()
         self.breakcallTimeStat = dict()
+        self.retList = dict()
 
 
 
