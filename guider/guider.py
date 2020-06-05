@@ -15281,7 +15281,7 @@ class SysMgr(object):
                 'topsum': 'Summary',
                 'kill/tkill': 'Signal',
                 'pause': 'Thread',
-                'exec': 'Command',
+                'remote': 'Command',
                 'limitcpu': 'CPU',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
@@ -16559,8 +16559,8 @@ Options:
 
                     helpStr +=  brkExamStr
 
-                # exec #
-                elif SysMgr.isExecMode():
+                # remote #
+                elif SysMgr.isRemoteMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -c <COMMAND> [OPTIONS] [--help]
@@ -22865,8 +22865,8 @@ Copyright:
 
 
     @staticmethod
-    def isExecMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'exec':
+    def isRemoteMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'remote':
             return True
         else:
             return False
@@ -23204,7 +23204,7 @@ Copyright:
         elif SysMgr.isStraceMode() or \
             SysMgr.isUtraceMode() or \
             SysMgr.isBtraceMode() or \
-            SysMgr.isExecMode() or \
+            SysMgr.isRemoteMode() or \
             SysMgr.isSigtraceMode():
             return True
         else:
@@ -23531,9 +23531,9 @@ Copyright:
         elif SysMgr.isUtraceMode():
             SysMgr.doTrace('usercall')
 
-        # EXEC MODE #
-        elif SysMgr.isExecMode():
-            SysMgr.doTrace('exec')
+        # REMOTE MODE #
+        elif SysMgr.isRemoteMode():
+            SysMgr.doTrace('remote')
 
         # BTRACE MODE #
         elif SysMgr.isBtraceMode():
@@ -26621,12 +26621,12 @@ Copyright:
             sys.exit(0)
 
         # check command #
-        if mode == 'exec':
+        if mode == 'remote':
             if not SysMgr.customCmd:
-                SysMgr.printErr("Fail to get command")
+                SysMgr.printErr("Fail to get remote command")
                 sys.exit(0)
             elif SysMgr.inputParam:
-                SysMgr.printErr("Command is not supported")
+                SysMgr.printErr("Executing a program is not supported")
                 sys.exit(0)
 
         # set priority #
@@ -26801,9 +26801,9 @@ Copyright:
             elif mode == 'signal':
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='signal', wait=wait, multi=multi)
-            elif mode == 'exec':
+            elif mode == 'remote':
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='exec', wait=wait, multi=multi)
+                    trace(mode='remote', wait=wait, multi=multi)
             else:
                 pass
         except SystemExit:
@@ -35927,7 +35927,7 @@ struct cmsghdr {
                 elif idx == 2:
                     self.regs.rdx = val
                 elif idx == 3:
-                    self.regs.r10 = val
+                    self.regs.rcx = val
                 elif idx == 4:
                     self.regs.r8 = val
                 elif idx == 5:
@@ -36082,8 +36082,7 @@ struct cmsghdr {
 
                     # get return value #
                     try:
-                        ret = cmdset[1]
-                        ret = long(ret)
+                        ret = long(cmdset[1])
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -36098,9 +36097,11 @@ struct cmsghdr {
                     else:
                         targetAddr = self.fp + wordSize
                         if targetAddr % wordSize == 0:
-                            targetAddr = self.accessMem(self.peekIdx, targetAddr)
+                            targetAddr = \
+                                self.accessMem(self.peekIdx, targetAddr)
                         else:
-                            targetAddr = self.readMem(targetAddr, retWord=True)
+                            targetAddr = \
+                                self.readMem(targetAddr, retWord=True)
 
                     SysMgr.printPipe(\
                         "\n[%s] %x" % (cmdstr, ret), \
@@ -36192,8 +36193,16 @@ struct cmsghdr {
                     if len(memset) != 2 and len(memset) != 3:
                         printCmdErr(cmdval, cmd)
 
-                    addr = long(memset[0])
+                    # get addr #
+                    try:
+                        addr = long(memset[0])
+                    except:
+                        addr = long(memset[0], 16)
+
+                    # get value #
                     val = memset[1].encode()
+
+                    # get size #
                     if len(memset) == 3:
                         size = long(memset[2])
                     else:
@@ -36241,7 +36250,13 @@ struct cmsghdr {
                     if len(memset) != 1 and len(memset) != 2:
                         printCmdErr(cmdval, cmd)
 
-                    addr = long(memset[0])
+                    # get addr #
+                    try:
+                        addr = long(memset[0])
+                    except:
+                        addr = long(memset[0], 16)
+
+                    # get size #
                     if len(memset) == 2:
                         size = long(memset[1])
                     else:
@@ -36337,7 +36352,8 @@ struct cmsghdr {
                         ret = 0
 
                     SysMgr.printPipe(\
-                        ' = %s(%s)' % (hex(ret), ret), newline=False, flush=True)
+                        ' = %s(%s)' % (hex(ret), ret), \
+                            newline=False, flush=True)
 
                     # inject a breakpoint for syscall again #
                     self.injectBreakpoint(self.getSyscallAddr())
@@ -37062,6 +37078,31 @@ struct cmsghdr {
 
 
 
+    def convRemoteArgs(self, args):
+        freelist = []
+        for idx, item in enumerate(deepcopy(args)):
+            if type(item) is not str:
+                continue
+            elif not item.isdigit() or \
+                (item.startswith('"') and item.endswith('"')):
+                try:
+                    args[idx] = long(item, 16)
+                except:
+                    item = item.strip('"')
+
+                    addr = self.calloc(string=item)
+                    if not addr:
+                        sys.exit(0)
+
+                    args[idx] = long(addr)
+                    freelist.append(addr)
+            else:
+                args[idx] = long(item)
+
+        return args, freelist
+
+
+
     def calloc(self, size=None, string=None):
         # get function address #
         symbol = 'calloc'
@@ -37091,8 +37132,6 @@ struct cmsghdr {
             return None
 
         if string:
-            if not string.endswith('\0'):
-                string += '\0'
             ret = self.writeMem(addr, string.encode())
             if ret == -1:
                 SysMgr.printErr(\
@@ -37161,6 +37200,10 @@ struct cmsghdr {
 
 
     def remoteUsercall(self, usercall, args=[], wait=True):
+        # convert arguments in advance to prevent nested remote calls #
+        args, freelist = self.convRemoteArgs(args)
+
+        # get target info #
         procInfo = '%s(%s)' % (self.comm, self.pid)
 
         # get original regset #
@@ -37196,24 +37239,6 @@ struct cmsghdr {
             return None
         setattr(self.regs, self.retreg, func)
 
-        # handle string args #
-        freelist = []
-        for idx, item in enumerate(deepcopy(args)):
-            if type(item) is not str:
-                continue
-            elif not item.isdigit() or \
-                (item.startswith('"') and item.endswith('"')):
-                item = item.strip('"')
-
-                addr = self.calloc(string=item)
-                if not addr:
-                    sys.exit(0)
-
-                args[idx] = long(addr)
-                freelist.append(addr)
-            else:
-                args[idx] = long(item)
-
         # set args #
         self.writeArgs(args)
 
@@ -37223,8 +37248,11 @@ struct cmsghdr {
         elif self.arch == 'x64':
             # align sp - wordSize to a multiple of 16
             wordSize = ConfigMgr.wordSize
-            mod = (self.sp - wordSize) % 16
-            newSP = self.sp - wordSize - mod
+            newSP = self.sp
+            while 1:
+                if (newSP - wordSize * 2) & 0xF == 0:
+                    break
+                newSP -= wordSize
             newSP -= wordSize
             self.setSP(newSP)
             ret = self.writeMem(newSP, b'\x00' * wordSize)
@@ -37295,23 +37323,8 @@ struct cmsghdr {
             return
         setattr(self.regs, self.retreg, sysid)
 
-        # handle string args #
-        freelist = []
-        for idx, item in enumerate(deepcopy(args)):
-            if type(item) is not str:
-                continue
-            elif not item.isdigit() or \
-                (item.startswith('"') and item.endswith('"')):
-                item = item.strip('"')
-
-                addr = self.calloc(string=item)
-                if not addr:
-                    sys.exit(0)
-
-                args[idx] = long(addr)
-                freelist.append(addr)
-            else:
-                args[idx] = long(item)
+        # convert arguments #
+        args, freelist = self.convRemoteArgs(args)
 
         # set args #
         self.writeArgs([sysid] + args)
@@ -40613,7 +40626,7 @@ struct cmsghdr {
             if self.isStopped():
                 if self.cont(check=True):
                     sys.exit(0)
-        elif self.mode == 'exec':
+        elif self.mode == 'remote':
             self.runExecMode()
             sys.exit(0)
         else:
