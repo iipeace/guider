@@ -15517,9 +15517,9 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    prtctx
     start
     stop
+    print
     exit
     kill
     ret:VAL
@@ -15599,7 +15599,10 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|setarg:0#2:1#5
 
     - Handle write function calls as a context print point
-        # {0:1} {1:1} -g a.out -c write\\|prtctx
+        # {0:1} {1:1} -g a.out -c write\\|print
+
+    - Handle write function calls as a variable print point
+        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1
 
     - Print value of PATH environment variable
         # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
@@ -36036,8 +36039,8 @@ struct cmsghdr {
 
     def executeCmd(self, cmdList, sym=None, args=[]):
         def printCmdErr(cmdset, cmd):
-            if cmd == 'prtctx':
-                cmdformat = "PRTCTX"
+            if cmd == 'print':
+                cmdformat = "PRINT:VAR"
             elif cmd == 'exec':
                 cmdformat = "COMMAND"
             elif cmd == 'ret':
@@ -36059,7 +36062,7 @@ struct cmsghdr {
             elif cmd == 'load':
                 cmdformat = "LOAD:PATH"
             elif cmd == 'save':
-                cmdformat = "SAVE:NAME"
+                cmdformat = "SAVE:NAME:VAL"
             elif cmd == 'start':
                 cmdformat = "START"
             elif cmd == 'stop':
@@ -36093,10 +36096,21 @@ struct cmsghdr {
 
             # execute a command #
             try:
-                cmdstr = '%6s' % cmd
+                cmdstr = '%8s' % cmd
 
-                if cmd == 'prtctx':
-                    self.printContext(newline=True)
+                if cmd == 'print':
+                    if len(cmdset) == 1:
+                        self.printContext(newline=True)
+                    else:
+                        var = cmdset[1]
+                        try:
+                            data = self.retList[var]
+                        except:
+                            data = 'N/A'
+
+                        SysMgr.printPipe(\
+                            "\n[%s] %s = %s" % (cmdstr, var, data), \
+                                newline=False, flush=True)
 
                 elif cmd == 'exec':
                     if len(cmdset) == 1:
@@ -36374,7 +36388,18 @@ struct cmsghdr {
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
-                    self.retList[cmdset[1]] = self.prevReturn
+                    cmdlist = cmdset[1].split(':')
+                    var = cmdlist[0]
+
+                    if len(cmdlist) == 1:
+                        data = self.prevReturn
+                    else:
+                        data = cmdlist[1]
+
+                    self.retList[var] = data
+
+                    output = "\n[%s] %s = %s" % (cmdstr, var, data)
+                    SysMgr.printPipe(output, newline=False, flush=True)
 
                 elif cmd == 'load':
                     if len(cmdset) == 1:
