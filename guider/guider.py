@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200605"
+__revision__ = "200608"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3363,7 +3363,7 @@ class UtilMgr(object):
         if ignCap:
             string = string.lower()
 
-        for cond in key:
+        for cond in list(key):
             if ignCap:
                 cond = cond.lower()
 
@@ -12717,8 +12717,8 @@ class LogMgr(object):
             fieldList = SysMgr.inputParam.split(',')
         else:
             fieldList = \
-                ["_TIME", "_HOSTNAME", "_TRANSPORT", \
-                    "_COMM", "_PID", "MESSAGE"]
+                [b"_TIME", b"_HOSTNAME", b"_TRANSPORT", \
+                    b"_COMM", b"_PID", b"MESSAGE"]
 
         # move to the end of journal #
         if not SysMgr.showAll:
@@ -12750,9 +12750,9 @@ class LogMgr(object):
                 SysMgr.printPipe(flush=True)
                 continue
 
-            jrlStr = ''
+            jrlStr = b''
             for field in fieldList:
-                if field == '_TIME':
+                if field == b'_TIME':
                     # get time #
                     ret = systemdObj.sd_journal_get_realtime_usec(\
                         jrl, byref(usec))
@@ -12770,7 +12770,7 @@ class LogMgr(object):
                     '''
 
                     # set time #
-                    jrlStr += ('%s ' % wtime)
+                    jrlStr += wtime.encode()
 
                     continue
 
@@ -12780,19 +12780,24 @@ class LogMgr(object):
                     continue
 
                 val = cast(data, c_char_p).value[len(field)+1:]
-                if field == "_COMM":
+                if field == b"_COMM":
                     pass
-                elif field == "_PID":
-                    val = '[%s]: ' % val
-                elif field == "_TRANSPORT" and val == "kernel":
-                    val += ': '
+                elif field == b"_PID":
+                    val = b'[%s]: ' % val
+                elif field == b"_TRANSPORT" and val == b"kernel":
+                    val += b': '
                 else:
-                    val += ' '
+                    val += b' '
 
                 jrlStr += val
 
             if jrlStr and UtilMgr.isEffectiveStr(jrlStr):
-                SysMgr.printPipe(jrlStr, flush=True)
+                try:
+                    SysMgr.printPipe(jrlStr.decode(), flush=True)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printPipe(jrlStr, flush=True)
 
         # close journal #
         systemdObj.sd_journal_close(jrl)
@@ -12857,7 +12862,10 @@ class LogMgr(object):
             return
 
         # change file position #
-        SysMgr.kmsgFd.seek(0)
+        try:
+            SysMgr.kmsgFd.seek(0)
+        except:
+            pass
 
         # kmsg node #
         while 1:
@@ -14797,7 +14805,7 @@ class SysMgr(object):
     def getPidFilter():
         if not SysMgr.pidFilter:
             cmd = ""
-            for cond in SysMgr.filterGroup:
+            for cond in list(SysMgr.filterGroup):
                 try:
                     cmd += "common_pid == %s || " % long(cond)
                 except:
@@ -15519,7 +15527,8 @@ Commands:
     sleep:SEC
     getarg:REGS
     setarg:REG#VAL
-    load:LIBPATH
+    load:PATH
+    save:NAME
     jump:FUNC#ARGS
     usercall:FUNC#ARGS
     syscall:FUNC#ARGS
@@ -15603,6 +15612,9 @@ Examples:
 
     - Handle write function calls as a print point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
+
+    - Handle write function calls as a print point for 1st and 2nd arguments and save its return value
+        # {0:1} {1:1} -g a.out -c write\\|getarg:0:1\\|save:writeRet
 
     - Handle a write function call as a starting trace point for all functions
         # {0:1} {1:1} -g a.out -c write\\|start
@@ -23260,7 +23272,7 @@ Copyright:
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
             else:
-                argList = None
+                argList = [' ']
 
             # print signal list #
             if SysMgr.findOption('l'):
@@ -25904,7 +25916,7 @@ Copyright:
 
         # parse values #
         targetlist = []
-        for val in SysMgr.filterGroup:
+        for val in list(SysMgr.filterGroup):
             vals = val.split(':')
 
             # check error #
@@ -27639,7 +27651,7 @@ Copyright:
         # get tasks #
         try:
             if SysMgr.filterGroup:
-                for item in SysMgr.filterGroup:
+                for item in list(SysMgr.filterGroup):
                     item = item.split(':')
                     if len(item) == 1:
                         op = 'read'
@@ -29989,8 +30001,7 @@ Copyright:
             self.cmdList["kmem/kfree"] = \
             self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = \
             self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
-            self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = \
-                sm.memEnable
+            self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = sm.memEnable
         self.cmdList["kmem/mm_page_free_direct"] = False
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
         self.cmdList["timer/hrtimer_start"] = False
@@ -30360,7 +30371,7 @@ Copyright:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
 
                 # apply filter #
-                for comm in SysMgr.filterGroup:
+                for comm in list(SysMgr.filterGroup):
                     cmd += \
                         "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % \
                         (comm, comm)
@@ -30406,7 +30417,7 @@ Copyright:
             cmd = ""
 
             # apply filter #
-            for comm in SysMgr.filterGroup:
+            for comm in list(SysMgr.filterGroup):
                 cmd += "comm == \"*%s*\" || " % (comm)
                 try:
                     pid = long(comm)
@@ -31664,7 +31675,12 @@ Copyright:
                 continue
 
             mountpath = mountList[0].split()[4]
-            return mountpath[:mountpath.rfind('/')]
+
+            # check cgroup version #
+            if mountList[1].startswith('cgroup2'):
+                return mountpath
+            else:
+                return mountpath[:mountpath.rfind('/')]
 
         return None
 
@@ -31693,6 +31709,8 @@ Copyright:
                             elif cval == '':
                                 cval = 'none'
                             item[target] = cval
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -31756,6 +31774,10 @@ Copyright:
                 cstr = ''
                 nrProcs = long(0)
                 nrTasks = long(0)
+
+                # check subdir type #
+                if type(subdir) is not dict:
+                    continue
 
                 tempSubdir = deepcopy(subdir)
                 for val in list(subdir.keys()):
@@ -31822,6 +31844,8 @@ Copyright:
             cgroupTree = self.getCgroupTree()
             if not cgroupTree:
                 return
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -34714,6 +34738,8 @@ class DltAnalyzer(object):
         try:
             if not SysMgr.dltObj:
                 SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
+            if not SysMgr.dltObj:
+                raise Exception()
             dltObj = SysMgr.dltObj
         except:
             SysMgr.dltObj = None
@@ -35998,8 +36024,7 @@ struct cmsghdr {
 
     def convRetArgs(self, argList):
         for idx, item in enumerate(deepcopy(argList)):
-            if type(item) is str and \
-                item.startswith('@'):
+            if type(item) is str and item.startswith('@'):
                 try:
                     argList[idx] = self.retList[item[1:]]
                 except:
@@ -36032,7 +36057,9 @@ struct cmsghdr {
             elif cmd == 'syscall':
                 cmdformat = "SYSCALL:FUNC#ARG0#ARG1"
             elif cmd == 'load':
-                cmdformat = "LOAD:LIBPATH"
+                cmdformat = "LOAD:PATH"
+            elif cmd == 'save':
+                cmdformat = "SAVE:NAME"
             elif cmd == 'start':
                 cmdformat = "START"
             elif cmd == 'stop':
@@ -36201,6 +36228,7 @@ struct cmsghdr {
 
                         # update return #
                         self.retList[item] = str(val)
+                        self.prevReturn = str(val)
 
                         argStr += '%s: %s(%s), ' % (item, hex(val), val)
 
@@ -36321,6 +36349,7 @@ struct cmsghdr {
 
                     # update return #
                     self.retList[addr] = str(ret)
+                    self.prevReturn = str(ret)
 
                     if ret == -1:
                         SysMgr.printErr(\
@@ -36340,6 +36369,12 @@ struct cmsghdr {
 
                     self.loadSymbols()
                     self.updateBpList()
+
+                elif cmd == 'save':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    self.retList[cmdset[1]] = self.prevReturn
 
                 elif cmd == 'load':
                     if len(cmdset) == 1:
@@ -36400,6 +36435,7 @@ struct cmsghdr {
 
                     # update return #
                     self.retList[val] = str(ret)
+                    self.prevReturn = str(ret)
 
                     SysMgr.printPipe(\
                         ' = %s(%s)' % (hex(ret), ret), \
@@ -36466,6 +36502,7 @@ struct cmsghdr {
 
                         # update return #
                         self.retList[val] = str(ret)
+                        self.prevReturn = str(ret)
 
                         SysMgr.printPipe(\
                             ' = %s(%s)' % \
@@ -36568,7 +36605,7 @@ struct cmsghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to handle %s command" % cmd, True)
+                    "Fail to handle '%s' command" % cmd, True)
                 sys.exit(0)
 
             # re-register command #
@@ -37150,7 +37187,7 @@ struct cmsghdr {
                 except:
                     item = item.strip('"')
 
-                    addr = self.calloc(string=item)
+                    addr = self.calloc(string=item, temp=True)
                     if not addr:
                         sys.exit(0)
 
@@ -37163,7 +37200,7 @@ struct cmsghdr {
 
 
 
-    def calloc(self, size=None, string=None):
+    def calloc(self, size=None, string=None, temp=False):
         # get function address #
         symbol = 'calloc'
         func = self.getAddrBySymbol(symbol, one=True)
@@ -37180,17 +37217,23 @@ struct cmsghdr {
                         (self.comm, self.pid))
                 return None
 
-        # set args #
-        args = [1, size]
+        # use a temporary page #
+        if temp:
+            addr = self.getTempPage()
+        # use a new memory segment #
+        else:
+            # set args #
+            args = [1, size]
 
-        # call calloc $
-        addr = self.remoteUsercall(func, args)
-        if addr < 0:
-            SysMgr.printErr(\
-                "Fail to alloc %s size of memory for %s(%s)" % \
-                    (UtilMgr.convNum(size), self.comm, self.pid))
-            return None
+            # call calloc $
+            addr = self.remoteUsercall(func, args)
+            if addr < 0:
+                SysMgr.printErr(\
+                    "Fail to alloc %s size of memory for %s(%s)" % \
+                        (UtilMgr.convNum(size), self.comm, self.pid))
+                return None
 
+        # copy string to memory #
         if string:
             ret = self.writeMem(addr, string.encode())
             if ret == -1:
@@ -37206,6 +37249,20 @@ struct cmsghdr {
         if not self.tempPage:
             self.tempPage = self.mmap()
         return self.tempPage
+
+
+
+    def dlclose(self, addr):
+        # get function address #
+        func = '__libc_dlclose'
+
+        # set args #
+        args = [addr]
+
+        # call dlclose #
+        ret = self.remoteUsercall(func, args)
+
+        return ret
 
 
 
@@ -37242,7 +37299,7 @@ struct cmsghdr {
         # set args #
         args = [fname, flags]
 
-        # call dlopen $
+        # call dlopen #
         ret = self.remoteUsercall(func, args)
         if ret:
             self.loadSymbols()
@@ -40330,6 +40387,7 @@ struct cmsghdr {
         self.syscallTimeStat = dict()
         self.breakcallTimeStat = dict()
         self.retList = dict()
+        self.prevReturn = -1
 
 
 
@@ -42749,7 +42807,9 @@ class ElfAnalyzer(object):
     def getFilterFlags(symbol):
         inc = start = end = False
 
-        if symbol[0] == '*' and \
+        if not symbol:
+            inc = start = end = True
+        elif symbol[0] == '*' and \
             symbol[-1] == '*':
             symbol = symbol.strip('*')
             inc = True
@@ -44344,7 +44404,7 @@ class ThreadAnalyzer(object):
     def checkFilter(comm, pid):
         found = False
 
-        for idx in SysMgr.filterGroup:
+        for idx in list(SysMgr.filterGroup):
             # check exclusion condition #
             if idx.startswith('^'):
                 cond = idx[1:]
@@ -46241,6 +46301,10 @@ class ThreadAnalyzer(object):
             # set range index #
             imin = 0
             imax = -1
+
+        # change maximum value for 1-length array #
+        if imax == -1 and len(timeline) == 1:
+            imax = 1
 
         # set graph argument list #
         graphStats = {
@@ -58597,7 +58661,7 @@ class ThreadAnalyzer(object):
                 tmpstr = "%s%s:%5s" % (tmpstr, prop, 0)
             '''
 
-            mtype = '(%s)[%s]' % (item['count'], key)
+            mtype = 'MEM(%s/%s)' % (key, item['count'])
             memBuf.append(\
                 [key, "{0:>39} | {1:1}|\n".format(mtype, tmpstr)])
 
@@ -59195,7 +59259,7 @@ class ThreadAnalyzer(object):
         def isExceptTask(idx):
             exceptFlag = False
 
-            for item in SysMgr.filterGroup:
+            for item in list(SysMgr.filterGroup):
                 exceptFlag = False
                 # group mode #
                 if SysMgr.groupProcEnable:
@@ -59339,11 +59403,14 @@ class ThreadAnalyzer(object):
 
                 for call in stack.split('\n'):
                     try:
+                        if not call:
+                            fullstack = 'N/A'
+
                         astack = call.split()[1]
 
                         if astack.startswith('0xffffffff'):
                             if fullstack == line == '':
-                                line = 'None'
+                                line = 'N/A'
                             else:
                                 line = line[:line.rfind('<-')]
                             break
@@ -59365,7 +59432,8 @@ class ThreadAnalyzer(object):
                     return -1
 
                 SysMgr.addPrint(\
-                    "{0:>38}% | {1:1}\n".format(per, fullstack), newLine)
+                    "{0:>39} | {1:1}\n".format(\
+                        'KSTACK(%s%%)' % per, fullstack), newLine)
 
             return newLine
 
