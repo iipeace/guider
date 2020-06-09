@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200608"
+__revision__ = "200609"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -59,8 +59,8 @@ class ConfigMgr(object):
  | |  __ _   _ _  __| | ___ _ __
  | | |_ | | | | |/ _` |/ _ \ '__|
  | |__| | |_| | | (_| |  __/ |
-  \_____|\__,_|_|\__,_|\___|_|  ver.%s_%s
-''' % (__version__, __revision__)
+  \_____|\__,_|_|\__,_|\___|_|  ver.%s_%s on python_%s.%s
+''' % (__version__, __revision__, sys.version_info[0], sys.version_info[1])
 
     # Define color #
     if (sys.platform.startswith('linux') or \
@@ -15602,7 +15602,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|print
 
     - Handle write function calls as a variable print point
-        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1
+        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1\\|save:VAR2:123:
 
     - Print value of PATH environment variable
         # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
@@ -20404,6 +20404,7 @@ Copyright:
             elif onlyFile:
                 return
 
+        # print logo #
         if big:
             if pager:
                 SysMgr.printPipe(ConfigMgr.logo)
@@ -29185,10 +29186,10 @@ Copyright:
         comm = SysMgr.getComm(pid)
 
         try:
+            upolicy = policy.upper()
+
             if not SysMgr.loadLibcObj():
                 raise Exception()
-
-            upolicy = policy.upper()
 
             argPolicy = ConfigMgr.SCHED_POLICY.index(upolicy)
             if not SysMgr.guiderObj:
@@ -36062,7 +36063,7 @@ struct cmsghdr {
             elif cmd == 'load':
                 cmdformat = "LOAD:PATH"
             elif cmd == 'save':
-                cmdformat = "SAVE:NAME:VAL"
+                cmdformat = "SAVE:NAME:VAL:TYPE"
             elif cmd == 'start':
                 cmdformat = "START"
             elif cmd == 'stop':
@@ -36395,6 +36396,18 @@ struct cmsghdr {
                         data = self.prevReturn
                     else:
                         data = cmdlist[1]
+                        if not data:
+                            data = self.prevReturn
+
+                        # convert type #
+                        if len(cmdlist) == 2:
+                            data = long(data)
+                        elif len(cmdlist) == 3:
+                            dtype = cmdlist[2]
+                            if dtype == 'float' or dtype == 'double':
+                                data = float(data)
+                            elif dtype == 'string':
+                                data = str(data)
 
                     self.retList[var] = data
 
@@ -36417,10 +36430,12 @@ struct cmsghdr {
                     if ret is None:
                         ret = 'FAIL'
                     else:
+                        # update return #
+                        self.prevReturn = str(ret)
+
                         ret = hex(ret)
 
                     output = "\n[%s] %s(%s)" % (cmdstr, binary, ret)
-
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     # inject all breakpoints again #
@@ -36440,7 +36455,7 @@ struct cmsghdr {
                         # convert args for previous return #
                         argList = self.convRetArgs(argList)
 
-                        argStr = ', '.join(argList)
+                        argStr = ', '.join(list(map(str, argList)))
                         argStr = '(%s)' % argStr
                     else:
                         argList = []
@@ -36482,7 +36497,7 @@ struct cmsghdr {
                         # convert args for previous return #
                         argList = self.convRetArgs(argList)
 
-                        argStr = ', '.join(argList)
+                        argStr = ', '.join(list(map(str, argList)))
                         argStr = '(%s)' % argStr
                     else:
                         argList = []
