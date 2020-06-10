@@ -1,4 +1,8 @@
-import sys
-from guider import guider
+import os
+from .guider import main
 
-guider.main(sys.argv)
+# set main environment #
+os.environ["ISMAIN"] = "True"
+
+main(args=None)
+

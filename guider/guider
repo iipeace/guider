@@ -1,48 +1,25 @@
-# Launcher of guider bytecode
+# Launcher for Guider
 #
-# Copyright (c) 2016-2018 Peace Lee <iipeace5@gmail.com>
+# Copyright (c) 2016-2020 Peace Lee <iipeace5@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
 # Software Foundation; either version 2 of the License, or (at your option)
 # any later version.
 
-PYTHON_EXEC=$(which python)
-
-if [ ! $PYTHON_EXEC ]
+# check python #
+PYTHONBIN=$(which python)
+if [ ! $PYTHONBIN ]
     then
         echo "[Error] Fail to find python"
         exit
 fi
 
+# export CMDLINE for Guider #
 CMDLINE=$0
 export CMDLINE
 
-PREFIX_DIR=
-OBJFILE=guider.pyc
-LIB_DIR=/usr/lib
-SHARE_DIR=/usr/share/guider
-LAUNCHER_DIR=$(dirname "$0")
-LIBPATH=$LAUNCHER_DIR:$LIB_DIR:$SHARE_DIR:$LD_LIBRARY_PATH
-ERRMSG="try to rebuild or to set proper PYC_DIR variable for guider.pyc"
+# launch Guider #
+$PYTHONBIN -m guider $*
 
-if [ $PYC_DIR ]
-    then
-        if [ -f $PYC_DIR/$OBJFILE ]
-            then
-                LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $PYC_DIR/$OBJFILE $*
-            else
-                echo "[Error] Fail to launch $PYC_DIR/$OBJFILE," $ERRMSG
-        fi
-elif [ -f $LAUNCHER_DIR/$OBJFILE ]
-    then
-        LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $LAUNCHER_DIR/$OBJFILE $*
-elif [ -f $SHARE_DIR/$OBJFILE ]
-    then
-        LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $SHARE_DIR/$OBJFILE $*
-elif [ -f $PREFIX_DIR/share/guider/$OBJFILE ]
-    then
-        LD_LIBRARY_PATH=$LIBPATH $PYTHON_EXEC $PREFIX_DIR/share/guider/$OBJFILE $*
-else
-    echo "[Error] Fail to find $OBJFILE," $ERRMSG 
-fi
+exit 0
