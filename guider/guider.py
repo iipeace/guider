@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200609"
+__revision__ = "200612"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17474,16 +17474,16 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Read contents of all files from the current mount position
+    - Read all files from current mount point
         # {0:1} {1:1}
 
-    - Read contents of all files from current directory recusively
+    - Read all files from current directory recursively
         # {0:1} {1:1} -g .
 
-    - Read contents of all device nodes mounted
+    - Read all device nodes mounted
         # {0:1} {1:1} -a
 
-    - Write contents to a specific file
+    - Write dummy data to a specific file infinitely
         # {0:1} {1:1} -g write:TEST
                     '''.format(cmd, mode)
 
@@ -25219,8 +25219,8 @@ Copyright:
         signal.signal(signal.SIGWINCH, SysMgr.winchHandler)
         signal.signal(signal.SIGCONT, SysMgr.fgHandler)
         signal.signal(signal.SIGTSTP, SysMgr.bgHandler)
-        #signal.signal(signal.SIGTTIN, SysMgr.bgHandler)
-        #signal.signal(signal.SIGTTOU, SysMgr.bgHandler)
+        signal.signal(signal.SIGTTIN, signal.SIG_IGN)
+        signal.signal(signal.SIGTTOU, signal.SIG_IGN)
 
 
 
@@ -57026,7 +57026,7 @@ class ThreadAnalyzer(object):
         except:
             try:
                 newPath = "%s/%s" % (path, name)
-                newFd = self.procData[tid][fd] = open(newPath, 'r')
+                newFd = self.procData[tid][fd] = open(newPath, 'rb')
                 buf = newFd.readlines()
 
                 # fd resource is about to run out #
@@ -57037,6 +57037,7 @@ class ThreadAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(newPath)
 
+        buf = list(map(lambda x: x.decode(), buf))
         return buf
 
 
@@ -57102,8 +57103,8 @@ class ThreadAnalyzer(object):
 
     def saveProcData(self, path, tid, pid=None):
         def getStatBuf(self, path, tid):
-            self.procData[tid]['statFd'] = open(path, 'r')
-            statBuf = self.procData[tid]['statFd'].readlines()[0]
+            self.procData[tid]['statFd'] = open(path, 'rb')
+            statBuf = self.procData[tid]['statFd'].readlines()[0].decode()
 
             if tid in self.prevProcData:
                 self.prevProcData[tid]['alive'] = True
@@ -57135,7 +57136,7 @@ class ThreadAnalyzer(object):
                 self.prevProcData[tid]['statFd']:
                 self.prevProcData[tid]['statFd'].seek(0)
                 self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-                statBuf = self.procData[tid]['statFd'].readlines()[0]
+                statBuf = self.procData[tid]['statFd'].readlines()[0].decode()
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = getStatBuf(self, statPath, tid)
@@ -58203,7 +58204,7 @@ class ThreadAnalyzer(object):
                     if SysMgr.checkCutCond():
                         return
 
-                    totalGpuUsage = value['CUR_LOAD']
+                    totalGpuUsage = long(value['CUR_LOAD'])
                     coreStat = "{0:<23}({1:>5})|".format(\
                         idx[:23], '%s %%' % totalGpuUsage)
 
