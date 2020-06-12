@@ -57123,12 +57123,11 @@ class ThreadAnalyzer(object):
                     pass
 
         stat = 'statm'
-        ppid = self.procData[tid]['stat'][self.ppidIdx]
         mainID = self.procData[tid]['mainID']
 
         # kernel thread #
-        if ppid == '2':
-            self.procData[tid][stat] = self.procData['2'][stat]
+        if self.isKernelThread(tid):
+            pass
         # sibling thread #
         elif mainID in self.procData and \
             stat in self.procData[mainID] and  \
@@ -57214,13 +57213,13 @@ class ThreadAnalyzer(object):
             statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
+            # check task status #
+            tstat = self.procData[tid]['stat'][self.statIdx]
+            if tstat != 'S' and tstat != 'R' and tstat != 'I':
+                self.abnormalTaskList[tid] = tstat
+
         # set comm #
         comm = self.procData[tid]['stat'][self.commIdx][1:-1]
-
-        # check task status #
-        tstat = self.procData[tid]['stat'][self.statIdx]
-        if tstat != 'S' and tstat != 'R' and tstat != 'I':
-            self.abnormalTaskList[tid] = tstat
 
         # change sched priority #
         for item in SysMgr.schedFilter:
@@ -57284,12 +57283,12 @@ class ThreadAnalyzer(object):
         # save io data #
         if SysMgr.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
+            self.procData[tid]['io'] = {}
             for line in ioBuf:
                 line = line.split()
-                if line[0] == 'read_bytes:' or line[0] == 'write_bytes:':
-                    if self.procData[tid]['io'] is None:
-                        self.procData[tid]['io'] = {}
-                    self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+                if line[0] != 'read_bytes:' and line[0] != 'write_bytes:':
+                    continue
+                self.procData[tid]['io'][line[0][:-1]] = long(line[1])
 
         # save perf fds #
         if SysMgr.perfGroupEnable and \
@@ -59488,9 +59487,6 @@ class ThreadAnalyzer(object):
 
                 for call in stack.split('\n'):
                     try:
-                        if not call:
-                            fullstack = 'N/A'
-
                         astack = call.split()[1]
 
                         if astack.startswith('0xffffffff'):
@@ -59512,13 +59508,13 @@ class ThreadAnalyzer(object):
                         pass
 
                 fullstack = '%s%s' % (fullstack, line)
+                fullstack = fullstack.rstrip(' <- ')
 
-                if SysMgr.checkCutCond(newLine):
-                    return -1
-
-                SysMgr.addPrint(\
+                ret = SysMgr.addPrint(\
                     "{0:>39} | {1:1}\n".format(\
-                        'KSTACK(%s%%)' % per, fullstack), newLine)
+                        'KSTACK(%3s%%)' % per, fullstack), newLine)
+                if not ret:
+                    return -1
 
             return newLine
 
@@ -59548,7 +59544,7 @@ class ThreadAnalyzer(object):
             jsonData = SysMgr.jsonData[jtype]
 
         # print menu #
-        SysMgr.addPrint((\
+        ret = SysMgr.addPrint((\
             "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
             "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
             "{9:>4}({10:>4}/{11:^3}/{12:^3}/{13:^3})|"
@@ -59560,6 +59556,8 @@ class ThreadAnalyzer(object):
                     "Blk", "RD", "WR", "NrFlt",\
                     sidType, pgrpType, "FD", "LifeTime", etc, \
                     oneLine, twoLine, cl=cl, pd=pd), newline = 3)
+        if not ret:
+            return
 
         # set sort value #
         sortedProcData = self.getSortedProcData()
@@ -59673,24 +59671,19 @@ class ThreadAnalyzer(object):
                 shr = '-'
 
             if not SysMgr.processEnable:
-                # yield #
                 try:
                     value['yield'] = \
                         value['status']['voluntary_ctxt_switches']
-                except:
-                    value['yield'] = '-'
-
-                # preempted #
-                try:
                     value['preempted'] = \
                         value['status']['nonvoluntary_ctxt_switches']
                 except:
+                    value['yield'] = '-'
                     value['preempted'] = '-'
 
             # user #
             try:
                 userData = SysMgr.sysInstance.userData
-                uid  = value['status']['Uid'].split()[0]
+                uid = value['status']['Uid'].split()[0]
                 value['user'] = userData[uid]['name']
             except:
                 value['user'] = '-'
@@ -59753,42 +59746,25 @@ class ThreadAnalyzer(object):
                 dtime = long(value['cttime'])
 
             # set last field info #
-            if SysMgr.wchanEnable:
-                try:
+            try:
+                if SysMgr.wchanEnable:
                     etc = value['wchan']
-                except:
-                    etc = '-'
-            elif SysMgr.affinityEnable:
-                try:
+                elif SysMgr.affinityEnable:
                     etc = SysMgr.getAffinity(long(idx))
-                except:
-                    etc = '-'
-            elif SysMgr.oomEnable:
-                try:
+                elif SysMgr.oomEnable:
                     etc = str(value['oomScore'])
-                except:
-                    etc = '-'
-            elif SysMgr.sigHandlerEnable:
-                try:
+                elif SysMgr.sigHandlerEnable:
                     etc = value['status']['SigCgt'].lstrip('0')
-                except:
-                    etc = '-'
-            elif not SysMgr.processEnable:
-                # process name #
-                try:
+                elif not SysMgr.processEnable:
                     pgid = procData[idx]['mainID']
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
-                except:
-                    etc = '-'
-            else:
-                # parent name #
-                try:
+                else:
                     pgid = procData[idx]['stat'][self.ppidIdx]
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
-                except:
-                    etc = '-'
+            except:
+                etc = '-'
 
             try:
                 mems = rss = long(stat[self.rssIdx])
@@ -59885,7 +59861,7 @@ class ThreadAnalyzer(object):
                 btime = value['btime']
 
             # print stats of a process #
-            SysMgr.addPrint(\
+            ret = SysMgr.addPrint(\
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
                 "{5:>4}({6:>3}/{7:>3}/{8:>3})|"
                 "{9:>4}({10:>4}/{11:>3}/{12:>3}/{13:>3})|"
@@ -59897,6 +59873,8 @@ class ThreadAnalyzer(object):
                 btime, readSize, writeSize, value['majflt'], \
                 yld, prtd, value['fdsize'], lifeTime[:9], etc[:21], \
                 cl=cl, pd=pd))
+            if not ret:
+                return
 
             # sum stats #
             try:
@@ -59951,8 +59929,10 @@ class ThreadAnalyzer(object):
                         SysMgr.collectProcPerfData(value['perfFds'])
                     perfString = SysMgr.getPerfString(perfData)
                     if len(perfString) > 0:
-                        SysMgr.addPrint(\
+                        ret = SysMgr.addPrint(\
                             "{0:>40}| {1:1}\n".format('PERF', perfString))
+                        if not ret:
+                            return
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -59964,7 +59944,9 @@ class ThreadAnalyzer(object):
                 mprop = memData[0]
                 mval = memData[1]
 
-                SysMgr.addPrint(mval)
+                ret = SysMgr.addPrint(mval)
+                if not ret:
+                    return
 
                 if not SysMgr.wssEnable:
                     continue
@@ -59995,8 +59977,10 @@ class ThreadAnalyzer(object):
                 # count newlines #
                 newline = tstr.count('\n')+1
 
-                SysMgr.addPrint(\
+                ret = SysMgr.addPrint(\
                     "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
+                if not ret:
+                    return
 
             # print cmdline #
             if SysMgr.cmdlineEnable and \
