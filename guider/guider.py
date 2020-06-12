@@ -17101,11 +17101,11 @@ Options:
                     helpStr +=  '''
 Examples:
     - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
-        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -k 36
+        # {0:1} {1:1} -g a.out -k 36
 
     - Create an output file for memory leakage hints of a specific process when it's RSS reached the specific size
-        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -c 20m -k 35,36
-        # {0:1} {1:1} -g a.out -I ~/work/test/leaks.out -c 15m,20m -k 35,36
+        # {0:1} {1:1} -g a.out -c 20m
+        # {0:1} {1:1} -g a.out -c 15m,20m
 
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -I leaks.out -g a.out
@@ -23224,6 +23224,7 @@ Copyright:
             SysMgr.isUtraceMode() or \
             SysMgr.isBtraceMode() or \
             SysMgr.isRemoteMode() or \
+            SysMgr.isLeaktraceMode() or \
             SysMgr.isSigtraceMode():
             return True
         else:
@@ -26107,7 +26108,7 @@ Copyright:
 
         for pid in pids:
             SysMgr.printPipe(\
-                '\n[ %s(%s) ]' % (SysMgr.getComm(pid), pid))
+                '\n[ %s(%s) ]\n\n' % (SysMgr.getComm(pid), pid))
 
             envs = SysMgr.getEnv(pid)
             if not envs:
@@ -27244,16 +27245,18 @@ Copyright:
 
     @staticmethod
     def doLeaktrace():
-        def waitAndKill(pid, comm, cond, sig, purpose):
+        def waitAndKill(tobj, pid, comm, cond, sig, purpose):
             # define RSS index #
-            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+            rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
+            vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
             condUnit = UtilMgr.convSize2Unit(cond)
+            path = '%s/%s' % (SysMgr.procPath, pid)
 
             # wait for RSS #
             previous = None
             while 1:
-                mlist = SysMgr.getMemStat(pid)
-                if not mlist:
+                ret = tobj.saveProcData(path, pid)
+                if not ret:
                     if not SysMgr.isAlive(pid):
                         SysMgr.printErr(\
                             "%s(%s) is terminated" % (comm, pid))
@@ -27262,15 +27265,17 @@ Copyright:
                             "Fail to get RSS of %s(%s)" % (comm, pid))
                     sys.exit(0)
 
-                current = long(mlist[rssIdx]) << 12
-                currentUnit = UtilMgr.convSize2Unit(current)
-                if previous != currentUnit:
+                procData = tobj.procData[pid]['stat']
+                vss = UtilMgr.convSize2Unit(long(procData[vssIdx]))
+                rss = long(procData[rssIdx]) << 12
+                rssUnit = UtilMgr.convSize2Unit(rss)
+                if previous != rssUnit:
                     SysMgr.printInfo(\
-                        '%s(%s)\'s RSS for %s: current(%s) / dest(%s)' % \
-                            (comm, pid, purpose, currentUnit, condUnit))
-                previous = currentUnit
+                        '%s(%s)\'s VSS(%s), RSS(%s/%s) for %s' % \
+                            (comm, pid, vss, rssUnit, condUnit, purpose))
+                previous = rssUnit
 
-                if cond <= current:
+                if cond <= rss:
                     break
                 time.sleep(1)
 
@@ -27286,10 +27291,6 @@ Copyright:
                         (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
                 sys.exit(0)
 
-        if not SysMgr.inputParam:
-            SysMgr.printErr("No PATH with -I")
-            sys.exit(0)
-
         targetList = SysMgr.filterGroup
         if len(targetList) == 0:
             SysMgr.printErr(\
@@ -27302,7 +27303,6 @@ Copyright:
 
         # convert comm to pid #
         pids = SysMgr.convertPidList(targetList, exceptMe=True)
-
         if len(pids) == 0:
             SysMgr.printErr("No %s process" % \
                 ', '.join(targetList))
@@ -27317,6 +27317,35 @@ Copyright:
             pid = pids[0]
             comm = SysMgr.getComm(pid)
 
+        # get environment variables of target #
+        envList = SysMgr.getEnv(pid, retdict=True)
+        if 'PWD' in envList:
+            pwd = envList['PWD']
+        else:
+            pwd = ''
+
+        # set input file path #
+        if SysMgr.inputParam:
+            fname = SysMgr.inputParam
+        elif 'LEAKTRACER_ONSIG_REPORTFILENAME' in envList:
+            fname = envList['LEAKTRACER_ONSIG_REPORTFILENAME']
+        elif 'LEAKTRACER_AUTO_REPORTFILENAME' in envList:
+            fname = envList['LEAKTRACER_AUTO_REPORTFILENAME']
+        else:
+            SysMgr.printErr("No PATH with -I")
+            sys.exit(0)
+
+        # set signal #
+        startSig = stopSig = None
+        if 'LEAKTRACER_ONSIG_STARTALLTHREAD' in envList:
+            startSig = long(envList['LEAKTRACER_ONSIG_STARTALLTHREAD'])
+        if 'LEAKTRACER_ONSIG_REPORT' in envList:
+            stopSig = long(envList['LEAKTRACER_ONSIG_REPORT'])
+
+        # make full path #
+        if not fname.startswith('/'):
+            fname = os.path.join(pwd, fname)
+
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
 
@@ -27326,14 +27355,8 @@ Copyright:
             SysMgr.printStat(\
                 '%s is preloaded to %s(%s)' % (ret, comm, pid))
         if not ret:
-            envList = SysMgr.getEnv(pid)
-            envDict = {}
-            for item in envList:
-                envset = item.split('=', 1)
-                if len(envset) > 1:
-                    envDict[envset[0]] = envset[1]
-            if not 'LD_PRELOAD' in envDict or \
-                not 'libleaktracer' in envDict['LD_PRELOAD']:
+            if not 'LD_PRELOAD' in envList or \
+                not 'libleaktracer' in envList['LD_PRELOAD']:
                 SysMgr.printErr(\
                     'Fail to find libleaktracer.so on memory map '
                     'because the library is not preloaded')
@@ -27365,25 +27388,24 @@ Copyright:
                         "wrong signal %s for stop" % sigList[1][0])
                     sys.exit(0)
             else:
-                startSig = None
                 stopSig = SysMgr.getSigNum(sigList[0][0])
                 if not stopSig:
-                    SysMgr.printErr("wrong signal %s for stop" % sigList[0][0])
+                    SysMgr.printErr(\
+                        "wrong signal %s for stop" % sigList[0][0])
                     sys.exit(0)
-        else:
-            startSig = stopSig = None
 
         # START #
+        cmd = SysMgr.customCmd
         startSize = endSize =  0
-        if SysMgr.customCmd:
-            if len(SysMgr.customCmd) >= 2:
-                startSize = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
-                endSize = UtilMgr.convUnit2Size(SysMgr.customCmd[1])
+        if cmd:
+            if len(cmd) >= 2:
+                startSize = UtilMgr.convUnit2Size(cmd[0])
+                endSize = UtilMgr.convUnit2Size(cmd[1])
             else:
-                endSize = UtilMgr.convUnit2Size(SysMgr.customCmd[0])
+                endSize = UtilMgr.convUnit2Size(cmd[0])
 
             if startSize > 0:
-                waitAndKill(pid, comm, startSize, startSig, 'start')
+                waitAndKill(tobj, pid, comm, startSize, startSig, 'start')
         elif startSig:
             try:
                 os.kill(long(pid), startSig)
@@ -27398,7 +27420,7 @@ Copyright:
 
         # STOP #
         if endSize > 0:
-            waitAndKill(pid, comm, endSize, stopSig, 'stop')
+            waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
         elif stopSig:
             try:
                 os.kill(long(pid), stopSig)
@@ -27411,24 +27433,24 @@ Copyright:
                         ConfigMgr.SIG_LIST[stopSig], reason=True)
                 sys.exit(0)
 
-        SysMgr.printStat('wait for %s' % SysMgr.inputParam)
+        SysMgr.printStat('wait for %s' % fname)
 
         # wait for the output file is closed #
         while 1:
             tobj.saveFileStat([[pid], []])
-            if not SysMgr.inputParam in tobj.fileData:
+            if not fname in tobj.fileData:
                 break
             time.sleep(1)
             tobj.reinitStats()
 
         # wait for the output file is written #
-        while not os.path.exists(SysMgr.inputParam) or \
-            os.stat(SysMgr.inputParam).st_size == 0:
+        while not os.path.exists(fname) or \
+            os.stat(fname).st_size == 0:
             time.sleep(1)
 
         # create leaktracer parser #
         try:
-            lt = LeakAnalyzer(SysMgr.inputParam, pid)
+            lt = LeakAnalyzer(fname, pid)
             lt.printLeakage()
         except SystemExit:
             sys.exit(0)
@@ -29161,17 +29183,32 @@ Copyright:
 
 
     @staticmethod
-    def getEnv(pid):
+    def getEnv(pid, retdict=False):
         path = "%s/%s/environ" % (SysMgr.procPath, pid)
 
         # open the environ file #
         try:
             with open(path, 'r') as fd:
-                return fd.readlines()[0].split('\x00')[:-1]
+                elist = fd.readlines()[0].split('\x00')[:-1]
         except:
             SysMgr.printErr(\
                 "Fail to get environment variables of process %s" % pid, True)
-            return
+            elist = []
+
+        # convert list to dictionary #
+        if retdict:
+            dlist = {}
+            for item in elist:
+                var = item.split('=', 1)
+                name = var[0]
+                if len(var) == 1:
+                    val = ''
+                else:
+                    val = var[1]
+                dlist[name] = val
+            return dlist
+        else:
+            return elist
 
 
 
