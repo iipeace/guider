@@ -57101,8 +57101,8 @@ class ThreadAnalyzer(object):
         if not tid in self.procData:
             return
 
-        statusBuf = self.saveTaskData(path, tid, 'status')
-
+        stat = 'status'
+        statusBuf = self.saveTaskData(path, tid, stat)
         if not self.procData[tid]['status']:
             self.procData[tid]['status'] = {}
 
@@ -57123,12 +57123,19 @@ class ThreadAnalyzer(object):
                     pass
 
         stat = 'statm'
+        ppid = self.procData[tid]['stat'][self.ppidIdx]
         mainID = self.procData[tid]['mainID']
-        if mainID in self.procData and \
+
+        # kernel thread #
+        if ppid == '2':
+            self.procData[tid][stat] = self.procData['2'][stat]
+        # sibling thread #
+        elif mainID in self.procData and \
             stat in self.procData[mainID] and  \
             self.procData[mainID][stat]:
             self.procData[tid][stat] = \
                 self.procData[mainID][stat]
+        # main thread #
         else:
             statmBuf = self.saveTaskData(path, tid, stat)
             if statmBuf:
