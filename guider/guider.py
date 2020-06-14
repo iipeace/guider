@@ -573,13 +573,25 @@ class ConfigMgr(object):
             ("clockid_t", "which_clock"),
             ("struct timex *", "tx"),
         )),
+        "clock_adjtime32": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct old_timex32 *", "tx"),
+        )),
         "clock_getres": ("long", (
             ("clockid_t", "which_clock"),
             ("struct timespec *", "tp"),
         )),
+        "clock_getres_time32": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct old_timespec32 *", "tp"),
+        )),
         "clock_gettime": ("long", (
             ("clockid_t", "which_clock"),
             ("struct timespec *", "tp"),
+        )),
+        "clock_gettime32": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct old_timespec32 *", "tp"),
         )),
         "clock_nanosleep": ("long", (
             ("clockid_t", "which_clock"),
@@ -587,9 +599,19 @@ class ConfigMgr(object):
             ("const struct timespec *", "rqtp"),
             ("struct timespec *", "rmtp"),
         )),
+        "clock_nanosleep_time32": ("long", (
+            ("clockid_t", "which_clock"),
+            ("int", "flags"),
+            ("struct old_timespec32 *", "rqtp"),
+            ("struct old_timespec32 *", "rmtp"),
+        )),
         "clock_settime": ("long", (
             ("clockid_t", "which_clock"),
             ("const struct timespec *", "tp"),
+        )),
+        "clock_settime32": ("long", (
+            ("clockid_t", "which_clock"),
+            ("struct old_timespec32 *", "tp"),
         )),
         "clone": ("long", (
             ("unsigned long", "flags"),
@@ -693,6 +715,12 @@ class ConfigMgr(object):
             ("int", "dfd"),
             ("const char *", "filename"),
             ("int", "mode"),
+        )),
+        "faccessat2": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("int", "mode"),
+            ("int", "flags"),
         )),
         "fadvise64": ("long", (
             ("int", "fd"),
@@ -861,10 +889,23 @@ class ConfigMgr(object):
             ("u32 *", "uaddr2"),
             ("u32", "val3"),
         )),
+        "futex_time32": ("long", (
+            ("u32 *", "uaddr"),
+            ("int", "op"),
+            ("u32", "val"),
+            ("struct old_timespec32 *", "utime"),
+            ("u32 *", "uaddr2"),
+            ("u32", "val3"),
+        )),
         "futimesat": ("long", (
             ("int", "dfd"),
             ("const char *", "filename"),
-            ("struct timeval *", "utimes"),
+            ("struct old_timeval *", "utimes"),
+        )),
+        "futimesat_time32": ("long", (
+            ("unsigned int", "dfd"),
+            ("const char *", "filename"),
+            ("struct old_timeval32 *", "t"),
         )),
         "get_mempolicy": ("long", (
             ("int *", "policy"),
@@ -1043,12 +1084,27 @@ class ConfigMgr(object):
             ("struct io_event *", "events"),
             ("struct timespec *", "timeout"),
         )),
+        "io_getevents_time32": ("long", (
+            ("__u32", "ctx_id"),
+            ("__s32", "min_nr"),
+            ("__s32", "nr"),
+            ("struct io_event *", "events"),
+            ("struct old_timespec32 *", "timeout"),
+        )),
         "io_pgetevents": ("long", (
             ("aio_context_t", "ctx_id"),
             ("long", "min_nr"),
             ("long", "nr"),
             ("struct io_event *", "events"),
-            ("struct _kernel_timespec *", "timeout"),
+            ("struct timespec *", "timeout"),
+            ("const struct __aio_sigset *", "sig"),
+        )),
+        "io_pgetevents_time32": ("long", (
+            ("aio_context_t", "ctx_id"),
+            ("long", "min_nr"),
+            ("long", "nr"),
+            ("struct io_event *", "events"),
+            ("struct old_timespec32 *", "timeout"),
             ("const struct __aio_sigset *", "sig"),
         )),
         "io_setup": ("long", (
@@ -1354,12 +1410,26 @@ class ConfigMgr(object):
             ("unsigned int *", "msg_prio"),
             ("const struct timespec *", "abs_timeout"),
         )),
+        "mq_timedreceive_time32": ("long", (
+            ("mqd_t", "mqdes"),
+            ("char *", "u_msg_ptr"),
+            ("unsigned int", "msg_len"),
+            ("unsigned int *", "u_msg_prio"),
+            ("const struct old_timespec32 *", "u_abs_timeout"),
+        )),
         "mq_timedsend": ("long", (
             ("mqd_t", "mqdes"),
             ("const char *", "msg_ptr"),
             ("size_t", "msg_len"),
             ("unsigned int", "msg_prio"),
             ("const struct timespec *", "abs_timeout"),
+        )),
+        "mq_timedsend_time32": ("long", (
+            ("mqd_t", "mqdes"),
+            ("const char *", "u_msg_ptr"),
+            ("unsigned int", "msg_len"),
+            ("unsigned int", "msg_prio"),
+            ("const struct old_timespec32 *", "u_abs_timeout"),
         )),
         "mq_unlink": ("long", (
             ("const char *", "name"),
@@ -1419,6 +1489,10 @@ class ConfigMgr(object):
             ("struct timespec *", "rqtp"),
             ("struct timespec *", "rmtp"),
         )),
+        "nanosleep_time32": ("long", (
+            ("struct old_timespec32 *", "rqtp"),
+            ("struct old_timespec32 *", "rmtp"),
+        )),
         "newfstat": ("long", (
             ("unsigned int", "fd"),
             ("struct stat *", "statbuf"),
@@ -1452,6 +1526,11 @@ class ConfigMgr(object):
         "old_mmap": ("long", (
             ("struct mmap_arg_struct *", "arg"),
         )),
+        "old_msgctl": ("long", (
+            ("int", "msqid"),
+            ("int", "cmd"),
+            ("struct msqid_ds *", "buf"),
+        )),
         "old_readdir": ("long", (
             ("unsigned int", "fd"),
             ("struct old_linux_dirent *", "dirp"),
@@ -1459,6 +1538,17 @@ class ConfigMgr(object):
         )),
         "old_select": ("long", (
             ("struct sel_arg_struct *", "arg"),
+        )),
+        "old_semctl": ("long", (
+            ("int", "semid"),
+            ("int", "semnum"),
+            ("int", "cmd"),
+            ("unsigned long", "arg"),
+        )),
+        "old_shmctl": ("long", (
+            ("int", "shmid"),
+            ("int", "cmd"),
+            ("struct shmid_ds *", "buf"),
         )),
         "oldumount": ("long", (
             ("char *", "name"),
@@ -1486,6 +1576,12 @@ class ConfigMgr(object):
             ("const char *", "filename"),
             ("int", "flags"),
             ("umode_t", "mode"),
+        )),
+        "openat2": ("long", (
+            ("int", "dfd"),
+            ("const char *", "filename"),
+            ("struct open_how *", "how"),
+            ("size_t", "size"),
         )),
         "pause": ("long", (
         )),
@@ -1517,6 +1613,11 @@ class ConfigMgr(object):
         )),
         "personality": ("long", (
             ("unsigned int", "personality"),
+        )),
+        "pidfd_getfd": ("long", (
+            ("int", "pidfd"),
+            ("int", "fd"),
+            ("unsigned int", "flags"),
         )),
         "pidfd_open": ("long", (
             ("pid_t", "pid"),
@@ -1562,7 +1663,12 @@ class ConfigMgr(object):
             ("unsigned int", "nfds"),
             ("struct timespec *", "tmo_p"),
             ("const sigset_t *", "sigmask"),
-            ("size_t", ""),
+        )),
+        "ppoll_time32": ("long", (
+            ("struct pollfd *", "fds"),
+            ("unsigned int", "nfds"),
+            ("struct old_timespec *", "tmo_p"),
+            ("const sigset_t *", "sigmask"),
         )),
         "prctl": ("long", (
             ("int", "option"),
@@ -1620,6 +1726,14 @@ class ConfigMgr(object):
             ("fd_set *", "writefds"),
             ("fd_set *", "exceptfds"),
             ("struct timespec *", "timeout"),
+            ("void *", "sigmask"),
+        )),
+        "pselect6_time32": ("long", (
+            ("int", "nfds"),
+            ("fd_set *", "readfds"),
+            ("fd_set *", "writefds"),
+            ("fd_set *", "exceptfds"),
+            ("struct old_timespec32 *", ""),
             ("void *", "sigmask"),
         )),
         "ptrace": ("long", (
@@ -1708,6 +1822,13 @@ class ConfigMgr(object):
             ("unsigned", "flags"),
             ("struct timespec *", "timeout"),
         )),
+        "recvmmsg_time32": ("long", (
+            ("int", "fd"),
+            ("struct mmsghdr *", "msg"),
+            ("unsigned int", "vlen"),
+            ("unsigned", "flags"),
+            ("struct old_timespec32 *", "timeout"),
+        )),
         "recvmsg": ("long", (
             ("int", "fd"),
             ("struct user_msghdr *", "msg"),
@@ -1752,6 +1873,12 @@ class ConfigMgr(object):
         "rmdir": ("long", (
             ("const char *", "pathname"),
         )),
+        "rseq": ("long", (
+            ("struct rseq *", "rseq"),
+            ("uint32_t", "rseq_len"),
+            ("int", "flags"),
+            ("uint32_t", "sig"),
+        )),
         "rt_sigaction": ("long", (
             ("int", "signum"),
             ("const struct sigaction *", "act"),
@@ -1783,6 +1910,12 @@ class ConfigMgr(object):
             ("const sigset_t *", "uthese"),
             ("siginfo_t *", "uinfo"),
             ("const struct timespec *", "uts"),
+            ("size_t", "sigsetsize"),
+        )),
+        "rt_sigtimedwait_time32": ("long", (
+            ("const sigset_t *", "uthese"),
+            ("siginfo_t *", "uinfo"),
+            ("const struct old_timespec32 *", "uts"),
             ("size_t", "sigsetsize"),
         )),
         "rt_tgsigqueueinfo": ("long", (
@@ -1818,6 +1951,10 @@ class ConfigMgr(object):
         "sched_rr_get_interval": ("long", (
             ("pid_t", "pid"),
             ("struct timespec *", "interval"),
+        )),
+        "sched_rr_get_interval_time32": ("long", (
+            ("pid_t", "pid"),
+            ("struct old_timespec32 *", "interval"),
         )),
         "sched_setaffinity": ("long", (
             ("pid_t", "pid"),
@@ -1880,6 +2017,12 @@ class ConfigMgr(object):
             ("struct sembuf *", "sops"),
             ("unsigned", "nsops"),
             ("const struct timespec *", "timeout"),
+        )),
+        "semtimedop_time32": ("long", (
+            ("int", "semid"),
+            ("struct sembuf *", "sops"),
+            ("unsigned", "nsops"),
+            ("const struct old_timespec32 *", "timeout"),
         )),
         "send": ("long", (
             ("int", "sockfd"),
@@ -2170,8 +2313,18 @@ class ConfigMgr(object):
             ("size_t", "sz"),
             ("struct statfs64 *", "buf"),
         )),
+        "statx": ("long", (
+            ("int", "dfd"),
+            ("const char *", "path"),
+            ("unsigned", "flags"),
+            ("unsigned", "mask"),
+            ("struct statx *", "buffer"),
+        )),
         "stime": ("long", (
-            ("time_t *", "tptr"),
+            ("old_time_t *", "tptr"),
+        )),
+        "stime32": ("long", (
+            ("old_time32_t *", "tptr"),
         )),
         "swapoff": ("long", (
             ("const char *", "specialfile"),
@@ -2234,7 +2387,10 @@ class ConfigMgr(object):
             ("int", "sig"),
         )),
         "time": ("long", (
-            ("time_t *", "tloc"),
+            ("old_time_t *", "tloc"),
+        )),
+        "time32": ("long", (
+            ("old_time32_t *", "tloc"),
         )),
         "timer_create": ("long", (
             ("clockid_t", "which_clock"),
@@ -2251,11 +2407,21 @@ class ConfigMgr(object):
             ("timer_t", "timer_id"),
             ("struct itimerspec *", "setting"),
         )),
+        "timer_gettime32": ("long", (
+            ("timer_t", "timer_id"),
+            ("struct old_itimerspec32 *", "setting"),
+        )),
         "timer_settime": ("long", (
             ("timer_t", "timer_id"),
             ("int", "flags"),
             ("const struct itimerspec *", "new_setting"),
             ("struct itimerspec *", "old_setting"),
+        )),
+        "timer_settime32": ("long", (
+            ("timer_t", "timer_id"),
+            ("int", "flags"),
+            ("struct old_itimerspec32 *", "new"),
+            ("struct old_itimerspec32 *", "old"),
         )),
         "timerfd_create": ("long", (
             ("int", "clockid"),
@@ -2265,11 +2431,21 @@ class ConfigMgr(object):
             ("int", "ufd"),
             ("struct itimerspec *", "otmr"),
         )),
+        "timerfd_gettime32": ("long", (
+            ("int", "ufd"),
+            ("struct old_itimerspec32 *", "otmr"),
+        )),
         "timerfd_settime": ("long", (
             ("int", "ufd"),
             ("int", "flags"),
             ("const struct itimerspec *", "utmr"),
             ("struct itimerspec *", "otmr"),
+        )),
+        "timerfd_settime32": ("long", (
+            ("int", "ufd"),
+            ("int", "flags"),
+            ("const struct old_itimerspec32 *", "utmr"),
+            ("struct old_itimerspec32 *", "otmr"),
         )),
         "times": ("long", (
             ("struct tms *", "tbuf"),
@@ -2321,15 +2497,29 @@ class ConfigMgr(object):
             ("char *", "filename"),
             ("struct utimbuf *", "times"),
         )),
+        "utime32": ("long", (
+            ("const char *", "filename"),
+            ("struct old_utimbuf32 *", "t"),
+        )),
         "utimensat": ("long", (
             ("int", "dfd"),
             ("const char *", "filename"),
             ("struct timespec *", "utimes"),
             ("int", "flags"),
         )),
+        "utimensat_time32": ("long", (
+            ("unsigned int", "dfd"),
+            ("const char *", "filename"),
+            ("struct old_timespec32 *", "t"),
+            ("int", "flags"),
+        )),
         "utimes": ("long", (
             ("char *", "filename"),
-            ("struct timeval *", "utimes"),
+            ("struct old_timeval *", "utimes"),
+        )),
+        "utimes_time32": ("long", (
+            ("const char *", "filename"),
+            ("struct old_timeval32 *", "t"),
         )),
         "vfork": ("long", (
         )),
@@ -3134,10 +3324,13 @@ class ConfigMgr(object):
         '', '',
         'PTRACE_GETREGS',           #12#
         'PTRACE_SETREGS',           #13#
-        '', '',
+        'PTRACE_GETFPREGS',         #14#
+        'PTRACE_SETFPREGS',         #15#
         'PTRACE_ATTACH',            #16#
         'PTRACE_DETACH',            #17#
-        '', '', '', '', '', '',
+        'PTRACE_GETFPXREGS',        #18#
+        'PTRACE_SETFPXREGS',        #19#
+        '', '', '', '',
         'PTRACE_SYSCALL',           #24#
         '', '', '', '', '', '',
         'PTRACE_SYSEMU',            #31#
@@ -4944,7 +5137,7 @@ class NetworkMgr(object):
         ip, port, force=False, blocking=False, tcp=False, anyPort=False):
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(\
-                "Fail to set server network because it is already set")
+                "Ignored to set server network because it is already set")
             return
 
         # get internet available IP first #
@@ -35621,6 +35814,7 @@ class Debugger(object):
         plist = ConfigMgr.PTRACE_TYPE
         self.contCmd = plist.index('PTRACE_CONT')
         self.getregsCmd = plist.index('PTRACE_GETREGS')
+        self.getfpregsCmd = plist.index('PTRACE_GETFPREGS')
         self.setregsCmd = plist.index('PTRACE_SETREGS')
         self.syscallCmd = plist.index('PTRACE_SYSCALL')
         self.sysemuCmd = plist.index('PTRACE_SYSEMU')
@@ -35666,7 +35860,7 @@ struct msghdr {
     int             msg_namelen;    /* size of socket address structure */
     struct iov_iter msg_iter;   /* data */
     void            *msg_control;   /* ancillary data */
-    __kernel_size_t msg_controllen; /* ancillary data buffer length */
+    size_t msg_controllen; /* ancillary data buffer length */
     unsigned int    msg_flags;  /* flags on received message */
     struct kiocb    *msg_iocb;  /* ptr to iocb for async requests */
 };
@@ -35722,7 +35916,67 @@ struct cmsghdr {
                 return dict((field, getattr(struct, field)) \
                     for field, _ in struct._fields_)
 
-            if arch == 'powerpc':
+            if arch == 'aarch64':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
+            elif arch == 'x64':
+                _fields_ = (
+                    ("r15", c_ulong),
+                    ("r14", c_ulong),
+                    ("r13", c_ulong),
+                    ("r12", c_ulong),
+                    ("rbp", c_ulong),
+                    ("rbx", c_ulong),
+                    ("r11", c_ulong),
+                    ("r10", c_ulong),
+                    ("r9", c_ulong),
+                    ("r8", c_ulong),
+                    ("rax", c_ulong),
+                    ("rcx", c_ulong),
+                    ("rdx", c_ulong),
+                    ("rsi", c_ulong),
+                    ("rdi", c_ulong),
+                    ("orig_rax", c_ulong),
+                    ("rip", c_ulong),
+                    ("cs", c_ulong),
+                    ("eflags", c_ulong),
+                    ("rsp", c_ulong),
+                    ("ss", c_ulong),
+                    ("fs_base", c_ulong),
+                    ("gs_base", c_ulong),
+                    ("ds", c_ulong),
+                    ("es", c_ulong),
+                    ("fs", c_ulong),
+                    ("gs", c_ulong)
+                )
+            elif arch == 'arm':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
+            elif arch == 'x86':
+                _fields_ = (
+                    ("ebx", c_ulong),
+                    ("ecx", c_ulong),
+                    ("edx", c_ulong),
+                    ("esi", c_ulong),
+                    ("edi", c_ulong),
+                    ("ebp", c_ulong),
+                    ("eax", c_ulong),
+                    ("ds", c_ushort),
+                    ("__ds", c_ushort),
+                    ("es", c_ushort),
+                    ("__es", c_ushort),
+                    ("fs", c_ushort),
+                    ("__fs", c_ushort),
+                    ("gs", c_ushort),
+                    ("__gs", c_ushort),
+                    ("orig_eax", c_ulong),
+                    ("eip", c_ulong),
+                    ("cs", c_ushort),
+                    ("__cs", c_ushort),
+                    ("eflags", c_ulong),
+                    ("esp", c_ulong),
+                    ("ss", c_ushort),
+                    ("__ss", c_ushort),
+                )
+            elif arch == 'powerpc':
                 _fields_ = (
                     ("gpr0", c_ulong),
                     ("gpr1", c_ulong),
@@ -35770,69 +36024,38 @@ struct cmsghdr {
                     ("result", c_ulong),
                 )
 
-            elif arch == 'arm':
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
+        class user_fpregs_struct(Structure):
+            def getdict(struct): # pylint: disable=no-self-argument
+                return dict((field, getattr(struct, field)) \
+                    for field, _ in struct._fields_)
 
-            elif arch == 'aarch64':
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
-
-            elif arch == 'x64':
+            if arch == 'aarch64' or arch == 'x64':
                 _fields_ = (
-                    ("r15", c_ulong),
-                    ("r14", c_ulong),
-                    ("r13", c_ulong),
-                    ("r12", c_ulong),
-                    ("rbp", c_ulong),
-                    ("rbx", c_ulong),
-                    ("r11", c_ulong),
-                    ("r10", c_ulong),
-                    ("r9", c_ulong),
-                    ("r8", c_ulong),
-                    ("rax", c_ulong),
-                    ("rcx", c_ulong),
-                    ("rdx", c_ulong),
-                    ("rsi", c_ulong),
-                    ("rdi", c_ulong),
-                    ("orig_rax", c_ulong),
-                    ("rip", c_ulong),
-                    ("cs", c_ulong),
-                    ("eflags", c_ulong),
-                    ("rsp", c_ulong),
-                    ("ss", c_ulong),
-                    ("fs_base", c_ulong),
-                    ("gs_base", c_ulong),
-                    ("ds", c_ulong),
-                    ("es", c_ulong),
-                    ("fs", c_ulong),
-                    ("gs", c_ulong)
+                    ("cwd", c_uint16),
+                    ("swd", c_uint16),
+                    ("ftw", c_uint16),
+                    ("fop", c_uint16),
+                    ("rip", c_uint64),
+                    ("rdp", c_uint64),
+                    ("mxcsr", c_uint32),
+                    ("mxcr_mask", c_uint32),
+                    ("st_space", c_uint32 * 32),
+                    ("xmm_space", c_uint32 * 64),
+                    ("padding", c_uint32 * 24)
+                )
+            else:
+                _fields_ = (
+                    ("cwd", c_ulong),
+                    ("swd", c_ulong),
+                    ("twd", c_ulong),
+                    ("fip", c_ulong),
+                    ("fcs", c_ulong),
+                    ("foo", c_ulong),
+                    ("fos", c_ulong),
+                    ("st_space", c_ulong * 20)
                 )
 
-            elif arch == 'x86':
-                _fields_ = (
-                    ("ebx", c_ulong),
-                    ("ecx", c_ulong),
-                    ("edx", c_ulong),
-                    ("esi", c_ulong),
-                    ("edi", c_ulong),
-                    ("ebp", c_ulong),
-                    ("eax", c_ulong),
-                    ("ds", c_ushort),
-                    ("__ds", c_ushort),
-                    ("es", c_ushort),
-                    ("__es", c_ushort),
-                    ("fs", c_ushort),
-                    ("__fs", c_ushort),
-                    ("gs", c_ushort),
-                    ("__gs", c_ushort),
-                    ("orig_eax", c_ulong),
-                    ("eip", c_ulong),
-                    ("cs", c_ushort),
-                    ("__cs", c_ushort),
-                    ("eflags", c_ulong),
-                    ("esp", c_ulong),
-                    ("ss", c_ushort),
-                    ("__ss", c_ushort),
-                )
+
 
         # running #
         if self.checkPid(pid) >= 0:
@@ -35862,8 +36085,11 @@ struct cmsghdr {
 
         # set register variables #
         self.regs = user_regs_struct()
+        self.fpregs = user_fpregs_struct()
         self.tempRegs = user_regs_struct()
+        self.tempFpRegs = user_fpregs_struct()
         self.regsDict = None
+        self.fpRegsDict = None
 
         # save instances #
         Debugger.dbgInstance = self
@@ -41413,6 +41639,28 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             addressof(self.tempRegs), \
             addressof(self.regs), \
             sizeof(self.regs))
+
+
+
+    def getFpRegs(self, temp=False):
+        pid = self.pid
+        wordSize = ConfigMgr.wordSize
+
+        if temp:
+            addr = addressof(self.tempFpRegs)
+        else:
+            addr = addressof(self.fpregs)
+
+        cmd = self.getfpregsCmd
+
+        ret = self.ptrace(cmd, 0, addr)
+
+        if ret != 0:
+            SysMgr.printErr(\
+                "Fail to get fp register set of %s(%s)" % \
+                    (self.comm, self.pid))
+
+        return ret
 
 
 
