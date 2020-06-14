@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200612"
+__revision__ = "200614"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31,7 +31,7 @@ try:
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
-    print("[Error] Fail to import python default packages: %s" % err.args[0])
+    print("[Error] Fail to import default packages: %s" % err.args[0])
     sys.exit(0)
 
 # convert types not supported #
@@ -2838,10 +2838,14 @@ class ConfigMgr(object):
 
     # stat list from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
-        'PID', 'COMM', 'STATE', 'PPID', 'PGRP', 'SESSIONID', 'NRTTY', 'TPGID', 'FLAGS', 'MINFLT', 'CMINFLT', #10#
-        'MAJFLT', 'CMAJFLT', 'UTIME', 'STIME', 'CUTIME', 'CSTIME', 'PRIORITY', 'NICE', 'NRTHREAD', 'ITERALVAL', #20#
-        'STARTTIME', 'VSIZE', 'RSS', 'RSSLIM', 'STARTCODE', 'ENDCODE', 'STARTSTACK', 'SP', 'PC', 'SIGNAL', #30#
-        'BLOCKED', 'SIGIGNORE', 'SIGCATCH', 'WCHEN', 'NSWAP', 'CNSWAP', 'EXITSIGNAL', 'PROCESSOR', 'RTPRIORITY', #39#
+        'PID', 'COMM', 'STATE', 'PPID', 'PGRP', 'SESSIONID', #5#
+        'NRTTY', 'TPGID', 'FLAGS', 'MINFLT', 'CMINFLT', #10#
+        'MAJFLT', 'CMAJFLT', 'UTIME', 'STIME', 'CUTIME', #15#
+        'CSTIME', 'PRIORITY', 'NICE', 'NRTHREAD', 'ITERALVAL', #20#
+        'STARTTIME', 'VSIZE', 'RSS', 'RSSLIM', 'STARTCODE', #25#
+        'ENDCODE', 'STARTSTACK', 'SP', 'PC', 'SIGNAL', #30#
+        'BLOCKED', 'SIGIGNORE', 'SIGCATCH', 'WCHEN', 'NSWAP', #35#
+        'CNSWAP', 'EXITSIGNAL', 'PROCESSOR', 'RTPRIORITY', #39#
         'POLICY', 'DELAYBLKTICK', 'GUESTTIME', 'CGUESTTIME' # 43 #
         ]
 
@@ -14791,8 +14795,7 @@ class SysMgr(object):
         try:
             statmPath = "%s/%s/statm" % (SysMgr.procPath, pid)
             with open(statmPath, 'r') as fd:
-                STATM_TYPE = fd.readlines()[0].split()
-                return STATM_TYPE
+                return fd.readlines()[0].split()
         except SystemExit:
             sys.exit(0)
         except:
@@ -45333,12 +45336,13 @@ class ThreadAnalyzer(object):
             if not SysMgr.findOption('x'):
                 NetworkMgr.setServerNetwork(None, None)
 
-            # set configuration #
+            # set boundary configuration #
             if 'boundary' in ConfigMgr.confData:
-                confData = ConfigMgr.confData
-                if type(confData) is str:
+                confData = ConfigMgr.confData['boundary']
+                if type(confData) is list:
                     confData = UtilMgr.convStr2Dict('\n'.join(confData))
-                ThreadAnalyzer.reportBoundary = confData
+                if type(confData) is dict:
+                    ThreadAnalyzer.reportBoundary = confData
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
