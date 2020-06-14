@@ -8,11 +8,14 @@
 # any later version.
 
 # check python #
-PYTHONBIN=$(which python)
-if [ ! $PYTHONBIN ]
+if [ ! $PYTHON ]
     then
-        echo "[Error] Fail to find python"
-        exit
+        PYTHON=$(which python)
+        if [ ! $PYTHON ]
+            then
+                echo "[Error] Fail to find python"
+                exit
+        fi
 fi
 
 # export CMDLINE for Guider #
@@ -20,6 +23,6 @@ CMDLINE=$0
 export CMDLINE
 
 # launch Guider #
-$PYTHONBIN -m guider $*
+$PYTHON -m guider $*
 
 exit 0
