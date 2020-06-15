@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200614"
+__revision__ = "200615"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -275,23 +275,23 @@ class ConfigMgr(object):
 
     # Define mmap prot type #
     MAP_TYPE = {
-	#0x0000: "MAP_FILE",
-	0x0001: "MAP_SHARED",
-	0x0002: "MAP_PRIVATE",
-	#0x0003: "MAP_SHARED_VALIDATE",
-	#0x000f: "MAP_TYPE",
-	0x0010: "MAP_FIXED",
-	0x0020: "MAP_ANONYMOUS",
-	0x0100: "MAP_GROWSDOWN",
-	0x0800: "MAP_DENYWRITE",
-	0x1000: "MAP_EXECUTABLE",
-	0x2000: "MAP_LOCKED",
-	0x4000: "MAP_NORESERVE",
-	0x8000: "MAP_POPULATE",
-	0x10000: "MAP_NONBLOCK",
-	0x20000: "MAP_STACK",
-	0x40000: "MAP_HUGETLB",
-	0x80000: "MAP_SYNC",
+        #0x0000: "MAP_FILE",
+        0x0001: "MAP_SHARED",
+        0x0002: "MAP_PRIVATE",
+        #0x0003: "MAP_SHARED_VALIDATE",
+        #0x000f: "MAP_TYPE",
+        0x0010: "MAP_FIXED",
+        0x0020: "MAP_ANONYMOUS",
+        0x0100: "MAP_GROWSDOWN",
+        0x0800: "MAP_DENYWRITE",
+        0x1000: "MAP_EXECUTABLE",
+        0x2000: "MAP_LOCKED",
+        0x4000: "MAP_NORESERVE",
+        0x8000: "MAP_POPULATE",
+        0x10000: "MAP_NONBLOCK",
+        0x20000: "MAP_STACK",
+        0x40000: "MAP_HUGETLB",
+        0x80000: "MAP_SYNC",
     }
 
     # Define mmap prot type #
@@ -26407,14 +26407,14 @@ Copyright:
             length = length & 0x7fff
 
             if GEAttrStruct[typ] == 0:
-               SysMgr.GEAttr[typ] = data[4:length-1]
+                SysMgr.GEAttr[typ] = data[4:length-1]
             elif GEAttrStruct[typ] == 9:
-               pass
+                pass
             elif typ > 5:
-               pass
+                pass
             else:
-               SysMgr.GEAttr[typ] = \
-                   struct.unpack(GEAttrStruct[typ], data[4:length])[0]
+                SysMgr.GEAttr[typ] = \
+                    struct.unpack(GEAttrStruct[typ], data[4:length])[0]
 
             data = data[((((length +3 ))) & ~0x3):]
 
@@ -33128,7 +33128,7 @@ class DbusAnalyzer(object):
                         DbusAnalyzer.getErrInfo())
                 return
 
-	    # parse args #
+            # parse args #
             strRes = c_char_p(''.encode())
             res = dbusObj.dbus_message_get_args(\
                     reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING, \
@@ -35180,8 +35180,8 @@ class DltAnalyzer(object):
             '''
             typedef struct
             {
-		uint16_t count_app_ids;
-		AppIDsType *app_ids;            /**< holds info about a specific app id */
+                uint16_t count_app_ids;
+                AppIDsType *app_ids;            /**< holds info about a specific app id */
              } LogInfoType;
             '''
             _pack_ = 1
@@ -35895,7 +35895,7 @@ struct mmsghdr {
         '''
 struct cmsghdr {
    size_t cmsg_len;    /* Data byte count, including header
-			  (type is socklen_t in POSIX) */
+                          (type is socklen_t in POSIX) */
    int    cmsg_level;  /* Originating protocol */
    int    cmsg_type;   /* Protocol-specific type */
 /* followed by
@@ -56683,7 +56683,7 @@ class ThreadAnalyzer(object):
             if SysMgr.processEnable:
                 if SysMgr.exceptCommFilter and \
                     not pid in SysMgr.filterGroup:
-                        continue
+                    continue
 
                 # save stat of process #
                 ret = self.saveProcData(procPath, pid)
@@ -56708,7 +56708,7 @@ class ThreadAnalyzer(object):
 
                 if SysMgr.exceptCommFilter and \
                     not tid in SysMgr.filterGroup:
-                        continue
+                    continue
 
                 self.nrThread += 1
 
