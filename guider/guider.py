@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200615"
+__revision__ = "200616"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14095,7 +14095,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # report #
-        elif SysMgr.isReportTopMode():
+        elif SysMgr.isRepTopMode():
             SysMgr.jsonOutputEnable = True
 
             if SysMgr.isRoot():
@@ -14106,8 +14106,9 @@ class SysMgr(object):
                     "Fail to get disk and network start "
                     "because no root permission")
 
-            if SysMgr.checkReportTopCond():
-                SysMgr.printEnable = False
+            if SysMgr.checkRepTopCond():
+                if not SysMgr.printStreamEnable:
+                    SysMgr.printEnable = False
             else:
                 sys.exit(0)
 
@@ -16487,7 +16488,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # report top #
-                elif SysMgr.isReportTopMode():
+                elif SysMgr.isRepTopMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -22461,7 +22462,7 @@ Copyright:
                     NetworkMgr.setRemoteNetwork(service, ip, port)
 
             elif option == 'j':
-                if not SysMgr.checkReportTopCond(value):
+                if not SysMgr.checkRepTopCond(value):
                     sys.exit(0)
 
             elif option == 'x':
@@ -23327,7 +23328,7 @@ Copyright:
 
 
     @staticmethod
-    def isReportTopMode():
+    def isRepTopMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'reptop':
             return True
         else:
@@ -23396,7 +23397,7 @@ Copyright:
             SysMgr.isPerfTopMode() or \
             SysMgr.isMemTopMode() or \
             SysMgr.isWssTopMode() or \
-            SysMgr.isReportTopMode() or \
+            SysMgr.isRepTopMode() or \
             SysMgr.isBgTopMode() or \
             SysMgr.isSystemTopMode() or \
             SysMgr.isNetTopMode() or \
@@ -24126,7 +24127,7 @@ Copyright:
 
 
     @staticmethod
-    def checkReportTopCond(val=None):
+    def checkRepTopCond(val=None):
         # check whether report option is already enabled #
         if SysMgr.reportEnable:
             return True
@@ -24849,7 +24850,7 @@ Copyright:
         # check condition #
         if SysMgr.printFile or \
             SysMgr.bgStatus or \
-            SysMgr.isReportTopMode() or \
+            SysMgr.isRepTopMode() or \
             SysMgr.isBrkTopMode() or \
             not SysMgr.selectEnable or \
             'REMOTERUN' in os.environ:
