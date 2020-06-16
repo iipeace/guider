@@ -17290,13 +17290,16 @@ Options:
     -o  <DIR|FILE>              save output data
     -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
     -g  <PID|COMM>              set target process
-    -k  <{{START,}}TERM>          set signal
+    -k  <{{START,}}STOP>          set signal
     -C  <PATH>                  set configuration path
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
 Examples:
+    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key
+        # {0:1} {1:1} -g a.out
+
     - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -k 36
 
@@ -27516,10 +27519,6 @@ Copyright:
 
         # get environment variables of target #
         envList = SysMgr.getEnv(pid, retdict=True)
-        if 'PWD' in envList:
-            pwd = envList['PWD']
-        else:
-            pwd = ''
 
         # set input file path #
         if SysMgr.inputParam:
@@ -27541,7 +27540,19 @@ Copyright:
 
         # make full path #
         if not fname.startswith('/'):
+            if 'PWD' in envList:
+                pwd = envList['PWD']
+            else:
+                pwd = ''
             fname = os.path.join(pwd, fname)
+
+        # remove previous output file already exists #
+        if os.path.exists(fname):
+            try:
+                os.remove(fname)
+                SysMgr.printInfo("removed %s already exists" % fname)
+            except:
+                SysMgr.printErr("Fail to remove %s" % fname, True)
 
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
@@ -27609,6 +27620,8 @@ Copyright:
                 SysMgr.printStat(\
                     'sent %s to %s(%s) to start profiling' % \
                         (ConfigMgr.SIG_LIST[startSig], comm, pid))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "Fail to send signal %s to start profiling" % \
@@ -27620,10 +27633,19 @@ Copyright:
             waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
         elif stopSig:
             try:
+                try:
+                    SysMgr.printStat(\
+                        r'start monitoring... [ STOP(Ctrl+c) ]')
+                    waitAndKill(tobj, pid, comm, sys.maxsize, 0, 'stop')
+                except:
+                    pass
+
                 os.kill(long(pid), stopSig)
                 SysMgr.printStat(\
                     'sent %s to %s(%s) to stop profiling' % \
                         (ConfigMgr.SIG_LIST[stopSig], comm, pid))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "Fail to send signal %s to stop profiling" % \
@@ -27644,6 +27666,9 @@ Copyright:
         while not os.path.exists(fname) or \
             os.stat(fname).st_size == 0:
             time.sleep(1)
+
+        # set signal handler #
+        SysMgr.setNormalSignal()
 
         # create leaktracer parser #
         try:
