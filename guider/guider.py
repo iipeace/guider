@@ -11366,6 +11366,7 @@ class LeakAnalyzer(object):
 
     def __init__(self, file=None, pid=None):
 
+        self.pid = pid
         self.posData = {}
         self.symData = {}
         self.fileData = {}
@@ -11435,11 +11436,23 @@ class LeakAnalyzer(object):
     def printLeakage(self):
         convert = UtilMgr.convSize2Unit
 
+        try:
+            mlist = SysMgr.getMemStat(self.pid)
+            vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
+            vss = convert(long(mlist[vssIdx]) << 12)
+            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+            rss = convert(long(mlist[rssIdx]) << 12)
+        except:
+            vss = rss = '?'
+
+        proc = '%s(%s)' % (SysMgr.getComm(self.pid), self.pid)
         # function leakage info #
         title = 'Function Leakage Info'
-        SysMgr.printPipe(\
-            '\n[%s] [TotalSize: %s] [CallCount: %s] [FuncCount: %s]' % \
-                (title, convert(self.totalLeakSize), \
+        SysMgr.printPipe((\
+            '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
+            '[LeakSize: %s] [CallCount: %s] [FuncCount: %s] ') % \
+                (title, proc, vss, rss, \
+                convert(self.totalLeakSize), \
                 convert(len(self.callData)), \
                 convert(len(self.symData))))
 
@@ -11476,9 +11489,11 @@ class LeakAnalyzer(object):
 
         # file leakage info #
         title = 'File Leakage Info'
-        SysMgr.printPipe(\
-            '\n[%s] [TotalSize: %s] [CallCount: %s] [FileCount: %s]' % \
-                (title, convert(self.totalLeakSize), \
+        SysMgr.printPipe((\
+            '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
+            '[LeakSize: %s] [CallCount: %s] [FileCount: %s]') % \
+                (title, proc, vss, rss, \
+                convert(self.totalLeakSize), \
                 convert(len(self.callData)), \
                 convert(len(self.fileData))))
 
