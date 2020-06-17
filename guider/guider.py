@@ -14106,10 +14106,7 @@ class SysMgr(object):
                     "Fail to get disk and network start "
                     "because no root permission")
 
-            if SysMgr.checkRepTopCond():
-                if not SysMgr.printStreamEnable:
-                    SysMgr.printEnable = False
-            else:
+            if not SysMgr.checkRepTopCond():
                 sys.exit(0)
 
         # print profile option #
@@ -24135,6 +24132,11 @@ Copyright:
         if SysMgr.reportEnable:
             return True
 
+        if SysMgr.printStreamEnable:
+            return True
+        else:
+            SysMgr.printEnable = False
+
         if not val:
             reportPath = SysMgr.getOption('j')
         else:
@@ -31100,6 +31102,18 @@ Copyright:
                 jsonData['version'] = __version__
         except:
             pass
+
+        # python #
+        try:
+            pv = '.'.join(list(map(str, sys.version_info)))
+            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+                format('Python', pv))
+
+            if SysMgr.jsonOutputEnable:
+                jsonData['python'] = pv
+        except:
+            pass
+
 
         # CPU architecture #
         try:
