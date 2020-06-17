@@ -36854,16 +36854,18 @@ struct cmsghdr {
                     val = func[0]
                     if len(func) > 1:
                         argList = func[1:]
-                        args = ', '.join(argList)
-                        args = '(%s)' % args
+
+                        # convert args for previous return #
+                        argList = self.convRetArgs(argList)
+
+                        argStr = ', '.join(list(map(str, argList)))
+                        argStr = '(%s)' % argStr
                     else:
                         argList = []
-                        args = '()'
+                        argStr = '()'
 
-                    # convert args for previous return #
-                    argList = self.convRetArgs(argList)
-
-                    # convert type to integer #
+                    # convert arguments #
+                    argList, freelist = self.convRemoteArgs(argList)
                     argList = list(map(long, argList))
 
                     # get address #
