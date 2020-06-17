@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200616"
+__revision__ = "200617"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -24163,9 +24163,8 @@ Copyright:
 
         # backup a exist output file #
         if os.path.isfile(reportPath):
-            backupFile = '%s.old' % reportPath
-
             try:
+                backupFile = '%s.old' % reportPath
                 os.rename(reportPath, backupFile)
                 SysMgr.printInfo('%s is renamed to %s' % \
                     (reportPath, backupFile))
@@ -27546,13 +27545,16 @@ Copyright:
                 pwd = ''
             fname = os.path.join(pwd, fname)
 
-        # remove previous output file already exists #
+        # backup previous output file already exists #
         if os.path.exists(fname):
             try:
-                os.remove(fname)
-                SysMgr.printInfo("removed %s already exists" % fname)
+                oldpath = "%s.old" % fname
+                os.rename(fname, oldpath)
+                SysMgr.printInfo(\
+                    "%s is renamed to %s" % (fname, oldpath))
             except:
-                SysMgr.printErr("Fail to remove %s" % fname, True)
+                SysMgr.printErr(\
+                    "Fail to backup %s to %s" % (fname, oldpath), True)
 
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
