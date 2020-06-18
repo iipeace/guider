@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200617"
+__revision__ = "200618"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42091,67 +42091,67 @@ class ElfAnalyzer(object):
     DT_VERSIONTAGNUM = 16
 
     PT_FLAGS = {
-        0: "None",
-        1: "E",
-        2: "W",
-        3: "WE",
-        4: "R",
-        5: "RE",
-        6: "RW",
-        7: "RWE"
+        0:"None",
+        1:"E",
+        2:"W",
+        3:"WE",
+        4:"R",
+        5:"RE",
+        6:"RW",
+        7:"RWE"
     }
 
     PT_TYPE = {
-        0: "NULL",
-        1: "LOAD",
-        2: "DYNAMIC",
-        3: "INTERP",
-        4: "NOTE",
-        5: "SHLIB",
-        6: "PHDR",
-        7: "TLS",
-        8: "NUM",
-        0x60000000: "PTLOOS",
-        0x6fffffff: "PTHIOS",
-        0x70000000: "LOPROC",
-        0x7fffffff: "HPROC",
-        0x6474e550: "GNU_EH_FRAME",
-        0x6474e551: "GNU_STACK",
-        0x6474e552: "GNU_RELRO",
+        0:"NULL",
+        1:"LOAD",
+        2:"DYNAMIC",
+        3:"INTERP",
+        4:"NOTE",
+        5:"SHLIB",
+        6:"PHDR",
+        7:"TLS",
+        8:"NUM",
+        0x60000000:"LOOS",
+        0x6fffffff:"HIOS",
+        0x70000000:"LOPROC",
+        0x7fffffff:"HPROC",
+        0x6474e550:"GNU_EH_FRAME",
+        0x6474e551:"GNU_STACK",
+        0x6474e552:"GNU_RELRO",
     }
 
     ST_TYPE = {
-        0: 'NOTYPE',
-        1: 'OBJECT',
-        2: 'FUNC',
-        3: 'SECTION',
-        4: 'FILE',
-        5: 'COMMON',
-        6: 'TLS',
-        7: 'NUM',
-        10: 'LOOS',
-        12: 'HIOS',
-        13: 'LOPROC',
-        15: 'HIPROC'
+        0:'NOTYPE',
+        1:'OBJECT',
+        2:'FUNC',
+        3:'SECTION',
+        4:'FILE',
+        5:'COMMON',
+        6:'TLS',
+        7:'NUM',
+        10:'LOOS',
+        12:'HIOS',
+        13:'LOPROC',
+        15:'HIPROC'
     }
 
 
     ST_BIND_TYPE = {
-        0: 'LOCAL',
-        1: 'GLOBAL',
-        2: 'WEAK',
-        3: 'NUM',
-        10: 'LOOS',
-        12: 'HIOS',
-        13: 'LOPROC',
-        15: 'HIPROC'
+        0:'LOCAL',
+        1:'GLOBAL',
+        2:'WEAK',
+        3:'NUM',
+        10:'LOOS',
+        12:'HIOS',
+        13:'LOPROC',
+        15:'HIPROC'
     }
 
     ST_VISIBILITY_TYPE = {
-        0: 'DEFAULT',
-        1: 'INTERNAL',
-        2: 'HIDDEN',
-        3: 'PROTECTED'
+        0:'DEFAULT',
+        1:'INTERNAL',
+        2:'HIDDEN',
+        3:'PROTECTED'
     }
 
     SH_TYPE = {
@@ -42228,8 +42228,9 @@ class ElfAnalyzer(object):
         31:"ENCODING",
         32:"PREINIT_ARRAY",
         33:"PREINIT_ARRAYSZ",
-        34:"NUM ",
+        34:"NUM",
         0x36:"PROCNUM",
+        0x60000000:"OLD_LOOS",
         0x6000000d:"LOOS",
         0x6ffff000:"HIOS",
         0x70000000:"LOPROC",
@@ -43351,6 +43352,10 @@ class ElfAnalyzer(object):
 
         self.mergedSymTable = tempSymTable
 
+        mainSym = '?'
+        prevAddr = None
+        prevSize = 0
+
         # sort and convert table #
         for idx, item in sorted(tempSymTable.items(),\
             key=lambda e: e[1]['value'], reverse=False):
@@ -43363,8 +43368,29 @@ class ElfAnalyzer(object):
             if onlyFunc and item['type'] != 'FUNC':
                 continue
 
-            self.sortedAddrTable.append(item['value'])
-            self.sortedSymTable.append([idx, item['size']])
+            # update main symbol #
+            if prevAddr == item['value']:
+                if not idx.startswith('_') and \
+                    mainSym.startswith('_'):
+                    mainSym = idx
+                continue
+
+            # register symbol #
+            if prevAddr:
+                self.sortedAddrTable.append(prevAddr)
+                self.sortedSymTable.append([mainSym, prevSize])
+
+            mainSym = idx
+            prevAddr = item['value']
+            prevSize = item['size']
+
+        # register last symbol #
+        try:
+            if prevAddr:
+                self.sortedAddrTable.append(prevAddr)
+                self.sortedSymTable.append([mainSym, prevSize])
+        except:
+            pass
 
         # remove useless symbols after merge #
         if removeOrig:
@@ -43701,6 +43727,23 @@ class ElfAnalyzer(object):
           Elf64_Xword   p_align;                /* Segment alignment */
         } Elf64_Phdr;
 
+        typedef struct {
+                Elf32_Sword d_tag;
+                union {
+                        Elf32_Word      d_val;
+                        Elf32_Addr      d_ptr;
+                        Elf32_Off       d_off;
+                } d_un;
+        } Elf32_Dyn;
+
+        typedef struct {
+                Elf64_Xword d_tag;
+                union {
+                        Elf64_Xword     d_val;
+                        Elf64_Addr      d_ptr;
+                } d_un;
+        } Elf64_Dyn;
+
         typedef struct
         {
           Elf32_Word    st_name;                /* Symbol name (string tbl index) */
@@ -43863,18 +43906,20 @@ class ElfAnalyzer(object):
             filename = os.path.basename(path)
             dirname = os.path.dirname(path)
             debugPath = '%s/.debug/%s' % (dirname, filename)
-            if os.path.isfile(debugPath):
-                SysMgr.printWarn(\
-                    'Use %s instead of %s for debug symbols\n' % \
-                    (debugPath, path))
-                self.path = path = debugPath
-            else:
+            if not os.path.isfile(debugPath):
                 debugPath = '/usr/lib/debug%s' % path
-                if os.path.isfile(debugPath):
-                    SysMgr.printWarn(\
-                        'Use %s instead of %s for debug symbols\n' % \
-                        (debugPath, path))
-                    self.path = path = debugPath
+                if not os.path.isfile(debugPath):
+                    debugPath = None
+
+            # merge a debug file #
+            if debugPath:
+                SysMgr.printInfo(\
+                    "merge %s's debug symbols" % debugPath, suffix=False)
+                dobj = ElfAnalyzer(debugPath, debug=debug)
+                if dobj:
+                    dobj.mergeSymTable(removeOrig=False)
+                self.attr['symTable'] = deepcopy(dobj.attr['symTable'])
+                self.attr['dynsymTable'] = deepcopy(dobj.attr['dynsymTable'])
 
             # open file #
             try:
@@ -44011,7 +44056,7 @@ class ElfAnalyzer(object):
                 struct.unpack('QQQIHHHHHH', fd.read(40))
 
         # save header info #
-        self.attr['elfHeader'] = dict()
+        self.attr.setdefault('elfHeader', dict())
         self.attr['elfHeader']['magic'] = \
             ("%02x %02x %02x %02x %02x %02x %02x %02x" %
             (ei_mag0, ei_mag1, ei_mag2, ei_mag3, ei_class, ei_data,\
@@ -44041,6 +44086,7 @@ class ElfAnalyzer(object):
             SysMgr.printPipe('''\
 [ELF Header]
 %s
+Path: %s
 Magic: %s
 Class: %s
 Data: %s
@@ -44058,7 +44104,7 @@ Size of section headers: %d (bytes)
 Number of section headers: %d
 Section header string table index: %d
 %s
-            ''' % (twoLine, self.attr['elfHeader']['magic'], \
+            ''' % (twoLine, fd.name, self.attr['elfHeader']['magic'], \
                 e_class, e_data, e_type, e_machine, e_version, \
                 e_entry, e_phoff, e_shoff, e_flags, e_ehsize, \
                 e_phentsize, e_shnum, e_shentsize, e_shnum, \
@@ -44152,7 +44198,7 @@ Section header string table index: %d
         e_shrelalist = []
 
         # define section info #
-        self.attr['sectionHeader'] = dict()
+        self.attr.setdefault('sectionHeader', dict())
 
         # print section header title #
         if debug:
@@ -44222,6 +44268,10 @@ Section header string table index: %d
                 e_shrellist.append(i)
             elif stype == 'RELA':
                 e_shrelalist.append(i)
+            elif stype == 'PLTREL':
+                pass
+            elif stype == 'JMPREL':
+                pass
 
         if debug:
             SysMgr.printPipe(oneLine)
@@ -44247,9 +44297,9 @@ Section header string table index: %d
                 self.attr['versymList'].append(symidx)
 
         # define .dynsym info #
-        self.attr['dynsymTable'] = dict()
-        self.attr['dynsymList'] = [''] # STN_UNDEF == 0
-        self.attr['versionTable'] = dict()
+        self.attr.setdefault('dynsymTable', dict())
+        self.attr.setdefault('dynsymList', ['']) # STN_UNDEF == 0
+        self.attr.setdefault('versionTable', dict())
 
 
         # parse .dynsym table #
@@ -44439,7 +44489,7 @@ Section header string table index: %d
                 SysMgr.printPipe(oneLine)
 
         # define .sym info #
-        self.attr['symTable'] = dict()
+        self.attr.setdefault('symTable', dict())
 
         # parse .symtab table #
         if e_shsymndx >= 0 and e_shstrndx >= 0 and \
@@ -44645,18 +44695,21 @@ Section header string table index: %d
                     symbol = rsym
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                if symbol:
+                    symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
                     if self.attr['dynsymTable'][symbol]['value'] == 0:
                         self.attr['dynsymTable'][symbol]['value'] = sh_offset
 
+                    symbol = '%s + ' % symbol
+
                 if debug:
                     SysMgr.printPipe(\
-                        '%016x %016x %32s %016x %s' % \
-                        (sh_offset, sh_info, RTYPE, 0, \
-                        '%s + %x' % (symbol, sh_addend)))
+                        '%016x %016x %32s %016s %s' % \
+                            (sh_offset, sh_info, RTYPE, ' ', \
+                            '%s%x' % (symbol, sh_addend)))
 
             if debug:
                 SysMgr.printPipe(oneLine)
@@ -44691,40 +44744,42 @@ Section header string table index: %d
             else:
                 d_tag, d_un = struct.unpack('QQ', fd.read(sh_entsize))
 
-            if debug:
-                if d_tag in ElfAnalyzer.DT_TYPE:
-                    if ElfAnalyzer.DT_TYPE[d_tag] == 'NEEDED' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'SONAME' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'RPATH':
-                        SysMgr.printPipe(\
-                            '%016x %20s %32s' % \
-                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
-                            dynsymTable[d_un]))
-                    elif ElfAnalyzer.DT_TYPE[d_tag] == 'STRSZ' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'SYMENT' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELSZ' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELENT' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'PLTRELSZ' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'VERDEFNUM' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'VERNEEDNUM' or \
-                        ElfAnalyzer.DT_TYPE[d_tag] == 'RELCOUNT':
-                        SysMgr.printPipe(\
-                            '%016x %20s %32s' % \
-                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
-                    else:
-                        SysMgr.printPipe(\
-                            '%016x %20s %32s' % \
-                            (d_tag, ElfAnalyzer.DT_TYPE[d_tag], hex(d_un)))
-                else:
-                    SysMgr.printPipe(\
-                        '%016x %20s %32s' % (d_tag, d_tag, hex(d_un)))
-
             # NULL termination #
             if d_tag == d_un == 0:
                 break
 
+            if not debug:
+                continue
+
+            if d_tag in ElfAnalyzer.DT_TYPE:
+                if ElfAnalyzer.DT_TYPE[d_tag] == 'NEEDED' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'SONAME' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'RPATH':
+                    SysMgr.printPipe(\
+                        '%016x %20s %32s' % \
+                        (d_tag, ElfAnalyzer.DT_TYPE[d_tag], \
+                            dynsymTable[d_un]))
+                elif ElfAnalyzer.DT_TYPE[d_tag] == 'STRSZ' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'SYMENT' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'RELSZ' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'RELENT' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'PLTRELSZ' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'VERDEFNUM' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'VERNEEDNUM' or \
+                    ElfAnalyzer.DT_TYPE[d_tag] == 'RELCOUNT':
+                    SysMgr.printPipe(\
+                        '%016x %20s %32s' % \
+                        (d_tag, ElfAnalyzer.DT_TYPE[d_tag], d_un))
+                else:
+                    SysMgr.printPipe(\
+                        '%016x %20s %32s' % \
+                        (d_tag, ElfAnalyzer.DT_TYPE[d_tag], hex(d_un)))
+            else:
+                SysMgr.printPipe(\
+                    '%016x %20s %32s' % (d_tag, d_tag, hex(d_un)))
+
         if debug:
-            SysMgr.printPipe(oneLine)
+            SysMgr.printPipe('%s\n\n\n' % oneLine)
 
 
 
