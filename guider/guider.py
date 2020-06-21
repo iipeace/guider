@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200618"
+__revision__ = "200621"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6251,7 +6251,7 @@ class PageAnalyzer(object):
 
         # print menu #
         menuStr = ''
-        menuList = ['AREA', 'PERM', 'INODE', 'DEV', 'OFFSET']
+        menuList = ['AREA', 'PERM', 'INODE', 'DEV', '%12s' % 'OFFSET']
         menuBuf = str(buf[-1]).split()
         for idx, value in enumerate(menuBuf):
             if idx < 5:
@@ -6294,13 +6294,15 @@ class PageAnalyzer(object):
             try:
                 target = line[:-1].split()
 
+                target[4] = '%12s' % target[4]
+
                 if not soffset.startswith('0x'):
                     soffset = '0x%s' % soffset
 
                 if not eoffset.startswith('0x'):
                     eoffset = '0x%s' % eoffset
 
-                SysMgr.printPipe('%18s-%18s %s' % \
+                SysMgr.printPipe('%18s %18s %s' % \
                     (soffset, eoffset, ' '.join(target[1:])))
             except SystemExit:
                 sys.exit(0)
@@ -11767,9 +11769,6 @@ class FileAnalyzer(object):
             SysMgr.filterGroup.insert(0, '')
 
         if not SysMgr.guiderObj:
-            # get ctypes object #
-            SysMgr.importPkgItems('ctypes')
-
             if not SysMgr.loadLibcObj():
                 sys.exit(0)
 
@@ -13633,10 +13632,6 @@ class SysMgr(object):
         if not SysMgr.isLinux:
             return
 
-        # get ctypes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
-
         if not SysMgr.loadLibcObj():
             return
 
@@ -14152,12 +14147,10 @@ class SysMgr(object):
             libDict = {}
             for idx, item in enumerate(libList):
                 try:
-                    if libList[idx+1][0] == '/':
+                    if libList[idx+1].startswith('/'):
                         value = libList[idx+1]
-                        if item in libDict:
-                            libDict[item].append(value)
-                        else:
-                            libDict[item] = [value]
+                        libDict.setdefault(item, list())
+                        libDict[item].append(value)
                 except:
                     pass
 
@@ -14174,7 +14167,8 @@ class SysMgr(object):
             SysMgr.loadLibCache()
 
         for key, val in SysMgr.libCache.items():
-            if key.startswith(lib):
+            if key.startswith(lib) and \
+                (key[len(lib)] == '.' or key[len(lib)] == '-'):
                 if len(val) > 1:
                     SysMgr.printWarn(\
                         'Multiple libraries [ %s ] exist for %s' % \
@@ -14194,6 +14188,9 @@ class SysMgr(object):
         target = SysMgr.findLib(lib)
         if not target:
             target = ['%s.so' % lib]
+            ret = FileAnalyzer.getMapFilePath(SysMgr.pid, lib)
+            if ret:
+                target.append(ret)
 
         for item in target:
             try:
@@ -14601,8 +14598,7 @@ class SysMgr(object):
 
     @staticmethod
     def getCwd(pid):
-        cwdPath = \
-            '%s/%s/cwd' % (SysMgr.procPath, pid)
+        cwdPath = '%s/%s/cwd' % (SysMgr.procPath, pid)
         return os.readlink(cwdPath)
 
 
@@ -14680,6 +14676,23 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getPwd(pid):
+        pwdPath = \
+            '%s/%s/cwd' % (SysMgr.procPath, pid)
+        pwd = None
+
+        try:
+            pwd = os.readlink(pwdPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return None
+
+        return pwd
+
+
+
+    @staticmethod
     def getComm(pid, cache=False):
         try:
             if pid in SysMgr.commFdCache:
@@ -14753,6 +14766,28 @@ class SysMgr(object):
             return stat.S_ISBLK(os.stat(path).st_mode)
         except:
             return False
+
+
+
+    @staticmethod
+    def dlopen(path):
+        if not SysMgr.loadLibcObj():
+            return
+
+        try:
+            path = path.encode()
+        except:
+            pass
+
+        try:
+            func = '__libc_dlopen_mode'
+            funcp = getattr(SysMgr.libcObj, func)
+            funcp.argtypes = [c_void_p, c_int]
+            funcp.restype = c_ulong
+            return funcp(path, 1)
+        except:
+            SysMgr.printErr("Fail to call dlopen", reason=True)
+            return None
 
 
 
@@ -19984,6 +20019,9 @@ Copyright:
 
         if signum == signal.SIGTSTP:
             os.kill(SysMgr.pid, signal.SIGSTOP)
+        elif signum == signal.SIGTTIN:
+            sys.stdin.close()
+            sys.stdin = None
 
 
 
@@ -24869,6 +24907,7 @@ Copyright:
         # check condition #
         if SysMgr.printFile or \
             SysMgr.bgStatus or \
+            not sys.stdin or \
             SysMgr.isRepTopMode() or \
             SysMgr.isBrkTopMode() or \
             not SysMgr.selectEnable or \
@@ -25436,7 +25475,7 @@ Copyright:
         signal.signal(signal.SIGWINCH, SysMgr.winchHandler)
         signal.signal(signal.SIGCONT, SysMgr.fgHandler)
         signal.signal(signal.SIGTSTP, SysMgr.bgHandler)
-        signal.signal(signal.SIGTTIN, signal.SIG_IGN)
+        signal.signal(signal.SIGTTIN, SysMgr.bgHandler)
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
 
 
@@ -27556,11 +27595,9 @@ Copyright:
 
         # make full path #
         if not fname.startswith('/'):
-            if 'PWD' in envList:
-                pwd = envList['PWD']
-            else:
-                pwd = ''
-            fname = os.path.join(pwd, fname)
+            pwd = SysMgr.getPwd(pid)
+            if pwd:
+                fname = os.path.join(pwd, fname)
 
         # backup previous output file already exists #
         if os.path.exists(fname):
@@ -27569,6 +27606,8 @@ Copyright:
                 os.rename(fname, oldpath)
                 SysMgr.printInfo(\
                     "%s is renamed to %s" % (fname, oldpath))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "Fail to backup %s to %s" % (fname, oldpath), True)
@@ -35890,9 +35929,6 @@ class Debugger(object):
         if Debugger.checkPtraceScope() < 0:
             raise Exception()
 
-        # get ctypes object #
-        SysMgr.importPkgItems('ctypes')
-
         if not SysMgr.loadLibcObj():
             raise Exception('no libc')
 
@@ -37665,7 +37701,7 @@ struct cmsghdr {
         args = [fname, flags]
 
         # call dlopen #
-        ret = self.remoteUsercall(func, args)
+        ret = self.remoteUsercall(func, args, inc=True)
         if ret:
             self.loadSymbols()
 
@@ -37681,7 +37717,7 @@ struct cmsghdr {
 
 
 
-    def remoteUsercall(self, usercall, args=[], wait=True):
+    def remoteUsercall(self, usercall, args=[], wait=True, inc=False):
         # convert arguments in advance to prevent nested remote calls #
         args, freelist = self.convRemoteArgs(args)
 
@@ -37711,7 +37747,7 @@ struct cmsghdr {
             func = usercall
         elif type(usercall) is str:
             # get function address #
-            func = self.getAddrBySymbol(usercall, one=True)
+            func = self.getAddrBySymbol(usercall, inc=inc, one=True)
             if not func:
                 return None
         else:
@@ -37739,7 +37775,7 @@ struct cmsghdr {
             self.setSP(newSP)
             ret = self.writeMem(newSP, b'\x00' * wordSize)
         elif self.arch == 'x86':
-            # toDo: save all args to stack and set trap #
+            # toDo: save all args to stack and install the trap finally #
             SysMgr.printErr(\
                 "Fail to set trap for return because %s is not supported" % \
                     self.arch)
@@ -39401,6 +39437,14 @@ struct cmsghdr {
         if cur and self.pc:
             btList.insert(0, self.pc)
 
+        # get 1st address from stack #
+        targetAddr = self.sp
+        if targetAddr % wordSize == 0:
+            value = self.accessMem(self.peekIdx, targetAddr)
+        else:
+            value = self.readMem(targetAddr, retWord=True)
+        btList.insert(0, value)
+
         while 1:
             if not nextFp or \
                 nextFp < self.sp:
@@ -39730,7 +39774,7 @@ struct cmsghdr {
                 # top mode #
                 if self.isRealtime:
                     if SysMgr.funcDepth > 0:
-                        backtrace = self.getBacktrace(cur=True)
+                        backtrace = self.getBacktrace()
                     else:
                         backtrace = None
 
@@ -41111,7 +41155,8 @@ struct cmsghdr {
                 if self.cont(check=True):
                     sys.exit(0)
         elif self.mode == 'remote':
-            self.runExecMode()
+            for i in range(0, SysMgr.intervalEnable+1):
+                self.runExecMode()
             sys.exit(0)
         else:
             SysMgr.printErr(\
@@ -42960,6 +43005,69 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def iteratePhdr():
+        if not SysMgr.loadLibcObj():
+            sys.exit(0)
+
+        # define word size #
+        if ConfigMgr.wordSize == 4:
+            dlpi_addr_t = c_int32
+        else:
+            dlpi_addr_t = c_int64
+
+        class dl_phdr_info(Structure):
+            _fields_ = [
+                ('dlpi_addr', dlpi_addr_t),
+                ('dlpi_name', c_char_p),
+                ('dlpi_phdr', c_void_p),
+                ('dlpi_phnum', c_uint16),
+                ('dlpi_adds', c_ulonglong),
+                ('dlpi_subs', c_ulonglong),
+                ('dlpi_tls_modid', c_size_t),
+                ('dlpi_tls_data', c_void_p),
+            ]
+
+        callback_t = CFUNCTYPE(c_int,
+            POINTER(dl_phdr_info),
+            POINTER(c_size_t), c_char_p)
+
+        # define dl_iterate_phdr #
+        SysMgr.libcObj.dl_iterate_phdr.argtypes = [callback_t, c_char_p]
+        SysMgr.libcObj.dl_iterate_phdr.restype = c_int
+
+        def callback(info, size, data):
+            if not info.contents.dlpi_name:
+                return 0
+
+            # 32-bit #
+            if ConfigMgr.wordSize == 4:
+                bufSize = 32
+            else:
+                bufSize = 56
+
+            # create a buffer for Elfxx_Phdr #
+            lbuf = (c_char*bufSize)()
+            memmove(addressof(lbuf), info.contents.dlpi_phdr, sizeof(lbuf))
+
+            # 32-bit #
+            if ConfigMgr.wordSize == 4:
+                p_type, p_offset, p_vaddr, p_paddr, \
+                    p_filesz, p_memsz, p_flags, p_align = \
+                    struct.unpack('IIIIIIII', lbuf)
+            # 64-bit #
+            else:
+                p_type, p_flags, p_offset, p_vaddr, p_paddr, \
+                    p_filesz, p_memsz, p_align = \
+                    struct.unpack('IIQQQQQQ', lbuf)
+
+            return 0
+
+        # call function #
+        SysMgr.libcObj.dl_iterate_phdr(callback_t(callback), None)
+
+
+
+    @staticmethod
     def saveObject(obj, path):
         # check cache dir #
         if not os.path.isdir(SysMgr.cacheDirPath):
@@ -43355,6 +43463,7 @@ class ElfAnalyzer(object):
         mainSym = '?'
         prevAddr = None
         prevSize = 0
+        prevLen = 0
 
         # sort and convert table #
         for idx, item in sorted(tempSymTable.items(),\
@@ -43368,11 +43477,25 @@ class ElfAnalyzer(object):
             if onlyFunc and item['type'] != 'FUNC':
                 continue
 
-            # update main symbol #
+            # update symbol length #
+            curLen = idx.find('@')
+            if curLen < 0:
+                curLen = len(idx)
+
+            # update main symbol caused by same address #
             if prevAddr == item['value']:
-                if not idx.startswith('_') and \
+                if idx.startswith('_') and \
+                    not mainSym.startswith('_'):
+                    pass
+                elif not idx.startswith('_') and \
                     mainSym.startswith('_'):
                     mainSym = idx
+                elif '@' in idx and \
+                    not '@' in mainSym:
+                    mainSym = idx
+                elif curLen < prevLen:
+                    mainSym = idx
+                prevLen = curLen
                 continue
 
             # register symbol #
@@ -43380,9 +43503,11 @@ class ElfAnalyzer(object):
                 self.sortedAddrTable.append(prevAddr)
                 self.sortedSymTable.append([mainSym, prevSize])
 
+            # update previous symbol info #
             mainSym = idx
             prevAddr = item['value']
             prevSize = item['size']
+            prevLen = sys.maxsize
 
         # register last symbol #
         try:
@@ -44158,13 +44283,16 @@ Section header string table index: %d
                 p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
 
             # print program header #
-            if debug:
-                SysMgr.printPipe(\
-                    "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
-                    (ElfAnalyzer.PT_TYPE[p_type] \
-                        if p_type in ElfAnalyzer.PT_TYPE else hex(p_type), \
-                    p_offset, p_vaddr, p_paddr, p_filesz, \
-                    p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+            if not debug:
+                continue
+
+            SysMgr.printPipe(\
+                "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
+                (ElfAnalyzer.PT_TYPE[p_type] \
+                    if p_type in ElfAnalyzer.PT_TYPE else hex(p_type), \
+                p_offset, p_vaddr, p_paddr, p_filesz, \
+                p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+
         if debug:
             SysMgr.printPipe(oneLine)
 
@@ -44448,14 +44576,18 @@ Section header string table index: %d
                 symbol = self.getString(dynstr_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                if symbol:
+                    symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # concatenate symbol with it's required version #
                 try:
                     symIdx = len(self.attr['dynsymList'])
                     vsIdx = self.attr['versymList'][symIdx]
-                    symbol = '%s@%s' % \
-                        (symbol, self.attr['versionTable'][vsIdx])
+                    if symbol:
+                        symbol = '%s@%s' % \
+                            (symbol, self.attr['versionTable'][vsIdx])
+                    else:
+                        symbol = ''
                 except:
                     pass
 
@@ -44545,7 +44677,8 @@ Section header string table index: %d
                 symbol = self.getString(strtab_section, st_name)
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                if symbol:
+                    symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size, \
@@ -44625,7 +44758,8 @@ Section header string table index: %d
                     symbol = rsym
 
                 # convert manged string #
-                symbol = ElfAnalyzer.demangleSymbol(symbol)
+                if symbol:
+                    symbol = ElfAnalyzer.demangleSymbol(symbol)
 
                 # update address on dynsym table #
                 if symbol in self.attr['dynsymTable']:
@@ -44703,12 +44837,12 @@ Section header string table index: %d
                     if self.attr['dynsymTable'][symbol]['value'] == 0:
                         self.attr['dynsymTable'][symbol]['value'] = sh_offset
 
-                    symbol = '%s + ' % symbol
-
+                    if symbol:
+                        symbol = '%s + ' % symbol
                 if debug:
                     SysMgr.printPipe(\
-                        '%016x %016x %32s %016s %s' % \
-                            (sh_offset, sh_info, RTYPE, ' ', \
+                        '%016x %016x %32s %016x %s' % \
+                            (sh_offset, sh_info, RTYPE, 0, \
                             '%s%x' % (symbol, sh_addend)))
 
             if debug:
@@ -56603,6 +56737,8 @@ class ThreadAnalyzer(object):
         else:
             try:
                 pids = os.listdir(SysMgr.procPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenErr(SysMgr.procPath)
                 sys.exit(0)
@@ -56633,6 +56769,8 @@ class ThreadAnalyzer(object):
             # save file info per process #
             try:
                 fdlist = os.listdir(fdlistPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(fdlistPath)
                 continue
@@ -56642,6 +56780,8 @@ class ThreadAnalyzer(object):
                 try:
                     long(fd)
                     self.nrFd += 1
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -56682,6 +56822,8 @@ class ThreadAnalyzer(object):
                         self.procData[pid]['fdInfo']['PROC'] += 1
                     else:
                         self.procData[pid]['fdInfo']['NORMAL'] += 1
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.nrFd -= 1
                     SysMgr.printOpenWarn(fdPath)
