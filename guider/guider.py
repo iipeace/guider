@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200621"
+__revision__ = "200623"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10927,8 +10927,7 @@ class FunctionAnalyzer(object):
             '[%s] [Cnt: %d] (USER)' % (title, self.lockTryEventCnt))
 
         SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:_^9}|{1:_^144}".\
-            format("Usage", "Binary"))
+        SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
         SysMgr.printPipe(twoLine)
 
         for idx, value in sorted(\
@@ -11366,6 +11365,11 @@ class FunctionAnalyzer(object):
 class LeakAnalyzer(object):
     """ Analyzer for leaktracer """
 
+    startSig = 35
+    stopSig = 36
+
+
+
     def __init__(self, file=None, pid=None):
 
         self.pid = pid
@@ -11452,7 +11456,7 @@ class LeakAnalyzer(object):
         title = 'Function Leakage Info'
         SysMgr.printPipe((\
             '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
-            '[LeakSize: %s] [CallCount: %s] [FuncCount: %s] ') % \
+            '[LeakSize: %s] [NrCall: %s] [NrSymbol: %s] ') % \
                 (title, proc, vss, rss, \
                 convert(self.totalLeakSize), \
                 convert(len(self.callData)), \
@@ -11493,7 +11497,7 @@ class LeakAnalyzer(object):
         title = 'File Leakage Info'
         SysMgr.printPipe((\
             '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
-            '[LeakSize: %s] [CallCount: %s] [FileCount: %s]') % \
+            '[LeakSize: %s] [NrCall: %s] [NrFile: %s]') % \
                 (title, proc, vss, rss, \
                 convert(self.totalLeakSize), \
                 convert(len(self.callData)), \
@@ -12203,7 +12207,7 @@ class FileAnalyzer(object):
         FileAnalyzer.addMapLine(procMap, fileName, newOffset, newSize)
 
         # set mapped addr #
-        if newOffset == 0:
+        if newOffset == procMap[fileName]['vstart'] == 0:
             procMap[fileName]['vstart'] = startAddr
 
         # set executable flag #
@@ -15534,6 +15538,7 @@ class SysMgr(object):
                 'kill/tkill': 'Signal',
                 'pause': 'Thread',
                 'remote': 'Command',
+                'hook': 'Function',
                 'limitcpu': 'CPU',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
@@ -15770,6 +15775,8 @@ Commands:
     exec:CMD
     sleep:SEC
     getarg:REGS
+    setenv:VAR:VAL
+    getenv:VAR
     setarg:REG#VAL
     load:PATH
     save:NAME
@@ -16356,7 +16363,7 @@ Examples:
                 elif SysMgr.isSysTopMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Monitor syscalls for a specific thread
@@ -16388,7 +16395,7 @@ Examples:
                 elif SysMgr.isUserTopMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Monitor usercalls for a specific thread
@@ -16420,7 +16427,7 @@ Examples:
                 elif SysMgr.isBrkTopMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Monitor breakpoints for a specific thread
@@ -16458,7 +16465,7 @@ Examples:
                 elif SysMgr.isStackTopMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Monitor stack status
@@ -16518,7 +16525,7 @@ Examples:
                 elif SysMgr.isWssTopMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Monitor WSS(Working Set Size) of processes after clearing page reference bits
@@ -16691,7 +16698,7 @@ Description:
                 elif SysMgr.isStraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Trace systemcalls
@@ -16740,7 +16747,7 @@ Examples:
                 elif SysMgr.isUtraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Trace all usercalls
@@ -16793,7 +16800,7 @@ Examples:
                 elif SysMgr.isBtraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Trace specific usercalls
@@ -16825,7 +16832,7 @@ Options:
                 elif SysMgr.isRemoteMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -c <COMMAND> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
 
 Description:
     Execute commands remotely
@@ -16847,11 +16854,35 @@ Options:
 
                     helpStr +=  brkExamStr
 
+                # hook #
+                elif SysMgr.isHookMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
+
+Description:
+    Replace specific functions with a custom function
+
+Options:
+    -u                          run in the background
+    -g  <COMM|TID>              set filter
+    -c  <TARGET#BIN#HOOK>       set command
+    -H  <LEVEL>                 set function depth level
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -E  <DIR>                   set cache dir path
+    -v                          verbose
+
+Examples:
+    - Replace malloc functions with the malloc function in libhook.so for a.out process
+        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc
+                    '''.format(cmd, mode)
+
                 # sigtrace #
                 elif SysMgr.isSigtraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Trace signals
@@ -16890,7 +16921,7 @@ Examples:
                 elif SysMgr.isMemMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Analyze page attributes
@@ -16919,7 +16950,7 @@ Examples:
                 elif SysMgr.isCpuDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw CPU graphs and memory chart
@@ -16931,7 +16962,7 @@ Description:
                 elif SysMgr.isMemDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw system memory graphs and memory chart
@@ -16943,7 +16974,7 @@ Description:
                 elif SysMgr.isVssDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw process memory(VSS) graphs and memory chart
@@ -16955,7 +16986,7 @@ Description:
                 elif SysMgr.isRssDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw process memory(RSS) graphs and memory chart
@@ -16967,7 +16998,7 @@ Description:
                 elif SysMgr.isLeakDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw memory(VSS) graphs of processes suspected memory leak and memory chart
@@ -16979,7 +17010,7 @@ Description:
                 elif SysMgr.isIoDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw system I/O graphs and memory chart
@@ -16991,7 +17022,7 @@ Description:
                 elif SysMgr.isDrawMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw system resource graphs and memory chart
@@ -17003,7 +17034,7 @@ Description:
                 elif SysMgr.isTopDiffMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Diff top report files
@@ -17022,7 +17053,7 @@ Examples:
                 elif SysMgr.isTopSumMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} FILE [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Summary a top output file
@@ -17068,7 +17099,7 @@ Examples:
                 elif SysMgr.isPauseMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Pause specific running threads
@@ -17311,14 +17342,14 @@ Examples:
                 elif SysMgr.isLeaktraceMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <FILE> -g <PID|COMM> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Show functions caused memory leakage with leaktracer output
 
-    Get libleaktracer.so from https://github.com/iipeace/portable/tree/master/leaktracer
+    Get libleaktracer.so for various CPU architectures from https://github.com/iipeace/portable/tree/master/leaktracer
 
-    Run the target process with below specific environment variables
+    Run the target process with below specific environment variables if you can't inject the hook binary
     $ LD_PRELOAD=./libleaktracer.so \\
         LEAKTRACER_AUTO_REPORTFILENAME=leaks.out \\
         LEAKTRACER_ONSIG_REPORT=36 EXEC
@@ -17336,6 +17367,7 @@ Options:
     -I  <FILE>                  set input path
     -o  <DIR|FILE>              save output data
     -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
+    -T  <FILE>                  set hook path for injection
     -g  <PID|COMM>              set target process
     -k  <{{START,}}STOP>          set signal
     -C  <PATH>                  set configuration path
@@ -17344,8 +17376,11 @@ Options:
 
                     helpStr +=  '''
 Examples:
-    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key
+    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
+
+    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with injection
+        # {0:1} {1:1} -g a.out -I ./leaks.out -T /home/root/libleaktracer.so
 
     - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -k 36
@@ -17362,7 +17397,7 @@ Examples:
                 elif SysMgr.isPrintEnvMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <PID> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
     Show environment variables for a specific process
@@ -17624,7 +17659,7 @@ Examples:
                 elif SysMgr.isSetAffinityMode():
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <TID|COMM:MASK> [OPTIONS] [--help]
+    # {0:1} {1:1} -g <TARGET:MASK> [OPTIONS] [--help]
 
 Description:
     Set CPU affinity of threads
@@ -22022,12 +22057,11 @@ Copyright:
         # check argument count #
         if option:
             optionList = option.split()
+            SysMgr.parseOption(optionList)
         elif len(sys.argv) <= 2:
             return
         else:
             optionList = None
-
-        SysMgr.parseOption(optionList)
 
         for item in SysMgr.optionList:
             if item == '':
@@ -23143,6 +23177,15 @@ Copyright:
 
 
     @staticmethod
+    def isHookMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'hook':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isBtraceMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'btrace':
             return True
@@ -23805,18 +23848,16 @@ Copyright:
         elif SysMgr.isRemoteMode():
             SysMgr.doTrace('remote')
 
+        # HOOK MODE #
+        elif SysMgr.isHookMode():
+            SysMgr.doTrace('hook')
+
         # BTRACE MODE #
         elif SysMgr.isBtraceMode():
-            # check background processes #
-            SysMgr.checkBgProcs()
-
             SysMgr.doTrace('breakcall')
 
         # SIGTRACE MODE #
         elif SysMgr.isSigtraceMode():
-            # check background processes #
-            SysMgr.checkBgProcs()
-
             SysMgr.doTrace('signal')
 
         # PRINTENV MODE #
@@ -25247,12 +25288,12 @@ Copyright:
             os.environ["ISMAIN"] = "True"
 
             # disable pager #
-            SysMgr.logEnable = False
             SysMgr.printStreamEnable = True
             SysMgr.printFile = SysMgr.fileForPrint = None
 
             # disable logs #
             if not log:
+                SysMgr.logEnable = False
                 SysMgr.encodeEnable = False
 
             # change standard I/O #
@@ -25266,6 +25307,8 @@ Copyright:
                 sys.stderr.close()
 
             # launch Guider command #
+            SysMgr.parsedAnalOption = False
+            SysMgr.optionList = []
             main(cmd)
 
             sys.exit(0)
@@ -26351,9 +26394,8 @@ Copyright:
 
         SysMgr.checkPerm()
 
-        if len(SysMgr.filterGroup) == 0:
-            SysMgr.filterGroup.append(SysMgr.pid)
-            sys.exit(0)
+        if not SysMgr.filterGroup:
+            SysMgr.filterGroup.append(str(SysMgr.pid))
 
         pids = SysMgr.convertPidList(SysMgr.filterGroup, exceptMe=True)
         if not pids:
@@ -26895,8 +26937,8 @@ Copyright:
                 "Input value for target with -g or -I option")
             sys.exit(0)
 
-        # check command #
-        if mode == 'remote':
+        # check condition #
+        if mode == 'remote' or mode == 'hook':
             if not SysMgr.customCmd:
                 SysMgr.printErr("Fail to get remote command")
                 sys.exit(0)
@@ -26929,23 +26971,26 @@ Copyright:
         # create event memory #
         Debugger.globalEvent = SysMgr.createShm()
 
-        needSymbol = (mode == 'sample' or mode == 'breakcall' or \
-            mode == 'usercall' or SysMgr.funcDepth > 0)
+        needSymbol = (\
+            mode == 'usercall' or mode == 'sample' or \
+            mode == 'breakcall' or mode == 'hook' or \
+            SysMgr.funcDepth > 0)
 
         # check tid #
         if inputParam:
             pid = None
             execCmd = inputParam.split()
-        # check error #
+        # check permission #
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
                 "Fail to get root permission to trace %s" % mode)
             sys.exit(0)
+        # check pid #
         elif not pids or len(pids) == 0:
             if SysMgr.filterGroup:
+                flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(\
-                    "No thread related to %s" % \
-                    ', '.join(SysMgr.filterGroup))
+                    "No thread related to %s" % flist)
             elif not inputParam:
                 SysMgr.printErr(\
                     "No TID with -g option or command with -I option")
@@ -26955,6 +27000,7 @@ Copyright:
             SysMgr.printFile = SysMgr.fileForPrint = None
 
             sys.exit(0)
+        # check targets #
         elif len(allpids) > 1 or mode == 'breakcall':
             parent = SysMgr.pid
 
@@ -27079,8 +27125,8 @@ Copyright:
             elif mode == 'remote':
                 Debugger(pid=pid, execCmd=execCmd).\
                     trace(mode='remote', wait=wait, multi=multi)
-            else:
-                pass
+            elif mode == 'hook':
+                Debugger.hookFunc(pid, SysMgr.customCmd)
         except SystemExit:
             sys.exit(0)
         except:
@@ -27169,19 +27215,21 @@ Copyright:
         # single process #
         else:
             pid = pids[0]
+            comm = SysMgr.getComm(pid)
+            procInfo = '%s(%s)' % (comm, pid)
 
             try:
                 dobj = Debugger(pid=pid, attach=False)
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to analyze %s process" % pid)
+                SysMgr.printErr("Fail to analyze %s" % procInfo)
                 sys.exit(0)
 
             for addr in addrList:
                 ret = dobj.getSymbolInfo(addr)
                 if not ret:
-                    SysMgr.printErr("Fail to analyze %s process" % pid)
+                    SysMgr.printErr("Fail to analyze %s" % procInfo)
                     sys.exit(0)
                 elif type(ret) is list:
                     resInfo[addr] = [ret[0], ret[1]]
@@ -27446,11 +27494,13 @@ Copyright:
         # single process #
         else:
             pid = pids[0]
+            comm = SysMgr.getComm(pid)
+            procInfo = '%s(%s)' % (comm, pid)
 
             # get file list on memorymap #
             fileList = FileAnalyzer.getProcMapInfo(pid, onlyExec=True)
             if not fileList:
-                SysMgr.printErr("Fail to analyze %s process" % pid)
+                SysMgr.printErr("Fail to analyze %s" % procInfo)
                 sys.exit(0)
 
             for filePath, attr in fileList.items():
@@ -27500,7 +27550,7 @@ Copyright:
 
     @staticmethod
     def doLeaktrace():
-        def waitAndKill(tobj, pid, comm, cond, sig, purpose):
+        def waitAndKill(tobj, pid, comm, cond, sig, purpose, hookCmd=None):
             # define RSS index #
             rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
             vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
@@ -27533,6 +27583,13 @@ Copyright:
                 if cond <= rss:
                     break
                 time.sleep(1)
+
+            # set hook #
+            if hookCmd:
+                hcmd = \
+                    ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
+                SysMgr.launchGuider(\
+                    hcmd, pipe=False, stderr=True, log=True, wait=True)
 
             # send signal #
             try:
@@ -27574,24 +27631,69 @@ Copyright:
 
         # get environment variables of target #
         envList = SysMgr.getEnv(pid, retdict=True)
+        myEnvList = SysMgr.getEnv(SysMgr.pid, retdict=True)
+
+        # check permission #
+        SysMgr.checkPerm()
+
+        # define remote command list #
+        remoteCmd = []
+        hookCmd = []
+        hookList = [
+            'calloc',
+            'malloc',
+            'realloc',
+            'free',
+            'operator new(unsigned long)',
+            'operator new[](unsigned long)',
+            'operator delete(void*)',
+            'operator delete[](void*)',
+        ]
+
+        # check preload result #
+        ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
+        if ret:
+            SysMgr.printStat(\
+                '%s is preloaded to %s(%s)' % (ret, comm, pid))
+        else:
+            libPath = SysMgr.getOption('T')
+            if libPath:
+                remoteCmd.append('load:%s' % libPath)
+                for item in hookList:
+                    hookCmd.append('%s#%s#%s' % (item, libPath, item))
+                SysMgr.printInfo(\
+                    "%s is going to be injected automatically" % libPath)
+            elif not 'LD_PRELOAD' in envList or \
+                not 'libleaktracer' in envList['LD_PRELOAD']:
+                SysMgr.printErr(\
+                    'Fail to find libleaktracer.so on memory map '
+                    'because the library is not preloaded')
+                sys.exit(0)
+            else:
+                SysMgr.printErr(\
+                    'Fail to find libleaktracer.so on memory map '
+                    'because the library is not preloaded\n'
+                    '\tIf the target process is on secure-execution mode,\n'
+                    '\tlibleaktracer.so should be in standard search directories'
+                    'specified in /etc/ld.so.conf,\n'
+                    '\tAnd all slashes in it\'s preload path will be ignored.')
+                sys.exit(0)
 
         # set input file path #
-        if SysMgr.inputParam:
-            fname = SysMgr.inputParam
-        elif 'LEAKTRACER_ONSIG_REPORTFILENAME' in envList:
+        autostart = False
+        if 'LEAKTRACER_ONSIG_REPORTFILENAME' in envList:
             fname = envList['LEAKTRACER_ONSIG_REPORTFILENAME']
         elif 'LEAKTRACER_AUTO_REPORTFILENAME' in envList:
+            autostart = True
             fname = envList['LEAKTRACER_AUTO_REPORTFILENAME']
         else:
-            SysMgr.printErr("No PATH with -I")
-            sys.exit(0)
-
-        # set signal #
-        startSig = stopSig = None
-        if 'LEAKTRACER_ONSIG_STARTALLTHREAD' in envList:
-            startSig = long(envList['LEAKTRACER_ONSIG_STARTALLTHREAD'])
-        if 'LEAKTRACER_ONSIG_REPORT' in envList:
-            stopSig = long(envList['LEAKTRACER_ONSIG_REPORT'])
+            if SysMgr.inputParam:
+                fname = SysMgr.inputParam
+                remoteCmd.insert(\
+                    0, 'setenv:LEAKTRACER_ONSIG_REPORTFILENAME#%s' % fname)
+            else:
+                SysMgr.printErr("No PATH with -I")
+                sys.exit(0)
 
         # make full path #
         if not fname.startswith('/'):
@@ -27612,30 +27714,15 @@ Copyright:
                 SysMgr.printErr(\
                     "Fail to backup %s to %s" % (fname, oldpath), True)
 
+        # set signal #
+        startSig = stopSig = None
+        if 'LEAKTRACER_ONSIG_STARTALLTHREAD' in envList:
+            startSig = long(envList['LEAKTRACER_ONSIG_STARTALLTHREAD'])
+        if 'LEAKTRACER_ONSIG_REPORT' in envList:
+            stopSig = long(envList['LEAKTRACER_ONSIG_REPORT'])
+
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
-
-        # check preload result #
-        ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
-        if ret:
-            SysMgr.printStat(\
-                '%s is preloaded to %s(%s)' % (ret, comm, pid))
-        if not ret:
-            if not 'LD_PRELOAD' in envList or \
-                not 'libleaktracer' in envList['LD_PRELOAD']:
-                SysMgr.printErr(\
-                    'Fail to find libleaktracer.so on memory map '
-                    'because the library is not preloaded')
-                sys.exit(0)
-
-            SysMgr.printErr(\
-                'Fail to find libleaktracer.so on memory map '
-                'because the library is not preloaded\n'
-                '\tIf the target process is on secure-execution mode,\n'
-                '\tlibleaktracer.so should be in standard search directories'
-                'specified in /etc/ld.so.conf,\n'
-                '\tAnd all slashes in it\'s preload path will be ignored.')
-            sys.exit(0)
 
         # get signals #
         if SysMgr.killFilter:
@@ -27660,6 +27747,25 @@ Copyright:
                         "wrong signal %s for stop" % sigList[0][0])
                     sys.exit(0)
 
+        # add an environment for start signal #
+        if not autostart and not startSig:
+            startSig = LeakAnalyzer.startSig
+            remoteCmd.insert(\
+                0, 'setenv:LEAKTRACER_ONSIG_STARTALLTHREAD#"%s"' % startSig)
+
+        # add an environment for stop signal #
+        if not stopSig:
+            stopSig = LeakAnalyzer.stopSig
+            remoteCmd.insert(\
+                0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig)
+
+        # set environment #
+        if remoteCmd:
+            rcmd = \
+                ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
+            SysMgr.launchGuider(\
+                rcmd, pipe=False, stderr=True, log=True, wait=True)
+
         # START #
         cmd = SysMgr.customCmd
         startSize = endSize =  0
@@ -27671,8 +27777,15 @@ Copyright:
                 endSize = UtilMgr.convUnit2Size(cmd[0])
 
             if startSize > 0:
-                waitAndKill(tobj, pid, comm, startSize, startSig, 'start')
+                waitAndKill(\
+                    tobj, pid, comm, startSize, startSig, 'start', hookCmd)
         elif startSig:
+            if hookCmd:
+                hcmd = \
+                    ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
+                SysMgr.launchGuider(\
+                    hcmd, pipe=False, stderr=True, log=True, wait=True)
+
             try:
                 os.kill(long(pid), startSig)
                 SysMgr.printStat(\
@@ -34542,6 +34655,9 @@ class DbusAnalyzer(object):
 
             return taskList
 
+        # check essential json module #
+        SysMgr.getPkg('json')
+
         # check permission #
         SysMgr.checkPerm()
 
@@ -36223,6 +36339,139 @@ struct cmsghdr {
 
 
     @staticmethod
+    def hookFunc(pid, hookList):
+        # attach to target #
+        try:
+            comm = SysMgr.getComm(pid)
+            procInfo = '%s(%s)' % (comm, pid)
+            dobj = Debugger(pid=pid)
+            dobj.initValues()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("Fail to analyze %s" % procInfo)
+            sys.exit(0)
+
+        # get symbol info #
+        hooks = []
+        for item in hookList:
+            symbols = item.split('#')
+
+            # get symbols from string #
+            oldSym = symbols[0]
+            if len(symbols) == 2:
+                fpath = None
+                newSym = symbols[1]
+            elif len(symbols) == 3:
+                fpath = symbols[1]
+                newSym = symbols[2]
+            else:
+                SysMgr.printErr("Fail to recognize %s" % item)
+                sys.exit(0)
+
+            # load the library #
+            if fpath:
+                dobj.dlopen(fpath)
+                dobj.loadSymbols()
+                if not fpath in dobj.pmap:
+                    SysMgr.printErr(\
+                        "Fail to find '%s' on memory map in %s" % \
+                            (fpath, procInfo))
+                    sys.exit(0)
+
+            # get target symbol info #
+            oldSet = dobj.getAddrBySymbol(oldSym)
+            if not oldSet:
+                SysMgr.printErr(\
+                    "Fail to find '%s' info from %s" % (oldSym, procInfo))
+                sys.exit(0)
+
+            # get hook symbol info #
+            newSet = dobj.getAddrBySymbol(newSym, fpath)
+            if not newSet:
+                SysMgr.printErr(\
+                    "Fail to find '%s' info from %s" % (newSym, procInfo))
+                sys.exit(0)
+
+            # add a set to list #
+            hooks.append([oldSet, newSet])
+
+        # stop target #
+        SysMgr.sendSignalProcs(signal.SIGSTOP, [pid])
+
+        # inject hooks #
+        for item in hooks:
+            # hook info #
+            hook = item[1][0]
+            hookAddr = hook[0]
+            hookSym = hook[1]
+            hookBin = hook[2]
+
+            # target info #
+            target = item[0][0]
+            targetAddr = target[0]
+            targetSym = target[1]
+            targetBin = target[2]
+
+            for fpath, mapInfo in dobj.pmap.items():
+                # skip same binary to prevent infinite recursive call #
+                if not fpath.startswith('/'):
+                    continue
+
+                # get start address on map for the binary #
+                if ElfAnalyzer.isRelocFile(fpath):
+                    vstart = mapInfo['vstart']
+                else:
+                    vstart = 0
+
+                # get ELF object #
+                fcache = ElfAnalyzer.getObject(fpath)
+                if not hasattr(fcache, 'attr'):
+                    continue
+
+                # get mapping info #
+                for sym, attr in sorted(\
+                    fcache.attr['dynsymTable'].items(),\
+                    key=lambda x:x[1]['size'], reverse=False):
+                    if attr['size'] > 0:
+                        break
+                    elif sym != targetSym and sym.split('@')[0] != targetSym:
+                        continue
+
+                    # read original address for target #
+                    slotAddr = vstart + attr['value']
+                    if slotAddr % ConfigMgr.wordSize == 0:
+                        origAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
+                    else:
+                        origAddr = dobj.readMem(slotAddr, retWord=True)
+
+                    # change access permission on the page #
+                    ret = dobj.mprotect(slotAddr)
+
+                    # write hook address for target #
+                    if slotAddr % ConfigMgr.wordSize == 0:
+                        ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
+                    else:
+                        ret = dobj.writeMem(slotAddr, hookAddr)
+
+                    # read updated address for verification #
+                    slotAddr = vstart + attr['value']
+                    if slotAddr % ConfigMgr.wordSize == 0:
+                        newAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
+                    else:
+                        newAddr = dobj.readMem(slotAddr, retWord=True)
+
+                    SysMgr.printWarn(\
+                        "Updated %s(%s@%s) to %s(%s@%s) for %s" % \
+                            (targetSym, hex(targetAddr), fpath, \
+                                hookSym, hex(hookAddr), hookBin, procInfo))
+
+        # continue target #
+        SysMgr.sendSignalProcs(signal.SIGCONT, [pid])
+
+
+
+    @staticmethod
     def getGlobalLock(name=None, size=0):
         if Debugger.gLockObj:
             return Debugger.gLockObj
@@ -36427,6 +36676,10 @@ struct cmsghdr {
                 cmdformat = "START"
             elif cmd == 'stop':
                 cmdformat = "STOP"
+            elif cmd == 'setenv':
+                cmdformat = "SETENV:VAR#VAL"
+            elif cmd == 'getenv':
+                cmdformat = "GETENV:VAR"
             elif cmd == 'exit':
                 cmdformat = "EXIT"
 
@@ -36980,6 +37233,78 @@ struct cmsghdr {
 
                     time.sleep(val)
 
+                elif cmd == 'setenv':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get env info #
+                    envs = cmdset[1].split('#')
+                    if len(envs) != 2:
+                        printCmdErr(cmdval, cmd)
+                    else:
+                        val = envs[0]
+                        argList = envs
+
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
+                    argStr = ' = '.join(list(map(str, argList)))
+
+                    output = "\n[%s] %s" % (cmdstr, argStr)
+
+                    # remove all berakpoints #
+                    self.removeAllBreakpoint(verb=False)
+
+                    SysMgr.printPipe(output, newline=False, flush=True)
+
+                    # call function $
+                    ret = self.setenv(argList[0], argList[1])
+                    if ret == 0:
+                        res = 'success'
+                    else:
+                        res = 'fail'
+
+                    # update return #
+                    self.retList[val] = str(ret)
+                    self.prevReturn = str(ret)
+
+                    SysMgr.printPipe(\
+                        ' (%s)' % res, newline=False, flush=True)
+
+                    # inject all breakpoints again #
+                    self.updateBpList(verb=False)
+
+                elif cmd == 'getenv':
+                    if len(cmdset) == 1:
+                        printCmdErr(cmdval, cmd)
+
+                    # get env #
+                    val = cmdset[1]
+                    argList = [val]
+
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
+                    val = argList[0]
+
+                    output = "\n[%s] %s" % (cmdstr, val)
+
+                    # remove all berakpoints #
+                    self.removeAllBreakpoint(verb=False)
+
+                    SysMgr.printPipe(output, newline=False, flush=True)
+
+                    # call function $
+                    ret = self.getenv(val)
+
+                    # update return #
+                    self.retList[val] = str(ret)
+                    self.prevReturn = str(ret)
+
+                    SysMgr.printPipe(\
+                        ' = %s' % ret, newline=False, flush=True)
+
+                    # inject all breakpoints again #
+                    self.updateBpList(verb=False)
+
                 elif cmd == 'stop':
                     SysMgr.printPipe(\
                         "\n[%s]\n" % (cmdstr), newline=False, flush=True)
@@ -37243,7 +37568,7 @@ struct cmsghdr {
                                 break
                         if not found:
                             SysMgr.printErr(\
-                                "Fail to find [ %s ] on map table" % \
+                                "Fail to find '%s' on memory map" % \
                                     ', '.join(binlist))
                             sys.exit(0)
 
@@ -37577,6 +37902,7 @@ struct cmsghdr {
 
 
     def convRemoteArgs(self, args):
+        isTemp = True
         freelist = []
         for idx, item in enumerate(deepcopy(args)):
             if type(item) is not str:
@@ -37586,9 +37912,8 @@ struct cmsghdr {
                 try:
                     args[idx] = long(item, 16)
                 except:
-                    item = item.strip('"')
-
-                    addr = self.calloc(string=item, temp=True)
+                    addr = self.calloc(string=item, temp=isTemp)
+                    isTemp = False
                     if not addr:
                         sys.exit(0)
 
@@ -37611,6 +37936,7 @@ struct cmsghdr {
         # check size #
         if not size:
             if string:
+                string = string.strip('"')
                 size = len(string) + 1
             else:
                 SysMgr.printErr(\
@@ -37636,7 +37962,7 @@ struct cmsghdr {
 
         # copy string to memory #
         if string:
-            ret = self.writeMem(addr, string.encode())
+            ret = self.writeMem(addr, string.encode(), skipCheck=True)
             if ret == -1:
                 SysMgr.printErr(\
                     "Fail to write '%s' to %s" % (string, hex(addr)))
@@ -37736,9 +38062,6 @@ struct cmsghdr {
         # change access permission on a page pointed by PC #
         ret = self.mprotect(self.pc)
         if ret == -1:
-            SysMgr.printErr(\
-                "Fail to change access permission on %s page for %s" % \
-                    (hex(self.pc), procInfo))
             return None
         '''
 
@@ -37891,6 +38214,29 @@ struct cmsghdr {
 
 
 
+    def getenv(self, name):
+        ret = self.remoteUsercall("getenv", [name])
+        if ret:
+            return self.readString(ret)
+
+
+
+    def setenv(self, name, value, overwrite=True):
+        if overwrite:
+            overwrite = 1
+        else:
+            overwrite = 0
+
+        ret = self.remoteUsercall('setenv', [name, value, overwrite])
+        if ret == -1:
+            procInfo = '%s(%s)' % (self.comm, self.pid)
+            SysMgr.printErr(\
+                "Fail to set %s(%s) environment variable for %s" % \
+                    (name, value, procInfo))
+        return ret
+
+
+
     def mmap(self, size=4096, perm='rwx'):
         # set prot #
         prot = 0
@@ -37925,7 +38271,13 @@ struct cmsghdr {
         if 'x' in perm:
             prot |= 0x4
 
-        return self.remoteSyscall('sys_mprotect', [maddr, size, prot])
+        ret = self.remoteSyscall('sys_mprotect', [maddr, size, prot])
+        if ret == -1:
+            procInfo = '%s(%s)' % (self.comm, self.pid)
+            SysMgr.printErr(\
+                "Fail to change access permission on %s page for %s" % \
+                    (hex(maddr), procInfo))
+        return ret
 
 
 
@@ -38332,7 +38684,7 @@ struct cmsghdr {
 
 
 
-    def readCString(self, addr, chunk=256):
+    def readString(self, addr, chunk=256):
         ret = b''
         while 1:
             string = self.readMem(addr, chunk)
@@ -38529,7 +38881,7 @@ struct cmsghdr {
         if ref and argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
             # toDo: add more argnames #
-            return self.readCString(self.values[seq])
+            return self.readString(self.values[seq])
 
         if syscall == "socketcall":
             if argname == "call":
@@ -40603,8 +40955,8 @@ struct cmsghdr {
             not SysMgr.warnEnable:
             return
 
-        string = ['%s(%s/%s)' % \
-            (item[1], item[2], hex(item[0]).rstrip('L')) for item in slist]
+        string = ['%s(%s@%s)' % \
+            (item[1], hex(item[0]).rstrip('L'), item[2]) for item in slist]
 
         SysMgr.printWarn(\
             "Found multiple symbols [ %s ]" % ', '.join(string))
@@ -43427,7 +43779,7 @@ class ElfAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to check relocatable format", True)
+                "Fail to check relocatable format", True, True)
             return False
 
         # check file name #
@@ -43518,7 +43870,7 @@ class ElfAnalyzer(object):
             pass
 
         # remove useless symbols after merge #
-        if removeOrig:
+        if False and removeOrig:
             del self.attr['symTable']
             del self.attr['dynsymTable']
 
@@ -61643,6 +61995,9 @@ def main(args=None):
     # update arguments #
     if UtilMgr.isString(args):
         sys.argv = ['guider'] + args.split()
+    elif type(args) is list or \
+        type(args) is tuple:
+        sys.argv = ['guider'] + list(args)
 
     # initialize envirnoment #
     SysMgr.initEnvironment()
