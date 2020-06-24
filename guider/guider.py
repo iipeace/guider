@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200623"
+__revision__ = "200624"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11439,7 +11439,7 @@ class LeakAnalyzer(object):
 
 
 
-    def printLeakage(self):
+    def printLeakage(self, runtime, profiletime):
         convert = UtilMgr.convSize2Unit
 
         try:
@@ -11455,17 +11455,16 @@ class LeakAnalyzer(object):
         # function leakage info #
         title = 'Function Leakage Info'
         SysMgr.printPipe((\
-            '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
-            '[LeakSize: %s] [NrCall: %s] [NrSymbol: %s] ') % \
-                (title, proc, vss, rss, \
+            '\n[%s] [Process: %s] [Runtime: %s] [ProfileTime: %s] '
+            '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
+                (title, proc, runtime, profiletime, vss, rss, \
                 convert(self.totalLeakSize), \
-                convert(len(self.callData)), \
-                convert(len(self.symData))))
+                convert(len(self.callData))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
-                "{0:^7} | {1:^7} | {2:^7} |{3:^46} | {4:^74} |".\
-                format("Size", "Count", "Avg", "Function", "Path"))
+                "{0:^7} | {1:^7} | {2:^7} | {3:^122} |".\
+                format("Size", "Count", "Avg", "Function"))
         SysMgr.printPipe(oneLine)
 
         count = long(0)
@@ -11475,15 +11474,15 @@ class LeakAnalyzer(object):
                 break
 
             SysMgr.printPipe(\
-                "{0:>7} | {1:>7} | {2:>7} |{3:^46} | {4:<74} |".\
+                "{0:>7} | {1:>7} | {2:>7} | {3:<122} ".\
                     format(convert(val['lastPosSize']), convert(val['count']), \
                     convert(long(val['lastPosSize'] / val['count'])), \
-                    sym, val['path']))
+                    '%s[%s]' % (sym, val['path'])))
 
             for substack, size in sorted(val['substack'].items(), \
                 key=lambda e: e[1], reverse=True):
                 SysMgr.printPipe(\
-                    "{0:>7} | {1:>7} | {2:<132} |".\
+                    "{0:>7} | {1:>7} | {2:<132} ".\
                         format('', convert(size), substack))
 
             count += 1
@@ -11496,12 +11495,11 @@ class LeakAnalyzer(object):
         # file leakage info #
         title = 'File Leakage Info'
         SysMgr.printPipe((\
-            '\n[%s] [Process: %s] [VSS: %s] [RSS: %s] '
-            '[LeakSize: %s] [NrCall: %s] [NrFile: %s]') % \
-                (title, proc, vss, rss, \
+            '\n[%s] [Process: %s] [Runtime: %s]  [ProfileTime: %s] '
+            '[VSS: %s] [RSS: %s] [LeakSize: %s] [NrCall: %s]') % \
+                (title, proc, runtime, profiletime, vss, rss, \
                 convert(self.totalLeakSize), \
-                convert(len(self.callData)), \
-                convert(len(self.fileData))))
+                convert(len(self.callData))))
 
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
@@ -11560,6 +11558,7 @@ class LeakAnalyzer(object):
     def mergeSymbols(self):
         cnt = long(0)
         total = len(self.posData)
+        dobj = Debugger()
         for pos, val in self.posData.items():
             UtilMgr.printProgress(cnt, total)
             cnt += 1
@@ -11586,7 +11585,9 @@ class LeakAnalyzer(object):
             if val['callList']:
                 for time in list(val['callList'].keys()):
                     callinfo = self.callData[time]
-                    substack = ' <- '.join(callinfo['symstack'][1:])
+                    substack = dobj.getBacktraceString(\
+                        callinfo['symstack'][1:], default=20)
+                    dobj.btStr = None
 
                     try:
                         self.symData[sym]['substack'][substack] += \
@@ -11649,7 +11650,8 @@ class LeakAnalyzer(object):
             symstack = list(val['stack'])
 
             for idx, offset in enumerate(val['stack']):
-                symstack[idx] = self.posData[offset]['sym']
+                data = self.posData[offset]
+                symstack[idx] = [data['offset'], data['sym'], data['path']]
 
             val['symstack'] = symstack
 
@@ -27603,6 +27605,9 @@ Copyright:
                         (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
                 sys.exit(0)
 
+        startTime = endTime = 0
+
+        # check target id #
         targetList = SysMgr.filterGroup
         if len(targetList) == 0:
             SysMgr.printErr(\
@@ -27631,7 +27636,6 @@ Copyright:
 
         # get environment variables of target #
         envList = SysMgr.getEnv(pid, retdict=True)
-        myEnvList = SysMgr.getEnv(SysMgr.pid, retdict=True)
 
         # check permission #
         SysMgr.checkPerm()
@@ -27654,14 +27658,14 @@ Copyright:
         ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
         if ret:
             SysMgr.printStat(\
-                '%s is preloaded to %s(%s)' % (ret, comm, pid))
+                '%s is already preloaded to %s(%s)' % (ret, comm, pid))
         else:
             libPath = SysMgr.getOption('T')
             if libPath:
                 remoteCmd.append('load:%s' % libPath)
                 for item in hookList:
                     hookCmd.append('%s#%s#%s' % (item, libPath, item))
-                SysMgr.printInfo(\
+                SysMgr.printStat(\
                     "%s is going to be injected automatically" % libPath)
             elif not 'LD_PRELOAD' in envList or \
                 not 'libleaktracer' in envList['LD_PRELOAD']:
@@ -27679,6 +27683,12 @@ Copyright:
                     '\tAnd all slashes in it\'s preload path will be ignored.')
                 sys.exit(0)
 
+        # create a task object #
+        tobj = ThreadAnalyzer(None, onlyInstance=True)
+        tobj.saveProcData('%s/%s' % (SysMgr.procPath, pid), pid)
+        SysMgr.updateUptime()
+        tobj.setProcUsage()
+
         # set input file path #
         autostart = False
         if 'LEAKTRACER_ONSIG_REPORTFILENAME' in envList:
@@ -27686,6 +27696,7 @@ Copyright:
         elif 'LEAKTRACER_AUTO_REPORTFILENAME' in envList:
             autostart = True
             fname = envList['LEAKTRACER_AUTO_REPORTFILENAME']
+            startTime = tobj.procData[pid]['runtime'] + SysMgr.uptime
         else:
             if SysMgr.inputParam:
                 fname = SysMgr.inputParam
@@ -27720,9 +27731,6 @@ Copyright:
             startSig = long(envList['LEAKTRACER_ONSIG_STARTALLTHREAD'])
         if 'LEAKTRACER_ONSIG_REPORT' in envList:
             stopSig = long(envList['LEAKTRACER_ONSIG_REPORT'])
-
-        # create a task object #
-        tobj = ThreadAnalyzer(None, onlyInstance=True)
 
         # get signals #
         if SysMgr.killFilter:
@@ -27799,6 +27807,11 @@ Copyright:
                         ConfigMgr.SIG_LIST[startSig], reason=True)
                 sys.exit(0)
 
+        # update start time #
+        if not startTime:
+            SysMgr.updateUptime()
+            startTime = SysMgr.uptime
+
         # STOP #
         if endSize > 0:
             waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
@@ -27823,6 +27836,18 @@ Copyright:
                         ConfigMgr.SIG_LIST[stopSig], reason=True)
                 sys.exit(0)
 
+        # calculate runtime and profile time #
+        try:
+            tobj.saveProcData('%s/%s' % (SysMgr.procPath, pid), pid)
+            SysMgr.updateUptime()
+            tobj.setProcUsage()
+            endTime = SysMgr.uptime
+            runtime = UtilMgr.convTime(tobj.procData[pid]['runtime'])
+            profiletime = UtilMgr.convTime(endTime - startTime)
+        except:
+            runtime = '?'
+            profiletime = '?'
+
         SysMgr.printStat('wait for %s' % fname)
 
         # wait for the output file is closed #
@@ -27833,18 +27858,18 @@ Copyright:
             time.sleep(1)
             tobj.reinitStats()
 
+        # set signal handler #
+        SysMgr.setNormalSignal()
+
         # wait for the output file is written #
         while not os.path.exists(fname) or \
             os.stat(fname).st_size == 0:
             time.sleep(1)
 
-        # set signal handler #
-        SysMgr.setNormalSignal()
-
         # create leaktracer parser #
         try:
             lt = LeakAnalyzer(fname, pid)
-            lt.printLeakage()
+            lt.printLeakage(runtime, profiletime)
         except SystemExit:
             sys.exit(0)
         except:
@@ -36461,8 +36486,8 @@ struct cmsghdr {
                     else:
                         newAddr = dobj.readMem(slotAddr, retWord=True)
 
-                    SysMgr.printWarn(\
-                        "Updated %s(%s@%s) to %s(%s@%s) for %s" % \
+                    SysMgr.printInfo(\
+                        "updated %s(%s@%s) to %s(%s@%s) for %s" % \
                             (targetSym, hex(targetAddr), fpath, \
                                 hookSym, hex(hookAddr), hookBin, procInfo))
 
@@ -43779,7 +43804,7 @@ class ElfAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to check relocatable format", True, True)
+                "Fail to check relocatable format", reason=True)
             return False
 
         # check file name #
@@ -59372,6 +59397,8 @@ class ThreadAnalyzer(object):
 
     def setProcUsage(self):
         interval = SysMgr.uptimeDiff
+        if interval == 0:
+            interval = 0.1
 
         for pid, value in self.procData.items():
             try:
