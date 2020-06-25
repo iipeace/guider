@@ -21314,7 +21314,7 @@ Copyright:
         # JSON mode #
         if SysMgr.jsonOutputEnable:
             # convert dict data to JSON-type string #
-            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
+            jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData, pretty=False)
             if not jsonObj:
                 SysMgr.printWarn(\
                     "Fail to convert report data to JSON type")
