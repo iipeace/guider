@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200624"
+__revision__ = "200625"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3520,6 +3520,14 @@ class UtilMgr(object):
 
         print("\n--- no define ---")
         print(list(protolist - supersetlist))
+
+
+
+    @staticmethod
+    def getSigList():
+        sigList = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
+            if v.startswith('SIG') and not v.startswith('SIG_'))
+        return sigList
 
 
 
@@ -11365,6 +11373,7 @@ class FunctionAnalyzer(object):
 class LeakAnalyzer(object):
     """ Analyzer for leaktracer """
 
+    # use SIGRT1 and SIGRT2 as default signals #
     startSig = 35
     stopSig = 36
 
@@ -17366,7 +17375,7 @@ Description:
     Otherwise add the library path to /etc/ld.so.preload
 
 Options:
-    -I  <FILE>                  set input path
+    -I  <DIR|FILE>              set input path
     -o  <DIR|FILE>              save output data
     -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
     -T  <FILE>                  set hook path for injection
@@ -17381,8 +17390,11 @@ Examples:
     - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
 
-    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with injection
-        # {0:1} {1:1} -g a.out -I ./leaks.out -T /home/root/libleaktracer.so
+    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with binary injection
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
+
+    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with binary injection and a temporary writable path
+        # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
 
     - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -k 36
@@ -17392,7 +17404,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c 15m,20m
 
     - Print funtions caused memory leakage of a specific process
-        # {0:1} {1:1} -I leaks.out -g a.out
+        # {0:1} {1:1} -I ./leaks.out -g a.out
                     '''.format(cmd, mode)
 
                 # printenv #
@@ -27225,13 +27237,13 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to analyze %s" % procInfo)
+                SysMgr.printErr("Fail to analyze %s" % procInfo, True)
                 sys.exit(0)
 
             for addr in addrList:
                 ret = dobj.getSymbolInfo(addr)
                 if not ret:
-                    SysMgr.printErr("Fail to analyze %s" % procInfo)
+                    SysMgr.printErr("Fail to analyze %s" % procInfo, True)
                     sys.exit(0)
                 elif type(ret) is list:
                     resInfo[addr] = [ret[0], ret[1]]
@@ -27696,15 +27708,23 @@ Copyright:
         elif 'LEAKTRACER_AUTO_REPORTFILENAME' in envList:
             autostart = True
             fname = envList['LEAKTRACER_AUTO_REPORTFILENAME']
-            startTime = tobj.procData[pid]['runtime'] + SysMgr.uptime
+            startTime = SysMgr.uptime - tobj.procData[pid]['runtime']
         else:
+            fname = None
             if SysMgr.inputParam:
                 fname = SysMgr.inputParam
-                remoteCmd.insert(\
-                    0, 'setenv:LEAKTRACER_ONSIG_REPORTFILENAME#%s' % fname)
+                if os.path.isdir(fname):
+                    fname = '%s/leaks.out' % fname
+            elif os.path.exists(SysMgr.tmpPath):
+                fname = '%s/leaks.out' % SysMgr.tmpPath
             else:
                 SysMgr.printErr("No PATH with -I")
                 sys.exit(0)
+
+            # set output file path #
+            if fname:
+                remoteCmd.insert(\
+                    0, 'setenv:LEAKTRACER_ONSIG_REPORTFILENAME#%s' % fname)
 
         # make full path #
         if not fname.startswith('/'):
@@ -37970,10 +37990,12 @@ struct cmsghdr {
                 return None
 
         # use a temporary page #
+        addr = None
         if temp:
             addr = self.getTempPage()
+
         # use a new memory segment #
-        else:
+        if not addr:
             # set args #
             args = [1, size]
 
@@ -37986,7 +38008,7 @@ struct cmsghdr {
                 return None
 
         # copy string to memory #
-        if string:
+        if addr and string:
             ret = self.writeMem(addr, string.encode(), skipCheck=True)
             if ret == -1:
                 SysMgr.printErr(\
@@ -38199,7 +38221,7 @@ struct cmsghdr {
         addr = self.getSyscallAddr()
         if not addr:
             SysMgr.printErr(\
-                "Fail to find syscall address")
+                "Fail to find the address for 'syscall' function")
             return
         self.setPC(addr)
 
@@ -38435,7 +38457,7 @@ struct cmsghdr {
             return -1
         elif not UtilMgr.isNumber(pid):
             return -1
-        elif pid <= 0:
+        elif long(pid) <= 0:
             return -1
         else:
             return 0
@@ -43637,17 +43659,16 @@ class ElfAnalyzer(object):
                 dmSymbol = symbol
             elif status.value == -2:
                 SysMgr.printWarn(\
-                    "Fail to demangle invaild symbol %s" % symbol)
+                    "Fail to demangle %s because of invalid name" % symbol)
                 dmSymbol = symbol
             elif status.value == -3:
-                SysMgr.printWarn((\
-                    "Fail to demangle symbol %s "
-                    "because of invalid args") % symbol)
+                SysMgr.printWarn(\
+                    "Fail to demangle %s because of invalid args" % symbol)
                 dmSymbol = symbol
             else:
-                SysMgr.printWarn((\
-                    "Fail to demangle symbol %s "
-                    "because of unknown status %d") % (symbol, status.value))
+                SysMgr.printWarn(\
+                    "Fail to demangle %s because of unknown status %d" % \
+                        (symbol, status.value))
                 dmSymbol = symbol
 
             # free demangled string array #
