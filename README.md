@@ -276,24 +276,24 @@ Output
            
     # ./guider.py nettop
 
-	[Top Info] [Time: 186473.960] [Interval: 1.0] [Ctxt: 7865] [Life: +0/-0] [OOM: 0] [IRQ: 4229] [Core: 8] [Task: 328/1171] [Load: 0.5/0.3/0.3] [RAM: 62.8G]
-	==========================================================================================================================================================
-	  ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl(Diff/ User/Cache/Kern)|  Swap(Diff/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	Total  |  1 %( 0 / 0 / 0 / 0 )|59939(  -2/ 3054/ 6429/ 350)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   |  1661  | 1607  |  343   |  652K/9K   |
-	==========================================================================================================================================================
-					Network                  |                        Receive                        |                       Transfer                        |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-		  Dev        |          IP           |   Size   |  Packet  |  Error   |   Drop   | Multicast |   Size   |  Packet  |  Error   |   Drop   | Multicast |
-	==========================================================================================================================================================
-			 docker0 |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
-				eno1 |                       |   665.9K |      475 |        0 |        0 |         1 |    12.0K |      168 |        0 |        0 |         0 |
-	 enx201601190a25 |                       |       48 |        1 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
-				  lo |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
-			  virbr0 |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
-		  virbr0-nic |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
-		   [ TOTAL ] |                       |   666.0K |      476 |        0 |        0 |         1 |    12.0K |      168 |        0 |        0 |         0 |
-	==========================================================================================================================================================
+    [Top Info] [Time: 186473.960] [Interval: 1.0] [Ctxt: 7865] [Life: +0/-0] [OOM: 0] [IRQ: 4229] [Core: 8] [Task: 328/1171] [Load: 0.5/0.3/0.3] [RAM: 62.8G]
+    ==========================================================================================================================================================
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl(Diff/ User/Cache/Kern)|  Swap(Diff/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Total  |  1 %( 0 / 0 / 0 / 0 )|59939(  -2/ 3054/ 6429/ 350)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   |  1661  | 1607  |  343   |  652K/9K   |
+    ==========================================================================================================================================================
+                    Network                  |                        Receive                        |                       Transfer                        |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+          Dev        |          IP           |   Size   |  Packet  |  Error   |   Drop   | Multicast |   Size   |  Packet  |  Error   |   Drop   | Multicast |
+    ==========================================================================================================================================================
+             docker0 |        166.104.101.26 |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
+                eno1 |         166.104.101.1 |   665.9K |      475 |        0 |        0 |         1 |    12.0K |      168 |        0 |        0 |         0 |
+     enx201601190a25 |        166.104.101.27 |       48 |        1 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
+                  lo |             127.0.0.1 |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
+              virbr0 |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
+          virbr0-nic |                       |        0 |        0 |        0 |        0 |         0 |        0 |        0 |        0 |        0 |         0 |
+           [ TOTAL ] |                       |   666.0K |      476 |        0 |        0 |         1 |    12.0K |      168 |        0 |        0 |         0 |
+    ==========================================================================================================================================================
 
 >>>
 
@@ -341,51 +341,38 @@ Output
 
 >>>
            
-    # ./guider.py btrace -g yes -H
+    # ./guider.py btrace -g a.out -H
 
-	1325484569.763112 memcpy@GLIBC_2.17/0x7facf2af50L [/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	        Backtrace Info [yes(7202)]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	0x7facf2af50L(memcpy@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x7facf1ca48L(_IO_file_xsputn@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x7facf1b488L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x40108cL(??)[/usr/bin/yes.coreutils]
-	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	
-	1325484569.765313 fputs_unlocked@GLIBC_2.17/0x7facf1b420L [/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	        Backtrace Info [yes(7202)]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	0x7facf1b420L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x40108cL(??)[/usr/bin/yes.coreutils]
-	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	
-	1325484569.766850 strlen@GLIBC_2.17/0x7facf291c0L [/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	        Backtrace Info [yes(7202)]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	0x7facf291c0L(strlen@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x7facf1b43cL(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x40108cL(??)[/usr/bin/yes.coreutils]
-	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	
-	1325484569.768377 _IO_file_xsputn@GLIBC_2.17/0x7facf1c9e0L [/lib/libc-2.24.so]
-	==========================================================================================================================================================
-	        Backtrace Info [yes(7202)]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	0x7facf1c9e0L(_IO_file_xsputn@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x7facf1b488L(fputs_unlocked@GLIBC_2.17)[/lib/libc-2.24.so]
-	0x40108cL(??)[/usr/bin/yes.coreutils]
-	0x7facecf32cL(__libc_start_main@GLIBC_2.17)[/lib/libc-2.24.so]
-	==========================================================================================================================================================
+    0.505835   _int_malloc/0x7f94ed6cb2d0(0x7f94eda22c40L,0xaL,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+             __libc_start_main/0x7f94ed658b97 [/lib/x86_64-linux-gnu/libc-2.27.so]
+               main/0x55f94081eb46 [/home/peacelee/test/a.out]
+                 printPeace/0x55f94081eb23 [/home/peacelee/test/a.out]
+                   printPeace2/0x55f94081ea6c [/home/peacelee/test/a.out]
+                     asdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafdasfdasdfasf
+    0.506208           usleep@GLIBC_2.2.5/0x7f94ed74e820(0x64L,0x0L,0x55f941e71170L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.506687           nanosleep@GLIBC_2.2.5/0x7f94ed71b990(0x7fff655f8910L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.507276           open64@GLIBC_2.2.5/0x7f94ed746c40(0x55f94081ebd4L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.507732           read@GLIBC_2.26/0x7f94ed747070(0xffffffffL,0x0L,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.508231           close@GLIBC_2.4/0x7f94ed7478c0(0xffffffffL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.508699           malloc@GLIBC_2.2.5/0x7f94ed6ce070(0xaL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+             malloc@GLIBC_2.2.5/0x7f94ed6ce0fc [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.509156   _int_malloc/0x7f94ed6cb2d0(0x7f94eda22c40L,0xaL,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+             __libc_start_main/0x7f94ed658b97 [/lib/x86_64-linux-gnu/libc-2.27.so]
+               main/0x55f94081eb46 [/home/peacelee/test/a.out]
+                 printPeace/0x55f94081eb23 [/home/peacelee/test/a.out]
+                   printPeace2/0x55f94081ea6c [/home/peacelee/test/a.out]
+                     asdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafdasfdasdfasf
+    0.509532           usleep@GLIBC_2.2.5/0x7f94ed74e820(0x64L,0x0L,0x55f941e71190L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.510032           nanosleep@GLIBC_2.2.5/0x7f94ed71b990(0x7fff655f8910L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.510648           open64@GLIBC_2.2.5/0x7f94ed746c40(0x55f94081ebd4L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.511155           read@GLIBC_2.26/0x7f94ed747070(0xffffffffL,0x0L,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.511659           close@GLIBC_2.4/0x7f94ed7478c0(0xffffffffL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+    0.512201           malloc@GLIBC_2.2.5/0x7f94ed6ce070(0xaL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
+             malloc@GLIBC_2.2.5/0x7f94ed6ce0fc [/lib/x86_64-linux-gnu/libc-2.27.so]
 
 >>>
            
-    $ ./guider.py reptop
+    $ ./guider.py reptop &
     $ cat /tmp/guider.report
 
     {
@@ -554,7 +541,74 @@ Output
 
 >>>
            
-    # ./guider.py kill -stop 10594
+    # ./guider.py remote -g a.out -c usercall:write#1#HOOK#4
+
+
+                    _      _
+       __ _  _   _ (_)  __| |  ___  _ __
+      / _` || | | || | / _` | / _ \| '__|
+     | (_| || |_| || || (_| ||  __/| |
+      \__, | \__,_||_| \__,_| \___||_|
+       |___/
+
+
+    [usercall] write(7f94ed747140)(1, HOOK, 4) = 0x4(4)
+
+>>>
+
+    # ./guider.py printenv -g systemd
+
+
+                    _      _
+       __ _  _   _ (_)  __| |  ___  _ __
+      / _` || | | || | / _` | / _ \| '__|
+     | (_| || |_| || || (_| ||  __/| |
+      \__, | \__,_||_| \__,_| \___||_|
+       |___/
+
+
+    [ systemd(1) ]
+    -----------------------------------------------------------------------------
+    HOME=/
+    init=/sbin/init
+    NETWORK_SKIP_ENSLAVED=
+    recovery=
+    TERM=linux
+    drop_caps=
+    BOOT_IMAGE=/boot/vmlinuz-5.3.0-28-generic
+    PATH=/sbin:/usr/sbin:/bin:/usr/bin
+    PWD=/
+    rootmnt=/root
+
+    [ systemd(3310) ]
+    -----------------------------------------------------------------------------
+    LANG=en_US.UTF-8
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    NOTIFY_SOCKET=/run/systemd/notify
+    HOME=/home/syjung
+    LOGNAME=syjung
+    USER=syjung
+    SHELL=/bin/bash
+    INVOCATION_ID=bbc56cc8552e4a1d815197e0a6160270
+    JOURNAL_STREAM=9:10617556
+    XDG_RUNTIME_DIR=/run/user/1002
+
+    [ systemd(7094) ]
+    -----------------------------------------------------------------------------
+    LANG=en_US.UTF-8
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    NOTIFY_SOCKET=/run/systemd/notify
+    HOME=/home/peacelee
+    LOGNAME=peacelee
+    USER=peacelee
+    SHELL=/bin/bash
+    INVOCATION_ID=be65ebdd72964e09a3ac06495261702b
+    JOURNAL_STREAM=9:31410
+    XDG_RUNTIME_DIR=/run/user/1004
+
+>>>
+           
+    # ./guider.py kill -stop yes
 
 
                     _      _
@@ -565,7 +619,7 @@ Output
        |___/
 
 
-    [Info] sent signal SIGSTOP to 10594 process
+    [Info] sent signal SIGSTOP to yes(10594)
 
 >>>
            
