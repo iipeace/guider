@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200625"
+__revision__ = "200626"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14584,6 +14584,19 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getConfigDict(name):
+        confData = ConfigMgr.confData[name]
+        if type(confData) is list:
+            confData = UtilMgr.convStr2Dict('\n'.join(confData))
+
+        if type(confData) is dict:
+            return confData
+        else:
+            return None
+
+
+
+    @staticmethod
     def loadConfig(fname, verb=True):
         try:
             targetList = []
@@ -14595,7 +14608,7 @@ class SysMgr(object):
                     line = line.strip()
                     if line.startswith('<') and line.endswith('>'):
                         entry = line[1:-1]
-                        ConfigMgr.confData[entry] = list()
+                        ConfigMgr.confData.setdefault(entry, list())
                         targetList = ConfigMgr.confData[entry]
                     elif line and line != '\n' and not line.startswith('#'):
                         targetList.append(line)
@@ -15936,6 +15949,7 @@ Options:
     -g  <WORD|TID>              set filter
     -c  <WORD>                  set filter
     -I  <FILE|FIELD>            set path / field
+    -J                          print in JSON format
     -o  <DIR|FILE>              save output data
 
 Examples:
@@ -17418,6 +17432,7 @@ Description:
 
 Options:
     -g  <PID|COMM>              set target process
+    -J                          print in JSON format
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -26417,16 +26432,31 @@ Copyright:
                 ', '.join(SysMgr.filterGroup))
             sys.exit(0)
 
+        # print empty for initialization #
+        SysMgr.printPipe()
+        lenLine = long(len(oneLine)/2)
+
         for pid in pids:
-            SysMgr.printPipe(\
-                '\n[ %s(%s) ]\n\n' % (SysMgr.getComm(pid), pid))
+            comm = SysMgr.getComm(pid)
+
+            if SysMgr.jsonOutputEnable:
+                envs = SysMgr.getEnv(pid, retdict=True)
+                if not envs:
+                    sys.exit(0)
+
+                envs['PID'] = pid
+                envs['COMM'] = comm
+                envs = UtilMgr.convDict2Str(envs, pretty=False)
+                SysMgr.printPipe(envs)
+                continue
 
             envs = SysMgr.getEnv(pid)
             if not envs:
                 sys.exit(0)
 
-            SysMgr.printPipe()
-
+            SysMgr.printPipe(\
+                '\n[ %s(%s) ]\n%s\n' % \
+                    (comm, pid, oneLine[:lenLine]))
             for env in envs:
                 SysMgr.printPipe(env)
 
@@ -27619,6 +27649,9 @@ Copyright:
 
         startTime = endTime = 0
 
+        # check package #
+        SysMgr.getPkg('ctypes')
+
         # check target id #
         targetList = SysMgr.filterGroup
         if len(targetList) == 0:
@@ -27895,6 +27928,7 @@ Copyright:
         except:
             SysMgr.printErr(\
                 "Fail to analyze leak", True)
+        time.sleep(1000)
 
 
 
@@ -43528,12 +43562,12 @@ class ElfAnalyzer(object):
     @staticmethod
     def getObject(path, raiseExcept=False, fobj=None):
         # load files #
-        if path not in ElfAnalyzer.cachedFiles:
+        if not path in ElfAnalyzer.cachedFiles:
             # check black-list #
             if path in ElfAnalyzer.failedFiles:
                 return None
 
-            # check exception case #
+            # check exceptional case #
             if not path.startswith('/'):
                 if path == 'vdso':
                     fobj = SysMgr.getVdso()
@@ -43548,7 +43582,7 @@ class ElfAnalyzer(object):
                 SysMgr.printInfo("[Done]", prefix=False, notitle=True)
                 return fobj
 
-            # try to load a object from a file #
+            # try to load a object from cache #
             fobj = ElfAnalyzer.loadObject(path)
             if fobj:
                 ElfAnalyzer.cachedFiles[path] = fobj
@@ -46232,11 +46266,9 @@ class ThreadAnalyzer(object):
 
             # set boundary configuration #
             if 'boundary' in ConfigMgr.confData:
-                confData = ConfigMgr.confData['boundary']
-                if type(confData) is list:
-                    confData = UtilMgr.convStr2Dict('\n'.join(confData))
-                if type(confData) is dict:
-                    ThreadAnalyzer.reportBoundary = confData
+                confData = SysMgr.getConfigDict('boundary')
+                if confData and 'alarm' in confData:
+                    ThreadAnalyzer.reportBoundary = confData['alarm']
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
