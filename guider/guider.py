@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200626"
+__revision__ = "200627"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14597,6 +14597,16 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getConfigList(name):
+        confData = ConfigMgr.confData[name]
+        if type(confData) is list:
+            return confData
+        else:
+            return None
+
+
+
+    @staticmethod
     def loadConfig(fname, verb=True):
         try:
             targetList = []
@@ -27826,6 +27836,9 @@ Copyright:
                 ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
             SysMgr.launchGuider(\
                 rcmd, pipe=False, stderr=True, log=True, wait=True)
+        if hookCmd:
+            hcmd = \
+                ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
 
         # START #
         cmd = SysMgr.customCmd
@@ -27837,16 +27850,23 @@ Copyright:
             else:
                 endSize = UtilMgr.convUnit2Size(cmd[0])
 
+            # hook #
+            if not startSize and hookCmd:
+                startSize = 1
+                SysMgr.launchGuider(\
+                    hcmd, pipe=False, stderr=True, log=True, wait=True)
+
+            # wait for start threshold #
             if startSize > 0:
                 waitAndKill(\
                     tobj, pid, comm, startSize, startSig, 'start', hookCmd)
         elif startSig:
+            # hook #
             if hookCmd:
-                hcmd = \
-                    ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
                 SysMgr.launchGuider(\
                     hcmd, pipe=False, stderr=True, log=True, wait=True)
 
+            # send signal for start #
             try:
                 os.kill(long(pid), startSig)
                 SysMgr.printStat(\
@@ -27870,14 +27890,17 @@ Copyright:
             waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
         elif stopSig:
             try:
+                # wait for stop threshold #
                 try:
                     SysMgr.printStat(\
                         r'start monitoring... [ STOP(Ctrl+c) ]')
+
                     waitAndKill(tobj, pid, comm, sys.maxsize, 0, 'stop')
                 except:
                     pass
 
                 os.kill(long(pid), stopSig)
+
                 SysMgr.printStat(\
                     'sent %s to %s(%s) to stop profiling' % \
                         (ConfigMgr.SIG_LIST[stopSig], comm, pid))
@@ -27928,7 +27951,6 @@ Copyright:
         except:
             SysMgr.printErr(\
                 "Fail to analyze leak", True)
-        time.sleep(1000)
 
 
 
@@ -45372,26 +45394,7 @@ class ThreadAnalyzer(object):
     ]
 
     # default constant to check system status for reporting #
-    reportBoundary = {
-        'cpu' : {
-            'total' : 80
-        },
-        'mem' : {
-            'free' : 50
-        },
-        'swap' : {
-            'usage' : 70
-        },
-        'block' : {
-            'ioWait' : 10
-        },
-        'storage' : {
-            'total' : 99
-        },
-        'task' : {
-            'nrCtx' : 20000
-        }
-    }
+    reportBoundary = {}
 
     init_procTotData = \
         {'comm': '', 'ppid': long(0), 'nrThreads': long(0), 'pri': '', \
@@ -46264,11 +46267,15 @@ class ThreadAnalyzer(object):
             if not SysMgr.findOption('x'):
                 NetworkMgr.setServerNetwork(None, None)
 
-            # set boundary configuration #
-            if 'boundary' in ConfigMgr.confData:
-                confData = SysMgr.getConfigDict('boundary')
+            # set threshold configuration #
+            if 'threshold' in ConfigMgr.confData:
+                confData = SysMgr.getConfigDict('threshold')
                 if confData and 'alarm' in confData:
                     ThreadAnalyzer.reportBoundary = confData['alarm']
+                    SysMgr.printInfo(\
+                        "applied thresholds for alarm")
+                    SysMgr.printWarn(\
+                        UtilMgr.convDict2Str(confData['alarm']))
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
@@ -58420,6 +58427,8 @@ class ThreadAnalyzer(object):
                     availMem - (prevMemData['MemAvailable'] >> 10)
             else:
                 availMemDiff = long(0)
+
+            availMemPer = availMem / float(totalMem) * 100
         except:
             SysMgr.freeMemEnable = True
             availMem = availMemDiff = long(0)
@@ -58789,7 +58798,7 @@ class ThreadAnalyzer(object):
         try:
             netIO = '%s/%s' % \
                 (UtilMgr.convSize2Unit(netIn, True),\
-                UtilMgr.convSize2Unit(netOut, True))
+                    UtilMgr.convSize2Unit(netOut, True))
         except:
             netIO = '-/-'
 
@@ -61611,9 +61620,13 @@ class ThreadAnalyzer(object):
                 rank += 1
 
             # check event boundary #
-            if rb['cpu']['total'] <= self.reportData['cpu']['total']:
-                self.reportData['event']['CPU_INTENSIVE'] = \
-                    self.reportData['cpu']['procs']
+            try:
+                if rb['cpu']['SYSTEM']['total'] <= \
+                    self.reportData['cpu']['total']:
+                    self.reportData['event']['CPU_INTENSIVE'] = \
+                        self.reportData['cpu']['procs']
+            except:
+                pass
 
         # add memory & swap status #
         if 'mem' in self.reportData:
@@ -61660,9 +61673,13 @@ class ThreadAnalyzer(object):
                 rank += 1
 
             # check event boundary #
-            if rb['mem']['free'] >= self.reportData['mem']['free']:
-                self.reportData['event']['MEM_PRESSURE'] = \
-                    self.reportData['mem']['procs']
+            try:
+                if rb['mem']['SYSTEM']['available'] >= \
+                    self.reportData['mem']['available']:
+                    self.reportData['event']['MEM_PRESSURE'] = \
+                        self.reportData['mem']['procs']
+            except:
+                pass
 
             # check event boundary #
             if 'swap' in self.reportData and \
@@ -61673,9 +61690,12 @@ class ThreadAnalyzer(object):
                     long(self.reportData['swap']['usage'] / \
                     float(self.reportData['swap']['total']) * 100)
 
-                if rb['swap']['usage'] <= swapUsagePer:
-                    self.reportData['event']['SWAP_PRESSURE'] = \
-                        self.reportData['mem']['procs']
+                try:
+                    if rb['swap']['SYSTEM']['usage'] <= swapUsagePer:
+                        self.reportData['event']['SWAP_PRESSURE'] = \
+                            self.reportData['mem']['procs']
+                except:
+                    pass
 
         # add block status #
         if 'block' in self.reportData:
@@ -61701,14 +61721,18 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            if rb['block']['ioWait'] <= self.reportData['block']['ioWait']:
-                self.reportData['event']['IO_INTENSIVE'] = \
-                    self.reportData['block']['procs']
+            try:
+                if rb['block']['SYSTEM']['ioWait'] <= \
+                    self.reportData['block']['ioWait']:
+                    self.reportData['event']['IO_INTENSIVE'] = \
+                        self.reportData['block']['procs']
+            except:
+                pass
 
         # add storage status #
         if 'storage' in self.reportData:
             try:
-                if rb['storage']['total'] <= \
+                if rb['storage']['SYSTEM']['usage'] <= \
                     self.reportData['storage']['total']['usageper']:
                     self.reportData['event']['STORAGE_FULL'] = \
                         self.reportData['storage']
@@ -61854,21 +61878,20 @@ class ThreadAnalyzer(object):
         swapData = self.reportData['swap']
 
         systemMemoryFields = {
-            'system':
-                {
-                    'memory':{
-                        'total'     : memData['total'],
-                        'free'      : memData['free'],
-                        'available' : memData['available'],
-                        'anon'      : memData['anon'],
-                        'file'      : memData['file'],
-                        'slab'      : memData['slab'],
-                        'swap': {
-                            'total' : swapData['total'],
-                            'used'  : swapData['usage']
-                        }
+            'system': {
+                'memory': {
+                    'total'     : memData['total'],
+                    'free'      : memData['free'],
+                    'available' : memData['available'],
+                    'anon'      : memData['anon'],
+                    'file'      : memData['file'],
+                    'slab'      : memData['slab'],
+                    'swap': {
+                        'total' : swapData['total'],
+                        'used'  : swapData['usage']
                     }
                 }
+            }
         }
 
         # merge momory data dictionary #
@@ -61886,13 +61909,12 @@ class ThreadAnalyzer(object):
         networkData = self.reportData['net']
 
         systemNetworkFields = {
-            'system':
-                {
-                    'network': {
-                        'in' : { 'byte': networkData['inbound'] },
-                        'out': { 'byte': networkData['outbound'] }
-                    }
+            'system': {
+                'network': {
+                    'in' : { 'byte': networkData['inbound'] },
+                    'out': { 'byte': networkData['outbound'] }
                 }
+            }
         }
 
         # merge network data dictionary #
@@ -61908,15 +61930,14 @@ class ThreadAnalyzer(object):
         metricsetFields['metricset']['name'] = 'diskio'
 
         systemDiskioFields = {
-            'system':
-                {
-                    'diskio': {
-                        'name'  : '',
-                        'read'  : { 'bytes': long(0) },
-                        'write' : { 'bytes': long(0) },
-                        'used'  : { 'pct': long(0) },
-                    }
+            'system': {
+                'diskio': {
+                    'name'  : '',
+                    'read'  : { 'bytes': long(0) },
+                    'write' : { 'bytes': long(0) },
+                    'used'  : { 'pct': long(0) },
                 }
+            }
         }
 
         diskioData = systemDiskioFields['system']['diskio']
@@ -61942,26 +61963,24 @@ class ThreadAnalyzer(object):
 
         strProcessData = ""
         systemProcessFields = {
-            'system':
-                {
-                    'process':{
-                        'name'  : '',
-                        'state' : '',
-                        'pid'   : 0,
-                        'cpu'   : {
-                            'user'      : { 'pct': long(0) },
-                            'kernel'    : { 'pct': long(0) },
-                            'total'     : { 'pct': long(0) },
-                            'runtime'   : ''
-                        },
-                        'memory': {
-                            'rss'   : { 'bytes': long(0) },
-                            'text'  : long(0)
-                        }
+            'system': {
+                'process': {
+                    'name'  : '',
+                    'state' : '',
+                    'pid'   : 0,
+                    'cpu'   : {
+                        'user'      : { 'pct': long(0) },
+                        'kernel'    : { 'pct': long(0) },
+                        'total'     : { 'pct': long(0) },
+                        'runtime'   : ''
                     },
-
-                }
+                    'memory': {
+                        'rss'   : { 'bytes': long(0) },
+                        'text'  : long(0)
+                    }
+                },
             }
+        }
 
         sortedProcData = sorted(self.procData.items(), \
             key=lambda e: e[1]['ttime'], reverse=True)
