@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200627"
+__revision__ = "200628"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -52493,7 +52493,7 @@ class ThreadAnalyzer(object):
 
             # MEM stat #
             m = re.match((\
-                r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freeDiff>\-*[0-9]+)\s*'
+                r'\s*(?P<free>\-*[0-9]+)\s*\(\s*(?P<freePer>\-*[0-9]+)\s*'
                 r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<cache>\-*[0-9]+)\s*'
                 r'/\s*(?P<kernel>\-*[0-9]+)'), tokenList[2])
             if not m:
@@ -52502,7 +52502,7 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
 
             freeMem = long(d['free'])
-            freeMemDiff = long(d['freeDiff'])
+            freeMemPer = long(d['freePer'])
             anonMem = long(d['anon'])
             cacheMem = long(d['cache'])
             kernelMem = long(d['kernel'])
@@ -52521,7 +52521,7 @@ class ThreadAnalyzer(object):
                 TA.procTotData['total']['maxMem'] = freeMem
 
             TA.procIntData[index]['total']['mem'] = freeMem
-            TA.procIntData[index]['total']['memDiff'] = freeMemDiff
+            TA.procIntData[index]['total']['memper'] = freeMemPer
             TA.procIntData[index]['total']['anonmem'] = anonMem
             TA.procIntData[index]['total']['cachemem'] = cacheMem
             TA.procIntData[index]['total']['kernelmem'] = kernelMem
@@ -52922,7 +52922,7 @@ class ThreadAnalyzer(object):
             "{12:^4} | {13:^8} |\n").\
             format('IDX', 'Interval', 'CPU', memTitle, \
                 'BlkRW', 'Blk', 'SWAP', 'NrPgRclm', 'NrFlt', 'NrCtx', \
-                'NrIRQ', 'NrTask', 'NrCr', 'Network'))
+                'NrIRQ', 'NrTask', 'Core', 'Network'))
         SysMgr.printPipe("%s\n" % twoLine)
 
         pCnt = long(0)
@@ -58428,7 +58428,7 @@ class ThreadAnalyzer(object):
             else:
                 availMemDiff = long(0)
 
-            availMemPer = availMem / float(totalMem) * 100
+            availMemPer = long(availMem / float(totalMem) * 100)
         except:
             SysMgr.freeMemEnable = True
             availMem = availMemDiff = long(0)
@@ -58522,6 +58522,12 @@ class ThreadAnalyzer(object):
         try:
             swapTotal = vmData['swapTotal'] >> 10
             swapUsage = vmData['swapUsed'] >> 10
+            swapFree = swapTotal - swapUsage
+            if swapTotal:
+                swapUsagePer = long(swapUsage / float(swapTotal) * 100)
+                swapFreePer = long(swapFree / float(swapTotal) * 100)
+            else:
+                swapUsagePer = swapFreePer = 0
             swapUsageDiff = \
                 (self.prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
             swapInMem = \
@@ -58529,7 +58535,8 @@ class ThreadAnalyzer(object):
             swapOutMem = \
                 (vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
         except:
-            swapTotal = swapUsage = swapUsageDiff = swapInMem = swapOutMem = long(0)
+            swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
+                swapFreePer = swapInMem = swapOutMem = long(0)
             SysMgr.printWarn("Fail to get swapMem")
 
         # background reclaim #
@@ -58676,8 +58683,8 @@ class ThreadAnalyzer(object):
             "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
             "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",\
-            memTitle, "Diff", "User", "Cache", "Kern", \
-            "Swap", "Diff", "In", "Out", "PgRclm", "BlkRW", "NrFlt", \
+            memTitle, "Per", "User", "Cache", "Kern", \
+            "Swap", "Per", "In", "Out", "PgRclm", "BlkRW", "NrFlt", \
             "PrBlk", "NrSIRQ", "PgMlk", "PgDrt", "Network")), oneLine)), \
             newline = 3)
 
@@ -58814,8 +58821,8 @@ class ThreadAnalyzer(object):
             "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|"
             "{17:^7}|{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("Total", '%d %%' % totalUsage, userUsage, kerUsage, \
-            ioUsage, irqUsage, availMem, availMemDiff, totalAnonMem, \
-            totalCacheMem, totalKernelMem, swapUsage, swapUsageDiff, \
+            ioUsage, irqUsage, availMem, availMemPer, totalAnonMem, \
+            totalCacheMem, totalKernelMem, swapUsage, swapUsagePer, \
             swapInMem, swapOutMem, '%s/%s' % (pgRclmBg, pgRclmFg), \
             '%s/%s' % (pgInMemDiff, pgOutMemDiff), \
             nrMajFault, nrBlocked, nrSoftIrq, pgMlock, pgDirty, netIO)
@@ -59750,16 +59757,19 @@ class ThreadAnalyzer(object):
         try:
             loadlist = SysMgr.loadavg.split()[:3]
             for idx, load in enumerate(loadlist):
-                loadlist[idx] = str('%.1f' % float(load))
+                loadlist[idx] = str('%d' % float(load))
             loadavg = '/'.join(loadlist)
         except:
             loadavg = '?'
 
         try:
             oom_kill = long(self.vmData['oom_kill'])
-            oomstr = '[OOM: %d]'% oom_kill
+            if oom_kill:
+                oomstr = ' [OOM: %d] ' % oom_kill
+            else:
+                oomstr = ' '
         except:
-            oomstr = ''
+            oomstr = ' '
 
         try:
             nrCtxt = \
@@ -59804,12 +59814,12 @@ class ThreadAnalyzer(object):
             jsonData['nrProcess'] = self.nrProcess
             jsonData['nrThreads'] = self.nrThread
 
-            if len(oomstr) > 0:
+            if oomstr:
                 jsonData['oomKill'] = oom_kill
 
         SysMgr.addPrint(\
-            ("%s [Time: %7.3f] [Interval: %.1f] [Ctxt: %d] "
-            "[Life: +%d/-%d] %s [IRQ: %d] [Core: %d] [Task: %d/%d] "
+            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
+            "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %s] [Swap: %s]\n") % \
             (title, SysMgr.uptime, SysMgr.uptimeDiff, \
             nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq, \
@@ -60973,78 +60983,82 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-            if SysMgr.delayEnable:
-                try:
-                    while 1:
-                        val = SysMgr.getTaskstats(idx)
-                        if not val or str(val['ac_pid']) == idx:
-                            break
+            # print delay #
+            try:
+                if not SysMgr.delayEnable:
+                    raise Exception()
 
-                    cpuDelay = val['cpu_delay_total']
-                    blkDelay = val['blkio_delay_total']
-                    swapDelay = val['swapin_delay_total']
-                    rclmDelay = val['freepages_delay_total']
+                while 1:
+                    val = SysMgr.getTaskstats(idx)
+                    if not val or str(val['ac_pid']) == idx:
+                        break
 
-                    value['delay'] = {
-                        'CPU': cpuDelay,
-                        'BLK': blkDelay,
-                        'SWAP': swapDelay,
-                        'RCLM': rclmDelay,
-                    }
+                cpuDelay = val['cpu_delay_total']
+                blkDelay = val['blkio_delay_total']
+                swapDelay = val['swapin_delay_total']
+                rclmDelay = val['freepages_delay_total']
 
-                    prevData = self.prevProcData[idx]
+                value['delay'] = {
+                    'CPU': cpuDelay,
+                    'BLK': blkDelay,
+                    'SWAP': swapDelay,
+                    'RCLM': rclmDelay,
+                }
 
-                    if 'delay' in prevData:
-                        cpuDelayDiff = cpuDelay - prevData['delay']['CPU']
-                        blkDelayDiff = blkDelay - prevData['delay']['BLK']
-                        swapDelayDiff = swapDelay - prevData['delay']['SWAP']
-                        rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
+                prevData = self.prevProcData[idx]
 
-                        cpuDelayDiff /= 1000000000.0
-                        blkDelayDiff /= 1000000000.0
-                        swapDelayDiff /= 1000000000.0
-                        rclmDelayDiff /= 1000000000.0
+                if 'delay' in prevData:
+                    cpuDelayDiff = cpuDelay - prevData['delay']['CPU']
+                    blkDelayDiff = blkDelay - prevData['delay']['BLK']
+                    swapDelayDiff = swapDelay - prevData['delay']['SWAP']
+                    rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
 
-                        delayStr = \
-                            'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
-                                (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
+                    cpuDelayDiff /= 1000000000.0
+                    blkDelayDiff /= 1000000000.0
+                    swapDelayDiff /= 1000000000.0
+                    rclmDelayDiff /= 1000000000.0
 
-                        SysMgr.addPrint(\
-                            "{0:>39} | {1:1}\n".format('DELAY', delayStr))
-
-
-                    cpuDelay /= 1000000000.0
-                    blkDelay /= 1000000000.0
-                    swapDelay /= 1000000000.0
-                    rclmDelay /= 1000000000.0
-
-                    delayTotalStr = \
+                    delayStr = \
                         'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
-                            (cpuDelay, blkDelay, swapDelay, rclmDelay)
+                            (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
 
                     SysMgr.addPrint(\
-                        "{0:>39} | {1:1}\n".format('TOTAL_DELAY', delayTotalStr))
+                        "{0:>39} | {1:1}\n".format('DELAY', delayStr))
 
-                    if SysMgr.jsonOutputEnable:
-                        try:
-                            jsonData[idx]['delayTotal'] = value['delay']
-                        except:
-                            pass
 
-                        try:
-                            jsonData[idx]['delay'] = {
-                                'CPU': cpuDelayDiff,
-                                'BLK': blkDelayDiff,
-                                'SWAP': swapDelayDiff,
-                                'RCLM': rclmDelayDiff,
-                            }
-                        except:
-                            pass
+                cpuDelay /= 1000000000.0
+                blkDelay /= 1000000000.0
+                swapDelay /= 1000000000.0
+                rclmDelay /= 1000000000.0
 
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                delayTotalStr = \
+                    'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                        (cpuDelay, blkDelay, swapDelay, rclmDelay)
+
+                SysMgr.addPrint(\
+                    "{0:>39} | {1:1}\n".format(\
+                        'TOTAL_DELAY', delayTotalStr))
+
+                if SysMgr.jsonOutputEnable:
+                    try:
+                        jsonData[idx]['delayTotal'] = value['delay']
+                    except:
+                        pass
+
+                    try:
+                        jsonData[idx]['delay'] = {
+                            'CPU': cpuDelayDiff,
+                            'BLK': blkDelayDiff,
+                            'SWAP': swapDelayDiff,
+                            'RCLM': rclmDelayDiff,
+                        }
+                    except:
+                        pass
+
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             # print D-Bus #
             if 'dbusList' in value and \
