@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200628"
+__revision__ = "200629"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13371,7 +13371,7 @@ class SysMgr(object):
     localServObj = None
     remoteServObj = None
     netlinkObj = None
-    GEAttr = [0] * 9
+    geAttr = [0] * 9
     addrListForPrint = {}
     addrListForReport = {}
 
@@ -26508,7 +26508,7 @@ Copyright:
         CTRL_ATTR_MAXATTR       = 5
         CTRL_ATTR_OPS           = 6
 
-        GEAttrStruct = [
+        geAttrStruct = [
                 9,          # 0 CTRL_ATTR_UNSPEC
                 '''=H''',   # 1 U16(skb, CTRL_ATTR_FAMILY_ID
                 0,          # 2 STRING(skb, CTRL_ATTR_FAMILY_NAME
@@ -26561,15 +26561,15 @@ Copyright:
             length, typ = struct.unpack(str('=HH'), data[:4])
             length = length & 0x7fff
 
-            if GEAttrStruct[typ] == 0:
-                SysMgr.GEAttr[typ] = data[4:length-1]
-            elif GEAttrStruct[typ] == 9:
+            if geAttrStruct[typ] == 0:
+                SysMgr.geAttr[typ] = data[4:length-1]
+            elif geAttrStruct[typ] == 9:
                 pass
             elif typ > 5:
                 pass
             else:
-                SysMgr.GEAttr[typ] = \
-                    struct.unpack(GEAttrStruct[typ], data[4:length])[0]
+                SysMgr.geAttr[typ] = \
+                    struct.unpack(geAttrStruct[typ], data[4:length])[0]
 
             data = data[((((length +3 ))) & ~0x3):]
 
@@ -26581,7 +26581,7 @@ Copyright:
             return None
 
         sockObj = SysMgr.netlinkObj
-        GEAttr = SysMgr.GEAttr
+        geAttr = SysMgr.geAttr
 
         if not sockObj:
             SysMgr.printErr("Not initialized netlink socket yet")
@@ -26661,7 +26661,7 @@ Copyright:
         pid = sockObj.socket.getsockname()[0]
         nlmsghdr = array.array(\
             str('B'),struct.pack(str('=IHHII'), len(msg) + 16, \
-            GEAttr[CTRL_ATTR_FAMILY_ID], ACK_REQUEST, 1, pid))
+                geAttr[CTRL_ATTR_FAMILY_ID], ACK_REQUEST, 1, pid))
         nlmsghdr.extend(msg)
 
         sockObj.send(nlmsghdr)
@@ -36089,6 +36089,7 @@ class Debugger(object):
         self.callstack = []
         self.totalCall = long(0)
         self.syscallAddr = None
+        self.syscallFound = True
         self.callTable = {}
         self.fileTable = {}
         self.bpList = {}
@@ -37020,7 +37021,7 @@ struct cmsghdr {
 
                     SysMgr.printPipe(\
                         "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), [val[:size]], size),\
+                            (cmdstr, hex(addr), repr(val[:size]), size),\
                                 newline=False, flush=True)
 
                     # set register values #
@@ -37086,7 +37087,7 @@ struct cmsghdr {
 
                     SysMgr.printPipe(\
                         "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), [ret], size),\
+                            (cmdstr, hex(addr), repr(ret), size),\
                                 newline=False, flush=True)
 
                 elif cmd == 'start':
@@ -38078,6 +38079,8 @@ struct cmsghdr {
     def getTempPage(self):
         if not self.tempPage:
             self.tempPage = self.mmap()
+            if self.tempPage < 0:
+                self.tempPage = None
         return self.tempPage
 
 
@@ -38141,6 +38144,8 @@ struct cmsghdr {
     def getSyscallAddr(self):
         if not self.syscallAddr:
             self.syscallAddr = self.getAddrBySymbol('syscall', one=True)
+            if not self.syscallAddr:
+                self.syscallFound = False
 
         return self.syscallAddr
 
@@ -38217,8 +38222,9 @@ struct cmsghdr {
         self.cont()
         if not wait:
             return None
+        elif self.arch == 'arm':
+            self.stop()
         ret = self.waitpid()
-        stat = self.getStatus(ret[1])
 
         # read regs to check results #
         if not self.updateRegs():
@@ -38238,9 +38244,13 @@ struct cmsghdr {
 
 
     def remoteSyscall(self, syscall, args=[]):
+        # check syscall function #
+        if not self.syscallFound:
+            return -1
+
         # get original regset #
         if not self.updateRegs():
-            return
+            return -1
 
         # get backup regset #
         self.backupRegs()
@@ -38260,11 +38270,11 @@ struct cmsghdr {
                     sysid = ConfigMgr.sysList.index(syscall)
                 except:
                     SysMgr.printErr("Fail to find %s" % syscall, True)
-                    return
+                    return -1
         else:
             SysMgr.printErr(\
                 "Fail to recognize syscall %s" % syscall, True)
-            return
+            return -1
         setattr(self.regs, self.retreg, sysid)
 
         # convert arguments #
@@ -38278,7 +38288,7 @@ struct cmsghdr {
         if not addr:
             SysMgr.printErr(\
                 "Fail to find the address for 'syscall' function")
-            return
+            return -1
         self.setPC(addr)
 
         # apply register set #
@@ -38287,22 +38297,20 @@ struct cmsghdr {
         # execute syscall #
         self.ptrace(self.syscallCmd)
         ret = self.waitpid()
-        stat = self.getStatus(ret[1])
 
         # read regs and change the 6th argument #
         if not self.updateRegs():
-            return
+            return -1
         self.writeArgs(args)
         self.setRegs()
 
         # continue and stop at return #
         self.ptrace(self.syscallCmd)
         ret = self.waitpid()
-        stat = self.getStatus(ret[1])
 
         # read regs to check results #
         if not self.updateRegs():
-            return
+            return -1
         ret = self.getRetVal()
 
         # restore regs #
@@ -38692,7 +38700,7 @@ struct cmsghdr {
 
 
 
-    def readMem(self, addr, size=0, retWord=False):
+    def readMem(self, addr, size=0, retWord=False, verb=True):
         wordSize = ConfigMgr.wordSize
 
         if not addr:
@@ -38762,9 +38770,10 @@ struct cmsghdr {
             # read a word #
             word = self.accessMem(self.peekIdx, addr)
             if word == -1:
-                SysMgr.printErr(\
-                    "Fail to read memory %s from %s(%s)" % \
-                        (hex(addr).rstrip('L'), self.comm, self.pid))
+                if verb:
+                    SysMgr.printErr(\
+                        "Fail to read memory %s from %s(%s)" % \
+                            (hex(addr).rstrip('L'), self.comm, self.pid))
                 return None
 
             if retWord:
@@ -39581,11 +39590,13 @@ struct cmsghdr {
 
             for reg, val in sorted(self.regsDict.items()):
                 if deref and val:
-                    rvalue = self.readMem(val)
+                    rvalue = self.readMem(val, verb=False)
                     if rvalue:
                         try:
                             rvalue = '"%s"' % rvalue.decode("utf-8")
                             rvalue = re.sub('\W+','', rvalue)
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             rvalue = hex(UtilMgr.convStr2Word(rvalue))
                             rvalue = rvalue.rstrip('L')
@@ -41612,6 +41623,7 @@ struct cmsghdr {
         elif self.mode == 'remote':
             for i in range(0, SysMgr.intervalEnable+1):
                 self.runExecMode()
+            SysMgr.printPipe()
             sys.exit(0)
         else:
             SysMgr.printErr(\
