@@ -4237,7 +4237,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convStr2Dict(strObj):
+    def convStr2Dict(strObj, verb=False):
         try:
             return SysMgr.getPkg('json').loads(strObj)
         except SystemExit:
@@ -4250,7 +4250,8 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to convert %s to dict" % [strObj], reason=True)
+                    "Fail to convert %s to dict" % [strObj], \
+                        always=verb, reason=True)
                 return None
 
 
@@ -13285,6 +13286,7 @@ class SysMgr(object):
     repeatCount = long(0)
     progressCnt = long(0)
     wordSize = 4
+    maxInterval = 0
 
     # path #
     procPath = '/proc'
@@ -14587,7 +14589,7 @@ class SysMgr(object):
     def getConfigDict(name):
         confData = ConfigMgr.confData[name]
         if type(confData) is list:
-            confData = UtilMgr.convStr2Dict('\n'.join(confData))
+            confData = UtilMgr.convStr2Dict('\n'.join(confData), True)
 
         if type(confData) is dict:
             return confData
@@ -14610,17 +14612,30 @@ class SysMgr(object):
     def loadConfig(fname, verb=True):
         try:
             targetList = []
+            skip = False
             with open(fname, 'r') as fd:
                 for line in fd.readlines():
                     if not line:
                         continue
 
                     line = line.strip()
-                    if line.startswith('<') and line.endswith('>'):
+                    if not line or line == '\n':
+                        continue
+                    elif line.startswith('#') or line.startswith('//'):
+                        continue
+                    elif skip:
+                        if line.startswith("'''") or line.startswith('*/'):
+                            skip = False
+                        continue
+                    elif line.startswith("'''") or line.startswith('/*'):
+                        skip = True
+                        continue
+                    elif line.startswith('<') and line.endswith('>'):
                         entry = line[1:-1]
                         ConfigMgr.confData.setdefault(entry, list())
                         targetList = ConfigMgr.confData[entry]
-                    elif line and line != '\n' and not line.startswith('#'):
+                        continue
+                    else:
                         targetList.append(line)
 
             return ConfigMgr.confData
@@ -46193,6 +46208,7 @@ class ThreadAnalyzer(object):
             self.stackTable = {}
             self.prevSwaps = None
             self.abnormalTaskList = {}
+            self.intervalData = {}
 
             # set index of attributes #
             self.majfltIdx = ConfigMgr.STAT_ATTR.index("MAJFLT")
@@ -46284,6 +46300,7 @@ class ThreadAnalyzer(object):
                 confData = SysMgr.getConfigDict('threshold')
                 if confData and 'alarm' in confData:
                     ThreadAnalyzer.reportBoundary = confData['alarm']
+                    SysMgr.reportEnable = True
                     SysMgr.printInfo(\
                         "applied thresholds for alarm")
                     SysMgr.printWarn(\
@@ -49806,6 +49823,34 @@ class ThreadAnalyzer(object):
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
+
+
+
+    def addSysInterval(self, key, value):
+        if not SysMgr.maxInterval:
+            return
+
+        self.intervalData.setdefault(key, list())
+        self.intervalData[key].append(value)
+        mod = len(self.intervalData[key]) - SysMgr.maxInterval
+        if mod > 0:
+            self.intervalData[key] = self.intervalData[key][mod:]
+
+
+
+    def addProcInterval(self, pid, target, key, value):
+        if not SysMgr.maxInterval:
+            return
+
+        try:
+            target.setdefault(key, self.prevProcData[pid][key])
+        except:
+            target.setdefault(key, list())
+
+        target[key].append(value)
+        mod = len(target[key]) - SysMgr.maxInterval
+        if mod > 0:
+            target[key] = target[key][mod:]
 
 
 
@@ -58775,7 +58820,7 @@ class ThreadAnalyzer(object):
                     long((nowData['idle'] - prevData['idle']) / interval)
 
                 #-------------------- REVISED STAT --------------------#
-                # get scale factor #
+                # get scaled factor #
                 totalStat = \
                     userCoreUsage + kerCoreUsage + \
                     ioCoreUsage + irqCoreUsage + idleCoreUsage
@@ -58808,10 +58853,17 @@ class ThreadAnalyzer(object):
         else:
             totalUsage = long(0)
 
+        # add CPU interval #
+        self.addSysInterval('cpu', totalUsage)
+
         # get network usage in bytes #
         (netIn, netOut) = \
             self.getNetworkUsage(\
             SysMgr.prevNetstat, SysMgr.netstat)
+
+        # add network interval #
+        self.addSysInterval('inbound', netIn)
+        self.addSysInterval('outbound', netOut)
 
         # convert network usage #
         try:
@@ -58825,6 +58877,9 @@ class ThreadAnalyzer(object):
         if availMem == 0:
             availMem = freeMem
             availMemDiff = freeMemDiff
+
+        # add memory interval #
+        self.addSysInterval('available', availMem)
 
         # make total stat string #
         totalCoreStat = \
@@ -59498,8 +59553,13 @@ class ThreadAnalyzer(object):
 
                 # check stat change #
                 if not value['changed']:
-                    value['utime'] = value['stime'] = long(0)
-                    value['ttime'] = value['btime'] = value['cttime'] = long(0)
+                    value['utime'] = value['stime'] = value['ttime'] = \
+                        value['btime'] = value['cttime'] = long(0)
+
+                    # add CPU interval #
+                    self.addProcInterval(\
+                        pid, value, 'cpuInterval', value['ttime'])
+
                     continue
 
                 value['majflt'] = \
@@ -59528,6 +59588,9 @@ class ThreadAnalyzer(object):
                     value['ttime'] = 100
                 elif value['ttime'] == 0:
                     value['ttime'] = long(0)
+
+                # add CPU interval #
+                self.addProcInterval(pid, value, 'cpuInterval', value['ttime'])
 
                 # child user time #
                 cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
