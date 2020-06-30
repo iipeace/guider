@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200629"
+__revision__ = "200630"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -275,7 +275,7 @@ class ConfigMgr(object):
 
     # Define mmap prot type #
     MAP_TYPE = {
-        #0x0000: "MAP_FILE",
+        0x0000: "MAP_FILE",
         0x0001: "MAP_SHARED",
         0x0002: "MAP_PRIVATE",
         #0x0003: "MAP_SHARED_VALIDATE",
@@ -3657,18 +3657,28 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getFlagString(value, flist):
+    def getFlagString(value, flist, num='hex'):
         string = ''
         numVal = long(value)
         for bit in list(flist.keys()):
             try:
-                if numVal & bit:
+                if numVal - bit < 0:
+                    break
+                elif numVal & bit:
                     string = '%s%s|' % (string, flist[bit])
-                elif bit == 1 and 0 in flist:
-                    string = '%s%s|' % (string, flist[0])
             except:
                 SysMgr.printWarn(\
                     "Fail to get flag info for %s" % value, reason=True)
+
+        # check value for 0 index #
+        if 0 in flist:
+            if num == 'hex' and numVal & 0xF == 0:
+                string = '%s|%s' % (flist[bit], string)
+            elif num == 'oct' and numVal & 0o7 == 0:
+                string = '%s|%s' % (flist[bit], string)
+            elif num == 'bin' and numVal & 0 == 0:
+                string = '%s|%s' % (flist[bit], string)
+
         if len(string) > 0:
             return string[:-1]
         else:
@@ -14303,8 +14313,8 @@ class SysMgr(object):
                     raise Exception('wrong input')
 
                 if launch:
-                    withSibling = SysMgr.groupProcEnable
-                    targetList = SysMgr.getPids(tid, withSibling=withSibling)
+                    sibling = SysMgr.groupProcEnable
+                    targetList = SysMgr.getPids(tid, sibling=sibling)
                     targetList = list(map(long, targetList))
                     if not targetList:
                         SysMgr.printErr(\
@@ -14389,12 +14399,12 @@ class SysMgr(object):
 
         SysMgr.checkPerm()
 
-        withSibling = SysMgr.groupProcEnable
+        sibling = SysMgr.groupProcEnable
         targetList = []
 
         try:
             for item in value:
-                targetList += SysMgr.getPids(item, withSibling=withSibling)
+                targetList += SysMgr.getPids(item, sibling=sibling)
 
             if not targetList:
                 SysMgr.printErr(\
@@ -23678,9 +23688,9 @@ Copyright:
         elif SysMgr.isPauseMode():
             # convert comm to pid #
             targetList = []
-            withSibling = SysMgr.groupProcEnable
+            sibling = SysMgr.groupProcEnable
             for item in SysMgr.filterGroup:
-                targetList += SysMgr.getPids(item, withSibling=withSibling)
+                targetList += SysMgr.getPids(item, sibling=sibling)
             targetList = list(set(targetList))
 
             Debugger.pauseThreads(targetList)
@@ -24800,20 +24810,21 @@ Copyright:
 
 
     @staticmethod
-    def getPids(name, isThread=True, withSibling=False, withMain=False):
+    def getPids(\
+        name, isThread=True, sibling=False, main=False, inc=False):
         pidList = []
 
         # tid #
         if UtilMgr.isNumber(name) and \
             os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
-            if withSibling:
+            if sibling:
                 path = '%s/%s/task' % (SysMgr.procPath, name)
                 pids = os.listdir(path)
                 for pid in pids:
                     if pid.isdigit():
                         pidList.append(pid)
                 return pidList
-            elif withMain:
+            elif main:
                 return list(set([name, SysMgr.getTgid(name)]))
             else:
                 return [name]
@@ -24828,7 +24839,8 @@ Copyright:
             if not isThread:
                 # get comm #
                 comm = SysMgr.getComm(pid)
-                if comm == name:
+                if (not inc and comm == name) or \
+                    (inc and name in comm):
                     pidList.append(pid)
                 continue
 
@@ -24845,16 +24857,17 @@ Copyright:
 
                 # get comm #
                 comm = SysMgr.getComm(tid)
-                if comm != name:
+                if (not inc and comm != name) or \
+                    (inc and not name in comm):
                     continue
 
                 # include all siblings #
-                if withSibling:
+                if sibling:
                     pidList += tids
                     break
 
                 # include the main thread #
-                if withMain:
+                if main:
                     pidList.append(pid)
 
                 # include a thread #
@@ -26969,7 +26982,7 @@ Copyright:
                     deepcopy(procObj.targetBpFileList)
 
                 # create a lock for a target multi-threaded process #
-                if SysMgr.getPids(pid, withSibling=True):
+                if SysMgr.getPids(pid, sibling=True):
                     lockList[pid] = \
                         Debugger.getGlobalLock(pid, len(bpList[pid]))
 
@@ -27028,12 +27041,12 @@ Copyright:
         # convert comm to pid #
         pids = SysMgr.convertPidList(\
             SysMgr.filterGroup, isThread=True, \
-                withSibling=SysMgr.groupProcEnable)
+                sibling=SysMgr.groupProcEnable)
 
         # get pids of process groups #
         if mode == 'breakcall':
             allpids = SysMgr.convertPidList(\
-                SysMgr.filterGroup, isThread=True, withSibling=True)
+                SysMgr.filterGroup, isThread=True, sibling=True)
         else:
             allpids = pids
 
@@ -27683,26 +27696,39 @@ Copyright:
             SysMgr.printErr(\
                 "No PID or COMM with -g")
             sys.exit(0)
-        elif len(targetList) > 1:
-            SysMgr.printErr(\
-                "Input only one PID or COMM")
-            sys.exit(0)
 
         # convert comm to pid #
+        pid = None
+        isMulti = False
         pids = SysMgr.convertPidList(targetList, exceptMe=True)
         if len(pids) == 0:
             SysMgr.printErr("No %s process" % \
                 ', '.join(targetList))
             sys.exit(0)
         elif len(pids) > 1:
-            SysMgr.printErr((\
-                "Fail to select a target process because "
-                "multiple %s processes exist with PID [ %s ]") \
-                    % (', '.join(targetList), ', '.join(pids)))
-            sys.exit(0)
+            SysMgr.printWarn(\
+                "multiple tasks [ %s ] are traced" % \
+                    SysMgr.getCommList(pids), True)
+
+            isMulti = True
+
+            for item in pids:
+                ret = SysMgr.createProcess()
+                if not ret:
+                    pid = item
+                    break
+
+            # parent process #
+            if not pid:
+                SysMgr.setIgnoreSignal()
+                SysMgr.waitChild()
+                SysMgr.setNormalSignal()
+                sys.exit(0)
         else:
             pid = pids[0]
-            comm = SysMgr.getComm(pid)
+
+        # get comm #
+        comm = SysMgr.getComm(pid)
 
         # get environment variables of target #
         envList = SysMgr.getEnv(pid, retdict=True)
@@ -27772,11 +27798,17 @@ Copyright:
             if SysMgr.inputParam:
                 fname = SysMgr.inputParam
                 if os.path.isdir(fname):
-                    fname = '%s/leaks.out' % fname
+                    if isMulti:
+                        fname = '%s/leaks_%s.out' % (fname, pid)
+                    else:
+                        fname = '%s/leaks.out' % fname
             elif os.path.exists(SysMgr.tmpPath):
-                fname = '%s/leaks.out' % SysMgr.tmpPath
+                if isMulti:
+                    fname = '%s/leaks_%s.out' % (SysMgr.tmpPath, pid)
+                else:
+                    fname = '%s/leaks.out' % SysMgr.tmpPath
             else:
-                SysMgr.printErr("No PATH with -I")
+                SysMgr.printErr("No PATH for temporary input with -I")
                 sys.exit(0)
 
             # set output file path #
@@ -27802,6 +27834,16 @@ Copyright:
             except:
                 SysMgr.printErr(\
                     "Fail to backup %s to %s" % (fname, oldpath), True)
+
+        # check signal on platform #
+        try:
+            signal.signal(LeakAnalyzer.startSig, signal.SIG_IGN)
+        except:
+            LeakAnalyzer.startSig = 10
+        try:
+            signal.signal(LeakAnalyzer.stopSig, signal.SIG_IGN)
+        except:
+            LeakAnalyzer.stopSig = 12
 
         # set signal #
         startSig = stopSig = None
@@ -27847,6 +27889,8 @@ Copyright:
 
         # set environment #
         if remoteCmd:
+            remoteCmd.append(\
+                'usercall:leaktracer::MemoryTrace::init_full_from_once()')
             rcmd = \
                 ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
             SysMgr.launchGuider(\
@@ -29262,7 +29306,7 @@ Copyright:
 
     @staticmethod
     def convertPidList(\
-        procList, isThread=False, exceptMe=False, withSibling=False):
+        procList, isThread=False, exceptMe=False, sibling=False, inc=False):
         if not procList:
             return
 
@@ -29270,7 +29314,8 @@ Copyright:
 
         # get pids #
         for pid in procList:
-            taskList = SysMgr.getPids(pid, isThread, withSibling)
+            taskList = SysMgr.getPids(\
+                pid, isThread, sibling, False, inc)
             targetList += taskList
 
         # remove redundant items #
@@ -29542,8 +29587,8 @@ Copyright:
                     isTid = False
 
                 # get thread list #
-                withSibling = SysMgr.groupProcEnable
-                targetList = SysMgr.getPids(tid, withSibling=withSibling)
+                sibling = SysMgr.groupProcEnable
+                targetList = SysMgr.getPids(tid, sibling=sibling)
                 targetList = list(map(long, targetList))
 
                 if not targetList:
@@ -34759,9 +34804,9 @@ class DbusAnalyzer(object):
                 SysMgr.printWarn('Fail to read data from pipe', reason=True)
                 return
 
-        def getDefaultTasks(comm, withSibling=True):
+        def getDefaultTasks(comm, sibling=True):
             taskList = []
-            tempList = SysMgr.getPids(comm, withSibling=withSibling)
+            tempList = SysMgr.getPids(comm, sibling=sibling)
             for tid in tempList:
                 taskList.append(SysMgr.getTgid(tid))
 
@@ -34787,7 +34832,7 @@ class DbusAnalyzer(object):
             onlyDaemon = False
             for val in SysMgr.filterGroup:
                 if SysMgr.groupProcEnable:
-                    taskList += SysMgr.getPids(val, withSibling=True)
+                    taskList += SysMgr.getPids(val, sibling=True)
                 else:
                     taskList += getDefaultTasks(val)
         if not taskList:
@@ -36891,7 +36936,7 @@ struct cmsghdr {
                                 self.readMem(targetAddr, retWord=True)
 
                     SysMgr.printPipe(\
-                        "\n[%s] %x" % (cmdstr, ret), \
+                        "\n[%s] 0x%x" % (cmdstr, ret), \
                             newline=False, flush=True)
 
                     # set register values #
@@ -37239,16 +37284,14 @@ struct cmsghdr {
                         except:
                             addr = long(val, 16)
                     else:
-                        ret = self.getAddrBySymbol(val)
+                        ret = self.getAddrBySymbol(val, one=True)
                         if not ret:
                             SysMgr.printErr("No found %s" % val)
                             continue
-                        elif len(ret) > 1:
-                            self.printSymbolList(ret)
 
-                        addr = ret[0][0]
+                        addr = ret
 
-                    output = "\n[%s] %s(%x)%s" % (cmdstr, val, addr, argStr)
+                    output = "\n[%s] %s(0x%x)%s" % (cmdstr, val, addr, argStr)
 
                     if sym == val or \
                         self.pc == addr:
@@ -37310,16 +37353,14 @@ struct cmsghdr {
                         except:
                             addr = long(val, 16)
                     else:
-                        ret = self.getAddrBySymbol(val)
+                        ret = self.getAddrBySymbol(val, one=True)
                         if not ret:
                             SysMgr.printErr("No found %s" % val)
                             continue
-                        elif len(ret) > 1:
-                            self.printSymbolList(ret)
 
-                        addr = ret[0][0]
+                        addr = ret
 
-                    output = "\n[%s] %s(%x) -> %s(%x)%s" % \
+                    output = "\n[%s] %s(0x%x) -> %s(0x%x)%s" % \
                         (cmdstr, sym, self.pc, val, addr, args)
 
                     if sym == val or \
@@ -38054,6 +38095,7 @@ struct cmsghdr {
         if not size:
             if string:
                 string = string.strip('"')
+                string = string.replace('\\n', '\n')
                 size = len(string) + 1
             else:
                 SysMgr.printErr(\
@@ -38096,6 +38138,7 @@ struct cmsghdr {
             self.tempPage = self.mmap()
             if self.tempPage < 0:
                 self.tempPage = None
+
         return self.tempPage
 
 
@@ -38209,6 +38252,13 @@ struct cmsghdr {
         # set trap for return #
         if self.arch == 'arm' or self.arch == 'aarch64':
             self.setLR(0)
+
+            # set CPSR for ARM #
+            if func & 0x1:
+                func &= ~1
+                self.regs.r16 |= (1<<5)
+            else:
+                self.regs.r16 &= ~(1<<5)
         elif self.arch == 'x64':
             # align sp - wordSize to a multiple of 16
             wordSize = ConfigMgr.wordSize
@@ -38237,8 +38287,6 @@ struct cmsghdr {
         self.cont()
         if not wait:
             return None
-        elif self.arch == 'arm':
-            self.stop()
         ret = self.waitpid()
 
         # read regs to check results #
@@ -38258,7 +38306,7 @@ struct cmsghdr {
 
 
 
-    def remoteSyscall(self, syscall, args=[]):
+    def remoteSyscall(self, syscall, args=[], verb=True):
         # check syscall function #
         if not self.syscallFound:
             return -1
@@ -38301,10 +38349,12 @@ struct cmsghdr {
         # set PC to syscall function addr #
         addr = self.getSyscallAddr()
         if not addr:
-            SysMgr.printErr(\
-                "Fail to find the address for 'syscall' function")
+            if verb:
+                SysMgr.printErr(\
+                    "Fail to find the address for syscall function")
             return -1
-        self.setPC(addr)
+        else:
+            self.setPC(addr)
 
         # apply register set #
         self.setRegs()
@@ -38377,7 +38427,8 @@ struct cmsghdr {
         # set flags #
         flags = 0x22
 
-        return self.remoteSyscall('mmap', [0, size, prot, flags, 0, 0])
+        return self.remoteSyscall(\
+            'mmap', [0, size, prot, flags, 0, 0], verb=False)
 
 
 
@@ -39035,7 +39086,7 @@ struct cmsghdr {
         if syscall == 'open':
             if argname == 'flags':
                 return UtilMgr.getFlagString(\
-                    value, ConfigMgr.OPEN_TYPE)
+                    value, ConfigMgr.OPEN_TYPE, num='oct')
 
         if argname == 'whence':
             return ConfigMgr.SEEK_TYPE[int(value)]
@@ -39593,8 +39644,7 @@ struct cmsghdr {
         # print register #
         if regs:
             # set regsdict #
-            if not self.regsDict:
-                self.regsDict = self.regs.getdict()
+            self.regsDict = self.regs.getdict()
 
             if not isPrinted:
                 SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
@@ -39604,30 +39654,34 @@ struct cmsghdr {
                 '\tRegister Info [%s]\n%s\n' % (taskInfo, oneLine))
 
             for reg, val in sorted(self.regsDict.items()):
+                rvalue = ''
                 if deref and val:
                     rvalue = self.readMem(val, verb=False)
                     if rvalue:
                         try:
                             rvalue = '"%s"' % rvalue.decode("utf-8")
                             rvalue = re.sub('\W+','', rvalue)
+                            rvalue = rvalue.encode()
                         except SystemExit:
                             sys.exit(0)
                         except:
                             rvalue = hex(UtilMgr.convStr2Word(rvalue))
                             rvalue = rvalue.rstrip('L')
-                    else:
-                        rvalue = '?'
+
+                # convert reference value #
+                if rvalue:
+                    rvalue = ' [%s]' % rvalue
                 else:
-                    rvalue = '?'
+                    rvalue = ''
 
                 SysMgr.addPrint(\
-                    '%s: %x [%s]\n' % (reg, val, rvalue))
+                    '%s: %x%s\n' % (reg, val, rvalue))
 
             SysMgr.addPrint('%s\n' % twoLine)
 
         # print backtrace #
         if bt:
-            backtrace = self.getBacktrace(cur=True)
+            backtrace = self.getBacktrace(cur=True, force=True)
             if len(backtrace) > 0:
                 if not isPrinted:
                     SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
@@ -39825,8 +39879,8 @@ struct cmsghdr {
 
 
 
-    def getBacktraceString(self, bt, default=0, maximum=0):
-        if self.btStr:
+    def getBacktraceString(self, bt, default=0, maximum=0, force=False):
+        if not force and self.btStr:
             return self.btStr
 
         btString = ''
@@ -39897,9 +39951,9 @@ struct cmsghdr {
 
 
 
-    def getBacktrace(self, limit=32, cur=False):
+    def getBacktrace(self, limit=32, cur=False, force=False):
         try:
-            if not self.btList:
+            if force or not self.btList:
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
             return self.btList
@@ -41152,6 +41206,13 @@ struct cmsghdr {
 
         # return address for 1st item #
         if one:
+            # check libc symbol first #
+            if SysMgr.libcObj:
+                libcPath = SysMgr.libcObj._name
+                for item in addrList:
+                    if libcPath in item[2]:
+                        return item[0]
+
             if addrList:
                 return addrList[0][0]
             else:
@@ -46597,6 +46658,9 @@ class ThreadAnalyzer(object):
 
             # check repeat count #
             SysMgr.checkProgress()
+
+            # reset and save proc instance #
+            self.saveProcInstance()
 
             # reset system status #
             self.reinitStats()
@@ -57080,6 +57144,8 @@ class ThreadAnalyzer(object):
         # print cpu usage #
         cpuUsage = ThreadAnalyzer.dbgObj.getCpuUsage()
         diff = SysMgr.uptimeDiff
+        if diff == 0:
+            diff = 0.1
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
@@ -57110,18 +57176,18 @@ class ThreadAnalyzer(object):
         # print process info #
         procCnt = long(0)
         for idx, value in sortedProcData:
-            comm = value['stat'][self.commIdx][1:-1]
+            stat = value['stat']
+            comm = stat[self.commIdx][1:-1]
+            pid = stat[self.ppidIdx]
 
-            pid = value['stat'][self.ppidIdx]
-
-            if ConfigMgr.SCHED_POLICY[int(value['stat'][self.policyIdx])] == 'C':
-                schedValue = "%3d" % (long(value['stat'][self.prioIdx]) - 20)
+            if ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
+                schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
             else:
-                schedValue = "%3d" % (abs(long(value['stat'][self.prioIdx]) + 1))
+                schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
 
             procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
-                format(comm, idx, pid, value['stat'][self.nrthreadIdx], \
-                ConfigMgr.SCHED_POLICY[int(value['stat'][self.policyIdx])] + \
+                format(comm, idx, pid, stat[self.nrthreadIdx], \
+                ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
                 str(schedValue))
 
             procInfoLen = len(procInfo)
@@ -57184,6 +57250,38 @@ class ThreadAnalyzer(object):
                     if not ret:
                         break
 
+                # read pos and permission #
+                try:
+                    if not path.startswith('/'):
+                        raise Exception(exception.NameError)
+
+                    attr = ''
+                    fdinfoPath = "%s/%s/fdinfo/%s" % \
+                        (SysMgr.procPath, idx, fd)
+                    with open(fdinfoPath, 'r') as infofd:
+                        lines = infofd.readlines()
+
+                        for item in lines:
+                            if item.startswith('pos'):
+                                attr += '%s' % item.split(':')[1].strip()
+                            elif item.startswith('flags'):
+                                perm = long(item.split(':')[1].strip(), 8)
+                                perm = UtilMgr.getFlagString(\
+                                    perm, ConfigMgr.OPEN_TYPE, num='oct')
+                                attr += ', %s' % perm
+
+                    # append attributes #
+                    if attr:
+                        path = '%s (%s)' % (path, attr)
+                except NameError:
+                    pass
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        'Fail to read attributes from %s' % fdinfoPath, \
+                            reason=True)
+
                 SysMgr.addPrint(\
                     ("{0:>1}|{1:>4}| {2:<106}|\n").format(\
                     ' ' * procInfoLen, fd, path))
@@ -57221,7 +57319,8 @@ class ThreadAnalyzer(object):
 
         # get process list #
         if procFilter:
-            pids = SysMgr.convertPidList(procFilter, isThread=True)
+            pids = SysMgr.convertPidList(\
+                procFilter, isThread=True, inc=True)
             newPids = []
             for pid in pids:
                 ret = SysMgr.getTgid(pid)
