@@ -46346,11 +46346,11 @@ class ThreadAnalyzer(object):
                 elif SysMgr.processEnable:
                     SysMgr.printInfo(\
                         "only specific processes [ %s ] are shown" % \
-                        taskList)
+                            taskList)
                 else:
                     SysMgr.printInfo(\
                         "only specific threads [ %s ] are shown" % \
-                        taskList)
+                            taskList)
 
             # set network configuration #
             if not SysMgr.findOption('x'):
@@ -61809,7 +61809,14 @@ class ThreadAnalyzer(object):
 
             # check event boundary #
             try:
-                if rb['cpu']['SYSTEM']['total'] <= \
+                comval = rb['cpu']['SYSTEM']
+                intval = self.intervalData['cpu']
+                if 'interval' in comval:
+                    if comval['interval'] <= len(intval) and \
+                        comval['total'] <= sum(intval)/len(intval):
+                        self.reportData['event']['CPU_INTENSIVE'] = \
+                            self.reportData['cpu']['procs']
+                elif comval['total'] <= \
                     self.reportData['cpu']['total']:
                     self.reportData['event']['CPU_INTENSIVE'] = \
                         self.reportData['cpu']['procs']
