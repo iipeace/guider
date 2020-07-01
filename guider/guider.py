@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200630"
+__revision__ = "200701"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6135,22 +6135,23 @@ class PageAnalyzer(object):
 
             pid = SysMgr.getPids(pid[0], isThread=False)
             if len(pid) == 0:
-                raise Exception()
+                raise Exception('no task')
             elif len(pid) > 1:
-                SysMgr.printErr(\
-                    "Found multiple pids [ %s ]" % ', '.join(pid))
-                raise Exception()
+                err = "found multiple pids [ %s ]" % ', '.join(pid)
+                raise Exception(err)
             else:
                 pid = pid[0]
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to recognize pid, input only one PID with -g option")
+                "Fail to recognize target", reason=True)
             sys.exit(0)
 
+        comm = SysMgr.getComm(pid)
+
         if not vaddr:
-            PageAnalyzer.printMemoryArea(pid)
+            PageAnalyzer.printMemoryArea(pid, comm=comm)
             SysMgr.printPipe(oneLine)
             sys.exit(0)
 
@@ -6207,8 +6208,8 @@ class PageAnalyzer(object):
                 sys.exit(0)
 
         SysMgr.printPipe(\
-            "\n[ PID: %s ] [ AREA: %s ] [ HELP: %s ]\n" % \
-            (pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
+            "\n[ TASK: %s(%s) ] [ AREA: %s ] [ HELP: %s ]" % \
+                (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
 
         PageAnalyzer.printMemoryArea(pid, addrs, addre)
         SysMgr.printPipe(twoLine)
@@ -6250,7 +6251,7 @@ class PageAnalyzer(object):
 
 
     @staticmethod
-    def printMemoryArea(pid, start=-1, end=-1):
+    def printMemoryArea(pid, start=-1, end=-1, comm=None):
         count = long(0)
         switch = long(0)
         fpath = '%s/%s/maps' % (SysMgr.procPath, pid)
@@ -6263,6 +6264,21 @@ class PageAnalyzer(object):
         except:
             SysMgr.printOpenErr(fpath)
             sys.exit(0)
+
+        if start == end == -1:
+            if not comm:
+                comm = SysMgr.getComm(pid)
+
+            # get mem stat #
+            convert = UtilMgr.convSize2Unit
+            mlist = SysMgr.getMemStat(pid)
+            vssIdx = ConfigMgr.STATM_TYPE.index("TOTAL")
+            vss = convert(long(mlist[vssIdx]) << 12)
+            rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
+            rss = convert(long(mlist[rssIdx]) << 12)
+            SysMgr.printPipe(\
+                "\n[ TASK: %s(%s) ] [ VSS: %s ] [ RSS: %s ]" % \
+                    (comm, pid, vss, rss))
 
         start = hex(start)
         end = hex(end)
@@ -11690,7 +11706,13 @@ class LeakAnalyzer(object):
         callinfo = {}
 
         while 1:
-            line = fd.readline()
+            try:
+                line = fd.readline()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
             if not line:
                 break
 
@@ -19698,7 +19720,7 @@ Copyright:
         addr = SysMgr.getauxval("AT_SYSINFO_EHDR")
 
         # create a memory file #
-        fd = MemoryFile(addr)
+        fd = MemoryFile(addr, name='vdso')
 
         # return vDSO #
         obj = ElfAnalyzer(path='vdso', fd=fd, debug=debug)
@@ -27751,6 +27773,7 @@ Copyright:
         ]
 
         # check preload result #
+        libPath = None
         ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
         if ret:
             SysMgr.printStat(\
@@ -27889,8 +27912,9 @@ Copyright:
 
         # set environment #
         if remoteCmd:
-            remoteCmd.append(\
-                'usercall:leaktracer::MemoryTrace::init_full_from_once()')
+            if not libPath:
+                remoteCmd.append(\
+                    'usercall:leaktracer::MemoryTrace::init_full_from_once()')
             rcmd = \
                 ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
             SysMgr.launchGuider(\
@@ -36546,14 +36570,15 @@ struct cmsghdr {
             if not oldSet:
                 SysMgr.printErr(\
                     "Fail to find '%s' info from %s" % (oldSym, procInfo))
-                sys.exit(0)
+                continue
 
             # get hook symbol info #
             newSet = dobj.getAddrBySymbol(newSym, fpath)
             if not newSet:
                 SysMgr.printErr(\
-                    "Fail to find '%s' info from %s" % (newSym, procInfo))
-                sys.exit(0)
+                    "Fail to find '%s' info in %s from %s" % \
+                        (newSym, fpath, procInfo))
+                continue
 
             # add a set to list #
             hooks.append([oldSet, newSet])
@@ -36811,7 +36836,7 @@ struct cmsghdr {
     def executeCmd(self, cmdList, sym=None, args=[]):
         def printCmdErr(cmdset, cmd):
             if cmd == 'print':
-                cmdformat = "PRINT:VAR"
+                cmdformat = "VAR"
             elif cmd == 'exec':
                 cmdformat = "COMMAND"
             elif cmd == 'ret':
@@ -36827,21 +36852,21 @@ struct cmsghdr {
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
             elif cmd == 'usercall':
-                cmdformat = "USERCALL:FUNC#ARG0#ARG1"
+                cmdformat = "FUNC#ARG0#ARG1"
             elif cmd == 'syscall':
-                cmdformat = "SYSCALL:FUNC#ARG0#ARG1"
+                cmdformat = "SYSCALL#ARG0#ARG1"
             elif cmd == 'load':
-                cmdformat = "LOAD:PATH"
+                cmdformat = "PATH"
             elif cmd == 'save':
-                cmdformat = "SAVE:NAME:VAL:TYPE"
+                cmdformat = "NAME:VAL:TYPE"
             elif cmd == 'start':
                 cmdformat = "START"
             elif cmd == 'stop':
                 cmdformat = "STOP"
             elif cmd == 'setenv':
-                cmdformat = "SETENV:VAR#VAL"
+                cmdformat = "VAR#VAL"
             elif cmd == 'getenv':
-                cmdformat = "GETENV:VAR"
+                cmdformat = "VAR"
             elif cmd == 'exit':
                 cmdformat = "EXIT"
 
@@ -37209,7 +37234,7 @@ struct cmsghdr {
 
                         ret = hex(ret)
 
-                    output = "\n[%s] %s(%s)" % (cmdstr, binary, ret)
+                    output = "\n[%s] %s[%s]" % (cmdstr, binary, ret)
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     # inject all breakpoints again #
@@ -37291,7 +37316,7 @@ struct cmsghdr {
 
                         addr = ret
 
-                    output = "\n[%s] %s(0x%x)%s" % (cmdstr, val, addr, argStr)
+                    output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
 
                     if sym == val or \
                         self.pc == addr:
@@ -37352,6 +37377,10 @@ struct cmsghdr {
                             addr = long(val)
                         except:
                             addr = long(val, 16)
+
+                        ret = self.getSymbolInfo(addr)
+                        if ret:
+                            val = ret[0]
                     else:
                         ret = self.getAddrBySymbol(val, one=True)
                         if not ret:
@@ -37360,8 +37389,14 @@ struct cmsghdr {
 
                         addr = ret
 
-                    output = "\n[%s] %s(0x%x) -> %s(0x%x)%s" % \
-                        (cmdstr, sym, self.pc, val, addr, args)
+                    ret = self.getSymbolInfo(self.pc)
+                    if ret:
+                        symbol = ret[0]
+                    else:
+                        symbol = '??'
+
+                    output = "\n[%s] %s[0x%x] -> %s[0x%x]%s" % \
+                        (cmdstr, symbol, self.pc, val, addr, args)
 
                     if sym == val or \
                         self.pc == addr:
@@ -38165,24 +38200,59 @@ struct cmsghdr {
                     (fname, self.comm, self.pid))
             return None
 
-        # get function address #
-        func = '__libc_dlopen_mode'
+        # handle android #
+        if SysMgr.isAndroid:
+            libcPath = FileAnalyzer.getMapFilePath(\
+                self.pid, SysMgr.libcObj._name, self.mapFd)
 
-        '''
-        # alloc a memory segment for file name string #
-        addr = self.getTempPage()
-        if not addr:
-            SysMgr.printErr("Fail to allocate a new page")
-            return None
+            # get ELF object #
+            fcache = ElfAnalyzer.getObject(libcPath)
+            if not hasattr(fcache, 'attr'):
+                SysMgr.printErr(\
+                    "Fail to find attr field from the cache for %s" % libcPath)
+                return None
 
-        # copy file name string to the new page #
-        fname += '\0'
-        ret = self.writeMem(addr, fname.encode())
-        if ret == -1:
-            SysMgr.printErr(\
-                "Fail to write '%s' to %s" % (fname, hex(addr)))
-            return None
-        '''
+            # get mapping info #
+            func = 0
+            targetSym = 'dlopen'
+            if not self.pmap or not libcPath in self.pmap:
+                self.loadSymbols()
+            vstart = self.pmap[libcPath]['vstart']
+
+            # get mapping info #
+            for sym, attr in sorted(\
+                fcache.attr['dynsymTable'].items(),\
+                key=lambda x:x[1]['size'], reverse=False):
+                if attr['size'] > 0:
+                    break
+                elif sym != targetSym and sym.split('@')[0] != targetSym:
+                    continue
+
+                # read original address for target #
+                slotAddr = vstart + attr['value']
+                if slotAddr % ConfigMgr.wordSize == 0:
+                    func = self.accessMem(self.peekIdx, slotAddr)
+                else:
+                    func = self.readMem(slotAddr, retWord=True)
+        else:
+            # get function address #
+            func = '__libc_dlopen_mode'
+
+            '''
+            # alloc a memory segment for file name string #
+            addr = self.getTempPage()
+            if not addr:
+                SysMgr.printErr("Fail to allocate a new page")
+                return None
+
+            # copy file name string to the new page #
+            fname += '\0'
+            ret = self.writeMem(addr, fname.encode())
+            if ret == -1:
+                SysMgr.printErr(\
+                    "Fail to write '%s' to %s" % (fname, hex(addr)))
+                return None
+            '''
 
         if not flags:
             flags = 1 # RTLD_LAZY #
@@ -39675,7 +39745,7 @@ struct cmsghdr {
                     rvalue = ''
 
                 SysMgr.addPrint(\
-                    '%s: %x%s\n' % (reg, val, rvalue))
+                    '%s: 0x%x%s\n' % (reg, val, rvalue))
 
             SysMgr.addPrint('%s\n' % twoLine)
 
@@ -40408,8 +40478,8 @@ struct cmsghdr {
             stat = self.getStatus(ret[1])
             if SysMgr.isTermSignal(stat) or stat == -1:
                 SysMgr.printErr(\
-                    'Fail to wait for %s(%s) to reinstall a breakpoint' % \
-                        (self.comm, self.pid))
+                    'Fail to reinstall a breakpoint to %s(%s) for %s(%s)' % \
+                        (sym, addr, self.comm, self.pid))
                 sys.exit(0)
 
         # register this breakpoint again #
@@ -42616,10 +42686,11 @@ class EventAnalyzer(object):
 class MemoryFile(object):
     """ File for memory region """
 
-    def __init__(self, addr, size=4096):
+    def __init__(self, addr, size=4096, name=None):
         self.pos = 0
         self.addr = addr
         self.size = size
+        self.name = name
 
         self.resize(size)
 
