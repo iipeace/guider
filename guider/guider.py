@@ -13380,6 +13380,8 @@ class SysMgr(object):
     libCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
+    reportBoundary = {}
+    analysisBoundary = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -14404,6 +14406,61 @@ class SysMgr(object):
         SysMgr.impGlbPkg[pkg] = True
 
         return True
+
+
+
+    @staticmethod
+    def applyThreshold():
+        def getMaxInterval(node, maxVal=0):
+            for key, item in node.items():
+                if type(item) is dict:
+                    val = getMaxInterval(item, maxVal)
+                    if maxVal < val:
+                        maxVal = val
+                elif key == 'interval' and UtilMgr.isNumber(item):
+                    item = long(item)
+                    if maxVal < item:
+                        maxVal = item
+            return maxVal
+
+        if not 'threshold' in ConfigMgr.confData:
+            return
+
+        confData = SysMgr.getConfigDict('threshold')
+        if not confData:
+            return
+
+        # parse alarm #
+        if 'alarm' in confData and type(confData['alarm']) is dict:
+            SysMgr.reportEnable = True
+            SysMgr.reportBoundary = confData['alarm']
+
+            # update maximum interval #
+            maxInterval = getMaxInterval(confData['alarm'])
+            if maxInterval > SysMgr.maxInterval:
+                SysMgr.maxInterval = maxInterval
+
+            SysMgr.printInfo(\
+                "applied thresholds for alarm")
+
+            SysMgr.printWarn(\
+                UtilMgr.convDict2Str(confData['alarm']))
+
+        # parse analysis #
+        if 'analysis' in confData and type(confData['analysis']) is dict:
+            SysMgr.reportEnable = True
+            SysMgr.analysisBoundary = confData['analysis']
+
+            # update maximum interval #
+            maxInterval = getMaxInterval(confData['analysis'])
+            if maxInterval > SysMgr.maxInterval:
+                SysMgr.maxInterval = maxInterval
+
+            SysMgr.printInfo(\
+                "applied thresholds for analysis")
+
+            SysMgr.printWarn(\
+                UtilMgr.convDict2Str(confData['analysis']))
 
 
 
@@ -45552,9 +45609,6 @@ class ThreadAnalyzer(object):
         'REPORT_BOUND',
     ]
 
-    # default constant to check system status for reporting #
-    reportBoundary = {}
-
     init_procTotData = \
         {'comm': '', 'ppid': long(0), 'nrThreads': long(0), 'pri': '', \
         'startIdx': long(0), 'cpu': long(0), 'cpuMax': long(0), \
@@ -46428,15 +46482,7 @@ class ThreadAnalyzer(object):
                 NetworkMgr.setServerNetwork(None, None)
 
             # set threshold configuration #
-            if 'threshold' in ConfigMgr.confData:
-                confData = SysMgr.getConfigDict('threshold')
-                if confData and 'alarm' in confData:
-                    ThreadAnalyzer.reportBoundary = confData['alarm']
-                    SysMgr.reportEnable = True
-                    SysMgr.printInfo(\
-                        "applied thresholds for alarm")
-                    SysMgr.printWarn(\
-                        UtilMgr.convDict2Str(confData['alarm']))
+            SysMgr.applyThreshold()
 
             # set log buffer size #
             if SysMgr.bufferSize == -1:
@@ -61850,7 +61896,7 @@ class ThreadAnalyzer(object):
             self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
             SysMgr.imagePath = None
 
-        rb = ThreadAnalyzer.reportBoundary
+        rb = SysMgr.reportBoundary
 
         # add CPU status #
         if 'cpu' in self.reportData:
@@ -61878,11 +61924,19 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            # check event boundary #
+            # check CPU boundary #
             try:
-                comval = rb['cpu']['SYSTEM']
-                intval = self.intervalData['cpu']
-                if 'interval' in comval:
+                if 'cpu' in rb and 'SYSTEM' in rb['cpu']:
+                    comval = rb['cpu']['SYSTEM']
+                else:
+                    raise Exception()
+
+                if 'cpu' in self.intervalData:
+                    intval = self.intervalData['cpu']
+                else:
+                    intval = []
+
+                if intval and 'interval' in comval:
                     if comval['interval'] <= len(intval) and \
                         comval['total'] <= sum(intval)/len(intval):
                         self.reportData['event']['CPU_INTENSIVE'] = \
