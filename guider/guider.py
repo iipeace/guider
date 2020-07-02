@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200701"
+__revision__ = "200702"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27715,8 +27715,13 @@ Copyright:
             # define RSS index #
             rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
             vssIdx = ConfigMgr.STAT_ATTR.index("VSIZE")
-            condUnit = UtilMgr.convSize2Unit(cond)
             path = '%s/%s' % (SysMgr.procPath, pid)
+
+            # check destination value #
+            if cond == sys.maxsize:
+                condUnit = ''
+            else:
+                condUnit = '/%s' % UtilMgr.convSize2Unit(cond)
 
             # wait for RSS #
             previous = None
@@ -27729,7 +27734,7 @@ Copyright:
                     else:
                         SysMgr.printErr(\
                             "Fail to get RSS of %s(%s)" % (comm, pid))
-                    sys.exit(0)
+                    return -1
 
                 procData = tobj.procData[pid]['stat']
                 vss = UtilMgr.convSize2Unit(long(procData[vssIdx]))
@@ -27737,7 +27742,7 @@ Copyright:
                 rssUnit = UtilMgr.convSize2Unit(rss)
                 if previous != rssUnit:
                     SysMgr.printInfo(\
-                        '%s(%s)\'s VSS(%s), RSS(%s/%s) for %s' % \
+                        '%s(%s)\'s VSS(%s), RSS(%s%s) for %s' % \
                             (comm, pid, vss, rssUnit, condUnit, purpose))
                 previous = rssUnit
 
@@ -27762,9 +27767,11 @@ Copyright:
                 SysMgr.printErr(\
                     "Fail to send signal %s to %s profiling" % \
                         (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
-                sys.exit(0)
+                return -1
 
-        startTime = endTime = 0
+            return 0
+
+
 
         # check package #
         SysMgr.getPkg('ctypes')
@@ -27779,6 +27786,7 @@ Copyright:
         # convert comm to pid #
         pid = None
         isMulti = False
+        startTime = endTime = 0
         pids = SysMgr.convertPidList(targetList, exceptMe=True)
         if len(pids) == 0:
             SysMgr.printErr("No %s process" % \
@@ -27876,7 +27884,7 @@ Copyright:
         else:
             fname = None
             if SysMgr.inputParam:
-                fname = SysMgr.inputParam
+                fname = os.path.abspath(SysMgr.inputParam)
                 if os.path.isdir(fname):
                     if isMulti:
                         fname = '%s/leaks_%s.out' % (fname, pid)
@@ -27998,8 +28006,10 @@ Copyright:
 
             # wait for start threshold #
             if startSize > 0:
-                waitAndKill(\
+                ret = waitAndKill(\
                     tobj, pid, comm, startSize, startSig, 'start', hookCmd)
+                if ret < 0:
+                    sys.exit(0)
         elif startSig:
             # hook #
             if hookCmd:
@@ -28027,7 +28037,9 @@ Copyright:
 
         # STOP #
         if endSize > 0:
-            waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
+            ret = waitAndKill(tobj, pid, comm, endSize, stopSig, 'stop')
+            if ret < 0:
+                sys.exit(0)
         elif stopSig:
             try:
                 # wait for stop threshold #
@@ -28035,9 +28047,13 @@ Copyright:
                     SysMgr.printStat(\
                         r'start monitoring... [ STOP(Ctrl+c) ]')
 
-                    waitAndKill(tobj, pid, comm, sys.maxsize, 0, 'stop')
+                    ret = 0
+                    ret = waitAndKill(tobj, pid, comm, sys.maxsize, 0, 'stop')
                 except:
                     pass
+
+                if ret < 0:
+                    sys.exit(0)
 
                 os.kill(long(pid), stopSig)
 
@@ -28068,9 +28084,15 @@ Copyright:
 
         # wait for the output file is closed #
         while 1:
+            if not SysMgr.isAlive(pid):
+                SysMgr.printErr(\
+                    "%s(%s) is terminated" % (comm, pid))
+                sys.exit(0)
+
             tobj.saveFileStat([[pid], []])
             if not fname in tobj.fileData:
                 break
+
             time.sleep(1)
             tobj.reinitStats()
 
@@ -28090,7 +28112,8 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to analyze leak", True)
+                "Fail to analyze memory leakage for %s(%s)" % \
+                    (comm, pid), True)
 
 
 
@@ -36625,7 +36648,7 @@ struct cmsghdr {
             # get target symbol info #
             oldSet = dobj.getAddrBySymbol(oldSym)
             if not oldSet:
-                SysMgr.printErr(\
+                SysMgr.printWarn(\
                     "Fail to find '%s' info from %s" % (oldSym, procInfo))
                 continue
 
@@ -36640,73 +36663,90 @@ struct cmsghdr {
             # add a set to list #
             hooks.append([oldSet, newSet])
 
+        # create a hook hash list #
+        hookHash = {}
+        for item in hooks:
+            targetSym = item[0][0][1]
+            hookHash[targetSym] = item
+
         # stop target #
         SysMgr.sendSignalProcs(signal.SIGSTOP, [pid])
 
-        # inject hooks #
-        for item in hooks:
-            # hook info #
-            hook = item[1][0]
-            hookAddr = hook[0]
-            hookSym = hook[1]
-            hookBin = hook[2]
+        # print context #
+        dobj.printContext()
 
-            # target info #
-            target = item[0][0]
-            targetAddr = target[0]
-            targetSym = target[1]
-            targetBin = target[2]
+        for fpath, mapInfo in dobj.pmap.items():
+            # skip same binary to prevent infinite recursive call #
+            if not fpath.startswith('/'):
+                continue
 
-            for fpath, mapInfo in dobj.pmap.items():
-                # skip same binary to prevent infinite recursive call #
-                if not fpath.startswith('/'):
+            # get ELF object #
+            fcache = ElfAnalyzer.getObject(fpath)
+            if not hasattr(fcache, 'attr'):
+                continue
+
+            # get start address on map for the binary #
+            if ElfAnalyzer.isRelocFile(fpath):
+                vstart = mapInfo['vstart']
+            else:
+                vstart = 0
+
+            # get mapping info #
+            for sym, attr in sorted(\
+                fcache.attr['dynsymTable'].items(),\
+                key=lambda x:x[1]['size'], reverse=False):
+                if attr['size'] > 0:
+                    break
+
+                pureSymbol = sym.split('@')[0]
+                if not pureSymbol in hookHash:
                     continue
 
-                # get start address on map for the binary #
-                if ElfAnalyzer.isRelocFile(fpath):
-                    vstart = mapInfo['vstart']
+                item = hookHash[pureSymbol]
+
+                # hook info #
+                hook = item[1][0]
+                hookAddr = hook[0]
+                hookSym = hook[1]
+                hookBin = hook[2]
+
+                # target info #
+                target = item[0][0]
+                targetAddr = target[0]
+                targetSym = target[1]
+                targetBin = target[2]
+
+                # read original address for target #
+                slotAddr = vstart + attr['value']
+                if slotAddr % ConfigMgr.wordSize == 0:
+                    origAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
                 else:
-                    vstart = 0
+                    origAddr = dobj.readMem(slotAddr, retWord=True)
 
-                # get ELF object #
-                fcache = ElfAnalyzer.getObject(fpath)
-                if not hasattr(fcache, 'attr'):
-                    continue
+                # change access permission on the page #
+                ret = dobj.mprotect(slotAddr)
 
-                # get mapping info #
-                for sym, attr in sorted(\
-                    fcache.attr['dynsymTable'].items(),\
-                    key=lambda x:x[1]['size'], reverse=False):
-                    if attr['size'] > 0:
-                        break
-                    elif sym != targetSym and sym.split('@')[0] != targetSym:
-                        continue
+                # write hook address for target #
+                if slotAddr % ConfigMgr.wordSize == 0:
+                    ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
+                else:
+                    ret = dobj.writeMem(slotAddr, hookAddr)
 
-                    # read original address for target #
-                    slotAddr = vstart + attr['value']
-                    if slotAddr % ConfigMgr.wordSize == 0:
-                        origAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
-                    else:
-                        origAddr = dobj.readMem(slotAddr, retWord=True)
+                # read updated address for verification #
+                if slotAddr % ConfigMgr.wordSize == 0:
+                    newAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
+                else:
+                    newAddr = dobj.readMem(slotAddr, retWord=True)
 
-                    # change access permission on the page #
-                    ret = dobj.mprotect(slotAddr)
-
-                    # write hook address for target #
-                    if slotAddr % ConfigMgr.wordSize == 0:
-                        ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
-                    else:
-                        ret = dobj.writeMem(slotAddr, hookAddr)
-
-                    # read updated address for verification #
-                    slotAddr = vstart + attr['value']
-                    if slotAddr % ConfigMgr.wordSize == 0:
-                        newAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
-                    else:
-                        newAddr = dobj.readMem(slotAddr, retWord=True)
-
+                # check update result #
+                if hookAddr == newAddr:
                     SysMgr.printInfo(\
                         "updated %s(%s@%s) to %s(%s@%s) for %s" % \
+                            (targetSym, hex(targetAddr), fpath, \
+                                hookSym, hex(hookAddr), hookBin, procInfo))
+                else:
+                    SysMgr.printErr(\
+                        "Fail to update %s(%s@%s) to %s(%s@%s) for %s" % \
                             (targetSym, hex(targetAddr), fpath, \
                                 hookSym, hex(hookAddr), hookBin, procInfo))
 
@@ -38559,7 +38599,11 @@ struct cmsghdr {
 
 
 
-    def mprotect(self, maddr, size=4096, perm='rwx'):
+    def mprotect(self, maddr, size=0, perm='rwx'):
+        # check size #
+        if not size:
+            size = SysMgr.pageSize
+
         # align address #
         offset = maddr % SysMgr.pageSize
         if offset > 0:
@@ -38575,11 +38619,11 @@ struct cmsghdr {
         if 'x' in perm:
             prot |= 0x4
 
-        ret = self.remoteSyscall('sys_mprotect', [maddr, size, prot])
-        if ret == -1:
+        ret = self.remoteUsercall('mprotect', [maddr, size, prot])
+        if ret != 0:
             procInfo = '%s(%s)' % (self.comm, self.pid)
-            SysMgr.printErr(\
-                "Fail to change access permission on %s page for %s" % \
+            SysMgr.printWarn(\
+                "Fail to change access permission to %s page for %s" % \
                     (hex(maddr), procInfo))
         return ret
 
