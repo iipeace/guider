@@ -32276,7 +32276,7 @@ Copyright:
         init_storageData = \
             {'total': long(0), 'free': long(0), 'favail': long(0), \
             'read': long(0), 'write': long(0), 'usage': long(0), \
-            'usageper': long(0), 'mount': None}
+            'usagePer': long(0), 'mount': None}
 
         storageData['total'] = dict(init_storageData)
 
@@ -32350,7 +32350,7 @@ Copyright:
                 storageData[key]['total'] = total
                 storageData[key]['free'] = free
                 storageData[key]['usage'] = total - free
-                storageData[key]['usageper'] = usage
+                storageData[key]['usagePer'] = usage
                 storageData[key]['favail'] = avail
 
                 storageData['total']['total'] += total
@@ -32364,7 +32364,7 @@ Copyright:
             total = storageData['total']
             storageData['total']['usage'] = \
                 total['total'] - total['free']
-            storageData['total']['usageper'] = \
+            storageData['total']['usagePer'] = \
                 long((total['total'] - total['free']) / \
                 float(total['total']) * 100)
         except:
@@ -59657,6 +59657,7 @@ class ThreadAnalyzer(object):
             self.reportData['swap'] = {
                 'total': swapTotal,
                 'usage': swapUsage,
+                'usagePer': swapUsagePer,
                 'usageDiff': swapUsageDiff,
                 'swapin': swapInMem,
                 'swapout': swapOutMem
@@ -60496,7 +60497,7 @@ class ThreadAnalyzer(object):
             except:
                 freeDiff = long(0)
 
-            use = convSize2Unit(value['usageper'])
+            use = convSize2Unit(value['usagePer'])
             avail = convSize2Unit(value['favail'])
             fs = value['mount']['fs']
             path = value['mount']['path']
@@ -61920,6 +61921,37 @@ class ThreadAnalyzer(object):
 
 
 
+    def checkSystemBoundary(\
+        self, resource, item, event, comp='big', target=None):
+        try:
+            rb = SysMgr.reportBoundary
+
+            if resource in rb and 'SYSTEM' in rb[resource]:
+                comval = rb[resource]['SYSTEM']
+            else:
+                raise Exception()
+
+            if resource in self.intervalData:
+                intval = self.intervalData[resource]
+            else:
+                intval = []
+
+            if not target:
+                target = self.reportData[resource][item]
+
+            if intval and 'interval' in comval:
+                if comval['interval'] <= len(intval):
+                    average = sum(intval)/len(intval)
+                    if comval[item] <= average:
+                        self.reportData['event'][event] = average
+            elif (comp == 'big' and comval[item] <= target) or \
+                (comp == 'less' and comval[item] >= target):
+                self.reportData['event'][event] = target
+        except:
+            pass
+
+
+
     def reportSystemStat(self):
         if not SysMgr.reportEnable:
             return
@@ -61930,7 +61962,9 @@ class ThreadAnalyzer(object):
         MEM_PRESSURE
         SWAP_PRESSURE
         IO_INTENSIVE
-        STORAGE_FULL
+        STORAGE_PRESSURE
+        NETIN_INTENSIVE
+        NETOUT_INTENSIVE
         '''
 
         self.reportData['event'] = {}
@@ -61969,28 +62003,7 @@ class ThreadAnalyzer(object):
                 rank += 1
 
             # check CPU boundary #
-            try:
-                if 'cpu' in rb and 'SYSTEM' in rb['cpu']:
-                    comval = rb['cpu']['SYSTEM']
-                else:
-                    raise Exception()
-
-                if 'cpu' in self.intervalData:
-                    intval = self.intervalData['cpu']
-                else:
-                    intval = []
-
-                if intval and 'interval' in comval:
-                    if comval['interval'] <= len(intval) and \
-                        comval['total'] <= sum(intval)/len(intval):
-                        self.reportData['event']['CPU_INTENSIVE'] = \
-                            self.reportData['cpu']['procs']
-                elif comval['total'] <= \
-                    self.reportData['cpu']['total']:
-                    self.reportData['event']['CPU_INTENSIVE'] = \
-                        self.reportData['cpu']['procs']
-            except:
-                pass
+            self.checkSystemBoundary('cpu', 'total', 'CPU_INTENSIVE', 'big')
 
         # add memory & swap status #
         if 'mem' in self.reportData:
@@ -62036,30 +62049,13 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            # check event boundary #
-            try:
-                if rb['mem']['SYSTEM']['available'] >= \
-                    self.reportData['mem']['available']:
-                    self.reportData['event']['MEM_PRESSURE'] = \
-                        self.reportData['mem']['procs']
-            except:
-                pass
+            # check memory boundary #
+            self.checkSystemBoundary(\
+                'mem', 'available', 'MEM_PRESSURE', 'less')
 
-            # check event boundary #
-            if 'swap' in self.reportData and \
-                self.reportData['swap']['total'] > 0:
-
-                # get swap usage #
-                swapUsagePer = \
-                    long(self.reportData['swap']['usage'] / \
-                    float(self.reportData['swap']['total']) * 100)
-
-                try:
-                    if rb['swap']['SYSTEM']['usage'] <= swapUsagePer:
-                        self.reportData['event']['SWAP_PRESSURE'] = \
-                            self.reportData['mem']['procs']
-                except:
-                    pass
+            # check swap boundary #
+            self.checkSystemBoundary(\
+                'swap', 'usagePer', 'SWAP_PRESSURE', 'big')
 
         # add block status #
         if 'block' in self.reportData:
@@ -62085,23 +62081,26 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            try:
-                if rb['block']['SYSTEM']['ioWait'] <= \
-                    self.reportData['block']['ioWait']:
-                    self.reportData['event']['IO_INTENSIVE'] = \
-                        self.reportData['block']['procs']
-            except:
-                pass
+            # check iowait boundary #
+            self.checkSystemBoundary(\
+                'block', 'ioWait', 'IO_INTENSIVE', 'big')
 
-        # add storage status #
-        if 'storage' in self.reportData:
-            try:
-                if rb['storage']['SYSTEM']['usage'] <= \
-                    self.reportData['storage']['total']['usageper']:
-                    self.reportData['event']['STORAGE_FULL'] = \
-                        self.reportData['storage']
-            except:
-                pass
+        # check storage boundary #
+        try:
+            target = self.reportData['storage']['total']['usagePer']
+            self.checkSystemBoundary(\
+                'storage', 'usagePer', 'STORAGE_PRESSURE', 'big', target)
+        except:
+            pass
+
+        # check network boundary #
+        try:
+            self.checkSystemBoundary(\
+                'net', 'inbound', 'NETIN_INTENSIVE', 'big')
+            self.checkSystemBoundary(\
+                'net', 'outbound', 'NETOUT_INTENSIVE', 'big')
+        except:
+            pass
 
         # add system status #
         if 'system' in self.reportData:
@@ -62311,7 +62310,7 @@ class ThreadAnalyzer(object):
             diskioData['name'] = dev
             diskioData['read']['bytes'] = value['read']
             diskioData['write']['bytes'] = value['read']
-            diskioData['used']['pct'] = value['usageper']
+            diskioData['used']['pct'] = value['usagePer']
 
             # merge diskio data dictionary #
             reportDiskioData = metricsetFields.copy()
