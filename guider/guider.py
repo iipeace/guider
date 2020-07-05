@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200702"
+__revision__ = "200705"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4215,10 +4215,15 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convDict2Str(dictObj, pretty=True, indent=2):
+    def convDict2Str(dictObj, pretty=True, indent=2, ignore=False):
         try:
-            jsonStr = SysMgr.getPkg('json').\
-                dumps(dictObj, indent=indent, ensure_ascii=False)
+            if ignore:
+                jsonStr = SysMgr.getPkg('json').\
+                    dumps(dictObj, indent=indent, ensure_ascii=False,
+                        default=lambda o: '<not serializable>')
+            else:
+                jsonStr = SysMgr.getPkg('json').\
+                    dumps(dictObj, indent=indent, ensure_ascii=False)
 
             if pretty:
                 return jsonStr
@@ -13380,7 +13385,7 @@ class SysMgr(object):
     libCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
-    reportBoundary = {}
+    thresholdData = {}
     analysisBoundary = {}
 
     impPkg = {}
@@ -13454,8 +13459,8 @@ class SysMgr(object):
     bufferRows = long(0)
     systemInfoBuffer = ''
     kerSymTable = {}
-    reportData = {}
     jsonData = {}
+    nrTopRank = 10
     layout = None
 
     showAll = False
@@ -14413,7 +14418,14 @@ class SysMgr(object):
     def applyThreshold():
         def getMaxInterval(node, maxVal=0):
             for key, item in node.items():
-                if type(item) is dict:
+                if type(item) is list:
+                    for subitem in item:
+                        if type(subitem) is not dict:
+                            continue
+                        val = getMaxInterval(subitem, maxVal)
+                        if maxVal < val:
+                            maxVal = val
+                elif type(item) is dict:
                     val = getMaxInterval(item, maxVal)
                     if maxVal < val:
                         maxVal = val
@@ -14430,37 +14442,21 @@ class SysMgr(object):
         if not confData:
             return
 
-        # parse alarm #
-        if 'alarm' in confData and type(confData['alarm']) is dict:
-            SysMgr.reportEnable = True
-            SysMgr.reportBoundary = confData['alarm']
+        if type(confData) is not dict:
+            return
 
-            # update maximum interval #
-            maxInterval = getMaxInterval(confData['alarm'])
-            if maxInterval > SysMgr.maxInterval:
-                SysMgr.maxInterval = maxInterval
+        SysMgr.reportEnable = True
+        SysMgr.thresholdData = confData
 
-            SysMgr.printInfo(\
-                "applied thresholds for alarm")
+        # update maximum interval #
+        maxInterval = getMaxInterval(confData)
+        if maxInterval > SysMgr.maxInterval:
+            SysMgr.maxInterval = maxInterval
 
-            SysMgr.printWarn(\
-                UtilMgr.convDict2Str(confData['alarm']))
+        SysMgr.printInfo(\
+            "applied thresholds from %s" % SysMgr.confFileName)
 
-        # parse analysis #
-        if 'analysis' in confData and type(confData['analysis']) is dict:
-            SysMgr.reportEnable = True
-            SysMgr.analysisBoundary = confData['analysis']
-
-            # update maximum interval #
-            maxInterval = getMaxInterval(confData['analysis'])
-            if maxInterval > SysMgr.maxInterval:
-                SysMgr.maxInterval = maxInterval
-
-            SysMgr.printInfo(\
-                "applied thresholds for analysis")
-
-            SysMgr.printWarn(\
-                UtilMgr.convDict2Str(confData['analysis']))
+        SysMgr.printWarn(UtilMgr.convDict2Str(confData))
 
 
 
@@ -15637,7 +15633,7 @@ class SysMgr(object):
                 'disktop': 'Storage',
                 'nettop': 'Network',
                 'wsstop': 'Memory',
-                'reptop': 'JSON',
+                'rtop': 'JSON',
                 'ftop': 'File',
                 'systop': 'Syscall',
                 'utop': 'Function',
@@ -22257,9 +22253,13 @@ Copyright:
 
             elif option == 'C':
                 if not ConfigMgr.confData:
-                    if not value:
-                        value = SysMgr.confFileName
-                    ret = SysMgr.loadConfig(value)
+                    if value:
+                        SysMgr.confFileName = os.path.abspath(value)
+                    else:
+                        SysMgr.confFileName = \
+                            os.path.abspath(SysMgr.confFileName)
+
+                    ret = SysMgr.loadConfig(SysMgr.confFileName)
                     if not ret:
                         sys.exit(0)
 
@@ -22802,9 +22802,13 @@ Copyright:
                 SysMgr.setArch(value)
 
             elif option == 'C':
-                if not value:
-                    value = SysMgr.confFileName
-                ret = SysMgr.loadConfig(value)
+                if value:
+                    SysMgr.confFileName = os.path.abspath(value)
+                else:
+                    SysMgr.confFileName = \
+                        os.path.abspath(SysMgr.confFileName)
+
+                ret = SysMgr.loadConfig(SysMgr.confFileName)
                 if not ret:
                     sys.exit(0)
 
@@ -23558,8 +23562,7 @@ Copyright:
     @staticmethod
     def isFileTopMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'filetop' or \
-            sys.argv[1] == 'ftop'):
+            (sys.argv[1] == 'filetop' or sys.argv[1] == 'ftop'):
             return True
         else:
             return False
@@ -23568,7 +23571,8 @@ Copyright:
 
     @staticmethod
     def isRepTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'reptop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'rtop' or sys.argv[1] == 'reptop'):
             return True
         else:
             return False
@@ -58481,7 +58485,8 @@ class ThreadAnalyzer(object):
                 self.abnormalTaskList[tid] = tstat
 
         # set comm #
-        comm = self.procData[tid]['stat'][self.commIdx][1:-1]
+        comm = self.procData[tid]['comm'] = \
+            self.procData[tid]['stat'][self.commIdx][1:-1]
 
         # change sched priority #
         for item in SysMgr.schedFilter:
@@ -59799,6 +59804,13 @@ class ThreadAnalyzer(object):
 
         for pid, value in self.procData.items():
             try:
+                # rss #
+                value['rss'] = long(value['stat'][self.rssIdx]) >> 8
+
+                # add RSS interval #
+                self.addProcInterval(\
+                    pid, value, 'rssInterval', value['rss'])
+
                 nowData = value['stat']
                 prevData = self.prevProcData[pid]['stat']
 
@@ -59851,7 +59863,8 @@ class ThreadAnalyzer(object):
                     value['ttime'] = long(0)
 
                 # add CPU interval #
-                self.addProcInterval(pid, value, 'cpuInterval', value['ttime'])
+                self.addProcInterval(\
+                    pid, value, 'cpuInterval', value['ttime'])
 
                 # child user time #
                 cutick = nowData[self.cutimeIdx] - prevData[self.cutimeIdx]
@@ -59882,6 +59895,8 @@ class ThreadAnalyzer(object):
                 if value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
+            except SystemExit:
+                sys.exit(0)
             except:
                 value['new'] = True
 
@@ -60709,10 +60724,11 @@ class ThreadAnalyzer(object):
                     if not item in value['stat'][self.commIdx]:
                         continue
 
-                    if SysMgr.processEnable:
-                        plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
-                    else:
+                    if not SysMgr.processEnable:
                         plist[self.procData[idx]['mainID']] = long(0)
+                        break
+
+                    plist[self.procData[idx]['stat'][self.ppidIdx]] = long(0)
                     break
 
             return plist
@@ -60948,9 +60964,7 @@ class ThreadAnalyzer(object):
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
-            if SysMgr.memEnable or \
-                SysMgr.pssEnable or \
-                SysMgr.ussEnable:
+            if SysMgr.memEnable or SysMgr.pssEnable or SysMgr.ussEnable:
                 ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             # swap #
@@ -61062,11 +61076,6 @@ class ThreadAnalyzer(object):
                 etc = '-'
 
             try:
-                mems = rss = long(stat[self.rssIdx])
-            except:
-                mems = rss = long(0)
-
-            try:
                 sched = \
                     SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue)
             except:
@@ -61079,13 +61088,11 @@ class ThreadAnalyzer(object):
 
             # get memory details #
             memBuf, nrss, pss, uss = self.getMemDetails(idx, value['maps'])
-
+            mems = rss = value['rss']
             if SysMgr.pssEnable:
                 mems = pss >> 8
             elif SysMgr.ussEnable:
                 mems = uss >> 8
-            else:
-                mems = rss = rss >> 8
 
             # add JSON stats #
             if SysMgr.jsonOutputEnable:
@@ -61921,34 +61928,199 @@ class ThreadAnalyzer(object):
 
 
 
-    def checkSystemBoundary(\
-        self, resource, item, event, comp='big', target=None):
+    def checkResourceThreshold(self):
+        if not SysMgr.thresholdData:
+            return
+
+        # check CPU threshold #
         try:
-            rb = SysMgr.reportBoundary
-
-            if resource in rb and 'SYSTEM' in rb[resource]:
-                comval = rb[resource]['SYSTEM']
-            else:
-                raise Exception()
-
-            if resource in self.intervalData:
-                intval = self.intervalData[resource]
-            else:
-                intval = []
-
-            if not target:
-                target = self.reportData[resource][item]
-
-            if intval and 'interval' in comval:
-                if comval['interval'] <= len(intval):
-                    average = sum(intval)/len(intval)
-                    if comval[item] <= average:
-                        self.reportData['event'][event] = average
-            elif (comp == 'big' and comval[item] <= target) or \
-                (comp == 'less' and comval[item] >= target):
-                self.reportData['event'][event] = target
+            self.checkThreshold(\
+                'cpu', 'total', 'CPU', 'big')
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
+
+        # check memory threshold #
+        try:
+            self.checkThreshold(\
+                'mem', 'available', 'MEM', 'less')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check swap threshold #
+        try:
+            self.checkThreshold(\
+                'swap', 'usagePer', 'SWAP', 'big')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check iowait threshold #
+        try:
+            self.checkThreshold(\
+                'block', 'ioWait', 'IO', 'big')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check storage threshold #
+        try:
+            target = self.reportData['storage']['total']['usagePer']
+            self.checkThreshold(\
+                'storage', 'usagePer', 'STORAGE', 'big', target)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check network threshold #
+        try:
+            self.checkThreshold(\
+                'net', 'inbound', 'NETIN', 'big')
+            self.checkThreshold(\
+                'net', 'outbound', 'NETOUT', 'big')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check task threshold #
+        try:
+            self.checkTaskThreshold()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # print events #
+        if self.reportData['event']:
+            events = ', '.join(list(self.reportData['event'].keys()))
+            estr = UtilMgr.convDict2Str(\
+                self.reportData['event'], ignore=True)
+            SysMgr.printInfo(\
+                "the threshold events [ %s ] occurred" % events)
+            SysMgr.printWarn("%s" % estr)
+
+
+
+    def setThresholdEvent(\
+        self, intval, comval, item, event, attr, comp='big', target=None):
+        value = None
+
+        if intval and 'interval' in comval:
+            if comval['interval'] > len(intval):
+                return
+
+            average = sum(intval)/len(intval)
+            if (comp == 'big' and comval[item] <= average) or \
+                (comp == 'less' and comval[item] >= average):
+                value = average
+        elif (comp == 'big' and comval[item] <= target) or \
+            (comp == 'less' and comval[item] >= target):
+            value = target
+
+        if not value:
+            return
+
+        # add event #
+        self.reportData['event'].setdefault(event, dict())
+        self.reportData['event'][event].setdefault(attr, list())
+        self.reportData['event'][event][attr].append(comval)
+        self.reportData['event'][event][attr][-1]['value'] = value
+        return self.reportData['event'][event][attr][-1]
+
+
+
+    def checkThreshold(\
+        self, resource, item, event, comp='big', \
+        target=None, attr='SYSTEM', intval=None, addval=None):
+
+        if not SysMgr.thresholdData:
+            return
+
+        td = SysMgr.thresholdData
+
+        if resource in td and attr in td[resource]:
+            comval = td[resource][attr]
+        else:
+            return
+
+        if intval:
+            pass
+        elif resource in self.intervalData:
+            intval = self.intervalData[resource]
+        else:
+            intval = []
+
+        if not target:
+            target = self.reportData[resource][item]
+
+        # set event #
+        if type(comval) is list:
+            for comitem in comval:
+                ret = self.setThresholdEvent(\
+                    intval, comitem, item, event, attr, comp, target)
+                if ret and type(addval) is dict:
+                    ret.update(addval)
+        elif type(comval) is dict:
+            ret = self.setThresholdEvent(\
+                intval, comval, item, event, attr, comp, target)
+            if ret and type(addval) is dict:
+                ret.update(addval)
+
+
+
+    def checkTaskThreshold(self):
+        if not SysMgr.thresholdData:
+            return
+
+        td = SysMgr.thresholdData
+
+        ilist = [
+            ['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big'],
+            ['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big'],
+        ]
+
+        exceptTaskResource = {}
+
+        for pid, data in self.procData.items():
+            for item in ilist:
+                resource, cattr, pattr, intname, event, comp = item
+
+                if not resource in td:
+                    continue
+
+                value = data[pattr]
+
+                if intname in data:
+                    intval = data[intname]
+                else:
+                    intval = None
+
+                if not value:
+                    if not intval:
+                        continue
+                    if set(intval) == set([0]):
+                        continue
+
+                if not resource in exceptTaskResource and \
+                    'TASK' in td[resource]:
+                    self.checkThreshold(\
+                        resource, cattr, event, comp,\
+                            value, 'TASK', intval, {pid: data})
+                else:
+                    exceptTaskResource.setdefault(resource, None)
+
+                if not resource in exceptTaskResource and \
+                    data['comm'] in td[resource]:
+                    self.checkThreshold(\
+                        resource, cattr, event, comp,\
+                            value, data['comm'], intval, {pid: data})
 
 
 
@@ -61958,13 +62130,13 @@ class ThreadAnalyzer(object):
 
         # initialize report event list #
         '''
-        CPU_INTENSIVE
-        MEM_PRESSURE
-        SWAP_PRESSURE
-        IO_INTENSIVE
-        STORAGE_PRESSURE
-        NETIN_INTENSIVE
-        NETOUT_INTENSIVE
+        CPU
+        MEM
+        SWAP
+        IO
+        STORAGE
+        NETIN
+        NETOUT
         '''
 
         self.reportData['event'] = {}
@@ -61973,8 +62145,6 @@ class ThreadAnalyzer(object):
         if SysMgr.imagePath:
             self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
             SysMgr.imagePath = None
-
-        rb = SysMgr.reportBoundary
 
         # add CPU status #
         if 'cpu' in self.reportData:
@@ -62002,9 +62172,6 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            # check CPU boundary #
-            self.checkSystemBoundary('cpu', 'total', 'CPU_INTENSIVE', 'big')
-
         # add memory & swap status #
         if 'mem' in self.reportData:
             rank = 1
@@ -62015,7 +62182,7 @@ class ThreadAnalyzer(object):
             for pid, data in sortedProcData:
                 rss = long(data['stat'][self.rssIdx]) >> 8
 
-                if not (SysMgr.showAll or rank <= 10):
+                if not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
                     break
 
                 text = (long(data['stat'][self.ecodeIdx]) - \
@@ -62049,14 +62216,6 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            # check memory boundary #
-            self.checkSystemBoundary(\
-                'mem', 'available', 'MEM_PRESSURE', 'less')
-
-            # check swap boundary #
-            self.checkSystemBoundary(\
-                'swap', 'usagePer', 'SWAP_PRESSURE', 'big')
-
         # add block status #
         if 'block' in self.reportData:
             rank = 1
@@ -62081,40 +62240,14 @@ class ThreadAnalyzer(object):
 
                 rank += 1
 
-            # check iowait boundary #
-            self.checkSystemBoundary(\
-                'block', 'ioWait', 'IO_INTENSIVE', 'big')
-
-        # check storage boundary #
-        try:
-            target = self.reportData['storage']['total']['usagePer']
-            self.checkSystemBoundary(\
-                'storage', 'usagePer', 'STORAGE_PRESSURE', 'big', target)
-        except:
-            pass
-
-        # check network boundary #
-        try:
-            self.checkSystemBoundary(\
-                'net', 'inbound', 'NETIN_INTENSIVE', 'big')
-            self.checkSystemBoundary(\
-                'net', 'outbound', 'NETOUT_INTENSIVE', 'big')
-        except:
-            pass
-
-        # add system status #
-        if 'system' in self.reportData:
-            pass
-
-        # add task status #
-        if 'task' in self.reportData:
-            pass
+        # check resource threshold #
+        self.checkResourceThreshold()
 
         # get event number #
-        nrReason = len(self.reportData['event'])
+        nrEvent = len(self.reportData['event'])
 
         # print system status to file if condition is met #
-        if nrReason > 0 and \
+        if nrEvent > 0 and \
             SysMgr.reportFileEnable and \
             SysMgr.printFile:
 
@@ -62159,7 +62292,7 @@ class ThreadAnalyzer(object):
                     SysMgr.inputFile, filePath)
 
         # convert dict data to JSON-type string #
-        jsonObj = UtilMgr.convDict2Str(self.reportData)
+        jsonObj = UtilMgr.convDict2Str(self.reportData, ignore=True)
         if not jsonObj:
             SysMgr.printWarn(\
                 "Fail to convert report data to JSON type")
