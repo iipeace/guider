@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200705"
+__revision__ = "200706"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13566,6 +13566,7 @@ class SysMgr(object):
     exceptCommFilter = False
     processEnable = True
     groupProcEnable = False
+    rankProcEnable = True
 
     # Elastic Stack #
     elasticEnable = False
@@ -13767,8 +13768,8 @@ class SysMgr(object):
         # try to set maxFd with hard limit #
         resource = SysMgr.getPkg('resource', False, True)
         if resource:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1048576, 1048576))
             soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-            resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
             SysMgr.maxFd = hard
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
             return
@@ -13791,8 +13792,8 @@ class SysMgr(object):
 
         class rlimit(Structure):
             _fields_ = (
-                ("rlim_cur", c_uint),
-                ("rlim_max", c_uint),
+                ("rlim_cur", c_ulong),
+                ("rlim_max", c_ulong),
             )
 
         # try to get maxFd by standard library call #
@@ -13803,6 +13804,12 @@ class SysMgr(object):
             SysMgr.libcObj.getrlimit.restype = c_int
 
             rlim = rlimit()
+            rlim.rlim_cur = c_ulong(1048576)
+            rlim.rlim_max = c_ulong(1048576)
+
+            ret = SysMgr.libcObj.setrlimit(\
+                ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
+
             ret = SysMgr.libcObj.getrlimit(\
                 ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
 
@@ -14132,7 +14139,7 @@ class SysMgr(object):
             SysMgr.dbusTopEnable = True
             SysMgr.floatEnable = True
 
-            # set default interval to 3 for accuracy #
+            # set default interval to 3 for performance #
             if not SysMgr.findOption('i') and \
                 not SysMgr.findOption('R'):
                 SysMgr.intervalEnable = 3
@@ -14446,6 +14453,7 @@ class SysMgr(object):
             return
 
         SysMgr.reportEnable = True
+        SysMgr.rankProcEnable = False
         SysMgr.thresholdData = confData
 
         # update maximum interval #
@@ -14697,31 +14705,32 @@ class SysMgr(object):
     def loadConfig(fname, verb=True):
         try:
             targetList = []
+            fd = None
             skip = False
-            with open(fname, 'r') as fd:
-                for line in fd.readlines():
-                    if not line:
-                        continue
+            fd = open(fname, 'r')
+            for line in fd.readlines():
+                if not line:
+                    continue
 
-                    line = line.strip()
-                    if not line or line == '\n':
-                        continue
-                    elif line.startswith('#') or line.startswith('//'):
-                        continue
-                    elif skip:
-                        if line.startswith("'''") or line.startswith('*/'):
-                            skip = False
-                        continue
-                    elif line.startswith("'''") or line.startswith('/*'):
-                        skip = True
-                        continue
-                    elif line.startswith('<') and line.endswith('>'):
-                        entry = line[1:-1]
-                        ConfigMgr.confData.setdefault(entry, list())
-                        targetList = ConfigMgr.confData[entry]
-                        continue
-                    else:
-                        targetList.append(line)
+                line = line.strip()
+                if not line or line == '\n':
+                    continue
+                elif line.startswith('#') or line.startswith('//'):
+                    continue
+                elif skip:
+                    if line.startswith("'''") or line.startswith('*/'):
+                        skip = False
+                    continue
+                elif line.startswith("'''") or line.startswith('/*'):
+                    skip = True
+                    continue
+                elif line.startswith('<') and line.endswith('>'):
+                    entry = line[1:-1]
+                    ConfigMgr.confData.setdefault(entry, list())
+                    targetList = ConfigMgr.confData[entry]
+                    continue
+                else:
+                    targetList.append(line)
 
             return ConfigMgr.confData
         except SystemExit:
@@ -14731,6 +14740,9 @@ class SysMgr(object):
                 SysMgr.printErr(\
                     "Fail to load configuration from %s" % fname, reason=True)
             return None
+        finally:
+            if fd:
+                fd.close()
 
 
 
@@ -20254,9 +20266,11 @@ Copyright:
                 SysMgr.progressCnt = long(0)
                 return
 
+            '''
             # enable for cProfile #
-            #sys.settrace
-            #sys.exit(0)
+            sys.settrace
+            sys.exit(0)
+            '''
 
             # do terminate #
             os._exit(0)
@@ -25498,6 +25512,8 @@ Copyright:
         # wait for a specific child #
         try:
             return os.waitpid(pid, flag)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "Fail to wait %s task" % pid, reason=True)
@@ -26766,7 +26782,7 @@ Copyright:
         msgLen = len(cmd) + 4
 
         conv(struct.pack("HH", msgLen, TASKSTATS_CMD_ATTR_PID))
-        conv(cmd.encode())
+        conv(cmd)
         conv(b'\0' * ((4 - (len(cmd) % 4)) & 0x3))
 
         pid = sockObj.socket.getsockname()[0]
@@ -27662,7 +27678,7 @@ Copyright:
             comm = SysMgr.getComm(pid)
             procInfo = '%s(%s)' % (comm, pid)
 
-            # get file list on memorymap #
+            # get file list on memory map #
             fileList = FileAnalyzer.getProcMapInfo(pid, onlyExec=True)
             if not fileList:
                 SysMgr.printErr("Fail to analyze %s" % procInfo)
@@ -27850,6 +27866,7 @@ Copyright:
         else:
             libPath = SysMgr.getOption('T')
             if libPath:
+                libPath = os.path.abspath(libPath)
                 remoteCmd.append('load:%s' % libPath)
                 for item in hookList:
                     hookCmd.append('%s#%s#%s' % (item, libPath, item))
@@ -27899,6 +27916,12 @@ Copyright:
                     fname = '%s/leaks_%s.out' % (SysMgr.tmpPath, pid)
                 else:
                     fname = '%s/leaks.out' % SysMgr.tmpPath
+            elif SysMgr.isWritable('.'):
+                current = os.path.abspath('.')
+                if isMulti:
+                    fname = '%s/leaks_%s.out' % (current, pid)
+                else:
+                    fname = '%s/leaks.out' % current
             else:
                 SysMgr.printErr("No PATH for temporary input with -I")
                 sys.exit(0)
@@ -29533,10 +29556,10 @@ Copyright:
 
                 # send signal to a process #
                 try:
-                    kill(long(pid), nrSig)
-
                     # get comm #
                     comm = SysMgr.getComm(pid)
+
+                    kill(long(pid), nrSig)
 
                     if verbose:
                         SysMgr.printInfo(\
@@ -29596,32 +29619,28 @@ Copyright:
                 except:
                     continue
 
-                # get comm #
-                comm = SysMgr.getComm(pid)
+                try:
+                    # get comm #
+                    comm = SysMgr.getComm(pid)
 
-                if SysMgr.isStartMode() and waitStatus:
-                    try:
-                        kill(long(pid), nrSig)
-                        if verbose:
+                    kill(long(pid), nrSig)
+
+                    if verbose:
+                        if SysMgr.isStartMode() and waitStatus:
                             SysMgr.printInfo(\
                                 "started %s process to profile" % pid)
-                    except:
-                        SysMgr.printSigError(pid, SIG_LIST[nrSig])
-                elif SysMgr.isStopMode():
-                    try:
-                        kill(long(pid), nrSig)
-                        if verbose:
+                        elif SysMgr.isStopMode():
                             SysMgr.printInfo(\
                                 "sent signal %s to %s(%s) %s" % \
                                     (SIG_LIST[nrSig], comm, pid, taskType))
-                    except:
-                        SysMgr.printSigError(pid, SIG_LIST[nrSig])
+                except:
+                    SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
-                    kill(long(pid), nrSig)
-
                     # get comm #
                     comm = SysMgr.getComm(pid)
+
+                    kill(long(pid), nrSig)
 
                     if verbose:
                         SysMgr.printInfo(\
@@ -36050,8 +36069,9 @@ class DltAnalyzer(object):
         # initialize client #
         dltClient = DltClient()
         dltObj.dlt_client_init(byref(dltClient), verbose)
-        dltClient.sock = c_int(connSock.fileno())
-        dltClient.receiver.fd = c_int(connSock.fileno())
+        sockno = c_int(connSock.fileno()) # pylint: disable=no-member
+        dltClient.sock = sockno
+        dltClient.receiver.fd = sockno
         #dltObj.dlt_client_cleanup(byref(dltClient), verbose)
 
         # change default log level #
@@ -37335,7 +37355,7 @@ struct cmsghdr {
 
                         ret = hex(ret)
 
-                    output = "\n[%s] %s[%s]" % (cmdstr, binary, ret)
+                    output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     # inject all breakpoints again #
@@ -38427,9 +38447,9 @@ struct cmsghdr {
             # set CPSR for ARM #
             if func & 0x1:
                 func &= ~1
-                self.regs.r16 |= (1<<5)
+                self.regs.r16 |= (1<<5) # pylint: disable=no-member
             else:
-                self.regs.r16 &= ~(1<<5)
+                self.regs.r16 &= ~(1<<5) # pylint: disable=no-member
         elif self.arch == 'x64':
             # align sp - wordSize to a multiple of 16
             wordSize = ConfigMgr.wordSize
@@ -58326,6 +58346,8 @@ class ThreadAnalyzer(object):
             self.prevProcData[tid][fd].seek(0)
             self.procData[tid][fd] = self.prevProcData[tid][fd]
             buf = self.procData[tid][fd].readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 newPath = "%s/%s" % (path, name)
@@ -58337,6 +58359,8 @@ class ThreadAnalyzer(object):
                     newFd.close()
                     self.procData[tid][fd] = None
                     self.reclaimFds()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(newPath)
 
@@ -59577,223 +59601,225 @@ class ThreadAnalyzer(object):
                     continue
 
         # save report data #
-        if SysMgr.reportEnable or SysMgr.jsonOutputEnable:
-            self.reportData = {}
+        if not SysMgr.reportEnable and not SysMgr.jsonOutputEnable:
+            return
 
-            # timestamp #
-            self.reportData['timestamp'] = SysMgr.uptime
-            datetime = SysMgr.getPkg('datetime', False)
-            if datetime:
-                self.reportData['utctime'] = \
-                    datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        self.reportData = {}
 
-            # system #
-            self.reportData['system'] = {
-                'pid': SysMgr.pid,
-                'uptime': SysMgr.uptime,
-                'interval': interval,
-                'nrIrq': nrIrq,
-                'nrSoftIrq': nrSoftIrq,
-                }
+        # timestamp #
+        self.reportData['timestamp'] = SysMgr.uptime
+        datetime = SysMgr.getPkg('datetime', False)
+        if datetime:
+            self.reportData['utctime'] = \
+                datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
-            # load #
-            try:
-                loads = list(map(float, SysMgr.loadavg.split()[:3]))
-                self.reportData['system']['load1m'] = loads[0]
-                self.reportData['system']['load5m'] = loads[1]
-                self.reportData['system']['load15m'] = loads[2]
-            except:
-                pass
+        # system #
+        self.reportData['system'] = {
+            'pid': SysMgr.pid,
+            'uptime': SysMgr.uptime,
+            'interval': interval,
+            'nrIrq': nrIrq,
+            'nrSoftIrq': nrSoftIrq,
+            }
 
-            # CPU #
-            try:
-                percoreStats
-            except:
-                percoreStats = None
+        # load #
+        try:
+            loads = list(map(float, SysMgr.loadavg.split()[:3]))
+            self.reportData['system']['load1m'] = loads[0]
+            self.reportData['system']['load5m'] = loads[1]
+            self.reportData['system']['load15m'] = loads[2]
+        except:
+            pass
 
-            self.reportData['cpu'] = {
-                'total': totalUsage,
-                'idle': idleUsage,
-                'user': userUsage,
-                'kernel': kerUsage,
-                'irq': irqUsage,
-                'iowait': ioUsage,
-                'nrCore': SysMgr.nrCore,
-                'percore': percoreStats
-                }
+        # CPU #
+        try:
+            percoreStats
+        except:
+            percoreStats = None
 
-            # gpu #
-            try:
-                self.reportData['gpu'] = gpuStats
-            except:
-                pass
+        self.reportData['cpu'] = {
+            'total': totalUsage,
+            'idle': idleUsage,
+            'user': userUsage,
+            'kernel': kerUsage,
+            'irq': irqUsage,
+            'iowait': ioUsage,
+            'nrCore': SysMgr.nrCore,
+            'percore': percoreStats
+            }
 
-            # memory #
-            self.reportData['mem'] = {
-                'total': totalMem,
-                'free': freeMem,
-                'available': availMem,
-                'anon': totalAnonMem,
-                'file': totalFileMem,
-                'slab': totalSlabMem,
-                'cache': totalCacheMem,
-                'kernel': totalKernelMem,
-                'freeDiff': freeMemDiff,
-                'availableDiff': availMemDiff,
-                'anonDiff': anonMemDiff,
-                'fileDiff': fileMemDiff,
-                'slabDiff': slabMemDiff,
-                'pgDirty': pgDirty,
-                'pgRclmBg': pgRclmBg,
-                'pgRclmFg': pgRclmFg,
-                'nrMinFlt': nrMinFault,
-                'pgMlock': pgMlock
-                }
+        # gpu #
+        try:
+            self.reportData['gpu'] = gpuStats
+        except:
+            pass
 
-            # cma #
-            try:
-                self.reportData['mem']['cmaTotal'] = cmaTotalMem
-                self.reportData['mem']['cmaFree'] = cmaFreeMem
-                self.reportData['mem']['cmaDev'] = cmaDevMem
-            except:
-                pass
+        # memory #
+        self.reportData['mem'] = {
+            'total': totalMem,
+            'free': freeMem,
+            'available': availMem,
+            'anon': totalAnonMem,
+            'file': totalFileMem,
+            'slab': totalSlabMem,
+            'cache': totalCacheMem,
+            'kernel': totalKernelMem,
+            'freeDiff': freeMemDiff,
+            'availableDiff': availMemDiff,
+            'anonDiff': anonMemDiff,
+            'fileDiff': fileMemDiff,
+            'slabDiff': slabMemDiff,
+            'pgDirty': pgDirty,
+            'pgRclmBg': pgRclmBg,
+            'pgRclmFg': pgRclmFg,
+            'nrMinFlt': nrMinFault,
+            'pgMlock': pgMlock
+            }
 
-            # swap #
-            self.reportData['swap'] = {
-                'total': swapTotal,
-                'usage': swapUsage,
-                'usagePer': swapUsagePer,
-                'usageDiff': swapUsageDiff,
-                'swapin': swapInMem,
-                'swapout': swapOutMem
-                }
+        # cma #
+        try:
+            self.reportData['mem']['cmaTotal'] = cmaTotalMem
+            self.reportData['mem']['cmaFree'] = cmaFreeMem
+            self.reportData['mem']['cmaDev'] = cmaDevMem
+        except:
+            pass
 
-            # block #
-            self.reportData['block'] = {
-                'read': pgInMemDiff,
-                'write': pgOutMemDiff,
-                'ioWait': ioUsage,
-                'nrMajFlt': nrMajFault,
-                'nrTask': nrBlocked
-                }
+        # swap #
+        self.reportData['swap'] = {
+            'total': swapTotal,
+            'usage': swapUsage,
+            'usagePer': swapUsagePer,
+            'usageDiff': swapUsageDiff,
+            'swapin': swapInMem,
+            'swapout': swapOutMem
+            }
 
-            # task #
-            self.reportData['task'] = {
-                'nrBlocked': nrBlocked,
-                'nrProc': self.nrProcess,
-                'nrThread': self.nrThread,
-                'nrCtx': nrCtxSwc
-                }
+        # block #
+        self.reportData['block'] = {
+            'read': pgInMemDiff,
+            'write': pgOutMemDiff,
+            'ioWait': ioUsage,
+            'nrMajFlt': nrMajFault,
+            'nrTask': nrBlocked
+            }
 
-            # network #
-            self.reportData['net'] = {
-                'inbound': netIn,
-                'outbound': netOut
-                }
+        # task #
+        self.reportData['task'] = {
+            'nrBlocked': nrBlocked,
+            'nrProc': self.nrProcess,
+            'nrThread': self.nrThread,
+            'nrCtx': nrCtxSwc
+            }
 
-            if SysMgr.sysInstance.macAddr:
-                macAddr = SysMgr.sysInstance.macAddr
-                macStr = '%s_%s' % (macAddr[0], macAddr[1])
-                self.reportData['net']['repmac'] = macStr
+        # network #
+        self.reportData['net'] = {
+            'inbound': netIn,
+            'outbound': netOut
+            }
 
-            if SysMgr.networkEnable:
-                SysMgr.sysInstance.updateNetworkInfo()
+        if SysMgr.sysInstance.macAddr:
+            macAddr = SysMgr.sysInstance.macAddr
+            macStr = '%s_%s' % (macAddr[0], macAddr[1])
+            self.reportData['net']['repmac'] = macStr
 
-                for dev, value in sorted(\
-                    SysMgr.sysInstance.networkInfo.items()):
-                    # check value #
-                    if not 'rdiff' in value or \
-                        not 'tdiff' in value:
-                        continue
+        if SysMgr.networkEnable:
+            SysMgr.sysInstance.updateNetworkInfo()
 
-                    self.reportData['net'][dev] = dict()
-                    reportData = self.reportData['net'][dev]
+            for dev, value in sorted(\
+                SysMgr.sysInstance.networkInfo.items()):
+                # check value #
+                if not 'rdiff' in value or \
+                    not 'tdiff' in value:
+                    continue
 
-                    reportData['ipaddr'] = value['ipaddr']
+                self.reportData['net'][dev] = dict()
+                reportData = self.reportData['net'][dev]
 
-                    rdiff = value['rdiff']
-                    tdiff = value['tdiff']
+                reportData['ipaddr'] = value['ipaddr']
 
-                    reportData['trans'] = {
-                        'bytes': rdiff[0],
-                        'packets': rdiff[1],
-                        'errs': rdiff[2],
-                        'drop': rdiff[3],
-                        'fifo': rdiff[4],
-                        'frame': rdiff[5],
-                        'compressed': rdiff[6],
-                        'multicast': rdiff[7]
-                        }
+                rdiff = value['rdiff']
+                tdiff = value['tdiff']
 
-                    reportData['recv'] = {
-                        'bytes': tdiff[0],
-                        'packets': tdiff[1],
-                        'errs': tdiff[2],
-                        'drop': tdiff[3],
-                        'fifo': tdiff[4],
-                        'frame': tdiff[5],
-                        'compressed': tdiff[6],
-                        'multicast': tdiff[7]
-                        }
+                reportData['trans'] = {
+                    'bytes': rdiff[0],
+                    'packets': rdiff[1],
+                    'errs': rdiff[2],
+                    'drop': rdiff[3],
+                    'fifo': rdiff[4],
+                    'frame': rdiff[5],
+                    'compressed': rdiff[6],
+                    'multicast': rdiff[7]
+                    }
 
-            # storage #
-            if SysMgr.diskEnable:
-                SysMgr.sysInstance.updateStorageInfo()
+                reportData['recv'] = {
+                    'bytes': tdiff[0],
+                    'packets': tdiff[1],
+                    'errs': tdiff[2],
+                    'drop': tdiff[3],
+                    'fifo': tdiff[4],
+                    'frame': tdiff[5],
+                    'compressed': tdiff[6],
+                    'multicast': tdiff[7]
+                    }
 
-                # copy storage data into report data structure #
-                self.reportData['storage'] = \
-                    deepcopy(SysMgr.sysInstance.storageData)
+        # storage #
+        if SysMgr.diskEnable:
+            SysMgr.sysInstance.updateStorageInfo()
 
-                prevStorageData = SysMgr.sysInstance.prevStorageData
+            # copy storage data into report data structure #
+            self.reportData['storage'] = \
+                deepcopy(SysMgr.sysInstance.storageData)
 
-                # calculate diff of read /write on each devices #
-                for dev, value in sorted(self.reportData['storage'].items()):
-                    # get read size on this interval #
-                    try:
-                        value['read'] -= prevStorageData[dev]['read']
-                    except:
-                        value['read'] = long(0)
+            prevStorageData = SysMgr.sysInstance.prevStorageData
 
-                    # get write size on this interval #
-                    try:
-                        value['write'] -= prevStorageData[dev]['write']
-                    except:
-                        value['write'] = long(0)
+            # calculate diff of read /write on each devices #
+            for dev, value in sorted(self.reportData['storage'].items()):
+                # get read size on this interval #
+                try:
+                    value['read'] -= prevStorageData[dev]['read']
+                except:
+                    value['read'] = long(0)
 
-                    # get readtime on this interval #
-                    try:
-                        value['readtime'] -= prevStorageData[dev]['readtime']
-                    except:
-                        value['readtime'] = long(0)
+                # get write size on this interval #
+                try:
+                    value['write'] -= prevStorageData[dev]['write']
+                except:
+                    value['write'] = long(0)
 
-                    # get writetime on this interval #
-                    try:
-                        value['writetime'] -= prevStorageData[dev]['writetime']
-                    except:
-                        value['writetime'] = long(0)
+                # get readtime on this interval #
+                try:
+                    value['readtime'] -= prevStorageData[dev]['readtime']
+                except:
+                    value['readtime'] = long(0)
 
-                    # get iotime on this interval #
-                    try:
-                        value['iotime'] -= prevStorageData[dev]['iotime']
-                    except:
-                        value['iotime'] = long(0)
+                # get writetime on this interval #
+                try:
+                    value['writetime'] -= prevStorageData[dev]['writetime']
+                except:
+                    value['writetime'] = long(0)
 
-                    # get iowtime on this interval #
-                    try:
-                        value['iowtime'] -= prevStorageData[dev]['iowtime']
-                    except:
-                        value['iowtime'] = long(0)
+                # get iotime on this interval #
+                try:
+                    value['iotime'] -= prevStorageData[dev]['iotime']
+                except:
+                    value['iotime'] = long(0)
 
-                    # get avq on this interval #
-                    try:
-                        value['avq'] = value['iowtime'] / value['iotime']
-                    except:
-                        value['avq'] = long(0)
-            else:
-                self.reportData['storage'] = dict()
+                # get iowtime on this interval #
+                try:
+                    value['iowtime'] -= prevStorageData[dev]['iowtime']
+                except:
+                    value['iowtime'] = long(0)
 
-            if SysMgr.jsonOutputEnable:
-                SysMgr.jsonData.update(self.reportData)
+                # get avq on this interval #
+                try:
+                    value['avq'] = value['iowtime'] / value['iotime']
+                except:
+                    value['avq'] = long(0)
+        else:
+            self.reportData['storage'] = dict()
+
+        if SysMgr.jsonOutputEnable:
+            SysMgr.jsonData.update(self.reportData)
 
 
 
@@ -60121,6 +60147,7 @@ class ThreadAnalyzer(object):
                 oomstr = ' '
         except:
             oomstr = ' '
+            oom_kill = long(0)
 
         try:
             nrCtxt = \
@@ -60829,6 +60856,66 @@ class ThreadAnalyzer(object):
 
             return newLine
 
+        def printDelay(self, value):
+            if not SysMgr.delayEnable:
+                return
+
+            while 1:
+                val = SysMgr.getTaskstats(idx)
+                if not val or str(val['ac_pid']) == idx:
+                    break
+
+            cpuDelay = val['cpu_delay_total']
+            blkDelay = val['blkio_delay_total']
+            swapDelay = val['swapin_delay_total']
+            rclmDelay = val['freepages_delay_total']
+
+            value['delay'] = {
+                'CPU': cpuDelay,
+                'BLK': blkDelay,
+                'SWAP': swapDelay,
+                'RCLM': rclmDelay,
+            }
+
+            prevData = self.prevProcData[idx]
+
+            cpuTotalDelay = cpuDelay / 1000000000.0
+            blkTotalDelay = blkDelay / 1000000000.0
+            swapTotalDelay = swapDelay / 1000000000.0
+            rclmTotalDelay = rclmDelay / 1000000000.0
+
+            delayTotalStr = \
+                'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                    (cpuTotalDelay, blkTotalDelay, \
+                        swapTotalDelay, rclmTotalDelay)
+
+            SysMgr.addPrint(\
+                "{0:>39} | {1:1}\n".format(\
+                    'TOTAL_DELAY', delayTotalStr))
+
+            if not 'delay' in prevData:
+                return
+
+            cpuDelayDiff = cpuDelay - prevData['delay']['CPU']
+            blkDelayDiff = blkDelay - prevData['delay']['BLK']
+            swapDelayDiff = swapDelay - prevData['delay']['SWAP']
+            rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
+
+            cpuDelayDiff /= 1000000000.0
+            blkDelayDiff /= 1000000000.0
+            swapDelayDiff /= 1000000000.0
+            rclmDelayDiff /= 1000000000.0
+
+            delayStr = \
+                'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
+                    (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
+
+            SysMgr.addPrint(\
+                "{0:>39} | {1:1}\n".format(\
+                    'INTER_DELAY', delayStr))
+
+
+
         # check return condition #
         if SysMgr.uptimeDiff == 0 or \
             SysMgr.checkCutCond():
@@ -60894,6 +60981,12 @@ class ThreadAnalyzer(object):
             # check exception flag #
             if isExceptTask(idx):
                 continue
+
+            # add task into JSON data #
+            if SysMgr.jsonOutputEnable:
+                jsonData.setdefault(\
+                    idx, UtilMgr.convStr2Dict(\
+                        UtilMgr.convDict2Str(value, ignore=True)))
 
             # add task into stack trace list #
             if SysMgr.stackEnable:
@@ -61094,63 +61187,6 @@ class ThreadAnalyzer(object):
             elif SysMgr.ussEnable:
                 mems = uss >> 8
 
-            # add JSON stats #
-            if SysMgr.jsonOutputEnable:
-                jsonData[idx] = {
-                    'comm': comm,
-                    'stat': tstat,
-                    pidType: idx,
-                    ppidType: pid,
-                    'nrThreads': stat[self.nrthreadIdx],
-                    'sched': sched.replace(' ', ''),
-                    'ttime': value['ttime'],
-                    'utime': value['utime'],
-                    'stime': value['stime'],
-                    'vss': vss,
-                    'rss': rss,
-                    'mem': mems,
-                    'code': codeSize,
-                    'shared': shr,
-                    'btime': value['btime'],
-                    'nrFlt': value['majflt'],
-                    'fd': value['fdsize'],
-                    'life': lifeTime.strip(),
-                    'dtime': long(0),
-                    'swap': long(0),
-                    'bread': long(0),
-                    'bwrite': long(0),
-                }
-
-                try:
-                    jsonData[idx]['dtime'] = long(dtime)
-                except:
-                    pass
-
-                try:
-                    jsonData[idx]['swap'] = long(swapSize)
-                except:
-                    pass
-
-                try:
-                    jsonData[idx]['cgroup'] = value['cgroup']
-                except:
-                    pass
-
-                try:
-                    jsonData[idx]['cmdline'] = value['cmdline']
-                except:
-                    pass
-
-                try:
-                    jsonData[idx]['bread'] = long(readSize)
-                    jsonData[idx]['bwrite'] = long(writeSize)
-                except:
-                    pass
-
-                if SysMgr.memEnable:
-                    jsonData[idx]['pss'] = pss
-                    jsonData[idx]['uss'] = uss
-
             # remove unshown field in lifetime #
             if len(lifeTime.split(':')) > 3:
                 lifeTime = lifeTime[:lifeTime.rfind(':')]
@@ -61318,86 +61354,9 @@ class ThreadAnalyzer(object):
                 SysMgr.addPrint(\
                     "{0:>39} | {1:1}\n".format('SCHED', schedStr))
 
-                if SysMgr.jsonOutputEnable:
-                    try:
-                        jsonData[idx]['execTime'] = execTime
-                        jsonData[idx]['waitTime'] = waitTime
-                        jsonData[idx]['nrSchedSlice'] = value['nrSlice']
-                    except:
-                        pass
-
             # print delay #
             try:
-                if not SysMgr.delayEnable:
-                    raise Exception()
-
-                while 1:
-                    val = SysMgr.getTaskstats(idx)
-                    if not val or str(val['ac_pid']) == idx:
-                        break
-
-                cpuDelay = val['cpu_delay_total']
-                blkDelay = val['blkio_delay_total']
-                swapDelay = val['swapin_delay_total']
-                rclmDelay = val['freepages_delay_total']
-
-                value['delay'] = {
-                    'CPU': cpuDelay,
-                    'BLK': blkDelay,
-                    'SWAP': swapDelay,
-                    'RCLM': rclmDelay,
-                }
-
-                prevData = self.prevProcData[idx]
-
-                if 'delay' in prevData:
-                    cpuDelayDiff = cpuDelay - prevData['delay']['CPU']
-                    blkDelayDiff = blkDelay - prevData['delay']['BLK']
-                    swapDelayDiff = swapDelay - prevData['delay']['SWAP']
-                    rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
-
-                    cpuDelayDiff /= 1000000000.0
-                    blkDelayDiff /= 1000000000.0
-                    swapDelayDiff /= 1000000000.0
-                    rclmDelayDiff /= 1000000000.0
-
-                    delayStr = \
-                        'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
-                            (cpuDelayDiff, blkDelayDiff, swapDelayDiff, rclmDelayDiff)
-
-                    SysMgr.addPrint(\
-                        "{0:>39} | {1:1}\n".format('DELAY', delayStr))
-
-
-                cpuDelay /= 1000000000.0
-                blkDelay /= 1000000000.0
-                swapDelay /= 1000000000.0
-                rclmDelay /= 1000000000.0
-
-                delayTotalStr = \
-                    'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
-                        (cpuDelay, blkDelay, swapDelay, rclmDelay)
-
-                SysMgr.addPrint(\
-                    "{0:>39} | {1:1}\n".format(\
-                        'TOTAL_DELAY', delayTotalStr))
-
-                if SysMgr.jsonOutputEnable:
-                    try:
-                        jsonData[idx]['delayTotal'] = value['delay']
-                    except:
-                        pass
-
-                    try:
-                        jsonData[idx]['delay'] = {
-                            'CPU': cpuDelayDiff,
-                            'BLK': blkDelayDiff,
-                            'SWAP': swapDelayDiff,
-                            'RCLM': rclmDelayDiff,
-                        }
-                    except:
-                        pass
-
+                printDelay(self, value)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -62088,6 +62047,12 @@ class ThreadAnalyzer(object):
 
         exceptTaskResource = {}
 
+        if SysMgr.processEnable:
+            mode = 'Process'
+        else:
+            mode = 'Thread'
+        mode = mode.lower()
+
         for pid, data in self.procData.items():
             for item in ilist:
                 resource, cattr, pattr, intname, event, comp = item
@@ -62108,19 +62073,23 @@ class ThreadAnalyzer(object):
                     if set(intval) == set([0]):
                         continue
 
+                if False and pid in SysMgr.jsonData[mode]:
+                    append = {pid: SysMgr.jsonData[mode][pid]}
+                else:
+                    append = {pid: data}
+
                 if not resource in exceptTaskResource and \
                     'TASK' in td[resource]:
                     self.checkThreshold(\
                         resource, cattr, event, comp,\
-                            value, 'TASK', intval, {pid: data})
+                            value, 'TASK', intval, append)
                 else:
                     exceptTaskResource.setdefault(resource, None)
 
-                if not resource in exceptTaskResource and \
-                    data['comm'] in td[resource]:
+                if data['comm'] in td[resource]:
                     self.checkThreshold(\
                         resource, cattr, event, comp,\
-                            value, data['comm'], intval, {pid: data})
+                            value, data['comm'], intval, append)
 
 
 
@@ -62147,7 +62116,7 @@ class ThreadAnalyzer(object):
             SysMgr.imagePath = None
 
         # add CPU status #
-        if 'cpu' in self.reportData:
+        if SysMgr.rankProcEnable and 'cpu' in self.reportData:
             rank = 1
             self.reportData['cpu']['procs'] = {}
             sortedProcData = sorted(self.procData.items(), \
@@ -62173,7 +62142,7 @@ class ThreadAnalyzer(object):
                 rank += 1
 
         # add memory & swap status #
-        if 'mem' in self.reportData:
+        if SysMgr.rankProcEnable and 'mem' in self.reportData:
             rank = 1
             self.reportData['mem']['procs'] = {}
             sortedProcData = sorted(self.procData.items(), \
@@ -62217,7 +62186,7 @@ class ThreadAnalyzer(object):
                 rank += 1
 
         # add block status #
-        if 'block' in self.reportData:
+        if SysMgr.rankProcEnable and 'block' in self.reportData:
             rank = 1
             self.reportData['block']['procs'] = {}
             sortedProcData = sorted(self.procData.items(), \
