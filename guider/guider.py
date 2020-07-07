@@ -15640,16 +15640,16 @@ class SysMgr(object):
                 'smtop': 'System',
                 'bgtop': 'Background',
                 'stacktop': 'Stack',
-                'perftop': 'PMU',
-                'memtop': 'Memory',
+                'ptop': 'PMU',
+                'mtop': 'Memory',
                 'disktop': 'Storage',
-                'nettop': 'Network',
-                'wsstop': 'Memory',
+                'ntop': 'Network',
+                'wtop': 'WSS',
                 'rtop': 'JSON',
                 'ftop': 'File',
                 'systop': 'Syscall',
                 'utop': 'Function',
-                'btop': 'Breakpoint',
+                'btop': 'Function',
                 'dlttop': 'DLT',
                 'dbustop': 'D-Bus',
                 },
@@ -16494,7 +16494,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor thread status
+    Monitor the status of threads
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -16519,7 +16519,7 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor syscalls for a specific thread
+    - Monitor syscalls
         # {0:1} {1:1} -g a.out
 
     - Monitor syscalls with backtrace for a specific thread
@@ -16546,24 +16546,24 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor usercalls for a specific thread
+    Monitor function calls consuming CPU
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor usercalls for a specific thread
+    - Monitor function calls for a specific thread
         # {0:1} {1:1} -g a.out
 
-    - Monitor usercalls with backtrace for a specific thread
+    - Monitor function calls  with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor usercalls for a specific thread every 2 second for 1 minute with 1 ms sampling
+    - Monitor function calls for a specific thread every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of usercalls for a specific thread
+    - Monitor CPU usage on whole system of function calls for a specific thread
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor usercalls with breakpoint for peace including register info for a specific thread
+    - Monitor function calls with breakpoint for peace including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
@@ -16578,7 +16578,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor breakpoints for a specific thread
+    Monitor function calls
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -16596,12 +16596,12 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor system status
+    Monitor system resource
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor status of system
+    - Monitor system resource
         # {0:1} {1:1}
 
     See the top COMMAND help for more examples.
@@ -16616,12 +16616,12 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor stack status
+    Monitor kernel stacks
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor stacks of specific threads
+    - Monitor kernel stacks of specific threads
         # {0:1} {1:1} -g chrome
 
     See the top COMMAND help for more examples.
@@ -16636,7 +16636,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor PMU(Performance Monitoring Unit) status
+    Monitor performance stats by PMU(Performance Monitoring Unit)
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -16901,7 +16901,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace all usercalls
+    Trace function calls
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -16954,7 +16954,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace specific usercalls
+    Trace function calls
                         '''.format(cmd, mode)
 
                     helpStr +=  '''
@@ -23482,7 +23482,8 @@ Copyright:
 
     @staticmethod
     def isPerfTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'perftop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'perftop' or sys.argv[1] == 'ptop'):
             return True
         else:
             return False
@@ -23491,7 +23492,8 @@ Copyright:
 
     @staticmethod
     def isMemTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'memtop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'memtop' or sys.argv[1] == 'mtop'):
             return True
         else:
             return False
@@ -23500,7 +23502,8 @@ Copyright:
 
     @staticmethod
     def isWssTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'wsstop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'wsstop' or sys.argv[1] == 'wtop'):
             return True
         else:
             return False
@@ -23583,7 +23586,8 @@ Copyright:
 
     @staticmethod
     def isNetTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'nettop':
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'nettop' or sys.argv[1] == 'ntop'):
             return True
         else:
             return False
