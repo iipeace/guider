@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200706"
+__revision__ = "200707"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13380,13 +13380,13 @@ class SysMgr(object):
     kernelEventList = []
     perfEventChannel = {}
     perfTargetEvent = []
+    ignoreItemList = []
     perfEventData = {}
     commFdCache = {}
     libCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
     thresholdData = {}
-    analysisBoundary = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -15347,7 +15347,7 @@ class SysMgr(object):
             option == 'U' or option == 'v' or option == 'w' or \
             option == 'W' or option == 'x' or option == 'X' or \
             option == 'Y' or option == 'y' or option == 'Z' or \
-            option == 'B' or option.isdigit():
+            option == 'B' or option == 'G' or option.isdigit():
             return True
         else:
             return False
@@ -15791,6 +15791,7 @@ Usage:
     -J                          print in JSON format
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
+    -G  <KEYWORD>               set ignore list
     -k  <COMM|TID:SIG{:CONT}>   set signal list
     -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
     -Y  <POLICY:PRIO|TIME       set sched
@@ -16801,6 +16802,9 @@ Examples:
     - Monitor D-Bus messages including specific word
         # {0:1} {1:1} -c test
 
+    - Monitor D-Bus messages except for specific messages
+        # {0:1} {1:1} -G sendData
+
     - Monitor D-Bus messages for a specific session bus
         # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
 
@@ -17319,6 +17323,10 @@ Examples:
 
     - Print D-Bus messages for a specific session bus
         # DBUS_SESSION_BUS_ADDRESS=$(cat addr) {0:1} {1:1}
+
+    - Print D-Bus messages except for specific messages
+        # {0:1} {1:1} -G sendData
+
                     '''.format(cmd, mode)
 
                     if SysMgr.isPrintJournalMode():
@@ -22372,6 +22380,15 @@ Copyright:
                 if 'T' in options:
                     SysMgr.taskEnable = False
 
+            elif option == 'G':
+                itemList = UtilMgr.parseInputString(value)
+
+                SysMgr.ignoreItemList = SysMgr.clearList(itemList, union=True)
+
+                SysMgr.printInfo(\
+                    "applied ignore keyword [ %s ]" % \
+                        ', '.join(SysMgr.ignoreItemList))
+
             elif option == 'c':
                 itemList = UtilMgr.parseInputString(value)
 
@@ -22814,6 +22831,15 @@ Copyright:
             elif option == 'A':
                 SysMgr.archOption = value
                 SysMgr.setArch(value)
+
+            elif option == 'G':
+                itemList = UtilMgr.parseInputString(value)
+
+                SysMgr.ignoreItemList = SysMgr.clearList(itemList, union=True)
+
+                SysMgr.printInfo(\
+                    "applied ignore keyword [ %s ]" % \
+                        ', '.join(SysMgr.ignoreItemList))
 
             elif option == 'C':
                 if value:
@@ -34549,7 +34575,9 @@ class DbusAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to handle %s" % [jsonData], reason=True)
+                    "Fail to handle %s for %s(%s)" % \
+                        ([jsonData], jsonData['comm'], jsonData['tid']), \
+                            reason=True)
 
         def handleMsg(ctype, msgList, jsonData, data):
             try:
@@ -34564,6 +34592,8 @@ class DbusAnalyzer(object):
 
                 if type(msgList) is not dict:
                     return
+
+                G_IO_ERROR_TYPE = DbusAnalyzer.G_IO_ERROR_TYPE
 
                 msgs = []
                 for key, msg in sorted(msgList.items()):
@@ -34614,21 +34644,41 @@ class DbusAnalyzer(object):
 
                     try:
                         prevData = DbusAnalyzer.prevData[tid][ctype]
-                    except SystemExit:
-                        sys.exit(0)
                     except:
                         prevData = ''
+
+                    # check direction #
+                    if ctype.startswith('sendm'):
+                        direction = 'OUT'
+                        data = DbusAnalyzer.sentData
+                        msgTable = DbusAnalyzer.msgSentTable
+                    else:
+                        direction = 'IN'
+                        data = DbusAnalyzer.recvData
+                        msgTable = DbusAnalyzer.msgRecvTable
 
                     # composite data #
                     if isLast:
                         if DbusAnalyzer.prevData[tid][ctype]:
                             call = DbusAnalyzer.prevData[tid][ctype] + call
-                        DbusAnalyzer.prevData[tid][ctype] = ''
-                    elif isFirst:
-                        DbusAnalyzer.prevData[tid][ctype] = call
-                        continue
+
+                        if direction == 'OUT':
+                            DbusAnalyzer.prevData[tid][ctype] = ''
+                        else:
+                            DbusAnalyzer.prevData[tid][ctype] = call
                     else:
-                        DbusAnalyzer.prevData[tid][ctype] += call
+                        if isFirst:
+                            if direction == 'OUT':
+                                DbusAnalyzer.prevData[tid][ctype] = call
+                            else:
+                                DbusAnalyzer.prevData[tid][ctype] += call
+                        else:
+                            DbusAnalyzer.prevData[tid][ctype] += call
+
+                        continue
+
+                    # check message size #
+                    if len(call) < 16:
                         continue
 
                     # cast bytes to void_p #
@@ -34639,8 +34689,25 @@ class DbusAnalyzer(object):
                     # check message size in header #
                     hsize = libgioObj.g_dbus_message_bytes_needed(\
                         buf, c_ulong(len(call)), byref(errp))
-                    if hsize > len(call):
+                    if direction == 'OUT' and errp:
+                        SysMgr.printWarn((\
+                            "Fail to handle D-Bus message %s for %s(%s) "
+                            "because %s(%s)") % \
+                                ([call], jsonData['comm'], jsonData['tid'], \
+                                G_IO_ERROR_TYPE[errp.contents.code], \
+                                errp.contents.message))
+                        libgioObj.g_error_free(byref(errp.contents))
+                        ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
+                    elif direction == 'OUT' and hsize > len(call):
+                        continue
+
+                    # handle incoming data #
+                    if direction == 'IN':
+                        if hsize > len(call):
+                            continue
+                        else:
+                            DbusAnalyzer.prevData[tid][ctype] = ''
 
                     # create GDBusMessage from bytes #
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(\
@@ -34648,15 +34715,13 @@ class DbusAnalyzer(object):
 
                     # check error #
                     if not gdmsg and errp:
-                        code = errp.contents.code
-                        message = errp.contents.message
-
-                        SysMgr.printWarn(\
-                            "Fail to convert GDbusMessage because %s(%s)" % \
-                            (DbusAnalyzer.G_IO_ERROR_TYPE[code], message))
-
+                        SysMgr.printWarn((\
+                            "Fail to handle D-Bus message %s for %s(%s) "
+                            "because %s(%s)") % \
+                                ([call], jsonData['comm'], jsonData['tid'], \
+                                G_IO_ERROR_TYPE[errp.contents.code], \
+                                errp.contents.message))
                         libgioObj.g_error_free(byref(errp.contents))
-
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -34694,16 +34759,6 @@ class DbusAnalyzer(object):
                             "Fail to get type of GDbusMessage", reason=True)
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
-
-                    # check direction #
-                    if ctype.startswith('sendm'):
-                        direction = 'OUT'
-                        data = DbusAnalyzer.sentData
-                        msgTable = DbusAnalyzer.msgSentTable
-                    else:
-                        direction = 'IN'
-                        data = DbusAnalyzer.recvData
-                        msgTable = DbusAnalyzer.msgRecvTable
 
                     effectiveReply = False
                     if mtype == 'RETURN':
@@ -36321,6 +36376,9 @@ class Debugger(object):
         self.syscallCmd = plist.index('PTRACE_SYSCALL')
         self.sysemuCmd = plist.index('PTRACE_SYSEMU')
         self.singlestepCmd = plist.index('PTRACE_SINGLESTEP')
+
+        self.ignoreItemList = \
+            list(map(lambda x: x.encode(), SysMgr.ignoreItemList))
 
         # set breakpoint variables #
         if self.arch == 'arm' or \
@@ -39148,6 +39206,7 @@ struct cmsghdr {
                 # get iov object #
                 iovobj = self.readMem(\
                     iovaddr+offset, sizeof(self.iovec))
+                iovobjOrig = iovobj
                 iovobj = cast(iovobj, self.iovec_ptr)
 
                 # get iov size #
@@ -39160,6 +39219,20 @@ struct cmsghdr {
                 # get iov data #
                 iovobjbase = iovobj.contents.iov_base
                 iovobjdata = self.readMem(iovobjbase, iovobjlen)
+
+                # erase message #
+                skip = False
+                for ignoreName in SysMgr.ignoreItemList:
+                    if not ignoreName in iovobjdata:
+                        continue
+
+                    iovobjdata = iovobjdata.replace(\
+                        ignoreName, b'\x00' * len(ignoreName))
+                    self.writeMem(iovobjbase, iovobjdata)
+                    skip = True
+                    break
+                if skip:
+                    continue
 
                 # encode to base64 #
                 if SysMgr.encodeB64Enable:
@@ -39901,12 +39974,16 @@ struct cmsghdr {
 
 
 
-    def setRetVal(self, val, temp=False):
+    def setRetVal(self, val, temp=False, update=False):
         try:
             if temp:
                 ret = setattr(self.tempRegs, self.retreg, val)
             else:
                 ret = setattr(self.regs, self.retreg, val)
+
+            if update:
+                self.setRegs()
+                self.updateRegs()
 
             return True
         except SystemExit:
