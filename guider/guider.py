@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200707"
+__revision__ = "200709"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3330,7 +3330,8 @@ class ConfigMgr(object):
         'PTRACE_DETACH',            #17#
         'PTRACE_GETFPXREGS',        #18#
         'PTRACE_SETFPXREGS',        #19#
-        '', '', '', '',
+        '', '', '',
+        'PTRACE_SET_SYSCALL',       #23#
         'PTRACE_SYSCALL',           #24#
         '', '', '', '', '', '',
         'PTRACE_SYSEMU',            #31#
@@ -13387,6 +13388,7 @@ class SysMgr(object):
     cmdFileCache = {}
     cmdAttachCache = {}
     thresholdData = {}
+    thresholdEventList = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -14174,6 +14176,13 @@ class SysMgr(object):
             if SysMgr.isRoot():
                 SysMgr.diskEnable = True
                 SysMgr.networkEnable = True
+
+                disableList = SysMgr.getOption('d')
+                if disableList:
+                    if 'd' in disableList:
+                        SysMgr.diskEnable = False
+                    if 'n' in disableList:
+                        SysMgr.networkEnable = False
             else:
                 SysMgr.printWarn(\
                     "Fail to get disk and network start "
@@ -19220,7 +19229,7 @@ Copyright:
                     sys.exit(0)
 
         # apply filter #
-        if SysMgr.filterGroup != []:
+        if SysMgr.filterGroup:
             cmd = SysMgr.getPidFilter()
             if cmd != '':
                 SysMgr.writeCmd("kprobes/filter", cmd)
@@ -19362,7 +19371,7 @@ Copyright:
                 sys.exit(0)
 
         # apply filter #
-        if SysMgr.filterGroup != []:
+        if SysMgr.filterGroup:
             cmd = SysMgr.getPidFilter()
             if cmd != '':
                 SysMgr.writeCmd("uprobes/filter", cmd)
@@ -30855,7 +30864,7 @@ Copyright:
             if self.cmdList["sched/sched_process_exit"]:
                 SysMgr.writeCmd('sched/sched_process_exit/enable', '1')
             if self.cmdList["signal"]:
-                if SysMgr.filterGroup != []:
+                if SysMgr.filterGroup:
                     commonFilter  = SysMgr.getPidFilter()
                     genFilter = commonFilter.replace("common_", "")
                     SysMgr.writeCmd(\
@@ -30987,7 +30996,7 @@ Copyright:
             cmd = ""
 
             # make filter for function mode #
-            if SysMgr.filterGroup != []:
+            if SysMgr.filterGroup:
                 try:
                     cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
                     if len(cmd) == 0:
@@ -40012,6 +40021,22 @@ struct cmsghdr {
 
 
 
+    def setSyscall(self, syscall):
+        try:
+            if UtilMgr.isNumber(syscall):
+                nrSyscall = long(syscall)
+            else:
+                nrSyscall = ConfigMgr.sysList.index(syscall)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("Fail to get syscall number", reason=True)
+            sys.exit(0)
+
+        self.setRegs()
+
+
+
     def getNrSyscall(self):
         try:
             return getattr(self.regs, self.sysreg)
@@ -46822,7 +46847,7 @@ class ThreadAnalyzer(object):
             round(float(self.finishTime) - float(SysMgr.startTime), 7)
 
         # apply filter #
-        if SysMgr.filterGroup != []:
+        if SysMgr.filterGroup:
             # make parent list #
             plist = {}
             if SysMgr.groupProcEnable:
@@ -47282,7 +47307,7 @@ class ThreadAnalyzer(object):
                     d = m.groupdict()
                     comm = d['comm'].strip()
 
-                    if SysMgr.filterGroup != []:
+                    if SysMgr.filterGroup:
                         if not ThreadAnalyzer.checkFilter(comm, d['pid']):
                             intervalList = None
                         else:
@@ -47738,6 +47763,7 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
+                # merge stats #
                 for key, val in gstats.items():
                     graphStats['%s:%s' % (lfile, key)] = val
 
@@ -54329,7 +54355,7 @@ class ThreadAnalyzer(object):
 
         for key, value in sortedList:
             # check filter #
-            if SysMgr.filterGroup != []:
+            if SysMgr.filterGroup:
                 skip = True
                 for item in SysMgr.filterGroup:
                     if key == item or item in value['stat'][commIdx]:
@@ -57501,7 +57527,7 @@ class ThreadAnalyzer(object):
                     pass
 
                 # apply filter #
-                if fileFilter != []:
+                if fileFilter:
                     found = False
                     for fileItem in fileFilter:
                         if fileItem in path:
@@ -61968,6 +61994,79 @@ class ThreadAnalyzer(object):
 
 
 
+    def executeEventCommand(self, eventList):
+        if not eventList:
+            return
+
+        for event in eventList:
+            value = self.reportData['event'][event]
+            if not 'command' in value or \
+                type(value['command']) is not list:
+                continue
+
+            for cmd in value['command']:
+                # convert PID #
+                if 'task' in value:
+                    pid = list(value['task'].keys())[0]
+                    cmd = cmd.replace('PID', pid)
+
+                # convert TIME #
+                if 'TIME' in cmd:
+                    cmd = cmd.replace('TIME', str(long(SysMgr.uptime)))
+
+                # launch Guider #
+                if cmd.startswith('GUIDER'):
+                    # build command list #
+                    cmdList = cmd.lstrip('GUIDER ').split(' ')
+
+                    # launch command #
+                    SysMgr.launchGuider(\
+                        cmdList, log=True, pipe=False, stderr=True)
+                # launch command #
+                else:
+                    SysMgr.createProcess(cmd)
+
+
+
+    def handleThresholdEvents(self):
+        if not SysMgr.thresholdEventList and \
+            not self.reportData['event']:
+                return
+
+        # print events #
+        plist = list(SysMgr.thresholdEventList.keys())
+        elist = list(self.reportData['event'].keys())
+
+        # check removed events #
+        rlist = set(plist) - set(elist)
+        if rlist:
+            SysMgr.printInfo(\
+                "the threshold events [ %s ] are removed" % \
+                    ', '.join(rlist))
+
+        # print new events #
+        nlist = set(elist) - set(plist)
+        if nlist:
+            SysMgr.printInfo(\
+                "the threshold events [ %s ] occurred" % \
+                    ', '.join(nlist))
+
+            # execute commands #
+            self.executeEventCommand(elist)
+
+        # update event list #
+        SysMgr.thresholdEventList = self.reportData['event']
+
+        if not self.reportData['event']:
+            return
+
+        # print event description #
+        estr = UtilMgr.convDict2Str(\
+            self.reportData['event'], ignore=True)
+        SysMgr.printWarn("%s" % estr)
+
+
+
     def checkResourceThreshold(self):
         if not SysMgr.thresholdData:
             return
@@ -62037,19 +62136,15 @@ class ThreadAnalyzer(object):
         except:
             pass
 
-        # print events #
-        if self.reportData['event']:
-            events = ', '.join(list(self.reportData['event'].keys()))
-            estr = UtilMgr.convDict2Str(\
-                self.reportData['event'], ignore=True)
-            SysMgr.printInfo(\
-                "the threshold events [ %s ] occurred" % events)
-            SysMgr.printWarn("%s" % estr)
+        # handle events #
+        self.handleThresholdEvents()
 
 
 
     def setThresholdEvent(\
-        self, intval, comval, item, event, attr, comp='big', target=None):
+        self, intval, comval, item, event, attr, \
+        comp='big', target=None, addval=None):
+
         value = None
 
         if intval and 'interval' in comval:
@@ -62067,12 +62162,16 @@ class ThreadAnalyzer(object):
         if not value:
             return
 
+        # add task info #
+        if addval:
+            comval.update(addval)
+        comval['value'] = value
+
         # add event #
-        self.reportData['event'].setdefault(event, dict())
-        self.reportData['event'][event].setdefault(attr, list())
-        self.reportData['event'][event][attr].append(comval)
-        self.reportData['event'][event][attr][-1]['value'] = value
-        return self.reportData['event'][event][attr][-1]
+        ename = '%s_%s_%s' % (event, attr, item)
+        if 'task' in comval:
+            ename = '%s_%s' % (ename, '_'.join(list(comval['task'].keys())))
+        self.reportData['event'].setdefault(ename, comval)
 
 
 
@@ -62103,15 +62202,11 @@ class ThreadAnalyzer(object):
         # set event #
         if type(comval) is list:
             for comitem in comval:
-                ret = self.setThresholdEvent(\
-                    intval, comitem, item, event, attr, comp, target)
-                if ret and type(addval) is dict:
-                    ret.update(addval)
+                self.setThresholdEvent(\
+                    intval, comitem, item, event, attr, comp, target, addval)
         elif type(comval) is dict:
-            ret = self.setThresholdEvent(\
-                intval, comval, item, event, attr, comp, target)
-            if ret and type(addval) is dict:
-                ret.update(addval)
+            self.setThresholdEvent(\
+                intval, comval, item, event, attr, comp, target, addval)
 
 
 
@@ -62155,9 +62250,9 @@ class ThreadAnalyzer(object):
                         continue
 
                 if False and pid in SysMgr.jsonData[mode]:
-                    append = {pid: SysMgr.jsonData[mode][pid]}
+                    append = {'task': {pid: SysMgr.jsonData[mode][pid]}}
                 else:
-                    append = {pid: data}
+                    append = {'task': {pid: data}}
 
                 if not resource in exceptTaskResource and \
                     'TASK' in td[resource]:
@@ -62380,7 +62475,7 @@ class ThreadAnalyzer(object):
         beatFields = {
             'beat':
                 {
-                    'name'      : 'guider',
+                    'name'      : __module__,
                     'hostname'  : SysMgr.localServObj.ip,
                     'version'   : __version__,
                     'beatstart' : self.beatStart
@@ -62629,7 +62724,7 @@ class ThreadAnalyzer(object):
         # update session #
         SysMgr.updateSession()
 
-        # flush stats #
+        # flush print buffer #
         SysMgr.printTopStats()
 
 
@@ -62639,10 +62734,12 @@ class ThreadAnalyzer(object):
 def main(args=None):
     # update arguments #
     if UtilMgr.isString(args):
-        sys.argv = ['guider'] + args.split()
+        sys.argv = [__module__] + args.split()
     elif type(args) is list or \
         type(args) is tuple:
-        sys.argv = ['guider'] + list(args)
+        if sys.version_info < (3, 0, 0):
+            args = list(map(lambda x: x.encode(), args))
+        sys.argv = [__module__] + list(args)
 
     # initialize envirnoment #
     SysMgr.initEnvironment()
