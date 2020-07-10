@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200709"
+__revision__ = "200710"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13441,6 +13441,7 @@ class SysMgr(object):
     syslogEnable = False
     journalEnable = False
     terminalOver = False
+    logoEnable = True
 
     cpuAvrEnable = True
     reportEnable = False
@@ -13926,25 +13927,25 @@ class SysMgr(object):
             del sys.argv[2]
         # top draw mode #
         else:
-            # CPU graph #
+            # CPU #
             if SysMgr.isCpuDrawMode():
                 SysMgr.layout = 'CPU'
-            # memory graph #
+            # memory #
             elif SysMgr.isMemDrawMode():
                 SysMgr.layout = 'MEM'
-            # vss graph #
+            # vss #
             elif SysMgr.isVssDrawMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.vssEnable = True
-            # rss graph #
+            # rss #
             elif SysMgr.isRssDrawMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.rssEnable = True
-            # leak graph #
+            # leak #
             elif SysMgr.isLeakDrawMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.leakEnable = True
-            # io graph #
+            # io #
             elif SysMgr.isIoDrawMode():
                 SysMgr.layout = 'IO'
 
@@ -20839,6 +20840,9 @@ Copyright:
 
     @staticmethod
     def printLogo(absolute=False, big=False, onlyFile=False, pager=True):
+        if not SysMgr.logoEnable:
+            return
+
         # check package #
         if not "ISMAIN" in os.environ:
             print("\nPowered by %s" % ConfigMgr.logo)
@@ -25453,7 +25457,9 @@ Copyright:
 
     @staticmethod
     def launchGuider(\
-        cmd, log=False, mute=False, pipe=True, stderr=False, wait=False):
+        cmd, log=False, mute=False, pipe=True, stderr=False, \
+        wait=False, stream=True, logo=True):
+
         # check mute #
         if mute:
             pipe = False
@@ -25490,9 +25496,19 @@ Copyright:
             # set main environment #
             os.environ["ISMAIN"] = "True"
 
+            # reinitialize static variables #
+            #globals().update(vars(SysMgr))
+
             # disable pager #
-            SysMgr.printStreamEnable = True
+            if stream:
+                SysMgr.printStreamEnable = True
             SysMgr.printFile = SysMgr.fileForPrint = None
+            SysMgr.printEnable = True
+            SysMgr.reportEnable = SysMgr.jsonOutputEnable = False
+
+            # disable logo #
+            if not logo:
+                SysMgr.logoEnable = False
 
             # disable logs #
             if not log:
@@ -25537,7 +25553,7 @@ Copyright:
                     break
 
                 # check childs #
-                SysMgr.updateChilds()
+                SysMgr.updateChildList()
                 if SysMgr.isNoChild():
                     break
             return
@@ -27266,7 +27282,7 @@ Copyright:
                             break
 
                         # check childs #
-                        SysMgr.updateChilds()
+                        SysMgr.updateChildList()
                         if SysMgr.isNoChild():
                             break
 
@@ -28277,7 +28293,7 @@ Copyright:
             if len(ioTasks) == 0:
                 break
             SysMgr.waitEvent(ignChldSig=False, exit=True)
-            SysMgr.updateChilds()
+            SysMgr.updateChildList()
             if SysMgr.isNoChild():
                 break
 
@@ -28488,7 +28504,7 @@ Copyright:
             if len(ioTasks) == 0:
                 break
             SysMgr.waitEvent(ignChldSig=False, exit=True)
-            SysMgr.updateChilds()
+            SysMgr.updateChildList()
             if SysMgr.isNoChild():
                 break
 
@@ -30527,6 +30543,13 @@ Copyright:
 
 
     @staticmethod
+    def getChildList():
+        SysMgr.updateChildList()
+        return SysMgr.childList
+
+
+
+    @staticmethod
     def clearChildList():
         SysMgr.childList = {}
 
@@ -30542,7 +30565,7 @@ Copyright:
 
 
     @staticmethod
-    def updateChilds():
+    def updateChildList():
         childList = list(SysMgr.childList.keys())
 
         for pid in childList:
@@ -30561,7 +30584,7 @@ Copyright:
         if not sig:
             sig = ConfigMgr.SIGKILL
 
-        SysMgr.updateChilds()
+        SysMgr.updateChildList()
 
         if childs is None:
             childs = list(SysMgr.childList.keys())
@@ -36313,6 +36336,7 @@ class Debugger(object):
     gLockObj = None
     gLockPath = None
     dbgInstance = None
+    selfInstance = None
 
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
@@ -36661,8 +36685,9 @@ struct cmsghdr {
         self.regsDict = None
         self.fpRegsDict = None
 
-        # save instances #
-        Debugger.dbgInstance = self
+        # save singleton instance #
+        if self.pid != SysMgr.pid:
+            Debugger.dbgInstance = self
 
         self.iovecObj = self.iovec(\
             iov_base=addressof(self.regs),\
@@ -39533,12 +39558,17 @@ struct cmsghdr {
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
 
-        # get CPU Usage #
+        # get CPU Usage for target #
         cpuUsage = self.getCpuUsage()
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
-        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+
+        # get CPU Usage for myself #
+        cpuUsage = Debugger.selfInstance.getCpuUsage()
+        mttime = cpuUsage[0] / diff
+        mcpuStr = '%d%%' % mttime
 
         # add CPU time info #
         self.cpuUsageList.append([ttime, utime, stime])
@@ -39559,10 +39589,12 @@ struct cmsghdr {
 
         ret = SysMgr.addPrint((\
             '[Top %s Info] [Time: %f] [Interval: %g] [NrSamples: %s] '
-            '[Target: %s(%s)] [CPU: %s]%s \n%s\n') % \
+            '[%s(%s): %s] [%s(%s): %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), comm, self.pid, \
-                cpuStr, sampleStr, twoLine), newline=2)
+                cpuStr, Debugger.selfInstance.comm, \
+                Debugger.selfInstance.pid, \
+                mcpuStr, sampleStr, twoLine), newline=2)
         if not ret:
             finishPrint()
 
@@ -41527,28 +41559,28 @@ struct cmsghdr {
 
 
     def lock(self, pos=-1):
-        if self.lockObj:
-            if pos > -1:
-                lockf(self.lockObj, LOCK_EX, 1, pos, 0) # pylint: disable=undefined-variable
-            else:
-                lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
-
-            return True
-        else:
+        if not self.lockObj:
             return False
+
+        if pos > -1:
+            lockf(self.lockObj, LOCK_EX, 1, pos, 0) # pylint: disable=undefined-variable
+        else:
+            lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
+
+        return True
 
 
 
     def unlock(self, pos=-1):
-        if self.lockObj:
-            if pos > -1:
-                lockf(self.lockObj, LOCK_UN, 1, pos, 0) # pylint: disable=undefined-variable
-            else:
-                lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
-
-            return True
-        else:
+        if not self.lockObj:
             return False
+
+        if pos > -1:
+            lockf(self.lockObj, LOCK_UN, 1, pos, 0) # pylint: disable=undefined-variable
+        else:
+            lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
+
+        return True
 
 
 
@@ -41640,6 +41672,12 @@ struct cmsghdr {
         self.breakcallTimeStat = dict()
         self.retList = dict()
         self.prevReturn = -1
+
+        # make object for myself #
+        if not Debugger.selfInstance or \
+            Debugger.selfInstance.pid != SysMgr.pid:
+            Debugger.selfInstance = Debugger(SysMgr.pid, attach=False)
+            Debugger.selfInstance.initValues()
 
 
 
@@ -41770,7 +41808,7 @@ struct cmsghdr {
                 # kill / segv signal #
                 elif SysMgr.isTermSignal(stat):
                     # print context info #
-                    self.printContext()
+                    self.printContext(newline=True)
 
                     SysMgr.printErr(\
                         'Terminated %s(%s) because of %s' % \
@@ -41879,6 +41917,7 @@ struct cmsghdr {
         if self.isRealtime:
             # get first CPU usage #
             self.getCpuUsage()
+            Debugger.selfInstance.getCpuUsage()
 
             # set alarm handler #
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
@@ -42422,7 +42461,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             while 1:
                 SysMgr.waitEvent(ignChldSig=False, exit=True)
                 taskList = updateTargets(taskList)
-                SysMgr.updateChilds()
+                SysMgr.updateChildList()
                 if SysMgr.isNoChild():
                     break
 
@@ -45767,6 +45806,7 @@ class ThreadAnalyzer(object):
     """ Analyzer for thread profiling """
 
     reportData = {}
+    eventCommandList = {}
     lifecycleData = {}
     procTotData = {}
     procIntData = []
@@ -45894,7 +45934,7 @@ class ThreadAnalyzer(object):
         for idx, lfile in enumerate(flist):
             try:
                 gstats, cstats = \
-                    ThreadAnalyzer.getDrawStats(lfile, applyOpt=False)
+                    ThreadAnalyzer.getStatsFile(lfile, applyOpt=False)
             except:
                 sys.exit(0)
 
@@ -47069,7 +47109,7 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def getDrawStats(logFile, applyOpt=True):
+    def getStatsFile(logFile, applyOpt=True):
         logBuf = None
         infoBuf = None
 
@@ -47735,6 +47775,51 @@ class ThreadAnalyzer(object):
 
 
 
+    def getAvgStats(self, flist, stats):
+        # make file index table #
+        fileIdxList = {}
+        for idx, fname in enumerate(flist):
+            fileIdxList[fname] = idx
+
+        avgList = {}
+
+        for name, value in stats.items():
+            fname, sname = name.split(':', 1)
+            if sname.endswith('List'):
+                continue
+            elif sname.endswith('ProcUsage'):
+                avgList.setdefault(sname, dict())
+
+                for proc, pvalue in value.items():
+                    pname = proc.split('(', 1)[0].lstrip('*')
+                    avgList[sname].setdefault(pname, [0] * len(flist))
+                    if sname == 'cpuProcUsage':
+                        usage = pvalue['average']
+                    elif sname == 'memProcUsage':
+                        if 'rssUsage' in pvalue:
+                            mname = 'rssUsage'
+                        else:
+                            mname = 'vssUsage'
+                        mlist = list(map(long, pvalue[mname].split()))
+                        usage = max(mlist)
+                    else:
+                        continue
+
+                    # add average usage #
+                    avgList[sname][pname][fileIdxList[fname]] += usage
+            elif type(value) is list:
+                if value:
+                    usage = round(sum(value) / len(value), 1)
+                else:
+                    usage = 0
+
+                avgList.setdefault(sname, [0] * len(flist))
+                avgList[sname][fileIdxList[fname]] = usage
+
+        return avgList
+
+
+
     def drawStats(self, flist, outFile=None, onlyGraph=False, onlyChart=False):
         # convert str to list #
         if type(flist) is str:
@@ -47745,7 +47830,7 @@ class ThreadAnalyzer(object):
             logFile = flist[0]
 
             # parse stats #
-            graphStats, chartStats = ThreadAnalyzer.getDrawStats(logFile)
+            graphStats, chartStats = ThreadAnalyzer.getStatsFile(logFile)
         # get stats from multiple files for comparison #
         else:
             logFile = SysMgr.outFileName
@@ -47757,7 +47842,7 @@ class ThreadAnalyzer(object):
             # parse stats from multiple files #
             for lfile in flist:
                 try:
-                    gstats, cstats = ThreadAnalyzer.getDrawStats(lfile)
+                    gstats, cstats = ThreadAnalyzer.getStatsFile(lfile)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -59167,8 +59252,15 @@ class ThreadAnalyzer(object):
             nrSoftIrq = long(0)
 
         # get total CPU usage #
-        nowData = self.cpuData['all']
-        prevData = self.prevCpuData['all']
+        try:
+            nowData = self.cpuData['all']
+            prevData = self.prevCpuData['all']
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "Fail to get system CPU stat")
+            return
 
         if SysMgr.cpuAvrEnable:
             nrCore = SysMgr.nrCore
@@ -61998,10 +62090,20 @@ class ThreadAnalyzer(object):
         if not eventList:
             return
 
+        # check event handling process #
+        runList = SysMgr.getChildList()
+        for event, pid in deepcopy(self.eventCommandList).items():
+            if not pid in runList:
+                self.eventCommandList.pop(event, None)
+
         for event in eventList:
             value = self.reportData['event'][event]
             if not 'command' in value or \
                 type(value['command']) is not list:
+                continue
+
+            # skip processing event #
+            if event in self.eventCommandList:
                 continue
 
             for cmd in value['command']:
@@ -62014,24 +62116,37 @@ class ThreadAnalyzer(object):
                 if 'TIME' in cmd:
                     cmd = cmd.replace('TIME', str(long(SysMgr.uptime)))
 
+                SysMgr.printInfo(\
+                    'execute [ %s ] by %s event' % (cmd, event))
+
                 # launch Guider #
                 if cmd.startswith('GUIDER'):
                     # build command list #
                     cmdList = cmd.lstrip('GUIDER ').split(' ')
 
                     # launch command #
-                    SysMgr.launchGuider(\
-                        cmdList, log=True, pipe=False, stderr=True)
+                    try:
+                        ret = SysMgr.launchGuider(\
+                            cmdList, pipe=False, stderr=True, stream=False, logo=False)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "Fail to launch guider", reason=True)
                 # launch command #
                 else:
-                    SysMgr.createProcess(cmd)
+                    ret = SysMgr.createProcess(cmd)
+
+                # register the event handling process #
+                if ret:
+                    self.eventCommandList.setdefault(event, ret)
 
 
 
     def handleThresholdEvents(self):
         if not SysMgr.thresholdEventList and \
             not self.reportData['event']:
-                return
+            return
 
         # print events #
         plist = list(SysMgr.thresholdEventList.keys())
@@ -62170,7 +62285,10 @@ class ThreadAnalyzer(object):
         # add event #
         ename = '%s_%s_%s' % (event, attr, item)
         if 'task' in comval:
-            ename = '%s_%s' % (ename, '_'.join(list(comval['task'].keys())))
+            addinfo = ''
+            for pid, data in comval['task'].items():
+                addinfo += '_%s_%s' % (data['comm'], pid)
+            ename = '%s%s' % (ename, addinfo)
         self.reportData['event'].setdefault(ename, comval)
 
 
