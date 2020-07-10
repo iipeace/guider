@@ -48,7 +48,7 @@ It usually supports all platforms based on the Linux kernel as shown below.
 
 Output
 =======
-    $ ./guider.py top -a
+    $ guider/guider.py top -a
 
     [Top Info] [Time: 71406.120] [Interval: 1.0] [Ctxt: 52687] [Life: +0/-0] [IRQ: 12517] [Core: 24] [Task: 326/433] [Load: 0.2/0.4/0.5] [RAM: 63876] [Swap: 65491]
                [Cycle: 2G / Inst: 6G / IPC: 2.45 / CacheMiss: 77K(6%) / BranchMiss: 857K(0%) / Clock: 22G / MinFlt: 4 / MajFlt: 0]
@@ -108,7 +108,7 @@ Output
 
 >>>
            
-    $ ./guider.py threadtop
+    $ guider/guider.py threadtop
 
 	[Top Info] [Time: 194025.590] [Interval: 1.0] [Ctxt: 4995] [Life: +0/-0] [OOM: 0] [IRQ: 1879] [Core: 8] [Task: 333/1188] [Load: 3.1/1.9/0.9] [RAM: 62.8G]
 	==========================================================================================================================================================
@@ -130,9 +130,9 @@ Output
 
 >>>
 
-    # ./guider.py usertop -g yes -H
+    # guider/guider.py usertop -g yes -H
 
-	[Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [Target: yes(7202)] [CPU: 28%(Usr:27%/Sys:0%)] [SampleTime: 0.000100] 
+	[Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [yes(7202): 28%(Usr/27%+Sys/0%)] [SampleTime: 0.000100] 
 	==========================================================================================================================================================
 	 Usage  |                                                                 Function [Path]                                                                 
 	==========================================================================================================================================================
@@ -154,9 +154,9 @@ Output
 
 >>>
 
-	# ./guider.py systop -g yes -H
+	# guider/guider.py systop -g yes -H
 
-	[Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [Target: yes(7202)] [CPU: 5%(Usr:4%/Sys:0%)] 
+	[Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [yes(7202): 5%(Usr/4%+Sys/0%)] 
 	==========================================================================================================================================================
 	 Usage  |                                                                 Function [Count]                                                                
 	==========================================================================================================================================================
@@ -169,9 +169,9 @@ Output
 
 >>>
 
-	# ./guider.py brktop -g yes -H
+	# guider/guider.py brktop -g yes -H
 
-	[Top Breakpoint Info] [Time: 81966.620000] [Interval: 1.002108] [NrSamples: 656] [Target: yes(7202)] [CPU: 2%(Usr:0%/Sys:2%)] [SampleTime: 0.000000] 
+	[Top Breakpoint Info] [Time: 81966.620000] [Interval: 1.002108] [NrSamples: 656] [yes(7202): 2%(Usr/0%+Sys/2%)] [SampleTime: 0.000000] 
 	==========================================================================================================================================================
 	 Usage  |                                                                 Function [Path]                                                                 
 	==========================================================================================================================================================
@@ -188,7 +188,7 @@ Output
 
 >>>
            
-    # ./guider.py filetop -g init
+    # guider/guider.py filetop -g init
 
     [Top File Info] [Time: 7176036.720] [Proc: 322] [FD: 1323] [File: 400] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -211,7 +211,7 @@ Output
 
 >>>
            
-    # ./guider.py stacktop -g syslog
+    # guider/guider.py stacktop -g syslog
 
     [Top Info] [Time: 7176163.830] [Interval: 1.0] [Ctxt: 2914] [Life: +13/-12] [IRQ: 5103] [Core: 24] [Task: 328/435] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 3G / IPC: 1.34 / CacheMiss: 6M(34%) / BranchMiss: 4M(0%) / Clock: 23G / MinFlt: 53,257 / MajFlt: 0]
@@ -237,7 +237,7 @@ Output
 
 >>>
            
-    # ./guider.py perftop -g yes
+    # guider/guider.py perftop -g yes
 
     [Top Info] [Time: 7181955.420] [Interval: 1.0] [Ctxt: 121] [Life: +0/-0] [IRQ: 1947] [Core: 24] [Task: 317/424] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -253,7 +253,7 @@ Output
 
 >>>
            
-    # ./guider.py memtop
+    # guider/guider.py memtop
 
     [Top Info] [Time: 7176233.650] [Interval: 1.0] [Ctxt: 289] [Life: +2/-2] [IRQ: 1397] [Core: 24] [Task: 323/430] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 127M / Inst: 121M / IPC: 0.95 / CacheMiss: 280K(23%) / BranchMiss: 437K(1%) / Clock: 22G / MinFlt: 714 / MajFlt: 0]
@@ -274,7 +274,7 @@ Output
 
 >>>
            
-    # ./guider.py nettop
+    # guider/guider.py nettop
 
     [Top Info] [Time: 186473.960] [Interval: 1.0] [Ctxt: 7865] [Life: +0/-0] [OOM: 0] [IRQ: 4229] [Core: 8] [Task: 328/1171] [Load: 0.5/0.3/0.3] [RAM: 62.8G]
     ==========================================================================================================================================================
@@ -297,7 +297,7 @@ Output
 
 >>>
 
-	# ./guider.py disktop
+	# guider/guider.py disktop
 
 	[Top Info] [Time: 186512.750] [Interval: 1.0] [Ctxt: 11963] [Life: +1/-0] [OOM: 0] [IRQ: 6263] [Core: 8] [Task: 329/1176] [Load: 0.4/0.3/0.3] [RAM: 62.8G]
 	==========================================================================================================================================================
@@ -317,7 +317,7 @@ Output
 
 >>>
 
-    # ./guider.py wsstop -g yes
+    # guider/guider.py wsstop -g yes
 
     [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
@@ -341,7 +341,7 @@ Output
 
 >>>
            
-    # ./guider.py btrace -g a.out -H
+    # guider/guider.py btrace -g a.out -H
 
     0.505835   _int_malloc/0x7f94ed6cb2d0(0x7f94eda22c40L,0xaL,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
              __libc_start_main/0x7f94ed658b97 [/lib/x86_64-linux-gnu/libc-2.27.so]
@@ -372,7 +372,7 @@ Output
 
 >>>
            
-    $ ./guider.py reptop &
+    $ guider/guider.py reptop &
     $ cat /tmp/guider.report
 
     {
@@ -503,22 +503,7 @@ Output
 
 >>>
 
-    # ./guider.py cpulimit -g 22371:50
-
-
-                _      _
-       __ _  _   _ (_)  __| |  ___  _ __
-      / _` || | | || | / _` | / _ \| '__|
-     | (_| || |_| || || (_| ||  __/| |
-      \__, | \__,_||_| \__,_| \___||_|
-       |___/
-
-
-    [Info] priority of 22376 task is changed to -20(C)
-
-    [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
-
-    [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
+    # guider/guider.py cpulimit -g 22371:50
 
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
 
@@ -526,46 +511,19 @@ Output
 
 >>>
            
-    # ./guider.py setsched r:90:22371
-
-
-                    _      _
-       __ _  _   _ (_)  __| |  ___  _ __
-      / _` || | | || | / _` | / _ \| '__|
-     | (_| || |_| || || (_| ||  __/| |
-      \__, | \__,_||_| \__,_| \___||_|
-       |___/
-
+    # guider/guider.py setsched r:90:22371
 
     [Info] priority of 22371 task is changed to 90(R)
 
 >>>
            
-    # ./guider.py remote -g a.out -c usercall:write#1#HOOK#4
-
-
-                    _      _
-       __ _  _   _ (_)  __| |  ___  _ __
-      / _` || | | || | / _` | / _ \| '__|
-     | (_| || |_| || || (_| ||  __/| |
-      \__, | \__,_||_| \__,_| \___||_|
-       |___/
-
+    # guider/guider.py remote -g a.out -c usercall:write#1#HOOK#4
 
     [usercall] write(7f94ed747140)(1, HOOK, 4) = 0x4(4)
 
 >>>
 
-    # ./guider.py printenv -g systemd
-
-
-                    _      _
-       __ _  _   _ (_)  __| |  ___  _ __
-      / _` || | | || | / _` | / _ \| '__|
-     | (_| || |_| || || (_| ||  __/| |
-      \__, | \__,_||_| \__,_| \___||_|
-       |___/
-
+    # guider/guider.py printenv -g systemd
 
     [ systemd(1) ]
     -----------------------------------------------------------------------------
@@ -608,22 +566,13 @@ Output
 
 >>>
            
-    # ./guider.py kill -stop yes
-
-
-                    _      _
-       __ _  _   _ (_)  __| |  ___  _ __
-      / _` || | | || | / _` | / _ \| '__|
-     | (_| || |_| || || (_| ||  __/| |
-      \__, | \__,_||_| \__,_| \___||_| 
-       |___/
-
+    # guider/guider.py kill -stop yes
 
     [Info] sent signal SIGSTOP to yes(10594)
 
 >>>
            
-    # ./guider.py rec -a -e m,b
+    # guider/guider.py rec -a -e m,b
 
     [Thread Info] [ Elapsed: 2.050 ] [ Start: 2849868.198 ] [ Running: 112 ] [ CtxSwc: 3357 ] [ LogSize: 4054 KB ] [ Unit: Sec/MB/NR ]
     ==========================================================================================================================================================
@@ -657,7 +606,7 @@ Output
        
 >>>
        
-    # ./guider.py sysrec 
+    # guider/guider.py sysrec 
 
     [Thread Syscall Info] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -698,7 +647,7 @@ Output
        
 >>>
        
-    # ./guider.py rec -e b
+    # guider/guider.py rec -e b
 
     [Thread Block Info] (Unit: KB/NR)
     ==========================================================================================================================================================
@@ -746,7 +695,7 @@ Output
        
 >>>
        
-    # ./guider.py rec -e L
+    # guider/guider.py rec -e L
 
     [Thread Futex Lock Info] [ Elapsed : 1.225 ] (Unit: Sec/NR)
     ==========================================================================================================================================================
@@ -768,7 +717,7 @@ Output
        
 >>>
        
-    # ./guider.py rec -s . -K openfile:getname::**string
+    # guider/guider.py rec -s . -K openfile:getname::**string
 
     [Thread KERNEL Event Info]
     ==========================================================================================================================================================
@@ -817,8 +766,8 @@ Output
        
 >>>
        
-    # ./guider.py funcrec -s .
-    # ./guider.py guider.dat -o . -a
+    # guider/guider.py funcrec -s .
+    # guider/guider.py guider.dat -o . -a
 
     [Function CPU Info] [Cnt: 394] [Interval: 8ms] (USER)
     ==========================================================================================================================================================
@@ -851,8 +800,8 @@ Output
        
 >>>
        
-    # ./guider.py funcrecord -e m -s .
-    # ./guider.py guider.dat -a
+    # guider/guider.py funcrecord -e m -s .
+    # guider/guider.py guider.dat -a
 
     [Function Page Info] [Total: 11416KB] [Alloc: 11444KB(817)] [Free: 188KB(47)] (USER)
     ==========================================================================================================================================================
@@ -895,7 +844,7 @@ Output
        
 >>>
        
-    # ./guider.py filerec 
+    # guider/guider.py filerec 
 
     [File Usage Info] [ File: 281 ] [ RAM: 78056(KB) ] [ Keys: Foward/Back/Save/Quit ]
     ==========================================================================================================================================================
@@ -935,7 +884,7 @@ Output
        
 >>>
        
-    # ./guider.py draw guider.out
+    # guider/guider.py draw guider.out
 
 ![guider-graph](https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png)
 ![guider-chart](https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png)
@@ -947,19 +896,19 @@ How to use
 
 ```
 Enter the following command to see all commands supported by the guider:
-    $ ./guider.py --help
+    $ guider/guider.py --help
     $ python -m guider --help
     $ guider --help
 
 Enter the following command to start tracing for all threads:
-    # ./guider.py record -a
+    # guider/guider.py record -a
 
 Enter the following command to start monitoring for all processes:
-    $ ./guider.py top -a
+    $ guider/guider.py top -a
 
 Enter the command in the format shown bellow to see options and examples for each command:
-    $ ./guider.py record -h
-    $ ./guider.py top -h
+    $ guider/guider.py record -h
+    $ guider/guider.py top -h
 
 Visit the following link to see the output of guider:
     - https://github.com/iipeace/guider/wiki
@@ -1039,7 +988,7 @@ Help
 
 ```
 Usage:
-    $ ./guider.py COMMAND|FILE [OPTIONS] [--help] [--version]
+    $ guider/guider.py COMMAND|FILE [OPTIONS] [--help] [--version]
                 
 COMMAND:
     [CONTROL]       client          <Client>
@@ -1125,5 +1074,5 @@ FILE:
     Report  file (e.g. guider.out)
 
 OPTIONS:
-    Check COMMAND with --help (e.g. ./guider.py top --help)
+    Check COMMAND with --help (e.g. guider/guider.py top --help)
 ```
