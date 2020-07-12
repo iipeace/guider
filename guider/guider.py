@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200710"
+__revision__ = "200712"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15957,6 +15957,9 @@ Examples:
     - Print printPeace function calls for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
 
+    - Print all function calls except for printPeace for a specific thread
+        # {0:1} {1:1} -g 1234 -c ^printPeace
+
     - Print a specific function call for a specific binary execution
         # {0:1} {1:1} -g 1234 -I ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
@@ -16865,7 +16868,7 @@ Description:
     Trace systemcalls
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
@@ -16883,7 +16886,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Trace all read systemcalls for a specific thread
         # {0:1} {1:1} -g 1234 -t read
@@ -16914,7 +16917,7 @@ Description:
     Trace function calls
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
@@ -16933,7 +16936,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Trace usercalls for a specific thread in 100us cycles
         # {0:1} {1:1} -g 1234
@@ -16967,7 +16970,7 @@ Description:
     Trace function calls
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
@@ -16987,7 +16990,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  brkExamStr
+                    helpStr += brkExamStr
 
                 # remote #
                 elif SysMgr.isRemoteMode():
@@ -16999,7 +17002,7 @@ Description:
     Execute commands remotely
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Options:
     -u                          run in the background
     -a                          show all stats including registers
@@ -17013,7 +17016,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  brkExamStr
+                    helpStr += brkExamStr
 
                 # hook #
                 elif SysMgr.isHookMode():
@@ -17049,7 +17052,7 @@ Description:
     Trace signals
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
@@ -17066,7 +17069,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Trace all signals for a specific thread
         # {0:1} {1:1} -g 1234
@@ -17101,7 +17104,7 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Analyze page attributes in specific area for a specific process
         # {0:1} {1:1} -g 1234 -I 0x0-0x4000
@@ -17201,7 +17204,7 @@ Description:
     Diff top report files
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Diff top report files
         # {0:1} {1:1} tc1.out tc2.out
@@ -17220,7 +17223,7 @@ Description:
     Summary a top output file
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Summary a top output file
         # {0:1} {1:1} output
@@ -17244,7 +17247,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Send the notification signal to all running Guiders
         # {0:1} {1:1}
@@ -17273,7 +17276,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Pause specific running threads for 3 seconds
         # {0:1} {1:1} -g 1234 -R 3
@@ -17296,7 +17299,7 @@ Options:
         -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print ELF infomation of specific file
         # {0:1} {1:1} -I /usr/bin/yes
@@ -17321,7 +17324,7 @@ Examples:
                     helpStr = printCommonStr
 
                     if SysMgr.isPrintDbusMode():
-                        helpStr +=  '''
+                        helpStr += '''
     - Print D-Bus messages with detailed information in real-time
         # {0:1} {1:1} -a
 
@@ -17340,7 +17343,7 @@ Examples:
                     '''.format(cmd, mode)
 
                     if SysMgr.isPrintJournalMode():
-                        helpStr +=  '''
+                        helpStr += '''
     - Print journal messages with all fields in real-time
         # {0:1} {1:1} -I
 
@@ -17352,7 +17355,7 @@ Examples:
                     '''.format(cmd, mode)
 
                     if SysMgr.isPrintDltMode():
-                        helpStr +=  '''
+                        helpStr += '''
     - Print DLT messages from specific files
         # {0:1} {1:1} -I "./*.dlt"
 
@@ -17378,7 +17381,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print D-Bus signal subscription info
         # {0:1} {1:1}
@@ -17405,7 +17408,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print symbol infomation of specific addresses in a file
         # {0:1} {1:1} -I /usr/bin/yes -g ab1cf
@@ -17429,7 +17432,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print infomation of specific symbols in a file
         # {0:1} {1:1} -I /usr/bin/yes -g testFunc
@@ -17463,7 +17466,7 @@ Options:
     -a                          show name of all processes
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print system cgroup tree
         # {0:1} {1:1}
@@ -17488,7 +17491,7 @@ Options:
     -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print directory structure from current working directory
         # {0:1} {1:1}
@@ -17539,7 +17542,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
@@ -17576,7 +17579,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print environment variables for a specific process
         # {0:1} {1:1} -g 1234
@@ -17597,7 +17600,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print namespace list
         # {0:1} {1:1}
@@ -17623,7 +17626,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print systemd services
         # {0:1} {1:1}
@@ -17654,7 +17657,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print system info
         # {0:1} {1:1}
@@ -17673,7 +17676,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print tree of processes
         # {0:1} {1:1}
@@ -17695,7 +17698,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Print system status
         # {0:1} {1:1}
@@ -17717,7 +17720,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Limit CPU usage of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
@@ -17737,7 +17740,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Set the clock of cpu1 to 10000000HZ and the governor of cpu1 to userspace
         # {0:1} {1:1} -g 1:10000000:userspace
@@ -17762,7 +17765,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Convert a text file to a image file
         # {0:1} {1:1} guider.out
@@ -17791,7 +17794,7 @@ Options:
     -v                                 verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
         # {0:1} {1:1} -g c:-20:1234
@@ -17818,7 +17821,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Get CPU affinity of specific threads
         # {0:1} {1:1} -g a.out, 1234
@@ -17839,7 +17842,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
         # {0:1} {1:1} -g a.out:3
@@ -17861,7 +17864,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Create 10 processes using 5% of a core each other
         # {0:1} {1:1} 50:10
@@ -17893,7 +17896,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Allocate physical memory 1G
         # {0:1} {1:1} 1G
@@ -17923,7 +17926,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Read all files from current mount point
         # {0:1} {1:1}
@@ -17954,7 +17957,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Send UDP packets
         # {0:1} {1:1}
@@ -18002,7 +18005,7 @@ Options:
     -v                          verbose
                         '''.format(cmd, mode)
 
-                    helpStr +=  '''
+                    helpStr += '''
 Examples:
     - Send scene1 event to running Guider processes
         # {0:1} {1:1} scene1
@@ -37890,8 +37893,8 @@ struct cmsghdr {
 
 
 
-    def injectBpList(self, symlist, binlist=None, verb=True):
-        if len(symlist) == 0:
+    def getBpList(self, symlist, binlist=None, verb=True):
+        if not symlist:
             symlist.append('**')
         else:
             oldlist = list(symlist)
@@ -37991,8 +37994,32 @@ struct cmsghdr {
                     for cnt in range(0, len(ret)):
                         cmdList.append(cmdSet)
 
-        if len(addrList) == 0:
+        return addrList, cmdList
+
+
+
+    def injectBpList(self, symlist, binlist=None, verb=True):
+        exceptList = list()
+        if symlist:
+            newList = list()
+            for symbol in symlist:
+                if not symbol.startswith('^'):
+                    newList.append(symbol)
+                    continue
+                exceptList.append(symbol[1:])
+            symlist = newList
+
+        # get address list for breakpoints #
+        addrList, cmdList = self.getBpList(symlist, binlist, verb)
+        if not addrList:
             return
+
+        # get exceptional address list for breakpoints #
+        exceptAddrList = []
+        if exceptList:
+            exceptList = self.getBpList(exceptList, binlist, verb)[0]
+            for item in exceptList:
+                exceptAddrList.append(item[0])
 
         # print target process name #
         tgid = SysMgr.getTgid(self.pid)
@@ -38008,6 +38035,8 @@ struct cmsghdr {
 
             if type(item) is list:
                 addr, symbol, fname = item
+                if addr in exceptAddrList:
+                    continue
             else:
                 continue
 
@@ -38147,7 +38176,7 @@ struct cmsghdr {
                     sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
                     'Fail to inject a breakpoint to %s(%s) for %s(%s) '
-                    'because it is already injected by myself') % \
+                    'because it is already injected by this task') % \
                         (hex(addr).rstrip('L'), sym, self.comm, self.pid))
                 return False
             else:
@@ -40586,9 +40615,11 @@ struct cmsghdr {
 
             # check memory map again #
             if addr not in self.bpList:
-                SysMgr.printErr(\
-                    "Fail to get address %s in breakpoint list of %s(%s)" % \
-                        (hex(origAddr).rstrip('L'), self.comm, self.pid))
+                SysMgr.printErr((\
+                    "Fail to find address %s in the breakpoint list "
+                    "of %s(%s), update ELF caches in %s") % \
+                        (hex(origAddr).rstrip('L'), self.comm, \
+                            self.pid, SysMgr.cacheDirPath))
 
                 sys.exit(0)
 
@@ -55653,7 +55684,7 @@ class ThreadAnalyzer(object):
                             self.preemptData[index][1][prev_id] = \
                                 dict(self.init_preemptData)
 
-                        self.preemptData[index][1][prev_id]['usage'] +=  \
+                        self.preemptData[index][1][prev_id]['usage'] += \
                             self.threadData[prev_id]['stop'] - \
                             self.threadData[prev_id]['start']
                         self.preemptData[index][4] += \
