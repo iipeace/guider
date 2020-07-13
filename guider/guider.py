@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200712"
+__revision__ = "200713"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -31,7 +31,7 @@ try:
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
-    print("[Error] Fail to import default packages: %s" % err.args[0])
+    print("[Error] Fail to import essential packages: %s" % err.args[0])
     sys.exit(0)
 
 # convert types not supported #
@@ -13928,25 +13928,25 @@ class SysMgr(object):
         # top draw mode #
         else:
             # CPU #
-            if SysMgr.isCpuDrawMode():
+            if SysMgr.isDrawCpuMode():
                 SysMgr.layout = 'CPU'
             # memory #
-            elif SysMgr.isMemDrawMode():
+            elif SysMgr.isDrawMemMode():
                 SysMgr.layout = 'MEM'
             # vss #
-            elif SysMgr.isVssDrawMode():
+            elif SysMgr.isDrawVssMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.vssEnable = True
             # rss #
-            elif SysMgr.isRssDrawMode():
+            elif SysMgr.isDrawRssMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.rssEnable = True
             # leak #
-            elif SysMgr.isLeakDrawMode():
+            elif SysMgr.isDrawLeakMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.leakEnable = True
             # io #
-            elif SysMgr.isIoDrawMode():
+            elif SysMgr.isDrawIoMode():
                 SysMgr.layout = 'IO'
 
             # modify args for drawing multiple input files #
@@ -15680,12 +15680,12 @@ class SysMgr(object):
                 },
             'visual': {
                 'draw': 'System',
-                'cpudraw': 'CPU',
-                'memdraw': 'Memory',
-                'vssdraw': 'VSS',
-                'rssdraw': 'RSS',
-                'leakdraw': 'Leak',
-                'iodraw': 'I/O',
+                'drawcpu': 'CPU',
+                'drawmem': 'Memory',
+                'drawvss': 'VSS',
+                'drawrss': 'RSS',
+                'drawleak': 'Leak',
+                'drawio': 'I/O',
                 'convert': 'Text',
                 },
             'util': {
@@ -17111,7 +17111,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # CPU draw #
-                elif SysMgr.isCpuDrawMode():
+                elif SysMgr.isDrawCpuMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -17123,7 +17123,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # memory draw #
-                elif SysMgr.isMemDrawMode():
+                elif SysMgr.isDrawMemMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -17135,7 +17135,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # vss draw #
-                elif SysMgr.isVssDrawMode():
+                elif SysMgr.isDrawVssMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -17147,7 +17147,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # rss draw #
-                elif SysMgr.isRssDrawMode():
+                elif SysMgr.isDrawRssMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -17159,7 +17159,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # leak draw #
-                elif SysMgr.isLeakDrawMode():
+                elif SysMgr.isDrawLeakMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -17171,7 +17171,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # I/O draw #
-                elif SysMgr.isIoDrawMode():
+                elif SysMgr.isDrawIoMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19804,9 +19804,14 @@ Copyright:
     def getVdso(debug=False):
         # get address of vdso object #
         addr = SysMgr.getauxval("AT_SYSINFO_EHDR")
+        if not addr:
+            return None
 
         # create a memory file #
         fd = MemoryFile(addr, name='vdso')
+        if not fd:
+            SysMgr.printErr("Fail to create memory file for vdso object")
+            return None
 
         # return vDSO #
         obj = ElfAnalyzer(path='vdso', fd=fd, debug=debug)
@@ -19836,8 +19841,12 @@ Copyright:
             return
 
         # declare syscalls #
-        SysMgr.libcObj.getauxval.restype = c_ulong
-        SysMgr.libcObj.getauxval.argtypes = [c_ulong]
+        try:
+            SysMgr.libcObj.getauxval.restype = c_ulong
+            SysMgr.libcObj.getauxval.argtypes = [c_ulong]
+        except:
+            SysMgr.printErr("Fail to find getauxval in libc")
+            return None
 
         return SysMgr.libcObj.getauxval(c_ulong(nrType))
 
@@ -24119,8 +24128,9 @@ Copyright:
 
 
     @staticmethod
-    def isCpuDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'cpudraw':
+    def isDrawCpuMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawcpu' or sys.argv[1] == 'cpudraw'):
             return True
         else:
             return False
@@ -24128,8 +24138,9 @@ Copyright:
 
 
     @staticmethod
-    def isMemDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'memdraw':
+    def isDrawMemMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawmem' or sys.argv[1] == 'memdraw'):
             return True
         else:
             return False
@@ -24137,8 +24148,9 @@ Copyright:
 
 
     @staticmethod
-    def isVssDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'vssdraw':
+    def isDrawVssMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawvss' or sys.argv[1] == 'vssdraw'):
             return True
         else:
             return False
@@ -24146,8 +24158,9 @@ Copyright:
 
 
     @staticmethod
-    def isRssDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'rssdraw':
+    def isDrawRssMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawrss' or sys.argv[1] == 'rssdraw'):
             return True
         else:
             return False
@@ -24155,8 +24168,9 @@ Copyright:
 
 
     @staticmethod
-    def isLeakDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'leakdraw':
+    def isDrawLeakMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawleak' or sys.argv[1] == 'leakdraw'):
             return True
         else:
             return False
@@ -24164,8 +24178,9 @@ Copyright:
 
 
     @staticmethod
-    def isIoDrawMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'iodraw':
+    def isDrawIoMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawio' or sys.argv[1] == 'iodraw'):
             return True
         else:
             return False
@@ -24199,17 +24214,17 @@ Copyright:
             return False
         elif sys.argv[1] == 'draw' or orig:
             return True
-        elif SysMgr.isCpuDrawMode():
+        elif SysMgr.isDrawCpuMode():
             return True
-        elif SysMgr.isMemDrawMode():
+        elif SysMgr.isDrawMemMode():
             return True
-        elif SysMgr.isVssDrawMode():
+        elif SysMgr.isDrawVssMode():
             return True
-        elif SysMgr.isRssDrawMode():
+        elif SysMgr.isDrawRssMode():
             return True
-        elif SysMgr.isLeakDrawMode():
+        elif SysMgr.isDrawLeakMode():
             return True
-        elif SysMgr.isIoDrawMode():
+        elif SysMgr.isDrawIoMode():
             return True
         else:
             SysMgr.drawMode = orig
@@ -37487,7 +37502,7 @@ struct cmsghdr {
                     # remove a breakpoint for syscall #
                     self.removeBreakpoint(self.getSyscallAddr())
 
-                    # call function $
+                    # call function #
                     ret = self.remoteSyscall(val, argList)
                     if ret is None:
                         ret = 0
@@ -37552,7 +37567,7 @@ struct cmsghdr {
                     SysMgr.printPipe(output, newline=False, flush=True)
 
                     if not skip:
-                        # call function $
+                        # call function #
                         ret = self.remoteUsercall(addr, argList)
                         if ret is None:
                             ret = 0
@@ -37669,7 +37684,7 @@ struct cmsghdr {
 
                     SysMgr.printPipe(output, newline=False, flush=True)
 
-                    # call function $
+                    # call function #
                     ret = self.setenv(argList[0], argList[1])
                     if ret == 0:
                         res = 'success'
@@ -37705,7 +37720,7 @@ struct cmsghdr {
 
                     SysMgr.printPipe(output, newline=False, flush=True)
 
-                    # call function $
+                    # call function #
                     ret = self.getenv(val)
 
                     # update return #
@@ -38341,7 +38356,6 @@ struct cmsghdr {
 
 
     def convRemoteArgs(self, args):
-        isTemp = True
         freelist = []
         for idx, item in enumerate(deepcopy(args)):
             if type(item) is not str:
@@ -38351,8 +38365,7 @@ struct cmsghdr {
                 try:
                     args[idx] = long(item, 16)
                 except:
-                    addr = self.calloc(string=item, temp=isTemp)
-                    isTemp = False
+                    addr = self.calloc(string=item, temp=False)
                     if not addr:
                         sys.exit(0)
 
@@ -38600,7 +38613,7 @@ struct cmsghdr {
         self.setRegs()
 
         # call function #
-        self.cont()
+        self.cont(check=True)
         if not wait:
             return None
         ret = self.waitpid()
@@ -42145,24 +42158,25 @@ struct cmsghdr {
 
                 SysMgr.printEnable = origPrintFlag
 
+                # create a progress file #
+                os.open(progressPath, os.O_CREAT, 0o777)
+
                 # remove lock file #
                 try:
                     os.remove(Debugger.gLockPath)
                 except:
                     pass
-
-                # create a progress file #
-                os.open(progressPath, os.O_CREAT, 0o777)
             # siblings #
             else:
-                # wait for termination of tracer for main thread #
+                # wait for termination of the tracer for the main thread #
                 while 1:
-                    if not os.path.exists(progressPath):
-                        if not SysMgr.isAlive(tgid):
-                            break
+                    if os.path.exists(progressPath):
+                        break
+                    elif not SysMgr.isAlive(tgid):
+                        break
+                    else:
                         time.sleep(0.01)
                         continue
-                    break
 
         instance.__del__()
 
