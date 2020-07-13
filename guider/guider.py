@@ -20892,7 +20892,7 @@ Copyright:
 
     @staticmethod
     def printInfoBuffer():
-        SysMgr.printPipe(SysMgr.systemInfoBuffer)
+        SysMgr.printPipe(SysMgr.systemInfoBuffer+'\n')
         SysMgr.clearInfoBuffer()
 
 
@@ -29770,7 +29770,10 @@ Copyright:
             try:
                 policy = schedSet[0].upper()
                 ConfigMgr.SCHED_POLICY.index(policy)
-                pri = long(schedSet[1])
+
+                pri = schedSet[1]
+                if UtilMgr.isNumber(pri):
+                    pri = long(pri)
 
                 # change myself #
                 if len(schedSet) == 2:
@@ -50463,6 +50466,8 @@ class ThreadAnalyzer(object):
                     prio = long(value['pri']) - 120
                     if prio >= -20:
                         value['pri'] = str(prio)
+                    elif prio == -121:
+                        value['pri'] = 'D99'
                     else:
                         value['pri'] = 'R%2s' % abs(prio + 21)
                 except:
@@ -50629,7 +50634,7 @@ class ThreadAnalyzer(object):
 
             try:
                 usagePercent = \
-                    round(float(value['usage']) / float(self.totalTime), 7) * 100
+                    round(value['usage'] / float(self.totalTime), 7) * 100
             except:
                 usagePercent = long(0)
 
