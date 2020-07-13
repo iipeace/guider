@@ -25222,7 +25222,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            SysMgr.printWarn("Fail to read user input", reason=True)
         finally:
             SysMgr.inWaitStatus = False
 
@@ -25343,8 +25343,10 @@ Copyright:
             ulist[0].upper() == 'Q':
             sys.exit(0)
 
+        '''
         SysMgr.printPipe("Input ENTER to continue...")
         sys.stdin.readline()
+        '''
 
 
 
@@ -42315,15 +42317,15 @@ struct cmsghdr {
         ttime /= float(nrCpuUsageSample)
         utime /= float(nrCpuUsageSample)
         stime /= float(nrCpuUsageSample)
-        cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
+        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
 
         SysMgr.printPipe((\
-            '\n[%s %s Summary] [Elapsed: %g] %s[Task: %s(%s)] '
-            '[NrSamples: %s%s] [NrSymbols: %s] [CPU: %s] %s') % \
+            '\n[%s %s Summary] [Elapsed: %g] %s[%s(%s): %s] '
+            '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, \
-                instance.comm, instance.pid, \
+                instance.comm, instance.pid, cpuStr, \
                 convert(long(nrTotal)), sampleRateStr, \
-                convert(len(callTable)), cpuStr, suffix))
+                convert(len(callTable)), suffix))
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(\
@@ -42364,12 +42366,12 @@ struct cmsghdr {
         if len(fileTable) > 0:
             # print file table #
             SysMgr.printPipe((\
-                '\n[%s File Summary] [Elapsed: %g] %s[Task: %s(%s)] '
-                '[NrSamples: %s(%s%%)] [NrFiles: %s] [CPU: %s] %s') % \
+                '\n[%s File Summary] [Elapsed: %g] %s[%s(%s): %s] '
+                '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
                     (mtype, elapsed, samplingStr, \
-                    instance.comm, instance.pid, \
+                    instance.comm, instance.pid, cpuStr, \
                     convert(long(nrTotal)), perSample, \
-                    convert(len(fileTable)), cpuStr, suffix))
+                    convert(len(fileTable)), suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
             SysMgr.printPipe(\
                 '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
