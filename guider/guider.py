@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200713"
+__revision__ = "200716"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -54406,6 +54406,11 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
+        commIdx = ConfigMgr.STAT_ATTR.index("COMM")
+        stttimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+        utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
+        stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+
         # get process/thread tree #
         try:
             procTree = ThreadAnalyzer.getProcTreeFromList(instance)
@@ -54414,16 +54419,40 @@ class ThreadAnalyzer(object):
             return
 
         # print nodes in tree #
-        def printTreeNodes(root, depth, commIdx):
+        def printTreeNodes(root, depth):
             treestr = ''
 
-            for pid, childs in root.items():
+            for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
                 indent = ''
 
+                # get comm #
                 try:
                     comm = instance[pid]['stat'][commIdx][1:-1]
                 except:
-                    continue
+                    comm = '?'
+
+                # get runtime #
+                try:
+                    runtime = long(instance[pid]['stat'][stttimeIdx]) / 100
+                    runtime = SysMgr.uptime - runtime
+                    runtimestr = UtilMgr.convTime(runtime)
+                except:
+                    runtime = '?'
+
+                # get CPU time #
+                try:
+                    utime = long(instance[pid]['stat'][utimeIdx])
+                    stime = long(instance[pid]['stat'][stimeIdx])
+                    ttime = utime + stime
+                    ttimestr = UtilMgr.convTime(utime+stime)
+                except:
+                    ttime = '?'
+
+                # get CPU time by runtime #
+                try:
+                    cpuPer = round(ttime / float(runtime) * 100, 1)
+                except:
+                    cpuPer = 0
 
                 if depth == 0:
                     indent = '\n'
@@ -54431,21 +54460,21 @@ class ThreadAnalyzer(object):
                 for idx in range(0, depth):
                     indent = '%s%s|' % (indent, ' ' * 5)
 
+                treestr += '%s- %s(%s) %.1f%%(%s/%s) ' % \
+                    (indent, comm, pid, cpuPer, ttimestr, runtimestr)
+
                 nrChild = len(childs)
                 if nrChild > 0:
-                    treestr += '%s- %s(%s)[%s]\n' % \
-                        (indent, comm, pid, nrChild)
-                else:
-                    treestr += '%s- %s(%s)\n' % (indent, comm, pid)
+                    treestr += '<%s>' % nrChild
 
-                treestr += printTreeNodes(childs, depth + 1, commIdx)
+                treestr += '\n'
+
+                treestr += printTreeNodes(childs, depth + 1)
 
             return treestr
 
-        commIdx = ConfigMgr.STAT_ATTR.index("COMM")
-
         # get string for tree #
-        finalstr = printTreeNodes(procTree, 0, commIdx)
+        finalstr = printTreeNodes(procTree, 0)
 
         # print tree #
         SysMgr.printPipe(finalstr)
