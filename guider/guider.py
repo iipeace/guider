@@ -88,12 +88,12 @@ class ConfigMgr(object):
     confData = {}
 
     # Define support architecture #
-    supportArch = {
+    supportArch = [
         'arm',
         'aarch64',
         'x86',
         'x64'
-    }
+    ]
 
     # Define ANSI color #
     COLOR_LIST = {
@@ -3495,7 +3495,7 @@ class UtilMgr(object):
     @staticmethod
     def compareSyscallSuperset():
         # initialize ignore list #
-        ignorelist = set([
+        ignoreList = set([
             'sys_ppoll_time64', 'sys_nfsservctl', 'sys_null',
             'sys_setfsgid32', 'sys_ftime', 'sys_geteuid32',
             'sys_clock_adjtime64', 'sys_timerfd_settime64',
@@ -3504,23 +3504,24 @@ class UtilMgr(object):
             'sys_gtty', 'sys_setresgid32', 'sys_reserved', 'sys_unused',
         ])
 
-        superset = {}
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_COMMON})
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_COMMON32})
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_X86})
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_X64})
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_ARM})
-        superset.update({i:0 for i in ConfigMgr.SYSCALL_AARCH64})
-        supersetlist = set(superset.keys())
-        protolist = \
+        syscallList = \
+            ConfigMgr.SYSCALL_COMMON + \
+            ConfigMgr.SYSCALL_COMMON32 + \
+            ConfigMgr.SYSCALL_X86 + \
+            ConfigMgr.SYSCALL_X64 + \
+            ConfigMgr.SYSCALL_ARM + \
+            ConfigMgr.SYSCALL_AARCH64
+        syscallList = set(syscallList)
+
+        protoList = \
             set(['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
 
         # print final diff list #
         print("--- no prototype ---")
-        print(list(supersetlist - protolist - ignorelist))
+        print(list(syscallList - protoList - ignoreList))
 
         print("\n--- no define ---")
-        print(list(protolist - supersetlist))
+        print(list(protoList - syscallList))
 
 
 
@@ -14423,7 +14424,10 @@ class SysMgr(object):
             importList = \
                 [name for name in moduleDict if not name.startswith('_')]
 
-        globals().update({name: moduleDict[name] for name in importList})
+        newDict = {}
+        for name in importList:
+            newDict[name] = moduleDict[name]
+        globals().update(newDict)
 
         SysMgr.impGlbPkg[pkg] = True
 
@@ -27466,7 +27470,7 @@ Copyright:
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to find a unique process because "
-                "multiple processes [ %s ] are found") % ', '.join(pids))
+                "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
         else:
@@ -27585,6 +27589,8 @@ Copyright:
             if len(fileList) == 0 or \
                     (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
+
+            UtilMgr.printProgress()
 
             # sort by size #
             if SysMgr.showAll:
@@ -27745,7 +27751,7 @@ Copyright:
         elif len(pids) > 1:
             SysMgr.printErr((\
                 "Fail to find a unique process because "
-                "multiple processes [ %s ] are found") % ', '.join(pids))
+                "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
         else:
@@ -54443,8 +54449,8 @@ class ThreadAnalyzer(object):
                 try:
                     utime = long(instance[pid]['stat'][utimeIdx])
                     stime = long(instance[pid]['stat'][stimeIdx])
-                    ttime = utime + stime
-                    ttimestr = UtilMgr.convTime(utime+stime)
+                    ttime = (utime + stime) / 100
+                    ttimestr = UtilMgr.convTime(ttime)
                 except:
                     ttime = '?'
 
@@ -54460,8 +54466,9 @@ class ThreadAnalyzer(object):
                 for idx in range(0, depth):
                     indent = '%s%s|' % (indent, ' ' * 5)
 
-                treestr += '%s- %s(%s) %.1f%%(%s/%s) ' % \
-                    (indent, comm, pid, cpuPer, ttimestr, runtimestr)
+                procInfo = "%s(%s)" % (comm, pid)
+                treestr += '%s- %-22s %3d%%(%s/%s) ' % \
+                    (indent, procInfo, cpuPer, ttimestr, runtimestr)
 
                 nrChild = len(childs)
                 if nrChild > 0:
