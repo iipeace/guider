@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200716"
+__revision__ = "200717"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13624,6 +13624,7 @@ class SysMgr(object):
         self.devData = None
         self.procData = None
         self.macAddr = None
+        self.uname = []
 
         # update starttime #
         SysMgr.updateUptime()
@@ -13770,13 +13771,18 @@ class SysMgr(object):
         '''
 
         # try to set maxFd with hard limit #
-        resource = SysMgr.getPkg('resource', False, True)
-        if resource:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (1048576, 1048576))
-            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-            SysMgr.maxFd = hard
-            SysMgr.maxKeepFd = SysMgr.maxFd - 16
-            return
+        try:
+            resource = SysMgr.getPkg('resource', False, True)
+            if resource:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (1048576, 1048576))
+                soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+                SysMgr.maxFd = hard
+                SysMgr.maxKeepFd = SysMgr.maxFd - 16
+                return
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         # try to get maxFd by native call #
         try:
@@ -14832,7 +14838,8 @@ class SysMgr(object):
     @staticmethod
     def getCommList(pidList):
         try:
-            commList = ['%s(%s)' % (SysMgr.getComm(pid), pid) for pid in pidList]
+            commList = ['%s(%s)' % \
+                (SysMgr.getComm(pid), pid) for pid in pidList]
             return ', '.join(commList)
         except:
             return ', '.join(pidList)
@@ -15581,6 +15588,16 @@ class SysMgr(object):
                 '%s platform is not supported now' % sys.platform)
             sys.exit(0)
 
+        # check locale #
+        try:
+            lang = os.getenv('LANG')
+            if lang and 'UTF' in lang:
+                SysMgr.encodeEnable = True
+            else:
+                SysMgr.encodeEnable = False
+        except:
+            pass
+
         # check python #
         if sys.version_info < (2, 6):
             SysMgr.printWarn(\
@@ -15936,9 +15953,9 @@ Commands:
     exec:CMD
     sleep:SEC
     getarg:REGS
-    setenv:VAR:VAL
-    getenv:VAR
     setarg:REG#VAL
+    getenv:VAR
+    setenv:VAR:VAL
     load:PATH
     save:NAME
     jump:FUNC#ARGS
@@ -27107,8 +27124,9 @@ Copyright:
 
             # merge map files #
             mapList = []
+            getProcMapInfo = FileAnalyzer.getProcMapInfo
             for pid in pidList:
-                mapList += FileAnalyzer.getProcMapInfo(pid, onlyExec=True).keys()
+                mapList += getProcMapInfo(pid, onlyExec=True).keys()
             mapList = list(set(mapList))
 
             # load symbol caches at once #
@@ -27210,24 +27228,6 @@ Copyright:
         if not SysMgr.prio:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
-        # get input path #
-        if SysMgr.inputParam:
-            inputParam = str(SysMgr.inputParam)
-        else:
-            inputParam = None
-
-        # convert comm to pid #
-        pids = SysMgr.convertPidList(\
-            SysMgr.filterGroup, isThread=True, \
-                sibling=SysMgr.groupProcEnable)
-
-        # get pids of process groups #
-        if mode == 'breakcall':
-            allpids = SysMgr.convertPidList(\
-                SysMgr.filterGroup, isThread=True, sibling=True)
-        else:
-            allpids = pids
-
         # create event memory #
         Debugger.globalEvent = SysMgr.createShm()
 
@@ -27236,10 +27236,26 @@ Copyright:
             mode == 'breakcall' or mode == 'hook' or \
             SysMgr.funcDepth > 0)
 
-        # check tid #
-        if inputParam:
+        # get pids #
+        if not SysMgr.inputParam:
+            inputParam = None
+
+            # convert comm to pid #
+            pids = SysMgr.convertPidList(\
+                SysMgr.filterGroup, isThread=True, \
+                    sibling=SysMgr.groupProcEnable)
+
+            # get pids of process groups #
+            if mode == 'breakcall':
+                allpids = SysMgr.convertPidList(\
+                    SysMgr.filterGroup, isThread=True, sibling=True)
+            else:
+                allpids = pids
+
+        # check command #
+        if SysMgr.inputParam:
             pid = None
-            execCmd = inputParam.split()
+            execCmd = SysMgr.inputParam.split()
         # check permission #
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
@@ -27251,7 +27267,7 @@ Copyright:
                 flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(\
                     "No thread related to %s" % flist)
-            elif not inputParam:
+            elif not SysMgr.inputParam:
                 SysMgr.printErr(\
                     "No TID with -g option or command with -I option")
             else:
@@ -30182,30 +30198,6 @@ Copyright:
         [4] = lastPid
         '''
 
-        # kernel version #
-        try:
-            self.systemInfo['kernelVer'] = \
-                SysMgr.procReadline(\
-                    'sys/kernel/osrelease').strip('\n')
-        except:
-            pass
-
-        # os version #
-        try:
-            self.systemInfo['osVer'] = \
-                SysMgr.procReadline(\
-                    'sys/kernel/version').strip('\n')
-        except:
-            pass
-
-        # os type #
-        try:
-            self.systemInfo['osType'] = \
-                SysMgr.procReadline(\
-                    'sys/kernel/ostype').strip('\n')
-        except:
-            pass
-
         # rtc #
         try:
             timeInfo = SysMgr.procReadlines('driver/rtc')
@@ -30232,7 +30224,8 @@ Copyright:
         self.updateIPCInfo()
         self.saveMacAddr()
 
-        # save user info #
+        # save syste/user info #
+        self.saveUnameInfo()
         self.saveUserInfo()
 
         # save system info #
@@ -31660,6 +31653,49 @@ Copyright:
         except:
             pass
 
+        # hostname #
+        try:
+            hostname = self.uname[1]
+            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+                format('Host', hostname))
+
+            if SysMgr.jsonOutputEnable:
+                jsonData['host'] = hostname
+        except:
+            pass
+
+        # os #
+        try:
+            osInfo = self.uname[0]
+            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
+                format('OS', osInfo))
+
+            if SysMgr.jsonOutputEnable:
+                jsonData['os'] = osInfo
+        except:
+            pass
+
+        # kernel #
+        try:
+            kernelInfo = self.uname[2]
+            SysMgr.infoBufferPrint(\
+                "{0:20} {1:<100}".format('Kernel', kernelInfo))
+
+            if SysMgr.jsonOutputEnable:
+                jsonData['kernel'] = kernelInfo
+        except:
+            pass
+
+        # release #
+        try:
+            releaseInfo = self.uname[3]
+            SysMgr.infoBufferPrint(\
+                "{0:20} {1:<100}".format('Release', releaseInfo))
+
+            if SysMgr.jsonOutputEnable:
+                jsonData['release'] = releaseInfo
+        except:
+            pass
 
         # CPU architecture #
         try:
@@ -31681,28 +31717,6 @@ Copyright:
             if SysMgr.jsonOutputEnable:
                 jsonData['date'] = self.systemInfo['date']
                 jsonData['time'] = self.systemInfo['time']
-        except:
-            pass
-
-        # os #
-        try:
-            SysMgr.infoBufferPrint("{0:20} {1:<100}".\
-                format('OS', self.systemInfo['osVer']))
-
-            if SysMgr.jsonOutputEnable:
-                jsonData['os'] = self.systemInfo['osVer']
-        except:
-            pass
-
-        # kernel #
-        try:
-            kernelInfo = '%s %s' % \
-                (self.systemInfo['osType'], self.systemInfo['kernelVer'])
-            SysMgr.infoBufferPrint(\
-                "{0:20} {1:<100}".format('Kernel', kernelInfo))
-
-            if SysMgr.jsonOutputEnable:
-                jsonData['kernel'] = kernelInfo
         except:
             pass
 
@@ -32327,6 +32341,17 @@ Copyright:
                 self.networkInfo[dev]['tran'] = tlist
         except:
             return
+
+
+
+    def saveUnameInfo(self):
+        if self.uname:
+            return
+
+        try:
+            self.uname = os.uname()
+        except:
+            pass
 
 
 
@@ -36681,6 +36706,7 @@ struct cmsghdr {
 
 
         # running #
+        self.isRunning = False
         if self.checkPid(pid) >= 0:
             self.pid = pid
             self.isRunning = True
@@ -36700,11 +36726,9 @@ struct cmsghdr {
         # execute #
         elif self.execCmd:
             self.execute(self.execCmd)
-            self.isRunning = False
         # ready #
         else:
             self.pid = None
-            self.isRunning = False
 
         # set register variables #
         self.regs = user_regs_struct()
@@ -59907,6 +59931,10 @@ class ThreadAnalyzer(object):
             'interval': interval,
             'nrIrq': nrIrq,
             'nrSoftIrq': nrSoftIrq,
+            'os': SysMgr.sysInstance.uname[0],
+            'host': SysMgr.sysInstance.uname[1],
+            'kernel': SysMgr.sysInstance.uname[2],
+            'release': SysMgr.sysInstance.uname[3],
             }
 
         # load #
