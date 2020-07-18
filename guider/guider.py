@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200717"
+__revision__ = "200719"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13179,7 +13179,7 @@ class LogMgr(object):
                     log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
 
             # apply filter #
-            if len(SysMgr.filterGroup) > 0:
+            if SysMgr.filterGroup:
                 found = False
                 for string in SysMgr.filterGroup:
                     if string in log:
@@ -15416,6 +15416,10 @@ class SysMgr(object):
         if ignChldSig:
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
+        # backup SIGINT handler and set new handler #
+        handle = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, SysMgr.defaultHandler)
+
         # pause task #
         try:
             signal.pause()
@@ -15428,6 +15432,9 @@ class SysMgr(object):
                 pass
         except:
             pass
+
+        # restore SIGINT handler #
+        signal.signal(signal.SIGINT, handle)
 
 
 
@@ -15797,7 +15804,7 @@ Usage:
                 topCommonStr = '''
     -o  <DIR|FILE>              save output data
     -u                          run in the background
-    -W                          wait for signal
+    -W                          wait for input
     -b  <SIZE:KB>               set buffer size
     -T  <FILE>                  set font path
     -j  <DIR|FILE>              set report path
@@ -16145,7 +16152,7 @@ Options:
     -b  <SIZE:KB>               set buffer size
     -t  <SYSCALL>               trace syscall
     -B  <DIR|FILE>              set command script path
-    -W                          wait for signal
+    -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -M  <FILE>                  set objdump path
     -U  <NAME:FUNC|ADDR:FILE>   set user event
@@ -16245,7 +16252,7 @@ Options:
           e:encode
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
-    -W                          wait for signal
+    -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS>             set terminal size
@@ -16285,7 +16292,7 @@ Options:
     -u                          run in the background
     -b  <SIZE:KB>               set buffer size
     -t  <SYSCALL>               trace syscall
-    -W                          wait for signal
+    -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS>             set terminal size
@@ -16356,7 +16363,7 @@ Options:
           e:encode
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
-    -W                          wait for signal
+    -W                          wait for input
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS>             set terminal size
     -Q                          print all rows in a stream
@@ -16392,7 +16399,7 @@ Options:
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
-    -W                          wait for signal
+    -W                          wait for input
     -b  <SIZE:KB>               set buffer size
     -D                          trace thread dependency
     -t  <SYSCALL>               trace syscall
@@ -22454,6 +22461,9 @@ Copyright:
                 SysMgr.archOption = value
                 SysMgr.setArch(value)
 
+            elif option == 'W':
+                SysMgr.waitEnable = True
+
             elif option == 'E':
                 SysMgr.cacheDirPath = value
                 SysMgr.printInfo(\
@@ -25190,9 +25200,11 @@ Copyright:
 
 
     @staticmethod
-    def waitUserInput(wait=0, msg=None, newline=True):
+    def waitUserInput(wait=0, msg=None, newline=True, force=False):
         # check condition #
-        if SysMgr.printFile or \
+        if force:
+            pass
+        elif SysMgr.printFile or \
             SysMgr.bgStatus or \
             not sys.stdin or \
             SysMgr.isRepTopMode() or \
@@ -25238,8 +25250,11 @@ Copyright:
             elif wait == 0:
                 sys.stdout.write(msg + suffix)
                 sys.stdout.flush()
-                sys.stdin.readline()
-                sys.stdout.write("\033[F")
+                if force:
+                    SysMgr.waitEvent()
+                else:
+                    sys.stdin.readline()
+                    sys.stdout.write("\033[F")
         except SystemExit:
             sys.exit(0)
         except:
@@ -29708,41 +29723,42 @@ Copyright:
             if nrSig == signal.SIGINT:
                 waitStatus = False
 
+                # check wait option in cmdline #
                 try:
                     cmdList = SysMgr.getCmdline(pid, True)
                     for val in cmdList:
-                        if val == '-c':
+                        if val == '-W':
                             waitStatus = True
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
                 try:
-                    # get comm #
-                    comm = SysMgr.getComm(pid)
-
                     kill(long(pid), nrSig)
 
                     if verbose:
                         if SysMgr.isStartMode() and waitStatus:
                             SysMgr.printInfo(\
-                                "started %s process to profile" % pid)
+                                "started %s(%s) to profile" % (comm, pid))
                         elif SysMgr.isStopMode():
                             SysMgr.printInfo(\
                                 "sent signal %s to %s(%s) %s" % \
                                     (SIG_LIST[nrSig], comm, pid, taskType))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
             else:
                 try:
-                    # get comm #
-                    comm = SysMgr.getComm(pid)
-
                     kill(long(pid), nrSig)
 
                     if verbose:
                         SysMgr.printInfo(\
                             "sent signal %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig])
 
@@ -31173,7 +31189,7 @@ Copyright:
         #-------------------- THREAD MODE --------------------#
         # enable sched events #
         if self.cmdList["sched/sched_switch"]:
-            if len(SysMgr.filterGroup) > 0:
+            if SysMgr.filterGroup:
                 cmd = "prev_pid == 0 || next_pid == 0 || "
 
                 # apply filter #
@@ -31219,7 +31235,7 @@ Copyright:
                 sys.exit(0)
 
         # build sched filter #
-        if len(SysMgr.filterGroup) > 0:
+        if SysMgr.filterGroup:
             cmd = ""
 
             # apply filter #
@@ -35514,7 +35530,7 @@ class DltAnalyzer(object):
         # summarizing #
         if mode == 'top':
             # check filter #
-            if len(filterGroup) > 0:
+            if filterGroup:
                 skipFlag = True
                 for cond in filterGroup:
                     if cond == ecuId or \
@@ -35555,7 +35571,7 @@ class DltAnalyzer(object):
                 string = [string]
 
             # check filter #
-            if len(filterGroup) > 0:
+            if filterGroup:
                 skipFlag = True
                 for cond in filterGroup:
                     if cond == ecuId or \
@@ -40261,31 +40277,31 @@ struct cmsghdr {
 
     def checkSymbol(self, sym, newline=False, bt=None):
         if not SysMgr.customCmd or \
-            SysMgr.printFile:
+            SysMgr.printFile or \
+            not sym in SysMgr.customCmd:
             return
 
-        if sym in SysMgr.customCmd:
-            sys.stdout.write('\n')
+        sys.stdout.write('\n')
 
-            if SysMgr.showAll:
-                # print register set #
-                self.printContext(newline=newline)
+        if SysMgr.showAll:
+            # print register set #
+            self.printContext(newline=newline)
 
-                # print backtrace #
-                try:
-                    if not bt:
-                        bt = self.getBacktrace()
-                except:
-                    pass
+            # print backtrace #
+            try:
+                if not bt:
+                    bt = self.getBacktrace()
+            except:
+                pass
 
-            # disable timer #
-            signal.alarm(0)
+        # disable timer #
+        signal.alarm(0)
 
-            SysMgr.waitUserInput(wait=0, \
-                msg="%s() is detected! Press enter to continue..." % sym)
+        SysMgr.waitUserInput(wait=0, \
+            msg="%s() is detected! Press enter to continue..." % sym)
 
-            # enable timer #
-            SysMgr.updateTimer()
+        # enable timer #
+        SysMgr.updateTimer()
 
 
 
@@ -40630,8 +40646,9 @@ struct cmsghdr {
 
         # execute remote commands #
         for cmd in SysMgr.customCmd:
-            if cmd:
-                self.executeCmd([cmd], None, args=args)
+            if not cmd:
+                continue
+            self.executeCmd([cmd], None, args=args)
 
 
 
@@ -41559,7 +41576,9 @@ struct cmsghdr {
 
 
     def getAddrBySymbol(\
-        self, symbol, binary=None, inc=False, start=False, end=False, one=False):
+        self, symbol, binary=None, inc=False, \
+        start=False, end=False, one=False):
+
         # check memory map #
         if not self.pmap:
             self.loadSymbols()
@@ -46742,7 +46761,7 @@ class ThreadAnalyzer(object):
                 SysMgr.intervalEnable = 1
 
             # remove wrong filter #
-            if len(SysMgr.filterGroup) > 0:
+            if SysMgr.filterGroup:
                 for idx, val in enumerate(SysMgr.filterGroup):
                     if len(val) == 0:
                         SysMgr.filterGroup.pop(idx)
@@ -46789,6 +46808,11 @@ class ThreadAnalyzer(object):
             if SysMgr.printFile:
                 SysMgr.printStat(\
                     r"start profiling... [ STOP(Ctrl+c), SAVE(Ctrl+\) ]")
+
+            # wait for input #
+            if SysMgr.waitEnable:
+                SysMgr.waitUserInput(\
+                    0, msg="\nPress enter key...", force=True)
 
             # file top mode #
             if SysMgr.fileTopEnable:
@@ -62990,12 +63014,10 @@ def main(args=None):
     if SysMgr.isRecordMode():
         SysMgr.setRecordAttr()
 
-        # wait for signal #
+        # wait for input #
         if SysMgr.waitEnable:
-            SysMgr.printStat(\
-                "wait for user input... [ START(Ctrl+c) ]")
-
-            SysMgr.waitEvent()
+            SysMgr.waitUserInput(\
+                0, msg="\nPress enter key...", force=True)
 
         # set normal signal #
         SysMgr.setNormalSignal()
