@@ -3526,6 +3526,28 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def isBitEnabled(num, bits):
+        if not bits:
+            return None
+
+        try:
+            num = long(num)
+        except:
+            num = long(num, 16)
+
+        try:
+            bits = long(bits)
+        except:
+            bits = long(bits, 16)
+
+        if bits & (1 << num-1):
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def getSigList():
         sigList = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
             if v.startswith('SIG') and not v.startswith('SIG_'))
@@ -28002,7 +28024,8 @@ Copyright:
 
         # create a task object #
         tobj = ThreadAnalyzer(None, onlyInstance=True)
-        tobj.saveProcData('%s/%s' % (SysMgr.procPath, pid), pid)
+        path = '%s/%s' % (SysMgr.procPath, pid)
+        tobj.saveProcData(path, pid)
         SysMgr.updateUptime()
         tobj.setProcUsage()
 
@@ -28126,6 +28149,25 @@ Copyright:
         if hookCmd:
             hcmd = \
                 ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
+
+        # check signal handler #
+        try:
+            tobj.saveProcStatusData(path, pid)
+            sigList = tobj.procData[pid]['status']['SigCgt']
+            if startSig and UtilMgr.isBitEnabled(startSig, sigList) is False:
+                SysMgr.printErr(\
+                    "Fail to find start handler for %s(%s)" % \
+                        (ConfigMgr.SIG_LIST[startSig], startSig))
+                sys.exit(0)
+            if stopSig and UtilMgr.isBitEnabled(stopSig, sigList) is False:
+                SysMgr.printErr(\
+                    "Fail to find stop handler for %s(%s)" % \
+                        (ConfigMgr.SIG_LIST[stopSig], stopSig))
+                sys.exit(0)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("Fail to check signal", reason=True)
 
         # START #
         cmd = SysMgr.customCmd
