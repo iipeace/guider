@@ -6638,7 +6638,7 @@ class FunctionAnalyzer(object):
             sys.exit(0)
 
         # Check target thread setting #
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.filterGroup:
             SysMgr.filterGroup.insert(0, '')
             self.target = []
         else:
@@ -11842,7 +11842,7 @@ class FileAnalyzer(object):
         self.init_inodeData = {}
 
         # handle no target case #
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.filterGroup:
             SysMgr.filterGroup.insert(0, '')
 
         if not SysMgr.guiderObj:
@@ -14421,8 +14421,7 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to set CPU affinity of task "
-                "because of no target")
+                "Fail to set CPU affinity of task because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -14518,8 +14517,7 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to get CPU affinity of task "
-                "because of no target")
+                "Fail to get CPU affinity of task because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -15761,7 +15759,8 @@ class SysMgr(object):
                 'printcrp': 'Cgroup',
                 'printdir': 'Dir',
                 'printdbus': 'D-Bus',
-                'printsig': 'D-Bus',
+                'printsubsc': 'D-Bus',
+                'printsig': 'Signal',
                 'printns': 'Namespace',
                 'printsvc': 'systemd',
                 },
@@ -17418,6 +17417,27 @@ Examples:
 
                 # printsig #
                 elif SysMgr.isPrintSigMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show signal status
+
+Options:
+    -o  <DIR|FILE>              save output data
+    -g  <TID|COMM>              set filter
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print signal status info for a specific process
+        # {0:1} {1:1} -g a.out
+                    '''.format(cmd, mode)
+
+                # printsubsc #
+                elif SysMgr.isPrintSubscMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -22978,7 +22998,7 @@ Copyright:
             elif option == 'g':
                 itemList = UtilMgr.parseInputString(value)
                 SysMgr.filterGroup = SysMgr.clearList(itemList)
-                if len(SysMgr.filterGroup) == 0:
+                if not SysMgr.filterGroup:
                     SysMgr.printErr(\
                         "Input value for filter with -g option")
                     sys.exit(0)
@@ -24002,8 +24022,8 @@ Copyright:
 
             DbusAnalyzer.runDbusSnooper(mode='print')
 
-        # PRINTSIG MODE #
-        elif SysMgr.isPrintSigMode():
+        # PRINTSUBSC MODE #
+        elif SysMgr.isPrintSubscMode():
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusAnalyzer.runDbusSnooper(mode='signal')
@@ -24037,6 +24057,12 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             LogMgr.printJournal()
+
+        # PRINTSIG MODE #
+        elif SysMgr.isPrintSigMode():
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            SysMgr.doPrintSig()
 
         # PAGE MODE #
         elif SysMgr.isMemMode():
@@ -24155,6 +24181,7 @@ Copyright:
         # EVENT MODE #
         elif SysMgr.isEventMode():
             SysMgr.handleEventInput()
+
         else:
             return
 
@@ -24351,6 +24378,15 @@ Copyright:
     @staticmethod
     def isPrintDbusMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'printdbus':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isPrintSubscMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'printsubsc':
             return True
         else:
             return False
@@ -26511,7 +26547,7 @@ Copyright:
             SysMgr.printErr(\
                 "Fail to find CPU node for governor")
             sys.exit(0)
-        elif len(SysMgr.filterGroup) == 0:
+        elif not SysMgr.filterGroup:
             SysMgr.printErr(\
                 "No core value with -g option")
             sys.exit(0)
@@ -27246,7 +27282,7 @@ Copyright:
         targetBpFileList = {}
 
         # check input #
-        if len(SysMgr.filterGroup) == 0 and \
+        if not SysMgr.filterGroup and \
             not SysMgr.inputParam:
             SysMgr.printErr(\
                 "Input value for target with -g or -I option")
@@ -27462,7 +27498,7 @@ Copyright:
             sys.exit(0)
 
         # check symbol #
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.filterGroup:
             SysMgr.printErr(\
                 "No offset with -g")
             sys.exit(0)
@@ -27762,7 +27798,7 @@ Copyright:
             sys.exit(0)
 
         # check symbol #
-        if len(SysMgr.filterGroup) == 0:
+        if not SysMgr.filterGroup:
             SysMgr.filterGroup.append('**')
 
         resInfo = {}
@@ -29316,7 +29352,64 @@ Copyright:
 
         ThreadAnalyzer.printProcTree(obj.procData)
 
-        sys.exit(0)
+
+
+    @staticmethod
+    def doPrintSig():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        # check target #
+        if not SysMgr.filterGroup:
+            SysMgr.printErr(\
+                "No PID or COMM with -g")
+            sys.exit(0)
+
+        # get pid list #
+        pids = []
+        for item in SysMgr.filterGroup:
+            pids += SysMgr.getPids(item)
+        if not pids:
+            SysMgr.printErr("No target threads")
+
+        tobj = ThreadAnalyzer(onlyInstance=True)
+        for pid in pids:
+            proc = '%s(%s)' % (SysMgr.getComm(pid), pid)
+
+            # get process info #
+            path = '%s/%s' % (SysMgr.procPath, pid)
+            tobj.saveProcData(path, pid)
+            tobj.saveProcStatusData(path, pid)
+
+            # print process name #
+            SysMgr.printPipe(\
+                '\n[Signal Status Info] %s\n%s' % (proc, twoLine))
+
+            # get signal info #
+            printed = False
+            for name, val in tobj.procData[pid]['status'].items():
+                if not name.startswith('Sig') or \
+                    len(name) != 6:
+                    continue
+
+                sigList = []
+                listLen = len(val) * 4 + 1
+                for pos in range(1, listLen):
+                    if UtilMgr.isBitEnabled(pos, val) and \
+                        len(ConfigMgr.SIG_LIST) > pos and \
+                        ConfigMgr.SIG_LIST[pos] != 'NONE':
+                        sigList.append(ConfigMgr.SIG_LIST[pos])
+
+                if not sigList:
+                    continue
+
+                printed = True
+
+                SysMgr.printPipe(\
+                    '%s: %s' % (name, '|'.join(sigList)))
+
+            if not printed:
+                SysMgr.printPipe('\tNone\n')
+            SysMgr.printPipe(oneLine)
 
 
 
@@ -29373,8 +29466,6 @@ Copyright:
             obj.printSystemStat()
 
         SysMgr.printTopStats()
-
-        sys.exit(0)
 
 
 
@@ -35307,7 +35398,8 @@ class DbusAnalyzer(object):
                 ret = DbusAnalyzer.getStats(bus, 'allmatch')
                 if ret:
                     perProc, perSig = ret
-                    DbusAnalyzer.printSignalInfo(tid, perProc, perSig, busProcList)
+                    DbusAnalyzer.printSignalInfo(\
+                        tid, perProc, perSig, busProcList)
                 continue
 
             # create a new process #
@@ -46495,7 +46587,8 @@ class ThreadAnalyzer(object):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
-                    prevGpuProcList = statFileList[flist[idx-1]]['gpuProcUsage']
+                    prevGpuProcList = \
+                        statFileList[flist[idx-1]]['gpuProcUsage']
                 except:
                     prevGpuProcList = None
 
@@ -46503,7 +46596,8 @@ class ThreadAnalyzer(object):
 
                 # no target process in this file #
                 if not pname in gpuProcList:
-                    if idx > 0 and prevGpuProcList and pname in prevGpuProcList:
+                    if idx > 0 and prevGpuProcList and \
+                        pname in prevGpuProcList:
                         printBuf = '%s %6.1f%%%s' % \
                             (printBuf, -(prevGpuProcList[pname]['average']), \
                                 emptyGpuStat[7:])
@@ -46573,7 +46667,8 @@ class ThreadAnalyzer(object):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
-                    prevRssProcList = statFileList[flist[idx-1]]['memProcUsage']
+                    prevRssProcList = \
+                        statFileList[flist[idx-1]]['memProcUsage']
                 except:
                     prevRssProcList = None
 
@@ -46581,7 +46676,8 @@ class ThreadAnalyzer(object):
 
                 # no target process in this file #
                 if not pname in rssProcList:
-                    if idx > 0 and prevRssProcList and pname in prevRssProcList:
+                    if idx > 0 and prevRssProcList and \
+                        pname in prevRssProcList:
                         printBuf = '%s %6dM%s' % \
                             (printBuf, -(prevRssProcList[pname]['maxRss']), \
                                 emptyRssStat[7:])
@@ -48386,7 +48482,7 @@ class ThreadAnalyzer(object):
 
                 # set visible total usage flag #
                 if SysMgr.showAll or \
-                    len(SysMgr.filterGroup) == 0:
+                    not SysMgr.filterGroup:
                     isVisibleTotal = True
                 else:
                     isVisibleTotal = False
