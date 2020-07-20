@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200719"
+__revision__ = "200720"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13426,6 +13426,7 @@ class SysMgr(object):
     libdbusObj = None
     libgObj = None
     libglesObj = None
+    statvfsObj = None
     guiderObj = None
     libcppObj = None
     libdemangleObj = None
@@ -28435,6 +28436,52 @@ Copyright:
 
 
     @staticmethod
+    def statvfs(path):
+        if not SysMgr.loadLibcObj():
+            return None
+
+        if hasattr(SysMgr.libcObj, 'statvfs'):
+            func = SysMgr.libcObj.statvfs
+        elif hasattr(SysMgr.libcObj, 'statfs'):
+            func = SysMgr.libcObj.statfs
+        else:
+            return None
+
+        if SysMgr.statvfsObj:
+            ret = func(path.encode(), byref(SysMgr.statObj))
+            if ret == 0:
+                return SysMgr.statObj
+            else:
+                return None
+
+        # define error object #
+        class struct_statvfs(Structure):
+            _fields_ = (
+               ("f_bsize", c_ulong), # filesystem block size
+               ("f_frsize", c_ulong), # fragment size
+               ("f_blocks", c_ulong), # size of fs in f_frsize units
+               ("f_bfree", c_ulong), # free blocks
+               ("f_bavail", c_ulong), # free blocks for unprivileged users
+               ("f_files", c_ulong), # inodes
+               ("f_ffree", c_ulong), # free inodes
+               ("f_favail", c_ulong), # free inodes for unprivileged users
+               ("f_fsid", c_ulong), # filesystem ID
+               ("f_flag", c_ulong), # mount flags
+               ("f_namemax", c_ulong), # maximum filename length
+               ("f_type", c_ulong), # maximum filename length
+               ("reserved", c_char * 32), # reserved
+            )
+
+        SysMgr.statObj = struct_statvfs()
+        ret = func(path.encode(), byref(SysMgr.statObj))
+        if ret == 0:
+            return SysMgr.statObj
+        else:
+            return None
+
+
+
+    @staticmethod
     def doIoTest():
         # gather system info including mount #
         SysMgr()
@@ -28573,7 +28620,11 @@ Copyright:
                     if path.startswith('/dev/') and \
                         not 'loop' in path:
 
-                        stat = os.statvfs(value['path'])
+                        if hasattr(os, 'statvfs'):
+                            stat = os.statvfs(value['path'])
+                        else:
+                            stat = SysMgr.statvfs(value['path'])
+
                         size = (stat.f_bsize * stat.f_blocks)
 
                         workload.append(\
@@ -31914,9 +31965,9 @@ Copyright:
         try:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<1} / {2:<1} / {3:<1}".format('Load', \
-                str(long(float(self.loadData[0]) * 100)) + '%(1m)', \
-                str(long(float(self.loadData[1]) * 100)) + '%(5m)', \
-                str(long(float(self.loadData[2]) * 100)) + '%(15m)'))
+                '%s(1m)' % self.loadData[0], \
+                '%s(5m)' % self.loadData[1], \
+                '%s(15m)' % self.loadData[2]))
 
             if SysMgr.jsonOutputEnable:
                 jsonData['load1m'] = self.loadData[0]
@@ -32198,6 +32249,7 @@ Copyright:
                     dev = os.path.basename(rpath)
 
                 if fs == 'tmpfs':
+                    raise MountException
                     continue
 
                 if ':' in dev:
@@ -32206,8 +32258,8 @@ Copyright:
                         if mp['major'] == major and mp['minor'] == minor:
                             raise MountException
 
+                # check nodes by device id #
                 if not dev in self.diskInfo['prev']:
-                    # check nodes by device id #
                     for node, attr in self.diskInfo['prev'].items():
                         if attr['major'] == major and attr['minor'] == minor:
                             raise MountException
@@ -32628,7 +32680,10 @@ Copyright:
 
             # get device stat #
             try:
-                stat = os.statvfs(val['path'])
+                if hasattr(os, 'statvfs'):
+                    stat = os.statvfs(val['path'])
+                else:
+                    stat = SysMgr.statvfs(val['path'])
 
                 total = (stat.f_bsize * stat.f_blocks) >> 20
                 free = (stat.f_bsize * stat.f_bavail) >> 20
@@ -33299,6 +33354,8 @@ Copyright:
 
                 totalInfo['read'] += read
                 totalInfo['write'] += write
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -33310,7 +33367,10 @@ Copyright:
                 major = os.major(fstat.st_dev)
                 minor = os.minor(fstat.st_dev)
 
-                stat = os.statvfs(val['path'])
+                if hasattr(os, 'statvfs'):
+                    stat = os.statvfs(val['path'])
+                else:
+                    stat = SysMgr.statvfs(val['path'])
 
                 total = stat.f_bsize * stat.f_blocks
                 free = stat.f_bsize * stat.f_bavail
@@ -33327,6 +33387,8 @@ Copyright:
                 total = UtilMgr.convSize2Unit(total)
                 free = UtilMgr.convSize2Unit(free)
                 avail = UtilMgr.convSize2Unit(avail)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -33376,6 +33438,8 @@ Copyright:
                     SysMgr.infoBufferPrint(\
                         '{0:85} {1:<1}'.format(title, string))
                     title = ' '
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -33418,6 +33482,8 @@ Copyright:
                 totalInfo['write'] = \
                     UtilMgr.convSize2Unit(totalInfo['write'])
                 totalInfo['use'] = '%d%%' % usage
+            except SystemExit:
+                sys.exit(0)
             except:
                 totalInfo['use'] = '?%'
 
@@ -48362,9 +48428,10 @@ class ThreadAnalyzer(object):
                 try:
                     xtickLabel = ax.get_xticks().tolist()
                     xtickLabel = list(map(long, xtickLabel))
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    xtickLabel[-1] = '   TIME(Sec)'
-                    ax.set_xticklabels(xtickLabel)
+                    if xtickLabel[0] != xtickLabel[-1]:
+                        xlim([xtickLabel[0], xtickLabel[-1]])
+                        xtickLabel[-1] = '   TIME(Sec)'
+                        ax.set_xticklabels(xtickLabel)
                 except:
                     pass
             elif xtype == 3:
@@ -49488,7 +49555,7 @@ class ThreadAnalyzer(object):
                         try:
                             first = next(val for val in usage if val > 0)
                             last = next(val for val in reversed(usage) if val > 0)
-                            if long(first) > long(last):
+                            if long(first) >= long(last):
                                 item['vssDiff'] = long(0)
                                 continue
                         except:
