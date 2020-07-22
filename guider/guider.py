@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200720"
+__revision__ = "200722"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15438,8 +15438,9 @@ class SysMgr(object):
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
         # backup SIGINT handler and set new handler #
-        handle = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGINT, SysMgr.defaultHandler)
+        if SysMgr.waitEnable:
+            handle = signal.getsignal(signal.SIGINT)
+            signal.signal(signal.SIGINT, SysMgr.defaultHandler)
 
         # pause task #
         try:
@@ -15455,7 +15456,8 @@ class SysMgr(object):
             pass
 
         # restore SIGINT handler #
-        signal.signal(signal.SIGINT, handle)
+        if SysMgr.waitEnable:
+            signal.signal(signal.SIGINT, handle)
 
 
 
@@ -16588,6 +16590,9 @@ Examples:
     - Monitor syscalls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
+    - Monitor syscalls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -W
+
     - Monitor syscalls for a specific thread every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
@@ -16617,7 +16622,10 @@ Examples:
     - Monitor function calls for a specific thread
         # {0:1} {1:1} -g a.out
 
-    - Monitor function calls  with backtrace for a specific thread
+    - Monitor function calls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -W
+
+    - Monitor function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
     - Monitor function calls for a specific thread every 2 second for 1 minute with 1 ms sampling
@@ -16939,19 +16947,22 @@ Options:
                     helpStr += '''
 Examples:
     - Trace all read systemcalls for a specific thread
-        # {0:1} {1:1} -g 1234 -t read
+        # {0:1} {1:1} -g a.out -t read
+
+    - Trace all read systemcalls for child tasks created by a specific thread
+        # {0:1} {1:1} -g 1234 -t read -W
 
     - Trace all write systemcalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
     - Trace all read systemcalls for a specific thread and save summary tables, call history to ./guider.out
-        # {0:1} {1:1} -g 1234 -t read -o . -a
+        # {0:1} {1:1} -g a.out -t read -o . -a
 
     - Trace all systemcalls with breakpoint for read including register info for a specific thread
-        # {0:1} {1:1} -g 1234 -c read -a
+        # {0:1} {1:1} -g a.out -c read -a
 
     - Trace all systemcalls for a specific thread only for 1 minute
-        # {0:1} {1:1} -g 1234 -R 1m
+        # {0:1} {1:1} -g a.out -R 1m
 
     - Trace all systemcalls and pause when catching open systemcall
         # {0:1} {1:1} -I "ls -al" -c open
@@ -16989,22 +17000,25 @@ Options:
                     helpStr += '''
 Examples:
     - Trace usercalls for a specific thread in 100us cycles
-        # {0:1} {1:1} -g 1234
+        # {0:1} {1:1} -g a.out
+
+    - Trace usercalls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -W
 
     - Trace usercalls for a specific thread in 10ms cycles
-        # {0:1} {1:1} -g 1234 -i 10000
+        # {0:1} {1:1} -g a.out -i 10000
 
     - Trace usercalls with 1/10 instructions for a specific thread
-        # {0:1} {1:1} -g 1234 -H 10
+        # {0:1} {1:1} -g a.out -H 10
 
     - Trace usercalls for a specific thread and save summary tables, call history to ./guider.out
-        # {0:1} {1:1} -g 1234 -o . -a
+        # {0:1} {1:1} -g a.out -o . -a
 
     - Trace usercalls with breakpoint for peace including register info for a specific thread
-        # {0:1} {1:1} -g 1234 -c peace -a
+        # {0:1} {1:1} -g a.out -c peace -a
 
     - Trace usercalls for a specific thread only for 2 seconds
-        # {0:1} {1:1} -g 1234 -R 2s
+        # {0:1} {1:1} -g a.out -R 2s
 
     - Trace usercalls and pause when catching PLT function call
         # {0:1} {1:1} -I "ls -al" -c PLT
@@ -17122,7 +17136,7 @@ Options:
                     helpStr += '''
 Examples:
     - Trace all signals for a specific thread
-        # {0:1} {1:1} -g 1234
+        # {0:1} {1:1} -g a.out
 
     - Trace all signals for a specific command
         # {0:1} {1:1} -I "ls"
@@ -17157,7 +17171,7 @@ Options:
                     helpStr += '''
 Examples:
     - Analyze page attributes in specific area for a specific process
-        # {0:1} {1:1} -g 1234 -I 0x0-0x4000
+        # {0:1} {1:1} -g a.out -I 0x0-0x4000
                     '''.format(cmd, mode)
 
                 # CPU draw #
@@ -17813,13 +17827,19 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set the clock of cpu1 to 10000000HZ and the governor of cpu1 to userspace
+    - Set the clock speed to 10000000HZ and the governor to userspace for CPU1
         # {0:1} {1:1} -g 1:10000000:userspace
 
-    - Set the clock of cpu0 to 10000000HZ
+    - Set the clock speed to 10000000HZ and the governor to userspace for All CPUs
+        # {0:1} {1:1} -g :10000000:userspace
+
+    - Set the clock speed to 10000000HZ for CPU0
         # {0:1} {1:1} -g 0:10000000
 
-    - Set the governor of cpu2 to performance
+    - Set the governor to performance for CPU2
+        # {0:1} {1:1} -g 2:0:performance
+
+    - Set the governor to performance for CPU2
         # {0:1} {1:1} -g 2:0:performance
                     '''.format(cmd, mode)
 
@@ -26534,8 +26554,6 @@ Copyright:
         # draw image #
         SysMgr.drawText(textBuf)
 
-        sys.exit(0)
-
 
 
     @staticmethod
@@ -26560,7 +26578,8 @@ Copyright:
 
             # check error #
             if (len(vals) < 2 or len(vals) > 3) or \
-                not vals[0].isdigit() or not vals[1].isdigit():
+                (vals[0] and not vals[0].isdigit()) or \
+                not vals[1].isdigit():
                 SysMgr.printErr(\
                 ("wrong option value to set CPU clock, "
                 "input in the format CORE:CLOCK(HZ){:GOVERNOR}"))
@@ -26632,13 +26651,19 @@ Copyright:
             elif len(vals) == 3:
                 core, clock, gov = vals
 
+            if not core:
+                cpuRange = list(cpulist.keys())
+            else:
+                cpuRange = [core]
+
             # check support #
-            if not core in cpulist:
+            if not core:
+                pass
+            elif not core in cpulist:
                 SysMgr.printErr((\
-                    "Fail to set cpu[%s] clock because "
+                    "Fail to set CPU(%s) clock because "
                     "it doesn't support governor") % core)
                 sys.exit(0)
-
             # check available clock #
             elif ('avail' in cpulist[core] and \
                 long(clock) > 0 and not clock in cpulist[core]['avail']) or \
@@ -26647,61 +26672,59 @@ Copyright:
                 avail = ' '.join(cpulist[core]['avail'])
                 governors = ' '.join(cpulist[core]['governors'])
                 SysMgr.printErr((\
-                    "Fail to set cpu[%s] clock because it only supports \n\t"
+                    "Fail to set CPU(%s) clock because it only supports \n\t"
                     "[%s] clock list \n\t[%s] governor list") % \
                         (core, avail, governors))
                 sys.exit(0)
 
-            # set path #
-            commonpath = '%s/cpu%s/cpufreq' % (freqPath, core)
-            curgovpath = '%s/scaling_governor' % commonpath
-            minfreqpath = '%s/scaling_min_freq' % commonpath
-            maxfreqpath = '%s/scaling_max_freq' % commonpath
+            for core in cpuRange:
+                # set path #
+                commonpath = '%s/cpu%s/cpufreq' % (freqPath, core)
+                curgovpath = '%s/scaling_governor' % commonpath
+                minfreqpath = '%s/scaling_min_freq' % commonpath
+                maxfreqpath = '%s/scaling_max_freq' % commonpath
 
+                # set clock range #
+                try:
+                    minres = maxres = govres = False
 
-            # set clock range #
-            try:
-                minres = maxres = govres = False
+                    if long(clock) > 0:
+                        with open(minfreqpath, 'w') as fd:
+                            fd.write(clock)
+                        with open(maxfreqpath, 'w') as fd:
+                            fd.write(clock)
+                    if gov:
+                        with open(curgovpath, 'w') as fd:
+                            fd.write(gov)
+                except:
+                    if not minres:
+                        res = 'min clock'
+                    elif not maxres:
+                        res = 'max clock'
+                    elif not govres:
+                        res = 'governor'
 
-                if long(clock) > 0:
-                    with open(minfreqpath, 'w') as fd:
-                        fd.write(clock)
-                    with open(maxfreqpath, 'w') as fd:
-                        fd.write(clock)
-                if gov:
-                    with open(curgovpath, 'w') as fd:
-                        fd.write(gov)
-            except:
-                if not minres:
-                    res = 'min clock'
-                elif not maxres:
-                    res = 'max clock'
-                elif not govres:
-                    res = 'governor'
+                    SysMgr.printErr(\
+                        "Fail to set %s of CPU(%s)" % (res, core), True)
+                    sys.exit(0)
 
-                SysMgr.printErr(\
-                    "Fail to set %s of cpu[%s]" % (res, core), True)
-                sys.exit(0)
+                # cur_governor #
+                try:
+                    with open(curgovpath, 'r') as fd:
+                        curgovernor = fd.readlines()[0].split()[0]
+                except:
+                    curgovernor = '?'
 
-            # cur_governor #
-            try:
-                with open(curgovpath, 'r') as fd:
-                    curgovernor = fd.readlines()[0].split()[0]
-            except:
-                curgovernor = '?'
+                # get affected CPU list #
+                if 'affect' in cpulist[core] and len(cpulist[core]['affect']) > 1:
+                    affectstring = 'and it also affects CPU(%s)' % \
+                        ', '.join(cpulist[core]['affect'])
+                else:
+                    affectstring = ''
 
-            # get affected CPU list #
-            if 'affect' in cpulist[core] and len(cpulist[core]['affect']) > 1:
-                affectstring = 'and it also affects CPU [%s]' % \
-                    ', '.join(cpulist[core]['affect'])
-            else:
-                affectstring = ''
-
-            SysMgr.printInfo(\
-                "the clock speed of cpu[%s](%s) is set to %s successfuly %s" %
-                    (core, curgovernor, clock, affectstring))
-
-        sys.exit(0)
+                SysMgr.printInfo(\
+                    "the CPU(%s) is set to %shz in [%s] successfuly %s" %
+                        (core, UtilMgr.convNum(clock), curgovernor, affectstring))
 
 
 
@@ -26719,8 +26742,6 @@ Copyright:
             sys.exit(0)
 
         SysMgr.parsePriorityOption(value)
-
-        sys.exit(0)
 
 
 
@@ -26768,8 +26789,6 @@ Copyright:
                 SysMgr.printPipe(env)
 
         SysMgr.printPipe('\n')
-
-        sys.exit(0)
 
 
 
@@ -28448,13 +28467,13 @@ Copyright:
             return None
 
         if SysMgr.statvfsObj:
-            ret = func(path.encode(), byref(SysMgr.statObj))
+            ret = func(path.encode(), byref(SysMgr.statvfsObj))
             if ret == 0:
-                return SysMgr.statObj
+                return SysMgr.statvfsObj
             else:
                 return None
 
-        # define error object #
+        # define statvfs object #
         class struct_statvfs(Structure):
             _fields_ = (
                ("f_bsize", c_ulong), # filesystem block size
@@ -28472,10 +28491,29 @@ Copyright:
                ("reserved", c_char * 32), # reserved
             )
 
-        SysMgr.statObj = struct_statvfs()
-        ret = func(path.encode(), byref(SysMgr.statObj))
+        # define statfs object #
+        class struct_statfs(Structure):
+            _fields_ = (
+               ("f_type", c_ulong),
+               ("f_bsize", c_ulong),
+               ("f_blocks", c_ulong),
+               ("f_bfree", c_ulong),
+               ("f_bavail", c_ulong),
+               ("f_files", c_ulong),
+               ("f_ffree", c_ulong),
+               ("f_fsid", c_ulong),
+               ("f_namelen", c_ulong),
+               ("reserved", c_ulong * 12),
+            )
+
+        if hasattr(SysMgr.libcObj, 'statvfs'):
+            SysMgr.statvfsObj = struct_statvfs()
+        elif hasattr(SysMgr.libcObj, 'statfs'):
+            SysMgr.statvfsObj = struct_statfs()
+
+        ret = func(path.encode(), byref(SysMgr.statvfsObj))
         if ret == 0:
-            return SysMgr.statObj
+            return SysMgr.statvfsObj
         else:
             return None
 
@@ -32673,8 +32711,9 @@ Copyright:
                 storageData[key]['iotime'] = iotime
                 storageData[key]['iowtime'] = iowtime
 
-                storageData['total']['read'] += read
-                storageData['total']['write'] += write
+                if val['fs'] != 'tmpfs':
+                    storageData['total']['read'] += read
+                    storageData['total']['write'] += write
             except:
                 pass
 
@@ -32687,7 +32726,11 @@ Copyright:
 
                 total = (stat.f_bsize * stat.f_blocks) >> 20
                 free = (stat.f_bsize * stat.f_bavail) >> 20
-                avail = stat.f_favail
+                if hasattr(stat, 'f_favail'):
+                    avail = stat.f_favail
+                else:
+                    avail = 0
+
                 usage = long((total - free) / float(total) * 100)
 
                 storageData[key]['total'] = total
@@ -32696,9 +32739,10 @@ Copyright:
                 storageData[key]['usagePer'] = usage
                 storageData[key]['favail'] = avail
 
-                storageData['total']['total'] += total
-                storageData['total']['free'] += free
-                storageData['total']['favail'] += avail
+                if val['fs'] != 'tmpfs':
+                    storageData['total']['total'] += total
+                    storageData['total']['free'] += free
+                    storageData['total']['favail'] += avail
             except:
                 pass
 
@@ -33352,8 +33396,9 @@ Copyright:
                         long(beforeInfo['sectorWrite'])) << 9
                 writeSize = UtilMgr.convSize2Unit(writeSize)
 
-                totalInfo['read'] += read
-                totalInfo['write'] += write
+                if val['fs'] != 'tmpfs':
+                    totalInfo['read'] += read
+                    totalInfo['write'] += write
             except SystemExit:
                 sys.exit(0)
             except:
@@ -33374,13 +33419,18 @@ Copyright:
 
                 total = stat.f_bsize * stat.f_blocks
                 free = stat.f_bsize * stat.f_bavail
-                avail = stat.f_favail
+                if hasattr(stat, 'f_favail'):
+                    avail = stat.f_favail
+                else:
+                    avail = 0
+
                 use = '%d%%' % long((total - free) / float(total) * 100)
 
                 try:
-                    totalInfo['total'] += total
-                    totalInfo['free'] += free
-                    totalInfo['favail'] += avail
+                    if val['fs'] != 'tmpfs':
+                        totalInfo['total'] += total
+                        totalInfo['free'] += free
+                        totalInfo['favail'] += avail
                 except:
                     pass
 
@@ -37408,7 +37458,7 @@ struct cmsghdr {
 
                     # execute commands #
                     for item in cmdset[1].split(':'):
-                        command = item
+                        command = item.strip()
                         if command.endswith('&'):
                             command = command[:-1]
                             wait = False
@@ -37565,7 +37615,10 @@ struct cmsghdr {
 
                     # get size #
                     if len(memset) == 3:
-                        size = long(memset[2])
+                        try:
+                            size = long(memset[2])
+                        except:
+                            size = long(memset[2], 16)
                     else:
                         size = len(val)
 
@@ -37622,7 +37675,10 @@ struct cmsghdr {
 
                     # get size #
                     if len(memset) == 2:
-                        size = long(memset[1])
+                        try:
+                            size = long(memset[1])
+                        except:
+                            size = long(memset[1], 16)
                     else:
                         size = 32
 
@@ -39842,7 +39898,7 @@ struct cmsghdr {
         elif self.mode == 'break':
             ctype = 'Breakcall'
             addInfo = 'Path'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ''
         else:
             ctype = 'Usercall'
             addInfo = 'Path'
@@ -40801,19 +40857,18 @@ struct cmsghdr {
         tinfoindent = ' ' * len(tinfo)
 
         # check contiguous tree presentation #
-        if cont:
+        try:
             commonPos = -1
-            if len(self.targetBpList) == 0:
+            if cont and not self.targetBpList:
                 for item in reversed(self.prevStack):
-                    try:
-                        if item == backtrace[commonPos]:
-                            commonPos -= 1
-                            continue
-                        break
-                    except:
-                        break
-        else:
-            commonPos = -1
+                    if item == backtrace[commonPos]:
+                        commonPos -= 1
+                        continue
+                    break
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         if commonPos == -1:
             commonPos = 0
@@ -41909,10 +41964,19 @@ struct cmsghdr {
             self.attach()
         # new tracee #
         elif pid == 0:
+            # backup original task info #
+            origPid = self.pid
+            origComm = self.comm
+
+            # update new task info #
             self.pid = tid
             self.attach()
             self.initValues()
             signal.alarm(SysMgr.intervalEnable)
+
+            SysMgr.printInfo(\
+                '%s(%s) is created by %s(%s)' % \
+                    (self.comm, self.pid, origComm, origPid))
         else:
             return
 
@@ -41923,6 +41987,11 @@ struct cmsghdr {
         self.multi = True
         if not SysMgr.printFile:
             SysMgr.printStreamEnable = True
+
+        # continue tasks #
+        self.cont()
+
+        return pid
 
 
 
@@ -41979,6 +42048,35 @@ struct cmsghdr {
 
 
 
+    def waitForClone(self):
+        if self.status == 'ready':
+            return
+
+        # set trace event #
+        self.ptraceEvent(self.traceEventList)
+
+        SysMgr.printStat(\
+            "wait for clone by %s(%s)... [ STOP(Ctrl+c) ]" % \
+                (self.comm, self.pid))
+
+        while 1:
+            self.cont()
+
+            # wait process #
+            rid, ostat = self.waitpid()
+
+            # handle clone event #
+            if self.isCloned(ostat) or \
+                self.isForked(ostat):
+                pid = self.handoverNewTarget()
+                if pid > 0:
+                    continue
+                break
+
+        self.stop()
+
+
+
     def runEventLoop(self):
         # enter trace loop #
         while 1:
@@ -42028,15 +42126,6 @@ struct cmsghdr {
 
                 # get status of process #
                 stat = self.getStatus(ostat)
-
-                # handle signal #
-                if self.mode == 'signal':
-                    self.handleSignal(stat)
-
-                    self.cont(sig=stat)
-                    if self.cont(check=True, sig=stat) < 0:
-                        sys.exit(0)
-                    continue
 
                 # trap #
                 if stat == signal.SIGTRAP:
@@ -42116,6 +42205,15 @@ struct cmsghdr {
                         SysMgr.waitEvent()
 
                     sys.exit(0)
+
+                # handle signal #
+                elif self.mode == 'signal':
+                    self.handleSignal(stat)
+
+                    self.cont(sig=stat)
+                    if self.cont(check=True, sig=stat) < 0:
+                        sys.exit(0)
+                    continue
 
                 # exit #
                 elif stat == -1:
@@ -42346,6 +42444,10 @@ struct cmsghdr {
 
         # register summary callback #
         SysMgr.addExitFunc(Debugger.printSummary, [self])
+
+        # wait for creation #
+        if SysMgr.waitEnable:
+            self.waitForClone()
 
         # set timer #
         if SysMgr.printEnable:
@@ -46810,7 +46912,8 @@ class ThreadAnalyzer(object):
                 'ftxLBlock': float(0), 'ftxBlockCnt': long(0), \
                 'ftxEnt': None, 'lastStatus': 'N', 'offCnt': long(0), \
                 'offTime': float(0), 'waitStartAsParent': float(0), \
-                'nrPages': long(0), 'reclaimedPages': long(0), 'waitPid': long(0), \
+                'nrAllocPages': long(0), 'nrPages': long(0), \
+                'reclaimedPages': long(0), 'waitPid': long(0), \
                 'remainKmem': long(0), 'wasteKmem': long(0), 'childList': None, \
                 'kernelPages': long(0), 'readBlockCnt': long(0), \
                 'writeBlock': long(0), 'writeBlockCnt': long(0), 'tgid': '-'*5, \
@@ -56346,27 +56449,36 @@ class ThreadAnalyzer(object):
             pfn = long(d['pfn'])
             flags = d['flags']
             order = long(d['order'])
+            nr = pow(2, order)
 
-            self.threadData[thread]['nrPages'] += pow(2, order)
-            self.threadData[coreId]['nrPages'] += pow(2, order)
+            # register page order #
+            self.threadData[thread].setdefault('orderPages', dict())
+            self.threadData[thread]['orderPages'].setdefault(order, 0)
+            self.threadData[thread]['orderPages'][order] += 1
+
+            # accumulate pages allocated #
+            self.threadData[thread]['nrAllocPages'] += nr
+            self.threadData[coreId]['nrAllocPages'] += nr
+            self.threadData[thread]['nrPages'] += nr
+            self.threadData[coreId]['nrPages'] += nr
 
             if 'NOFS' in flags or \
                 'GFP_WRITE' in flags or \
                 '0x1000000' in flags:
                 pageType = 'CACHE'
-                self.threadData[thread]['cachePages'] += pow(2, order)
-                self.threadData[coreId]['cachePages'] += pow(2, order)
+                self.threadData[thread]['cachePages'] += nr
+                self.threadData[coreId]['cachePages'] += nr
             elif 'USER' in flags:
                 pageType = 'USER'
-                self.threadData[thread]['userPages'] += pow(2, order)
-                self.threadData[coreId]['userPages'] += pow(2, order)
+                self.threadData[thread]['userPages'] += nr
+                self.threadData[coreId]['userPages'] += nr
             else:
                 pageType = 'KERNEL'
-                self.threadData[thread]['kernelPages'] += pow(2, order)
-                self.threadData[coreId]['kernelPages'] += pow(2, order)
+                self.threadData[thread]['kernelPages'] += nr
+                self.threadData[coreId]['kernelPages'] += nr
 
             # make PTE in page table #
-            for cnt in range(0, pow(2, order)):
+            for cnt in range(0, nr):
                 pfnv = pfn + cnt
 
                 try:
@@ -56400,8 +56512,9 @@ class ThreadAnalyzer(object):
             page = d['page']
             pfn = long(d['pfn'])
             order = long(d['order'])
+            nr = pow(2, order)
 
-            for cnt in range(0, pow(2, order)):
+            for cnt in range(0, nr):
                 pfnv = pfn + cnt
 
                 try:
