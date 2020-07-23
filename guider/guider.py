@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200722"
+__revision__ = "200723"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23932,6 +23932,11 @@ Copyright:
 
         # PAUSE MODE #
         elif SysMgr.isPauseMode():
+            if not SysMgr.filterGroup:
+                SysMgr.printErr(\
+                    "No COMM or TID with -g")
+                sys.exit(0)
+
             # convert comm to pid #
             targetList = []
             sibling = SysMgr.groupProcEnable
@@ -24030,6 +24035,9 @@ Copyright:
             SysMgr.printStreamEnable = True
 
             SysMgr.printLogo(big=True, onlyFile=True)
+
+            # to prevent segmentation fault from python3.8 #
+            ThreadAnalyzer(onlyInstance=True)
 
             DltAnalyzer.runDltReceiver(mode='print')
 
@@ -29675,7 +29683,7 @@ Copyright:
 
                 if len(taskList) == 0:
                     SysMgr.printErr(\
-                        "Fail to find task to limit cpu")
+                        "Fail to find task to limit CPU usage")
                     return
 
                 if not prevTime:
@@ -38138,6 +38146,10 @@ struct cmsghdr {
         if not tgid:
             tgid = self.pid
 
+        # check fault flag from shared memory #
+        if self.getFaultFlag():
+            return
+
         if verb:
             SysMgr.printStat(\
                 r"start removing %s breakpoints from %s(%s) process..." % \
@@ -39828,7 +39840,38 @@ struct cmsghdr {
             return False
 
         ret = Debugger.globalEvent[0] # pylint: disable=unsubscriptable-object
-        if ret == b'1' or 1:
+        if ret == b'1' or ret == 1:
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def setFaultFlag(flag=True):
+        if not Debugger.globalEvent:
+            return
+
+        # set flag value #
+        if flag == True:
+            value = 1
+        else:
+            value = 0
+
+        if sys.version_info < (3, 0, 0):
+            value = bytes(value)
+
+        Debugger.globalEvent[1] = value # pylint: disable=unsupported-assignment-operation
+
+
+
+    @staticmethod
+    def getFaultFlag():
+        if not Debugger.globalEvent:
+            return False
+
+        ret = Debugger.globalEvent[1] # pylint: disable=unsubscriptable-object
+        if ret == b'1' or ret == 1:
             return True
         else:
             return False
@@ -42201,6 +42244,9 @@ struct cmsghdr {
                         'Terminated %s(%s) because of %s' % \
                             (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
+                    # set fault flag to shared memory #
+                    self.setFaultFlag()
+
                     if SysMgr.isTopMode():
                         SysMgr.waitEvent()
 
@@ -42445,8 +42491,9 @@ struct cmsghdr {
         # register summary callback #
         SysMgr.addExitFunc(Debugger.printSummary, [self])
 
-        # wait for creation #
-        if SysMgr.waitEnable:
+        # wait for task creation #
+        if SysMgr.waitEnable and \
+            self.mode != 'break':
             self.waitForClone()
 
         # set timer #
@@ -42829,9 +42876,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             return
 
         # check thread list #
-        if not tlist or len(tlist) == 0:
+        if not tlist:
             SysMgr.printErr(\
-                "Fail to recognize tids, use -g option")
+                "Fail to task to pause")
             return
 
         # set alarm #
@@ -46895,18 +46942,20 @@ class ThreadAnalyzer(object):
             self.init_threadData = \
                 {'comm': '', 'usage': float(0), 'cpuRank': long(0), \
                 'yield': long(0), 'cpuWait': float(0), 'pri': '?', \
-                'reqRdBlock': long(0), 'readBlock': long(0), 'ioRank': long(0), \
-                'irq': float(0), 'reclaimWait': float(0), 'reclaimCnt': long(0), \
-                'ptid': '-'*5, 'new': ' ', 'die': ' ', 'preempted': long(0), \
-                'preemption': long(0), 'start': float(0), 'stop': float(0), \
-                'ioRdWait': float(0), 'readQueueCnt': long(0), \
-                'readStart': float(0), 'maxRuntime': float(0), \
-                'coreSchedCnt': long(0), 'longRunCore': long(-1), \
-                'dReclaimWait': float(0), 'dReclaimStart': float(0), \
-                'migrate': long(0), 'dReclaimCnt': long(0), 'ftxMax': float(0), \
-                'ftxLockCnt': long(0), 'ftxEnter': float(0), 'ftxLock': float(0), \
-                'ftxTotal': float(0), 'ftxWaitCnt': long(0), \
-                'ftxProcess': float(0), 'ftxLockMax': float(0), 'ftxStat': '?', \
+                'reqRdBlock': long(0), 'readBlock': long(0), \
+                'ioRank': long(0), 'irq': float(0), 'reclaimWait': float(0), \
+                'reclaimCnt': long(0), 'ptid': '-'*5, 'new': ' ', \
+                'die': ' ', 'preempted': long(0), 'preemption': long(0), \
+                'start': float(0), 'stop': float(0), 'ioRdWait': float(0), \
+                'readQueueCnt': long(0), 'readStart': float(0), \
+                'maxRuntime': float(0), 'coreSchedCnt': long(0), \
+                'longRunCore': long(-1), 'dReclaimWait': float(0), \
+                'dReclaimStart': float(0), 'migrate': long(0), \
+                'dReclaimCnt': long(0), 'ftxMax': float(0), \
+                'ftxLockCnt': long(0), 'ftxEnter': float(0), \
+                'ftxLock': float(0), 'ftxTotal': float(0), \
+                'ftxWaitCnt': long(0), 'ftxProcess': float(0), \
+                'ftxLockMax': float(0), 'ftxStat': '?', \
                 'ftxLSwitch': long(0), 'ftxBlockTotal': float(0), \
                 'ftxLBlockTotal': float(0), 'ftxBlock': float(0), \
                 'ftxLBlock': float(0), 'ftxBlockCnt': long(0), \
@@ -46914,15 +46963,17 @@ class ThreadAnalyzer(object):
                 'offTime': float(0), 'waitStartAsParent': float(0), \
                 'nrAllocPages': long(0), 'nrPages': long(0), \
                 'reclaimedPages': long(0), 'waitPid': long(0), \
-                'remainKmem': long(0), 'wasteKmem': long(0), 'childList': None, \
-                'kernelPages': long(0), 'readBlockCnt': long(0), \
-                'writeBlock': long(0), 'writeBlockCnt': long(0), 'tgid': '-'*5, \
-                'cachePages': long(0), 'userPages': long(0), 'lastOff': float(0), \
-                'maxPreempted': float(0), 'anonReclaimedPages': long(0), \
-                'lastIdleStatus': long(0), 'createdTime': float(0), \
-                'waitChild': float(0), 'waitParent': float(0), \
-                'customEvent': None, 'userEvent': None, 'kernelEvent': None, \
-                'blkCore': long(0), 'lockWait': float(0), 'lockTime': float(0), \
+                'remainKmem': long(0), 'wasteKmem': long(0), \
+                'childList': None, 'kernelPages': long(0), \
+                'readBlockCnt': long(0), 'writeBlock': long(0), \
+                'writeBlockCnt': long(0), 'tgid': '-'*5, \
+                'cachePages': long(0), 'userPages': long(0), \
+                'lastOff': float(0), 'maxPreempted': float(0), \
+                'anonReclaimedPages': long(0), 'lastIdleStatus': long(0), \
+                'createdTime': float(0), 'waitChild': float(0), \
+                'waitParent': float(0), 'customEvent': None, \
+                'userEvent': None, 'kernelEvent': None, 'blkCore': long(0), \
+                'lockWait': float(0), 'lockTime': float(0), \
                 'lockCnt': long(0), 'tryLockCnt': long(0), \
                 'lastLockTime': float(0), 'lastLockWait': float(0), \
                 'reqWrBlock': long(0), 'writeQueueCnt': long(0), \
@@ -46938,9 +46989,10 @@ class ThreadAnalyzer(object):
                 'minPeriod': float(0), 'count': long(0)}
 
             self.init_intData = \
-                {'time': float(0), 'firstLogTime': float(0), 'cpuPer': float(0), \
-                'totalUsage': float(0), 'totalMemUsage': long(0), \
-                'brUsage': long(0), 'totalBrUsage': long(0), 'irqUsage': float(0), \
+                {'time': float(0), 'firstLogTime': float(0), \
+                'cpuPer': float(0), 'totalUsage': float(0), \
+                'totalMemUsage': long(0), 'brUsage': long(0), \
+                'totalBrUsage': long(0), 'irqUsage': float(0), \
                 'kmemUsage': long(0), 'totalKmemUsage': long(0), \
                 'coreSchedCnt': long(0), 'totalCoreSchedCnt': long(0), \
                 'preempted': float(0), 'totalBwUsage': long(0), \
@@ -46954,20 +47006,27 @@ class ThreadAnalyzer(object):
 
             self.init_kmallocData = \
                 {'tid': '0', 'caller': '0', 'ptr': '0', 'req': long(0), \
-                'alloc': long(0), 'time': '0', 'waste': long(0), 'core': long(0)}
+                'alloc': long(0), 'time': '0', 'waste': long(0), \
+                'core': long(0)}
 
             self.wakeupData = \
-                {'tid': '0', 'nr': '0', 'ret': '0', 'time': '0', 'args': '0', \
-                'valid': long(0), 'from': '0', 'to': '0', 'corrupt': '0'}
+                {'tid': '0', 'nr': '0', 'ret': '0', 'time': '0', \
+                'args': '0', 'valid': long(0), 'from': '0', 'to': '0', \
+                'corrupt': '0'}
+
+            self.allocPageData = {}
 
             self.init_syscallInfo = \
                 {'usage': float(0), 'last': float(0), 'count': long(0), \
                 'max': float(0), 'min': float(0), 'err': long(0)}
 
             self.init_pageData = \
-                {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', 'time': '0'}
+                {'tid': '0', 'page': '0', 'flags': '0', 'type': '0', \
+                'time': '0'}
+
             self.init_lastJob = \
                 {'job': '0', 'time': '0', 'tid': '0', 'prevWakeupTid': '0'}
+
             self.init_preemptData = \
                 {'usage': float(0), 'count': long(0), 'max': float(0)}
 
@@ -50717,6 +50776,9 @@ class ThreadAnalyzer(object):
         # print event usage #
         self.printEventInfo()
 
+        # print page info #
+        self.printPageInfo()
+
         # print block usage #
         self.printBlockInfo()
 
@@ -52089,6 +52151,51 @@ class ThreadAnalyzer(object):
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(twoLine)
+
+
+
+    def printPageInfo(self):
+        # check pages #
+        if not self.allocPageData:
+            return
+
+        orderTable = list(sorted(self.allocPageData.keys()))
+        orders = ' '.join(['{0:>5}'.format(\
+            UtilMgr.convNum(order)) for order in orderTable])
+        SysMgr.printPipe(\
+            '\n[Thread Page Info] (Unit: Order)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe("{0:^23} {1:>1}".format('Thread', orders))
+        SysMgr.printPipe(twoLine)
+
+        # print total pages #
+        totalInfo = "{0:^23} ".format('TOTAL')
+        for order in orderTable:
+            totalInfo += '{0:>5} '.format(\
+                UtilMgr.convNum(self.allocPageData[order]))
+        SysMgr.printPipe(totalInfo)
+        SysMgr.printPipe(oneLine)
+
+        # print task pages #
+        for tid, value in sorted(\
+            self.threadData.items(), \
+            key=lambda e:e[1]['nrAllocPages'], reverse=True):
+            if tid[0] == '0':
+                continue
+            if not 'orderPages' in value:
+                continue
+
+            comm = self.threadData[tid]['comm']
+            taskInfo = "{0:>23} ".format('%s(%s)' % (comm, tid))
+            for order in orderTable:
+                if order in value['orderPages']:
+                    addval = UtilMgr.convNum(value['orderPages'][order])
+                else:
+                    addval = ' '
+                taskInfo += '{0:>5} '.format(addval)
+            SysMgr.printPipe(taskInfo)
+
+        SysMgr.printPipe(oneLine)
 
 
 
@@ -56455,6 +56562,8 @@ class ThreadAnalyzer(object):
             self.threadData[thread].setdefault('orderPages', dict())
             self.threadData[thread]['orderPages'].setdefault(order, 0)
             self.threadData[thread]['orderPages'][order] += 1
+            self.allocPageData.setdefault(order, 0)
+            self.allocPageData[order] += 1
 
             # accumulate pages allocated #
             self.threadData[thread]['nrAllocPages'] += nr
@@ -61719,7 +61828,8 @@ class ThreadAnalyzer(object):
 
             # swap #
             try:
-                swapSize = long(value['status']['VmSwap'].split()[0]) >> 10
+                swapSize = \
+                    long(value['status']['VmSwap'].split()[0]) >> 10
             except:
                 swapSize = '-'
 
