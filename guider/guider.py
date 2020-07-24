@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200723"
+__revision__ = "200724"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27215,12 +27215,15 @@ Copyright:
             for tid in pids:
                 try:
                     pid = SysMgr.getTgid(tid)
+                    if not pid:
+                        continue
                     procList.setdefault(pid, list())
                     procList[pid].append(tid)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     pass
+
             pidList = list(map(long, procList.keys()))
 
             # merge map files #
@@ -27247,7 +27250,12 @@ Copyright:
             # save original data to be injected for multi-threaded process #
             for pid in pidList:
                 # stop a process #
-                os.kill(pid, signal.SIGSTOP)
+                try:
+                    os.kill(pid, signal.SIGSTOP)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
 
                 # register signal sender for resume #
                 SysMgr.addExitFunc(\
@@ -27475,7 +27483,12 @@ Copyright:
                         trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
                 if pid:
-                    ppid = long(SysMgr.getTgid(pid))
+                    try:
+                        ppid = long(SysMgr.getTgid(pid))
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        ppid = None
 
                     # set per-process convert breakpoint list #
                     if ppid in bpList:
@@ -36986,7 +36999,8 @@ struct cmsghdr {
             self.isRunning = True
 
             if self.isInRun() is None:
-                SysMgr.printErr('Fail to find %s thread' % pid)
+                SysMgr.printErr(\
+                    'Fail to find %s(%s)' % (self.comm, pid))
                 sys.exit(0)
 
             # update comm #
@@ -56182,8 +56196,8 @@ class ThreadAnalyzer(object):
                         self.threadData[prev_id]['maxRuntime'] = diff
                 else:
                     SysMgr.printWarn(\
-                        "usage time of %s(%s) is negative at line %d" % \
-                        (prev_comm, prev_id, SysMgr.curLine))
+                        "usage time of %s(%s) is negative(%f) at line %d" % \
+                        (prev_comm, prev_id, diff, SysMgr.curLine))
 
             if diff > long(SysMgr.intervalEnable):
                 self.threadData[prev_id]['longRunCore'] = long(core)
@@ -56281,8 +56295,8 @@ class ThreadAnalyzer(object):
                     self.threadData[next_id]['cpuWait'] += preemptedTime
                 else:
                     SysMgr.printWarn(\
-                        "preempted time of %s(%d) is negative at line %d" % \
-                        (next_comm, next_id, SysMgr.curLine))
+                        "preempted time of %s(%s) is negative(%f) at line %d" % \
+                        (next_comm, next_id, preemptedTime, SysMgr.curLine))
 
                 if preemptedTime > self.threadData[next_id]['maxPreempted']:
                     self.threadData[next_id]['maxPreempted'] = preemptedTime
@@ -57466,9 +57480,10 @@ class ThreadAnalyzer(object):
             pid = d['pid']
 
             try:
-                self.threadData[pid]
-                SysMgr.printWarn(\
-                    "Fail to handle a new task because it is already exist")
+                data = self.threadData[pid]
+                SysMgr.printWarn((\
+                    "Fail to handle a new task %s(%s) "
+                    "because it is already exist") % (data['comm'], pid))
             except:
                 self.threadData[pid] = dict(self.init_threadData)
                 self.threadData[pid]['comm'] = d['comm']
@@ -57497,9 +57512,10 @@ class ThreadAnalyzer(object):
             ccomm = d['child_comm']
 
             try:
-                self.threadData[cpid]
-                SysMgr.printWarn(\
-                    "Fail to handle a new task because it is already exist")
+                data = self.threadData[cpid]
+                SysMgr.printWarn((\
+                    "Fail to handle a new task %s(%s) "
+                    "because it is already exist") % (data['comm'], cpid))
             except:
                 self.threadData[cpid] = dict(self.init_threadData)
                 self.threadData[cpid]['comm'] = ccomm
