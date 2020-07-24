@@ -43105,6 +43105,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         ret = self.ptrace(cmd, 0, addr)
 
         if ret != 0:
+            if not self.isAlive():
+                SysMgr.printErr(\
+                    'Terminated %s(%s)' % (self.comm, self.pid))
+                sys.exit(0)
+
             SysMgr.printErr(\
                 "Fail to get fp register set of %s(%s)" % \
                     (self.comm, self.pid))
@@ -43145,10 +43150,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 addr = addressof(self.regs)
 
             cmd = self.getregsCmd
-
             ret = self.ptrace(cmd, 0, addr)
 
         if ret != 0:
+            if not self.isAlive():
+                SysMgr.printErr(\
+                    'Terminated %s(%s)' % (self.comm, self.pid))
+                sys.exit(0)
+
             SysMgr.printErr(\
                 "Fail to get register set of %s(%s)" % \
                     (self.comm, self.pid))
@@ -46645,7 +46654,8 @@ class ThreadAnalyzer(object):
                 # merge tasks #
                 target = memProcUsage[pname]
                 target['rssUsage'] = list(map(sum, \
-                    zip(*[target['rssUsage'], memProcUsage[pinfo]['rssUsage']])))
+                    zip(*[target['rssUsage'], \
+                        memProcUsage[pinfo]['rssUsage']])))
 
                 # update stats #
                 target['cnt'] += 1
@@ -46743,7 +46753,8 @@ class ThreadAnalyzer(object):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
-                    prevCpuProcList = statFileList[flist[idx-1]]['cpuProcUsage']
+                    prevCpuProcList = \
+                        statFileList[flist[idx-1]]['cpuProcUsage']
                 except:
                     prevCpuProcList = None
 
@@ -46751,7 +46762,9 @@ class ThreadAnalyzer(object):
 
                 # no target process in this file #
                 if not pname in cpuProcList:
-                    if idx > 0 and prevCpuProcList and pname in prevCpuProcList:
+                    if idx > 0 and \
+                        prevCpuProcList and \
+                        pname in prevCpuProcList:
                         printBuf = '%s %6.1f%%%s' % \
                             (printBuf, -(prevCpuProcList[pname]['average']), \
                                 emptyCpuStat[7:])
@@ -47281,7 +47294,8 @@ class ThreadAnalyzer(object):
                 coreId = '0[%s]' % idx
                 if self.threadData[coreId]['lastOff'] > 0:
                     self.threadData[coreId]['usage'] += \
-                        float(self.finishTime) - self.threadData[coreId]['start']
+                        float(self.finishTime) - \
+                            self.threadData[coreId]['start']
                 continue
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
@@ -48986,7 +49000,8 @@ class ThreadAnalyzer(object):
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), \
                     fontsize=3.5, loc='upper right')
             else:
-                legend(labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+                legend(\
+                    labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
 
             grid(which='both', linestyle=':', linewidth=0.2)
 
@@ -55732,29 +55747,29 @@ class ThreadAnalyzer(object):
                 intervalThread['cpuPer'] = long(0)
 
             # fix preempted time exceed this interval #
-            if intervalThread['preempted'] > intervalEnable:
+            if intervalThread['preempted'] > intervalEnable and \
+                intervalThread['preempted'] > self.thisInterval:
                 # recalculate previous intervals if no context switching since profile start #
                 remainTime = intervalThread['preempted']
-                if intervalThread['preempted'] > self.thisInterval:
-                    for idx in range(index + 1, -1, -1):
-                        try:
-                            self.intData[idx][key]
-                        except:
-                            self.intData[idx][key] = dict(self.init_intData)
-                        try:
-                            self.intData[idx - 1][key]
-                        except:
-                            self.intData[idx - 1][key] = dict(self.init_intData)
+                for idx in range(index + 1, -1, -1):
+                    try:
+                        self.intData[idx][key]
+                    except:
+                        self.intData[idx][key] = dict(self.init_intData)
+                    try:
+                        self.intData[idx - 1][key]
+                    except:
+                        self.intData[idx - 1][key] = dict(self.init_intData)
 
-                        if remainTime >= intervalEnable:
-                            self.intData[idx - 1][key]['preempted'] = \
-                                intervalEnable
-                        else:
-                            self.intData[idx - 1][key]['preempted'] += remainTime
+                    if remainTime >= intervalEnable:
+                        self.intData[idx - 1][key]['preempted'] = \
+                            intervalEnable
+                    else:
+                        self.intData[idx - 1][key]['preempted'] += remainTime
 
-                        remainTime -= intervalEnable
-                        if remainTime <= 0:
-                            break
+                    remainTime -= intervalEnable
+                    if remainTime <= 0:
+                        break
 
             # calculate total block usage in this interval #
             self.intData[index]['toTal']['totalBr'] += \
@@ -58394,24 +58409,26 @@ class ThreadAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(memPath)
 
-        if memBuf:
-            self.prevZoneData = self.zoneData
-            self.zoneData = {}
+        if not memBuf:
+            return
 
-            zone = None
-            for line in memBuf:
-                zl = line.split()
-                item = zl[0]
-                if item  == 'Node':
-                    zone = '%s-%s' % (zl[1][:-1], zl[3])
-                    self.zoneData[zone] = dict()
-                elif item == 'pages' and zl[1] == 'free':
-                    self.zoneData[zone]['free'] = long(zl[2])
-                elif item == 'min' or item == 'low' or item == 'high' or \
-                    item == 'spanned' or item == 'present' or item == 'managed':
-                    self.zoneData[zone][item] = long(zl[1])
-                else:
-                    continue
+        self.prevZoneData = self.zoneData
+        self.zoneData = {}
+
+        zone = None
+        for line in memBuf:
+            zl = line.split()
+            item = zl[0]
+            if item  == 'Node':
+                zone = '%s-%s' % (zl[1][:-1], zl[3])
+                self.zoneData[zone] = dict()
+            elif item == 'pages' and zl[1] == 'free':
+                self.zoneData[zone]['free'] = long(zl[2])
+            elif item == 'min' or item == 'low' or item == 'high' or \
+                item == 'spanned' or item == 'present' or item == 'managed':
+                self.zoneData[zone][item] = long(zl[1])
+            else:
+                continue
 
 
 
@@ -58421,12 +58438,16 @@ class ThreadAnalyzer(object):
             irqBuf = None
             SysMgr.irqFd.seek(0)
             irqBuf = SysMgr.irqFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 irqPath = "%s/%s" % (SysMgr.procPath, 'interrupts')
                 SysMgr.irqFd = open(irqPath, 'r')
 
                 irqBuf = SysMgr.irqFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(irqPath)
 
@@ -58436,6 +58457,8 @@ class ThreadAnalyzer(object):
             SysMgr.softirqFd.seek(0)
             sirqBuf = SysMgr.softirqFd.readlines()
             irqBuf += sirqBuf[1:]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 sirqPath = "%s/%s" % (SysMgr.procPath, 'softirqs')
@@ -58443,6 +58466,8 @@ class ThreadAnalyzer(object):
 
                 sirqBuf = SysMgr.softirqFd.readlines()
                 irqBuf += sirqBuf[1:]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(sirqPath)
 
@@ -58526,14 +58551,15 @@ class ThreadAnalyzer(object):
                 if pid == tid:
                     self.procData[tid]['isMain'] = True
                     self.procData[tid]['tids'] = []
+                    continue
+
                 # sibling thread #
-                else:
-                    try:
-                        self.procData[pid]['tids'].append(tid)
-                    except:
-                        self.procData[pid] = dict(self.init_procData)
-                        self.procData[pid]['tids'] = []
-                        self.procData[pid]['tids'].append(tid)
+                try:
+                    self.procData[pid]['tids'].append(tid)
+                except:
+                    self.procData[pid] = dict(self.init_procData)
+                    self.procData[pid]['tids'] = []
+                    self.procData[pid]['tids'].append(tid)
 
 
 
@@ -59415,6 +59441,8 @@ class ThreadAnalyzer(object):
             self.procData[tid]['oomFd'] = self.prevProcData[tid]['oomFd']
             self.procData[tid]['oomScore'] = \
                 long(self.procData[tid]['oomFd'].readline())
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 oomPath = "%s/%s" % (path, 'oom_score')
@@ -59433,6 +59461,8 @@ class ThreadAnalyzer(object):
                             self.procData[tid]['oomScore']
                         self.procData[mainID]['oomFd'] = \
                             self.procData[tid]['oomFd']
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(oomPath)
 
@@ -59443,63 +59473,21 @@ class ThreadAnalyzer(object):
     def reclaimFds(self, nrReq=64):
         nrRclm = long(0)
         for pid, val in sorted(self.procData.items(), key=lambda x:int(x[0])):
-            try:
-                val['schedstatFd'].close()
-                val['schedstatFd'] = None
-                nrRclm += 1
-            except:
-                pass
+            for item in val.keys():
+                if not item.endswith('Fd'):
+                    continue
 
-            try:
-                val['wchanFd'].close()
-                val['wchanFd'] = None
-                nrRclm += 1
-            except:
-                pass
+                # close file descriptors #
+                try:
+                    val[item].close()
+                    val[item] = None
+                    nrRclm += 1
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
 
-            try:
-                val['ioFd'].close()
-                val['ioFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            try:
-                val['statFd'].close()
-                val['statFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            try:
-                val['statusFd'].close()
-                val['statusFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            try:
-                val['cgroupFd'].close()
-                val['cgroupFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            try:
-                val['statmFd'].close()
-                val['statmFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            try:
-                val['oomFd'].close()
-                val['oomFd'] = None
-                nrRclm += 1
-            except:
-                pass
-
-            if nrRclm > nrReq:
+            if nrRclm >= nrReq:
                 return nrRclm
 
 
