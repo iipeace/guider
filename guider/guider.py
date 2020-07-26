@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200724"
+__revision__ = "200726"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27540,8 +27540,7 @@ Copyright:
 
         # check symbol #
         if not SysMgr.filterGroup:
-            SysMgr.printErr(\
-                "No offset with -g")
+            SysMgr.printErr("No offset with -g")
             sys.exit(0)
         else:
             addrList = list()
@@ -27587,7 +27586,8 @@ Copyright:
 
                 for addr in addrList:
                     try:
-                        resInfo[addr] = [binObj.getSymbolByOffset(addr), filePath]
+                        resInfo[addr] = \
+                            [binObj.getSymbolByOffset(addr), filePath]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27840,7 +27840,12 @@ Copyright:
 
         # check symbol #
         if not SysMgr.filterGroup:
+            SysMgr.printInfo('Print all symbols')
             SysMgr.filterGroup.append('**')
+        else:
+            SysMgr.printInfo(\
+                'Print all symbols including [ %s ]' % \
+                    ','.join(SysMgr.filterGroup))
 
         resInfo = {}
         inputArg = str(SysMgr.inputParam)
@@ -29235,9 +29240,11 @@ Copyright:
             pid = str(pid)
             procPath = '%s/%s' % (SysMgr.procPath, pid)
             obj.saveProcStat()
+            procs = obj.procData
+            prevProcs = obj.prevProcData
             if SysMgr.isRoot():
                 obj.saveProcSmapsData(procPath, pid)
-                ret = obj.getMemDetails(pid, obj.procData[pid]['maps'])
+                ret = obj.getMemDetails(pid, procs[pid]['maps'])
                 statstr = "RSS: %s, PSS: %s, USS: %s" % \
                     (conv(ret[1] << 10), conv(ret[2] << 10), conv(ret[3] << 10))
             else:
@@ -29253,24 +29260,24 @@ Copyright:
                 statstr = "RSS: %s" % conv(long(mlist[rssIdx]) << 12)
 
             # get new task #
-            newTasks = set(obj.procData.keys()) - set(obj.prevProcData.keys())
+            newTasks = set(procs.keys()) - set(prevProcs.keys())
             if newTasks:
                 newstr = '\n[%9s]' % 'NEW'
                 for pid in sorted(newTasks):
-                    comm = obj.procData[pid]['stat'][obj.commIdx][1:-1]
-                    rss = conv(long(obj.procData[pid]['stat'][obj.rssIdx])<<12)
+                    comm = procs[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(procs[pid]['stat'][obj.rssIdx])<<12)
                     newstr = '%s %s(%s)[%s], ' % (newstr, comm, pid, rss)
                 newstr = newstr[:-2]
             else:
                 newstr = ''
 
             # get die task #
-            dieTasks =  set(obj.prevProcData.keys()) - set(obj.procData.keys())
+            dieTasks =  set(prevProcs.keys()) - set(procs.keys())
             if dieTasks:
                 diestr = '\n[%9s]' % 'DIE'
                 for pid in sorted(dieTasks):
-                    comm = obj.prevProcData[pid]['stat'][obj.commIdx][1:-1]
-                    rss = conv(long(obj.prevProcData[pid]['stat'][obj.rssIdx])<<12)
+                    comm = prevProcs[pid]['stat'][obj.commIdx][1:-1]
+                    rss = conv(long(prevProcs[pid]['stat'][obj.rssIdx])<<12)
                     diestr = '%s %s(%s)[%s], ' % (diestr, comm, pid, rss)
                 diestr = diestr[:-2]
             else:
