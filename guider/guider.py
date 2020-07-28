@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200727"
+__revision__ = "200728"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3642,6 +3642,9 @@ class UtilMgr(object):
 
         rlist = list()
         for item in flist:
+            if item.startswith('-'):
+                break
+
             # apply regular expression for path #
             ilist = UtilMgr.convertPath(item, retStr=False)
             if UtilMgr.isString(ilist):
@@ -13489,6 +13492,7 @@ class SysMgr(object):
     jsonData = {}
     nrTopRank = 10
     layout = None
+    avgEnable = False
 
     showAll = False
     optStrace = False
@@ -13978,6 +13982,8 @@ class SysMgr(object):
             # io #
             elif SysMgr.isDrawIoMode():
                 SysMgr.layout = 'IO'
+            elif SysMgr.isDrawAvgMode():
+                SysMgr.avgEnable = True
 
             # modify args for drawing multiple input files #
             sys.argv[1] = 'top'
@@ -15750,6 +15756,7 @@ class SysMgr(object):
                 'drawrss': 'RSS',
                 'drawleak': 'Leak',
                 'drawio': 'I/O',
+                'drawavg': 'Average',
                 'convert': 'Text',
                 },
             'util': {
@@ -17195,6 +17202,18 @@ Examples:
     - Analyze page attributes in specific area for a specific process
         # {0:1} {1:1} -g a.out -I 0x0-0x4000
                     '''.format(cmd, mode)
+
+                # average draw #
+                elif SysMgr.isDrawAvgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw CPU average graphs
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
 
                 # CPU draw #
                 elif SysMgr.isDrawCpuMode():
@@ -24269,6 +24288,16 @@ Copyright:
 
 
     @staticmethod
+    def isDrawAvgMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawavg' or sys.argv[1] == 'avgdraw'):
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isDrawMemMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'drawmem' or sys.argv[1] == 'memdraw'):
@@ -24344,6 +24373,8 @@ Copyright:
         if len(sys.argv) == 1:
             return False
         elif sys.argv[1] == 'draw' or orig:
+            return True
+        elif SysMgr.isDrawAvgMode():
             return True
         elif SysMgr.isDrawCpuMode():
             return True
@@ -40485,7 +40516,6 @@ struct cmsghdr {
                 SysMgr.addPrint(\
                     '\tBacktrace Info [%s]\n%s\n' % (taskInfo, oneLine))
 
-                print(backtrace)
                 for item in backtrace:
                     SysMgr.addPrint(\
                         '%s(%s)[%s]\n' % \
@@ -48405,6 +48435,8 @@ class ThreadAnalyzer(object):
 
 
     def getAvgStats(self, flist, stats):
+        # pylint: disable=undefined-variable
+
         # make file index table #
         fileIdxList = {}
         for idx, fname in enumerate(flist):
@@ -48449,6 +48481,30 @@ class ThreadAnalyzer(object):
 
 
 
+    def initDrawEnv(self):
+        # get matplotlib object #
+        matplotlib = SysMgr.getPkg('matplotlib', False)
+        if not matplotlib:
+            SysMgr.printPipWarn('matplotlib', 'matplotlib')
+            sys.exit(0)
+
+        from matplotlib.ticker import MaxNLocator
+
+        SysMgr.matplotlibVersion = \
+            float('.'.join(matplotlib.__version__.split('.')[:2]))
+
+        matplotlib.use('Agg')
+
+        # get pylab object #
+        SysMgr.importPkgItems('pylab')
+
+        # set dpi #
+        matplotlib.rcParams['figure.dpi'] = SysMgr.matplotlibDpi
+
+        return matplotlib
+
+
+
     def drawStats(self, flist, outFile=None, onlyGraph=False, onlyChart=False):
         # convert str to list #
         if type(flist) is str:
@@ -48480,6 +48536,20 @@ class ThreadAnalyzer(object):
                 # merge stats #
                 for key, val in gstats.items():
                     graphStats['%s:%s' % (lfile, key)] = val
+
+        # initialize environment for drawing #
+        self.initDrawEnv()
+
+        # draw avreage graphs #
+        if SysMgr.avgEnable:
+            try:
+                graphStats = self.getAvgStats(flist, graphStats)
+                graphStats['fileList'] = flist
+                self.drawAvgGraph(graphStats, logFile, outFile=outFile)
+            except:
+                SysMgr.printErr(\
+                    "Fail to draw history graph", True)
+            return
 
         # draw graphs #
         try:
@@ -48525,21 +48595,6 @@ class ThreadAnalyzer(object):
             return autopct
 
         SysMgr.printStat(r"start drawing charts...")
-
-        # get matplotlib object #
-        matplotlib = SysMgr.getPkg('matplotlib', False)
-        if not matplotlib:
-            SysMgr.printPipWarn('matplotlib', 'matplotlib')
-            sys.exit(0)
-        from matplotlib.ticker import MaxNLocator
-
-        SysMgr.matplotlibVersion = \
-            float('.'.join(matplotlib.__version__.split('.')[:2]))
-
-        matplotlib.use('Agg')
-
-        # get pylab object #
-        SysMgr.importPkgItems('pylab')
 
         seq = long(0)
         height = \
@@ -49145,7 +49200,8 @@ class ThreadAnalyzer(object):
 
             # set yticks attributes #
             xticks(fontsize=4)
-            ylim([0, ymax+int(ymax/10)])
+            if ymax > 0:
+                ylim([0, ymax+int(ymax/10)])
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
             inc = long(ymax / 10)
@@ -49620,7 +49676,8 @@ class ThreadAnalyzer(object):
                 ymaxval = ymax+int(ymax/10)
             if ymaxval == 0:
                 ymaxval = 1
-            ylim([0, ymaxval])
+            if ymaxval > 0:
+                ylim([0, ymaxval])
 
             # adjust yticks #
             ylist = ax.get_yticks().tolist()
@@ -50104,7 +50161,8 @@ class ThreadAnalyzer(object):
                 ymax = SysMgr.funcDepth
 
             # update yticks #
-            ylim([ymin, ymax+int(ymax/10)])
+            if ymax > 0:
+                ylim([ymin, ymax+int(ymax/10)])
 
             inc = long(ymax / 10)
             if inc == 0:
@@ -50150,24 +50208,6 @@ class ThreadAnalyzer(object):
         #==================== BODY PART ====================#
 
         SysMgr.printStat(r"start drawing graphs...")
-
-        # get matplotlib object #
-        matplotlib = SysMgr.getPkg('matplotlib', False)
-        if not matplotlib:
-            SysMgr.printPipWarn('matplotlib', 'matplotlib')
-            sys.exit(0)
-        from matplotlib.ticker import MaxNLocator
-
-        SysMgr.matplotlibVersion = \
-            float('.'.join(matplotlib.__version__.split('.')[:2]))
-
-        matplotlib.use('Agg')
-
-        # get pylab object #
-        SysMgr.importPkgItems('pylab')
-
-        # set dpi #
-        matplotlib.rcParams['figure.dpi'] = SysMgr.matplotlibDpi
 
         '''
         initialize list that count the number of process
@@ -50300,6 +50340,391 @@ class ThreadAnalyzer(object):
         except:
             SysMgr.printWarn(\
                 "Fail to write system info", True, reason=True)
+
+        # remove stats to free memory #
+        graphStats.clear()
+
+        # save to file #
+        self.saveImage(logFile, 'graph', outFile=outFile)
+
+
+
+    def drawAvgGraph(self, graphStats, logFile, outFile=None):
+        def getTextAlign(idx, timeline):
+            if idx < len(timeline)/4:
+                return 'left'
+            elif idx > len(timeline)/4*3:
+                return 'right'
+            else:
+                return 'center'
+
+        def drawBottom(xtype, ax):
+            if xtype == 1:
+                # convert tick type to integer #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xtickLabel = list(map(long, xtickLabel))
+                    if xtickLabel[0] != xtickLabel[-1]:
+                        xlim([xtickLabel[0], xtickLabel[-1]])
+                        xtickLabel[-1] = '   TIME(Sec)'
+                        ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 3:
+                # draw the number of tasks #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    if sum(effectProcList) == 0:
+                        for seq, cnt in enumerate(xtickLabel):
+                            xtickLabel[seq] = '?'
+                    else:
+                        for seq, cnt in enumerate(xtickLabel):
+                            try:
+                                xtickLabel[seq] = \
+                                    effectProcList[timeline.index(long(cnt))]
+                            except:
+                                xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   TASK(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+            elif xtype == 2:
+                # draw the number of cores #
+                try:
+                    xtickLabel = ax.get_xticks().tolist()
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
+                        except:
+                            xtickLabel[seq] = ' '
+                    xtickLabel[-1] = '   CORE(NR)'
+                    ax.set_xticklabels(xtickLabel)
+                except:
+                    pass
+
+        def drawBoundary(gtype, labelList):
+            if not SysMgr.boundaryLine:
+                return
+
+            try:
+                boundaryList = \
+                    list(map(UtilMgr.convUnit2Size, \
+                        SysMgr.boundaryLine))
+            except:
+                SysMgr.printErr(\
+                    "Fail to set boundary line", True)
+                sys.exit(0)
+
+            # draw boundary graph #
+            for boundary in boundaryList:
+                if gtype == 'io':
+                    bl = boundary >> 10
+                elif gtype == 'mem':
+                    bl = boundary >> 20
+                else:
+                    bl = boundary
+
+                try:
+                    axhline(y=bl, linewidth=1, linestyle='--', color='black')
+
+                    labelList.append(\
+                        '[ Boundary %s ]' % \
+                            UtilMgr.convSize2Unit(boundary))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
+
+        def drawCpu(graphStats, xtype, pos, size):
+            # pylint: disable=undefined-variable
+
+            # draw title #
+            ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            if SysMgr.avgEnable:
+                suptitle('Guider Average Graph', fontsize=8)
+            else:
+                suptitle('Guider Graph', fontsize=8)
+
+            # define common label list #
+            ymax = long(0)
+            labelList = []
+
+            # create new timeline #
+            timeline = range(0, len(graphStats['timeline']))
+            lent = len(timeline)
+
+            cpuUsage = graphStats['cpuUsage']
+            cpuProcUsage = graphStats['cpuProcUsage']
+            blkWait = graphStats['blkWait']
+            blkProcUsage = graphStats['blkProcUsage']
+            try:
+                gpuUsage = graphStats['gpuUsage']
+            except:
+                gpuUsage = {}
+            nrCore = graphStats['nrCore']
+            maxCore = max(nrCore)
+
+            # convert total CPU usage by core number #
+            if not SysMgr.cpuAvrEnable:
+                cpuUsage = [maxCore * i for i in cpuUsage]
+
+            # set visible total usage flag #
+            if SysMgr.showAll or \
+                not SysMgr.filterGroup:
+                isVisibleTotal = True
+            else:
+                isVisibleTotal = False
+
+            # add boundary line #
+            drawBoundary('cpu', labelList)
+
+            #-------------------- Total GPU usage --------------------#
+            if isVisibleTotal:
+                for gpu, stat in gpuUsage.items():
+                    stat = list(map(long, stat.split()))[:lent]
+                    try:
+                        if min(stat) == max(stat):
+                            continue
+                    except:
+                        pass
+
+                    # draw total gpu graph #
+                    plot(timeline, stat, '-', c='olive', linestyle='-',\
+                        linewidth=1, marker='d', markersize=1, \
+                        solid_capstyle='round')
+
+                    maxUsage = max(stat)
+                    maxIdx = stat.index(maxUsage)
+
+                    labelList.append(\
+                        '[ %s ] - %s%%' % (gpu, maxUsage))
+
+                    for idx in [idx for idx, usage in enumerate(stat) \
+                        if usage == maxUsage]:
+                        if idx != 0 and stat[idx] == stat[idx-1]:
+                            continue
+                        text(timeline[idx], stat[maxIdx], \
+                            '%s (%d%%)' % (gpu, maxUsage),\
+                            fontsize=4, color='olive', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
+                            alpha=0.3),\
+                            ha=getTextAlign(idx, timeline))
+                        break
+
+            #-------------------- Total CPU usage --------------------#
+            if isVisibleTotal:
+                if sum(blkWait) > 0:
+                    for idx, item in enumerate(blkWait):
+                        blkWait[idx] += cpuUsage[idx]
+
+                        # update the maximum ytick #
+                        if ymax < blkWait[idx]:
+                            ymax = blkWait[idx]
+
+                    # draw total CPU + iowait graph #
+                    plot(timeline, blkWait, '-', c='pink', linestyle='-',\
+                        linewidth=1, marker='d', markersize=1, \
+                        solid_capstyle='round')
+
+                    maxUsage = max(blkWait)
+                    maxIdx = blkWait.index(maxUsage)
+
+                    labelList.append(\
+                        '[ CPU+IO Average ] - %s%%' % (maxUsage))
+
+                    for idx in [idx for idx, usage in enumerate(blkWait) \
+                        if usage == maxUsage]:
+                        if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                            continue
+                        text(timeline[idx], blkWait[maxIdx],\
+                            '[CPU+IO] (%d%%)' % maxUsage,\
+                            fontsize=4, color='pink', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
+                            alpha=0.3),\
+                            ha=getTextAlign(idx, timeline))
+                        break
+
+                # draw total CPU graph #
+                plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
+                    linewidth=1, marker='d', markersize=1, \
+                    solid_capstyle='round')
+
+                maxUsage = max(cpuUsage)
+                maxIdx = cpuUsage.index(maxUsage)
+
+                labelList.append(\
+                    '[ CPU Average ] - %s%%' % maxUsage)
+
+                # update the maximum ytick #
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
+                for idx in [idx for idx, usage in enumerate(cpuUsage) \
+                    if usage == maxUsage]:
+                    if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
+                        continue
+                    text(timeline[idx], cpuUsage[maxIdx],\
+                        '[CPU] (%d%%)' % maxUsage,\
+                        fontsize=4, color='red', fontweight='bold',\
+                        bbox=dict(boxstyle='round', facecolor='wheat',\
+                        alpha=0.3),\
+                        ha=getTextAlign(idx, timeline))
+                    break
+
+            #-------------------- Process CPU usage --------------------#
+            # total CPU usage of processes filtered #
+            if "[ TOTAL ]" in cpuProcUsage:
+                totalUsage = cpuProcUsage["[ TOTAL ]"]
+                totalUsage = list(map(long, totalUsage))[:lent]
+
+                # draw total graph #
+                plot(timeline, totalUsage, '-', c='green', linestyle='-',\
+                    linewidth=1, marker='d', markersize=1, \
+                    solid_capstyle='round')
+
+                labelList.append('[ TOTAL ]')
+
+                maxUsage = max(totalUsage)
+                maxIdx = totalUsage.index(maxUsage)
+
+                # update the maximum ytick #
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
+                for idx in [idx for idx, usage in enumerate(totalUsage) \
+                    if usage == maxUsage]:
+                    if idx != 0 and totalUsage[idx] == totalUsage[idx-1]:
+                        continue
+
+                    text(timeline[idx], totalUsage[maxIdx], \
+                        '[TOTAL] (%d%%)' % maxUsage, \
+                        fontsize=4, color='green', fontweight='bold',\
+                        bbox=dict(boxstyle='round', facecolor='wheat',\
+                        alpha=0.3),\
+                        ha=getTextAlign(idx, timeline))
+                    break
+
+            cpuProcUsage.pop("[ TOTAL ]", None)
+
+            # define top variable #
+            if SysMgr.nrTop:
+                tcnt = long(0)
+
+            # CPU usage of processes #
+            for idx, item in sorted(\
+                cpuProcUsage.items(), \
+                key=lambda e: sum(list(map(long, e[1]))), reverse=True):
+
+                if not SysMgr.cpuEnable:
+                    break
+
+                # check top number #
+                if SysMgr.nrTop:
+                    if tcnt >= SysMgr.nrTop:
+                        break
+                    else:
+                        tcnt += 1
+
+                usage = list(map(long, item))[:lent]
+                cpuUsage = list(usage)
+
+                if not SysMgr.blockEnable:
+                    # merge CPU usage and wait time of processes #
+                    try:
+                        blkUsage = blkProcUsage[idx]
+                        blkUsage = list(map(long, blkUsage))
+                        for interval, value in enumerate(blkUsage):
+                            usage[interval] += value
+                    except:
+                        pass
+
+                # update the maximum ytick #
+                maxusage = max(usage)
+                if ymax < maxusage:
+                    ymax = maxusage
+
+                maxIdx = usage.index(maxusage)
+                color = plot(timeline, usage, '-')[0].get_color()
+
+                ytick = yticks()[0]
+                if len(ytick) > 1:
+                    margin = (ytick[1] - ytick[0]) / 10
+                else:
+                    margin = long(0)
+
+                maxCpuPer = str(cpuUsage[maxIdx])
+                if idx in blkProcUsage and not SysMgr.blockEnable:
+                    maxBlkPer = str(blkUsage[maxIdx])
+                else:
+                    maxBlkPer = '0'
+                maxPer = '(%s%%+%s%%)' % (maxCpuPer, maxBlkPer)
+
+                ilabel = '%s %s' % (idx, maxPer)
+                text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
+                    fontsize=3, color=color, fontweight='bold',\
+                    ha=getTextAlign(maxIdx, timeline))
+
+                labelList.append('%s - %s%%' % (idx, maxCpuPer))
+
+            if SysMgr.matplotlibVersion >= 1.2:
+                legend(labelList, bbox_to_anchor=(1.12, 1.05), \
+                    fontsize=3.5, loc='upper right')
+            else:
+                legend(\
+                    labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+
+            grid(which='both', linestyle=':', linewidth=0.2)
+
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+
+            # update ymax #
+            if SysMgr.funcDepth > 0:
+                ymax = SysMgr.funcDepth
+
+            # set xticks attributes #
+            ax.set_xticklabels(graphStats['fileList'])
+
+            # set yticks attributes #
+            xticks(fontsize=4)
+            if ymax > 0:
+                ylim([0, ymax+int(ymax/10)])
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
+            inc = long(ymax / 10)
+            if inc == 0:
+                inc = 1
+            yticks(range(0, ymax + inc, inc), fontsize=5)
+
+            # add % unit to each value #
+            try:
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(long, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    ['%s%%' % val for val in ytickLabel]
+
+                ax.set_yticklabels(ytickLabel)
+            except:
+                pass
+
+            #ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+
+            drawBottom(xtype, ax)
+
+        SysMgr.printStat(r"start drawing average graphs...")
+
+        # draw CPU #
+        drawCpu(graphStats, 3, 0, 6)
 
         # remove stats to free memory #
         graphStats.clear()
