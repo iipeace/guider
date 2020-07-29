@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200729"
+__revision__ = "200730"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20905,7 +20905,7 @@ Copyright:
             [nline[:SysMgr.ttyCols-1] for nline in string.split('\n')])
 
         # print on console #
-        print(string[:-1])
+        print(string.rstrip())
 
 
 
@@ -36785,7 +36785,7 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
     selfInstance = None
-    RETSTR = '<RET>'
+    RETSTR = '/RET'
 
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
@@ -36823,6 +36823,7 @@ class Debugger(object):
         self.callTable = {}
         self.fileTable = {}
         self.bpList = {}
+        self.entryTime = {}
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
@@ -37503,6 +37504,13 @@ struct cmsghdr {
 
 
     def executeCmd(self, cmdList, sym=None, fname=None, args=[]):
+        def flushPrint():
+            if SysMgr.printFile:
+                self.callPrint.append(SysMgr.bufferString[1:])
+                SysMgr.clearPrint()
+                return
+            SysMgr.doPrint(clear=True)
+
         def printCmdErr(cmdset, cmd):
             if cmd == 'print':
                 cmdformat = "VAR"
@@ -37556,6 +37564,9 @@ struct cmsghdr {
             return cmdList
 
         newCmdList = list()
+        origin = SysMgr.printStreamEnable
+        if not origin and SysMgr.printFile:
+            SysMgr.printStreamEnable = False
 
         for cmdval in cmdList:
             # parse cmd set #
@@ -37585,17 +37596,15 @@ struct cmsghdr {
                         except:
                             data = 'N/A'
 
-                        SysMgr.printPipe(\
-                            "\n[%s] %s = %s" % (cmdstr, var, data), \
-                                newline=False, flush=True)
+                        SysMgr.addPrint(\
+                            "\n[%s] %s = %s" % (cmdstr, var, data))
 
                 elif cmd == 'exec':
                     if len(cmdset) == 1:
                         printCmdErr(cmdval, cmd)
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])),\
-                             newline=False, flush=True)
+                    SysMgr.addPrint(\
+                        "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
 
                     # execute commands #
                     for item in cmdset[1].split(':'):
@@ -37637,9 +37646,7 @@ struct cmsghdr {
                             targetAddr = \
                                 self.readMem(targetAddr, retWord=True)
 
-                    SysMgr.printPipe(\
-                        "\n[%s] 0x%x" % (cmdstr, ret), \
-                            newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s] 0x%x" % (cmdstr, ret))
 
                     # set register values #
                     self.setRetVal(ret)
@@ -37704,9 +37711,7 @@ struct cmsghdr {
 
                         argList[long(idx)] = val[0]
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %s" % (cmdstr, res),\
-                            newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
 
                     # set register values #
                     self.writeArgs(argList)
@@ -37744,9 +37749,7 @@ struct cmsghdr {
                     else:
                         res = argStr[:argStr.rfind(',')]
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %s" % (cmdstr, res),\
-                            newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
 
                 elif cmd == 'wrmem':
                     if len(cmdset) == 1:
@@ -37799,10 +37802,9 @@ struct cmsghdr {
                             "Wrong addr value %s" % addr)
                         continue
 
-                    SysMgr.printPipe(\
+                    SysMgr.addPrint(\
                         "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), repr(val[:size]), size),\
-                                newline=False, flush=True)
+                            (cmdstr, hex(addr), repr(val[:size]), size))
 
                     # set register values #
                     ret = self.writeMem(addr, val, size)
@@ -37875,14 +37877,12 @@ struct cmsghdr {
                         ret = ret.split("\x00")[0]
                         size = len(ret)
 
-                    SysMgr.printPipe(\
+                    SysMgr.addPrint(\
                         "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), repr(ret), size),\
-                                newline=False, flush=True)
+                            (cmdstr, hex(addr), repr(ret), size))
 
                 elif cmd == 'start':
-                    SysMgr.printPipe(\
-                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
 
                     SysMgr.customCmd = None
 
@@ -37916,7 +37916,7 @@ struct cmsghdr {
                     self.retList[var] = data
 
                     output = "\n[%s] %s = %s" % (cmdstr, var, data)
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                 elif cmd == 'load':
                     if len(cmdset) == 1:
@@ -37940,7 +37940,7 @@ struct cmsghdr {
                         ret = hex(ret)
 
                     output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     # inject all breakpoints again #
                     self.loadSymbols()
@@ -37966,8 +37966,7 @@ struct cmsghdr {
                         argStr = '()'
 
                     output = "\n[%s] %s%s" % (cmdstr, val, argStr)
-
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     # remove a breakpoint for syscall #
                     self.removeBp(self.getSyscallAddr())
@@ -37981,9 +37980,7 @@ struct cmsghdr {
                     self.retList[val] = str(ret)
                     self.prevReturn = str(ret)
 
-                    SysMgr.printPipe(\
-                        ' = %s(%s)' % (hex(ret), ret), \
-                            newline=False, flush=True)
+                    SysMgr.addPrint(' = %s(%s)' % (hex(ret), ret))
 
                     # inject a breakpoint for syscall again #
                     self.injectBp(self.getSyscallAddr())
@@ -38034,7 +38031,7 @@ struct cmsghdr {
                         # remove all berakpoints #
                         self.removeAllBp(verb=False)
 
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     if not skip:
                         # call function #
@@ -38046,9 +38043,7 @@ struct cmsghdr {
                         self.retList[val] = str(ret)
                         self.prevReturn = str(ret)
 
-                        SysMgr.printPipe(\
-                            ' = %s(%s)' % \
-                                (hex(ret), ret), newline=False, flush=True)
+                        SysMgr.addPrint(' = %s(%s)' % (hex(ret), ret))
 
                         # inject all breakpoints again #
                         self.updateBpList(verb=False)
@@ -38110,7 +38105,7 @@ struct cmsghdr {
                     else:
                         skip = False
 
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     # set register values #
                     if not skip:
@@ -38125,9 +38120,7 @@ struct cmsghdr {
                     else:
                         val = float(cmdset[1])
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %g sec" % \
-                            (cmdstr, val), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
 
                     time.sleep(val)
 
@@ -38152,7 +38145,7 @@ struct cmsghdr {
                     # remove all berakpoints #
                     self.removeAllBp(verb=False)
 
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     # call function #
                     ret = self.setenv(argList[0], argList[1])
@@ -38165,8 +38158,7 @@ struct cmsghdr {
                     self.retList[val] = str(ret)
                     self.prevReturn = str(ret)
 
-                    SysMgr.printPipe(\
-                        ' (%s)' % res, newline=False, flush=True)
+                    SysMgr.addPrint(' (%s)' % res)
 
                     # inject all breakpoints again #
                     self.updateBpList(verb=False)
@@ -38188,7 +38180,7 @@ struct cmsghdr {
                     # remove all berakpoints #
                     self.removeAllBp(verb=False)
 
-                    SysMgr.printPipe(output, newline=False, flush=True)
+                    SysMgr.addPrint(output)
 
                     # call function #
                     ret = self.getenv(val)
@@ -38197,22 +38189,19 @@ struct cmsghdr {
                     self.retList[val] = str(ret)
                     self.prevReturn = str(ret)
 
-                    SysMgr.printPipe(\
-                        ' = %s' % ret, newline=False, flush=True)
+                    SysMgr.addPrint(' = %s' % ret)
 
                     # inject all breakpoints again #
                     self.updateBpList(verb=False)
 
                 elif cmd == 'stop':
-                    SysMgr.printPipe(\
-                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
 
                     SysMgr.blockSignal(signal.SIGINT, act='unblock')
                     SysMgr.waitEvent(exit=True)
 
                 elif cmd == 'kill':
-                    SysMgr.printPipe(\
-                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
 
                 elif cmd == 'log':
                     if len(cmdset) == 1:
@@ -38221,19 +38210,19 @@ struct cmsghdr {
                     # get message #
                     val = cmdset[1]
 
-                    SysMgr.printPipe(\
-                        "\n[%s] %s\n" % (cmdstr, val), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
 
                 elif cmd == 'exit':
-                    SysMgr.printPipe(\
-                        "\n[%s]\n" % (cmdstr), newline=False, flush=True)
+                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                     sys.exit(0)
 
                 else:
                     raise Exception("No command supported")
             except SystemExit:
+                flushPrint()
                 sys.exit(0)
             except:
+                flushPrint()
                 SysMgr.printErr(\
                     "Fail to handle '%s' command" % cmd, True)
                 sys.exit(0)
@@ -38242,8 +38231,8 @@ struct cmsghdr {
             if repeat:
                 newCmdList.append(cmdval)
 
-        SysMgr.printPipe()
-
+        flushPrint()
+        SysMgr.printStreamEnable = origin
         return newCmdList
 
 
@@ -41243,16 +41232,24 @@ struct cmsghdr {
                     else:
                         btstr = indent = ''
 
-                    # build current symbol string #
-                    callString = '\n%s %s%s%s/%s%s [%s]' % \
-                        (diffstr, tinfo, indent, sym, \
-                            hex(addr).rstrip('L'), argstr, fname)
-
                     # print return value #
+                    retstr = ''
+                    elapsed = ''
                     if sym.endswith(Debugger.RETSTR):
-                        ret = self.handleRetBp(sym, fname)
-                        if ret:
-                            callString += ret
+                        retstr = self.handleRetBp(sym, fname)
+
+                        # calculate elpased time #
+                        try:
+                            origSym = sym.rstrip(Debugger.RETSTR)
+                            entry = self.entryTime[origSym]
+                            elapsed = '<%.6f>' % (self.current - entry)
+                        except:
+                            pass
+
+                    # build current symbol string #
+                    callString = '\n%s %s%s%s%s@%s%s [%s]%s' % \
+                        (diffstr, tinfo, indent, sym, elapsed, \
+                            hex(addr).rstrip('L'), argstr, fname, retstr)
 
                     # file output #
                     if SysMgr.printFile:
@@ -41262,7 +41259,10 @@ struct cmsghdr {
                         if SysMgr.showAll:
                             if btstr:
                                 callString = '%s%s' % (btstr, callString)
-                            self.callPrint.append(callString)
+                            self.callPrint.append(callString.rstrip())
+
+                        if SysMgr.printStreamEnable:
+                            sys.stdout.write(callString)
                     # console output #
                     else:
                         # print string #
@@ -42316,6 +42316,9 @@ struct cmsghdr {
         newSym = '%s%s' % (sym, Debugger.RETSTR)
         ret = self.injectBp(\
             pos, newSym, fname, reins=True, cmd=None)
+
+        # register function entry time #
+        self.entryTime[sym] = self.current
 
 
 
