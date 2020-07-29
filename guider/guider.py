@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200728"
+__revision__ = "200729"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15656,6 +15656,14 @@ class SysMgr(object):
 
 
     @staticmethod
+    def onAlarmExit(signum, frame):
+        SysMgr.updateTimer()
+
+        sys.exit(0)
+
+
+
+    @staticmethod
     def onAlarm(signum, frame):
         SysMgr.progressCnt += 1
         if SysMgr.repeatCount <= SysMgr.progressCnt:
@@ -26531,20 +26539,35 @@ Copyright:
                         "Fail to execute remote command")
                     continue
 
+                signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
+                SysMgr.intervalEnable = 1
+                SysMgr.repeatCount = sys.maxsize
+
                 # block signal #
                 SysMgr.blockSignal(signal.SIGINT, act='block')
 
                 while 1:
-                    output = pipe.getData()
-                    if not output:
+                    try:
+                        SysMgr.updateTimer()
+
+                        output = pipe.getData()
+                        if not output:
+                            break
+
+                        dataType = pipe.getDataType(output)
+
+                        print(output[:-1])
+                    except SystemExit:
+                        pass
+                    except:
+                        SysMgr.printErr(SysMgr.getErrMsg())
                         break
-
-                    dataType = pipe.getDataType(output)
-
-                    print(output[:-1])
 
                     if SysMgr.pendingSignal(signal.SIGINT):
                         break
+
+                # disable alarm handler #
+                signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
 
                 # unblock signal #
                 SysMgr.blockSignal(signal.SIGINT, act='unblock')
@@ -35748,11 +35771,19 @@ class DltAnalyzer(object):
 
         # update daemon stat #
         DltAnalyzer.procInfo.saveProcInstance()
+        saved = False
         for pid in DltAnalyzer.pids:
-            DltAnalyzer.procInfo.saveProcData(\
+            ret = DltAnalyzer.procInfo.saveProcData(\
                 '%s/%s' % (SysMgr.procPath, pid), pid)
-        DltAnalyzer.procInfo.printProcUsage()
-        DltAnalyzer.procInfo.reinitStats()
+            if ret:
+                saved = True
+
+        # print daemon stat #
+        if saved:
+            DltAnalyzer.procInfo.printProcUsage()
+            DltAnalyzer.procInfo.reinitStats()
+        else:
+            SysMgr.addPrint('%s\n' % twoLine)
 
         SysMgr.addPrint(\
                 "{0:^20} | {1:^19} | {2:^19} |\n{3:1}\n".format(\
@@ -36401,6 +36432,9 @@ class DltAnalyzer(object):
             if not SysMgr.dltObj:
                 SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
 
+            if not SysMgr.dltObj:
+                raise Exception()
+
             dltObj = SysMgr.dltObj
         except SystemExit:
             sys.exit(0)
@@ -36408,7 +36442,7 @@ class DltAnalyzer(object):
             SysMgr.dltObj = None
             SysMgr.printWarn(\
                 'Fail to find %s to get DLT log' % \
-                    SysMgr.libdltPath, True, reason=True)
+                    SysMgr.libdltPath, True)
             sys.exit(0)
 
         # define verbose #
@@ -36525,19 +36559,27 @@ class DltAnalyzer(object):
 
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
-        if len(DltAnalyzer.pids) == 0:
-            SysMgr.printErr(\
-                "Fail to find running dlt-daemon process")
-            sys.exit(0)
+        if not DltAnalyzer.pids:
+            if not SysMgr.remoteServObj:
+                SysMgr.printErr(\
+                    "Fail to find running dlt-daemon process")
+                sys.exit(0)
 
         # set connection info #
         try:
             if SysMgr.remoteServObj:
                 servIp = SysMgr.remoteServObj.ip
-                servPort = long(SysMgr.remoteServObj.port)
+                port = long(SysMgr.remoteServObj.port)
+                if port == SysMgr.defaultPort:
+                    servPort = 3490
+                else:
+                    servPort = port
             else:
                 servIp = '127.0.0.1'
                 servPort = 3490
+
+            SysMgr.printInfo(\
+                'use %s:%s as dlt-daemon' % (servIp, servPort))
         except SystemExit:
             sys.exit(0)
         except:
@@ -36768,6 +36810,7 @@ class Debugger(object):
         self.supportSetRegset = True
         self.supportProcessVmRd = True
         self.supportProcessVmWr = False
+        self.lastSig = None
 
         self.args = []
         self.values = []
@@ -40505,6 +40548,16 @@ struct cmsghdr {
 
             SysMgr.addPrint('%s\n' % twoLine)
 
+        # print signal #
+        try:
+            signame = ConfigMgr.SIG_LIST[long(self.lastSig)]
+            SysMgr.addPrint(\
+                '\tSignal Info [%s]\n%s\n' % (taskInfo, oneLine))
+            SysMgr.addPrint(\
+                '%s: %s\n%s\n' % (self.lastSig, signame, twoLine))
+        except:
+            pass
+
         # print backtrace #
         if bt:
             backtrace = self.getBacktrace(cur=True, force=True)
@@ -42344,6 +42397,7 @@ struct cmsghdr {
 
                 # get status of process #
                 stat = self.getStatus(ostat)
+                self.lastSig = stat
 
                 # trap #
                 if stat == signal.SIGTRAP:
@@ -48476,6 +48530,18 @@ class ThreadAnalyzer(object):
 
                 avgList.setdefault(sname, [0] * len(flist))
                 avgList[sname][fileIdxList[fname]] = usage
+            elif type(value) is dict:
+                avgList.setdefault(sname, dict())
+
+                for item, val in value.items():
+                    if UtilMgr.isString(val):
+                        val = list(map(long, val.split()))
+                        usage = round(sum(val) / len(val), 1)
+                    else:
+                        continue
+
+                    avgList[sname].setdefault(item, [0] * len(flist))
+                    avgList[sname][item][fileIdxList[fname]] = usage
 
         return avgList
 
@@ -49074,8 +49140,6 @@ class ThreadAnalyzer(object):
                         linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
 
-                    labelList.append('%s[ TOTAL ]' % prefix)
-
                     try:
                         avgUsage = round(sum(totalUsage) / len(totalUsage), 1)
                     except:
@@ -49083,6 +49147,8 @@ class ThreadAnalyzer(object):
 
                     maxUsage = max(totalUsage)
                     maxIdx = totalUsage.index(maxUsage)
+
+                    labelList.append('%s[ TOTAL ] - %.1f%%' % (prefix, avgUsage))
 
                     # update the maximum ytick #
                     if ymax < maxUsage:
@@ -49155,11 +49221,7 @@ class ThreadAnalyzer(object):
                     maxIdx = usage.index(maxusage)
                     color = plot(timeline, usage, '-')[0].get_color()
 
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = long(0)
+                    margin = self.getMargin()
 
                     maxCpuPer = str(cpuUsage[maxIdx])
                     if idx in blkProcUsage and not SysMgr.blockEnable:
@@ -49207,7 +49269,7 @@ class ThreadAnalyzer(object):
             inc = long(ymax / 10)
             if inc == 0:
                 inc = 1
-            yticks(range(0, ymax + inc, inc), fontsize=5)
+            yticks(range(0, long(ymax + inc), inc), fontsize=5)
 
             # add % unit to each value #
             try:
@@ -49369,12 +49431,7 @@ class ThreadAnalyzer(object):
                     if len(rdUsage) == len(wrUsage) == 0:
                         continue
 
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = long(0)
+                    margin = self.getMargin()
 
                     # Network Transfer #
                     minIdx = wrUsage.index(min(wrUsage))
@@ -49464,12 +49521,7 @@ class ThreadAnalyzer(object):
                     if len(rdUsage) == len(wrUsage) == len(freeUsage) == 0:
                         continue
 
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = long(0)
+                    margin = self.getMargin()
 
                     # Storage Write #
                     minIdx = wrUsage.index(min(wrUsage))
@@ -49567,12 +49619,7 @@ class ThreadAnalyzer(object):
                     if len(rdUsage) == len(wrUsage) == 0:
                         continue
 
-                    # get margin #
-                    ytick = yticks()[0]
-                    if len(ytick) > 1:
-                        margin = (ytick[1] - ytick[0]) / 10
-                    else:
-                        margin = long(0)
+                    margin = self.getMargin()
 
                     # Block Write of process #
                     minIdx = wrUsage.index(min(wrUsage))
@@ -49689,7 +49736,7 @@ class ThreadAnalyzer(object):
             inc = long(ymax / 10)
             if inc == 0:
                 inc = 1
-            yticks(range(ymin, ymax + inc, inc), fontsize=5)
+            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
 
             xticks(fontsize=4)
             if len(timeline) > 1:
@@ -49837,11 +49884,7 @@ class ThreadAnalyzer(object):
                 swapUsage = graphStats['%sswapUsage' % fname][:lent]
 
                 # get margin #
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / 10
-                else:
-                    margin = long(0)
+                margin = self.getMargin()
 
                 # Process VSS #
                 if SysMgr.vssEnable:
@@ -50169,7 +50212,7 @@ class ThreadAnalyzer(object):
                 inc = 1
 
             # set yticks #
-            yticks(range(ymin, ymax + inc, inc), fontsize=5)
+            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -50349,6 +50392,17 @@ class ThreadAnalyzer(object):
 
 
 
+    def getMargin(self):
+        ytick = yticks()[0]
+        if len(ytick) > 1:
+            margin = (ytick[1] - ytick[0]) / 10
+        else:
+            margin = long(0)
+
+        return margin
+
+
+
     def drawAvgGraph(self, graphStats, logFile, outFile=None):
         def getTextAlign(idx, timeline):
             if idx < len(timeline)/4:
@@ -50485,7 +50539,11 @@ class ThreadAnalyzer(object):
             #-------------------- Total GPU usage --------------------#
             if isVisibleTotal:
                 for gpu, stat in gpuUsage.items():
-                    stat = list(map(long, stat.split()))[:lent]
+                    if UtilMgr.isString(stat):
+                        stat = list(map(long, stat.split()))[:lent]
+                    else:
+                        stat = stat[:lent]
+
                     try:
                         if min(stat) == max(stat):
                             continue
@@ -50498,25 +50556,22 @@ class ThreadAnalyzer(object):
                         solid_capstyle='round')
 
                     maxUsage = max(stat)
-                    maxIdx = stat.index(maxUsage)
-
                     labelList.append(\
                         '[ %s ] - %s%%' % (gpu, maxUsage))
 
-                    for idx in [idx for idx, usage in enumerate(stat) \
-                        if usage == maxUsage]:
-                        if idx != 0 and stat[idx] == stat[idx-1]:
-                            continue
-                        text(timeline[idx], stat[maxIdx], \
-                            '%s (%d%%)' % (gpu, maxUsage),\
-                            fontsize=4, color='olive', fontweight='bold',\
-                            bbox=dict(boxstyle='round', facecolor='wheat',\
-                            alpha=0.3),\
-                            ha=getTextAlign(idx, timeline))
-                        break
+                margin = self.getMargin()
+
+                for idx, usage in enumerate(stat):
+                    if usage == 0:
+                        continue
+                    text(timeline[idx], usage+margin, \
+                        '%d%%' % usage,\
+                        fontsize=4, color='olive', fontweight='bold',\
+                        bbox=dict(boxstyle='round', facecolor='wheat',\
+                        alpha=0.3),\
+                        ha=getTextAlign(idx, timeline))
 
             #-------------------- Total CPU usage --------------------#
-            if isVisibleTotal:
                 if sum(blkWait) > 0:
                     for idx, item in enumerate(blkWait):
                         blkWait[idx] += cpuUsage[idx]
@@ -50531,22 +50586,19 @@ class ThreadAnalyzer(object):
                         solid_capstyle='round')
 
                     maxUsage = max(blkWait)
-                    maxIdx = blkWait.index(maxUsage)
-
                     labelList.append(\
                         '[ CPU+IO Average ] - %s%%' % (maxUsage))
 
-                    for idx in [idx for idx, usage in enumerate(blkWait) \
-                        if usage == maxUsage]:
-                        if idx != 0 and blkWait[idx] == blkWait[idx-1]:
+                    margin = self.getMargin()
+
+                    for idx, usage in enumerate(blkWait):
+                        if usage == 0:
                             continue
-                        text(timeline[idx], blkWait[maxIdx],\
-                            '[CPU+IO] (%d%%)' % maxUsage,\
+                        text(timeline[idx], usage+margin, '%d%%' % usage,\
                             fontsize=4, color='pink', fontweight='bold',\
                             bbox=dict(boxstyle='round', facecolor='wheat',\
                             alpha=0.3),\
                             ha=getTextAlign(idx, timeline))
-                        break
 
                 # draw total CPU graph #
                 plot(timeline, cpuUsage, '-', c='red', linestyle='-',\
@@ -50554,8 +50606,6 @@ class ThreadAnalyzer(object):
                     solid_capstyle='round')
 
                 maxUsage = max(cpuUsage)
-                maxIdx = cpuUsage.index(maxUsage)
-
                 labelList.append(\
                     '[ CPU Average ] - %s%%' % maxUsage)
 
@@ -50563,21 +50613,21 @@ class ThreadAnalyzer(object):
                 if ymax < maxUsage:
                     ymax = maxUsage
 
-                for idx in [idx for idx, usage in enumerate(cpuUsage) \
-                    if usage == maxUsage]:
-                    if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
+                # set margin #
+                margin = self.getMargin()
+
+                for idx, usage in enumerate(cpuUsage):
+                    if usage == 0:
                         continue
-                    text(timeline[idx], cpuUsage[maxIdx],\
-                        '[CPU] (%d%%)' % maxUsage,\
+                    text(timeline[idx], usage+margin, '%d%%' % usage,\
                         fontsize=4, color='red', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat',\
                         alpha=0.3),\
                         ha=getTextAlign(idx, timeline))
-                    break
 
             #-------------------- Process CPU usage --------------------#
             # total CPU usage of processes filtered #
-            if "[ TOTAL ]" in cpuProcUsage:
+            if "[ TOTAL ]" in cpuProcUsage and len(cpuProcUsage) > 2:
                 totalUsage = cpuProcUsage["[ TOTAL ]"]
                 totalUsage = list(map(long, totalUsage))[:lent]
 
@@ -50586,29 +50636,23 @@ class ThreadAnalyzer(object):
                     linewidth=1, marker='d', markersize=1, \
                     solid_capstyle='round')
 
-                labelList.append('[ TOTAL ]')
-
                 maxUsage = max(totalUsage)
-                maxIdx = totalUsage.index(maxUsage)
+                labelList.append('[ TOTAL ] - %d%%' % maxUsage)
+
+                margin = self.getMargin()
 
                 # update the maximum ytick #
                 if ymax < maxUsage:
                     ymax = maxUsage
 
-                for idx in [idx for idx, usage in enumerate(totalUsage) \
-                    if usage == maxUsage]:
-                    if idx != 0 and totalUsage[idx] == totalUsage[idx-1]:
+                for idx, usage in enumerate(totalUsage):
+                    if usage == 0:
                         continue
-
-                    text(timeline[idx], totalUsage[maxIdx], \
-                        '[TOTAL] (%d%%)' % maxUsage, \
+                    text(timeline[idx], usage+margin, '%d%%' % usage,\
                         fontsize=4, color='green', fontweight='bold',\
                         bbox=dict(boxstyle='round', facecolor='wheat',\
                         alpha=0.3),\
                         ha=getTextAlign(idx, timeline))
-                    break
-
-            cpuProcUsage.pop("[ TOTAL ]", None)
 
             # define top variable #
             if SysMgr.nrTop:
@@ -50621,6 +50665,9 @@ class ThreadAnalyzer(object):
 
                 if not SysMgr.cpuEnable:
                     break
+
+                if idx == "[ TOTAL ]":
+                    continue
 
                 # check top number #
                 if SysMgr.nrTop:
@@ -50650,11 +50697,7 @@ class ThreadAnalyzer(object):
                 maxIdx = usage.index(maxusage)
                 color = plot(timeline, usage, '-')[0].get_color()
 
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / 10
-                else:
-                    margin = long(0)
+                margin = self.getMargin()
 
                 maxCpuPer = str(cpuUsage[maxIdx])
                 if idx in blkProcUsage and not SysMgr.blockEnable:
@@ -50664,11 +50707,23 @@ class ThreadAnalyzer(object):
                 maxPer = '(%s%%+%s%%)' % (maxCpuPer, maxBlkPer)
 
                 ilabel = '%s %s' % (idx, maxPer)
-                text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,\
-                    fontsize=3, color=color, fontweight='bold',\
-                    ha=getTextAlign(maxIdx, timeline))
+
+                for pidx, usage in enumerate(cpuUsage):
+                    if usage == 0:
+                        continue
+
+                    if "[ TOTAL ]" in cpuProcUsage and \
+                        len(cpuProcUsage) > 2 and \
+                        cpuProcUsage["[ TOTAL ]"][pidx] == usage:
+                        continue
+
+                    text(timeline[pidx], usage+margin, '%d%%' % usage,\
+                        fontsize=4, color=color, fontweight='bold',\
+                        ha=getTextAlign(maxIdx, timeline))
 
                 labelList.append('%s - %s%%' % (idx, maxCpuPer))
+
+            cpuProcUsage.pop("[ TOTAL ]", None)
 
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05), \
@@ -50698,7 +50753,7 @@ class ThreadAnalyzer(object):
             inc = long(ymax / 10)
             if inc == 0:
                 inc = 1
-            yticks(range(0, ymax + inc, inc), fontsize=5)
+            yticks(range(0, long(ymax + inc), inc), fontsize=5)
 
             # add % unit to each value #
             try:
@@ -53458,11 +53513,7 @@ class ThreadAnalyzer(object):
                         (timelen+1)*intervalEnable, intervalEnable),\
                     item, '-', c=color)
 
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / 2
-                else:
-                    margin = long(0)
+                margin = self.getMargin()
 
                 if minIdx > 0:
                     minUsage = str(item[minIdx])
@@ -53602,11 +53653,7 @@ class ThreadAnalyzer(object):
                     (timelen+1)*intervalEnable,\
                     intervalEnable), item, '-')[0].get_color()
 
-                ytick = yticks()[0]
-                if len(ytick) > 1:
-                    margin = (ytick[1] - ytick[0]) / (len(ytick) * 2)
-                else:
-                    margin = long(0)
+                margin = self.getMargin()
 
                 maxCpuPer = str(item[maxIdx])
                 label = '%s[max: %s%%]' % \
