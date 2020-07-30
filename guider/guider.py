@@ -13937,6 +13937,9 @@ class SysMgr(object):
 
         SysMgr.graphEnable = True
 
+        # ignore user warning #
+        SysMgr.ignoreWarn()
+
         # apply regular expression for first path #
         flist = UtilMgr.convertPath(sys.argv[2], retStr=False)
         if type(flist) is list and \
@@ -25572,6 +25575,16 @@ Copyright:
 
 
     @staticmethod
+    def ignoreWarn():
+        try:
+            import warnings
+            warnings.simplefilter("ignore", UserWarning)
+        except:
+            pass
+
+
+
+    @staticmethod
     def executeProcess(cmd=None, mute=False, closeAll=True):
         try:
             SysMgr.resetFileTable(mute, closeAll)
@@ -27338,11 +27351,6 @@ Copyright:
                 except:
                     continue
 
-                # register signal sender for resume #
-                SysMgr.addExitFunc(\
-                    SysMgr.sendSignalProcs, \
-                    [signal.SIGCONT, [pid], False, False])
-
                 bpList.setdefault(pid, dict())
                 exceptBpList.setdefault(pid, dict())
                 targetBpList.setdefault(pid, dict())
@@ -27352,6 +27360,11 @@ Copyright:
                 procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
                 if not procObj:
                     continue
+
+                # register signal sender for resume #
+                SysMgr.addExitFunc(\
+                    SysMgr.sendSignalProcs, \
+                    [signal.SIGCONT, [pid], False, False])
 
                 # load common ELF cache files #
                 if procObj.loadSymbols():
@@ -35594,7 +35607,8 @@ class DbusAnalyzer(object):
 
             # get servce list #
             if bus:
-                services = DbusAnalyzer.getBusService(bus, tid=tid, addr=listen)
+                services = DbusAnalyzer.getBusService(\
+                    bus, tid=tid, addr=listen)
             else:
                 services = None
 
@@ -39295,10 +39309,10 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
+            errMsg = \
+                'Fail to continue %s(%s) because it is terminated' % \
+                    (self.comm, pid)
             if not self.isAlive():
-                errMsg = \
-                    'Fail to continue %s(%s) because it is terminated' % \
-                        (self.comm, pid)
                 SysMgr.printWarn(errMsg)
                 return -1
 
@@ -39307,18 +39321,19 @@ struct cmsghdr {
             cnt = 1000
             while 1:
                 ret = self.ptrace(self.contCmd, 0, sig)
-                if ret != 0:
-                    cnt -= 1
-                    time.sleep(0.001)
-                    if cnt > 0 and self.isAlive():
-                        continue
+                if ret == 0:
+                    return 0
 
-                    errMsg = \
-                        'Fail to continue %s(%s) because it is terminated' % \
-                            (self.comm, pid)
-                    SysMgr.printErr(errMsg)
-                    return -1
-                return 0
+                cnt -= 1
+                time.sleep(0.001)
+                if cnt > 0 and self.isAlive():
+                    continue
+
+                errMsg = \
+                    'Fail to continue %s(%s) because it is terminated' % \
+                        (self.comm, pid)
+                SysMgr.printErr(errMsg)
+                return -1
 
         # continue target thread #
         ret = self.ptrace(self.contCmd, 0, sig)
@@ -41333,11 +41348,6 @@ struct cmsghdr {
                 self.stop()
             else:
                 ret = self.ptrace(self.singlestepCmd)
-                if ret != 0:
-                    SysMgr.printErr(\
-                        'Fail to continue %s(%s) to reinstall a breakpoint' % \
-                            (self.comm, self.pid))
-                    sys.exit(0)
 
             # check process #
             ret = self.waitpid()
@@ -42164,26 +42174,28 @@ struct cmsghdr {
 
 
     def lock(self, pos=-1):
+        # pylint: disable=undefined-variable
         if not self.lockObj:
             return False
 
         if pos > -1:
-            lockf(self.lockObj, LOCK_EX, 1, pos, 0) # pylint: disable=undefined-variable
+            lockf(self.lockObj, LOCK_EX, 1, pos, 0)
         else:
-            lockf(self.lockObj, LOCK_EX) # pylint: disable=undefined-variable
+            lockf(self.lockObj, LOCK_EX)
 
         return True
 
 
 
     def unlock(self, pos=-1):
+        # pylint: disable=undefined-variable
         if not self.lockObj:
             return False
 
         if pos > -1:
-            lockf(self.lockObj, LOCK_UN, 1, pos, 0) # pylint: disable=undefined-variable
+            lockf(self.lockObj, LOCK_UN, 1, pos, 0)
         else:
-            lockf(self.lockObj, LOCK_UN) # pylint: disable=undefined-variable
+            lockf(self.lockObj, LOCK_UN)
 
         return True
 
@@ -42199,8 +42211,8 @@ struct cmsghdr {
                 self.lockObj = \
                     Debugger.getGlobalLock(self.pid, len(self.bpList))
 
-            # stop the target #
-            self.stop()
+            # stop targets #
+            SysMgr.sendSignalArgs([tid, self.pid], isThread=True)
 
         if SysMgr.masterPid == 0:
             chMid = True
@@ -50429,6 +50441,8 @@ class ThreadAnalyzer(object):
 
 
     def getMargin(self):
+        # pylint: disable=undefined-variable
+
         ytick = yticks()[0]
         if len(ytick) > 1:
             margin = (ytick[1] - ytick[0]) / 10
