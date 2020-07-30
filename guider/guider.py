@@ -36785,7 +36785,7 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
     selfInstance = None
-    RETSTR = '/RET'
+    RETSTR = '[RET]'
 
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
@@ -37506,10 +37506,11 @@ struct cmsghdr {
     def executeCmd(self, cmdList, sym=None, fname=None, args=[]):
         def flushPrint():
             if SysMgr.printFile:
-                self.callPrint.append(SysMgr.bufferString[1:])
-                SysMgr.clearPrint()
-                return
-            SysMgr.doPrint(clear=True)
+                if SysMgr.showAll:
+                    self.callPrint.append(SysMgr.bufferString[1:])
+            else:
+                SysMgr.printPipe(SysMgr.bufferString)
+            SysMgr.clearPrint()
 
         def printCmdErr(cmdset, cmd):
             if cmd == 'print':
@@ -37565,7 +37566,7 @@ struct cmsghdr {
 
         newCmdList = list()
         origin = SysMgr.printStreamEnable
-        if not origin and SysMgr.printFile:
+        if origin and SysMgr.printFile:
             SysMgr.printStreamEnable = False
 
         for cmdval in cmdList:
@@ -40656,7 +40657,7 @@ struct cmsghdr {
 
 
     def addSample(\
-        self, sym, filename, realtime=False, bt=None, err=None):
+        self, sym, filename, realtime=False, bt=None, err=None, elapsed=None):
         if err:
             # increase err count #
             try:
@@ -40713,7 +40714,10 @@ struct cmsghdr {
                     'cnt': 1,
                     'path': filename,
                     'err': long(0),
-                    'backtrace': dict()
+                    'backtrace': dict(),
+                    'elapsed': float(0),
+                    'min': float(0),
+                    'max': float(0),
                 }
 
             # increase count of callstack #
@@ -40725,6 +40729,16 @@ struct cmsghdr {
                 except:
                     if sym in self.callTable:
                         self.callTable[sym]['backtrace'][btString] = 1
+
+            # calculate elapesd time #
+            if elapsed:
+                self.callTable[sym]['elapsed'] += elapsed
+                if self.callTable[sym]['min'] == 0 or \
+                    self.callTable[sym]['min'] > elapsed:
+                    self.callTable[sym]['min'] = elapsed
+                if self.callTable[sym]['max'] == 0 or \
+                    self.callTable[sym]['max'] < elapsed:
+                    self.callTable[sym]['max'] = elapsed
 
             # add file table #
             try:
@@ -41145,8 +41159,8 @@ struct cmsghdr {
             # check memory map again #
             if addr not in self.bpList:
                 SysMgr.printErr((\
-                    "Fail to find address %s in the breakpoint list "
-                    "of %s(%s), update ELF caches in %s") % \
+                    "Fail to find %s in the breakpoint list "
+                    "for %s(%s), update ELF caches in %s") % \
                         (hex(origAddr).rstrip('L'), self.comm, \
                             self.pid, SysMgr.cacheDirPath))
 
@@ -41235,6 +41249,7 @@ struct cmsghdr {
                     # print return value #
                     retstr = ''
                     elapsed = ''
+                    etime = None
                     if sym.endswith(Debugger.RETSTR):
                         retstr = self.handleRetBp(sym, fname)
 
@@ -41242,32 +41257,42 @@ struct cmsghdr {
                         try:
                             origSym = sym.rstrip(Debugger.RETSTR)
                             entry = self.entryTime[origSym]
-                            elapsed = '<%.6f>' % (self.current - entry)
+                            etime = self.current - entry
+                            elapsed = '/%.6f' % etime
+                            self.entryTime.pop(origSym, None)
                         except:
-                            pass
+                            elapsed = ''
 
-                    # build current symbol string #
-                    callString = '\n%s %s%s%s%s@%s%s [%s]%s' % \
-                        (diffstr, tinfo, indent, sym, elapsed, \
-                            hex(addr).rstrip('L'), argstr, fname, retstr)
+                        # update symbol #
+                        syminfo = self.getSymbolInfo(addr)
+                        if syminfo:
+                            osym = syminfo[0]
+                            ofname = syminfo[1]
+                            oaddr = syminfo[3]
+
+                        # build current symbol string #
+                        callString = '\n%s %s%s%s%s -> %s/%s [%s]%s' % \
+                            (diffstr, tinfo, indent, sym, elapsed, osym, \
+                                hex(oaddr).rstrip('L'), ofname, retstr)
+                    else:
+                        # build current symbol string #
+                        callString = '\n%s %s%s%s%s/%s%s [%s]%s' % \
+                            (diffstr, tinfo, indent, sym, elapsed, \
+                                hex(addr).rstrip('L'), argstr, fname, retstr)
+
+                    if btstr:
+                        callString = '%s%s' % (btstr, callString)
 
                     # file output #
                     if SysMgr.printFile:
-                        self.addSample(sym, fname)
+                        self.addSample(\
+                            sym, fname, realtime=True, elapsed=etime)
 
                         # print history #
                         if SysMgr.showAll:
-                            if btstr:
-                                callString = '%s%s' % (btstr, callString)
                             self.callPrint.append(callString.rstrip())
-
-                        if SysMgr.printStreamEnable:
-                            sys.stdout.write(callString)
                     # console output #
                     else:
-                        # print string #
-                        if btstr:
-                            SysMgr.printPipe(btstr, newline=False)
                         SysMgr.printPipe(callString, newline=False)
 
                     # check command #
@@ -42510,7 +42535,7 @@ struct cmsghdr {
                 else:
                     SysMgr.printWarn(\
                         'Detected %s(%s) with %s' % \
-                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
+                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]), True)
 
                     if self.mode == 'sample':
                         self.handleTrapEvent(ostat)
@@ -42979,6 +43004,14 @@ struct cmsghdr {
             elif instance.mode == 'break':
                 addVal = 'Path: %s, Cnt: %s' % (\
                     value['path'], convert(value['cnt']))
+                if sym in instance.callTable and \
+                    'elapsed' in instance.callTable[sym] and \
+                    instance.callTable[sym]['elapsed'] > 0:
+                    val = instance.callTable[sym]
+                    addVal = \
+                        '%s, Elapsed: %.6f, Avg: %.6f, Min: %.6f, Max: %.6f' % \
+                        (addVal, val['elapsed'], val['elapsed'] / val['cnt'], \
+                            val['min'], val['max'])
             else:
                 addVal = value['path']
 
