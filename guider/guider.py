@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200731"
+__revision__ = "200801"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40228,15 +40228,15 @@ struct cmsghdr {
         # print summary table #
         if self.mode == 'syscall':
             ctype = 'Syscall'
-            addInfo = 'Count'
+            addInfo = '<Elapsed>'
             sampleStr = ''
         elif self.mode == 'break':
             ctype = 'Breakcall'
-            addInfo = 'Path'
+            addInfo = '[PATH] <Interval>'
             sampleStr = ''
         else:
             ctype = 'Usercall'
-            addInfo = 'Path'
+            addInfo = '[PATH] <Sample>'
             sampleStr = ' [SampleTime: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
@@ -40284,7 +40284,7 @@ struct cmsghdr {
 
         ret = SysMgr.addPrint(\
             '{0:^7} | {1:^144}\n{2:<1}\n'.format(\
-                'Usage', 'Function [%s]' % addInfo, twoLine), newline=2)
+                'Usage', 'Function %s' % addInfo, twoLine), newline=2)
         if not ret:
             finishPrint()
 
@@ -40313,7 +40313,7 @@ struct cmsghdr {
                     total = average = tmax = long(0)
 
                 addVal = \
-                    "Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s" % \
+                    "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
                         (convert(value['cnt']), \
                             total, average, tmax, convert(value['err']))
             elif self.mode == 'break':
@@ -40324,10 +40324,10 @@ struct cmsghdr {
                     prev = total = tmin = tmax = avg = long(0)
 
                 addVal = \
-                    'Path: %s, Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f' % \
+                    '[%s] <Cnt: %s, Avg: %.6f, Min: %.6f, Max: %.6f]' % \
                         (value['path'], convert(value['cnt']), avg, tmin, tmax)
             else:
-                addVal = 'Path: %s, Cnt: %s' % \
+                addVal = '[%s] <Cnt: %s>' % \
                     (value['path'], convert(value['cnt']))
 
             if SysMgr.checkCutCond():
@@ -40335,7 +40335,7 @@ struct cmsghdr {
 
             ret = SysMgr.addPrint(\
                 '{0:>7} | {1:<144}\n'.format(\
-                    '%.1f%%' % per, '%s [%s]' % (sym, addVal)))
+                    '%.1f%%' % per, '%s %s' % (sym, addVal)))
             if not ret:
                 break
 
@@ -42677,7 +42677,7 @@ struct cmsghdr {
                 else:
                     SysMgr.printWarn(\
                         'Detected %s(%s) with %s' % \
-                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]), True)
+                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if self.mode == 'sample':
                         self.handleTrapEvent(ostat)
@@ -43034,6 +43034,11 @@ struct cmsghdr {
             try:
                 symbol, timestamp, filename = item
 
+                # skip breakpoints for return #
+                if instance.mode == 'break' and \
+                    symbol.endswith(Debugger.RETSTR):
+                    continue
+
                 # convert anonymous call to filename #
                 if symbol == '??':
                     symbol = filename
@@ -43068,13 +43073,13 @@ struct cmsghdr {
         # print summary table #
         if instance.mode == 'syscall':
             ctype = 'Syscall'
-            addInfo = 'Count'
+            addInfo = '<Elapsed>'
         elif instance.mode == 'break':
             ctype = 'Breakcall'
-            addInfo = 'Path'
+            addInfo = '[PATH] <Interval>'
         else:
             ctype = 'Usercall'
-            addInfo = 'Path'
+            addInfo = '[Path]'
 
         if instance.isRealtime:
             mtype = 'Top'
@@ -43131,7 +43136,7 @@ struct cmsghdr {
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(\
             '{0:^7} | {1:^144}{2:1}'.format(\
-                'Usage', 'Function [%s]' % addInfo, suffix))
+                'Usage', 'Function %s' % addInfo, suffix))
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = long(0)
@@ -43146,24 +43151,29 @@ struct cmsghdr {
                 break
 
             if instance.mode == 'syscall':
-                addVal = convert(value['cnt'])
+                addVal = '<Cnt: %s>' % convert(value['cnt'])
             elif instance.mode == 'break':
-                addVal = 'Path: %s, Cnt: %s' % (\
+                addVal = '[%s] <Cnt: %s' % (\
                     value['path'], convert(value['cnt']))
-                if sym in instance.callTable and \
-                    'elapsed' in instance.callTable[sym] and \
-                    instance.callTable[sym]['elapsed'] > 0:
-                    val = instance.callTable[sym]
+
+                # add return stats #
+                rsym = sym + Debugger.RETSTR
+                if rsym in instance.callTable and \
+                    'elapsed' in instance.callTable[rsym] and \
+                    instance.callTable[rsym]['elapsed'] > 0:
+                    val = instance.callTable[rsym]
                     addVal = \
                         '%s, Elapsed: %.6f, Avg: %.6f, Min: %.6f, Max: %.6f' % \
                         (addVal, val['elapsed'], val['elapsed'] / val['cnt'], \
                             val['min'], val['max'])
+
+                addVal = '%s>' % addVal
             else:
-                addVal = value['path']
+                addVal = '[%s]' % value['path']
 
             SysMgr.printPipe(\
                 '{0:>7} | {1:<144}{2:1}'.format(\
-                    '%.1f%%' % per, '%s [%s]' % (sym, addVal), suffix))
+                    '%.1f%%' % per, '%s %s' % (sym, addVal), suffix))
 
             cnt += 1
 
