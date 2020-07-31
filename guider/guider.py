@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200730"
+__revision__ = "200731"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16006,29 +16006,31 @@ Examples:
 
                 brkExamStr = '''
 Commands:
+    acc [NAME:ADDR|REG|VAL]
+    dist [NAME:ADDR|REG|VAL]
+    exec [CMD]
+    exit
+    filter [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
+    getarg [REGS]
+    getenv [VAR]
+    getret
+    jump [FUNC#ARGS]
+    kill
+    load [PATH]
+    log [MESSAGE]
+    print
+    rdmem [ADDR|REG:SIZE]
+    ret [VAL]
+    save [NAME]
+    setarg [REG#VAL]
+    setenv [VAR:VAL]
+    setret [VAL]
+    sleep [SEC]
     start
     stop
-    print
-    exit
-    kill
-    ret:VAL
-    exec:CMD
-    sleep:SEC
-    getarg:REGS
-    setarg:REG#VAL
-    getenv:VAR
-    setenv:VAR:VAL
-    getret
-    setret:VAL
-    load:PATH
-    log:MESSAGE
-    save:NAME
-    jump:FUNC#ARGS
-    usercall:FUNC#ARGS
-    syscall:FUNC#ARGS
-    rdmem:ADDR|REG:SIZE
-    wrmem:ADDR|REG:VAL:SIZE
-    filter:ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE
+    syscall [FUNC#ARGS]
+    usercall [FUNC#ARGS]
+    wrmem [ADDR|REG:VAL:SIZE]
 
 Examples:
     - Print all function calls for a specific thread
@@ -16105,7 +16107,8 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|print
 
     - Handle write function calls as a variable print point
-        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1\\|save:VAR2:123:
+        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1\\|save:VAR2:123
+        # {0:1} {1:1} -g a.out -c write\\|\\|save:ARG1:1:arg\\|print:VAR1
 
     - Print value of PATH environment variable
         # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
@@ -16139,6 +16142,12 @@ Examples:
 
     - Handle a write function call as a exit point
         # {0:1} {1:1} -g a.out -c write\\|exit
+
+    - Handle a malloc function call as a accumulate table creation point for a argument
+        # {0:1} {1:1} -g a.out -c malloc\\|acc:CHUNK:0:arg
+
+    - Handle a malloc function call as a distribution table creation point for a argument
+        # {0:1} {1:1} -g a.out -c malloc\\|acc:CHUNK:0:arg
 
     - Handle write function calls as a jump point to the specific address with register values
         # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
@@ -27396,7 +27405,8 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # no use pager #
-        if not SysMgr.isTopMode():
+        if not SysMgr.isTopMode() and \
+            not SysMgr.printFile:
             SysMgr.printStreamEnable = True
 
         # define wait syscall #
@@ -37522,8 +37532,13 @@ struct cmsghdr {
             if SysMgr.printFile:
                 if SysMgr.showAll:
                     self.callPrint.append(SysMgr.bufferString[1:])
+
+                # print to stdout #
+                if SysMgr.printStreamEnable:
+                    sys.stdout.write(SysMgr.bufferString)
             else:
                 SysMgr.printPipe(SysMgr.bufferString)
+
             SysMgr.clearPrint()
 
         def printCmdErr(cmdset, cmd):
@@ -37555,6 +37570,10 @@ struct cmsghdr {
                 cmdformat = "PATH"
             elif cmd == 'save':
                 cmdformat = "NAME:VAL:TYPE"
+            elif cmd == 'acc':
+                cmdformat = "NAME:ADDR|REG|VAL"
+            elif cmd == 'dist':
+                cmdformat = "NAME:ADDR|REG|VAL"
             elif cmd == 'start':
                 cmdformat = ""
             elif cmd == 'stop':
@@ -37575,419 +37594,561 @@ struct cmsghdr {
                     (cmdset, cmd, cmdformat))
             sys.exit(0)
 
-        if type(cmdList) is not list:
-            return cmdList
-
-        newCmdList = list()
-        origin = SysMgr.printStreamEnable
-        if origin and SysMgr.printFile:
-            SysMgr.printStreamEnable = False
-
-        for cmdval in cmdList:
-            # parse cmd set #
+        def handleCmd(cmdset, cmd):
             repeat = True
-            cmdset = cmdval.split(':', 1)
-            cmd = cmdset[0]
 
             # check repeat #
             if cmd == 'oneshot':
                 repeat = False
                 if len(cmdset) == 1:
-                    continue
+                    return repeat
                 cmdset = cmdval.split(':', 2)[1:]
                 cmd = cmdset[0]
 
-            # execute a command #
-            try:
-                cmdstr = '%8s' % cmd
+            # pick a command #
+            cmdstr = '%8s' % cmd
 
-                if cmd == 'print':
-                    if len(cmdset) == 1:
-                        self.printContext(newline=True)
-                    else:
-                        var = cmdset[1]
-                        try:
-                            data = self.retList[var]
-                        except:
-                            data = 'N/A'
-
-                        SysMgr.addPrint(\
-                            "\n[%s] %s = %s" % (cmdstr, var, data))
-
-                elif cmd == 'exec':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
+            if cmd == 'print':
+                if len(cmdset) == 1:
+                    self.printContext(newline=True)
+                else:
+                    var = cmdset[1]
+                    try:
+                        data = self.retList[var]
+                    except:
+                        data = 'N/A'
 
                     SysMgr.addPrint(\
-                        "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
+                        "\n[%s] %s = %s" % (cmdstr, var, data))
 
-                    # execute commands #
-                    for item in cmdset[1].split(':'):
-                        command = item.strip()
-                        if command.endswith('&'):
-                            command = command[:-1]
-                            wait = False
-                        else:
-                            wait = True
+            elif cmd == 'exec':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
 
-                        param = command.split()
+                SysMgr.addPrint(\
+                    "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
 
-                        self.execBgCmd(execCmd=param, mute=False, wait=wait)
+                # execute commands #
+                for item in cmdset[1].split(':'):
+                    command = item.strip()
+                    if command.endswith('&'):
+                        command = command[:-1]
+                        wait = False
+                    else:
+                        wait = True
 
-                elif cmd == 'ret':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
+                    param = command.split()
 
-                    # get return value #
+                    self.execBgCmd(execCmd=param, mute=False, wait=wait)
+
+            elif cmd == 'ret':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get return value #
+                try:
+                    ret = long(cmdset[1])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(\
+                        "Wrong return value %s" % ret)
+                    return repeat
+
+                # get return address #
+                wordSize = ConfigMgr.wordSize
+                if self.lr:
+                    targetAddr = self.lr
+                else:
+                    targetAddr = self.fp + wordSize
+                    if targetAddr % wordSize == 0:
+                        targetAddr = \
+                            self.accessMem(self.peekIdx, targetAddr)
+                    else:
+                        targetAddr = \
+                            self.readMem(targetAddr, retWord=True)
+
+                SysMgr.addPrint("\n[%s] 0x%x" % (cmdstr, ret))
+
+                # set register values #
+                self.setRetVal(ret)
+                self.setPC(targetAddr)
+                self.setRegs()
+                self.updateRegs()
+
+            elif cmd == 'getret':
+                self.setRetBp(sym, fname)
+
+            elif cmd == 'setret':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # inject a new brakpoint for return #
+                self.setRetBp(sym, fname)
+
+                # register a return value #
+                newSym = '%s%s' % (sym, Debugger.RETSTR)
+                val = cmdset[1]
+                self.setRetList[newSym] = long(val)
+
+            elif cmd == 'setarg':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                nrMax = 0
+                argStr = ''
+                argSet = {}
+                origArgs = args
+                argList = cmdset[1].split(':')
+
+                # convert args for previous return #
+                argList = self.convRetArgs(argList)
+
+                for item in argList:
+                    idx, val = item.split('#')
+                    idx = long(idx)
                     try:
-                        ret = long(cmdset[1])
+                        val = long(val)
+                    except:
+                        val = long(val, 16)
+                    argSet[idx] = val
+                    if nrMax < idx:
+                        nrMax = idx
+                    argStr += '%s: %s(%s) -> %s(%s), ' % \
+                        (idx, hex(origArgs[idx]).rstrip('L'), \
+                            origArgs[idx], hex(val).rstrip('L'), val)
+
+                # complete output string #
+                if len(argStr) == 0:
+                    res = ''
+                else:
+                    res = argStr[:argStr.rfind(',')]
+
+                # make a new argument list #
+                argList = [None] * (nrMax+1)
+                for idx, val in argSet.items():
+                    # convert args for previous return #
+                    val = self.convRetArgs([val])
+
+                    argList[long(idx)] = val[0]
+
+                SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
+
+                # set register values #
+                self.writeArgs(argList)
+                self.setRegs()
+                self.updateRegs()
+
+            elif cmd == 'getarg':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                argStr = ''
+                argList = cmdset[1].split(':')
+
+                # convert args for previous return #
+                argList = self.convRetArgs(argList)
+
+                for item in argList:
+                    try:
+                        val = args[long(item)]
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr(\
-                            "Wrong return value %s" % ret)
-                        continue
-
-                    # get return address #
-                    wordSize = ConfigMgr.wordSize
-                    if self.lr:
-                        targetAddr = self.lr
-                    else:
-                        targetAddr = self.fp + wordSize
-                        if targetAddr % wordSize == 0:
-                            targetAddr = \
-                                self.accessMem(self.peekIdx, targetAddr)
-                        else:
-                            targetAddr = \
-                                self.readMem(targetAddr, retWord=True)
-
-                    SysMgr.addPrint("\n[%s] 0x%x" % (cmdstr, ret))
-
-                    # set register values #
-                    self.setRetVal(ret)
-                    self.setPC(targetAddr)
-                    self.setRegs()
-                    self.updateRegs()
-
-                elif cmd == 'getret':
-                    self.setRetBp(sym, fname)
-
-                elif cmd == 'setret':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # inject a new brakpoint for return #
-                    self.setRetBp(sym, fname)
-
-                    # register a return value #
-                    newSym = '%s%s' % (sym, Debugger.RETSTR)
-                    val = cmdset[1]
-                    self.setRetList[newSym] = long(val)
-
-                elif cmd == 'setarg':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get argument info #
-                    nrMax = 0
-                    argStr = ''
-                    argSet = {}
-                    origArgs = args
-                    argList = cmdset[1].split(':')
-
-                    # convert args for previous return #
-                    argList = self.convRetArgs(argList)
-
-                    for item in argList:
-                        idx, val = item.split('#')
-                        idx = long(idx)
-                        try:
-                            val = long(val)
-                        except:
-                            val = long(val, 16)
-                        argSet[idx] = val
-                        if nrMax < idx:
-                            nrMax = idx
-                        argStr += '%s: %s(%s) -> %s(%s), ' % \
-                            (idx, hex(origArgs[idx]), origArgs[idx], \
-                                hex(val), val)
-
-                    # complete output string #
-                    if len(argStr) == 0:
-                        res = ''
-                    else:
-                        res = argStr[:argStr.rfind(',')]
-
-                    # make a new argument list #
-                    argList = [None] * (nrMax+1)
-                    for idx, val in argSet.items():
-                        # convert args for previous return #
-                        val = self.convRetArgs([val])
-
-                        argList[long(idx)] = val[0]
-
-                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
-
-                    # set register values #
-                    self.writeArgs(argList)
-                    self.setRegs()
-                    self.updateRegs()
-
-                elif cmd == 'getarg':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get argument info #
-                    argStr = ''
-                    argList = cmdset[1].split(':')
-
-                    # convert args for previous return #
-                    argList = self.convRetArgs(argList)
-
-                    for item in argList:
-                        try:
-                            val = args[long(item)]
-                        except SystemExit:
-                            sys.exit(0)
-                        except:
-                            val = 'None'
-
-                        # update return #
-                        self.retList[item] = str(val)
-                        self.prevReturn = str(val)
-
-                        argStr += '%s: %s(%s), ' % (item, hex(val), val)
-
-                    # complete output string #
-                    if len(argStr) == 0:
-                        res = ''
-                    else:
-                        res = argStr[:argStr.rfind(',')]
-
-                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
-
-                elif cmd == 'wrmem':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get argument info #
-                    memset = cmdset[1].split(':')
-                    if len(memset) != 2 and len(memset) != 3:
-                        printCmdErr(cmdval, cmd)
-
-                    # convert args for previous return #
-                    memset = self.convRetArgs(memset)
-
-                    # get addr #
-                    try:
-                        addr = long(memset[0])
-                    except:
-                        addr = long(memset[0], 16)
-
-                    # get value #
-                    val = memset[1].encode()
-
-                    # get size #
-                    if len(memset) == 3:
-                        try:
-                            size = long(memset[2])
-                        except:
-                            size = long(memset[2], 16)
-                    else:
-                        size = len(val)
-
-                    # increase size #
-                    if len(val) < size:
-                        val += b' ' * (size - len(val))
-
-                    # convert address from registers #
-                    try:
-                        addr = args[addr]
-                    except:
-                        pass
-
-                    # get address #
-                    if UtilMgr.isNumber(addr):
-                        try:
-                            addr = long(addr, 16)
-                        except:
-                            addr = long(addr)
-                    else:
-                        SysMgr.printErr(\
-                            "Wrong addr value %s" % addr)
-                        continue
-
-                    SysMgr.addPrint(\
-                        "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), repr(val[:size]), size))
-
-                    # set register values #
-                    ret = self.writeMem(addr, val, size)
-                    if ret == -1:
-                        SysMgr.printErr(\
-                            "Fail to write '%s' to %s" % (val, hex(addr)))
-                        continue
-
-                elif cmd == 'rdmem':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get argument info #
-                    memset = cmdset[1].split(':')
-                    if len(memset) != 1 and len(memset) != 2:
-                        printCmdErr(cmdval, cmd)
-
-                    # convert args for previous return #
-                    memset = self.convRetArgs(memset)
-
-                    # get addr #
-                    try:
-                        addr = long(memset[0])
-                    except:
-                        addr = long(memset[0], 16)
-
-                    # get size #
-                    if len(memset) == 2:
-                        fixed = True
-                        try:
-                            size = long(memset[1])
-                        except:
-                            size = long(memset[1], 16)
-                    else:
-                        fixed = False
-                        size = 32
-
-                    # convert address from registers #
-                    try:
-                        addr = args[addr]
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
-
-                    # get address #
-                    if UtilMgr.isNumber(addr):
-                        try:
-                            addr = long(addr, 16)
-                        except:
-                            addr = long(addr)
-                    else:
-                        SysMgr.printErr("wrong addr %s" % addr)
-                        continue
-
-                    # get memory value #
-                    ret = self.readMem(addr, size)
+                        val = 'None'
 
                     # update return #
-                    self.retList[addr] = str(ret)
+                    self.retList[item] = str(val)
+                    self.prevReturn = str(val)
+
+                    argStr += '%s: %s(%s), ' % \
+                        (item, hex(val).rstrip('L'), val)
+
+                # complete output string #
+                if len(argStr) == 0:
+                    res = ''
+                else:
+                    res = argStr[:argStr.rfind(',')]
+
+                SysMgr.addPrint("\n[%s] %s" % (cmdstr, res))
+
+            elif cmd == 'wrmem':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) != 2 and len(memset) != 3:
+                    printCmdErr(cmdval, cmd)
+
+                # convert args for previous return #
+                memset = self.convRetArgs(memset)
+
+                # get addr #
+                try:
+                    addr = long(memset[0])
+                except:
+                    addr = long(memset[0], 16)
+
+                # get value #
+                val = memset[1].encode()
+
+                # get size #
+                if len(memset) == 3:
+                    try:
+                        size = long(memset[2])
+                    except:
+                        size = long(memset[2], 16)
+                else:
+                    size = len(val)
+
+                # increase size #
+                if len(val) < size:
+                    val += b' ' * (size - len(val))
+
+                # convert address from registers #
+                try:
+                    addr = args[addr]
+                except:
+                    pass
+
+                # get address #
+                if UtilMgr.isNumber(addr):
+                    try:
+                        addr = long(addr, 16)
+                    except:
+                        addr = long(addr)
+                else:
+                    SysMgr.printErr(\
+                        "Wrong addr value %s" % addr)
+                    return repeat
+
+                SysMgr.addPrint(\
+                    "\n[%s] %s: %s(%sbyte)" % \
+                        (cmdstr, hex(addr).rstrip('L'), \
+                            repr(val[:size]), size))
+
+                # set register values #
+                ret = self.writeMem(addr, val, size)
+                if ret == -1:
+                    SysMgr.printErr(\
+                        "Fail to write '%s' to %s" % \
+                            (val, hex(addr).rstrip('L')))
+                    return repeat
+
+            elif cmd == 'acc' or cmd == 'dist':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) > 1:
+                    data = memset[1]
+                else:
+                    data = 1
+
+                name = memset[0]
+
+                # convert args for previous return #
+                if type(data) is str and data.startswith('@'):
+                    if data[1:] in self.retList:
+                        val = self.retList[data[1:]]
+                    else:
+                        SysMgr.printErr(\
+                            "No %s in list" % data)
+                        return repeat
+                # get number #
+                elif type(data) is str:
+                    try:
+                        val = long(data)
+                    except:
+                        val = long(data, 16)
+
+                    # convert address from registers #
+                    try:
+                        val = args[val]
+                    except:
+                        pass
+                else:
+                    val = data
+
+                # convert value #
+                if UtilMgr.isNumber(val):
+                    try:
+                        val = long(val, 16)
+                    except:
+                        val = long(val)
+                else:
+                    SysMgr.printErr("wrong addr %s" % val)
+                    return repeat
+
+                # accumulate values #
+                self.accList.setdefault(name, \
+                    dict({'cnt': long(0), 'total': long(0), \
+                        'min': val, 'max': val}))
+                self.accList[name]['cnt'] += 1
+                self.accList[name]['total'] += val
+                if self.accList[name]['min'] > val:
+                    self.accList[name]['min'] = val
+                if self.accList[name]['max'] < val:
+                    self.accList[name]['max'] = val
+
+                # get variables #
+                cnt = self.accList[name]['cnt']
+                total = self.accList[name]['total']
+                avg = long(total / cnt)
+                vmin = self.accList[name]['min']
+                vmax = self.accList[name]['max']
+
+                if cmd == 'dist':
+                    try:
+                        idx = long(math.sqrt(val))
+                    except:
+                        import math
+                        idx = long(math.sqrt(val))
+
+                    self.accList[name].setdefault('dist', dict())
+                    self.accList[name]['dist'].setdefault(idx, 0)
+                    self.accList[name]['dist'][idx] += 1
+                    dist = self.accList[name]['dist']
+                else:
+                    dist = ''
+
+                SysMgr.addPrint((\
+                    "\n[%s] %s: %s(%s) "
+                    "{cnt: %s / total: %s / avg: %s / "
+                    "min: %s / max: %s} %s") % \
+                        (cmdstr, name, hex(val).rstrip('L'), val, \
+                            convNum(cnt), convNum(total), convNum(avg), \
+                            convNum(vmin), convNum(vmax), dist))
+
+            elif cmd == 'rdmem':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) != 1 and len(memset) != 2:
+                    printCmdErr(cmdval, cmd)
+
+                # convert args for previous return #
+                memset = self.convRetArgs(memset)
+
+                # get addr #
+                try:
+                    addr = long(memset[0])
+                except:
+                    addr = long(memset[0], 16)
+
+                # get size #
+                if len(memset) == 2:
+                    fixed = True
+                    try:
+                        size = long(memset[1])
+                    except:
+                        size = long(memset[1], 16)
+                else:
+                    fixed = False
+                    size = 32
+
+                # convert address from registers #
+                try:
+                    addr = args[addr]
+                except:
+                    pass
+
+                # get address #
+                if UtilMgr.isNumber(addr):
+                    try:
+                        addr = long(addr, 16)
+                    except:
+                        addr = long(addr)
+                else:
+                    SysMgr.printErr("wrong addr %s" % addr)
+                    return repeat
+
+                # get memory value #
+                ret = self.readMem(addr, size)
+
+                # update return #
+                self.retList[addr] = str(ret)
+                self.prevReturn = str(ret)
+
+                if ret == -1:
+                    SysMgr.printErr(\
+                        "Fail to read from %s" % \
+                            hex(addr).rstrip('L'))
+                    return repeat
+
+                # strip garbage #
+                if ret and not fixed:
+                    ret = ret.split("\x00")[0]
+                    size = len(ret)
+
+                SysMgr.addPrint(\
+                    "\n[%s] %s: %s(%sbyte)" % \
+                        (cmdstr, hex(addr).rstrip('L'), repr(ret), size))
+
+            elif cmd == 'start':
+                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+
+                SysMgr.customCmd = None
+
+                self.loadSymbols()
+                self.updateBpList()
+
+            elif cmd == 'save':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                cmdlist = cmdset[1].split(':')
+                var = cmdlist[0]
+
+                if len(cmdlist) == 1:
+                    data = self.prevReturn
+                else:
+                    data = cmdlist[1]
+                    if not data:
+                        data = self.prevReturn
+
+                    # convert type #
+                    if len(cmdlist) == 2:
+                        data = long(data)
+                    elif len(cmdlist) == 3:
+                        dtype = cmdlist[2]
+                        if dtype == 'arg':
+                            data = args[long(data)]
+                        elif dtype == 'float' or dtype == 'double':
+                            data = float(data)
+                        elif dtype == 'string':
+                            data = str(data)
+
+                self.retList[var] = data
+
+                output = "\n[%s] %s = %s" % (cmdstr, var, data)
+                SysMgr.addPrint(output)
+
+            elif cmd == 'load':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # remove all breakpoints #
+                self.removeAllBp(verb=False)
+
+                # convert args for previous return #
+                cmdset = self.convRetArgs(cmdset)
+
+                # get function info #
+                binary = cmdset[1]
+                ret = self.dlopen(binary)
+                if ret is None:
+                    ret = 'FAIL'
+                else:
+                    # update return #
                     self.prevReturn = str(ret)
 
-                    if ret == -1:
-                        SysMgr.printErr(\
-                            "Fail to read from %s" % hex(addr))
-                        continue
+                    ret = hex(ret).rstrip('L')
 
-                    # strip garbage #
-                    if ret and not fixed:
-                        ret = ret.split("\x00")[0]
-                        size = len(ret)
+                output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
+                SysMgr.addPrint(output)
 
-                    SysMgr.addPrint(\
-                        "\n[%s] %s: %s(%sbyte)" % \
-                            (cmdstr, hex(addr), repr(ret), size))
+                # inject all breakpoints again #
+                self.loadSymbols()
+                self.updateBpList(verb=False)
 
-                elif cmd == 'start':
-                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+            elif cmd == 'syscall':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
 
-                    SysMgr.customCmd = None
-
-                    self.loadSymbols()
-                    self.updateBpList()
-
-                elif cmd == 'save':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    cmdlist = cmdset[1].split(':')
-                    var = cmdlist[0]
-
-                    if len(cmdlist) == 1:
-                        data = self.prevReturn
-                    else:
-                        data = cmdlist[1]
-                        if not data:
-                            data = self.prevReturn
-
-                        # convert type #
-                        if len(cmdlist) == 2:
-                            data = long(data)
-                        elif len(cmdlist) == 3:
-                            dtype = cmdlist[2]
-                            if dtype == 'float' or dtype == 'double':
-                                data = float(data)
-                            elif dtype == 'string':
-                                data = str(data)
-
-                    self.retList[var] = data
-
-                    output = "\n[%s] %s = %s" % (cmdstr, var, data)
-                    SysMgr.addPrint(output)
-
-                elif cmd == 'load':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # remove all breakpoints #
-                    self.removeAllBp(verb=False)
+                # get function info #
+                func = cmdset[1].split('#')
+                val = func[0]
+                if len(func) > 1:
+                    argList = func[1:]
 
                     # convert args for previous return #
-                    cmdset = self.convRetArgs(cmdset)
+                    argList = self.convRetArgs(argList)
 
-                    # get function info #
-                    binary = cmdset[1]
-                    ret = self.dlopen(binary)
-                    if ret is None:
-                        ret = 'FAIL'
-                    else:
-                        # update return #
-                        self.prevReturn = str(ret)
+                    argStr = ', '.join(list(map(str, argList)))
+                    argStr = '(%s)' % argStr
+                else:
+                    argList = []
+                    argStr = '()'
 
-                        ret = hex(ret)
+                output = "\n[%s] %s%s" % (cmdstr, val, argStr)
+                SysMgr.addPrint(output)
 
-                    output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
-                    SysMgr.addPrint(output)
+                # remove a breakpoint for syscall #
+                self.removeBp(self.getSyscallAddr())
 
-                    # inject all breakpoints again #
-                    self.loadSymbols()
-                    self.updateBpList(verb=False)
+                # call function #
+                ret = self.remoteSyscall(val, argList)
+                if ret is None:
+                    ret = 0
 
-                elif cmd == 'syscall':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
+                # update return #
+                self.retList[val] = str(ret)
+                self.prevReturn = str(ret)
 
-                    # get function info #
-                    func = cmdset[1].split('#')
-                    val = func[0]
-                    if len(func) > 1:
-                        argList = func[1:]
+                SysMgr.addPrint(' = %s(%s)' % \
+                    (hex(ret).rstrip('L'), ret))
 
-                        # convert args for previous return #
-                        argList = self.convRetArgs(argList)
+                # inject a breakpoint for syscall again #
+                self.injectBp(self.getSyscallAddr())
 
-                        argStr = ', '.join(list(map(str, argList)))
-                        argStr = '(%s)' % argStr
-                    else:
-                        argList = []
-                        argStr = '()'
+            elif cmd == 'usercall':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
 
-                    output = "\n[%s] %s%s" % (cmdstr, val, argStr)
-                    SysMgr.addPrint(output)
+                # get function info #
+                func = cmdset[1].split('#')
+                val = func[0]
+                if len(func) > 1:
+                    argList = func[1:]
 
-                    # remove a breakpoint for syscall #
-                    self.removeBp(self.getSyscallAddr())
+                    # convert args for previous return #
+                    argList = self.convRetArgs(argList)
 
+                    argStr = ', '.join(list(map(str, argList)))
+                    argStr = '(%s)' % argStr
+                else:
+                    argList = []
+                    argStr = '()'
+
+                # get address #
+                if UtilMgr.isNumber(val):
+                    try:
+                        addr = long(val)
+                    except:
+                        addr = long(val, 16)
+                else:
+                    ret = self.getAddrBySymbol(val, one=True)
+                    if not ret:
+                        SysMgr.printErr("No found %s" % val)
+                        return repeat
+
+                    addr = ret
+
+                output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
+
+                if sym == val or \
+                    self.pc == addr:
+                    skip = True
+                    output = "%s (SKIP)" % output
+                else:
+                    skip = False
+
+                if not skip:
+                    # remove all berakpoints #
+                    self.removeAllBp(verb=False)
+
+                SysMgr.addPrint(output)
+
+                if not skip:
                     # call function #
-                    ret = self.remoteSyscall(val, argList)
+                    ret = self.remoteUsercall(addr, argList)
                     if ret is None:
                         ret = 0
 
@@ -37995,247 +38156,206 @@ struct cmsghdr {
                     self.retList[val] = str(ret)
                     self.prevReturn = str(ret)
 
-                    SysMgr.addPrint(' = %s(%s)' % (hex(ret), ret))
-
-                    # inject a breakpoint for syscall again #
-                    self.injectBp(self.getSyscallAddr())
-
-                elif cmd == 'usercall':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get function info #
-                    func = cmdset[1].split('#')
-                    val = func[0]
-                    if len(func) > 1:
-                        argList = func[1:]
-
-                        # convert args for previous return #
-                        argList = self.convRetArgs(argList)
-
-                        argStr = ', '.join(list(map(str, argList)))
-                        argStr = '(%s)' % argStr
-                    else:
-                        argList = []
-                        argStr = '()'
-
-                    # get address #
-                    if UtilMgr.isNumber(val):
-                        try:
-                            addr = long(val)
-                        except:
-                            addr = long(val, 16)
-                    else:
-                        ret = self.getAddrBySymbol(val, one=True)
-                        if not ret:
-                            SysMgr.printErr("No found %s" % val)
-                            continue
-
-                        addr = ret
-
-                    output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
-
-                    if sym == val or \
-                        self.pc == addr:
-                        skip = True
-                        output = "%s (SKIP)" % output
-                    else:
-                        skip = False
-
-                    if not skip:
-                        # remove all berakpoints #
-                        self.removeAllBp(verb=False)
-
-                    SysMgr.addPrint(output)
-
-                    if not skip:
-                        # call function #
-                        ret = self.remoteUsercall(addr, argList)
-                        if ret is None:
-                            ret = 0
-
-                        # update return #
-                        self.retList[val] = str(ret)
-                        self.prevReturn = str(ret)
-
-                        SysMgr.addPrint(' = %s(%s)' % (hex(ret), ret))
-
-                        # inject all breakpoints again #
-                        self.updateBpList(verb=False)
-
-                elif cmd == 'jump':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get function info #
-                    func = cmdset[1].split('#')
-                    val = func[0]
-                    if len(func) > 1:
-                        argList = func[1:]
-
-                        # convert args for previous return #
-                        argList = self.convRetArgs(argList)
-
-                        argStr = ', '.join(list(map(str, argList)))
-                        argStr = '(%s)' % argStr
-                    else:
-                        argList = []
-                        argStr = '()'
-
-                    # convert arguments #
-                    argList, freelist = self.convRemoteArgs(argList)
-                    argList = list(map(long, argList))
-
-                    # get address #
-                    if UtilMgr.isNumber(val):
-                        try:
-                            addr = long(val)
-                        except:
-                            addr = long(val, 16)
-
-                        ret = self.getSymbolInfo(addr)
-                        if ret:
-                            val = ret[0]
-                    else:
-                        ret = self.getAddrBySymbol(val, one=True)
-                        if not ret:
-                            SysMgr.printErr("No found %s" % val)
-                            continue
-
-                        addr = ret
-
-                    ret = self.getSymbolInfo(self.pc)
-                    if ret:
-                        symbol = ret[0]
-                    else:
-                        symbol = '??'
-
-                    output = "\n[%s] %s[0x%x] -> %s[0x%x]%s" % \
-                        (cmdstr, symbol, self.pc, val, addr, args)
-
-                    if sym == val or \
-                        self.pc == addr:
-                        skip = True
-                        output = "%s (SKIP)" % output
-                    else:
-                        skip = False
-
-                    SysMgr.addPrint(output)
-
-                    # set register values #
-                    if not skip:
-                        self.setPC(addr)
-                        self.writeArgs(argList)
-                        self.setRegs()
-                        self.updateRegs()
-
-                elif cmd == 'sleep':
-                    if len(cmdset) == 1:
-                        val = 1
-                    else:
-                        val = float(cmdset[1])
-
-                    SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
-
-                    time.sleep(val)
-
-                elif cmd == 'setenv':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get env info #
-                    envs = cmdset[1].split('#')
-                    if len(envs) != 2:
-                        printCmdErr(cmdval, cmd)
-                    else:
-                        val = envs[0]
-                        argList = envs
-
-                    # convert args for previous return #
-                    argList = self.convRetArgs(argList)
-                    argStr = ' = '.join(list(map(str, argList)))
-
-                    output = "\n[%s] %s" % (cmdstr, argStr)
-
-                    # remove all berakpoints #
-                    self.removeAllBp(verb=False)
-
-                    SysMgr.addPrint(output)
-
-                    # call function #
-                    ret = self.setenv(argList[0], argList[1])
-                    if ret == 0:
-                        res = 'success'
-                    else:
-                        res = 'fail'
-
-                    # update return #
-                    self.retList[val] = str(ret)
-                    self.prevReturn = str(ret)
-
-                    SysMgr.addPrint(' (%s)' % res)
+                    SysMgr.addPrint(' = %s(%s)' % \
+                        (hex(ret).rstrip('L'), ret))
 
                     # inject all breakpoints again #
                     self.updateBpList(verb=False)
 
-                elif cmd == 'getenv':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
+            elif cmd == 'jump':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
 
-                    # get env #
-                    val = cmdset[1]
-                    argList = [val]
+                # get function info #
+                func = cmdset[1].split('#')
+                val = func[0]
+                if len(func) > 1:
+                    argList = func[1:]
 
                     # convert args for previous return #
                     argList = self.convRetArgs(argList)
-                    val = argList[0]
 
-                    output = "\n[%s] %s" % (cmdstr, val)
-
-                    # remove all berakpoints #
-                    self.removeAllBp(verb=False)
-
-                    SysMgr.addPrint(output)
-
-                    # call function #
-                    ret = self.getenv(val)
-
-                    # update return #
-                    self.retList[val] = str(ret)
-                    self.prevReturn = str(ret)
-
-                    SysMgr.addPrint(' = %s' % ret)
-
-                    # inject all breakpoints again #
-                    self.updateBpList(verb=False)
-
-                elif cmd == 'stop':
-                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
-
-                    SysMgr.blockSignal(signal.SIGINT, act='unblock')
-                    SysMgr.waitEvent(exit=True)
-
-                elif cmd == 'kill':
-                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
-
-                elif cmd == 'log':
-                    if len(cmdset) == 1:
-                        printCmdErr(cmdval, cmd)
-
-                    # get message #
-                    val = cmdset[1]
-
-                    SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
-
-                elif cmd == 'exit':
-                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
-                    sys.exit(0)
-
+                    argStr = ', '.join(list(map(str, argList)))
+                    argStr = '(%s)' % argStr
                 else:
-                    raise Exception("No command supported")
-            except SystemExit:
-                flushPrint()
+                    argList = []
+                    argStr = '()'
+
+                # convert arguments #
+                argList, freelist = self.convRemoteArgs(argList)
+                argList = list(map(long, argList))
+
+                # get address #
+                if UtilMgr.isNumber(val):
+                    try:
+                        addr = long(val)
+                    except:
+                        addr = long(val, 16)
+
+                    ret = self.getSymbolInfo(addr)
+                    if ret:
+                        val = ret[0]
+                else:
+                    ret = self.getAddrBySymbol(val, one=True)
+                    if not ret:
+                        SysMgr.printErr("No found %s" % val)
+                        return repeat
+
+                    addr = ret
+
+                ret = self.getSymbolInfo(self.pc)
+                if ret:
+                    symbol = ret[0]
+                else:
+                    symbol = '??'
+
+                output = "\n[%s] %s[0x%x] -> %s[0x%x]%s" % \
+                    (cmdstr, symbol, self.pc, val, addr, args)
+
+                if sym == val or \
+                    self.pc == addr:
+                    skip = True
+                    output = "%s (SKIP)" % output
+                else:
+                    skip = False
+
+                SysMgr.addPrint(output)
+
+                # set register values #
+                if not skip:
+                    self.setPC(addr)
+                    self.writeArgs(argList)
+                    self.setRegs()
+                    self.updateRegs()
+
+            elif cmd == 'sleep':
+                if len(cmdset) == 1:
+                    val = 1
+                else:
+                    val = float(cmdset[1])
+
+                SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
+
+                time.sleep(val)
+
+            elif cmd == 'setenv':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get env info #
+                envs = cmdset[1].split('#')
+                if len(envs) != 2:
+                    printCmdErr(cmdval, cmd)
+                else:
+                    val = envs[0]
+                    argList = envs
+
+                # convert args for previous return #
+                argList = self.convRetArgs(argList)
+                argStr = ' = '.join(list(map(str, argList)))
+
+                output = "\n[%s] %s" % (cmdstr, argStr)
+
+                # remove all berakpoints #
+                self.removeAllBp(verb=False)
+
+                SysMgr.addPrint(output)
+
+                # call function #
+                ret = self.setenv(argList[0], argList[1])
+                if ret == 0:
+                    res = 'success'
+                else:
+                    res = 'fail'
+
+                # update return #
+                self.retList[val] = str(ret)
+                self.prevReturn = str(ret)
+
+                SysMgr.addPrint(' (%s)' % res)
+
+                # inject all breakpoints again #
+                self.updateBpList(verb=False)
+
+            elif cmd == 'getenv':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get env #
+                val = cmdset[1]
+                argList = [val]
+
+                # convert args for previous return #
+                argList = self.convRetArgs(argList)
+                val = argList[0]
+
+                output = "\n[%s] %s" % (cmdstr, val)
+
+                # remove all berakpoints #
+                self.removeAllBp(verb=False)
+
+                SysMgr.addPrint(output)
+
+                # call function #
+                ret = self.getenv(val)
+
+                # update return #
+                self.retList[val] = str(ret)
+                self.prevReturn = str(ret)
+
+                SysMgr.addPrint(' = %s' % ret)
+
+                # inject all breakpoints again #
+                self.updateBpList(verb=False)
+
+            elif cmd == 'stop':
+                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+
+                SysMgr.blockSignal(signal.SIGINT, act='unblock')
+                SysMgr.waitEvent(exit=True)
+
+            elif cmd == 'kill':
+                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+
+            elif cmd == 'log':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get message #
+                val = cmdset[1]
+
+                SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
+
+            elif cmd == 'exit':
+                SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                 sys.exit(0)
+
+            else:
+                raise Exception("No command supported")
+
+            return repeat
+
+        # check command list #
+        if type(cmdList) is not list:
+            return cmdList
+
+        newCmdList = list()
+
+        convNum = UtilMgr.convNum
+
+        # disable stream #
+        origin = SysMgr.printStreamEnable
+        if origin and SysMgr.printFile:
+            SysMgr.printStreamEnable = False
+
+        for cmdval in cmdList:
+            # parse cmd set #
+            cmdset = cmdval.split(':', 1)
+            cmd = cmdset[0]
+
+            # execute a command #
+            try:
+                repeat = handleCmd(cmdset, cmd)
             except:
                 flushPrint()
                 SysMgr.printErr(\
@@ -38246,8 +38366,11 @@ struct cmsghdr {
             if repeat:
                 newCmdList.append(cmdval)
 
-        flushPrint()
+        # recovery stream #
         SysMgr.printStreamEnable = origin
+
+        flushPrint()
+
         return newCmdList
 
 
@@ -41222,11 +41345,16 @@ struct cmsghdr {
             # read args #
             args = self.readArgs()
 
+            if sym in ConfigMgr.SYSCALL_PROTOTYPES and \
+                len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1]) < len(args):
+                args = args[:len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1])]
+
             # check filter #
             filterCmd = self.bpList[addr]['filter']
             if self.checkFilterCond(filterCmd, args):
                 # build arguments string #
-                argstr = '(%s)' % ','.join(list(map(hex, args)))
+                argstr = '(%s)' % \
+                    ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
 
                 # top mode #
                 if self.isRealtime:
@@ -41306,6 +41434,10 @@ struct cmsghdr {
                         # print history #
                         if SysMgr.showAll:
                             self.callPrint.append(callString.rstrip())
+
+                        # print to stdout #
+                        if SysMgr.printStreamEnable:
+                            sys.stdout.write(callString)
                     # console output #
                     else:
                         SysMgr.printPipe(callString, newline=False)
@@ -42211,9 +42343,6 @@ struct cmsghdr {
                 self.lockObj = \
                     Debugger.getGlobalLock(self.pid, len(self.bpList))
 
-            # stop targets #
-            SysMgr.sendSignalArgs([tid, self.pid], isThread=True)
-
         if SysMgr.masterPid == 0:
             chMid = True
         else:
@@ -42302,6 +42431,7 @@ struct cmsghdr {
         self.syscallTimeStat = dict()
         self.breakcallTimeStat = dict()
         self.retList = dict()
+        self.accList = dict()
         self.setRetList = dict()
         self.prevReturn = -1
 
@@ -42331,7 +42461,7 @@ struct cmsghdr {
             self.prevReturn = str(retval)
 
             return "\n[%8s] %s(%s)\n" % \
-                ('getret', hex(retval), retval)
+                ('getret', hex(retval).rstrip('L'), retval)
         except SystemExit:
             sys.exit(0)
         except:
@@ -42796,11 +42926,15 @@ struct cmsghdr {
             if SysMgr.masterPid > 0:
                 os.kill(SysMgr.masterPid, signal.SIGINT)
 
+            cnt = 5
             while 1:
                 ret = instance.updateRegs()
                 if not ret:
                     if not instance.isAlive():
                         return
+                    cnt -= 1
+                    if cnt <= 0:
+                        break
                     time.sleep(SysMgr.waitDelay)
                     continue
                 break
@@ -43453,8 +43587,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def updateRegs(self):
-        ret = self.getRegs()
-        if ret != 0:
+        if self.getRegs() != 0:
             return False
 
         self.updateNamedRegs()
