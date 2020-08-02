@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200801"
+__revision__ = "200802"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38863,11 +38863,13 @@ struct cmsghdr {
                 return False
 
         # inject trap code #
+        # WARNNING: this code may cause SIGTRAP fault for other tasks #
         ret = self.writeMem(addr, inst, skipCheck=True)
 
         if ret < 0:
-            SysMgr.printWarn(\
-                'Fail to inject a breakpoint to %s(%s) for %s(%s)' % \
+            SysMgr.printWarn((\
+                'Fail to inject a breakpoint to %s(%s) for %s(%s) '
+                'because of trap setup failure') % \
                     (hex(addr).rstrip('L'), sym, self.comm, self.pid))
             return False
         elif ret == 0:
@@ -38920,10 +38922,8 @@ struct cmsghdr {
 
         # send signal to a thread #
         try:
-            if not thread:
-                raise Exception()
-
-            return SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
+            if thread:
+                return SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
         except SystemExit:
             sys.exit(0)
         except:
@@ -41250,7 +41250,7 @@ struct cmsghdr {
 
 
     def runExecMode(self):
-        # get register set of target #
+        # read registers for target #
         if not self.updateRegs():
             sys.exit(0)
 
@@ -41269,7 +41269,7 @@ struct cmsghdr {
 
 
     def handleBp(self, printStat=False, checkArg=None):
-        # get register set of target #
+        # read registers for target #
         if not self.updateRegs():
             sys.exit(0)
 
@@ -41285,9 +41285,8 @@ struct cmsghdr {
                 addr += 1
             elif addr-1 in self.bpList:
                 addr -= 1
-            else:
-                if self.loadSymbols():
-                    self.updateBpList(verb=False)
+            elif self.loadSymbols():
+                self.updateBpList(verb=False)
 
             '''
             # toDo: update breakpoint list including original data
@@ -41495,7 +41494,7 @@ struct cmsghdr {
             addr, sym, fname=fname, reins=reins)
         if not ret:
             SysMgr.printWarn(\
-                "Fail to inject breakpoint to %s(%s) for %s(%s)" % \
+                "Fail to inject a breakpoint to %s(%s) for %s(%s)" % \
                     (sym, addr, self.comm, self.pid))
             sys.exit(0)
 
@@ -41567,7 +41566,7 @@ struct cmsghdr {
 
         # print backtrace #
         if not self.isRealtime and SysMgr.funcDepth > 0:
-            # get register set of target #
+            # read registers for target #
             if not self.updateRegs():
                 sys.exit(0)
 
@@ -41576,7 +41575,7 @@ struct cmsghdr {
 
 
     def handleUsercall(self):
-        # get register set of target #
+        # read registers for target #
         if not self.updateRegs():
             sys.exit(0)
 
@@ -41926,7 +41925,7 @@ struct cmsghdr {
             self.clearArgs()
             return
 
-        # get register set #
+        # read registers #
         if not self.updateRegs():
             sys.exit(0)
 
@@ -42338,11 +42337,16 @@ struct cmsghdr {
         tid = self.getEventMsg()
 
         if self.mode == 'break':
+            # stop tracees #
+            self.stop(pid=tid)
+            self.stop()
+
             # check lock #
             if not self.lockObj:
                 self.lockObj = \
                     Debugger.getGlobalLock(self.pid, len(self.bpList))
 
+        # check master process #
         if SysMgr.masterPid == 0:
             chMid = True
         else:
@@ -42354,7 +42358,8 @@ struct cmsghdr {
         if pid > 0:
             self.detach(only=True)
             self.detach(only=True, pid=tid)
-            self.attach()
+            if self.attach(verb=True) < 0:
+                sys.exit(0)
         # new tracee #
         elif pid == 0:
             # backup original task info #
@@ -42363,7 +42368,8 @@ struct cmsghdr {
 
             # update new task info #
             self.pid = tid
-            self.attach()
+            if self.attach(verb=True) < 0:
+                sys.exit(0)
             self.initValues()
             signal.alarm(SysMgr.intervalEnable)
 
@@ -43104,32 +43110,32 @@ struct cmsghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = '[Sampling: %g] ' % instance.sampleTime
+            samplingStr = ' [Sampling: %g] ' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
             sampleRateStr = ''
 
         nrCpuUsageSample = len(instance.cpuUsageList)
-        if nrCpuUsageSample == 0:
-            nrCpuUsageSample = 1
-
-        # calculate average CPU usage #
-        ttime = utime = stime = 0
-        for cpustat in instance.cpuUsageList:
-            ttime += cpustat[0]
-            utime += cpustat[1]
-            stime += cpustat[2]
-        ttime /= float(nrCpuUsageSample)
-        utime /= float(nrCpuUsageSample)
-        stime /= float(nrCpuUsageSample)
-        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+        if nrCpuUsageSample > 0:
+            # calculate average CPU usage #
+            ttime = utime = stime = 0
+            for cpustat in instance.cpuUsageList:
+                ttime += cpustat[0]
+                utime += cpustat[1]
+                stime += cpustat[2]
+            ttime /= float(nrCpuUsageSample)
+            utime /= float(nrCpuUsageSample)
+            stime /= float(nrCpuUsageSample)
+            cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+            cpuStr = '[%s(%s): %s]' % (instance.comm, instance.pid, cpuStr)
+        else:
+            cpuStr = ''
 
         SysMgr.printPipe((\
-            '\n[%s %s Summary] [Elapsed: %g] %s[%s(%s): %s] '
+            '\n[%s %s Summary] [Elapsed: %g]%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
-                (mtype, ctype, elapsed, samplingStr, \
-                instance.comm, instance.pid, cpuStr, \
+                (mtype, ctype, elapsed, samplingStr, cpuStr, \
                 convert(long(nrTotal)), sampleRateStr, \
                 convert(len(callTable)), suffix))
 
@@ -43185,10 +43191,9 @@ struct cmsghdr {
         if len(fileTable) > 0:
             # print file table #
             SysMgr.printPipe((\
-                '\n[%s File Summary] [Elapsed: %g] %s[%s(%s): %s] '
+                '\n[%s File Summary] [Elapsed: %g]%s%s '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
-                    (mtype, elapsed, samplingStr, \
-                    instance.comm, instance.pid, cpuStr, \
+                    (mtype, elapsed, samplingStr, cpuStr, \
                     convert(long(nrTotal)), perSample, \
                     convert(len(fileTable)), suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
@@ -43441,7 +43446,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         pid = self.pid
         wordSize = ConfigMgr.wordSize
 
-        # get register set #
+        # read registers #
         try:
             if not self.supportSetRegset:
                 raise Exception()
@@ -43475,8 +43480,17 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # check ret value #
         if ret >= 0:
             return True
-        else:
-            return False
+
+        if not self.isAlive():
+            SysMgr.printErr(\
+                'Terminated %s(%s)' % (self.comm, self.pid))
+            sys.exit(0)
+
+        SysMgr.printErr(\
+            "Fail to write registers for %s(%s)" % \
+                (self.comm, self.pid))
+
+        return False
 
 
 
@@ -43529,7 +43543,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         pid = self.pid
         wordSize = ConfigMgr.wordSize
 
-        # get register set #
+        # read registers #
         try:
             if not self.supportGetRegset:
                 raise Exception()
@@ -43566,7 +43580,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(\
-                "Fail to get register set of %s(%s)" % \
+                "Fail to read registers for %s(%s)" % \
                     (self.comm, self.pid))
 
         return ret
