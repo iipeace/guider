@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200803"
+__revision__ = "200804"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -444,6 +444,32 @@ class ConfigMgr(object):
         "NETLINK_RDMA": 20,
         "NETLINK_CRYPTO": 21,
      }
+
+    # Define entry type #
+    INOTIFY_TYPE = {
+        "IN_ACCESS": 0x00000001, # File was accessed */
+        "IN_MODIFY": 0x00000002, # File was modified */
+        "IN_ATTRIB": 0x00000004, # Metadata changed */
+        "IN_CLOSE_WRITE": 0x00000008, # Writtable file was closed */
+        "IN_CLOSE_NOWRITE": 0x00000010, # Unwrittable file closed */
+        "IN_OPEN": 0x00000020, # File was opened */
+        "IN_MOVED_FROM": 0x00000040, # File was moved from X */
+        "IN_MOVED_TO": 0x00000080, # File was moved to Y */
+        "IN_CREATE": 0x00000100, # Subfile was created */
+        "IN_DELETE": 0x00000200, # Subfile was deleted */
+        "IN_DELETE_SELF": 0x00000400, # Self was deleted */
+        "IN_MOVE_SELF": 0x00000800, # Self was moved */
+        "IN_UNMOUNT": 0x00002000, # Backing fs was unmounted */
+        "IN_Q_OVERFLOW": 0x00004000, # Event queued overflowed */
+        "IN_IGNORED": 0x00008000, # File was ignored */
+        "IN_ONLYDIR": 0x01000000, # only watch the path if it is a directory */
+        "IN_DONT_FOLLOW": 0x02000000, # don't follow a sym link */
+        "IN_EXCL_UNLINK": 0x04000000, # exclude events on unlinked objects */
+        "IN_MASK_CREATE": 0x10000000, # only create watches */
+        "IN_MASK_ADD": 0x20000000, # add to the mask of an already existing watch */
+        "IN_ISDIR": 0x40000000, # event occurred against dir */
+        "IN_ONESHOT": 0x80000000, # only send event once */
+    }
 
     # Define entry type #
     AT_TYPE = {
@@ -3680,6 +3706,23 @@ class UtilMgr(object):
             start = 1
 
         return text[start:]
+
+
+
+    @staticmethod
+    def getFlagBit(vlist, flist):
+        num = 0
+
+        for flag in flist:
+            try:
+                num |= vlist[flag]
+            except:
+                SysMgr.printErr(\
+                    "Fail to get %s in [%s]" % \
+                        (flag, '|'.join(list(vlist.keys()))))
+                sys.exit(0)
+
+        return num
 
 
 
@@ -18327,6 +18370,100 @@ Copyright:
             sys.exit(0)
 
         SysMgr.arch = arch
+
+
+
+    @staticmethod
+    def inotify(path, flags):
+        if not SysMgr.loadLibcObj():
+            sys.exit(0)
+
+        # check path #
+        if not os.path.exists(path):
+            SysMgr.printErr(\
+                "Fail to access to %s" % path)
+            return False
+
+        # check flags type #
+        if type(flags) is not list:
+            SysMgr.printErr(\
+                "Fail to get flags as a list")
+            return False
+
+        inotifyFuncs = [
+            "inotify_init",
+            "inotify_add_watch",
+            "read",
+            "inotify_rm_watch",
+            "close"
+        ]
+
+        # check functions #
+        for func in inotifyFuncs:
+            if not hasattr(SysMgr.libcObj, func):
+                SysMgr.printWarn(\
+                    "No %s in %s" % (func, SysMgr.libcPath), True)
+                return False
+
+        class inotify_event(Structure):
+            _fields_ = (
+                ("wd", c_int),
+                ("mask", c_uint32),
+                ("cookie", c_uint32),
+                ("len", c_uint32),
+                ("name", c_char_p),
+            )
+
+        # create an object #
+        ie = inotify_event()
+        EVENT_SIZE = sizeof(ie)
+        BUF_LEN = 1024 * (EVENT_SIZE + 16)
+        buf = (c_char*BUF_LEN)()
+
+        # create a file descriptor #
+        fd = SysMgr.libcObj.inotify_init()
+        if fd < 0:
+            SysMgr.printErr("Fail to inotify_init")
+            return False
+
+        # get flag bits #
+        fbits = UtilMgr.getFlagBit(ConfigMgr.INOTIFY_TYPE, flags)
+
+        # create reverse list #
+        flist = {}
+        for flag in flags:
+            flist[ConfigMgr.INOTIFY_TYPE[flag]] = flag
+
+        # add watch #
+        wd = SysMgr.libcObj.inotify_add_watch(fd, path.encode(), fbits)
+        if wd < 0:
+            SysMgr.printErr("Fail to inotify_add_watch")
+            return False
+
+        # read events #
+        length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
+        if length < 0:
+            SysMgr.printErr("Fail to read inotify event")
+            return False
+
+        # check events #
+        i = 0
+        revents = []
+        while i < length:
+            addr = byref(buf, sizeof(c_char) * i)
+            event = cast(addr, POINTER(inotify_event))
+            mask = event.contents.mask
+            try:
+                revents.append(flist[mask])
+            except:
+                pass
+            i += EVENT_SIZE
+
+        # clean up #
+        SysMgr.libcObj.inotify_rm_watch(fd, wd)
+        SysMgr.libcObj.close(fd)
+
+        return revents
 
 
 
