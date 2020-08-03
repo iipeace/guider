@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200802"
+__revision__ = "200803"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27548,6 +27548,10 @@ Copyright:
 
                 # remove all progress files #
                 if mode == 'breakcall':
+                    # stop processes #
+                    SysMgr.sendSignalProcs(\
+                        signal.SIGSTOP, list(procList.keys()), verbose=False)
+
                     for pid in list(procList.keys()):
                         try:
                             progressFile = \
@@ -27556,7 +27560,7 @@ Copyright:
                         except:
                             pass
 
-                # continue a process #
+                # continue processes #
                 SysMgr.sendSignalProcs(\
                     signal.SIGCONT, list(procList.keys()), verbose=False)
 
@@ -29990,7 +29994,7 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalProcs(nrSig, pidList, isThread=False, verbose=True):
+    def sendSignalProcs(nrSig, pidList=[], isThread=False, verbose=True):
         def kill(pid, nrSig):
             if isThread:
                 return SysMgr.syscall('tkill', pid, nrSig)
@@ -30006,7 +30010,7 @@ Copyright:
             taskType = 'process'
 
         nrProc = long(0)
-        if type(pidList) is list and len(pidList) > 0:
+        if pidList and type(pidList) is list:
             for pid in pidList:
                 # check pid type #
                 try:
@@ -31905,6 +31909,8 @@ Copyright:
 
         self.printGpuInfo()
 
+        self.printGpuMemInfo()
+
         self.printIPCInfo()
 
         self.printCgroupInfo()
@@ -33279,6 +33285,10 @@ Copyright:
 
         for item in gpuInfo.values():
             name = item['name']
+            if SysMgr.jsonOutputEnable:
+                origName = name
+                jsonData.setdefault(origName, dict())
+
             for key, value in sorted(item.items()):
                 if key == 'name':
                     continue
@@ -33287,9 +33297,67 @@ Copyright:
                     "{0:^32} | {1:>16} | {2:>32} |".format(\
                         name, key, value))
 
+                if SysMgr.jsonOutputEnable:
+                    jsonData[origName].setdefault(key, value)
+
                 name = ''
 
             SysMgr.infoBufferPrint(oneLine)
+
+
+
+    def printGpuMemInfo(self):
+        try:
+            path = '/sys/kernel/debug/nvmap/iovmm/clients'
+            with open(path, 'rb') as fd:
+                gpuInfo = fd.readlines()[1:]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
+
+        # add JSON stats #
+        if SysMgr.jsonOutputEnable:
+            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData['general']['gpu'] = dict()
+            jsonData = SysMgr.jsonData['general']['gpumem']
+
+        # print GPU Memory info #
+        SysMgr.infoBufferPrint('\n[System GPU Memory Info]')
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(\
+            "{0:^32} | {1:^16} |\n{2:1}".format(\
+            "Process", "Size", oneLine))
+
+        total = 0
+        for item in gpuInfo:
+            try:
+                comm, pid, size = item.split()[1:]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
+            # convert size #
+            size = UtilMgr.convUnit2Size(size)
+            if size == 0:
+                continue
+            total += size
+            size = UtilMgr.convSize2Unit(size)
+
+            proc = '%s(%s)' % (comm, pid)
+
+            if SysMgr.jsonOutputEnable:
+                jsonData.setdefault(proc, size)
+
+            SysMgr.infoBufferPrint(\
+                "{0:>32} | {1:>16} |".format(proc, size))
+
+        SysMgr.infoBufferPrint(\
+            "{2:1}\n{0:^32} | {1:>16} |".format(\
+                'TOTAL', UtilMgr.convSize2Unit(total), oneLine))
+
+        SysMgr.infoBufferPrint(oneLine)
 
 
 
@@ -38356,6 +38424,9 @@ struct cmsghdr {
             # execute a command #
             try:
                 repeat = handleCmd(cmdset, cmd)
+            except SystemExit:
+                flushPrint()
+                sys.exit(0)
             except:
                 flushPrint()
                 SysMgr.printErr(\
@@ -38801,25 +38872,35 @@ struct cmsghdr {
                     'because it is already injected by this task') % \
                         (hex(addr).rstrip('L'), sym, self.comm, self.pid))
                 return False
-            else:
-                origWord = self.bpList[addr]['data']
-                if self.bpList[addr]['reins'] != reins:
-                    self.bpList[addr]['reins'] = reins
-                self.bpList[addr]['set'] = True
+
+            origWord = self.bpList[addr]['data']
+            if self.bpList[addr]['reins'] != reins:
+                self.bpList[addr]['reins'] = reins
+            self.bpList[addr]['set'] = True
         # a new breakpoint #
         else:
-            # read data #
-            if addr % ConfigMgr.wordSize:
-                origWord = self.readMem(addr)
-            else:
-                origWord = self.accessMem(self.peekIdx, addr)
-                if origWord > 0:
-                    origWord = UtilMgr.convWord2Str(origWord)
+            while 1:
+                # read data #
+                if addr % ConfigMgr.wordSize:
+                    origWord = self.readMem(addr)
                 else:
-                    origWord = None
+                    origWord = self.accessMem(self.peekIdx, addr)
+                    if origWord > 0:
+                        origWord = UtilMgr.convWord2Str(origWord)
+                    else:
+                        origWord = None
 
-            if not origWord:
-                return False
+                if not origWord:
+                    return False
+                elif origWord.startswith(self.brkInst):
+                    SysMgr.printWarn((\
+                        'Fail to handle the breakpoint to %s(%s) for %s(%s) '
+                        'because no original code saved') % \
+                            (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                else:
+                    break
 
             # check filter command #
             filterCmd = []
@@ -38844,7 +38925,10 @@ struct cmsghdr {
             }
 
         # build trap instruction #
-        inst = self.brkInst * size
+        if size == 1:
+            inst = self.brkInst
+        else:
+            inst = self.brkInst * size
 
         # update symbol #
         if not sym:
@@ -38863,7 +38947,7 @@ struct cmsghdr {
                 return False
 
         # inject trap code #
-        # WARNNING: this code may cause SIGTRAP fault for other tasks #
+        # WARNING: this code may cause SIGTRAP fault for other tasks #
         ret = self.writeMem(addr, inst, skipCheck=True)
 
         if ret < 0:
@@ -38883,7 +38967,7 @@ struct cmsghdr {
 
 
 
-    def attach(self, pid=None, verb=False):
+    def attach(self, pid=None, verb=False, cont=False):
         if not pid:
             pid = self.pid
 
@@ -38896,17 +38980,27 @@ struct cmsghdr {
         # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_ATTACH')
-        ret = self.ptrace(cmd)
-        if ret != 0:
-            SysMgr.printWarn('Fail to attach %s(%s) to guider(%s)' % \
-                (self.comm, pid, SysMgr.pid), verb)
-            return -1
-        else:
-            SysMgr.printWarn(\
-                'Attached %s(%s) to guider(%s)' % \
-                    (self.comm, pid, SysMgr.pid))
-            self.attached = True
-            return 0
+
+        while 1:
+            ret = self.ptrace(cmd)
+            if ret != 0:
+                SysMgr.printWarn('Fail to attach %s(%s) to guider(%s)' % \
+                    (self.comm, pid, SysMgr.pid), verb)
+
+                # check return #
+                if not cont:
+                    return -1
+                elif self.isAlive():
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                else:
+                    sys.exit(0)
+            else:
+                SysMgr.printWarn(\
+                    'Attached %s(%s) to guider(%s)' % \
+                        (self.comm, pid, SysMgr.pid))
+                self.attached = True
+                return 0
 
 
 
@@ -39469,7 +39563,7 @@ struct cmsghdr {
 
 
 
-    def doDetach(self, pid):
+    def doDetach(self, pid, cont=False):
         if not pid:
             pid = self.pid
 
@@ -39477,23 +39571,33 @@ struct cmsghdr {
 
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_DETACH')
-        ret = self.ptrace(cmd, pid=pid)
-        if ret != 0:
-            SysMgr.printWarn(\
-                'Fail to detach %s(%s) from guider(%s)' % \
-                    (self.comm, pid, SysMgr.pid))
-            return -1
-        else:
-            SysMgr.printWarn(\
-                'Detached %s(%s) from guider(%s)' % \
-                    (self.comm, pid, SysMgr.pid))
-            return 0
+
+        while 1:
+            ret = self.ptrace(cmd, pid=pid)
+            if ret != 0:
+                SysMgr.printWarn(\
+                    'Fail to detach %s(%s) from guider(%s)' % \
+                        (self.comm, pid, SysMgr.pid))
+
+                # check return #
+                if not cont:
+                    return -1
+                elif self.isAlive():
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                else:
+                    sys.exit(0)
+            else:
+                SysMgr.printWarn(\
+                    'Detached %s(%s) from guider(%s)' % \
+                        (self.comm, pid, SysMgr.pid))
+                return 0
 
 
 
-    def detach(self, only=False, pid=None):
+    def detach(self, only=False, pid=None, cont=False):
         if only:
-            return self.doDetach(pid)
+            return self.doDetach(pid, cont=cont)
 
         if not self.attached:
             return
@@ -39519,7 +39623,7 @@ struct cmsghdr {
         except:
             return -1
 
-        return self.doDetach(pid)
+        return self.doDetach(pid, cont=cont)
 
 
 
@@ -41398,10 +41502,17 @@ struct cmsghdr {
                         # calculate elpased time #
                         try:
                             origSym = sym.rstrip(Debugger.RETSTR)
+                            if origSym not in self.entryTime:
+                                SysMgr.printWarn(\
+                                    "No entry time of %s for %s(%s)" % \
+                                        (sym, self.comm, self.pid), True)
+                                sys.exit(0)
                             entry = self.entryTime[origSym]
                             etime = self.current - entry
                             elapsed = '/%.6f' % etime
                             self.entryTime.pop(origSym, None)
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             elapsed = ''
 
@@ -42352,30 +42463,40 @@ struct cmsghdr {
         else:
             chMid = False
 
+        # print event info #
+        SysMgr.printInfo(\
+            '%s(%s) is created by %s(%s)' % \
+                (self.comm, tid, self.comm, self.pid))
+
         # create a new process to trace a new task #
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
         # original tracee #
         if pid > 0:
             self.detach(only=True)
-            self.detach(only=True, pid=tid)
+
+            # detach from the new task #
+            self.detach(only=True, pid=tid, cont=True)
+
             if self.attach(verb=True) < 0:
                 sys.exit(0)
         # new tracee #
         elif pid == 0:
-            # backup original task info #
-            origPid = self.pid
-            origComm = self.comm
-
             # update new task info #
             self.pid = tid
-            if self.attach(verb=True) < 0:
-                sys.exit(0)
+
+            # attach to the new task #
+            while 1:
+                if self.attach(verb=True) == 0:
+                    break
+
+                if self.isAlive():
+                    time.sleep(SysMgr.waitDelay)
+                    continue
+                else:
+                    sys.exit(0)
+
             self.initValues()
             signal.alarm(SysMgr.intervalEnable)
-
-            SysMgr.printInfo(\
-                '%s(%s) is created by %s(%s)' % \
-                    (self.comm, self.pid, origComm, origPid))
         else:
             return
 
@@ -42987,7 +43108,7 @@ struct cmsghdr {
                     elif not SysMgr.isAlive(tgid):
                         break
                     else:
-                        time.sleep(0.01)
+                        time.sleep(SysMgr.waitDelay)
                         continue
 
         instance.__del__()
