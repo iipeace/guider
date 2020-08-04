@@ -452,9 +452,11 @@ class ConfigMgr(object):
         "IN_ATTRIB": 0x00000004, # Metadata changed */
         "IN_CLOSE_WRITE": 0x00000008, # Writtable file was closed */
         "IN_CLOSE_NOWRITE": 0x00000010, # Unwrittable file closed */
+        "IN_CLOSE": 0x00000008|0x00000010, # file closed */
         "IN_OPEN": 0x00000020, # File was opened */
         "IN_MOVED_FROM": 0x00000040, # File was moved from X */
         "IN_MOVED_TO": 0x00000080, # File was moved to Y */
+        "IN_MOVED": 0x00000040|0x00000080, # File was moved */
         "IN_CREATE": 0x00000100, # Subfile was created */
         "IN_DELETE": 0x00000200, # Subfile was deleted */
         "IN_DELETE_SELF": 0x00000400, # Self was deleted */
@@ -3723,6 +3725,17 @@ class UtilMgr(object):
                 sys.exit(0)
 
         return num
+
+
+
+    @staticmethod
+    def getFlagList(value, flist, num='hex'):
+        rlist = []
+        numVal = long(value)
+        for name, bits in list(flist.items()):
+            if numVal & bits:
+                rlist.append(name)
+        return rlist
 
 
 
@@ -18374,15 +18387,20 @@ Copyright:
 
 
     @staticmethod
-    def inotify(path, flags):
+    def inotify(path, flags=[], verb=False):
         if not SysMgr.loadLibcObj():
             sys.exit(0)
 
+        # convert path type to list #
+        if type(path) is str:
+            path = [path]
+
         # check path #
-        if not os.path.exists(path):
-            SysMgr.printErr(\
-                "Fail to access to %s" % path)
-            return False
+        for item in path:
+            if not os.path.exists(item):
+                SysMgr.printWarn(\
+                    "Fail to access to %s" % item, verb)
+                return False
 
         # check flags type #
         if type(flags) is not list:
@@ -18428,6 +18446,9 @@ Copyright:
 
         # get flag bits #
         fbits = UtilMgr.getFlagBit(ConfigMgr.INOTIFY_TYPE, flags)
+        if fbits == 0:
+            # IN_ALL #
+            fbits = 0xfff
 
         # create reverse list #
         flist = {}
@@ -18435,10 +18456,13 @@ Copyright:
             flist[ConfigMgr.INOTIFY_TYPE[flag]] = flag
 
         # add watch #
-        wd = SysMgr.libcObj.inotify_add_watch(fd, path.encode(), fbits)
-        if wd < 0:
-            SysMgr.printErr("Fail to inotify_add_watch")
-            return False
+        wlist = {}
+        for item in path:
+            wd = SysMgr.libcObj.inotify_add_watch(fd, item.encode(), fbits)
+            if wd < 0:
+                SysMgr.printErr("Fail to inotify_add_watch")
+                return False
+            wlist[wd] = item
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
@@ -18448,19 +18472,31 @@ Copyright:
 
         # check events #
         i = 0
+        fmt = 'iIII'
         revents = []
+        size = struct.calcsize(fmt)
         while i < length:
-            addr = byref(buf, sizeof(c_char) * i)
-            event = cast(addr, POINTER(inotify_event))
-            mask = event.contents.mask
+            wd, mask, cookie, flen = struct.unpack(fmt, buf[i:i+size])
+
+            # get file name #
+            if flen > 0:
+                (fname,) = struct.unpack('%ds' % flen, buf[i+size:i+size+flen])
+                fname = fname.decode().rstrip('\0')
+            else:
+                fname = None
+
+            # get events #
             try:
-                revents.append(flist[mask])
+                rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
+                revents.append([wlist[wd], rtypes, fname])
             except:
                 pass
-            i += EVENT_SIZE
+
+            i += (size + flen)
 
         # clean up #
-        SysMgr.libcObj.inotify_rm_watch(fd, wd)
+        for wd in list(wlist.keys()):
+            SysMgr.libcObj.inotify_rm_watch(fd, wd)
         SysMgr.libcObj.close(fd)
 
         return revents
@@ -27497,6 +27533,7 @@ Copyright:
                 except:
                     continue
 
+                # initialize lists #
                 bpList.setdefault(pid, dict())
                 exceptBpList.setdefault(pid, dict())
                 targetBpList.setdefault(pid, dict())
@@ -27685,10 +27722,6 @@ Copyright:
 
                 # remove all progress files #
                 if mode == 'breakcall':
-                    # stop processes #
-                    SysMgr.sendSignalProcs(\
-                        signal.SIGSTOP, list(procList.keys()), verbose=False)
-
                     for pid in list(procList.keys()):
                         try:
                             progressFile = \
@@ -31122,19 +31155,29 @@ Copyright:
         if childs is None:
             childs = list(SysMgr.childList.keys())
 
+        # kill childs #
+        SysMgr.terminateTasks(childs, sig, group)
+
         # remove child list #
         SysMgr.clearChildList()
-
-        SysMgr.terminateTasks(childs, sig, group)
 
         if not wait:
             return
 
         while 1:
-            newChilds = list(childs)
+            newChilds = ['/proc/%s' % tid for tid in list(childs)]
             isFinished = True
 
-            for tid in newChilds:
+            # wait for task termination #
+            try:
+                SysMgr.inotify(newChilds, ["IN_CLOSE"])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # check termination #
+            for tid in list(childs):
                 if SysMgr.isAlive(tid):
                     isFinished = False
                     break
@@ -31143,8 +31186,6 @@ Copyright:
 
             if isFinished:
                 break
-            else:
-                time.sleep(SysMgr.waitDelay)
 
 
 
@@ -37437,6 +37478,7 @@ struct cmsghdr {
 
             # load the library #
             if fpath:
+                fpath = os.path.realpath(fpath)
                 dobj.dlopen(fpath)
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
@@ -38687,7 +38729,7 @@ struct cmsghdr {
 
         if SysMgr.warnEnable:
             SysMgr.printWarn(\
-                'Removed the breakpoint %s(%s) from %s(%s)' % \
+                'Removed the breakpoint %s(%s) by %s(%s)' % \
                     (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
 
         return (symbol, filename, reins)
@@ -39016,28 +39058,41 @@ struct cmsghdr {
             self.bpList[addr]['set'] = True
         # a new breakpoint #
         else:
-            while 1:
-                # read data #
-                if addr % ConfigMgr.wordSize:
-                    origWord = self.readMem(addr)
+            # read data #
+            if addr % ConfigMgr.wordSize:
+                origWord = self.readMem(addr)
+            else:
+                origWord = self.accessMem(self.peekIdx, addr)
+                if origWord > 0:
+                    origWord = UtilMgr.convWord2Str(origWord)
                 else:
-                    origWord = self.accessMem(self.peekIdx, addr)
-                    if origWord > 0:
-                        origWord = UtilMgr.convWord2Str(origWord)
-                    else:
-                        origWord = None
+                    origWord = None
 
-                if not origWord:
-                    return False
-                elif origWord.startswith(self.brkInst):
-                    SysMgr.printWarn((\
-                        'Fail to handle the breakpoint to %s(%s) for %s(%s) '
-                        'because no original code saved') % \
-                            (hex(addr).rstrip('L'), sym, self.comm, self.pid))
-                    time.sleep(SysMgr.waitDelay)
-                    continue
-                else:
-                    break
+            # check data #
+            if not origWord:
+                return False
+            elif origWord.startswith(self.brkInst):
+                SysMgr.printWarn((\
+                    'Fail to handle the breakpoint at %s(%s) for %s(%s) '
+                    'because no original code') % \
+                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+
+                ret = self.getSymbolInfo(addr)
+                fname = ret[1]
+                offset = long(ret[2], 16)
+
+                # load orignal data from stroage #
+                try:
+                    with open(fname, "rb") as fobj:
+                        fobj.seek(offset)
+                        origWord = fobj.read(ConfigMgr.wordSize)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(\
+                        "Fail to read original data from %s" % \
+                            fname, reason=True)
+                    sys.exit(0)
 
             # check filter command #
             filterCmd = []
@@ -39096,7 +39151,7 @@ struct cmsghdr {
         elif ret == 0:
             if SysMgr.warnEnable:
                 SysMgr.printWarn(\
-                    'Added a new breakpoint %s(%s)[%s] to %s(%s)' % \
+                    'Added a new breakpoint %s(%s)[%s] by %s(%s)' % \
                         (hex(addr).rstrip('L'), sym, fname, \
                             self.comm, self.pid))
 
@@ -43205,48 +43260,64 @@ struct cmsghdr {
         else:
             ret = False
 
-        if ret:
-            addr = instance.pc - instance.prevInstOffset
+        if not ret:
+            instance.__del__()
+            return
 
-            # apply register set to rewind IP #
-            if addr in instance.bpList:
-                instance.setPC(addr)
-                instance.setRegs()
+        addr = instance.pc - instance.prevInstOffset
 
-            # check main thread #
-            tgid = long(SysMgr.getTgid(instance.pid))
+        # apply register set to rewind IP #
+        if addr in instance.bpList:
+            instance.setPC(addr)
+            instance.setRegs()
 
-            # define progress file path #
-            progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
+        # check main thread #
+        tgid = long(SysMgr.getTgid(instance.pid))
 
-            # the thread group leader #
-            if tgid == instance.pid:
-                origPrintFlag = SysMgr.printEnable
-                SysMgr.printEnable = True
+        # define progress file path #
+        progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
 
-                instance.removeAllBp(tgid)
+        # the thread group leader #
+        if tgid == instance.pid:
+            origPrintFlag = SysMgr.printEnable
+            SysMgr.printEnable = True
 
-                SysMgr.printEnable = origPrintFlag
+            instance.removeAllBp(tgid)
 
-                # create a progress file #
-                os.open(progressPath, os.O_CREAT, 0o777)
+            SysMgr.printEnable = origPrintFlag
 
-                # remove lock file #
+            # create a progress file #
+            os.open(progressPath, os.O_CREAT, 0o777)
+
+            # remove lock file #
+            try:
+                os.remove(Debugger.gLockPath)
+            except:
+                pass
+        # siblings #
+        else:
+            # wait for termination of the tracer for the main thread #
+            dirname = os.path.dirname(progressPath)
+            filename = os.path.basename(progressPath)
+
+            while 1:
                 try:
-                    os.remove(Debugger.gLockPath)
+                    finished = False
+                    events = SysMgr.inotify(dirname)
+                    for item in events:
+                        if item[2] == filename:
+                            finished = True
+                            break
+
+                    if finished:
+                        break
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    pass
-            # siblings #
-            else:
-                # wait for termination of the tracer for the main thread #
-                while 1:
-                    if os.path.exists(progressPath):
-                        break
-                    elif not SysMgr.isAlive(tgid):
-                        break
-                    else:
-                        time.sleep(SysMgr.waitDelay)
-                        continue
+                    break
+
+                if not SysMgr.isAlive(tgid):
+                    break
 
         instance.__del__()
 
