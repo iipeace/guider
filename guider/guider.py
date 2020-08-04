@@ -15782,99 +15782,100 @@ class SysMgr(object):
     def getCmdList():
         return {
             'monitor': {
+                'bgtop': 'Background',
+                'btop': 'Function',
+                'dbustop': 'D-Bus',
+                'disktop': 'Storage',
+                'dlttop': 'DLT',
+                'ftop': 'File',
+                'mtop': 'Memory',
+                'ntop': 'Network',
+                'ptop': 'PMU',
+                'rtop': 'JSON',
+                'smtop': 'System',
+                'stacktop': 'Stack',
+                'systop': 'Syscall',
                 'top': 'Process',
                 'ttop': 'Thread',
-                'smtop': 'System',
-                'bgtop': 'Background',
-                'stacktop': 'Stack',
-                'ptop': 'PMU',
-                'mtop': 'Memory',
-                'disktop': 'Storage',
-                'ntop': 'Network',
-                'wtop': 'WSS',
-                'rtop': 'JSON',
-                'ftop': 'File',
-                'systop': 'Syscall',
                 'utop': 'Function',
-                'btop': 'Function',
-                'dlttop': 'DLT',
-                'dbustop': 'D-Bus',
+                'wtop': 'WSS',
                 },
             'trace': {
-                'strace': 'Syscall',
-                'utrace': 'Function',
                 'btrace': 'Breakpoint',
                 'sigtrace': 'Signal',
+                'strace': 'Syscall',
+                'utrace': 'Function',
                 },
             'profile': {
-                'rec': 'Thread',
-                'funcrec': 'Function',
                 'filerec': 'File',
-                'sysrec': 'Syscall',
+                'funcrec': 'Function',
                 'genrec': 'System',
-                'report': 'Report',
                 'mem': 'Page',
+                'rec': 'Thread',
+                'report': 'Report',
+                'sysrec': 'Syscall',
                 },
             'visual': {
-                'draw': 'System',
-                'drawcpu': 'CPU',
-                'drawmem': 'Memory',
-                'drawvss': 'VSS',
-                'drawrss': 'RSS',
-                'drawleak': 'Leak',
-                'drawio': 'I/O',
-                'drawavg': 'Average',
                 'convert': 'Text',
+                'draw': 'System',
+                'drawavg': 'Average',
+                'drawcpu': 'CPU',
+                'drawio': 'I/O',
+                'drawleak': 'Leak',
+                'drawmem': 'Memory',
+                'drawrss': 'RSS',
+                'drawvss': 'VSS',
                 },
             'util': {
-                'topdiff': 'Diff',
-                'topsum': 'Summary',
-                'kill/tkill': 'Signal',
-                'pause': 'Thread',
-                'remote': 'Command',
-                'hook': 'Function',
-                'limitcpu': 'CPU',
-                'setcpu': 'Clock',
-                'setsched': 'Priority',
+                'addr2sym': 'Symbol',
                 'getafnt': 'Affinity',
-                'setafnt': 'Affinity',
-                'pstree': 'Process',
-                'systat': 'Status',
+                'hook': 'Function',
+                'kill/tkill': 'Signal',
+                'leaktrace': 'Leak',
+                'limitcpu': 'CPU',
+                'pause': 'Thread',
+                'printcrp': 'Cgroup',
+                'printdbus': 'D-Bus',
+                'printdir': 'Dir',
                 'printenv': 'Env',
                 'printinfo': 'System',
-                'readelf': 'File',
-                'addr2sym': 'Symbol',
-                'sym2addr': 'Address',
-                'leaktrace': 'Leak',
-                'printcrp': 'Cgroup',
-                'printdir': 'Dir',
-                'printdbus': 'D-Bus',
-                'printsubsc': 'D-Bus',
-                'printsig': 'Signal',
                 'printns': 'Namespace',
+                'printsig': 'Signal',
+                'printsubsc': 'D-Bus',
                 'printsvc': 'systemd',
+                'pstree': 'Process',
+                'readelf': 'File',
+                'remote': 'Command',
+                'setafnt': 'Affinity',
+                'setcpu': 'Clock',
+                'setsched': 'Priority',
+                'sym2addr': 'Address',
+                'systat': 'Status',
+                'topdiff': 'Diff',
+                'topsum': 'Summary',
+                'watch': "File",
                 },
             'log': {
-                'printkmsg': 'Kernel',
-                'printdlt': 'DLT',
-                'printsys': 'Syslog',
-                'logkmsg': 'Kernel',
                 'logdlt': 'DLT',
                 'logjrl': 'Journal',
+                'logkmsg': 'Kernel',
                 'logsys': 'Syslog',
+                'printdlt': 'DLT',
+                'printkmsg': 'Kernel',
+                'printsys': 'Syslog',
                 },
             'control': {
-                'list': 'List',
-                'start': 'Signal',
-                'send': 'Signal',
-                'event': 'Event',
-                'server': 'Server',
                 'client': 'Client',
+                'event': 'Event',
+                'list': 'List',
+                'send': 'Signal',
+                'server': 'Server',
+                'start': 'Signal',
                 },
             'test': {
                 'cputest': 'CPU',
-                'memtest': 'Memory',
                 'iotest ': 'Storage',
+                'memtest': 'Memory',
                 'nettest ': 'Network',
                 },
             }
@@ -17594,6 +17595,36 @@ Examples:
     - Print D-Bus signal subscription info to a specific file
         # {0:1} {1:1} -o sig.out
                     '''.format(cmd, mode)
+
+                # watch #
+                elif SysMgr.isWatchMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <OFFSET> [OPTIONS] [--help]
+
+Description:
+    Watch specific files or directories
+
+Options:
+    -g  <PATH:EVENT:FILE:CMD>   set condition
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Watch the current directory
+        # {0:1} {1:1}
+
+    - Watch specific events for a.out in the current directory
+        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out
+
+    - Watch specific events in the current directory and terminate if the events occur
+        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out:exit
+
+    - Watch specific events in the current directory and execute specific commands if the events occur
+        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out:"ls -lha"
+                    '''.format(cmd, mode)
+
 
                 # addr2sym #
                 elif SysMgr.isAddr2symMode():
@@ -23726,6 +23757,15 @@ Copyright:
 
 
     @staticmethod
+    def isWatchMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'watch':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isBtraceMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'btrace':
             return True
@@ -24413,6 +24453,10 @@ Copyright:
         # BTRACE MODE #
         elif SysMgr.isBtraceMode():
             SysMgr.doTrace('breakcall')
+
+        # WATCH MODE #
+        elif SysMgr.isWatchMode():
+            SysMgr.doWatch()
 
         # SIGTRACE MODE #
         elif SysMgr.isSigtraceMode():
@@ -27481,6 +27525,107 @@ Copyright:
             SysMgr.printInfoBuffer()
 
         sys.exit(0)
+
+
+
+    @staticmethod
+    def doWatch():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        SysMgr.printStreamEnable = True
+
+        # check target path #
+        if not SysMgr.filterGroup:
+            SysMgr.filterGroup = ["."]
+
+        targetList = []
+        targetInfo = {}
+
+        # parse items #
+        for item in SysMgr.filterGroup:
+            args = item.split(':')
+            path = args[0]
+            targetList.append(path)
+
+            if len(args) > 1:
+                events = args[1].strip().split('|')
+                if events == ['']:
+                    events = []
+            else:
+                events = []
+
+            if len(args) > 2:
+                fname = args[2].strip()
+            else:
+                fname = None
+
+            if len(args) > 3:
+                cmd = args[3].strip().split('|')
+                if cmd == ['']:
+                    cmd = []
+            else:
+                cmd = []
+
+            targetInfo[path] = \
+                {'event': events, 'cmd': cmd, 'fname': fname}
+
+        SysMgr.printInfo(\
+            "Start watching [%s]" % ', '.join(targetList))
+
+        # start watching #
+        while 1:
+            try:
+                ret = SysMgr.inotify(targetList, verb=True)
+                if not ret:
+                    break
+
+                current = SysMgr.updateUptime()
+
+                for item in ret:
+                    path, events, fname = item
+
+                    # check event condition #
+                    if targetInfo[path]['event']:
+                        cond = set(targetInfo[path]['event'])
+                        new = set(events)
+                        if cond - new == cond:
+                            continue
+
+                    # check file condition #
+                    if targetInfo[path]['fname'] and \
+                        targetInfo[path]['fname'] != fname:
+                        continue
+
+                    # build a string for file #
+                    if fname:
+                        fstr = ' for %s' % fname
+                    else:
+                        fstr = ''
+
+                    SysMgr.printPipe(\
+                        "[%.6f] %s%s in %s" % \
+                            (current, '|'.join(events), fstr, path))
+
+                    # execute command #
+                    for cmd in targetInfo[path]['cmd']:
+                        if cmd.upper() == 'EXIT':
+                            sys.exit(0)
+                        else:
+                            if cmd.endswith('&'):
+                                cmd = cmd[:-1]
+                                wait = False
+                            else:
+                                wait = True
+
+                            SysMgr.createProcess(cmd)
+                            if wait:
+                                os.wait()
+
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("Fail to watch", reason=True)
+                sys.exit(0)
 
 
 
