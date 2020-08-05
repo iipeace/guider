@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200805"
+__revision__ = "200806"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10387,7 +10387,8 @@ class FunctionAnalyzer(object):
                 if value['pagePairCnt'] == 0:
                     break
 
-                typeList = {'USER': long(0), 'KERNEL': long(0), 'CACHE': long(0)}
+                typeList = \
+                    {'USER': long(0), 'KERNEL': long(0), 'CACHE': long(0)}
 
                 for pairId, item in value['pagePair'].items():
                     for ptype, cnt in item['valueList'].items():
@@ -16081,6 +16082,7 @@ Commands:
     print
     rdmem [ADDR|REG:SIZE]
     ret [VAL]
+    repeat [CNT]
     save [NAME]
     setarg [REG#VAL]
     setenv [VAR:VAL]
@@ -16156,6 +16158,10 @@ Examples:
 
     - Handle write function calls as a print return point
         # {0:1} {1:1} -g a.out -c write\\|getret
+
+    - Handle write function calls as a repeat point
+        # {0:1} {1:1} -g a.out -c write\\|repeat
+        # {0:1} {1:1} -g a.out -c write\\|repeat:5
 
     - Handle write function calls as a return point for a specific value
         # {0:1} {1:1} -g a.out -c write\\|setret:3
@@ -27431,7 +27437,8 @@ Copyright:
                 'Target Service [ NrItems: %s ]\n%s' % \
                     (cv(len(busServiceList)), twoLine))
             nrItems = 0
-            for node, value in sorted(busServiceList.items(), key=lambda e:e[0]):
+            for node, value in sorted(\
+                busServiceList.items(), key=lambda e:e[0]):
                 cnt = 0
                 for attr, val in sorted(value.items()):
                     if not UtilMgr.isEffectiveStr(attr, attrList, ignCap=True):
@@ -28989,18 +28996,19 @@ Copyright:
 
         def flushCache(verb=False):
             try:
-                if SysMgr.checkPerm(exit=False, verb=False):
-                    dropCachePath = \
-                        '%s/sys/vm/drop_caches' % SysMgr.procPath
-                    with open(dropCachePath, 'w') as fd:
-                        if verb:
-                            SysMgr.printInfo(\
-                                'start flushing system cache... ', suffix=False)
-                        ret = fd.write('3')
-                        if verb:
-                            SysMgr.printInfo("[Done]", prefix=False, notitle=True)
-                else:
+                ret = SysMgr.checkPerm(exit=False, verb=False)
+                if not ret:
                     raise Exception('no root permission')
+
+                dropCachePath = \
+                    '%s/sys/vm/drop_caches' % SysMgr.procPath
+                with open(dropCachePath, 'w') as fd:
+                    if verb:
+                        SysMgr.printInfo(\
+                            'start flushing system cache... ', suffix=False)
+                    ret = fd.write('3')
+                    if verb:
+                        SysMgr.printInfo("[Done]", prefix=False, notitle=True)
             except:
                 SysMgr.printWarn(\
                     'Fali to flush system cache', reason=True)
@@ -35155,8 +35163,9 @@ class DbusAnalyzer(object):
             else:
                 proc = sender
 
-            nrPerSigProcs.setdefault(\
-                proc, dict({'proxyList': dict(), 'nrSignal': 0, 'interface': dict()}))
+            initDict = \
+                {'proxyList': dict(), 'nrSignal': 0, 'interface': dict()}
+            nrPerSigProcs.setdefault(proc, dict(initDict))
             nrPerSigProcs[proc]['interface'].setdefault(sender, dict())
             nrPerSigProcs[proc]['interface'][sender].update(items)
 
@@ -35178,7 +35187,8 @@ class DbusAnalyzer(object):
             # print stub process stat #
             SysMgr.printPipe(\
                 "{0:>23} [nrProxy: {1:1}, nrSignal: {2:1}]".format(\
-                    serv, conv(len(stats['proxyList'])), conv(stats['nrSignal'])))
+                    serv, conv(len(stats['proxyList'])), \
+                    conv(stats['nrSignal'])))
 
             # print interface stat #
             for iface, receiver in sorted(stats['interface'].items(),\
@@ -36447,7 +36457,8 @@ class DltAnalyzer(object):
                     "Fail to register app '%s'" % appid)
                 sys.exit(0)
 
-            ret = dltObj.dlt_register_context(byref(ctx), context, 'Guider'.encode())
+            ret = dltObj.dlt_register_context(\
+                byref(ctx), context, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(\
                     "Fail to register context '%s'" % context)
@@ -36496,7 +36507,8 @@ class DltAnalyzer(object):
 
         def setFilter(dltObj, dltFilter, dltFile, apid=None, ctid=None, init=True):
             # initialize filter #
-            if init and dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
+            if init and \
+                dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
                 SysMgr.printErr(\
                     "Fail to initialize the DLTFilter object")
                 return -1
@@ -37995,9 +38007,11 @@ struct cmsghdr {
                 cmdformat = "VAR#VAL"
             elif cmd == 'getenv':
                 cmdformat = "VAR"
+            elif cmd == 'repeat':
+                cmdformat = "CNT"
             elif cmd == 'log':
                 cmdformat = "MESSAGE"
-            elif cmd == 'exit':
+            else:
                 cmdformat = ""
 
             if cmdformat:
@@ -38096,13 +38110,15 @@ struct cmsghdr {
                 if len(cmdset) == 1:
                     printCmdErr(cmdval, cmd)
 
-                # inject a new brakpoint for return #
+                # inject a new breakpoint for return #
                 self.setRetBp(sym, fname)
 
                 # register a return value #
                 newSym = '%s%s' % (sym, Debugger.RETSTR)
                 val = cmdset[1]
                 self.setRetList[newSym] = long(val)
+
+                SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
 
             elif cmd == 'setarg':
                 if len(cmdset) == 1:
@@ -38411,6 +38427,30 @@ struct cmsghdr {
 
                 self.loadSymbols()
                 self.updateBpList()
+
+            elif cmd == 'repeat':
+                if sym in self.repeatCntList:
+                    pass
+                elif len(cmdset) == 2:
+                    cnt = long(cmdset[1])+1
+                    self.repeatCntList.setdefault(sym, cnt)
+
+                try:
+                    self.repeatCntList[sym] -= 1
+                    if self.repeatCntList[sym] == 0:
+                        repeat = False
+                    rstr = ': %s' % convNum(self.repeatCntList[sym])
+                except:
+                    rstr = ''
+
+                # save register set #
+                self.regList[sym] = self.getRegs(new=True)
+
+                # set a breakpoint at return position #
+                self.setRetBp(sym, fname)
+
+                output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
+                SysMgr.addPrint(output)
 
             elif cmd == 'save':
                 if len(cmdset) == 1:
@@ -41031,6 +41071,7 @@ struct cmsghdr {
         if not ElfAnalyzer.isRelocFile(fname):
             offset = vaddr
 
+        # get symbol #
         try:
             sym = fcache.getSymbolByOffset(offset)
             return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
@@ -41814,6 +41855,8 @@ struct cmsghdr {
                 ConfigMgr.PRCTL_TYPE[param] == "PR_SET_NAME":
                 Debugger.updateCommFlag()
 
+        isRetBp = False
+
         # print context info #
         if printStat and not addr in self.exceptBpList and \
             (not self.targetBpFileList or fname in self.targetBpFileList):
@@ -41869,7 +41912,9 @@ struct cmsghdr {
                     elapsed = ''
                     etime = None
                     if sym.endswith(Debugger.RETSTR):
-                        retstr = self.handleRetBp(sym, fname)
+                        isRetBp = True
+
+                        retstr = self.handleRetBp(sym, fname, addr)
 
                         # calculate elpased time #
                         try:
@@ -41896,14 +41941,16 @@ struct cmsghdr {
                             oaddr = syminfo[3]
 
                         # build current symbol string #
-                        callString = '\n%s %s%s%s%s -> %s/%s [%s]%s' % \
-                            (diffstr, tinfo, indent, sym, elapsed, osym, \
-                                hex(oaddr).rstrip('L'), ofname, retstr)
+                        callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
+                            (diffstr, tinfo, indent, sym, retstr, elapsed, \
+                                osym, hex(oaddr).rstrip('L'), ofname)
                     else:
+                        isRetBp = False
+
                         # build current symbol string #
-                        callString = '\n%s %s%s%s%s/%s%s [%s]%s' % \
+                        callString = '\n%s %s%s%s%s/%s%s [%s]' % \
                             (diffstr, tinfo, indent, sym, elapsed, \
-                                hex(addr).rstrip('L'), argstr, fname, retstr)
+                                hex(addr).rstrip('L'), argstr, fname)
 
                     if btstr:
                         callString = '%s%s' % (btstr, callString)
@@ -41923,6 +41970,11 @@ struct cmsghdr {
                     # console output #
                     else:
                         SysMgr.printPipe(callString, newline=False)
+
+                    # handle repeat command #
+                    if isRetBp and origPC != self.pc:
+                        self.handleBp(printStat, checkArg)
+                        return
 
                     # check command #
                     cmd = self.bpList[addr]['cmd']
@@ -41950,7 +42002,7 @@ struct cmsghdr {
         sym, fname, reins = ret
 
         # check reinstall option #
-        if not reins:
+        if isRetBp or not reins:
             self.unlock(nrLock)
             return
 
@@ -42324,7 +42376,8 @@ struct cmsghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to convert %s to JSON for marshalling" % [jsonData], True)
+                    "Fail to convert %s to JSON for marshalling" % \
+                        [jsonData], True)
             return
 
         if not self.isRealtime or SysMgr.showAll:
@@ -42937,6 +42990,8 @@ struct cmsghdr {
         self.retList = dict()
         self.accList = dict()
         self.setRetList = dict()
+        self.regList = dict()
+        self.repeatCntList = dict()
         self.prevReturn = -1
 
         # make object for myself #
@@ -42947,7 +43002,7 @@ struct cmsghdr {
 
 
 
-    def handleRetBp(self, sym, fname):
+    def handleRetBp(self, sym, fname, addr):
         try:
             # change return value #
             if sym in self.setRetList:
@@ -42964,8 +43019,20 @@ struct cmsghdr {
             self.retList[sym] = long(retval)
             self.prevReturn = str(retval)
 
-            return "\n[%8s] %s(%s)\n" % \
-                ('getret', hex(retval).rstrip('L'), retval)
+            # check register set for repeat #
+            origSym = sym.rstrip(Debugger.RETSTR)
+            if origSym in self.regList:
+                newObj = self.regList.pop(origSym, None)
+                self.setRegs(newObj=newObj)
+                self.updateRegs()
+
+            # remove breakpoint #
+            nrLock = self.bpList[addr]['number']
+            self.lock(nrLock)
+            ret = self.removeBp(addr)
+            self.unlock(nrLock)
+
+            return "=%s(%s)" % (hex(retval).rstrip('L'), retval)
         except SystemExit:
             sys.exit(0)
         except:
@@ -43864,11 +43931,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def getSigInfo(self):
         PTRACE_GETSIGINFO = 0x4202
+        # toDo: implement signal peek #
 
 
 
     def setSigInfo(self):
         PTRACE_SETSIGINFO = 0x4203
+        # toDo: implement signal poke #
 
 
 
@@ -45934,7 +46003,7 @@ class ElfAnalyzer(object):
                 if addrTable[idx] > offset:
                     return '??'
 
-                # set symbol scope to size #
+                # set symbol scope to it's size #
                 if True:
                     maxAddr = addrTable[idx] + symTable[idx][1]
                 # set symbol scope to next one's start offset #
