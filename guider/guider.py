@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200804"
+__revision__ = "200805"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10068,7 +10068,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
             # Print per-symbol #
             title = 'Function CPU-Tick Symbol Info'
@@ -10103,7 +10103,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
             # Print tick per-file #
             title = 'Function CPU-Tick File Info'
@@ -10137,7 +10137,7 @@ class FunctionAnalyzer(object):
             if self.periodicEventCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print CPU usage in kernel space #
         title = 'Function CPU-Tick Info'
@@ -10255,6 +10255,8 @@ class FunctionAnalyzer(object):
         if not self.memEnabled:
             return
 
+        SysMgr.printPipe('\n')
+
         title = 'Function Free-Only-Page Info'
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         pageFreeIndex = FunctionAnalyzer.symStackIdxTable.index('PAGE_FREE')
@@ -10307,7 +10309,7 @@ class FunctionAnalyzer(object):
             if self.pageUnknownFreeCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print memory reduce by page free in kernel space #
         SysMgr.clearPrint()
@@ -10477,7 +10479,7 @@ class FunctionAnalyzer(object):
             if self.pageAllocCnt - self.pageUsageCnt <= 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print page alloc-free pair in kernel space #
         SysMgr.clearPrint()
@@ -10709,7 +10711,7 @@ class FunctionAnalyzer(object):
             if self.pageUsageCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print memory usage by page allocation in kernel space #
         SysMgr.clearPrint()
@@ -10783,7 +10785,7 @@ class FunctionAnalyzer(object):
         if self.pageUsageCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         self.printKnownMemFreeInfo()
 
@@ -10861,7 +10863,7 @@ class FunctionAnalyzer(object):
         if len(self.heapTable) == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         # Print remaining heap history #
         if not SysMgr.showAll or len(self.heapTable) == 0:
@@ -11042,7 +11044,7 @@ class FunctionAnalyzer(object):
         if self.lockTryEventCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         # Print lock per-file #
         title = 'Function Lock-Try File Info'
@@ -11068,7 +11070,7 @@ class FunctionAnalyzer(object):
         if self.periodicEventCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         # Print unlock #
         title = 'Function Unlock Info'
@@ -11118,7 +11120,7 @@ class FunctionAnalyzer(object):
         if self.unlockEventCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         # Print unlock per-file #
         title = 'Function Unlock File Info'
@@ -11145,7 +11147,7 @@ class FunctionAnalyzer(object):
         if self.periodicEventCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-        SysMgr.printPipe()
+        SysMgr.printPipe('\n')
 
         # Print lock history #
         if not SysMgr.showAll or len(self.lockCallData) == 0:
@@ -11278,7 +11280,7 @@ class FunctionAnalyzer(object):
             if self.blockWrUsageCnt == 0:
                 SysMgr.printPipe('\tNone\n%s' % oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print block write in kernel space #
         SysMgr.clearPrint()
@@ -11429,7 +11431,7 @@ class FunctionAnalyzer(object):
 
                 SysMgr.printPipe(oneLine)
 
-            SysMgr.printPipe()
+            SysMgr.printPipe('\n')
 
         # Print block read in kernel space #
         SysMgr.clearPrint()
@@ -13654,6 +13656,7 @@ class SysMgr(object):
     processEnable = True
     groupProcEnable = False
     rankProcEnable = True
+    inotifyEnable = False
 
     # Elastic Stack #
     elasticEnable = False
@@ -18439,20 +18442,23 @@ Copyright:
                 "Fail to get flags as a list")
             return False
 
-        inotifyFuncs = [
-            "inotify_init",
-            "inotify_add_watch",
-            "read",
-            "inotify_rm_watch",
-            "close"
-        ]
+        if not SysMgr.inotifyEnable :
+            inotifyFuncs = [
+                "inotify_init",
+                "inotify_add_watch",
+                "read",
+                "inotify_rm_watch",
+                "close"
+            ]
 
-        # check functions #
-        for func in inotifyFuncs:
-            if not hasattr(SysMgr.libcObj, func):
-                SysMgr.printWarn(\
-                    "No %s in %s" % (func, SysMgr.libcPath), True)
-                return False
+            # check functions #
+            for func in inotifyFuncs:
+                if not hasattr(SysMgr.libcObj, func):
+                    SysMgr.printWarn(\
+                        "No %s in %s" % (func, SysMgr.libcPath), True)
+                    return False
+
+            SysMgr.inotifyEnable = True
 
         class inotify_event(Structure):
             _fields_ = (
@@ -18472,7 +18478,8 @@ Copyright:
         # create a file descriptor #
         fd = SysMgr.libcObj.inotify_init()
         if fd < 0:
-            SysMgr.printErr("Fail to inotify_init")
+            if verb:
+                SysMgr.printErr("Fail to inotify_init")
             return False
 
         # get flag bits #
@@ -18491,14 +18498,16 @@ Copyright:
         for item in path:
             wd = SysMgr.libcObj.inotify_add_watch(fd, item.encode(), fbits)
             if wd < 0:
-                SysMgr.printErr("Fail to inotify_add_watch")
+                if verb:
+                    SysMgr.printErr("Fail to inotify_add_watch")
                 return False
             wlist[wd] = item
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
-            SysMgr.printErr("Fail to read inotify event")
+            if verb:
+                SysMgr.printErr("Fail to read inotify event")
             return False
 
         # check events #
@@ -27596,15 +27605,17 @@ Copyright:
                         targetInfo[path]['fname'] != fname:
                         continue
 
-                    # build a string for file #
+                    # add file name #
                     if fname:
-                        fstr = ' for %s' % fname
+                        fpath = os.path.join(path, fname)
                     else:
-                        fstr = ''
+                        fpath = path
+
+                    fpath = os.path.realpath(fpath)
 
                     SysMgr.printPipe(\
-                        "[%.6f] %s%s in %s" % \
-                            (current, '|'.join(events), fstr, path))
+                        "[%.6f] %s@%s" % \
+                            (current, '|'.join(events), fpath))
 
                     # execute command #
                     for cmd in targetInfo[path]['cmd']:
@@ -37202,6 +37213,160 @@ class Debugger(object):
     selfInstance = None
     RETSTR = '[RET]'
 
+    def getRegStruct(self):
+        class user_regs_struct(Structure):
+            def getdict(struct): # pylint: disable=no-self-argument
+                return dict((field, getattr(struct, field)) \
+                    for field, _ in struct._fields_)
+
+            if self.arch == 'aarch64':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
+            elif self.arch == 'x64':
+                _fields_ = (
+                    ("r15", c_ulong),
+                    ("r14", c_ulong),
+                    ("r13", c_ulong),
+                    ("r12", c_ulong),
+                    ("rbp", c_ulong),
+                    ("rbx", c_ulong),
+                    ("r11", c_ulong),
+                    ("r10", c_ulong),
+                    ("r9", c_ulong),
+                    ("r8", c_ulong),
+                    ("rax", c_ulong),
+                    ("rcx", c_ulong),
+                    ("rdx", c_ulong),
+                    ("rsi", c_ulong),
+                    ("rdi", c_ulong),
+                    ("orig_rax", c_ulong),
+                    ("rip", c_ulong),
+                    ("cs", c_ulong),
+                    ("eflags", c_ulong),
+                    ("rsp", c_ulong),
+                    ("ss", c_ulong),
+                    ("fs_base", c_ulong),
+                    ("gs_base", c_ulong),
+                    ("ds", c_ulong),
+                    ("es", c_ulong),
+                    ("fs", c_ulong),
+                    ("gs", c_ulong)
+                )
+            elif self.arch == 'arm':
+                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
+            elif self.arch == 'x86':
+                _fields_ = (
+                    ("ebx", c_ulong),
+                    ("ecx", c_ulong),
+                    ("edx", c_ulong),
+                    ("esi", c_ulong),
+                    ("edi", c_ulong),
+                    ("ebp", c_ulong),
+                    ("eax", c_ulong),
+                    ("ds", c_ushort),
+                    ("__ds", c_ushort),
+                    ("es", c_ushort),
+                    ("__es", c_ushort),
+                    ("fs", c_ushort),
+                    ("__fs", c_ushort),
+                    ("gs", c_ushort),
+                    ("__gs", c_ushort),
+                    ("orig_eax", c_ulong),
+                    ("eip", c_ulong),
+                    ("cs", c_ushort),
+                    ("__cs", c_ushort),
+                    ("eflags", c_ulong),
+                    ("esp", c_ulong),
+                    ("ss", c_ushort),
+                    ("__ss", c_ushort),
+                )
+            elif self.arch == 'powerpc':
+                _fields_ = (
+                    ("gpr0", c_ulong),
+                    ("gpr1", c_ulong),
+                    ("gpr2", c_ulong),
+                    ("gpr3", c_ulong),
+                    ("gpr4", c_ulong),
+                    ("gpr5", c_ulong),
+                    ("gpr6", c_ulong),
+                    ("gpr7", c_ulong),
+                    ("gpr8", c_ulong),
+                    ("gpr9", c_ulong),
+                    ("gpr10", c_ulong),
+                    ("gpr11", c_ulong),
+                    ("gpr12", c_ulong),
+                    ("gpr13", c_ulong),
+                    ("gpr14", c_ulong),
+                    ("gpr15", c_ulong),
+                    ("gpr16", c_ulong),
+                    ("gpr17", c_ulong),
+                    ("gpr18", c_ulong),
+                    ("gpr19", c_ulong),
+                    ("gpr20", c_ulong),
+                    ("gpr21", c_ulong),
+                    ("gpr22", c_ulong),
+                    ("gpr23", c_ulong),
+                    ("gpr24", c_ulong),
+                    ("gpr25", c_ulong),
+                    ("gpr26", c_ulong),
+                    ("gpr27", c_ulong),
+                    ("gpr28", c_ulong),
+                    ("gpr29", c_ulong),
+                    ("gpr30", c_ulong),
+                    ("gpr31", c_ulong),
+                    ("nip", c_ulong),
+                    ("msr", c_ulong),
+                    ("orig_gpr3", c_ulong),
+                    ("ctr", c_ulong),
+                    ("link", c_ulong),
+                    ("xer", c_ulong),
+                    ("ccr", c_ulong),
+                    ("mq", c_ulong),  # FIXME: ppc64 => softe
+                    ("trap", c_ulong),
+                    ("dar", c_ulong),
+                    ("dsisr", c_ulong),
+                    ("result", c_ulong),
+                )
+
+        return user_regs_struct()
+
+
+
+    def getFpRegStruct(self):
+        class user_fpregs_struct(Structure):
+            def getdict(struct): # pylint: disable=no-self-argument
+                return dict((field, getattr(struct, field)) \
+                    for field, _ in struct._fields_)
+
+            if self.arch == 'aarch64' or self.arch == 'x64':
+                _fields_ = (
+                    ("cwd", c_uint16),
+                    ("swd", c_uint16),
+                    ("ftw", c_uint16),
+                    ("fop", c_uint16),
+                    ("rip", c_uint64),
+                    ("rdp", c_uint64),
+                    ("mxcsr", c_uint32),
+                    ("mxcr_mask", c_uint32),
+                    ("st_space", c_uint32 * 32),
+                    ("xmm_space", c_uint32 * 64),
+                    ("padding", c_uint32 * 24)
+                )
+            else:
+                _fields_ = (
+                    ("cwd", c_ulong),
+                    ("swd", c_ulong),
+                    ("twd", c_ulong),
+                    ("fip", c_ulong),
+                    ("fcs", c_ulong),
+                    ("foo", c_ulong),
+                    ("fos", c_ulong),
+                    ("st_space", c_ulong * 20)
+                )
+
+        return user_fpregs_struct()
+
+
+
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.comm = None
         self.mode = mode
@@ -37371,150 +37536,6 @@ struct cmsghdr {
         self.cmsghdr = cmsghdr
         self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
 
-        class user_regs_struct(Structure):
-            def getdict(struct): # pylint: disable=no-self-argument
-                return dict((field, getattr(struct, field)) \
-                    for field, _ in struct._fields_)
-
-            if arch == 'aarch64':
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
-            elif arch == 'x64':
-                _fields_ = (
-                    ("r15", c_ulong),
-                    ("r14", c_ulong),
-                    ("r13", c_ulong),
-                    ("r12", c_ulong),
-                    ("rbp", c_ulong),
-                    ("rbx", c_ulong),
-                    ("r11", c_ulong),
-                    ("r10", c_ulong),
-                    ("r9", c_ulong),
-                    ("r8", c_ulong),
-                    ("rax", c_ulong),
-                    ("rcx", c_ulong),
-                    ("rdx", c_ulong),
-                    ("rsi", c_ulong),
-                    ("rdi", c_ulong),
-                    ("orig_rax", c_ulong),
-                    ("rip", c_ulong),
-                    ("cs", c_ulong),
-                    ("eflags", c_ulong),
-                    ("rsp", c_ulong),
-                    ("ss", c_ulong),
-                    ("fs_base", c_ulong),
-                    ("gs_base", c_ulong),
-                    ("ds", c_ulong),
-                    ("es", c_ulong),
-                    ("fs", c_ulong),
-                    ("gs", c_ulong)
-                )
-            elif arch == 'arm':
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(18))
-            elif arch == 'x86':
-                _fields_ = (
-                    ("ebx", c_ulong),
-                    ("ecx", c_ulong),
-                    ("edx", c_ulong),
-                    ("esi", c_ulong),
-                    ("edi", c_ulong),
-                    ("ebp", c_ulong),
-                    ("eax", c_ulong),
-                    ("ds", c_ushort),
-                    ("__ds", c_ushort),
-                    ("es", c_ushort),
-                    ("__es", c_ushort),
-                    ("fs", c_ushort),
-                    ("__fs", c_ushort),
-                    ("gs", c_ushort),
-                    ("__gs", c_ushort),
-                    ("orig_eax", c_ulong),
-                    ("eip", c_ulong),
-                    ("cs", c_ushort),
-                    ("__cs", c_ushort),
-                    ("eflags", c_ulong),
-                    ("esp", c_ulong),
-                    ("ss", c_ushort),
-                    ("__ss", c_ushort),
-                )
-            elif arch == 'powerpc':
-                _fields_ = (
-                    ("gpr0", c_ulong),
-                    ("gpr1", c_ulong),
-                    ("gpr2", c_ulong),
-                    ("gpr3", c_ulong),
-                    ("gpr4", c_ulong),
-                    ("gpr5", c_ulong),
-                    ("gpr6", c_ulong),
-                    ("gpr7", c_ulong),
-                    ("gpr8", c_ulong),
-                    ("gpr9", c_ulong),
-                    ("gpr10", c_ulong),
-                    ("gpr11", c_ulong),
-                    ("gpr12", c_ulong),
-                    ("gpr13", c_ulong),
-                    ("gpr14", c_ulong),
-                    ("gpr15", c_ulong),
-                    ("gpr16", c_ulong),
-                    ("gpr17", c_ulong),
-                    ("gpr18", c_ulong),
-                    ("gpr19", c_ulong),
-                    ("gpr20", c_ulong),
-                    ("gpr21", c_ulong),
-                    ("gpr22", c_ulong),
-                    ("gpr23", c_ulong),
-                    ("gpr24", c_ulong),
-                    ("gpr25", c_ulong),
-                    ("gpr26", c_ulong),
-                    ("gpr27", c_ulong),
-                    ("gpr28", c_ulong),
-                    ("gpr29", c_ulong),
-                    ("gpr30", c_ulong),
-                    ("gpr31", c_ulong),
-                    ("nip", c_ulong),
-                    ("msr", c_ulong),
-                    ("orig_gpr3", c_ulong),
-                    ("ctr", c_ulong),
-                    ("link", c_ulong),
-                    ("xer", c_ulong),
-                    ("ccr", c_ulong),
-                    ("mq", c_ulong),  # FIXME: ppc64 => softe
-                    ("trap", c_ulong),
-                    ("dar", c_ulong),
-                    ("dsisr", c_ulong),
-                    ("result", c_ulong),
-                )
-
-        class user_fpregs_struct(Structure):
-            def getdict(struct): # pylint: disable=no-self-argument
-                return dict((field, getattr(struct, field)) \
-                    for field, _ in struct._fields_)
-
-            if arch == 'aarch64' or arch == 'x64':
-                _fields_ = (
-                    ("cwd", c_uint16),
-                    ("swd", c_uint16),
-                    ("ftw", c_uint16),
-                    ("fop", c_uint16),
-                    ("rip", c_uint64),
-                    ("rdp", c_uint64),
-                    ("mxcsr", c_uint32),
-                    ("mxcr_mask", c_uint32),
-                    ("st_space", c_uint32 * 32),
-                    ("xmm_space", c_uint32 * 64),
-                    ("padding", c_uint32 * 24)
-                )
-            else:
-                _fields_ = (
-                    ("cwd", c_ulong),
-                    ("swd", c_ulong),
-                    ("twd", c_ulong),
-                    ("fip", c_ulong),
-                    ("fcs", c_ulong),
-                    ("foo", c_ulong),
-                    ("fos", c_ulong),
-                    ("st_space", c_ulong * 20)
-                )
-
 
 
         # running #
@@ -37543,11 +37564,13 @@ struct cmsghdr {
         else:
             self.pid = None
 
-        # set register variables #
-        self.regs = user_regs_struct()
-        self.fpregs = user_fpregs_struct()
-        self.tempRegs = user_regs_struct()
-        self.tempFpRegs = user_fpregs_struct()
+        # set variables for register #
+        self.regs = self.getRegStruct()
+        self.iovecObj = self.getIovec(self.regs)
+        self.fpregs = self.getFpRegStruct()
+        self.tempRegs = self.getRegStruct()
+        self.tempIovecObj = self.getIovec(self.tempRegs)
+        self.tempFpRegs = self.getFpRegStruct()
         self.regsDict = None
         self.fpRegsDict = None
 
@@ -37555,13 +37578,11 @@ struct cmsghdr {
         if self.pid != SysMgr.pid:
             Debugger.dbgInstance = self
 
-        self.iovecObj = self.iovec(\
-            iov_base=addressof(self.regs),\
-            iov_len=sizeof(self.regs))
 
-        self.tempIovecObj = self.iovec(\
-            iov_base=addressof(self.tempRegs),\
-            iov_len=sizeof(self.tempRegs))
+
+    def getIovec(self, reg):
+        return self.iovec(\
+            iov_base=addressof(reg), iov_len=sizeof(reg))
 
 
 
@@ -40430,11 +40451,12 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get msghdr for %s" % syscall, True, reason=True)
+                        "Fail to get msghdr for %s" % \
+                            syscall, True, reason=True)
 
         # handle sendmmsg / recvmmsg #
         if syscall == "sendmmsg" or syscall == "recvmmsg":
-            if argname == 'vlen':
+            if ref and argname == 'vlen':
                 try:
                     if 'msg' in argset:
                         ret = self.readMultiMsgHdr(argset['msg'], value)
@@ -40445,7 +40467,20 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get mmsghdr for %s" % syscall, True, reason=True)
+                        "Fail to get mmsghdr for %s" % \
+                            syscall, True, reason=True)
+
+        # convert fd to name #
+        if ref:
+            if argname == "fd":
+                try:
+                    path = os.readlink('%s/%s/fd/%s' % \
+                        (SysMgr.procPath, self.pid, value))
+                    return "%s>%s" % (value, path)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
 
         # handle special syscalls #
         if syscall == "execve":
@@ -42188,8 +42223,13 @@ struct cmsghdr {
     def convArgs(self):
         args = []
 
+        if self.isRealtime and not SysMgr.showAll:
+            ref = False
+        else:
+            ref = True
+
         # converting arguments #
-        self.getArgs()
+        self.getArgs(ref)
 
         # pick values from argument list #
         for idx, arg in enumerate(self.args):
@@ -43916,7 +43956,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def setRegs(self, temp=False):
+    def setRegs(self, temp=False, newObj=None):
         pid = self.pid
         wordSize = ConfigMgr.wordSize
 
@@ -43929,7 +43969,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             NT_PRSTATUS = 1
             nrWords = sizeof(self.regs) * wordSize
 
-            if temp:
+            if newObj:
+                addr = addressof(self.getIovec(newObj))
+            elif temp:
                 addr = addressof(self.tempIovecObj)
             else:
                 addr = addressof(self.iovecObj)
@@ -43942,7 +43984,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             self.supportSetRegset = False
 
-            if temp:
+            if newObj:
+                addr = addressof(newObj)
+            elif temp:
                 addr = addressof(self.tempRegs)
             else:
                 addr = addressof(self.regs)
@@ -44013,16 +44057,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def getRegs(self, temp=False):
+    def getRegs(self, temp=False, new=False):
         pid = self.pid
         wordSize = ConfigMgr.wordSize
+
+        if new:
+            newObj = self.getRegStruct()
 
         # read registers #
         try:
             if not self.supportGetRegset:
                 raise Exception()
 
-            if temp:
+            if new:
+                addr = addressof(self.getIovec(newObj))
+            elif temp:
                 addr = addressof(self.tempIovecObj)
             else:
                 addr = addressof(self.iovecObj)
@@ -44039,7 +44088,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             self.supportGetRegset = False
 
-            if temp:
+            if new:
+                addr = addressof(newObj)
+            elif temp:
                 addr = addressof(self.tempRegs)
             else:
                 addr = addressof(self.regs)
@@ -44057,7 +44108,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 "Fail to read registers for %s(%s)" % \
                     (self.comm, self.pid))
 
-        return ret
+        # return result #
+        if new:
+            return newObj
+        else:
+            return ret
 
 
 
@@ -59609,7 +59664,7 @@ class ThreadAnalyzer(object):
 
             # make path of tid #
             procPath = "%s/%s" % (SysMgr.procPath, pid)
-            fdlistPath = "%s/%s" % (procPath, 'fd')
+            fdlistPath = "%s/fd" % (procPath)
 
             # save stat of process #
             self.saveProcData(procPath, pid)
