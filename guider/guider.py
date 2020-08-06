@@ -13469,6 +13469,7 @@ class SysMgr(object):
     ignoreItemList = []
     perfEventData = {}
     commFdCache = {}
+    fdCache = {}
     libCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
@@ -13987,6 +13988,26 @@ class SysMgr(object):
         SysMgr.parseRecordOption()
         SysMgr.printProfileOption()
         SysMgr.printProfileCmd()
+
+
+
+    @staticmethod
+    def getFd(fname, perm='rb'):
+        if fname in SysMgr.fdCache and \
+            SysMgr.fdCache[fname]['perm'] == perm:
+            return SysMgr.fdCache[fname]['fd']
+
+        try:
+            SysMgr.fdCache[fname] = {
+                'fd': open(fname, perm),
+                'perm': perm,
+            }
+            return SysMgr.fdCache[fname]['fd']
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(fname)
+            return None
 
 
 
@@ -18428,6 +18449,9 @@ Copyright:
 
     @staticmethod
     def inotify(path, flags=[], verb=False):
+        if not path:
+            return False
+
         if not SysMgr.loadLibcObj():
             sys.exit(0)
 
@@ -26204,6 +26228,8 @@ Copyright:
         signal.signal(signal.SIGTSTP, SysMgr.bgHandler)
         signal.signal(signal.SIGTTIN, SysMgr.bgHandler)
         signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+        signal.signal(signal.SIGUSR1, SysMgr.defaultHandler)
+        signal.signal(signal.SIGUSR2, SysMgr.defaultHandler)
 
 
 
@@ -31273,8 +31299,9 @@ Copyright:
 
 
     @staticmethod
-    def getChildList():
-        SysMgr.updateChildList()
+    def getChildList(update=True):
+        if update:
+            SysMgr.updateChildList()
         return SysMgr.childList
 
 
@@ -31328,6 +31355,7 @@ Copyright:
         if not wait:
             return
 
+        # wait for termination for all childs #
         while 1:
             newChilds = ['/proc/%s' % tid for tid in list(childs)]
             isFinished = True
@@ -38435,19 +38463,26 @@ struct cmsghdr {
                     cnt = long(cmdset[1])+1
                     self.repeatCntList.setdefault(sym, cnt)
 
+                again = True
+
+                # check repeat count #
                 try:
                     self.repeatCntList[sym] -= 1
                     if self.repeatCntList[sym] == 0:
-                        repeat = False
+                        self.repeatCntList.pop(sym, None)
+                        again = False
                     rstr = ': %s' % convNum(self.repeatCntList[sym])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     rstr = ''
 
-                # save register set #
-                self.regList[sym] = self.getRegs(new=True)
+                if again:
+                    # save register set #
+                    self.regList[sym] = self.getRegs(new=True)
 
-                # set a breakpoint at return position #
-                self.setRetBp(sym, fname)
+                    # set a breakpoint at return position #
+                    self.setRetBp(sym, fname)
 
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
                 SysMgr.addPrint(output)
@@ -39245,8 +39280,25 @@ struct cmsghdr {
 
 
 
+    def loadInst(self, fname, offset):
+        try:
+            fobj = SysMgr.getFd(fname)
+            fobj.seek(offset)
+            origWord = fobj.read(ConfigMgr.wordSize)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "Fail to read original data from %s" % \
+                    fname, reason=True)
+            sys.exit(0)
+
+
+
     def injectBp(\
-        self, addr, sym=None, fname=None, size=1, reins=False, cmd=None):
+        self, addr, sym=None, fname=None, size=1, \
+        reins=False, cmd=None, origWord=None):
+
         # get original instruction #
         if addr in self.bpList:
             if self.bpList[addr]['set']:
@@ -39265,7 +39317,9 @@ struct cmsghdr {
         # a new breakpoint #
         else:
             # read data #
-            if addr % ConfigMgr.wordSize:
+            if origWord:
+                pass
+            elif addr % ConfigMgr.wordSize:
                 origWord = self.readMem(addr)
             else:
                 origWord = self.accessMem(self.peekIdx, addr)
@@ -39287,18 +39341,8 @@ struct cmsghdr {
                 fname = ret[1]
                 offset = long(ret[2], 16)
 
-                # load orignal data from stroage #
-                try:
-                    with open(fname, "rb") as fobj:
-                        fobj.seek(offset)
-                        origWord = fobj.read(ConfigMgr.wordSize)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(\
-                        "Fail to read original data from %s" % \
-                            fname, reason=True)
-                    sys.exit(0)
+                # load orignal data from storage #
+                origWord = self.loadInst(fname, offset)
 
             # check filter command #
             filterCmd = []
@@ -41797,7 +41841,7 @@ struct cmsghdr {
 
         # get breakpoint addr #
         if addr not in self.bpList:
-            # handle strange instructions #
+            # handle strange instructions such like ARM THUMB #
             if addr+1 in self.bpList:
                 addr += 1
             elif addr-1 in self.bpList:
@@ -41805,10 +41849,17 @@ struct cmsghdr {
             elif self.loadSymbols():
                 self.updateBpList(verb=False)
 
-            '''
-            # toDo: update breakpoint list including original data
-                    through shared memory of the process mapped new files
-            '''
+            # load orignal data from storage #
+            origWord = self.loadInst(fname, offset)
+
+            # get symbol Info #
+            ret = self.getSymbolInfo(addr)
+            sym = ret[0]
+            fname = ret[1]
+
+            # register this lost breakpoint #
+            ret = self.injectBp(\
+                addr, sym, fname=fname, origWord=origWord)
 
             # check memory map again #
             if addr not in self.bpList:
@@ -43495,7 +43546,7 @@ struct cmsghdr {
         if instance.mode == 'break':
             # notify termination to master process #
             if SysMgr.masterPid > 0:
-                os.kill(SysMgr.masterPid, signal.SIGINT)
+                os.kill(SysMgr.masterPid, signal.SIGUSR2)
 
             cnt = 5
             while 1:
