@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200806"
+__revision__ = "200807"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15522,13 +15522,13 @@ class SysMgr(object):
 
 
     @staticmethod
-    def waitEvent(ignChldSig=True, exit=False, forceExit=False):
+    def waitEvent(ignChldSig=True, exit=False, forceExit=False, block=True):
         # ignore SIGCHLD #
         if ignChldSig:
             signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
         # backup SIGINT handler and set new handler #
-        if SysMgr.waitEnable:
+        if SysMgr.waitEnable and block:
             handle = signal.getsignal(signal.SIGINT)
             signal.signal(signal.SIGINT, SysMgr.defaultHandler)
 
@@ -15546,7 +15546,7 @@ class SysMgr(object):
             pass
 
         # restore SIGINT handler #
-        if SysMgr.waitEnable:
+        if SysMgr.waitEnable and block:
             signal.signal(signal.SIGINT, handle)
 
 
@@ -27875,17 +27875,19 @@ Copyright:
                 isFinished = True
                 for tid in allpids:
                     ret = SysMgr.createProcess(chPgid=True, chMid=True)
-                    if ret == 0:
-                        if not tid in pids:
-                            SysMgr.printEnable = False
+                    if ret != 0:
+                        continue
 
-                            # mute tasks except for targets #
-                            if not SysMgr.warnEnable and \
-                                SysMgr.getTgid(tid) != tid:
-                                SysMgr.logEnable = False
+                    if not tid in pids:
+                        SysMgr.printEnable = False
 
-                        pid = long(tid)
-                        break
+                        # mute tasks except for targets #
+                        if not SysMgr.warnEnable and \
+                            SysMgr.getTgid(tid) != tid:
+                            SysMgr.logEnable = False
+
+                    pid = long(tid)
+                    break
             except:
                 isFinished = False
 
@@ -27893,7 +27895,7 @@ Copyright:
             if SysMgr.pid == parent:
                 if isFinished:
                     while 1:
-                        SysMgr.waitEvent(ignChldSig=False)
+                        SysMgr.waitEvent(ignChldSig=False, block=False)
                         if SysMgr.condExit:
                             break
 
@@ -37981,7 +37983,7 @@ struct cmsghdr {
 
 
     def executeCmd(self, cmdList, sym=None, fname=None, args=[]):
-        def flushPrint():
+        def flushPrint(newline=True):
             if SysMgr.printFile:
                 if SysMgr.showAll:
                     self.callPrint.append(SysMgr.bufferString[1:])
@@ -37990,7 +37992,8 @@ struct cmsghdr {
                 if SysMgr.printStreamEnable:
                     sys.stdout.write(SysMgr.bufferString)
             else:
-                SysMgr.printPipe(SysMgr.bufferString)
+                SysMgr.printPipe(\
+                    SysMgr.bufferString, flush=True, newline=newline)
 
             SysMgr.clearPrint()
 
@@ -38082,6 +38085,7 @@ struct cmsghdr {
 
                 SysMgr.addPrint(\
                     "\n[%s] %s\n" % (cmdstr, '; '.join(cmdset[1:])))
+                flushPrint(newline=False)
 
                 # execute commands #
                 for item in cmdset[1].split(':'):
@@ -38450,6 +38454,7 @@ struct cmsghdr {
 
             elif cmd == 'start':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                flushPrint(newline=False)
 
                 SysMgr.customCmd = None
 
@@ -38541,6 +38546,7 @@ struct cmsghdr {
 
                 output = "\n[%s] %s [%s]" % (cmdstr, binary, ret)
                 SysMgr.addPrint(output)
+                flushPrint(newline=False)
 
                 # inject all breakpoints again #
                 self.loadSymbols()
@@ -38567,6 +38573,7 @@ struct cmsghdr {
 
                 output = "\n[%s] %s%s" % (cmdstr, val, argStr)
                 SysMgr.addPrint(output)
+                flushPrint(newline=False)
 
                 # remove a breakpoint for syscall #
                 self.removeBp(self.getSyscallAddr())
@@ -38582,6 +38589,7 @@ struct cmsghdr {
 
                 SysMgr.addPrint(' = %s(%s)' % \
                     (hex(ret).rstrip('L'), ret))
+                flushPrint(newline=False)
 
                 # inject a breakpoint for syscall again #
                 self.injectBp(self.getSyscallAddr())
@@ -38633,6 +38641,7 @@ struct cmsghdr {
                     self.removeAllBp(verb=False)
 
                 SysMgr.addPrint(output)
+                flushPrint(newline=False)
 
                 if not skip:
                     # call function #
@@ -38646,6 +38655,7 @@ struct cmsghdr {
 
                     SysMgr.addPrint(' = %s(%s)' % \
                         (hex(ret).rstrip('L'), ret))
+                    flushPrint(newline=False)
 
                     # inject all breakpoints again #
                     self.updateBpList(verb=False)
@@ -38723,6 +38733,7 @@ struct cmsghdr {
                     val = float(cmdset[1])
 
                 SysMgr.addPrint("\n[%s] %g sec" % (cmdstr, val))
+                flushPrint(newline=False)
 
                 time.sleep(val)
 
@@ -38748,6 +38759,7 @@ struct cmsghdr {
                 self.removeAllBp(verb=False)
 
                 SysMgr.addPrint(output)
+                flushPrint(newline=False)
 
                 # call function #
                 ret = self.setenv(argList[0], argList[1])
@@ -38761,6 +38773,7 @@ struct cmsghdr {
                 self.prevReturn = str(ret)
 
                 SysMgr.addPrint(' (%s)' % res)
+                flushPrint(newline=False)
 
                 # inject all breakpoints again #
                 self.updateBpList(verb=False)
@@ -38783,6 +38796,7 @@ struct cmsghdr {
                 self.removeAllBp(verb=False)
 
                 SysMgr.addPrint(output)
+                flushPrint(newline=False)
 
                 # call function #
                 ret = self.getenv(val)
@@ -38792,12 +38806,14 @@ struct cmsghdr {
                 self.prevReturn = str(ret)
 
                 SysMgr.addPrint(' = %s' % ret)
+                flushPrint(newline=False)
 
                 # inject all breakpoints again #
                 self.updateBpList(verb=False)
 
             elif cmd == 'stop':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                flushPrint(newline=False)
 
                 SysMgr.blockSignal(signal.SIGINT, act='unblock')
                 SysMgr.waitEvent(exit=True)
@@ -39284,7 +39300,7 @@ struct cmsghdr {
         try:
             fobj = SysMgr.getFd(fname)
             fobj.seek(offset)
-            origWord = fobj.read(ConfigMgr.wordSize)
+            return fobj.read(ConfigMgr.wordSize)
         except SystemExit:
             sys.exit(0)
         except:
@@ -39299,15 +39315,17 @@ struct cmsghdr {
         self, addr, sym=None, fname=None, size=1, \
         reins=False, cmd=None, origWord=None):
 
+        procInfo = '%s(%s)' % (self.comm, self.pid)
+
         # get original instruction #
         if addr in self.bpList:
             if self.bpList[addr]['set']:
                 if not sym:
                     sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s(%s) for %s(%s) '
+                    'Fail to inject a breakpoint to %s(%s) for %s '
                     'because it is already injected by this task') % \
-                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+                        (hex(addr).rstrip('L'), sym, procInfo))
                 return False
 
             origWord = self.bpList[addr]['data']
@@ -39333,9 +39351,9 @@ struct cmsghdr {
                 return False
             elif origWord.startswith(self.brkInst):
                 SysMgr.printWarn((\
-                    'Fail to handle the breakpoint at %s(%s) for %s(%s) '
+                    'Fail to inject a breakpoint to %s(%s) for %s '
                     'because no original code') % \
-                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+                        (hex(addr).rstrip('L'), sym, procInfo))
 
                 ret = self.getSymbolInfo(addr)
                 fname = ret[1]
@@ -39383,27 +39401,29 @@ struct cmsghdr {
                 origWord = self.bpList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s(%s) for %s(%s) '
+                    'Fail to inject a breakpoint to %s(%s) for %s '
                     'because it is already injected by another task') % \
-                        (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+                        (hex(addr).rstrip('L'), sym, procInfo))
                 return False
 
         # inject trap code #
         # WARNING: this code may cause SIGTRAP fault for other tasks #
         ret = self.writeMem(addr, inst, skipCheck=True)
-
         if ret < 0:
-            SysMgr.printWarn((\
-                'Fail to inject a breakpoint to %s(%s) for %s(%s) '
-                'because of trap setup failure') % \
-                    (hex(addr).rstrip('L'), sym, self.comm, self.pid))
+            if not self.isAlive():
+                reason = 'because of target termination'
+            else:
+                reason = 'because of remote write failure'
+
+            SysMgr.printErr(\
+                'Fail to inject a breakpoint to %s(%s) for %s %s' % \
+                    (hex(addr).rstrip('L'), sym, procInfo, reason))
+
             return False
-        elif ret == 0:
-            if SysMgr.warnEnable:
-                SysMgr.printWarn(\
-                    'Added a new breakpoint %s(%s)[%s] by %s(%s)' % \
-                        (hex(addr).rstrip('L'), sym, fname, \
-                            self.comm, self.pid))
+        elif ret == 0 and SysMgr.warnEnable:
+            SysMgr.printWarn(\
+                'Added a new breakpoint %s(%s)[%s] by %s' % \
+                    (hex(addr).rstrip('L'), sym, fname, procInfo))
 
         return True
 
@@ -41849,13 +41869,14 @@ struct cmsghdr {
             elif self.loadSymbols():
                 self.updateBpList(verb=False)
 
-            # load orignal data from storage #
-            origWord = self.loadInst(fname, offset)
-
             # get symbol Info #
             ret = self.getSymbolInfo(addr)
             sym = ret[0]
             fname = ret[1]
+            offset = long(ret[2], 16)
+
+            # load orignal data from storage #
+            origWord = self.loadInst(fname, offset)
 
             # register this lost breakpoint #
             ret = self.injectBp(\
@@ -42079,9 +42100,6 @@ struct cmsghdr {
         ret = self.injectBp(\
             addr, sym, fname=fname, reins=reins)
         if not ret:
-            SysMgr.printWarn(\
-                "Fail to inject a breakpoint to %s(%s) for %s(%s)" % \
-                    (sym, addr, self.comm, self.pid))
             sys.exit(0)
 
         # unlock between processes #
@@ -43515,6 +43533,7 @@ struct cmsghdr {
         # wait for task creation #
         if SysMgr.waitEnable and \
             self.mode != 'break':
+            SysMgr.waitEnable = False
             self.waitForClone()
 
         # set timer #
@@ -43605,13 +43624,15 @@ struct cmsghdr {
 
             while 1:
                 try:
-                    finished = False
                     events = SysMgr.inotify(dirname)
+                    if not events:
+                        break
+
+                    finished = False
                     for item in events:
                         if item[2] == filename:
                             finished = True
                             break
-
                     if finished:
                         break
                 except SystemExit:
@@ -43994,14 +44015,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def isForked(self, status):
         stat = status >> 8
-        return (stat  == self.sigForkFlag or \
+        return (stat == self.sigForkFlag or \
             stat == self.sigVforkFlag)
 
 
 
     def isCloned(self, status):
-        stat = status >> 8
-        return (stat  == self.sigCloneFlag)
+        return (status >> 8 == self.sigCloneFlag)
 
 
 
@@ -44125,7 +44145,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
 
         SysMgr.printErr(\
-            "Fail to write registers for %s(%s)" % \
+            "Fail to write remote registers for %s(%s)" % \
                 (self.comm, self.pid))
 
         return False
@@ -44225,7 +44245,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(\
-                "Fail to read registers for %s(%s)" % \
+                "Fail to read remote registers for %s(%s)" % \
                     (self.comm, self.pid))
 
         # return result #
