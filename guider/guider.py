@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200807"
+__revision__ = "200808"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13467,6 +13467,7 @@ class SysMgr(object):
     perfEventChannel = {}
     perfTargetEvent = []
     ignoreItemList = []
+    idList = []
     perfEventData = {}
     commFdCache = {}
     fdCache = {}
@@ -15962,6 +15963,7 @@ Usage:
     -i  <SEC>                   set interval
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -C  <PATH>                  set configuration path
+    -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
     -J                          print in JSON format
     -E  <DIR>                   set cache dir path
@@ -16057,8 +16059,11 @@ Examples:
     - Monitor status of processes and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
+    - Monitor status of processes after setting hot commands in advance
+        # {0:1} {1:1} -c "guider utop -g PID"
+
     - Monitor status of processes after setting configuration from guider.conf
-        # {0:1} {1:1} -I guider.conf
+        # {0:1} {1:1} -C guider.conf
 
                 '''.format(cmd, mode)
 
@@ -25637,7 +25642,10 @@ Copyright:
 
         # set default message #
         if not msg:
-            msg = "Input command... ( Help / Quit )"
+            if SysMgr.idList:
+                msg = "Input a task index... ( Help / Quit)"
+            else:
+                msg = "Input a command... ( Help / Quit )"
 
         # wait for user input #
         try:
@@ -25715,6 +25723,29 @@ Copyright:
 
         ulist = uinput.split()
         if len(ulist) == 0:
+            return
+
+        # hotkey #
+        if SysMgr.idList and ulist[0].isdigit():
+            try:
+                pid = SysMgr.idList[long(ulist[0])]
+            except:
+                return
+
+            # execute command #
+            for cmd in SysMgr.customCmd:
+                cmd = cmd.replace('PID', pid)
+
+                SysMgr.printInfo("execute '%s'" % cmd)
+                ret = SysMgr.createProcess(cmd.split())
+                if ret < 0:
+                    continue
+
+                # ignore signals and wait for child #
+                SysMgr.setIgnoreSignal()
+                os.wait()
+                SysMgr.setNormalSignal()
+
             return
 
         # help #
@@ -48631,7 +48662,7 @@ class ThreadAnalyzer(object):
 
             if self.prevCpuData != {}:
                 # print system status #
-                self.printSystemStat()
+                self.printSystemStat(idIndex=True)
 
                 if SysMgr.elasticEnable:
                     # report system status for elastic stack
@@ -62901,7 +62932,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printProcUsage(self):
+    def printProcUsage(self, idIndex=False):
         def isBreakCond(value):
             # get focus value #
             if not SysMgr.sort:
@@ -63221,6 +63252,10 @@ class ThreadAnalyzer(object):
             'read': long(0), 'write': long(0), \
             'yld': long(0), 'prtd': long(0), 'task': long(0)}
 
+        # clear id list #
+        if idIndex:
+            SysMgr.idList = []
+
         # print resource usage of processes / threads #
         procCnt = long(0)
         procData = self.procData
@@ -63436,6 +63471,11 @@ class ThreadAnalyzer(object):
                 mems = pss >> 8
             elif SysMgr.ussEnable:
                 mems = uss >> 8
+
+            # make directory #
+            if SysMgr.customCmd and idIndex:
+                SysMgr.idList.append(idx)
+                comm = '%s>%s' % (len(SysMgr.idList)-1, comm)
 
             # remove unshown field in lifetime #
             if len(lifeTime.split(':')) > 3:
@@ -64862,7 +64902,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printSystemStat(self):
+    def printSystemStat(self, idIndex=False):
         title = '[Top Info]'
         nrIndent = len(title)
 
@@ -64888,7 +64928,7 @@ class ThreadAnalyzer(object):
         self.printNetworkUsage()
 
         # print process stat #
-        self.printProcUsage()
+        self.printProcUsage(idIndex=idIndex)
 
         # update session #
         SysMgr.updateSession()
