@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200808"
+__revision__ = "200809"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38607,7 +38607,7 @@ struct cmsghdr {
                 flushPrint(newline=False)
 
                 # remove a breakpoint for syscall #
-                self.removeBp(self.getSyscallAddr())
+                self.removeBp(self.getSyscallAddr(), lock=True)
 
                 # call function #
                 ret = self.remoteSyscall(val, argList)
@@ -38964,7 +38964,7 @@ struct cmsghdr {
             return
 
         for item in fcache.sortedAddrTable:
-            self.removeBp(addr + item)
+            self.removeBp(addr + item, lock=True)
 
 
 
@@ -38987,14 +38987,14 @@ struct cmsghdr {
         for idx, addr in enumerate(targetBpList):
             if verb:
                 UtilMgr.printProgress(idx, len(targetBpList))
-            self.removeBp(addr)
+            self.removeBp(addr, lock=True)
 
         if verb:
             UtilMgr.deleteProgress()
 
 
 
-    def removeBp(self, addr):
+    def removeBp(self, addr, lock=False):
         if addr in self.bpList:
             savedData = self.bpList[addr]['data']
         else:
@@ -39002,10 +39002,20 @@ struct cmsghdr {
                 'No breakpoint with addr %s' % hex(addr).rstrip('L'))
             return None
 
+        # lock between processes #
+        if lock and addr in self.bpList:
+            nrLock = self.bpList[addr]['number']
+            self.lock(nrLock)
+        else:
+            lock = False
+
         # write original data #
         if savedData and \
             not savedData.startswith(self.brkInst):
             self.writeMem(addr, savedData, skipCheck=True)
+
+        if lock:
+            self.unlock(nrLock)
 
         # change breakpoint status #
         self.bpList[addr]['set'] = False
@@ -39811,6 +39821,7 @@ struct cmsghdr {
         if not wait:
             return None
         ret = self.waitpid()
+        self.checkStat(ret)
 
         # read regs to check results #
         if not self.updateRegs():
@@ -39885,6 +39896,7 @@ struct cmsghdr {
         # execute syscall #
         self.ptrace(self.syscallCmd)
         ret = self.waitpid()
+        self.checkStat(ret)
 
         # read regs and change the 6th argument #
         if not self.updateRegs():
@@ -39895,6 +39907,7 @@ struct cmsghdr {
         # continue and stop at return #
         self.ptrace(self.syscallCmd)
         ret = self.waitpid()
+        self.checkStat(ret)
 
         # read regs to check results #
         if not self.updateRegs():
@@ -41926,6 +41939,7 @@ struct cmsghdr {
         # pick breakpoint info #
         sym = self.bpList[addr]['symbol']
         fname = self.bpList[addr]['filename']
+        isRetBp = False
 
         # update memory map and load new objects #
         if self.needMapScan or \
@@ -41957,8 +41971,6 @@ struct cmsghdr {
             if param in ConfigMgr.PRCTL_TYPE and \
                 ConfigMgr.PRCTL_TYPE[param] == "PR_SET_NAME":
                 Debugger.updateCommFlag()
-
-        isRetBp = False
 
         # print context info #
         if printStat and not addr in self.exceptBpList and \
@@ -41998,7 +42010,7 @@ struct cmsghdr {
                     # get diff time #
                     diffstr = '%3.6f' % (self.current - self.start)
 
-                    # build backtrace string #
+                    # build backtrace #
                     if SysMgr.funcDepth > 0:
                         if SysMgr.showAll:
                             cont = False
@@ -42016,7 +42028,6 @@ struct cmsghdr {
                     etime = None
                     if sym.endswith(Debugger.RETSTR):
                         isRetBp = True
-
                         retstr = self.handleRetBp(sym, fname, addr)
 
                         # calculate elpased time #
@@ -42026,7 +42037,7 @@ struct cmsghdr {
                                 SysMgr.printWarn(\
                                     "No entry time of %s for %s(%s)" % \
                                         (sym, self.comm, self.pid), True)
-                                sys.exit(0)
+                                raise Exception()
                             entry = self.entryTime[origSym]
                             etime = self.current - entry
                             elapsed = '/%.6f' % etime
@@ -42043,7 +42054,7 @@ struct cmsghdr {
                             ofname = syminfo[1]
                             oaddr = syminfo[3]
 
-                        # build current symbol string #
+                        # build context string #
                         callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
                             (diffstr, tinfo, indent, sym, retstr, elapsed, \
                                 osym, hex(oaddr).rstrip('L'), ofname)
@@ -42055,6 +42066,7 @@ struct cmsghdr {
                             (diffstr, tinfo, indent, sym, elapsed, \
                                 hex(addr).rstrip('L'), argstr, fname)
 
+                    # add backtrace #
                     if btstr:
                         callString = '%s%s' % (btstr, callString)
 
@@ -42092,7 +42104,10 @@ struct cmsghdr {
             self.setRegs()
 
         # lock between processes #
-        nrLock = self.bpList[addr]['number']
+        if addr in self.bpList:
+            nrLock = self.bpList[addr]['number']
+        else:
+            nrLock = -1
         self.lock(nrLock)
 
         # remove breakpoint #
@@ -42120,17 +42135,13 @@ struct cmsghdr {
 
             # check process #
             ret = self.waitpid()
-            stat = self.getStatus(ret[1])
-            if SysMgr.isTermSignal(stat) or stat == -1:
-                SysMgr.printErr(\
-                    'Fail to reinstall a breakpoint to %s(%s) for %s(%s)' % \
-                        (sym, addr, self.comm, self.pid))
-                sys.exit(0)
+            self.checkStat(ret, reason="injection is failed")
 
         # register this breakpoint again #
         ret = self.injectBp(\
             addr, sym, fname=fname, reins=reins)
         if not ret:
+            self.unlock(nrLock)
             sys.exit(0)
 
         # unlock between processes #
@@ -43002,13 +43013,18 @@ struct cmsghdr {
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
         # original tracee #
         if pid > 0:
+            # detach from the original task #
             self.detach(only=True)
 
             # detach from the new task #
             self.detach(only=True, pid=tid, cont=True)
 
+            # attach to original task again #
             if self.attach(verb=True) < 0:
                 sys.exit(0)
+
+            # wait for the new task #
+            time.sleep(SysMgr.waitDelay)
         # new tracee #
         elif pid == 0:
             # update new task info #
@@ -43025,6 +43041,7 @@ struct cmsghdr {
                 else:
                     sys.exit(0)
 
+            # initialize variables #
             self.initValues()
             signal.alarm(SysMgr.intervalEnable)
         else:
@@ -43127,10 +43144,7 @@ struct cmsghdr {
                 self.updateRegs()
 
             # remove breakpoint #
-            nrLock = self.bpList[addr]['number']
-            self.lock(nrLock)
-            ret = self.removeBp(addr)
-            self.unlock(nrLock)
+            ret = self.removeBp(addr, lock=True)
 
             return "=%s(%s)" % (hex(retval).rstrip('L'), retval)
         except SystemExit:
@@ -43186,6 +43200,17 @@ struct cmsghdr {
                 break
 
         self.stop()
+
+
+
+    def checkStat(self, ret, reason=None):
+        stat = self.getStatus(ret[1])
+        if SysMgr.isTermSignal(stat) or stat == -1:
+            msg = "Terminated %s(%s)" % (self.comm, self.pid)
+            if reason:
+                msg = "%s because %s" % (msg, reason)
+            SysMgr.printErr(msg)
+            sys.exit(0)
 
 
 
@@ -43592,10 +43617,15 @@ struct cmsghdr {
             instance.stop()
             instance.waitpid()
 
+        # check main thread #
+        tgid = long(SysMgr.getTgid(instance.pid))
+
         # get current register set #
         if instance.mode == 'break':
             # notify termination to master process #
-            if SysMgr.masterPid > 0:
+            if tgid == instance.pid:
+                os.kill(SysMgr.masterPid, signal.SIGINT)
+            elif SysMgr.masterPid > 0:
                 os.kill(SysMgr.masterPid, signal.SIGUSR2)
 
             cnt = 5
@@ -43623,9 +43653,6 @@ struct cmsghdr {
         if addr in instance.bpList:
             instance.setPC(addr)
             instance.setRegs()
-
-        # check main thread #
-        tgid = long(SysMgr.getTgid(instance.pid))
 
         # define progress file path #
         progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
