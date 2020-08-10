@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200809"
+__revision__ = "200810"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26143,6 +26143,9 @@ Copyright:
             if UtilMgr.isString(cmd):
                 cmd = cmd.split()
 
+            # convert ~ to realpath #
+            cmd[0] = os.path.expanduser(cmd[0])
+
             # execute #
             SysMgr.executeProcess(cmd, mute)
 
@@ -27938,17 +27941,26 @@ Copyright:
                 # disable printing to file #
                 SysMgr.printFile = SysMgr.fileForPrint = None
 
-                # broadcast termination signal to childs #
+                # broadcast signal to childs for termination #
                 SysMgr.killChilds(\
                     sig=signal.SIGINT, wait=True, group=True)
 
-                # remove all progress files #
+                # remove temporary files #
                 if mode == 'breakcall':
+                    # remove all progress files #
                     for pid in list(procList.keys()):
                         try:
                             progressFile = \
                                 '%s/task_%s.done' % (SysMgr.cacheDirPath, pid)
                             os.remove(progressFile)
+                        except:
+                            pass
+
+                    # remove all lock files #
+                    for lockPath in list(lockList.values()):
+                        # remove lock file #
+                        try:
+                            os.remove(lockPath.name)
                         except:
                             pass
 
@@ -30387,7 +30399,8 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalProcs(nrSig, pidList=[], isThread=False, verbose=True):
+    def sendSignalProcs(\
+        nrSig, pidList=[], isThread=False, verbose=True, exceptList=[]):
         def kill(pid, nrSig):
             if isThread:
                 return SysMgr.syscall('tkill', pid, nrSig)
@@ -30396,6 +30409,7 @@ Copyright:
 
         myPid = str(SysMgr.pid)
         SIG_LIST = ConfigMgr.SIG_LIST
+        exceptList = list(map(long, exceptList))
 
         if isThread:
             taskType = 'thread'
@@ -30414,15 +30428,16 @@ Copyright:
                     return
 
                 # skip myself #
-                if pid == SysMgr.pid:
+                if pid == SysMgr.pid or \
+                    pid in exceptList:
                     continue
 
                 # send signal to a process #
                 try:
+                    kill(long(pid), nrSig)
+
                     # get comm #
                     comm = SysMgr.getComm(pid)
-
-                    kill(long(pid), nrSig)
 
                     if verbose:
                         SysMgr.printInfo(\
@@ -30485,8 +30500,13 @@ Copyright:
                 except:
                     continue
 
+                # send signal #
                 try:
-                    kill(long(pid), nrSig)
+                    pid = long(pid)
+                    if pid in exceptList:
+                        continue
+
+                    kill(pid, nrSig)
 
                     if verbose:
                         if SysMgr.isStartMode() and waitStatus:
@@ -43668,12 +43688,6 @@ struct cmsghdr {
 
             # create a progress file #
             os.open(progressPath, os.O_CREAT, 0o777)
-
-            # remove lock file #
-            try:
-                os.remove(Debugger.gLockPath)
-            except:
-                pass
         # siblings #
         else:
             # wait for termination of the tracer for the main thread #
