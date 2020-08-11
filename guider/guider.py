@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200810"
+__revision__ = "200812"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18453,6 +18453,28 @@ Copyright:
 
 
     @staticmethod
+    def waitForFile(dirname, filename):
+        while 1:
+            try:
+                events = SysMgr.inotify(dirname)
+                if not events:
+                    break
+
+                finished = False
+                for item in events:
+                    if item[2] == filename:
+                        finished = True
+                        break
+                if finished:
+                    break
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
+
+
+
+    @staticmethod
     def inotify(path, flags=[], verb=False):
         if not path:
             return False
@@ -18467,7 +18489,7 @@ Copyright:
         # check path #
         for item in path:
             if not os.path.exists(item):
-                SysMgr.printWarn(\
+                SysMgr.printErr(\
                     "Fail to access to %s" % item, verb)
                 return False
 
@@ -27941,21 +27963,17 @@ Copyright:
                 # disable printing to file #
                 SysMgr.printFile = SysMgr.fileForPrint = None
 
-                # broadcast signal to childs for termination #
+                # broadcast term signal to childs and wait for them #
+                signal.signal(signal.SIGCHLD, signal.SIG_IGN)
                 SysMgr.killChilds(\
                     sig=signal.SIGINT, wait=True, group=True)
 
+                # continue processes #
+                SysMgr.sendSignalProcs(\
+                    signal.SIGCONT, list(procList.keys()), verbose=False)
+
                 # remove temporary files #
                 if mode == 'breakcall':
-                    # remove all progress files #
-                    for pid in list(procList.keys()):
-                        try:
-                            progressFile = \
-                                '%s/task_%s.done' % (SysMgr.cacheDirPath, pid)
-                            os.remove(progressFile)
-                        except:
-                            pass
-
                     # remove all lock files #
                     for lockPath in list(lockList.values()):
                         # remove lock file #
@@ -27963,10 +27981,6 @@ Copyright:
                             os.remove(lockPath.name)
                         except:
                             pass
-
-                # continue processes #
-                SysMgr.sendSignalProcs(\
-                    signal.SIGCONT, list(procList.keys()), verbose=False)
 
                 sys.exit(0)
         else:
@@ -27981,18 +27995,15 @@ Copyright:
 
         # start tracing #
         try:
-            if mode == 'syscall':
-                Debugger(pid=pid, execCmd=execCmd).\
-                    trace(wait=wait, multi=multi)
-            elif mode == 'usercall':
+            if mode == 'usercall':
                 # tracing #
                 if SysMgr.isTraceMode():
-                    Debugger(pid=pid, execCmd=execCmd).\
-                        trace(mode='inst', wait=wait, multi=multi)
+                    dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                    dobj.trace(mode='inst', wait=wait, multi=multi)
                 # monitoring #
                 else:
-                    Debugger(pid=pid, execCmd=execCmd).\
-                        trace(mode='sample', wait=wait, multi=multi)
+                    dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                    dobj.trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
                 if pid:
                     try:
@@ -28021,14 +28032,12 @@ Copyright:
                         bpList=bpList, exceptBpList = exceptBpList, \
                         lock=lockObj, targetBpList=targetBpList, \
                         targetBpFileList=targetBpFileList)
-            elif mode == 'signal':
-                Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='signal', wait=wait, multi=multi)
-            elif mode == 'remote':
-                Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='remote', wait=wait, multi=multi)
             elif mode == 'hook':
                 Debugger.hookFunc(pid, SysMgr.customCmd)
+            else:
+                # syscall / signal / remote #
+                dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                dobj.trace(mode=mode, wait=wait, multi=multi)
         except SystemExit:
             sys.exit(0)
         except:
@@ -31409,28 +31418,26 @@ Copyright:
             return
 
         # wait for termination for all childs #
+        childs = set(map(str, childs))
         while 1:
-            newChilds = ['/proc/%s' % tid for tid in list(childs)]
-            isFinished = True
+            # get all task list #
+            tasks = set(os.listdir(SysMgr.procPath))
+
+            # check terminated tasks #
+            termTasks = childs - tasks
+            if termTasks == childs:
+                break
+
+            remainTasks = childs - termTasks
 
             # wait for task termination #
             try:
-                SysMgr.inotify(newChilds, ["IN_CLOSE"])
+                monFiles = ['/proc/%s/comm' % tid for tid in remainTasks]
+                SysMgr.inotify(monFiles)
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
-
-            # check termination #
-            for tid in list(childs):
-                if SysMgr.isAlive(tid):
-                    isFinished = False
-                    break
-
-                childs.remove(tid)
-
-            if isFinished:
-                break
 
 
 
@@ -37484,6 +37491,7 @@ class Debugger(object):
         self.supportProcessVmRd = True
         self.supportProcessVmWr = False
         self.lastSig = None
+        self.forked = False
 
         self.args = []
         self.values = []
@@ -37496,6 +37504,7 @@ class Debugger(object):
         self.callTable = {}
         self.fileTable = {}
         self.bpList = {}
+        self.bpNewList = {}
         self.entryTime = {}
         self.exceptBpList = {}
         self.targetBpList = {}
@@ -37679,7 +37688,7 @@ struct cmsghdr {
 
 
 
-    def __del__(self):
+    def __del__(self, stop=False):
         if not self.attached:
             return
 
@@ -37696,7 +37705,9 @@ struct cmsghdr {
 
         # continue target #
         try:
-            if self.isStopped():
+            if stop:
+                os.kill(self.pid, signal.SIGSTOP)
+            elif self.isStopped():
                 os.kill(self.pid, signal.SIGCONT)
         except:
             SysMgr.printSigError(self.pid, 'SIGCONT')
@@ -37710,13 +37721,17 @@ struct cmsghdr {
         try:
             comm = SysMgr.getComm(pid)
             procInfo = '%s(%s)' % (comm, pid)
-            dobj = Debugger(pid=pid)
+            dobj = Debugger(pid=pid, attach=False)
             dobj.initValues()
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr("Fail to analyze %s" % procInfo)
             sys.exit(0)
+
+        # load libraries in advance #
+        dobj.loadSymbols()
+        dobj.attach()
 
         # get symbol info #
         hooks = []
@@ -39418,7 +39433,13 @@ struct cmsghdr {
 
                 ret = self.getSymbolInfo(addr)
                 fname = ret[1]
-                offset = long(ret[2], 16)
+                try:
+                    offset = long(ret[2], 16)
+                except:
+                    SysMgr.printErr((\
+                        'Fail to inject a breakpoint to %s(%s) for %s' % \
+                            (hex(addr).rstrip('L'), sym, procInfo)), reason=True)
+                    return
 
                 # load orignal data from storage #
                 origWord = self.loadInst(fname, offset)
@@ -39433,7 +39454,7 @@ struct cmsghdr {
                         newCmd.remove(item)
                 cmd = newCmd
 
-            # backup data #
+            # register the breakpoint #
             self.bpList[addr] = {
                 'data': origWord,
                 'number': len(self.bpList),
@@ -39444,6 +39465,10 @@ struct cmsghdr {
                 'filter': filterCmd,
                 'set': True,
             }
+
+            # register the new breakpoint after fork #
+            if self.forked:
+                self.bpNewList[addr] = self.bpList[addr]
 
         # build trap instruction #
         if size == 1:
@@ -39840,8 +39865,7 @@ struct cmsghdr {
         self.cont(check=True)
         if not wait:
             return None
-        ret = self.waitpid()
-        self.checkStat(ret)
+        self.waitpid()
 
         # read regs to check results #
         if not self.updateRegs():
@@ -39915,8 +39939,7 @@ struct cmsghdr {
 
         # execute syscall #
         self.ptrace(self.syscallCmd)
-        ret = self.waitpid()
-        self.checkStat(ret)
+        self.waitpid()
 
         # read regs and change the 6th argument #
         if not self.updateRegs():
@@ -39926,8 +39949,7 @@ struct cmsghdr {
 
         # continue and stop at return #
         self.ptrace(self.syscallCmd)
-        ret = self.waitpid()
-        self.checkStat(ret)
+        self.waitpid()
 
         # read regs to check results #
         if not self.updateRegs():
@@ -43063,6 +43085,7 @@ struct cmsghdr {
 
             # initialize variables #
             self.initValues()
+            self.forked = True
             signal.alarm(SysMgr.intervalEnable)
         else:
             return
@@ -43129,6 +43152,7 @@ struct cmsghdr {
         self.setRetList = dict()
         self.regList = dict()
         self.repeatCntList = dict()
+        self.bpNewList = dict()
         self.prevReturn = -1
 
         # make object for myself #
@@ -43425,9 +43449,8 @@ struct cmsghdr {
 
 
     def trace(\
-        self, mode='syscall', wait=None,\
-            multi=False, lock=None, bpList={}, exceptBpList={},\
-            targetBpList={}, targetBpFileList={}):
+        self, mode, wait=None, multi=False, lock=None, bpList={}, \
+            exceptBpList={}, targetBpList={}, targetBpFileList={}):
 
         # index variables #
         self.sigTrapFlag = signal.SIGTRAP | \
@@ -43560,6 +43583,11 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     return
+
+            # check attach status #
+            if not self.attached:
+                self.attach(verb=True)
+
         # set trap event type for the new target #
         else:
             self.ptraceEvent(['PTRACE_O_TRACEEXEC'])
@@ -43625,10 +43653,10 @@ struct cmsghdr {
     def destroyDebugger(instance):
         Debugger.dbgInstance = None
 
-        # remove breakpoints #
-        if not instance.isAlive() or \
-            SysMgr.inputParam or \
-            len(instance.bpList) == 0:
+        # check condition for breakpoint mode #
+        if SysMgr.inputParam or \
+            not instance.bpList or \
+            not instance.isAlive():
             instance.__del__()
             return
 
@@ -43637,85 +43665,46 @@ struct cmsghdr {
             instance.stop()
             instance.waitpid()
 
-        # check main thread #
+        # notify termination to master process #
         tgid = long(SysMgr.getTgid(instance.pid))
+        if tgid == instance.pid:
+            os.kill(SysMgr.masterPid, signal.SIGINT)
 
-        # get current register set #
-        if instance.mode == 'break':
-            # notify termination to master process #
-            if tgid == instance.pid:
-                os.kill(SysMgr.masterPid, signal.SIGINT)
-            elif SysMgr.masterPid > 0:
-                os.kill(SysMgr.masterPid, signal.SIGUSR2)
-
-            cnt = 5
-            while 1:
-                ret = instance.updateRegs()
-                if not ret:
-                    if not instance.isAlive():
-                        return
-                    cnt -= 1
-                    if cnt <= 0:
-                        break
-                    time.sleep(SysMgr.waitDelay)
-                    continue
+        # update register set #
+        cnt = 5
+        while 1:
+            ret = instance.updateRegs()
+            if ret:
                 break
-        else:
-            ret = False
+            elif not instance.isAlive():
+                return
 
-        if not ret:
-            instance.__del__()
-            return
+            # check count #
+            cnt -= 1
+            if cnt <= 0:
+                instance.__del__(stop=True)
+                return
 
+            time.sleep(SysMgr.waitDelay)
+
+        # rewind IP from trap status #
         addr = instance.pc - instance.prevInstOffset
-
-        # apply register set to rewind IP #
         if addr in instance.bpList:
             instance.setPC(addr)
             instance.setRegs()
 
-        # define progress file path #
-        progressPath = '%s/task_%s.done' % (SysMgr.cacheDirPath, tgid)
-
-        # the thread group leader #
+        # remove all breakpoints for the thread group leader #
         if tgid == instance.pid:
             origPrintFlag = SysMgr.printEnable
             SysMgr.printEnable = True
-
             instance.removeAllBp(tgid)
-
             SysMgr.printEnable = origPrintFlag
 
-            # create a progress file #
-            os.open(progressPath, os.O_CREAT, 0o777)
-        # siblings #
-        else:
-            # wait for termination of the tracer for the main thread #
-            dirname = os.path.dirname(progressPath)
-            filename = os.path.basename(progressPath)
+        # remove new breakpoins after fork for childs #
+        for addr in list(instance.bpNewList.keys()):
+            instance.removeBp(addr)
 
-            while 1:
-                try:
-                    events = SysMgr.inotify(dirname)
-                    if not events:
-                        break
-
-                    finished = False
-                    for item in events:
-                        if item[2] == filename:
-                            finished = True
-                            break
-                    if finished:
-                        break
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    break
-
-                if not SysMgr.isAlive(tgid):
-                    break
-
-        instance.__del__()
+        instance.__del__(stop=True)
 
 
 
@@ -60851,10 +60840,10 @@ class ThreadAnalyzer(object):
             statList[self.cutimeIdx] = long(statList[self.cutimeIdx])
             statList[self.cstimeIdx] = long(statList[self.cstimeIdx])
 
-            # check task status #
-            tstat = self.procData[tid]['stat'][self.statIdx]
-            if tstat != 'S' and tstat != 'R' and tstat != 'I':
-                self.abnormalTaskList[tid] = tstat
+        # check task status #
+        tstat = self.procData[tid]['stat'][self.statIdx]
+        if tstat != 'S' and tstat != 'R' and tstat != 'I':
+            self.abnormalTaskList[tid] = tstat
 
         # set comm #
         comm = self.procData[tid]['comm'] = \
