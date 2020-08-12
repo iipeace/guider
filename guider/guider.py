@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200812"
+__revision__ = "200813"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3698,6 +3698,8 @@ class UtilMgr(object):
     def decodeArg(value):
         try:
             text = repr(value.decode())
+        except SystemExit:
+            sys.exit(0)
         except:
             text = value
 
@@ -3749,6 +3751,8 @@ class UtilMgr(object):
                     break
                 elif numVal & bit:
                     string = '%s%s|' % (string, flist[bit])
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(\
                     "Fail to get flag info for %s" % value, reason=True)
@@ -3775,6 +3779,8 @@ class UtilMgr(object):
 
         try:
             return base64.b64encode(value)
+        except SystemExit:
+            sys.exit(0)
         except:
             return value
 
@@ -3786,6 +3792,8 @@ class UtilMgr(object):
 
         try:
             return base64.b64decode(value)
+        except SystemExit:
+            sys.exit(0)
         except:
             return value
 
@@ -3795,9 +3803,13 @@ class UtilMgr(object):
     def encodeStr(value):
         try:
             return value.encode()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 return value.encode('utf8', 'surrogateescape')
+            except SystemExit:
+                sys.exit(0)
             except:
                 return value
 
@@ -3882,6 +3894,8 @@ class UtilMgr(object):
         # get total size #
         try:
             totalSize = os.stat(fname).st_size
+        except SystemExit:
+            sys.exit(0)
         except:
             totalSize = long(0)
 
@@ -3983,6 +3997,8 @@ class UtilMgr(object):
         # convert to ABS value #
         try:
             sizeAbs = abs(size)
+        except SystemExit:
+            sys.exit(0)
         except:
             return '?'
 
@@ -3999,6 +4015,8 @@ class UtilMgr(object):
                     return '%dK' % (size >> 10)
                 else:
                     return '%d' % size
+            except SystemExit:
+                sys.exit(0)
             except:
                 return '?'
         # Float type #
@@ -4014,6 +4032,8 @@ class UtilMgr(object):
                     return '%.1fK' % (size / 1024.0)
                 else:
                     return '%d' % (size)
+            except SystemExit:
+                sys.exit(0)
             except:
                 return '?'
 
@@ -12025,26 +12045,26 @@ class FileAnalyzer(object):
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
-            "{0:_^16}({1:_^5})|{2:_^12}|{3:_^16}({4:_^5}) |".\
+            "{0:_^16}({1:_^6})|{2:_^12}|{3:_^16}({4:_^5}) |".\
             format("Process", "Pid", "MaxRAM", "ThreadName", "Tid"))
         SysMgr.printPipe(twoLine)
 
-        procInfo = "{0:_^16}({1:^5})|{2:11} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^5}) |".format('', '')
+        procInfo = "{0:_^16}({1:^6})|{2:11} |".format('', '', '')
+        threadInfo = " {0:^16}({1:^6}) |".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
 
         for pid, val in sorted(self.procList.items(), \
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
-            printMsg = "{0:>16}({1:>5})|{2:>11} |".\
-                format(val['comm'], pid, \
+            printMsg = "{0:>16}({1:>6})|{2:>11} |".\
+                format(val['comm'][:16], pid, \
                 convert(val['pageCnt'] * pageSize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:>16}({1:>5}) |".format(threadVal['comm'][:16], tid)
+                    "{0:>16}({1:>6}) |".format(threadVal['comm'][:16], tid)
 
                 linePos += threadLength
 
@@ -12056,11 +12076,12 @@ class FileAnalyzer(object):
 
             SysMgr.printPipe(printMsg)
 
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe("%s\n\n" % oneLine)
 
         # Print file list #
-        SysMgr.printPipe(\
-            "[%s] [ File: %d ] [ LastRAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
+        SysMgr.printPipe((\
+            "[%s] [ File: %d ] [ LastRAM: %s ] "
+            "[ Keys: Foward/Back/Save/Quit ]") % \
                 ('File Usage Info', len(self.fileList), \
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
@@ -12379,12 +12400,12 @@ class FileAnalyzer(object):
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(\
-            "{0:_^16}({1:_^5})|{2:_^13}|{3:_^16}({4:_^5}) |".\
+            "{0:_^16}({1:_^6})|{2:_^13}|{3:_^16}({4:_^6}) |".\
             format("Process", "Pid", "RAM", "Thread", "Tid"))
         SysMgr.printPipe(twoLine)
 
-        procInfo = "{0:^16}({0:^5})|{0:12} |".format('')
-        threadInfo = " {0:^16}({0:^5}) |".format('')
+        procInfo = "{0:^16}({0:^6})|{0:12} |".format('')
+        threadInfo = " {0:^16}({0:^6}) |".format('')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
@@ -12397,13 +12418,13 @@ class FileAnalyzer(object):
             except:
                 pass
 
-            printMsg = "{0:>16}({1:>5})|{2:>12} |".\
+            printMsg = "{0:>16}({1:>6})|{2:>12} |".\
                 format(val['comm'][:16], pid, convert(rsize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:^16}({1:^5}) |".format(threadVal['comm'][:16], tid)
+                    "{0:^16}({1:>6}) |".format(threadVal['comm'][:16], tid)
 
                 linePos += threadLength
 
@@ -12415,7 +12436,7 @@ class FileAnalyzer(object):
 
             SysMgr.printPipe(printMsg)
 
-        SysMgr.printPipe("%s\n" % oneLine)
+        SysMgr.printPipe("%s\n\n" % oneLine)
 
         # Print file list #
         SysMgr.printPipe(\
@@ -12445,7 +12466,7 @@ class FileAnalyzer(object):
                 continue
             else:
                 SysMgr.printPipe((\
-                    "{0:>11} |{1:>9} |{2:>5} | {3:1} "
+                    "{0:>11} |{1:>9} |{2:>6} | {3:1} "
                     "[Proc: {4:1}] [Link: {5:1}]").\
                     format(convert(memSize), convert(fileSize), per, \
                     fileName, len(val['pids']), val['hardLink']))
@@ -12453,8 +12474,8 @@ class FileAnalyzer(object):
             # prepare for printing process list #
             pidInfo = ''
             lineLength = SysMgr.lineLength
-            pidLength = len(" %16s (%5s) |" % ('', ''))
-            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
+            pidLength = len(" %16s (%6s) |" % ('', ''))
+            indentLength = len("{0:>11} |{1:>9} |{2:>6} ".format('','',''))
             linePos = indentLength + pidLength
 
             # print hard-linked list #
@@ -12470,7 +12491,7 @@ class FileAnalyzer(object):
                     linePos = indentLength + pidLength
                     pidInfo += '\n' + (' ' * indentLength) + '|'
 
-                pidInfo += " %16s (%5s) |" % (comm[:16], pid)
+                pidInfo += " %16s (%6s) |" % (comm[:16], pid)
 
                 linePos += pidLength
 
@@ -18489,7 +18510,7 @@ Copyright:
         # check path #
         for item in path:
             if not os.path.exists(item):
-                SysMgr.printErr(\
+                SysMgr.printWarn(\
                     "Fail to access to %s" % item, verb)
                 return False
 
@@ -18512,7 +18533,7 @@ Copyright:
             for func in inotifyFuncs:
                 if not hasattr(SysMgr.libcObj, func):
                     SysMgr.printWarn(\
-                        "No %s in %s" % (func, SysMgr.libcPath), True)
+                        "No %s in %s" % (func, SysMgr.libcPath), verb)
                     return False
 
             SysMgr.inotifyEnable = True
@@ -18535,8 +18556,7 @@ Copyright:
         # create a file descriptor #
         fd = SysMgr.libcObj.inotify_init()
         if fd < 0:
-            if verb:
-                SysMgr.printErr("Fail to inotify_init")
+            SysMgr.printWarn("Fail to inotify_init", verb)
             return False
 
         # get flag bits #
@@ -18555,16 +18575,14 @@ Copyright:
         for item in path:
             wd = SysMgr.libcObj.inotify_add_watch(fd, item.encode(), fbits)
             if wd < 0:
-                if verb:
-                    SysMgr.printErr("Fail to inotify_add_watch")
+                SysMgr.printWarn("Fail to inotify_add_watch", verb)
                 return False
             wlist[wd] = item
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
-            if verb:
-                SysMgr.printErr("Fail to read inotify event")
+            SysMgr.printWarn("Fail to read inotify event", verb)
             return False
 
         # check events #
@@ -20811,9 +20829,8 @@ Copyright:
         if SysMgr.exitFlag:
             os._exit(0)
 
-        # block signals for stable termination #
+        # block signals and disable alarm for stable termination #
         SysMgr.setIgnoreSignal()
-
         signal.alarm(0)
         SysMgr.condExit = True
 
@@ -30383,6 +30400,8 @@ Copyright:
                 isFound = True
                 del argList[argList.index(val)]
                 break
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -30393,14 +30412,18 @@ Copyright:
         # convert pid list #
         if SysMgr.filterGroup:
             argList = SysMgr.filterGroup
-        else:
+        elif argList:
             try:
                 argList = (''.join(argList)).split(',')
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
         # convert comm to pid #
         targetList = SysMgr.convertPidList(argList, exceptMe=True)
+        if not targetList:
+            targetList = argList
 
         # send signal #
         SysMgr.sendSignalProcs(sig, targetList, isThread=isThread)
@@ -30433,7 +30456,7 @@ Copyright:
                     pid = long(pid)
                 except:
                     SysMgr.printErr(\
-                        "Fail to recognize PID %s to send signal" % pid)
+                        "Fail to recognize %s as a PID" % pid)
                     return
 
                 # skip myself #
@@ -30443,7 +30466,7 @@ Copyright:
 
                 # send signal to a process #
                 try:
-                    kill(long(pid), nrSig)
+                    kill(pid, nrSig)
 
                     # get comm #
                     comm = SysMgr.getComm(pid)
@@ -30452,13 +30475,10 @@ Copyright:
                         SysMgr.printInfo(\
                             "sent signal %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
-
-                    nrProc += 1
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    SysMgr.printSigError(pid, SIG_LIST[nrSig])
-
-            if nrProc == 0 and verbose:
-                SysMgr.printInfo("No running process in the background")
+                    SysMgr.printSigError(pid, SIG_LIST[nrSig], False)
 
             return
 
@@ -30790,7 +30810,9 @@ Copyright:
 
 
     @staticmethod
-    def setPriority(pid, policy, pri, runtime=0, deadline=0, period=0):
+    def setPriority(\
+        pid, policy, pri, runtime=0, deadline=0, period=0, verb=True):
+
         if not SysMgr.guiderObj:
             # get ctypes object #
             if not SysMgr.importPkgItems('ctypes', False):
@@ -30844,9 +30866,10 @@ Copyright:
                     policy = upolicy
                     raise Exception()
 
-            SysMgr.printInfo(\
-                'the priority of %s(%s) is changed to %d[%s]' % \
-                (comm, pid, pri, upolicy))
+            if verb:
+                SysMgr.printInfo(\
+                    'the priority of %s(%s) is changed to %d[%s]' % \
+                        (comm, pid, pri, upolicy))
         except:
             err = "Fail to set priority of %d as %s[%s]" % \
                 (pid, pri, upolicy)
@@ -37839,14 +37862,22 @@ struct cmsghdr {
                 else:
                     origAddr = dobj.readMem(slotAddr, retWord=True)
 
-                # change access permission on the page #
-                ret = dobj.mprotect(slotAddr)
+                mprotected = False
+                while 1:
+                    # write hook address for target #
+                    if slotAddr % ConfigMgr.wordSize == 0:
+                        ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
+                    else:
+                        ret = dobj.writeMem(slotAddr, hookAddr)
 
-                # write hook address for target #
-                if slotAddr % ConfigMgr.wordSize == 0:
-                    ret = dobj.accessMem(dobj.pokeIdx, slotAddr, hookAddr)
-                else:
-                    ret = dobj.writeMem(slotAddr, hookAddr)
+                    # change access permission on the page #
+                    if ret == -1:
+                        if mprotected:
+                            break
+                        else:
+                            dobj.mprotect(slotAddr)
+                    else:
+                        break
 
                 # read updated address for verification #
                 if slotAddr % ConfigMgr.wordSize == 0:
@@ -39022,7 +39053,7 @@ struct cmsghdr {
         for idx, addr in enumerate(targetBpList):
             if verb:
                 UtilMgr.printProgress(idx, len(targetBpList))
-            self.removeBp(addr, lock=True)
+            self.removeBp(addr)
 
         if verb:
             UtilMgr.deleteProgress()
@@ -39375,6 +39406,8 @@ struct cmsghdr {
     def loadInst(self, fname, offset):
         try:
             fobj = SysMgr.getFd(fname)
+            if not fobj:
+                raise Exception('N/A')
             fobj.seek(offset)
             return fobj.read(ConfigMgr.wordSize)
         except SystemExit:
@@ -40744,6 +40777,8 @@ struct cmsghdr {
 
             try:
                 return repr(value)[1:-1]
+            except SystemExit:
+                sys.exit(0)
             except:
                 return repr(value)
 
@@ -42069,37 +42104,41 @@ struct cmsghdr {
                     elapsed = ''
                     etime = None
                     if sym.endswith(Debugger.RETSTR):
-                        isRetBp = True
-                        retstr = self.handleRetBp(sym, fname, addr)
-
-                        # calculate elpased time #
+                        # calculate elapsed time #
                         try:
                             origSym = sym.rstrip(Debugger.RETSTR)
                             if origSym not in self.entryTime:
                                 SysMgr.printWarn(\
                                     "No entry time of %s for %s(%s)" % \
-                                        (sym, self.comm, self.pid), True)
+                                        (sym, self.comm, self.pid))
                                 raise Exception()
                             entry = self.entryTime[origSym]
                             etime = self.current - entry
                             elapsed = '/%.6f' % etime
                             self.entryTime.pop(origSym, None)
+                            isRetBp = True
                         except SystemExit:
                             sys.exit(0)
                         except:
                             elapsed = ''
+                            isRetBp = False
 
-                        # update symbol #
-                        syminfo = self.getSymbolInfo(addr)
-                        if syminfo:
-                            osym = syminfo[0]
-                            ofname = syminfo[1]
-                            oaddr = syminfo[3]
+                        if elapsed:
+                            retstr = self.handleRetBp(sym, fname, addr)
 
-                        # build context string #
-                        callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
-                            (diffstr, tinfo, indent, sym, retstr, elapsed, \
-                                osym, hex(oaddr).rstrip('L'), ofname)
+                            # update symbol #
+                            syminfo = self.getSymbolInfo(addr)
+                            if syminfo:
+                                osym = syminfo[0]
+                                ofname = syminfo[1]
+                                oaddr = syminfo[3]
+
+                            # build context string #
+                            callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
+                                (diffstr, tinfo, indent, sym, retstr, elapsed, \
+                                    osym, hex(oaddr).rstrip('L'), ofname)
+                        else:
+                            callString = ''
                     else:
                         isRetBp = False
 
@@ -42108,37 +42147,38 @@ struct cmsghdr {
                             (diffstr, tinfo, indent, sym, elapsed, \
                                 hex(addr).rstrip('L'), argstr, fname)
 
-                    # add backtrace #
-                    if btstr:
-                        callString = '%s%s' % (btstr, callString)
+                    if callString:
+                        # add backtrace #
+                        if btstr:
+                            callString = '%s%s' % (btstr, callString)
 
-                    # file output #
-                    if SysMgr.printFile:
-                        self.addSample(\
-                            sym, fname, realtime=True, elapsed=etime)
+                        # file output #
+                        if SysMgr.printFile:
+                            self.addSample(\
+                                sym, fname, realtime=True, elapsed=etime)
 
-                        # print history #
-                        if SysMgr.showAll:
-                            self.callPrint.append(callString.rstrip())
+                            # print history #
+                            if SysMgr.showAll:
+                                self.callPrint.append(callString.rstrip())
 
-                        # print to stdout #
-                        if SysMgr.printStreamEnable:
-                            sys.stdout.write(callString)
-                    # console output #
-                    else:
-                        SysMgr.printPipe(callString, newline=False)
+                            # print to stdout #
+                            if SysMgr.printStreamEnable:
+                                sys.stdout.write(callString)
+                        # console output #
+                        else:
+                            SysMgr.printPipe(callString, newline=False)
 
-                    # handle repeat command #
-                    if isRetBp and origPC != self.pc:
-                        self.handleBp(printStat, checkArg)
-                        return
+                        # handle repeat command #
+                        if isRetBp and origPC != self.pc:
+                            self.handleBp(printStat, checkArg)
+                            return
 
-                    # check command #
-                    cmd = self.bpList[addr]['cmd']
-                    if cmd:
-                        self.bpList[addr]['cmd'] = \
-                            self.executeCmd(\
-                                cmd, sym=sym, fname=fname, args=args)
+                        # check command #
+                        cmd = self.bpList[addr]['cmd']
+                        if cmd:
+                            self.bpList[addr]['cmd'] = \
+                                self.executeCmd(\
+                                    cmd, sym=sym, fname=fname, args=args)
 
         # apply register set to rewind IP #
         if self.pc == origPC:
@@ -42454,6 +42494,8 @@ struct cmsghdr {
             elif arg[0].endswith('int') or arg[0].endswith('long'):
                 try:
                     text = long(arg[2])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     text = arg[2]
             else:
@@ -42633,9 +42675,12 @@ struct cmsghdr {
             self.status = 'skip'
             return
 
+        # get syscall name #
         try:
             proto = ConfigMgr.SYSCALL_PROTOTYPES
             self.syscall = name = ConfigMgr.sysList[nrSyscall][4:]
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -43152,7 +43197,6 @@ struct cmsghdr {
         self.setRetList = dict()
         self.regList = dict()
         self.repeatCntList = dict()
-        self.bpNewList = dict()
         self.prevReturn = -1
 
         # make object for myself #
@@ -43212,6 +43256,8 @@ struct cmsghdr {
         newSym = '%s%s' % (sym, Debugger.RETSTR)
         ret = self.injectBp(\
             pos, newSym, fname, reins=True, cmd=None)
+        if not pos in self.bpNewList:
+            self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
         self.entryTime[sym] = self.current
@@ -43571,6 +43617,10 @@ struct cmsghdr {
                 SysMgr.printInfo(\
                     "Start profiling %s(%d)" % (self.comm, self.pid))
 
+            # check attach status #
+            if not self.attached:
+                self.attach(verb=True)
+
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
@@ -43583,10 +43633,6 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     return
-
-            # check attach status #
-            if not self.attached:
-                self.attach(verb=True)
 
         # set trap event type for the new target #
         else:
@@ -43654,7 +43700,8 @@ struct cmsghdr {
         Debugger.dbgInstance = None
 
         # check condition for breakpoint mode #
-        if SysMgr.inputParam or \
+        if not instance.pid or \
+            SysMgr.inputParam or \
             not instance.bpList or \
             not instance.isAlive():
             instance.__del__()
@@ -43669,6 +43716,9 @@ struct cmsghdr {
         tgid = long(SysMgr.getTgid(instance.pid))
         if tgid == instance.pid:
             os.kill(SysMgr.masterPid, signal.SIGINT)
+
+        # make my priority lower #
+        SysMgr.setPriority(SysMgr.pid, 'C', 19, verb=False)
 
         # update register set #
         cnt = 5
@@ -43692,6 +43742,20 @@ struct cmsghdr {
         if addr in instance.bpList:
             instance.setPC(addr)
             instance.setRegs()
+            instance.removeBp(addr)
+        else:
+            if addr % ConfigMgr.wordSize == 0:
+                origWord = instance.accessMem(instance.peekIdx, addr)
+                origWord = UtilMgr.convWord2Str(origWord)
+            else:
+                origWord = instance.readMem(addr)
+
+            if origWord and origWord.startswith(instance.brkInst):
+                ret = instance.getSymbolInfo(addr)
+                fname = ret[1]
+                offset = long(ret[2], 16)
+                inst = instance.loadInst(fname, offset)
+                instance.writeMem(addr, inst, skipCheck=True)
 
         # remove all breakpoints for the thread group leader #
         if tgid == instance.pid:
@@ -60086,6 +60150,10 @@ class ThreadAnalyzer(object):
 
                 # save stat of thread #
                 ret = self.saveProcData(threadPath, tid, pid)
+                if not ret:
+                    if tid in self.procData:
+                        self.procData.pop(tid, None)
+                    continue
 
                 # main thread #
                 if pid == tid:
