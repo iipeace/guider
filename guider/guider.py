@@ -28019,7 +28019,7 @@ Copyright:
                     dobj.trace(mode='inst', wait=wait, multi=multi)
                 # monitoring #
                 else:
-                    dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                    dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                     dobj.trace(mode='sample', wait=wait, multi=multi)
             elif mode == 'breakcall':
                 if pid:
@@ -39049,10 +39049,9 @@ struct cmsghdr {
                         SysMgr.getComm(tgid, cache=True), tgid))
 
         # remove all breakpoints #
-        targetBpList = list(self.bpList.keys())
-        for idx, addr in enumerate(targetBpList):
+        for idx, addr in enumerate(list(self.bpList.keys())):
             if verb:
-                UtilMgr.printProgress(idx, len(targetBpList))
+                UtilMgr.printProgress(idx, len(self.bpList))
             self.removeBp(addr)
 
         if verb:
@@ -40938,7 +40937,7 @@ struct cmsghdr {
         else:
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [SampleTime: %g]' % self.sampleTime
+            sampleStr = ' [SampleRate: %g]' % self.sampleTime
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
@@ -40973,7 +40972,7 @@ struct cmsghdr {
             comm = '??'
 
         ret = SysMgr.addPrint((\
-            '[Top %s Info] [Time: %f] [Interval: %g] [NrSamples: %s] '
+            '[Top %s Info] [Time: %.3f] [Interval: %.3f] [NrSamples: %s] '
             '[%s(%s): %s] [%s(%s): %s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff, \
                 convert(self.totalCall), comm, self.pid, \
@@ -41680,9 +41679,24 @@ struct cmsghdr {
 
 
     def checkInterval(self):
-        # continue target thread #
-        if self.cont(check=True) < 0:
-            sys.exit(0)
+        while 1:
+            # continue target thread #
+            if self.cont(check=True) < 0:
+                sys.exit(0)
+
+            # handle clone event #
+            try:
+                rid, ostat = os.waitpid(self.pid, os.WNOHANG)
+                if self.isCloned(ostat) or \
+                    self.isForked(ostat):
+                    self.handoverNewTarget()
+                    continue
+                else:
+                    break
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
 
         # wait for sampling time #
         time.sleep(self.sampleTime)
@@ -43072,18 +43086,16 @@ struct cmsghdr {
 
 
     def handoverNewTarget(self):
-        # get tid of new task #
+        # get tid of the child task #
         tid = self.getEventMsg()
 
-        if self.mode == 'break':
-            # stop tracees #
-            self.stop(pid=tid)
-            self.stop()
+        # stop the child tracee because parent already stopped #
+        self.stop(pid=tid)
 
-            # check lock #
-            if not self.lockObj:
-                self.lockObj = \
-                    Debugger.getGlobalLock(self.pid, len(self.bpList))
+        # check lock #
+        if self.mode == 'break' and not self.lockObj:
+            self.lockObj = \
+                Debugger.getGlobalLock(self.pid, len(self.bpList))
 
         # check master process #
         if SysMgr.masterPid == 0:
@@ -43096,28 +43108,28 @@ struct cmsghdr {
             '%s(%s) is created by %s(%s)' % \
                 (self.comm, tid, self.comm, self.pid))
 
-        # create a new process to trace a new task #
+        # create a new tracer to trace the child task #
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
-        # original tracee #
+        # parent tracee #
         if pid > 0:
-            # detach from the original task #
+            # detach from the parent task #
             self.detach(only=True)
 
-            # detach from the new task #
+            # detach from the child task #
             self.detach(only=True, pid=tid, cont=True)
 
-            # attach to original task again #
+            # attach to the parent task again #
             if self.attach(verb=True) < 0:
                 sys.exit(0)
 
-            # wait for the new task #
+            # wait for the child task #
             time.sleep(SysMgr.waitDelay)
-        # new tracee #
+        # child tracee #
         elif pid == 0:
-            # update new task info #
+            # update the child PID #
             self.pid = tid
 
-            # attach to the new task #
+            # attach to the child task #
             while 1:
                 if self.attach(verb=True) == 0:
                     break
@@ -43366,8 +43378,6 @@ struct cmsghdr {
                         if self.cmd:
                             self.ptrace(self.cmd)
 
-                        self.status = 'enter'
-
                         if self.mode == 'break':
                             # load symbols again #
                             if self.loadSymbols():
@@ -43376,6 +43386,7 @@ struct cmsghdr {
                             if self.cont(check=True) < 0:
                                 sys.exit(0)
 
+                        self.status = 'enter'
                         continue
 
                     # usercall / breakcall #
@@ -43770,6 +43781,11 @@ struct cmsghdr {
 
         instance.__del__(stop=True)
 
+        # terminate immediately to avoid memory increase due to COW by GC #
+        if tgid != instance.pid:
+            Debugger.printSummary(instance)
+            os._exit(0)
+
 
 
     @staticmethod
@@ -43888,7 +43904,7 @@ struct cmsghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = ' [Sampling: %g] ' % instance.sampleTime
+            samplingStr = ' [SampleRate: %g] ' % instance.sampleTime
             sampleRateStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
@@ -43911,7 +43927,7 @@ struct cmsghdr {
             cpuStr = ''
 
         SysMgr.printPipe((\
-            '\n[%s %s Summary] [Elapsed: %g]%s%s '
+            '\n[%s %s Summary] [Elapsed: %.3f]%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, cpuStr, \
                 convert(long(nrTotal)), sampleRateStr, \
@@ -43969,7 +43985,7 @@ struct cmsghdr {
         if len(fileTable) > 0:
             # print file table #
             SysMgr.printPipe((\
-                '\n[%s File Summary] [Elapsed: %g]%s%s '
+                '\n[%s File Summary] [Elapsed: %.3f]%s%s '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
                     (mtype, elapsed, samplingStr, cpuStr, \
                     convert(long(nrTotal)), perSample, \
@@ -46008,14 +46024,15 @@ class ElfAnalyzer(object):
 
 
 
-    def mergeSymTable(self, force=False, onlyFunc=True, removeOrig=True):
+    def mergeSymTable(self, force=False, onlyFunc=True, removeOrig=False):
         # check already merged #
-        if len(self.mergedSymTable) > 0 and not force:
+        if not force and self.mergedSymTable:
             return
 
         # merge symbol tables #
         tempSymTable = deepcopy(self.attr['symTable'])
         tempSymTable.update(self.attr['dynsymTable'])
+        self.mergedSymTable = tempSymTable
 
         # add PLT symbol #
         if not ElfAnalyzer.isRelocFile(self.path):
@@ -46025,8 +46042,6 @@ class ElfAnalyzer(object):
                         'vis': 'DEFAULT', 'bind': 'GLOBAL', \
                         'value': pltinfo['addr'], 'ndx': 17, \
                         'type': 'OBJECT', 'size': pltinfo['size']}
-
-        self.mergedSymTable = tempSymTable
 
         mainSym = '?'
         prevAddr = None
@@ -46086,9 +46101,9 @@ class ElfAnalyzer(object):
             pass
 
         # remove useless symbols after merge #
-        if False and removeOrig:
-            del self.attr['symTable']
-            del self.attr['dynsymTable']
+        if removeOrig:
+            self.attr['symTable'].clear()
+            self.attr['dynsymTable'].clear()
 
 
 
@@ -46610,7 +46625,7 @@ class ElfAnalyzer(object):
                     "merge %s's debug symbols" % debugPath, suffix=False)
                 dobj = ElfAnalyzer(debugPath, debug=debug)
                 if dobj:
-                    dobj.mergeSymTable(removeOrig=False)
+                    dobj.mergeSymTable()
                 self.attr['symTable'] = deepcopy(dobj.attr['symTable'])
                 self.attr['dynsymTable'] = deepcopy(dobj.attr['dynsymTable'])
 
