@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200813"
+__revision__ = "200814"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -42598,10 +42598,10 @@ struct cmsghdr {
 
             # build call string #
             if deferrable:
-                callString = '%s) %s' % (argText, bts)
+                callString = '%s)%s' % (argText, bts)
             else:
                 callString = \
-                    '%3.6f %s(%s) %s(%s) %s' % \
+                    '%3.6f %s(%s) %s(%s)%s' % \
                         (diff, self.comm, self.pid, self.syscall, argText, bts)
 
         # print call info #
@@ -43089,7 +43089,8 @@ struct cmsghdr {
         # get tid of the child task #
         tid = self.getEventMsg()
 
-        # stop the child tracee because parent already stopped #
+        # stop tracees #
+        self.stop()
         self.stop(pid=tid)
 
         # check lock #
@@ -43138,6 +43139,8 @@ struct cmsghdr {
                     time.sleep(SysMgr.waitDelay)
                     continue
                 else:
+                    SysMgr.printErr(\
+                        "%s(%s) is terminated" % (self.comm, self.pid))
                     sys.exit(0)
 
             # initialize variables #
