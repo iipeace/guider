@@ -27180,7 +27180,7 @@ Copyright:
         if len(value) == 0:
             SysMgr.printErr(\
                 ("wrong option value to set priority, "
-                "input in the format POLICY:PRIORITY|TIME:PID"))
+                "input in the format POLICY:PRIORITY|TIME:TID|COMM"))
             sys.exit(0)
 
         SysMgr.parsePriorityOption(value)
@@ -30596,9 +30596,9 @@ Copyright:
     @staticmethod
     def parsePriorityOption(value):
         if len(value) == 0:
-            SysMgr.printErr(\
-                ("wrong option value %s with -Y, "
-                "input POLICY:PRIORITY|TIME:PID in the format") % value)
+            SysMgr.printErr((\
+                "wrong value '%s' to apply for new priority, "
+                "input POLICY:PRIORITY|TIME:TID|COMM in the format") % value)
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -30663,7 +30663,7 @@ Copyright:
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((\
-                    "wrong option value %s with -Y because %s, "
+                    "wrong value '%s' to apply for new priority because %s, "
                     "input in the format POLICY:PRIORITY|TIME:TID") % \
                     (item, ' '.join(list(err))))
                 sys.exit(0)
@@ -41984,6 +41984,144 @@ struct cmsghdr {
 
 
 
+    def printBpContext(self, sym, addr, fname, checkArg, origPC):
+        # read args #
+        args = self.readArgs()
+
+        if sym in ConfigMgr.SYSCALL_PROTOTYPES and \
+            len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1]) < len(args):
+            args = args[:len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1])]
+
+        # check filter #
+        filterCmd = self.bpList[addr]['filter']
+        if not self.checkFilterCond(filterCmd, args):
+            return
+
+        # build arguments string #
+        argstr = '(%s)' % \
+            ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
+
+        # top mode #
+        if self.isRealtime:
+            if SysMgr.funcDepth > 0:
+                backtrace = self.getBacktrace()
+            else:
+                backtrace = None
+
+            self.addSample(\
+                sym, fname, realtime=True, bt=backtrace)
+
+            self.addStat(sym)
+
+            return
+
+        # trace mode #
+        if self.multi:
+            tinfo = '%s(%s) ' % (self.comm, self.pid)
+        else:
+            tinfo = ''
+
+        # get diff time #
+        diffstr = '%3.6f' % (self.current - self.start)
+
+        # build backtrace #
+        if SysMgr.funcDepth > 0:
+            if SysMgr.showAll:
+                cont = False
+            else:
+                cont = True
+            btstr, depth = \
+                self.getBacktraceTree(diffstr, tinfo, cont)
+            indent = '  ' * depth
+        else:
+            btstr = indent = ''
+
+        # print return value #
+        retstr = ''
+        elapsed = ''
+        etime = None
+        isRetBp = False
+        if sym.endswith(Debugger.RETSTR):
+            # calculate elapsed time #
+            try:
+                origSym = sym.rstrip(Debugger.RETSTR)
+                if origSym not in self.entryTime:
+                    SysMgr.printWarn(\
+                        "No entry time of %s for %s(%s)" % \
+                            (sym, self.comm, self.pid))
+                    raise Exception()
+                entry = self.entryTime[origSym]
+                etime = self.current - entry
+                elapsed = '/%.6f' % etime
+                self.entryTime.pop(origSym, None)
+                isRetBp = True
+            except SystemExit:
+                sys.exit(0)
+            except:
+                elapsed = ''
+                isRetBp = False
+
+            if elapsed:
+                retstr = self.handleRetBp(sym, fname, addr)
+
+                # update symbol #
+                syminfo = self.getSymbolInfo(addr)
+                if syminfo:
+                    osym = syminfo[0]
+                    ofname = syminfo[1]
+                    oaddr = syminfo[3]
+
+                # build context string #
+                callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
+                    (diffstr, tinfo, indent, sym, retstr, elapsed, \
+                        osym, hex(oaddr).rstrip('L'), ofname)
+            else:
+                callString = ''
+        else:
+            isRetBp = False
+
+            # build current symbol string #
+            callString = '\n%s %s%s%s%s/%s%s [%s]' % \
+                (diffstr, tinfo, indent, sym, elapsed, \
+                    hex(addr).rstrip('L'), argstr, fname)
+
+        if callString:
+            # add backtrace #
+            if btstr:
+                callString = '%s%s' % (btstr, callString)
+
+            # file output #
+            if SysMgr.printFile:
+                self.addSample(\
+                    sym, fname, realtime=True, elapsed=etime)
+
+                # print history #
+                if SysMgr.showAll:
+                    self.callPrint.append(callString.rstrip())
+
+                # print to stdout #
+                if SysMgr.printStreamEnable:
+                    sys.stdout.write(callString)
+            # console output #
+            else:
+                SysMgr.printPipe(callString, newline=False)
+
+            # handle repeat command #
+            if isRetBp and origPC != self.pc:
+                self.handleBp(True, checkArg)
+                return
+
+            # check command #
+            cmd = self.bpList[addr]['cmd']
+            if cmd:
+                self.bpList[addr]['cmd'] = \
+                    self.executeCmd(\
+                        cmd, sym=sym, fname=fname, args=args)
+
+        return isRetBp
+
+
+
     def handleBp(self, printStat=False, checkArg=None):
         # read registers for target #
         if not self.updateRegs():
@@ -42066,133 +42204,8 @@ struct cmsghdr {
         # print context info #
         if printStat and not addr in self.exceptBpList and \
             (not self.targetBpFileList or fname in self.targetBpFileList):
-            # read args #
-            args = self.readArgs()
-
-            if sym in ConfigMgr.SYSCALL_PROTOTYPES and \
-                len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1]) < len(args):
-                args = args[:len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1])]
-
-            # check filter #
-            filterCmd = self.bpList[addr]['filter']
-            if self.checkFilterCond(filterCmd, args):
-                # build arguments string #
-                argstr = '(%s)' % \
-                    ','.join(list(map(lambda x: hex(x).rstrip('L'), args)))
-
-                # top mode #
-                if self.isRealtime:
-                    if SysMgr.funcDepth > 0:
-                        backtrace = self.getBacktrace()
-                    else:
-                        backtrace = None
-
-                    self.addSample(\
-                        sym, fname, realtime=True, bt=backtrace)
-
-                    self.addStat(sym)
-                # trace mode #
-                else:
-                    if self.multi:
-                        tinfo = '%s(%s) ' % (self.comm, self.pid)
-                    else:
-                        tinfo = ''
-
-                    # get diff time #
-                    diffstr = '%3.6f' % (self.current - self.start)
-
-                    # build backtrace #
-                    if SysMgr.funcDepth > 0:
-                        if SysMgr.showAll:
-                            cont = False
-                        else:
-                            cont = True
-                        btstr, depth = \
-                            self.getBacktraceTree(diffstr, tinfo, cont)
-                        indent = '  ' * depth
-                    else:
-                        btstr = indent = ''
-
-                    # print return value #
-                    retstr = ''
-                    elapsed = ''
-                    etime = None
-                    if sym.endswith(Debugger.RETSTR):
-                        # calculate elapsed time #
-                        try:
-                            origSym = sym.rstrip(Debugger.RETSTR)
-                            if origSym not in self.entryTime:
-                                SysMgr.printWarn(\
-                                    "No entry time of %s for %s(%s)" % \
-                                        (sym, self.comm, self.pid))
-                                raise Exception()
-                            entry = self.entryTime[origSym]
-                            etime = self.current - entry
-                            elapsed = '/%.6f' % etime
-                            self.entryTime.pop(origSym, None)
-                            isRetBp = True
-                        except SystemExit:
-                            sys.exit(0)
-                        except:
-                            elapsed = ''
-                            isRetBp = False
-
-                        if elapsed:
-                            retstr = self.handleRetBp(sym, fname, addr)
-
-                            # update symbol #
-                            syminfo = self.getSymbolInfo(addr)
-                            if syminfo:
-                                osym = syminfo[0]
-                                ofname = syminfo[1]
-                                oaddr = syminfo[3]
-
-                            # build context string #
-                            callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
-                                (diffstr, tinfo, indent, sym, retstr, elapsed, \
-                                    osym, hex(oaddr).rstrip('L'), ofname)
-                        else:
-                            callString = ''
-                    else:
-                        isRetBp = False
-
-                        # build current symbol string #
-                        callString = '\n%s %s%s%s%s/%s%s [%s]' % \
-                            (diffstr, tinfo, indent, sym, elapsed, \
-                                hex(addr).rstrip('L'), argstr, fname)
-
-                    if callString:
-                        # add backtrace #
-                        if btstr:
-                            callString = '%s%s' % (btstr, callString)
-
-                        # file output #
-                        if SysMgr.printFile:
-                            self.addSample(\
-                                sym, fname, realtime=True, elapsed=etime)
-
-                            # print history #
-                            if SysMgr.showAll:
-                                self.callPrint.append(callString.rstrip())
-
-                            # print to stdout #
-                            if SysMgr.printStreamEnable:
-                                sys.stdout.write(callString)
-                        # console output #
-                        else:
-                            SysMgr.printPipe(callString, newline=False)
-
-                        # handle repeat command #
-                        if isRetBp and origPC != self.pc:
-                            self.handleBp(printStat, checkArg)
-                            return
-
-                        # check command #
-                        cmd = self.bpList[addr]['cmd']
-                        if cmd:
-                            self.bpList[addr]['cmd'] = \
-                                self.executeCmd(\
-                                    cmd, sym=sym, fname=fname, args=args)
+            isRetBp = self.printBpContext(\
+                sym, addr, fname, checkArg, origPC)
 
         # apply register set to rewind IP #
         if self.pc == origPC:
@@ -42212,10 +42225,8 @@ struct cmsghdr {
             self.unlock(nrLock)
             return
 
-        # pick breakpoint info #
-        sym, fname, reins = ret
-
         # check reinstall option #
+        reins = ret[2]
         if isRetBp or not reins:
             self.unlock(nrLock)
             return
@@ -42256,13 +42267,16 @@ struct cmsghdr {
             # block signal #
             SysMgr.blockSignal(signal.SIGINT, act='block')
 
-            try:
-                self.handleBp(printStat=SysMgr.printEnable)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printWarn(\
-                    "Fail to handle a breakpoint", True, reason=True)
+            while 1:
+                try:
+                    self.handleBp(printStat=SysMgr.printEnable)
+                    break
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        "Fail to handle breakpoint for %s(%s)" % \
+                            (self.comm, self.pid), True, reason=True)
 
             if self.cont(check=True) < 0:
                 sys.exit(0)
@@ -42405,17 +42419,14 @@ struct cmsghdr {
             # check call relationship #
             if not self.sp or not self.prevSp:
                 direction = '(??)'
-
                 self.addCall(sym)
             elif sym == 'PLT':
                 direction = '(--)'
-
                 self.addCall(sym)
             elif self.sp > self.prevSp:
                 direction = '(<-)'
             else:
                 direction = '(->)'
-
                 self.addCall(sym)
 
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
@@ -42471,7 +42482,8 @@ struct cmsghdr {
             argset[argname] = value
 
             # convert argument value #
-            value = self.convertValue(argtype, argname, value, seq, ref, argset)
+            value = self.convertValue(\
+                argtype, argname, value, seq, ref, argset)
             if value is not None:
                 self.addArg(argtype, argname, value)
 
