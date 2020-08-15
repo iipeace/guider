@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200814"
+__revision__ = "200815"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38233,14 +38233,24 @@ struct cmsghdr {
                 self.updateRegs()
 
             elif cmd == 'getret':
-                self.setRetBp(sym, fname)
+                ret = self.setRetBp(sym, fname)
+                if not ret:
+                    SysMgr.printErr((\
+                        "Fail to set breakpoint to "
+                        "return position for %s") % sym)
+                    return repeat
 
             elif cmd == 'setret':
                 if len(cmdset) == 1:
                     printCmdErr(cmdval, cmd)
 
                 # inject a new breakpoint for return #
-                self.setRetBp(sym, fname)
+                ret = self.setRetBp(sym, fname)
+                if not ret:
+                    SysMgr.printErr((\
+                        "Fail to set breakpoint to "
+                        "return position for %s") % sym)
+                    return repeat
 
                 # register a return value #
                 newSym = '%s%s' % (sym, Debugger.RETSTR)
@@ -38584,7 +38594,11 @@ struct cmsghdr {
                     self.regList[sym] = self.getRegs(new=True)
 
                     # set a breakpoint at return position #
-                    self.setRetBp(sym, fname)
+                    ret = self.setRetBp(sym, fname)
+                    if not ret:
+                        SysMgr.printErr((\
+                            "Fail to set breakpoint to "
+                            "return position for %s") % sym)
 
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
                 SysMgr.addPrint(output)
@@ -43277,17 +43291,21 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            return False
 
         # add a new breakpoint for return #
         newSym = '%s%s' % (sym, Debugger.RETSTR)
         ret = self.injectBp(\
             pos, newSym, fname, reins=True, cmd=None)
-        if not pos in self.bpNewList:
+        if not ret:
+            return False
+        elif not pos in self.bpNewList:
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
         self.entryTime[sym] = self.current
+
+        return True
 
 
 
