@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200815"
+__revision__ = "200817"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3674,7 +3674,7 @@ class UtilMgr(object):
                 break
 
             # apply regular expression for path #
-            ilist = UtilMgr.convertPath(item, retStr=False)
+            ilist = UtilMgr.convPath(item, retStr=False)
             if UtilMgr.isString(ilist):
                 rlist.append(ilist)
             elif type(ilist) is list:
@@ -3928,7 +3928,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertPath(value, retStr=True, isExit=False, separator=' '):
+    def convPath(value, retStr=True, isExit=False, separator=' '):
         glob = SysMgr.getPkg('glob', False)
         if glob:
             res = glob.glob(value)
@@ -3967,6 +3967,26 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convStr2Num(string, verb=True):
+        try:
+            try:
+                string = long(string, 16)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                string = long(string)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            if verb:
+                SysMgr.printErr(\
+                    "Fail to convert %s to number" % string, True)
+            return None
+        return string
+
+
+
+    @staticmethod
     def convNum(number):
         try:
             return format(long(number), ",")
@@ -3978,7 +3998,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertColor(string, color='LIGHT'):
+    def convColor(string, color='LIGHT'):
         if 'REMOTERUN' in os.environ:
             return string
 
@@ -5185,7 +5205,7 @@ class NetworkMgr(object):
             SysMgr.localServObj.ip == ip and \
             SysMgr.localServObj.port == port:
             SysMgr.printErr((\
-                "wrong option value with -X, "
+                "wrong value with -X option, "
                 "local address and remote address are same "
                 "with %s:%s") % (ip, port))
             sys.exit(0)
@@ -5197,7 +5217,7 @@ class NetworkMgr(object):
                 reqList += req + '|'
 
             SysMgr.printErr(\
-                ("wrong option value with -X, "
+                ("wrong value with -X option, "
                  "input [%s]@IP:PORT as remote address") % \
                     reqList[:-1])
             sys.exit(0)
@@ -7538,7 +7558,7 @@ class FunctionAnalyzer(object):
     def getBinFromServer(self, remoteObj, src, des):
         if not remoteObj or remoteObj == 'NONE':
             SysMgr.printErr(\
-                "wrong remote address with -X, "
+                "wrong remote address with -X option, "
                 "input in the format {IP:PORT}")
             sys.exit(0)
 
@@ -7817,6 +7837,8 @@ class FunctionAnalyzer(object):
                     addr = proc.stdout.readline().decode().replace('\n', '')[2:]
                     try:
                         addr = hex(long(addr, 16)).rstrip('L')
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -13277,10 +13299,10 @@ class LogMgr(object):
                     jsonResult = \
                         dict(time=ltime, level=level, name=name, log=log)
                 else:
-                    if not SysMgr.printFile:
-                        level = UtilMgr.convertColor(level, 'BOLD')
-                        name = UtilMgr.convertColor(name, 'SPECIAL')
-                        ltime = UtilMgr.convertColor(ltime, 'GREEN')
+                    if not SysMgr.outPath:
+                        level = UtilMgr.convColor(level, 'BOLD')
+                        name = UtilMgr.convColor(name, 'SPECIAL')
+                        ltime = UtilMgr.convColor(ltime, 'GREEN')
                     log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
 
             # apply filter #
@@ -13464,7 +13486,7 @@ class SysMgr(object):
     inputFile = None
     outputFile = None
     inputParam = None
-    printFile = None
+    outPath = None
 
     signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
     saveCmd = None
@@ -13836,7 +13858,7 @@ class SysMgr(object):
 
         if not SysMgr.inputParam:
             SysMgr.printErr((\
-                "wrong option value with -I option, "
+                "wrong value with -I option, "
                 "input a %s message") % mtype)
             sys.exit(0)
 
@@ -13950,8 +13972,8 @@ class SysMgr(object):
         else:
             SysMgr.inputFile = SysMgr.inputParam
 
-        if not SysMgr.printFile:
-            SysMgr.printFile = \
+        if not SysMgr.outPath:
+            SysMgr.outPath = \
                 '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
 
 
@@ -14044,7 +14066,7 @@ class SysMgr(object):
         SysMgr.ignoreWarn()
 
         # apply regular expression for first path #
-        flist = UtilMgr.convertPath(sys.argv[2], retStr=False)
+        flist = UtilMgr.convPath(sys.argv[2], retStr=False)
         if type(flist) is list and \
             len(flist) > 0:
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
@@ -14061,8 +14083,8 @@ class SysMgr(object):
 
             SysMgr.inputFile = sys.argv[1] = sys.argv[2]
             SysMgr.intervalEnable = 1
-            if not SysMgr.printFile:
-                SysMgr.printFile = \
+            if not SysMgr.outPath:
+                SysMgr.outPath = \
                     '%s.out' % os.path.splitext(SysMgr.inputFile)[0]
             del sys.argv[2]
         # top draw mode #
@@ -14434,7 +14456,7 @@ class SysMgr(object):
     @staticmethod
     def parseKillOption(value):
         if len(value) == 0:
-            SysMgr.printErr("wrong option value %s with -k")
+            SysMgr.printErr("wrong value %s with -k option")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -15875,6 +15897,7 @@ class SysMgr(object):
                 },
             'util': {
                 'addr2sym': 'Symbol',
+                'dump': 'Memory',
                 'getafnt': 'Affinity',
                 'hook': 'Function',
                 'kill/tkill': 'Signal',
@@ -17077,6 +17100,38 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
+
+                # dump #
+                elif SysMgr.isDumpMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Dump target memory
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -u                          run in the background
+    -a                          show all stats including registers
+    -g  <COMM|TID>              set filter
+    -I  <RANGE>                 set memory address
+    -R  <TIME>                  set timer
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Dump target memory to the sepcific file
+        # {0:1} {1:1} -g a.out -I 0x1234-0x4567 -o dump.out
+                    '''.format(cmd, mode)
 
                 # strace #
                 elif SysMgr.isStraceMode():
@@ -20703,7 +20758,7 @@ Copyright:
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 # reload data written to file #
                 if SysMgr.pipeEnable:
                     SysMgr.reloadFileBuffer()
@@ -20778,7 +20833,7 @@ Copyright:
             pass
         elif SysMgr.isTopMode():
             # check silent mode #
-            if not SysMgr.printFile:
+            if not SysMgr.outPath:
                 return
 
             # masking signal #
@@ -21223,7 +21278,7 @@ Copyright:
         SysMgr.bufferRows += newline
 
         if SysMgr.terminalOver or \
-            not SysMgr.printFile or \
+            not SysMgr.outPath or \
             not SysMgr.printStreamEnable:
             return True
 
@@ -21307,7 +21362,7 @@ Copyright:
         # check extended ascii support #
         SysMgr.convertExtAscii(ConfigMgr.logo)
 
-        if not SysMgr.printFile:
+        if not SysMgr.outPath:
             if SysMgr.printStreamEnable:
                 if not absolute:
                     return
@@ -21932,7 +21987,7 @@ Copyright:
             else:
                 SysMgr.printPipe(jsonObj)
         # realtime mode #
-        elif not SysMgr.printFile:
+        elif not SysMgr.outPath:
             if not SysMgr.printStreamEnable:
                 SysMgr.clearScreen()
             SysMgr.doPrint()
@@ -21952,7 +22007,7 @@ Copyright:
     def checkCutCond(newline=0):
         if SysMgr.terminalOver:
             return True
-        elif not SysMgr.printFile and \
+        elif not SysMgr.outPath and \
             not SysMgr.jsonOutputEnable and \
             not SysMgr.printStreamEnable and \
             SysMgr.bufferRows + newline >= \
@@ -22033,7 +22088,7 @@ Copyright:
         if not pager:
             pass
         elif SysMgr.pipeForPrint or \
-            SysMgr.printFile or \
+            SysMgr.outPath or \
             SysMgr.printStreamEnable:
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
@@ -22092,18 +22147,18 @@ Copyright:
                 SysMgr.pipeForPrint = None
 
         # file initialization #
-        if SysMgr.printFile and \
+        if SysMgr.outPath and \
             not SysMgr.fileForPrint:
 
             # profile #
             if SysMgr.isRuntimeMode():
                 # dir #
-                if os.path.isdir(SysMgr.printFile):
+                if os.path.isdir(SysMgr.outPath):
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.printFile, SysMgr.outFileName)
+                        os.path.join(SysMgr.outPath, SysMgr.outFileName)
                 # file #
                 else:
-                    SysMgr.inputFile = SysMgr.printFile
+                    SysMgr.inputFile = SysMgr.outPath
 
                 # append suffix to output file #
                 if SysMgr.fileSuffix:
@@ -22119,7 +22174,7 @@ Copyright:
             # analysis #
             else:
                 # dir #
-                if os.path.isdir(SysMgr.printFile):
+                if os.path.isdir(SysMgr.outPath):
                     name, ext = os.path.splitext(\
                         os.path.basename(SysMgr.inputFile))
                     if ext == '' or ext == '.dat':
@@ -22127,10 +22182,10 @@ Copyright:
                     if name.endswith('.dat'):
                         name = name.replace('.dat', '.out')
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.printFile, name)
+                        os.path.join(SysMgr.outPath, name)
                 # file #
                 else:
-                    SysMgr.inputFile = SysMgr.printFile
+                    SysMgr.inputFile = SysMgr.outPath
 
             # convert abnormal characters from full path #
             SysMgr.inputFile = \
@@ -22157,7 +22212,7 @@ Copyright:
                     open(SysMgr.inputFile, 'w+')
 
                 # print file name #
-                if SysMgr.printFile:
+                if SysMgr.outPath:
                     SysMgr.printInfo(\
                         "start writing statistics to %s" % \
                             SysMgr.inputFile)
@@ -22514,7 +22569,7 @@ Copyright:
                         long(convTime(repeatParams[1]) / interval)
             except:
                 SysMgr.printErr((\
-                    "wrong option value with -R because %s, "
+                    "wrong value with -R option because %s, "
                     "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         elif len(repeatParams) == 1:
@@ -22541,12 +22596,12 @@ Copyright:
                     SysMgr.intervalEnable = interval
             except:
                 SysMgr.printErr((\
-                    "wrong option value with -R because %s, "
+                    "wrong value with -R option because %s, "
                     "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         else:
             SysMgr.printErr((\
-                "wrong option value with -R because %s, "
+                "wrong value with -R option because %s, "
                 "input in the format INTERVAL:REPEAT") % \
                     SysMgr.getErrMsg())
             sys.exit(0)
@@ -22556,7 +22611,7 @@ Copyright:
             SysMgr.intervalEnable < 1 or \
             SysMgr.repeatCount < 1:
             SysMgr.printErr(\
-                "wrong option value with -R, input values bigger than 0")
+                "wrong value with -R option, input values bigger than 0")
             sys.exit(0)
 
         # get termination flag #
@@ -22620,7 +22675,7 @@ Copyright:
                 raise Exception()
         except:
             SysMgr.printErr(\
-                "wrong path %s with -s option because of permission" % value)
+                "wrong PATH %s with -s option because of permission" % value)
             sys.exit(0)
 
         # remove double slashs #
@@ -22633,10 +22688,10 @@ Copyright:
             SysMgr.isGeneralRecordMode() or \
             SysMgr.findOption('y'):
             if SysMgr.outputFile.endswith('.dat'):
-                SysMgr.printFile = '%s.out' % \
+                SysMgr.outPath = '%s.out' % \
                     os.path.splitext(SysMgr.outputFile)[0]
             else:
-                SysMgr.printFile = \
+                SysMgr.outPath = \
                     SysMgr.outputFile
 
 
@@ -22706,14 +22761,14 @@ Copyright:
 
                     if SysMgr.intervalEnable <= 0:
                         SysMgr.printErr(\
-                            "wrong option value with -i option, "
+                            "wrong value with -i option, "
                             "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "wrong option value with -i option, "
+                        "wrong value with -i option, "
                         "input number in integer format")
                     sys.exit(0)
 
@@ -22725,11 +22780,11 @@ Copyright:
                 # check writable access #
                 if not SysMgr.isWritable(value):
                     SysMgr.printErr((\
-                        "wrong path %s with -o option "
+                        "wrong PATH %s with -o option "
                         "because of permission") % value)
                     sys.exit(0)
 
-                SysMgr.printFile = os.path.normpath(value)
+                SysMgr.outPath = os.path.normpath(value)
 
             elif option == 'I':
                 SysMgr.inputParam = value
@@ -22769,8 +22824,8 @@ Copyright:
                 pfilter = SysMgr.getOption('g')
                 if not pfilter:
                     SysMgr.printErr((\
-                        "wrong option with -P, "
-                        "use -g option to group threads in a same process"))
+                        "use also -g option to group threads "
+                        "in a same process"))
                     sys.exit(0)
 
                 SysMgr.groupProcEnable = True
@@ -22780,11 +22835,11 @@ Copyright:
                     pass
                 elif SysMgr.findOption('i'):
                     SysMgr.printErr(\
-                        "wrong option with -p, -i option is already used")
+                        "wrong -p option, -i option is already used")
                     sys.exit(0)
                 elif SysMgr.findOption('g'):
                     SysMgr.printErr(\
-                        "wrong option with -p, -g option is already used")
+                        "wrong -p option, -g option is already used")
                     sys.exit(0)
                 else:
                     SysMgr.preemptGroup = value.split(',')
@@ -23063,7 +23118,7 @@ Copyright:
                 if SysMgr.isConvertMode():
                     if not value:
                         SysMgr.printErr(\
-                            "wrong option value with -T option, "
+                            "wrong value with -T option, "
                             "input path for font")
                         sys.exit(0)
                     SysMgr.fontPath = value
@@ -23072,7 +23127,7 @@ Copyright:
                         SysMgr.nrTop = long(value)
                     except:
                         SysMgr.printErr(\
-                            "wrong option value with -T option, "
+                            "wrong value with -T option, "
                             "input number in integer format")
                         sys.exit(0)
 
@@ -23088,7 +23143,7 @@ Copyright:
                 for item in SysMgr.perCoreList:
                     if not item.isdigit():
                         SysMgr.printErr(\
-                            "wrong option value with -O option, "
+                            "wrong value with -O option, "
                             "input number in integer format")
                         sys.exit(0)
 
@@ -23152,7 +23207,7 @@ Copyright:
                             raise Exception()
                 except:
                     SysMgr.printErr(\
-                        "wrong option value with -m option, "
+                        "wrong value with -m option, "
                         "input number in COLS:ROWS format")
                     sys.exit(0)
 
@@ -23171,14 +23226,14 @@ Copyright:
                                 "set buffer size to %sKB" % bsize)
                     else:
                         SysMgr.printErr(\
-                            "wrong option value with -b option, "
+                            "wrong value with -b option, "
                             "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                            "wrong option value with -b option, "
+                            "wrong value with -b option, "
                             "input number in integer format")
                     sys.exit(0)
 
@@ -23226,7 +23281,7 @@ Copyright:
                         raise Exception()
                 except:
                     SysMgr.printErr(\
-                        "wrong option value with -H option, "
+                        "wrong value with -H option, "
                         "input an unsigned integer value")
                     sys.exit(0)
 
@@ -23269,14 +23324,14 @@ Copyright:
                             "set buffer size to %sKB" % bsize)
                     else:
                         SysMgr.printErr(\
-                            "wrong option value with -b option, "
+                            "wrong value with -b option, "
                             "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "wrong option value with -b option, "
+                        "wrong value with -b option, "
                         "input number in integer format")
                     sys.exit(0)
 
@@ -23396,7 +23451,7 @@ Copyright:
                         raise Exception()
                 except:
                     SysMgr.printErr(\
-                        "wrong option value with -H option, "
+                        "wrong value with -H option, "
                         "input an unsigned integer value")
                     sys.exit(0)
 
@@ -23443,7 +23498,7 @@ Copyright:
                         raise Exception()
                 except:
                     SysMgr.printErr(\
-                        "wrong option value %s with -B option" % value)
+                        "wrong value %s with -B option" % value)
                     sys.exit(0)
 
                 # remove double slashs #
@@ -23492,10 +23547,10 @@ Copyright:
                 if value == '':
                     value = '.'
 
-                SysMgr.printFile = str(value)
-                if len(SysMgr.printFile) == 0:
+                SysMgr.outPath = str(value)
+                if not SysMgr.outPath:
                     SysMgr.printErr(\
-                        "No option value with -o option")
+                        "No value with -o option")
                     sys.exit(0)
 
             elif option == 'c':
@@ -23833,6 +23888,15 @@ Copyright:
     @staticmethod
     def isHookMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'hook':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDumpMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'dump':
             return True
         else:
             return False
@@ -24291,7 +24355,7 @@ Copyright:
         elif SysMgr.isPauseMode():
             if not SysMgr.filterGroup:
                 SysMgr.printErr(\
-                    "No COMM or TID with -g")
+                    "No COMM or TID with -g option")
                 sys.exit(0)
 
             # convert comm to pid #
@@ -24310,7 +24374,7 @@ Copyright:
             path = SysMgr.inputParam
             if not path:
                 SysMgr.printErr(\
-                    "No PATH with -I")
+                    "No PATH with -I option")
                 sys.exit(0)
 
             # set debug flag #
@@ -24516,6 +24580,44 @@ Copyright:
         # CONVERT MODE #
         elif SysMgr.isConvertMode():
             SysMgr.doConvert()
+
+        # DUMP MODE #
+        elif SysMgr.isDumpMode():
+            if not SysMgr.filterGroup:
+                SysMgr.printErr(\
+                    "No COMM or PID with -g option")
+                sys.exit(0)
+            elif not SysMgr.inputParam:
+                SysMgr.printErr(\
+                    "No memory info with -I option")
+                sys.exit(0)
+            elif not SysMgr.outPath:
+                SysMgr.printErr(\
+                    "No PATH with -o option")
+                sys.exit(0)
+
+            # convert comm to pid #
+            targetList = []
+            for item in SysMgr.filterGroup:
+                targetList += SysMgr.getPids(item, isThread=False)
+            targetList = list(set(targetList))
+
+            # check target #
+            if not targetList:
+                SysMgr.printErr("No target process")
+                sys.exit(0)
+            elif len(targetList) > 1:
+                SysMgr.printErr(\
+                    "Found multiple tasks [%s]" % \
+                        SysMgr.getCommList(targetList))
+                sys.exit(0)
+
+            pid = targetList[0]
+            meminfo = SysMgr.inputParam
+            output = SysMgr.outPath
+
+            # dump memory #
+            Debugger.dumpTaskMemory(pid, meminfo, output)
 
         # STRACE MODE #
         elif SysMgr.isStraceMode():
@@ -24914,17 +25016,17 @@ Copyright:
 
     @staticmethod
     def checkBgTopCond():
-        if SysMgr.printFile:
+        if SysMgr.outPath:
             return True
 
         logPath = '/var/log'
         tmpPath = '/tmp'
 
         if os.path.isdir(logPath) and os.access(logPath, os.W_OK):
-            SysMgr.printFile = logPath
+            SysMgr.outPath = logPath
             return True
         elif os.path.isdir(tmpPath) and os.access(tmpPath, os.W_OK):
-            SysMgr.printFile = tmpPath
+            SysMgr.outPath = tmpPath
             return True
         else:
             SysMgr.printErr(\
@@ -24960,7 +25062,7 @@ Copyright:
             if upDirPos > 0 and \
                 not os.path.isdir(reportPath[:upDirPos]):
                 SysMgr.printErr(\
-                    "wrong path %s with -j option to report stats" % \
+                    "wrong PATH %s with -j option to report stats" % \
                     reportPath)
                 return False
         # file path #
@@ -25664,7 +25766,7 @@ Copyright:
         # check condition #
         if force:
             pass
-        elif SysMgr.printFile or \
+        elif SysMgr.outPath or \
             SysMgr.bgStatus or \
             not sys.stdin or \
             SysMgr.isRepTopMode() or \
@@ -26059,7 +26161,7 @@ Copyright:
             # disable pager #
             if stream:
                 SysMgr.printStreamEnable = True
-            SysMgr.printFile = SysMgr.fileForPrint = None
+            SysMgr.outPath = SysMgr.fileForPrint = None
             SysMgr.printEnable = True
             SysMgr.reportEnable = SysMgr.jsonOutputEnable = False
 
@@ -26430,7 +26532,7 @@ Copyright:
             if not os.path.isfile(targetPath):
                 SysMgr.printWarn(\
                     'Failed to find %s to transfer' % targetPath, True)
-                sendErrMsg(netObj, "wrong path %s" % targetPath)
+                sendErrMsg(netObj, "wrong PATH %s" % targetPath)
                 return
 
             # response from command request #
@@ -26973,12 +27075,12 @@ Copyright:
         value = ' '.join(sys.argv[2:])
         if len(value) == 0:
             SysMgr.printErr(\
-                ("No path to convert file, "
+                ("No PATH to convert file, "
                 "input the path of a text file"))
             sys.exit(0)
         elif not os.path.isfile(value):
             SysMgr.printErr(\
-                "wrong path %s to convert file" % value)
+                "wrong PATH %s to convert file" % value)
             sys.exit(0)
 
         # set output file name #
@@ -27023,7 +27125,7 @@ Copyright:
                 (vals[0] and not vals[0].isdigit()) or \
                 not vals[1].isdigit():
                 SysMgr.printErr(\
-                ("wrong option value to set CPU clock, "
+                ("wrong value to set CPU clock, "
                 "input in the format CORE:CLOCK(HZ){:GOVERNOR}"))
                 sys.exit(0)
 
@@ -27158,7 +27260,8 @@ Copyright:
                     curgovernor = '?'
 
                 # get affected CPU list #
-                if 'affect' in cpulist[core] and len(cpulist[core]['affect']) > 1:
+                if 'affect' in cpulist[core] and \
+                    len(cpulist[core]['affect']) > 1:
                     affectstring = 'and it also affects CPU(%s)' % \
                         ', '.join(cpulist[core]['affect'])
                 else:
@@ -27166,7 +27269,8 @@ Copyright:
 
                 SysMgr.printInfo(\
                     "the CPU(%s) is set to %shz in [%s] successfuly %s" %
-                        (core, UtilMgr.convNum(clock), curgovernor, affectstring))
+                        (core, UtilMgr.convNum(clock), \
+                            curgovernor, affectstring))
 
 
 
@@ -27179,7 +27283,7 @@ Copyright:
         value = ','.join(SysMgr.filterGroup)
         if len(value) == 0:
             SysMgr.printErr(\
-                ("wrong option value to set priority, "
+                ("wrong value to set priority, "
                 "input in the format POLICY:PRIORITY|TIME:TID|COMM"))
             sys.exit(0)
 
@@ -27842,7 +27946,7 @@ Copyright:
 
         # no use pager #
         if not SysMgr.isTopMode() and \
-            not SysMgr.printFile:
+            not SysMgr.outPath:
             SysMgr.printStreamEnable = True
 
         # define wait syscall #
@@ -27922,7 +28026,7 @@ Copyright:
             else:
                 SysMgr.printErr("No TID with -g option")
 
-            SysMgr.printFile = SysMgr.fileForPrint = None
+            SysMgr.outPath = SysMgr.fileForPrint = None
 
             sys.exit(0)
         # check targets #
@@ -27932,7 +28036,7 @@ Copyright:
             # set multi-task attributes #
             if len(pids) > 1:
                 multi = True
-                if not SysMgr.printFile:
+                if not SysMgr.outPath:
                     SysMgr.printStreamEnable = True
 
                 SysMgr.printWarn(\
@@ -27978,7 +28082,7 @@ Copyright:
                             break
 
                 # disable printing to file #
-                SysMgr.printFile = SysMgr.fileForPrint = None
+                SysMgr.outPath = SysMgr.fileForPrint = None
 
                 # broadcast term signal to childs and wait for them #
                 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -28073,12 +28177,12 @@ Copyright:
 
         # check input #
         if not SysMgr.inputParam:
-            SysMgr.printErr("No PATH with -I")
+            SysMgr.printErr("No PATH with -I option")
             sys.exit(0)
 
         # check symbol #
         if not SysMgr.filterGroup:
-            SysMgr.printErr("No offset with -g")
+            SysMgr.printErr("No offset with -g option")
             sys.exit(0)
         else:
             addrList = list()
@@ -28373,7 +28477,7 @@ Copyright:
         # check input #
         if not SysMgr.inputParam:
             SysMgr.printErr(\
-                "No PATH or COMM or PID with -I")
+                "No PATH or COMM or PID with -I option")
             sys.exit(0)
 
         # check symbol #
@@ -28554,7 +28658,7 @@ Copyright:
         targetList = SysMgr.filterGroup
         if len(targetList) == 0:
             SysMgr.printErr(\
-                "No PID or COMM with -g")
+                "No PID or COMM with -g option")
             sys.exit(0)
 
         # convert comm to pid #
@@ -28678,7 +28782,8 @@ Copyright:
                 else:
                     fname = '%s/leaks.out' % current
             else:
-                SysMgr.printErr("No PATH for temporary input with -I")
+                SysMgr.printErr(\
+                    "No PATH for temporary input with -I option")
                 sys.exit(0)
 
             # set output file path #
@@ -30017,7 +30122,7 @@ Copyright:
         # check target #
         if not SysMgr.filterGroup:
             SysMgr.printErr(\
-                "No PID or COMM with -g")
+                "No PID or COMM with -g option")
             sys.exit(0)
 
         # get pid list #
@@ -36205,7 +36310,7 @@ class DbusAnalyzer(object):
                 SysMgr.optStrace = True
                 SysMgr.encodeB64Enable = True
                 SysMgr.intervalEnable = long(0)
-                SysMgr.printFile = SysMgr.fileForPrint = None
+                SysMgr.outPath = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonOutputEnable = True
@@ -37029,7 +37134,7 @@ class DltAnalyzer(object):
         flist = []
         if SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
-                ret = UtilMgr.convertPath(item, retStr=False)
+                ret = UtilMgr.convPath(item, retStr=False)
                 flist += ret
             flist = list(set(flist))
 
@@ -37666,7 +37771,7 @@ struct cmsghdr {
         # running #
         self.isRunning = False
         if self.checkPid(pid) >= 0:
-            self.pid = pid
+            self.pid = long(pid)
             self.isRunning = True
 
             if self.isInRun() is None:
@@ -38081,7 +38186,7 @@ struct cmsghdr {
 
     def executeCmd(self, cmdList, sym=None, fname=None, args=[]):
         def flushPrint(newline=True):
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 if SysMgr.showAll:
                     self.callPrint.append(SysMgr.bufferString[1:])
 
@@ -38202,14 +38307,11 @@ struct cmsghdr {
                     printCmdErr(cmdval, cmd)
 
                 # get return value #
-                try:
-                    ret = long(cmdset[1])
-                except SystemExit:
-                    sys.exit(0)
-                except:
+                ret = UtilMgr.convStr2Num(cmdset[1])
+                if not ret:
                     SysMgr.printErr(\
-                        "Wrong return value %s" % ret)
-                    return repeat
+                        "Wrong return value %s" % cmdset[1])
+                    return False
 
                 # get return address #
                 wordSize = ConfigMgr.wordSize
@@ -38276,10 +38378,7 @@ struct cmsghdr {
                 for item in argList:
                     idx, val = item.split('#')
                     idx = long(idx)
-                    try:
-                        val = long(val)
-                    except:
-                        val = long(val, 16)
+                    val = UtilMgr.convStr2Num(val)
                     argSet[idx] = val
                     if nrMax < idx:
                         nrMax = idx
@@ -38355,20 +38454,14 @@ struct cmsghdr {
                 memset = self.convRetArgs(memset)
 
                 # get addr #
-                try:
-                    addr = long(memset[0])
-                except:
-                    addr = long(memset[0], 16)
+                addr = UtilMgr.convStr2Num(memset[0])
 
                 # get value #
                 val = memset[1].encode()
 
                 # get size #
                 if len(memset) == 3:
-                    try:
-                        size = long(memset[2])
-                    except:
-                        size = long(memset[2], 16)
+                    size = UtilMgr.convStr2Num(memset[2])
                 else:
                     size = len(val)
 
@@ -38383,15 +38476,8 @@ struct cmsghdr {
                     pass
 
                 # get address #
-                if UtilMgr.isNumber(addr):
-                    try:
-                        addr = long(addr, 16)
-                    except:
-                        addr = long(addr)
-                else:
-                    SysMgr.printErr(\
-                        "Wrong addr value %s" % addr)
-                    return repeat
+                addr = UtilMgr.convStr2Num(addr)
+                if not addr: return repeat
 
                 SysMgr.addPrint(\
                     "\n[%s] %s: %s(%sbyte)" % \
@@ -38420,37 +38506,28 @@ struct cmsghdr {
                 name = memset[0]
 
                 # convert args for previous return #
-                if type(data) is str and data.startswith('@'):
-                    if data[1:] in self.retList:
-                        val = self.retList[data[1:]]
+                if type(data) is str:
+                    if data.startswith('@'):
+                        if data[1:] in self.retList:
+                            val = self.retList[data[1:]]
+                        else:
+                            SysMgr.printErr(\
+                                "No %s in list" % data)
+                            return repeat
                     else:
-                        SysMgr.printErr(\
-                            "No %s in list" % data)
-                        return repeat
-                # get number #
-                elif type(data) is str:
-                    try:
-                        val = long(data)
-                    except:
-                        val = long(data, 16)
+                        val = UtilMgr.convStr2Num(data)
 
-                    # convert address from registers #
-                    try:
-                        val = args[val]
-                    except:
-                        pass
+                        # get address from registers #
+                        try:
+                            val = args[val]
+                        except:
+                            pass
                 else:
                     val = data
 
                 # convert value #
-                if UtilMgr.isNumber(val):
-                    try:
-                        val = long(val, 16)
-                    except:
-                        val = long(val)
-                else:
-                    SysMgr.printErr("wrong addr %s" % val)
-                    return repeat
+                val = UtilMgr.convStr2Num(val)
+                if not val: return repeat
 
                 # accumulate values #
                 self.accList.setdefault(name, \
@@ -38505,18 +38582,14 @@ struct cmsghdr {
                 memset = self.convRetArgs(memset)
 
                 # get addr #
-                try:
-                    addr = long(memset[0])
-                except:
-                    addr = long(memset[0], 16)
+                addr = UtilMgr.convStr2Num(memset[0])
+                if not addr: return False
 
                 # get size #
                 if len(memset) == 2:
                     fixed = True
-                    try:
-                        size = long(memset[1])
-                    except:
-                        size = long(memset[1], 16)
+                    size = UtilMgr.convStr2Num(memset[1])
+                    if not size: return False
                 else:
                     fixed = False
                     size = 32
@@ -38529,10 +38602,8 @@ struct cmsghdr {
 
                 # get address #
                 if UtilMgr.isNumber(addr):
-                    try:
-                        addr = long(addr, 16)
-                    except:
-                        addr = long(addr)
+                    addr = UtilMgr.convStr2Num(addr)
+                    if not addr: return False
                 else:
                     SysMgr.printErr("wrong addr %s" % addr)
                     return repeat
@@ -38725,17 +38796,12 @@ struct cmsghdr {
                     argStr = '()'
 
                 # get address #
-                if UtilMgr.isNumber(val):
-                    try:
-                        addr = long(val)
-                    except:
-                        addr = long(val, 16)
-                else:
+                addr = UtilMgr.convStr2Num(val)
+                if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
                         SysMgr.printErr("No found %s" % val)
                         return repeat
-
                     addr = ret
 
                 output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
@@ -38795,21 +38861,12 @@ struct cmsghdr {
                 argList = list(map(long, argList))
 
                 # get address #
-                if UtilMgr.isNumber(val):
-                    try:
-                        addr = long(val)
-                    except:
-                        addr = long(val, 16)
-
-                    ret = self.getSymbolInfo(addr)
-                    if ret:
-                        val = ret[0]
-                else:
+                addr = UtilMgr.convStr2Num(val)
+                if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
                         SysMgr.printErr("No found %s" % val)
                         return repeat
-
                     addr = ret
 
                 ret = self.getSymbolInfo(self.pc)
@@ -38960,7 +39017,7 @@ struct cmsghdr {
 
         # disable stream #
         origin = SysMgr.printStreamEnable
-        if origin and SysMgr.printFile:
+        if origin and SysMgr.outPath:
             SysMgr.printStreamEnable = False
 
         for cmdval in cmdList:
@@ -41419,7 +41476,7 @@ struct cmsghdr {
 
                 SysMgr.addPrint('%s\n' % twoLine)
 
-        if SysMgr.printFile:
+        if SysMgr.outPath:
             self.callPrint.append(SysMgr.bufferString)
         else:
             SysMgr.doPrint(newline=False, clear=True)
@@ -41600,7 +41657,7 @@ struct cmsghdr {
                 self.fileTable[filename] = dict()
                 self.fileTable[filename]['cnt'] = 1
 
-            if not SysMgr.printFile:
+            if not SysMgr.outPath:
                 return
 
         self.callList.append([sym, self.current, filename])
@@ -41609,7 +41666,7 @@ struct cmsghdr {
 
     def checkSymbol(self, sym, newline=False, bt=None):
         if not SysMgr.customCmd or \
-            SysMgr.printFile or \
+            SysMgr.outPath or \
             not sym in SysMgr.customCmd:
             return
 
@@ -42105,7 +42162,7 @@ struct cmsghdr {
                 callString = '%s%s' % (btstr, callString)
 
             # file output #
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 self.addSample(\
                     sym, fname, realtime=True, elapsed=etime)
 
@@ -42362,7 +42419,7 @@ struct cmsghdr {
                     self.addSample(\
                         self.prevCallInfo[0], self.prevCallInfo[1], \
                         realtime=True, bt=self.prevCallInfo[4])
-                elif SysMgr.printFile:
+                elif SysMgr.outPath:
                     self.addSample(\
                         self.prevCallInfo[0], self.prevCallInfo[1])
 
@@ -42390,7 +42447,7 @@ struct cmsghdr {
         if fname == '??':
             if self.isRealtime:
                 self.addSample('??', fname, realtime=True, bt=backtrace)
-            elif SysMgr.printFile:
+            elif SysMgr.outPath:
                 self.addSample('??', fname, bt=backtrace)
             return
 
@@ -42456,7 +42513,7 @@ struct cmsghdr {
             # backup callString #
             self.prevCallString = callString
 
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 self.addSample(sym, fname)
 
                 if SysMgr.showAll:
@@ -42524,7 +42581,7 @@ struct cmsghdr {
                     text = UtilMgr.decodeArg(arg[2])
 
                     # check output length #
-                    if not (SysMgr.printFile or SysMgr.showAll) and \
+                    if not (SysMgr.outPath or SysMgr.showAll) and \
                         len(text) > self.pbufsize:
                         text = r'"%s..."' % text[:self.pbufsize]
                     else:
@@ -42634,7 +42691,7 @@ struct cmsghdr {
         if self.isRealtime:
             self.addSample(\
                 self.syscall, '??', realtime=True, bt=backtrace)
-        elif SysMgr.printFile:
+        elif SysMgr.outPath:
             self.addSample(self.syscall, '??', bt=backtrace)
         else:
             ttyColsOrig = SysMgr.ttyCols
@@ -42655,7 +42712,7 @@ struct cmsghdr {
             SysMgr.ttyCols = ttyColsOrig
 
         # print call history #
-        if SysMgr.showAll and SysMgr.printFile:
+        if SysMgr.showAll and SysMgr.outPath:
             if deferrable:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
@@ -42758,7 +42815,7 @@ struct cmsghdr {
                     callString = '%3.6f %s(%s) %s(' % \
                         (diff, self.comm, self.pid, name)
 
-                    if SysMgr.printFile:
+                    if SysMgr.outPath:
                         self.bufferedStr = callString
                     else:
                         SysMgr.printPipe(\
@@ -42863,7 +42920,7 @@ struct cmsghdr {
             # build call string #
             callString = '= %s %s' % (retval, err)
 
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 if SysMgr.showAll and \
                     len(self.callPrint) > 0:
                     self.callPrint[-1] = '%s%s' % \
@@ -43181,7 +43238,7 @@ struct cmsghdr {
 
         # set attributes for multiprocess #
         self.multi = True
-        if not SysMgr.printFile:
+        if not SysMgr.outPath:
             SysMgr.printStreamEnable = True
 
         # continue tasks #
@@ -43848,7 +43905,7 @@ struct cmsghdr {
             SysMgr.printInfoBuffer()
 
         # check realtime mode #
-        if not SysMgr.printFile:
+        if not SysMgr.outPath:
             return
 
         instance.last = time.time()
@@ -44102,6 +44159,29 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 return 0
         except:
             return 0
+
+
+
+    @staticmethod
+    def dumpTaskMemory(pid, meminfo, output):
+        SysMgr.checkPerm()
+
+        # check ptrace scope #
+        if Debugger.checkPtraceScope() < 0:
+            return
+
+        # dump memory #
+        try:
+            dobj = Debugger(pid=pid)
+            if not dobj:
+                raise Exception("N/A")
+            dobj.dumpMemory(meminfo, output)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                'Fail to dump memory for %s(%s)' % \
+                    (SysMgr.getComm(pid), pid), reason=True)
 
 
 
@@ -44460,6 +44540,73 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         self.updateNamedRegs()
 
         return True
+
+
+
+    def dumpMemory(self, meminfo, output):
+        # get area #
+        if meminfo == 'heap':
+            start = 0
+            size = 0
+        elif meminfo == 'stack':
+            start = 0
+            size = 0
+        else:
+            startStr, endStr = meminfo.split('-')
+
+            start = UtilMgr.convStr2Num(startStr)
+            if not start:
+                return
+
+            end = UtilMgr.convStr2Num(endStr)
+            if not end:
+                return
+
+            size = end - start
+
+        SysMgr.printInfo(\
+            "start dumping memory %s [%s-%s] from %s(%s)" % \
+                (UtilMgr.convSize2Unit(size), \
+                    hex(start).rstrip('L'), hex(start+size).rstrip('L'),
+                    self.comm, self.pid))
+
+        # open output file #
+        try:
+            fd = open(output, 'wb')
+        except:
+            SysMgr.printOpenErr(output)
+            return
+
+        # define buffer and chunk size #
+        offset = start
+        chunk = UtilMgr.convUnit2Size("100MB")
+        total = 0
+
+        # copy data from target memory #
+        while size > 0:
+            if size < chunk:
+                size = 0
+                chunk = size
+            else:
+                size -= chunk
+
+            # read memory from target #
+            buf = self.readMem(offset, chunk)
+
+            # write memory to file #
+            fd.write(buf)
+
+            UtilMgr.printProgress(total, size)
+
+            offset -= chunk
+            total += len(buf)
+
+        # close output file for sync #
+        SysMgr.printStat(\
+            "start syncing %s data to %s" % \
+                (UtilMgr.convSize2Unit(total), output))
+
+        fd.close()
 
 
 
@@ -45791,7 +45938,7 @@ class ElfAnalyzer(object):
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
-                failLog = UtilMgr.convertColor("[Fail]", 'RED')
+                failLog = UtilMgr.convColor("[Fail]", 'RED')
                 SysMgr.printInfo(failLog, prefix=False, notitle=True)
 
                 SysMgr.printWarn(\
@@ -48460,7 +48607,7 @@ class ThreadAnalyzer(object):
                 # change unit from KB to Byte #
                 SysMgr.bufferSize = long(SysMgr.bufferSize) << 10
 
-            if SysMgr.printFile:
+            if SysMgr.outPath:
                 SysMgr.printStat(\
                     r"start profiling... [ STOP(Ctrl+c), SAVE(Ctrl+\) ]")
 
@@ -48479,7 +48626,7 @@ class ThreadAnalyzer(object):
                 DbusAnalyzer.runDbusSnooper(mode='top')
 
             # print system general info in advance #
-            if SysMgr.printFile and SysMgr.pipeEnable and SysMgr.exitFlag:
+            if SysMgr.outPath and SysMgr.pipeEnable and SysMgr.exitFlag:
                 SysMgr.printLogo(big=True)
                 SysMgr.sysInstance.saveSysStat()
                 SysMgr.printInfoBuffer()
@@ -48716,7 +48863,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # import select package in the foreground #
-        if not SysMgr.printFile:
+        if not SysMgr.outPath:
             SysMgr.getPkg('select', False)
 
         prevFilter = []
@@ -48782,7 +48929,7 @@ class ThreadAnalyzer(object):
         SysMgr.initSystemPerfEvents()
 
         # import select package in the foreground #
-        if not SysMgr.printFile:
+        if not SysMgr.outPath:
             SysMgr.getPkg('select', False)
 
         # run loop #
@@ -51844,8 +51991,8 @@ class ThreadAnalyzer(object):
             if outFile:
                 outputFile = outFile
             else:
-                if SysMgr.printFile:
-                    outputFile = os.path.normpath(SysMgr.printFile)
+                if SysMgr.outPath:
+                    outputFile = os.path.normpath(SysMgr.outPath)
                 else:
                     outputFile = os.path.normpath(logFile)
 
@@ -64153,7 +64300,7 @@ class ThreadAnalyzer(object):
         # PRINT service #
         else:
             # realtime mode #
-            if not SysMgr.printFile:
+            if not SysMgr.outPath:
                 SysMgr.printPipe(data, newline=False, flush=True)
             # buffered mode #
             else:
@@ -64749,7 +64896,7 @@ class ThreadAnalyzer(object):
         # print system status to file if condition is met #
         if nrEvent > 0 and \
             SysMgr.reportFileEnable and \
-            SysMgr.printFile:
+            SysMgr.outPath:
 
             # submit summarized report and details #
             ThreadAnalyzer.printIntervalUsage()
