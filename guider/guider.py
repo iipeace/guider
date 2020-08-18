@@ -12221,6 +12221,30 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def getMapAddr(pid, fname, fd=None):
+        if not fname:
+            SysMgr.printWarn(\
+                "No memory-mapped file name to be searched")
+            return
+
+        if not fd:
+            fd = FileAnalyzer.getMapFd(pid)
+            if not fd:
+                return None
+
+        # read maps #
+        fd.seek(0, 0)
+        mapBuf = fd.readlines()
+        for item in mapBuf:
+            mdict = FileAnalyzer.parseMapLine(item)
+            if mdict and mdict['binName']:
+                if mdict['binName'].endswith(fname):
+                    return str(mdict['startAddr']), str(mdict['endAddr'])
+        return None
+
+
+
+    @staticmethod
     def getMapFilePath(pid, fname, fd=None):
         if not fname:
             SysMgr.printWarn(\
@@ -17131,6 +17155,15 @@ Options:
 Examples:
     - Dump target memory to the sepcific file
         # {0:1} {1:1} -g a.out -I 0x1234-0x4567 -o dump.out
+
+    - Dump target memory mapped to a specific file to the sepcific file
+        # {0:1} {1:1} -g a.out -I a.out -o dump.out
+
+    - Dump target stack to the sepcific file
+        # {0:1} {1:1} -g a.out -I stack -o dump.out
+
+    - Dump target heap to the sepcific file
+        # {0:1} {1:1} -g a.out -I heap -o dump.out
                     '''.format(cmd, mode)
 
                 # strace #
@@ -41232,7 +41265,7 @@ struct cmsghdr {
 
 
 
-    def loadSymbols(self):
+    def updateProcMap(self):
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(\
             self.pid, self.mapFd, onlyExec=True)
@@ -41241,6 +41274,15 @@ struct cmsghdr {
             return False
         else:
             self.prevPmap = self.pmap
+
+        return True
+
+
+
+    def loadSymbols(self):
+        ret = self.updateProcMap()
+        if not ret:
+            return False
 
         # register default libraries #
         for fpath in list(self.pmap.keys()):
@@ -44547,25 +44589,29 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def dumpMemory(self, meminfo, output):
-        # get area #
-        if meminfo == 'heap':
-            start = 0
-            size = 0
-        elif meminfo == 'stack':
-            start = 0
-            size = 0
-        else:
-            startStr, endStr = meminfo.split('-')
+        if meminfo == 'heap' or meminfo == 'stack':
+            meminfo = '[%s]' % meminfo
 
-            start = UtilMgr.convStr2Num(startStr)
-            if not start:
+        # get range info #
+        self.updateProcMap()
+        ret = FileAnalyzer.getMapAddr(\
+            self.pid, meminfo, self.mapFd)
+        if not ret:
+            ret = meminfo.split('-')
+            if not ret:
+                SysMgr.printErr(\
+                    "Fail to search %s on memory map for %s(%s)" % \
+                        (meminfo, self.comm, self.pid))
                 return
 
-            end = UtilMgr.convStr2Num(endStr)
-            if not end:
-                return
-
-            size = end - start
+        # convert range #
+        start = UtilMgr.convStr2Num(ret[0])
+        if not start:
+            return
+        end = UtilMgr.convStr2Num(ret[1])
+        if not end:
+            return
+        size = end - start
 
         SysMgr.printInfo(\
             "start dumping memory %s [%s-%s] from %s(%s)" % \
@@ -44582,14 +44628,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         # define buffer and chunk size #
         offset = start
-        chunk = UtilMgr.convUnit2Size("100MB")
+        chunk = UtilMgr.convUnit2Size("10MB")
         total = 0
 
         # copy data from target memory #
         while size > 0:
             if size < chunk:
-                size = 0
                 chunk = size
+                size = 0
             else:
                 size -= chunk
 
@@ -44601,7 +44647,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             UtilMgr.printProgress(total, size)
 
-            offset -= chunk
+            offset += chunk
             total += len(buf)
 
         # close output file for sync #
