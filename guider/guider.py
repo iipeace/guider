@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200817"
+__revision__ = "200818"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38346,7 +38346,7 @@ struct cmsghdr {
                 if len(cmdset) == 1:
                     printCmdErr(cmdval, cmd)
 
-                # inject a new breakpoint for return #
+                # inject the new breakpoint for return #
                 ret = self.setRetBp(sym, fname)
                 if not ret:
                     SysMgr.printErr((\
@@ -39511,7 +39511,7 @@ struct cmsghdr {
             if self.bpList[addr]['reins'] != reins:
                 self.bpList[addr]['reins'] = reins
             self.bpList[addr]['set'] = True
-        # a new breakpoint #
+        # the new breakpoint #
         else:
             # read data #
             if origWord:
@@ -39541,7 +39541,8 @@ struct cmsghdr {
                 except:
                     SysMgr.printErr((\
                         'Fail to inject a breakpoint to %s(%s) for %s' % \
-                            (hex(addr).rstrip('L'), sym, procInfo)), reason=True)
+                            (hex(addr).rstrip('L'), sym, procInfo)), \
+                                reason=True)
                     return
 
                 # load orignal data from storage #
@@ -39611,7 +39612,7 @@ struct cmsghdr {
             return False
         elif ret == 0 and SysMgr.warnEnable:
             SysMgr.printWarn(\
-                'Added a new breakpoint %s(%s)[%s] by %s' % \
+                'Added the new breakpoint %s(%s)[%s] by %s' % \
                     (hex(addr).rstrip('L'), sym, fname, procInfo))
 
         return True
@@ -43025,6 +43026,8 @@ struct cmsghdr {
 
         # convert string to list #
         statList = stat.split(')')[1].split()
+        if not statList:
+            return [0, 0, 0]
 
         # get total CPU time #
         utime = long(statList[self.utimeIdx-2])
@@ -43350,13 +43353,13 @@ struct cmsghdr {
         except:
             return False
 
-        # add a new breakpoint for return #
+        # add the new breakpoint for return #
         newSym = '%s%s' % (sym, Debugger.RETSTR)
         ret = self.injectBp(\
             pos, newSym, fname, reins=True, cmd=None)
-        if not ret:
-            return False
-        elif not pos in self.bpNewList:
+
+        # register the new breakpoint to per-thread list #
+        if not pos in self.bpNewList and pos in self.bpList:
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
