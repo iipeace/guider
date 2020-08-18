@@ -3714,16 +3714,28 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convBin2Str(path):
+    def convBin2Str(path, pos=False):
         try:
             if sys.version_info < (3, 0):
                 fd = open(path, 'rb')
             else:
-                fd = open(path, errors='ignore')
+                fd = open(path, encoding='latin-1')
 
             content = fd.read()
             strList = list(re.findall("[^\x00-\x1F\x7F-\xFF]{4,}", content))
+
+            # add position #
+            if pos:
+                lastPos = 0
+                dictList = {}
+                for item in strList:
+                    dictList.setdefault(item, content.find(item, lastPos))
+                    lastPos = dictList[item]
+                return dictList
+
             return strList
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr('Fail to convert %s to strings' % path, True)
             return False
@@ -14413,26 +14425,22 @@ class SysMgr(object):
     @staticmethod
     def loadLibCache():
         try:
-            path = '/etc/ld.so.cache'
-            if sys.version_info < (3, 0):
-                fd = open(path, 'rb')
-            else:
-                fd = open(path, errors='ignore')
-
-            content = fd.read()
-            libList = list(re.findall("[^\x00-\x1F\x7F-\xFF]{4,}", content))
-
             libDict = {}
+            libList = UtilMgr.convBin2Str('/etc/ld.so.cache')
             for idx, item in enumerate(libList):
                 try:
                     if libList[idx+1].startswith('/'):
                         value = libList[idx+1]
                         libDict.setdefault(item, list())
                         libDict[item].append(value)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
             SysMgr.libCache = libDict
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn('Fail to load library cache', reason=True)
             return False
@@ -14639,11 +14647,14 @@ class SysMgr(object):
         SysMgr.printStreamEnable = True
 
         # convert binary file to string #
-        clist = UtilMgr.convBin2Str(SysMgr.inputParam)
+        clist = UtilMgr.convBin2Str(SysMgr.inputParam, pos=True)
+        lastPos = sorted(clist.values())[-1]
+        maxDigit = len(hex(lastPos))
 
         # print strings #
-        for line in clist:
-            SysMgr.printPipe(line)
+        for string, pos in sorted(clist.items(), key=lambda e:e[1]):
+            SysMgr.printPipe(\
+                '{0:>{digit}} {1}'.format(hex(pos), string, digit=maxDigit))
 
 
 
@@ -55672,6 +55683,8 @@ class ThreadAnalyzer(object):
                     TA.procTotData['total']['storage'][dev]['free'] += freeDiff
                 except:
                     TA.procTotData['total']['storage'][dev]['free'] = freeDiff
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -55775,6 +55788,8 @@ class ThreadAnalyzer(object):
                     TA.lifecycleData[rcomm][7] += 1
 
                 return
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -55790,6 +55805,8 @@ class ThreadAnalyzer(object):
             blkwr = long(d['blkwr'])
 
             SysMgr.blockEnable = True
+        except SystemExit:
+            sys.exit(0)
         except:
             blkrd = blkwr = long(0)
 
@@ -56004,16 +56021,19 @@ class ThreadAnalyzer(object):
             format('Timeline', 'Realtime', 'Duration', 'Event'))
         SysMgr.printPipe("%s\n" % twoLine)
 
-        for idx, event in enumerate(ThreadAnalyzer.procEventData):
+        procEventData = ThreadAnalyzer.procEventData
+        for idx, event in enumerate(procEventData):
             time = '%.2f' % float(event[0])
             name = event[1]
             rtime = '%.2f' % float(event[2])
+
             try:
                 diff = '%.2f' % \
-                    (float(ThreadAnalyzer.procEventData[idx+1][2]) - float(rtime))
+                    (float(procEventData[idx+1][2]) - float(rtime))
             except:
                 diff = '%.2f' % \
-                    (float(ThreadAnalyzer.procIntData[-1]['time']) - float(rtime))
+                    (float(procIntData[-1]['time']) - float(rtime))
+
             SysMgr.printPipe(("{0:>12} | {1:>12} | {2:>12} | {3:1}\n").\
                 format(time, rtime, diff, name))
 
