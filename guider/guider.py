@@ -3714,6 +3714,23 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convBin2Str(path):
+        try:
+            if sys.version_info < (3, 0):
+                fd = open(path, 'rb')
+            else:
+                fd = open(path, errors='ignore')
+
+            content = fd.read()
+            strList = list(re.findall("[^\x00-\x1F\x7F-\xFF]{4,}", content))
+            return strList
+        except:
+            SysMgr.printErr('Fail to convert %s to strings' % path, True)
+            return False
+
+
+
+    @staticmethod
     def getFlagBit(vlist, flist):
         num = 0
 
@@ -14572,6 +14589,65 @@ class SysMgr(object):
 
 
     @staticmethod
+    def doDump():
+        if not SysMgr.filterGroup:
+            SysMgr.printErr(\
+                "No COMM or PID with -g option")
+            sys.exit(0)
+        elif not SysMgr.inputParam:
+            SysMgr.printErr(\
+                "No memory info with -I option")
+            sys.exit(0)
+        elif not SysMgr.outPath:
+            SysMgr.printErr(\
+                "No PATH with -o option")
+            sys.exit(0)
+
+        # convert comm to pid #
+        targetList = []
+        for item in SysMgr.filterGroup:
+            targetList += SysMgr.getPids(item, isThread=False)
+        targetList = list(set(targetList))
+
+        # check target #
+        if not targetList:
+            SysMgr.printErr("No target process")
+            sys.exit(0)
+        elif len(targetList) > 1:
+            SysMgr.printErr(\
+                "Found multiple tasks [%s]" % \
+                    SysMgr.getCommList(targetList))
+            sys.exit(0)
+
+        pid = targetList[0]
+        meminfo = SysMgr.inputParam
+        output = SysMgr.outPath
+
+        # dump memory #
+        Debugger.dumpTaskMemory(pid, meminfo, output)
+
+
+
+    @staticmethod
+    def doStrings():
+        if not SysMgr.inputParam:
+            SysMgr.printErr(\
+                "No file path with -I option")
+            sys.exit(0)
+
+        SysMgr.ttyCols = 0
+        SysMgr.printStreamEnable = True
+
+        # convert binary file to string #
+        clist = UtilMgr.convBin2Str(SysMgr.inputParam)
+
+        # print strings #
+        for line in clist:
+            SysMgr.printPipe(line)
+
+
+
+    @staticmethod
     def doSetAffinity():
         isProcess = False
         SysMgr.warnEnable = True
@@ -15943,6 +16019,7 @@ class SysMgr(object):
                 'setafnt': 'Affinity',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
+                'strings': 'Text',
                 'sym2addr': 'Address',
                 'systat': 'Status',
                 'topdiff': 'Diff',
@@ -17131,6 +17208,34 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
+
+                # strings #
+                elif SysMgr.isStringsMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Print the sequences of printable characters in files
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -e  <CHARACTER>             enable options
+          p:pipe | e:encode
+    -d  <CHARACTER>             disable options
+          e:encode
+    -I  <FILE>                  set file path
+    -o  <DIR|FILE>              save output data
+    -m  <ROWS:COLS>             set terminal size
+    -v                          verbose
+                    '''
+
+                    helpStr += '''
+Examples:
+    - Print the sequences of printable characters in files
+        # {0:1} {1:1} -I a.out
+                    '''.format(cmd, mode)
 
                 # dump #
                 elif SysMgr.isDumpMode():
@@ -23944,6 +24049,15 @@ Copyright:
 
 
     @staticmethod
+    def isStringsMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'strings':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isWatchMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'watch':
             return True
@@ -24621,43 +24735,13 @@ Copyright:
         elif SysMgr.isConvertMode():
             SysMgr.doConvert()
 
+        # STRINGS MODE #
+        elif SysMgr.isStringsMode():
+            SysMgr.doStrings()
+
         # DUMP MODE #
         elif SysMgr.isDumpMode():
-            if not SysMgr.filterGroup:
-                SysMgr.printErr(\
-                    "No COMM or PID with -g option")
-                sys.exit(0)
-            elif not SysMgr.inputParam:
-                SysMgr.printErr(\
-                    "No memory info with -I option")
-                sys.exit(0)
-            elif not SysMgr.outPath:
-                SysMgr.printErr(\
-                    "No PATH with -o option")
-                sys.exit(0)
-
-            # convert comm to pid #
-            targetList = []
-            for item in SysMgr.filterGroup:
-                targetList += SysMgr.getPids(item, isThread=False)
-            targetList = list(set(targetList))
-
-            # check target #
-            if not targetList:
-                SysMgr.printErr("No target process")
-                sys.exit(0)
-            elif len(targetList) > 1:
-                SysMgr.printErr(\
-                    "Found multiple tasks [%s]" % \
-                        SysMgr.getCommList(targetList))
-                sys.exit(0)
-
-            pid = targetList[0]
-            meminfo = SysMgr.inputParam
-            output = SysMgr.outPath
-
-            # dump memory #
-            Debugger.dumpTaskMemory(pid, meminfo, output)
+            SysMgr.doDump()
 
         # STRACE MODE #
         elif SysMgr.isStraceMode():
