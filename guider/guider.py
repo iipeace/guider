@@ -16163,6 +16163,7 @@ Examples:
 Commands:
     acc [NAME:ADDR|REG|VAL]
     dist [NAME:ADDR|REG|VAL]
+    dump [NAME|ADDR:FILE]
     exec [CMD]
     exit
     filter [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
@@ -16249,6 +16250,12 @@ Examples:
 
     - Handle write function calls as a immediate return point for a specific value
         # {0:1} {1:1} -g a.out -c write\\|ret:3
+
+    - Handle write function calls as a dump point for a specific memory range
+        # {0:1} {1:1} -g a.out -c write\\|dump:stack:stack.out
+
+    - Handle write function calls as a dump point for a specific memory range
+        # {0:1} {1:1} -g a.out -c write\\|dump:0x1234-0x4567:dump.out
 
     - Handle write function calls as a print return point
         # {0:1} {1:1} -g a.out -c write\\|getret
@@ -38265,6 +38272,8 @@ struct cmsghdr {
                 cmdformat = "NAME:ADDR|REG|VAL"
             elif cmd == 'dist':
                 cmdformat = "NAME:ADDR|REG|VAL"
+            elif cmd == 'dump':
+                cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
                 cmdformat = ""
             elif cmd == 'stop':
@@ -38524,6 +38533,28 @@ struct cmsghdr {
                         "Fail to write '%s' to %s" % \
                             (val, hex(addr).rstrip('L')))
                     return repeat
+
+            elif cmd == 'dump':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                if len(memset) != 2:
+                    printCmdErr(cmdval, cmd)
+
+                # dump memory #
+                meminfo, output = memset
+                size = self.dumpMemory(meminfo, output, verb=False)
+                if size == 0:
+                    res = 'fail'
+                else:
+                    res = 'success'
+
+                SysMgr.addPrint(\
+                    "\n[%s] %s(%s)->%s (%s)" % \
+                        (cmdstr, meminfo, \
+                            UtilMgr.convSize2Unit(size), output, res))
 
             elif cmd == 'acc' or cmd == 'dist':
                 if len(cmdset) == 1:
@@ -44220,7 +44251,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             dobj = Debugger(pid=pid)
             if not dobj:
                 raise Exception("N/A")
-            dobj.dumpMemory(meminfo, output)
+            ret = dobj.dumpMemory(meminfo, output)
+            if ret == 0:
+                raise Exception('N/A')
         except SystemExit:
             sys.exit(0)
         except:
@@ -44588,7 +44621,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def dumpMemory(self, meminfo, output):
+    def dumpMemory(self, meminfo, output, verb=True):
         if meminfo == 'heap' or meminfo == 'stack':
             meminfo = '[%s]' % meminfo
 
@@ -44602,29 +44635,30 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 SysMgr.printErr(\
                     "Fail to search %s on memory map for %s(%s)" % \
                         (meminfo, self.comm, self.pid))
-                return
+                return 0
 
         # convert range #
         start = UtilMgr.convStr2Num(ret[0])
         if not start:
-            return
+            return 0
         end = UtilMgr.convStr2Num(ret[1])
         if not end:
-            return
+            return 0
         size = end - start
 
-        SysMgr.printInfo(\
-            "start dumping memory %s [%s-%s] from %s(%s)" % \
-                (UtilMgr.convSize2Unit(size), \
-                    hex(start).rstrip('L'), hex(start+size).rstrip('L'),
-                    self.comm, self.pid))
+        if verb:
+            SysMgr.printInfo(\
+                "start dumping memory %s [%s-%s] from %s(%s)" % \
+                    (UtilMgr.convSize2Unit(size), \
+                        hex(start).rstrip('L'), hex(start+size).rstrip('L'),
+                        self.comm, self.pid))
 
         # open output file #
         try:
             fd = open(output, 'wb')
         except:
             SysMgr.printOpenErr(output)
-            return
+            return 0
 
         # define buffer and chunk size #
         offset = start
@@ -44645,17 +44679,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             # write memory to file #
             fd.write(buf)
 
-            UtilMgr.printProgress(total, size)
+            if verb:
+                UtilMgr.printProgress(total, size)
 
             offset += chunk
             total += len(buf)
 
         # close output file for sync #
-        SysMgr.printStat(\
-            "start syncing %s data to %s" % \
-                (UtilMgr.convSize2Unit(total), output))
+        if verb:
+            SysMgr.printStat(\
+                "start syncing %s data to %s" % \
+                    (UtilMgr.convSize2Unit(total), output))
 
         fd.close()
+
+        return total
 
 
 
