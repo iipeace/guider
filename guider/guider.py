@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200818"
+__revision__ = "200820"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -354,6 +354,7 @@ class ConfigMgr(object):
 
     # Define clone flags type #
     CLONE_TYPE = {
+        0x000000ff: "CSIGNAL",
         0x00000100: "CLONE_VM",
         0x00000200: "CLONE_FS",
         0x00000400: "CLONE_FILES",
@@ -373,6 +374,10 @@ class ConfigMgr(object):
         0x02000000: "CLONE_STOPPED",
         0x04000000: "CLONE_NEWUTS",
         0x08000000: "CLONE_NEWIPC",
+        0x10000000: "CLONE_NEWUSER",
+        0x20000000: "CLONE_NEWPID",
+        0x40000000: "CLONE_NEWNET",
+        0x80000000: "CLONE_IO",
     }
 
     # Define open flags type #
@@ -642,8 +647,8 @@ class ConfigMgr(object):
             ("struct old_timespec32 *", "tp"),
         )),
         "clone": ("long", (
-            ("unsigned long", "flags"),
             ("unsigned long", "child_stack"),
+            ("unsigned long", "flags"),
             ("int *", "ptid"),
             ("int *", "ctid"),
             ("unsigned long", "regs"),
@@ -4333,6 +4338,20 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return
+
+
+
+    @staticmethod
+    def printFile(path):
+        try:
+            with open(path, 'r') as fd:
+                for line in fd:
+                    print(line)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "Fail to print %s" % path, reason=True)
 
 
 
@@ -13689,6 +13708,7 @@ class SysMgr(object):
     # flags #
     irqEnable = False
     cpuEnable = True
+    cloneEnable = True
     latEnable = cpuEnable
     gpuEnable = True
     memEnable = False
@@ -14646,8 +14666,14 @@ class SysMgr(object):
         SysMgr.ttyCols = 0
         SysMgr.printStreamEnable = True
 
+        SysMgr.printStat('start reading %s...' % SysMgr.inputParam)
+
         # convert binary file to string #
         clist = UtilMgr.convBin2Str(SysMgr.inputParam, pos=True)
+        if not clist:
+            SysMgr.printErr("No available string")
+            return
+
         lastPos = sorted(clist.values())[-1]
         maxDigit = len(hex(lastPos))
 
@@ -16145,7 +16171,7 @@ Options:
             u:uss | w:wss | W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage
-            c:cpu | e:encode | G:gpu | L:log
+            c:cpu | C:clone | e:encode | G:gpu | L:log
             p:print | t:truncate | T:task
                                     '''
 
@@ -17304,7 +17330,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          C:clone | e:encode
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17356,7 +17382,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          C:clone | e:encode
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17412,7 +17438,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          C:clone | e:encode
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set file
@@ -17494,7 +17520,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          C:clone | e:encode
     -u                          run in the background
     -g  <COMM|TID{:FILE}>       set filter
     -I  <COMMAND>               set command
@@ -23034,6 +23060,9 @@ Copyright:
                 if 'c' in options:
                     SysMgr.cpuEnable = False
 
+                if 'C' in options:
+                    SysMgr.cloneEnable = False
+
                 if 't' in options:
                     SysMgr.truncEnable = False
 
@@ -26392,13 +26421,14 @@ Copyright:
             if chPgid:
                 os.setpgid(0, 0)
 
-            if SysMgr.fileForPrint:
-                try:
-                    SysMgr.fileForPrint.close()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+            # close fd for output #
+            try:
+                SysMgr.fileForPrint.close()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+            finally:
                 SysMgr.fileForPrint = None
 
             # Guider #
@@ -31735,7 +31765,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to execute a exit handler", True)
+                    "Fail to execute %s" % func, True)
 
         # destroy objects registered #
         del SysMgr.exitFuncList
@@ -33154,11 +33184,15 @@ Copyright:
         try:
             SysMgr.shmFd.seek(0)
             data = SysMgr.shmFd.readlines()[1:]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 path = '%s/sysvipc/shm' % SysMgr.procPath
                 SysMgr.shmFd = open(path, 'r')
                 data = SysMgr.shmFd.readlines()[1:]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(path)
                 return
@@ -33178,9 +33212,14 @@ Copyright:
                 key, shmid, perms, size, cpid, lpid, \
                     nattch, uid, gid, cuid, cgid, \
                     atime, dtime, ctime, rss, swap = \
-                        line.split()
+                        line.split()[:16]
+            except SystemExit:
+                sys.exit(0)
             except:
-                pass
+                continue
+
+            if key == 'key':
+                continue
 
             shmData = self.ipcData['shm'][shmid] = dict()
             shmData['key'] = key
@@ -41154,7 +41193,10 @@ struct cmsghdr {
         self.last = current
 
         # update comm #
+        origComm = self.comm
         self.comm = SysMgr.getComm(self.pid, cache=True)
+        if not self.comm:
+            self.comm = origComm
 
         # print summary table #
         if self.mode == 'syscall':
@@ -41396,7 +41438,7 @@ struct cmsghdr {
         self.pmap = FileAnalyzer.getProcMapInfo(\
             self.pid, self.mapFd, onlyExec=True)
         if not self.pmap or \
-            self.pmap == self.prevPmap:
+            self.prevPmap == self.pmap:
             return False
         else:
             self.prevPmap = self.pmap
@@ -41466,9 +41508,14 @@ struct cmsghdr {
         # get file name by address #
         fname = self.getFileFastFromMap(vaddr)
         if not fname:
+            # set variable to rescan process map #
+            self.needMapScan = True
+
+            # print error message and return #
+            procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn(\
-                'Fail to get file name via addr %s' % \
-                    hex(vaddr).rstrip('L'))
+                'Fail to get file name via addr %s for %s' % \
+                    (hex(vaddr).rstrip('L'), procInfo))
             return None
 
         vstart = self.pmap[fname]['vstart']
@@ -41480,10 +41527,12 @@ struct cmsghdr {
             # set variable to rescan process map #
             self.needMapScan = True
 
+            # print error message and return #
+            procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn((\
-                'Fail to get offset in %s via %s '
+                'Fail to get offset in %s via %s for %s '
                 'because of wrong memory map') % \
-                    (fname, hex(vaddr).rstrip('L')))
+                    (fname, hex(vaddr).rstrip('L'), procInfo))
             return ['??', fname, '??', '??', '??']
 
         # get ELF object #
@@ -41919,24 +41968,9 @@ struct cmsghdr {
 
 
     def checkInterval(self):
-        while 1:
-            # continue target thread #
-            if self.cont(check=True) < 0:
-                sys.exit(0)
-
-            # handle clone event #
-            try:
-                rid, ostat = os.waitpid(self.pid, os.WNOHANG)
-                if self.isCloned(ostat) or \
-                    self.isForked(ostat):
-                    self.handoverNewTarget()
-                    continue
-                else:
-                    break
-            except SystemExit:
-                sys.exit(0)
-            except:
-                break
+        # continue target thread #
+        if self.cont(check=True) < 0:
+            sys.exit(0)
 
         # wait for sampling time #
         time.sleep(self.sampleTime)
@@ -42576,23 +42610,20 @@ struct cmsghdr {
             sys.exit(0)
 
         # check previous function boundary #
-        if self.prevCallInfo:
-            if (not self.isRealtime and \
-                self.pc >= self.prevCallInfo[2] and \
-                self.pc <= self.prevCallInfo[3]) or \
-                (self.isRealtime and \
-                    self.pc == self.prevCallInfo[5]):
+        if self.prevCallInfo and \
+            ((not self.isRealtime and \
+            self.prevCallInfo[2] <= self.pc <= self.prevCallInfo[3]) or \
+            (self.isRealtime and self.pc == self.prevCallInfo[5])):
+            # add sample #
+            if self.isRealtime:
+                self.addSample(\
+                    self.prevCallInfo[0], self.prevCallInfo[1], \
+                    realtime=True, bt=self.prevCallInfo[4])
+            elif SysMgr.outPath:
+                self.addSample(\
+                    self.prevCallInfo[0], self.prevCallInfo[1])
 
-                # add sample #
-                if self.isRealtime:
-                    self.addSample(\
-                        self.prevCallInfo[0], self.prevCallInfo[1], \
-                        realtime=True, bt=self.prevCallInfo[4])
-                elif SysMgr.outPath:
-                    self.addSample(\
-                        self.prevCallInfo[0], self.prevCallInfo[1])
-
-                return
+            return
 
         # get symbol info #
         ret = self.getSymbolInfo(self.pc)
@@ -43358,7 +43389,7 @@ struct cmsghdr {
         else:
             chMid = False
 
-        # print event info #
+        # print clone event info #
         SysMgr.printInfo(\
             '%s(%s) is created by %s(%s)' % \
                 (self.comm, tid, self.comm, self.pid))
@@ -43419,9 +43450,40 @@ struct cmsghdr {
 
 
 
+    def restartTrace(self):
+        # print exec event info #
+        cmdline = SysMgr.getCmdline(self.pid)
+        SysMgr.printInfo(\
+            '%s(%s) executed "%s"' %
+                (self.comm, self.pid, cmdline))
+
+        # finish 
+        Debugger.printSummary(self)
+        SysMgr.exitFuncList = []
+
+        # close fd for output #
+        try:
+            SysMgr.fileForPrint.close()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        finally:
+            SysMgr.fileForPrint = None
+
+        # start new tracing #
+        dobj = Debugger(pid=self.pid, attach=False)
+        dobj.attached = True
+        dobj.trace(mode=self.mode, multi=self.multi)
+
+        sys.exit(0)
+
+
+
     def initValues(self):
         # default info #
         self.traceEventList = [\
+            'PTRACE_O_TRACEEXEC',\
             'PTRACE_O_TRACESYSGOOD',\
             'PTRACE_O_TRACECLONE',
             'PTRACE_O_TRACEFORK',
@@ -43555,8 +43617,7 @@ struct cmsghdr {
             rid, ostat = self.waitpid()
 
             # handle clone event #
-            if self.isCloned(ostat) or \
-                self.isForked(ostat):
+            if self.isCloned(ostat) or self.isForked(ostat):
                 pid = self.handoverNewTarget()
                 if pid > 0:
                     continue
@@ -43612,17 +43673,16 @@ struct cmsghdr {
                 # update time #
                 self.current = time.time()
 
-                if not SysMgr.optStrace:
-                    # handle clone event #
-                    if self.isCloned(ostat):
+                # handle clone event #
+                if not SysMgr.optStrace and SysMgr.cloneEnable:
+                    if self.isCloned(ostat) or self.isForked(ostat):
                         self.handoverNewTarget()
                         continue
 
-                    # handle fork event #
-                    if self.isForked(ostat):
-                        if self.mode == 'syscall':
-                            self.handoverNewTarget()
-                        continue
+                # handle exec event #
+                if self.isExeced(ostat):
+                    self.restartTrace()
+                    sys.exit(0)
 
                 # get status of process #
                 stat = self.getStatus(ostat)
@@ -43771,7 +43831,7 @@ struct cmsghdr {
             exceptBpList={}, targetBpList={}, targetBpFileList={}):
 
         # index variables #
-        self.sigTrapFlag = signal.SIGTRAP | \
+        self.sigExecFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
         self.sigCloneFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
@@ -44447,6 +44507,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
+    def isExeced(self, status):
+        return (status >> 8 == self.sigExecFlag)
+
+
+
     def isCloned(self, status):
         return (status >> 8 == self.sigCloneFlag)
 
@@ -44779,6 +44844,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             offset += chunk
             total += len(buf)
+
+        if verb:
+            UtilMgr.deleteProgress()
 
         # close output file for sync #
         if verb:
