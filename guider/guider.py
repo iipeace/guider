@@ -13553,6 +13553,7 @@ class SysMgr(object):
     libcppPath = 'libstdc++'
     libsystemdPath = 'libsystemd'
     libglesPath = 'libGLESv2'
+    ldCachePath = '/etc/ld.so.cache'
     libdemanglePath = libcppPath
     eventLogPath = None
     inputFile = None
@@ -14445,8 +14446,11 @@ class SysMgr(object):
     @staticmethod
     def loadLibCache():
         try:
+            if not os.path.exists(SysMgr.ldCachePath):
+                raise Exception("No %s" % SysMgr.ldCachePath)
+
             libDict = {}
-            libList = UtilMgr.convBin2Str('/etc/ld.so.cache')
+            libList = UtilMgr.convBin2Str(SysMgr.ldCachePath)
             for idx, item in enumerate(libList):
                 try:
                     if libList[idx+1].startswith('/'):
@@ -20478,7 +20482,7 @@ Copyright:
 
 
     @staticmethod
-    def getVdso(debug=False):
+    def getVdso(elf=True, debug=False):
         # get address of vdso object #
         addr = SysMgr.getauxval("AT_SYSINFO_EHDR")
         if not addr:
@@ -20489,6 +20493,8 @@ Copyright:
         if not fd:
             SysMgr.printErr("Fail to create memory file for vdso object")
             return None
+        elif not elf:
+            return fd
 
         # return vDSO #
         obj = ElfAnalyzer(path='vdso', fd=fd, debug=debug)
@@ -28533,7 +28539,9 @@ Copyright:
             if SysMgr.showAll:
                 fileList.sort( \
                     key=lambda name: os.path.getsize( \
-                        '%s/%s' % (parentPath, name)), reverse=True)
+                        '%s/%s' % (parentPath, name)) \
+                        if os.path.exists('%s/%s' % (parentPath, name)) else 0, \
+                            reverse=True)
             # sort by type #
             else:
                 fileList.sort( \
@@ -28558,7 +28566,15 @@ Copyright:
                     # update prefix #
                     tmpPrefix = prefix + "|  "
 
-                    subdirs = os.listdir(fullPath)
+                    try:
+                        subdirs = os.listdir(fullPath)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printWarn(\
+                            "Fail to access %s" % fullPath, \
+                            always=True, reason=True)
+                        continue
 
                     rlist = recurse( \
                         fullPath, subdirs, tmpPrefix, \
@@ -28576,6 +28592,8 @@ Copyright:
                         totalSize += size
                         size = ' <%s>' % \
                                UtilMgr.convSize2Unit(size)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printWarn( \
                             'Fail to get size of %s' % fullPath, reason=True)
@@ -28627,6 +28645,7 @@ Copyright:
             result = [abspath]
             recurse(path, os.listdir(path), "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
+            UtilMgr.deleteProgress()
             SysMgr.printStat( \
                 r"start traversing dirs from %s..." % abspath)
             SysMgr.printPipe(output)
@@ -39673,10 +39692,16 @@ struct cmsghdr {
 
     def loadInst(self, fname, offset):
         try:
-            fobj = SysMgr.getFd(fname)
+            if fname == 'vdso':
+                fobj = SysMgr.getVdso(elf=False)
+            else:
+                fobj = SysMgr.getFd(fname)
+
             if not fobj:
                 raise Exception('N/A')
+
             fobj.seek(offset)
+
             return fobj.read(ConfigMgr.wordSize)
         except SystemExit:
             sys.exit(0)
@@ -40656,7 +40681,7 @@ struct cmsghdr {
             self.targetBpList.update(dict.fromkeys(funcFilter, 0))
 
         # add per-process breakpoints #
-        self.injectBpList(\
+        return self.injectBpList(\
             symlist=funcFilter, binlist=fileList, verb=verb)
 
 
@@ -41024,6 +41049,13 @@ struct cmsghdr {
             if argname == 'flags':
                 return UtilMgr.getFlagString(\
                     value, ConfigMgr.CLONE_TYPE)
+
+        if syscall == 'prctl':
+            if argname == 'option':
+                try:
+                    return ConfigMgr.PRCTL_TYPE[value]
+                except:
+                    return value
 
         if argname == 'behavior' and \
             syscall.startswith('madvise'):
@@ -42614,7 +42646,6 @@ struct cmsghdr {
             ((not self.isRealtime and \
             self.prevCallInfo[2] <= self.pc <= self.prevCallInfo[3]) or \
             (self.isRealtime and self.pc == self.prevCallInfo[5])):
-            # add sample #
             if self.isRealtime:
                 self.addSample(\
                     self.prevCallInfo[0], self.prevCallInfo[1], \
@@ -42821,6 +42852,7 @@ struct cmsghdr {
             name == 'getpeername' or \
             name == 'gettimeofday' or \
             name == 'getsockname' or \
+            name == 'clone' or \
             name == 'process_vm_readv':
             return True
         else:
@@ -43394,6 +43426,9 @@ struct cmsghdr {
             '%s(%s) is created by %s(%s)' % \
                 (self.comm, tid, self.comm, self.pid))
 
+        # create a pipe #
+        rd, wr = os.pipe()
+
         # create a new tracer to trace the child task #
         pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
         # parent tracee #
@@ -43408,11 +43443,20 @@ struct cmsghdr {
             if self.attach(verb=True) < 0:
                 sys.exit(0)
 
-            # wait for the child task #
-            time.sleep(SysMgr.waitDelay)
+            # wait for tracer of child task #
+            try:
+                os.close(wr)
+                os.fdopen(rd, 'r').read()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Fail to wait for tracer of %s(%s)" % \
+                        (self.comm, tid), reason=True)
         # child tracee #
         elif pid == 0:
             # update the child PID #
+            origPid = self.pid
             self.pid = tid
 
             # attach to the child task #
@@ -43432,6 +43476,17 @@ struct cmsghdr {
             self.initValues()
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
+
+            # notify to tracer of parent task #
+            try:
+                os.close(rd)
+                os.fdopen(wr, 'w').write('0')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "Fail to notify initialization to %s(%s)" % \
+                        (self.comm, origPid), reason=True)
         else:
             return
 
@@ -43457,7 +43512,7 @@ struct cmsghdr {
             '%s(%s) executed "%s"' %
                 (self.comm, self.pid, cmdline))
 
-        # finish 
+        # reset environment #
         Debugger.printSummary(self)
         SysMgr.exitFuncList = []
 
@@ -43471,9 +43526,22 @@ struct cmsghdr {
         finally:
             SysMgr.fileForPrint = None
 
-        # start new tracing #
-        dobj = Debugger(pid=self.pid, attach=False)
+        # create a new controller #
+        dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
         dobj.attached = True
+
+        # load symbols and inject breakpoints #
+        if (dobj.mode != 'syscall' and dobj.mode != 'signal') or \
+            SysMgr.funcDepth > 0:
+            if dobj.loadSymbols():
+                dobj.updateBpList()
+
+        # continue target #
+        if dobj.isStopped():
+            if dobj.cont(check=True):
+                sys.exit(0)
+
+        # start new tracing #
         dobj.trace(mode=self.mode, multi=self.multi)
 
         sys.exit(0)
@@ -43708,7 +43776,6 @@ struct cmsghdr {
                                 sys.exit(0)
 
                         self.status = 'enter'
-                        continue
 
                     # usercall / breakcall #
                     elif self.mode == 'break' or self.mode == 'inst':
@@ -43721,12 +43788,9 @@ struct cmsghdr {
 
                 # syscall #
                 elif stat == signal.SIGTRAP | 0x80:
-                    # filter syscall #
-                    if self.mode != 'syscall':
-                        continue
-
                     # interprete syscall context #
-                    self.handleSyscall()
+                    if self.mode == 'syscall':
+                        self.handleSyscall()
 
                 # stop signal #
                 elif stat == signal.SIGSTOP:
@@ -43739,18 +43803,14 @@ struct cmsghdr {
                         'Blocked %s(%s) because of %s' % \
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
+                    # continue #
                     if self.mode == 'break':
                         if self.cont(check=True) < 0:
                             sys.exit(0)
-                        continue
-
                     # set up trap again #
-                    if self.mode == 'syscall':
-                        self.ptraceEvent(['PTRACE_O_TRACESYSGOOD'])
-
+                    elif self.mode == 'syscall':
+                        self.ptraceEvent(self.traceEventList)
                         self.ptrace(self.cmd)
-
-                    continue
 
                 # kill / segv signal #
                 elif SysMgr.isTermSignal(stat):
@@ -43776,7 +43836,6 @@ struct cmsghdr {
                     self.cont(sig=stat)
                     if self.cont(check=True, sig=stat) < 0:
                         sys.exit(0)
-                    continue
 
                 # exit #
                 elif stat == -1:
@@ -43807,22 +43866,19 @@ struct cmsghdr {
             except SystemExit:
                 return
             except:
-                if self.isAlive():
-                    SysMgr.printWarn(\
-                        'Detected %s(%s) with error' % \
-                            (self.comm, self.pid), reason=True)
+                if not self.isAlive():
+                    SysMgr.printErr(\
+                        "Terminated tracing %s(%s)" % \
+                            (self.comm, self.pid))
+                    return
 
-                    if self.mode == 'break':
-                        if self.cont(check=True) < 0:
-                            sys.exit(0)
+                SysMgr.printWarn(\
+                    'Detected %s(%s) with error' % \
+                        (self.comm, self.pid), reason=True)
 
-                    continue
-
-                SysMgr.printErr(\
-                    "Terminated tracing %s(%s)" % \
-                        (self.comm, self.pid))
-
-                return
+                if self.mode == 'break':
+                    if self.cont(check=True) < 0:
+                        sys.exit(0)
 
 
 
@@ -56089,6 +56145,7 @@ class ThreadAnalyzer(object):
             format('Timeline', 'Realtime', 'Duration', 'Event'))
         SysMgr.printPipe("%s\n" % twoLine)
 
+        procIntData = ThreadAnalyzer.procIntData
         procEventData = ThreadAnalyzer.procEventData
         for idx, event in enumerate(procEventData):
             time = '%.2f' % float(event[0])
