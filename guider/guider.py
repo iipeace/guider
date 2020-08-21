@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200820"
+__revision__ = "200822"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13514,6 +13514,7 @@ class SysMgr(object):
     prio = None
     funcDepth = long(0)
     maxPid = 32768
+    maxRdCnt = 1024
     pidDigit = 5
     stderr = sys.stderr
     packetSize = 32767
@@ -13710,6 +13711,7 @@ class SysMgr(object):
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
+    execEnable = True
     latEnable = cpuEnable
     gpuEnable = True
     memEnable = False
@@ -16175,8 +16177,8 @@ Options:
             u:uss | w:wss | W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage
-            c:cpu | C:clone | e:encode | G:gpu | L:log
-            p:print | t:truncate | T:task
+            c:cpu | C:clone | e:encode | E:exec | G:gpu
+            L:log | p:print | t:truncate | T:task
                                     '''
 
                 drawSubStr = '''
@@ -17334,7 +17336,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode
+          C:clone | e:encode | E:exec
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17386,7 +17388,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode
+          C:clone | e:encode | E:exec
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17442,7 +17444,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode
+          C:clone | e:encode | E:exec
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set file
@@ -17524,7 +17526,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode
+          C:clone | e:encode | E:exec
     -u                          run in the background
     -g  <COMM|TID{:FILE}>       set filter
     -I  <COMMAND>               set command
@@ -23069,6 +23071,9 @@ Copyright:
                 if 'C' in options:
                     SysMgr.cloneEnable = False
 
+                if 'E' in options:
+                    SysMgr.execEnable = False
+
                 if 't' in options:
                     SysMgr.truncEnable = False
 
@@ -28328,7 +28333,8 @@ Copyright:
                 Debugger.hookFunc(pid, SysMgr.customCmd)
             else:
                 # syscall / signal / remote #
-                dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                dobj = Debugger(\
+                    pid=pid, execCmd=execCmd, attach=False, mode=mode)
                 dobj.trace(mode=mode, wait=wait, multi=multi)
         except SystemExit:
             sys.exit(0)
@@ -37983,6 +37989,8 @@ struct cmsghdr {
         # execute #
         elif self.execCmd:
             self.execute(self.execCmd)
+            if mode == 'signal':
+                self.attach()
         # ready #
         else:
             self.pid = None
@@ -40782,10 +40790,31 @@ struct cmsghdr {
 
 
 
-    def readString(self, addr, chunk=256):
+    def readString(self, addr, chunk=256, maxsize=sys.maxsize):
+        cnt = 0
+        maxCnt = SysMgr.maxRdCnt
         ret = b''
         while 1:
             string = self.readMem(addr, chunk)
+
+            # check read count #
+            cnt += 1
+            if cnt > maxCnt:
+                SysMgr.printWarn(\
+                    'Read %s time from %s for %s(%s)' % \
+                        (UtilMgr.convNum(cnt), hex(long(addr)), \
+                            self.comm, self.pid), True)
+                maxCnt *= 2
+
+            # check string size #
+            if len(ret) > maxsize:
+                SysMgr.printWarn(\
+                    'Exceed maximum size %s to read string for %s(%s)' % \
+                        (UtilMgr.convSize2Unit(maxsize), \
+                            self.comm, self.pid), True)
+                return ret
+
+            # read string from target #
             try:
                 idx = string.index(b'\0')
                 ret += string[:idx]
@@ -41007,8 +41036,12 @@ struct cmsghdr {
 
         if ref and argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
-            # toDo: add more argnames #
-            return self.readString(self.values[seq])
+            addr = self.values[seq]
+            # redundant call after execve #
+            if addr == 0:
+                return value
+            else:
+                return self.readString(addr)
 
         if syscall == "socketcall":
             if argname == "call":
@@ -41262,6 +41295,7 @@ struct cmsghdr {
         # add CPU time info #
         self.cpuUsageList.append([ttime, utime, stime])
 
+        # calculate average for CPU usage #
         if not SysMgr.showAll and SysMgr.cpuEnable:
             floatTotalUsage = ttime / 100
             floatUserUsage = utime / 100
@@ -41644,7 +41678,9 @@ struct cmsghdr {
 
 
     def printContext(\
-        self, regs=True, bt=True, deref=True, args=None, newline=False):
+        self, regs=True, bt=True, sig=True, deref=True, \
+        args=None, newline=False):
+
         if not regs and not bt:
             return
 
@@ -41699,14 +41735,17 @@ struct cmsghdr {
             SysMgr.addPrint('%s\n' % twoLine)
 
         # print signal #
-        try:
-            signame = ConfigMgr.SIG_LIST[long(self.lastSig)]
-            SysMgr.addPrint(\
-                '\tSignal Info [%s]\n%s\n' % (taskInfo, oneLine))
-            SysMgr.addPrint(\
-                '%s: %s\n%s\n' % (self.lastSig, signame, twoLine))
-        except:
-            pass
+        if sig:
+            try:
+                signame = ConfigMgr.SIG_LIST[long(self.lastSig)]
+                SysMgr.addPrint(\
+                    '\tSignal Info [%s]\n%s\n' % (taskInfo, oneLine))
+                SysMgr.addPrint(\
+                    '%s: %s\n%s\n' % (self.lastSig, signame, twoLine))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
         # print backtrace #
         if bt:
@@ -41930,6 +41969,8 @@ struct cmsghdr {
             try:
                 if not bt:
                     bt = self.getBacktrace()
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -42632,7 +42673,7 @@ struct cmsghdr {
             if not self.updateRegs():
                 sys.exit(0)
 
-            self.printContext(regs=False)
+            self.printContext(regs=False, sig=False)
 
 
 
@@ -43537,14 +43578,12 @@ struct cmsghdr {
                 dobj.updateBpList()
 
         # continue target #
-        if dobj.isStopped():
+        if dobj.mode != 'syscall' and dobj.isStopped():
             if dobj.cont(check=True):
                 sys.exit(0)
 
         # start new tracing #
         dobj.trace(mode=self.mode, multi=self.multi)
-
-        sys.exit(0)
 
 
 
@@ -43749,7 +43788,12 @@ struct cmsghdr {
 
                 # handle exec event #
                 if self.isExeced(ostat):
-                    self.restartTrace()
+                    if SysMgr.execEnable:
+                        self.restartTrace()
+                    else:
+                        SysMgr.printErr(\
+                            'Terminated %s(%s) because of exec' % \
+                                (self.comm, self.pid))
                     sys.exit(0)
 
                 # get status of process #
@@ -43804,7 +43848,7 @@ struct cmsghdr {
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
-                    if self.mode == 'break':
+                    if self.mode == 'break' or self.mode == 'signal':
                         if self.cont(check=True) < 0:
                             sys.exit(0)
                     # set up trap again #
@@ -43829,14 +43873,6 @@ struct cmsghdr {
 
                     sys.exit(0)
 
-                # handle signal #
-                elif self.mode == 'signal':
-                    self.handleSignal(stat)
-
-                    self.cont(sig=stat)
-                    if self.cont(check=True, sig=stat) < 0:
-                        sys.exit(0)
-
                 # exit #
                 elif stat == -1:
                     if self.status == 'exit':
@@ -43849,6 +43885,14 @@ struct cmsghdr {
                         SysMgr.waitEvent()
 
                     sys.exit(0)
+
+                # handle signal #
+                elif self.mode == 'signal':
+                    self.handleSignal(stat)
+
+                    self.cont(sig=stat)
+                    if self.cont(check=True, sig=stat) < 0:
+                        sys.exit(0)
 
                 # other #
                 else:
@@ -44024,7 +44068,7 @@ struct cmsghdr {
 
         # set trap event type for the new target #
         else:
-            self.ptraceEvent(['PTRACE_O_TRACEEXEC'])
+            self.ptraceEvent(self.traceEventList)
             self.status = 'ready'
 
         # select trap command #
@@ -65277,11 +65321,10 @@ class ThreadAnalyzer(object):
         reportElasticData = ""
 
         metricsetFields = {
-            'metricset':
-                {
-                    'module': 'system',
-                    'name'  : ''
-                }
+            'metricset': {
+                'module': 'system',
+                'name'  : ''
+            }
         }
 
         # set beatstart flag for syncing timestamp
@@ -65291,13 +65334,12 @@ class ThreadAnalyzer(object):
             self.beatStart = True
 
         beatFields = {
-            'beat':
-                {
-                    'name'      : __module__,
-                    'hostname'  : SysMgr.localServObj.ip,
-                    'version'   : __version__,
-                    'beatstart' : self.beatStart
-                }
+            'beat': {
+                'name'      : __module__,
+                'hostname'  : SysMgr.localServObj.ip,
+                'version'   : __version__,
+                'beatstart' : self.beatStart
+            }
         }
 
 
@@ -65308,17 +65350,16 @@ class ThreadAnalyzer(object):
 
         systemCpuFields = {
             'system': {
-                'cpu':
-                    {
-                        'total' : { 'pct': cpuData['total'] },
-                        'idle'  : { 'pct': cpuData['idle'] },
-                        'user'  : { 'pct': cpuData['user'] },
-                        'kernel': { 'pct': cpuData['kernel'] },
-                        'irq'   : { 'pct': cpuData['irq'] },
-                        'iowait': { 'pct': cpuData['iowait'] },
-                        'cores' : cpuData['nrCore']
-                    }
+                'cpu': {
+                    'total' : { 'pct': cpuData['total'] },
+                    'idle'  : { 'pct': cpuData['idle'] },
+                    'user'  : { 'pct': cpuData['user'] },
+                    'kernel': { 'pct': cpuData['kernel'] },
+                    'irq'   : { 'pct': cpuData['irq'] },
+                    'iowait': { 'pct': cpuData['iowait'] },
+                    'cores' : cpuData['nrCore']
                 }
+            }
         }
 
         # merge CPU data dictionary #
