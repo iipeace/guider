@@ -15075,6 +15075,35 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getPyLibPath():
+        try:
+            exePath = SysMgr.getExeName(SysMgr.pid)
+            exeName = os.path.basename(exePath)
+            libName = 'lib%s' % exeName
+            return SysMgr.loadLib(libName)._name
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(\
+                "Fail to get path for python library", reason=True)
+
+
+
+    @staticmethod
+    def getExeName(pid):
+        exePath = '%s/%s/exe' % (SysMgr.procPath, pid)
+        try:
+            return os.readlink(exePath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(\
+                "Fail to get binary path for %s process" % pid, reason=True)
+            return None
+
+
+
+    @staticmethod
     def getCmdline(pid, retList=False):
         cmdlinePath = \
             '%s/%s/cmdline' % (SysMgr.procPath, pid)
