@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200822"
+__revision__ = "200823"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3889,9 +3889,12 @@ class UtilMgr(object):
         elif type(value) is str:
             if value.isdigit():
                 return True
+
             try:
-                long(value, 16)
-                return True
+                if value.startswith('0x') and long(value, 16):
+                    return True
+                else:
+                    return False
             except SystemExit:
                 sys.exit(0)
             except:
@@ -16394,8 +16397,8 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|print
 
     - Handle write function calls as a variable print point
-        # {0:1} {1:1} -g a.out -c write\\|\\|save:VAR1\\|print:VAR1\\|save:VAR2:123
-        # {0:1} {1:1} -g a.out -c write\\|\\|save:ARG1:1:arg\\|print:VAR1
+        # {0:1} {1:1} -g a.out -c write\\|save:VAR1\\|print:VAR1\\|save:VAR2:123
+        # {0:1} {1:1} -g a.out -c write\\|save:ARG1:1:arg\\|print:VAR1
 
     - Print value of PATH environment variable
         # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
@@ -17477,6 +17480,7 @@ Options:
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
     -R  <TIME>                  set timer
+    -i  <REPEAT>                set repeat count
     -c  <SYM|ADDR{:CMD}>        set command
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              save output data
@@ -17485,7 +17489,12 @@ Options:
     -v                          verbose
                     '''
 
-                    helpStr += brkExamStr
+                    remoteExamStr = '''
+    - print context repeatedly 5 times
+        # {0:1} {1:1} -g a.out -c print -i 5
+                    '''
+
+                    helpStr += brkExamStr + remoteExamStr
 
                 # hook #
                 elif SysMgr.isHookMode():
@@ -21618,9 +21627,10 @@ Copyright:
                 if val != '':
                     targetStr = '%s%s' % (targetStr, val)
             return targetStr
-        elif targetType is list and union:
+        elif targetType is list:
             # remove redundant values #
-            targetList = list(set(targetList))
+            if union:
+                targetList = list(set(targetList))
 
             # remove empty values #
             newList = []
@@ -39021,7 +39031,7 @@ struct cmsghdr {
                     argStr = '()'
 
                 # get address #
-                addr = UtilMgr.convStr2Num(val)
+                addr = UtilMgr.convStr2Num(val, verb=False)
                 if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
@@ -39086,7 +39096,7 @@ struct cmsghdr {
                 argList = list(map(long, argList))
 
                 # get address #
-                addr = UtilMgr.convStr2Num(val)
+                addr = UtilMgr.convStr2Num(val, verb=False)
                 if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
@@ -40597,30 +40607,30 @@ struct cmsghdr {
         offset = addr % wordSize
 
         # handle interger-type data #
-        if not skipCheck and UtilMgr.isNumber(data):
-            if offset == 0:
-                if size == 0:
-                    size = 1
-                for idx in range(0, size):
-                    ret = self.accessMem(\
-                        self.pokeIdx, addr + (idx * wordSize), data)
-                    if ret < 0:
-                        break
-                return ret
-            else:
-                data = UtilMgr.convWord2Str(long(data))
-                if not data:
-                    return -1
-
-                # converting integer-type data #
-                if 0 <= size <= 1:
-                    size = wordSize
-                elif size > 1:
-                    data = data * size
-                    size *= wordSize
-
-        # convert string to bytes #
         if not skipCheck:
+            if UtilMgr.isNumber(data):
+                if offset == 0:
+                    if size == 0:
+                        size = 1
+                    for idx in range(0, size):
+                        ret = self.accessMem(\
+                            self.pokeIdx, addr + (idx * wordSize), data)
+                        if ret < 0:
+                            break
+                    return ret
+                else:
+                    data = UtilMgr.convWord2Str(UtilMgr.convStr2Num(data))
+                    if not data:
+                        return -1
+
+                    # converting integer-type data #
+                    if 0 <= size <= 1:
+                        size = wordSize
+                    elif size > 1:
+                        data = data * size
+                        size *= wordSize
+
+            # convert string to bytes #
             if UtilMgr.isString(data):
                 data = UtilMgr.encodeStr(data)
             elif type(data) is not bytes:
@@ -42325,8 +42335,6 @@ struct cmsghdr {
 
         # execute remote commands #
         for cmd in SysMgr.customCmd:
-            if not cmd:
-                continue
             self.executeCmd([cmd], sym=None, fname=None, args=args)
 
 
