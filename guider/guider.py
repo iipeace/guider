@@ -3589,6 +3589,24 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convertList2Dict(optList, sep=':'):
+        newDict = {}
+        for item in optList:
+            try:
+                key, value = item.split(sep, 1)
+                newDict[key] = value
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printWarn(\
+                    "Fail to parse %s by seperator %s" % (item, sep), True)
+                continue
+
+        return newDict
+
+
+
+    @staticmethod
     def parseInputString(string):
         string = string.replace('\,', '$%')
         clist = string.split(',')
@@ -13559,6 +13577,7 @@ class SysMgr(object):
     libglesPath = 'libGLESv2'
     ldCachePath = '/etc/ld.so.cache'
     libdemanglePath = libcppPath
+    binPathList = {}
     eventLogPath = None
     inputFile = None
     outputFile = None
@@ -15689,7 +15708,7 @@ class SysMgr(object):
             option == 'f' or option == 'F' or option == 'g' or \
             option == 'H' or option == 'i' or option == 'I' or \
             option == 'j' or option == 'k' or option == 'K' or \
-            option == 'L' or option == 'l' or option == 'm' or \
+            option == 'l' or option == 'L' or option == 'm' or \
             option == 'M' or option == 'n' or option == 'N' or \
             option == 'o' or option == 'O' or option == 'P' or \
             option == 'p' or option == 'Q' or option == 'r' or \
@@ -15698,7 +15717,8 @@ class SysMgr(object):
             option == 'U' or option == 'v' or option == 'w' or \
             option == 'W' or option == 'x' or option == 'X' or \
             option == 'Y' or option == 'y' or option == 'Z' or \
-            option == 'B' or option == 'G' or option.isdigit():
+            option == 'B' or option == 'G' or option == 'J' or \
+            option == 'q' or option.isdigit():
             return True
         else:
             return False
@@ -16185,6 +16205,7 @@ Usage:
     -C  <PATH>                  set configuration path
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
+    -q                          set path for binaries
     -J                          print in JSON format
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
@@ -16327,9 +16348,11 @@ Commands:
     load [PATH]
     log [MESSAGE]
     print
+    pyfile [PATH:SYNC]
+    pystr [CODE:SYNC]
     rdmem [ADDR|REG:SIZE]
-    ret [VAL]
     repeat [CNT]
+    ret [VAL]
     save [NAME]
     setarg [REG#VAL]
     setenv [VAR:VAL]
@@ -16462,6 +16485,10 @@ Examples:
     - Handle a write function call as a exit point
         # {0:1} {1:1} -g a.out -c write\\|exit
 
+    - Handle a write function call as a excution point for python code
+        # {0:1} {1:1} -g a.out -c write\\|pystr:"print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+        # {0:1} {1:1} -g a.out -c write\\|pyfile:test.py:false -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+
     - Handle a malloc function call as a accumulate table creation point for a argument
         # {0:1} {1:1} -g a.out -c malloc\\|acc:CHUNK:0:arg
 
@@ -16567,6 +16594,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
+    -q                          set path for binaries
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -16651,6 +16679,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -Q                          print all rows in a stream
+    -q                          set path for binaries
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -16759,6 +16788,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS>             set terminal size
     -Q                          print all rows in a stream
+    -q                          set path for binaries
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -16814,6 +16844,7 @@ Options:
     -m  <ROWS:COLS>             set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
+    -q                          set path for binaries
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
@@ -23502,6 +23533,10 @@ Copyright:
             elif option == 'u':
                 SysMgr.runBackgroundMode()
 
+            elif option == 'q':
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
+
             elif option == 'Q':
                 SysMgr.printStreamEnable = True
 
@@ -23671,6 +23706,10 @@ Copyright:
 
             elif option == 'D':
                 SysMgr.depEnable = True
+
+            elif option == 'q':
+                itemList = UtilMgr.parseInputString(value)
+                SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'Q':
                 SysMgr.printStreamEnable = True
@@ -38484,6 +38523,10 @@ struct cmsghdr {
                 cmdformat = "VAR"
             elif cmd == 'repeat':
                 cmdformat = "CNT"
+            elif cmd == 'pystr':
+                cmdformat = "CODE:SYNC"
+            elif cmd == 'pyfile':
+                cmdformat = "PATH:SYNC"
             elif cmd == 'log':
                 cmdformat = "MESSAGE"
             else:
@@ -38733,6 +38776,38 @@ struct cmsghdr {
                         "Fail to write '%s' to %s" % \
                             (val, hex(addr).rstrip('L')))
                     return repeat
+
+            elif cmd == 'pystr' or cmd == 'pyfile':
+                if len(cmdset) == 1:
+                    printCmdErr(cmdval, cmd)
+
+                # get argument info #
+                memset = cmdset[1].split(':')
+                source = memset[0]
+                if len(memset) > 1:
+                    sync = memset[1]
+                    if sync.upper() == 'FALSE':
+                        sync = False
+                    else:
+                        sync = True
+                else:
+                    sync = True
+
+                ret = self.loadPyLib()
+                if not ret:
+                    return
+
+                self.initPyLib()
+
+                SysMgr.addPrint(\
+                    "\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
+
+                if cmd == 'pystr':
+                    self.remotePyCall(string=source, wait=sync)
+                elif cmd == 'pyfile':
+                    self.remotePyCall(script=source, wait=sync)
+
+                self.finishPyLib()
 
             elif cmd == 'dump':
                 if len(cmdset) == 1:
@@ -40071,6 +40146,81 @@ struct cmsghdr {
         ret = self.remoteUsercall(func, args)
 
         return ret
+
+
+
+    def getMapFilePath(self, fname):
+        self.loadSymbols()
+        if not self.pmap:
+            return None
+
+        for path in list(self.pmap.keys()):
+            if os.path.basename(path).startswith(fname):
+                return path
+
+        return None
+
+
+
+    def isPyLibLoaded(self):
+        if self.pyLibPath:
+            return True
+
+        self.pyLibPath = self.getMapFilePath('libpython')
+        if self.pyLibPath:
+            return True
+        else:
+            return False
+
+
+
+    def remotePyCall(self, string=None, script=None, wait=True):
+        if string:
+            return self.remoteUsercall(\
+                "PyRun_SimpleString", [string], wait=wait)
+        if script:
+            fp = self.remoteUsercall(\
+                "_Py_fopen", [script, "r"])
+            return self.remoteUsercall(\
+                "PyRun_SimpleFile", [fp, script], wait=wait)
+
+
+
+    def initPyLib(self):
+        if self.pyInit:
+            return
+        self.remoteUsercall("Py_Initialize")
+        self.pyInit = True
+
+
+
+    def finishPyLib(self):
+        self.remoteUsercall("Py_Finalize")
+
+
+
+    def loadPyLib(self):
+        if self.isPyLibLoaded():
+            return True
+
+        # get libpython path #
+        pylib = SysMgr.getPyLibPath()
+        if not pylib:
+            if 'LIBPYTHON' in SysMgr.binPathList:
+                pylib = SysMgr.binPathList['LIBPYTHON']
+            else:
+                SysMgr.printErr("Fail to get path for python library")
+                return False
+
+        # load the library #
+        ret = self.dlopen(pylib)
+        if self.isPyLibLoaded():
+            return True
+        else:
+            SysMgr.printErr(\
+                "Fail to load %s for %s(%s)" % \
+                    (pylib, self.comm, self.pid))
+            return False
 
 
 
@@ -43640,6 +43790,8 @@ struct cmsghdr {
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
+        self.pyLibPath = None
+        self.pyInit = False
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
