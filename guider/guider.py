@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200823"
+__revision__ = "200825"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15094,12 +15094,15 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getPyLibPath():
+    def getPyLibPath(load=True):
         try:
             exePath = SysMgr.getExeName(SysMgr.pid)
             exeName = os.path.basename(exePath)
             libName = 'lib%s' % exeName
-            return SysMgr.loadLib(libName)._name
+            if not load:
+                return libName
+            else:
+                return SysMgr.loadLib(libName)._name
         except SystemExit:
             sys.exit(0)
         except:
@@ -15247,6 +15250,29 @@ class SysMgr(object):
             return None
 
         return comm
+
+
+
+    @staticmethod
+    def getPyConfig(item='all', var=None):
+        try:
+            SysMgr.importPkgItems('sysconfig')
+
+            if item == 'path':
+                varDict = get_paths()
+            else:
+                varDict = get_config_vars()
+
+            if var:
+                return varDict[var]
+            else:
+                return varDict
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(\
+                "Fail to get python configuration", True, True)
+            return None
 
 
 
@@ -40176,13 +40202,51 @@ struct cmsghdr {
 
     def remotePyCall(self, string=None, script=None, wait=True):
         if string:
+            '''
+            # set args #
+            self.remoteUsercall(\
+                "PySys_SetArgvEx", [len(sys.argv), sys.argv, 0], wait=wait)
+
+            # check import #
+            pname = self.remoteUsercall(\
+                "PyUnicode_FromString", [string], wait=wait)
+            pmodule = self.remoteUsercall(\
+                "PyImport_Import", [pname], wait=wait)
+
+            # append system path #
+            paths = SysMgr.getPyConfig('path')
+            paths = list(map(lambda x: "'%s'" % x, list(paths.values())))
+            pystr = "import sys; sys.path.append([%s]);" % ','.join(paths)
+            string = pystr + string
+            if not string.endswith(';'):
+                string += ';'
+            '''
+
+            # execute source #
             return self.remoteUsercall(\
                 "PyRun_SimpleString", [string], wait=wait)
+
         if script:
+            path = os.path.expanduser(script)
+
+            # convert path #
+            if not path.startswith('/'):
+                current = os.path.abspath('.')
+                path = '%s/%s' % (current, path)
+
+            # check file #
+            if not os.path.exists(path):
+                SysMgr.printErr(\
+                    "Fail to access %s" % path)
+                return None
+
+            # open script #
             fp = self.remoteUsercall(\
-                "_Py_fopen", [script, "r"])
+                "_Py_fopen", [path, "r"])
+
+            # execute script #
             return self.remoteUsercall(\
-                "PyRun_SimpleFile", [fp, script], wait=wait)
+                "PyRun_SimpleFile", [fp, path], wait=wait)
 
 
 
@@ -40209,8 +40273,15 @@ struct cmsghdr {
             if 'LIBPYTHON' in SysMgr.binPathList:
                 pylib = SysMgr.binPathList['LIBPYTHON']
             else:
-                SysMgr.printErr("Fail to get path for python library")
-                return False
+                libName = SysMgr.getPyLibPath(load=False)
+                platDir = SysMgr.getPyConfig(None, 'LIBPL')
+                pylib = '%s/%s.so' % (platDir, libName)
+                if not os.path.exists(pylib):
+                    SysMgr.printErr("Fail to get path for python library")
+                    return False
+
+        # set environment #
+        self.setenv('PYTHONHOME', os.environ['PYTHONHOME'], False)
 
         # load the library #
         ret = self.dlopen(pylib)
@@ -45026,7 +45097,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(\
-                "Fail to read remote registers for %s(%s)" % \
+                "Fail to read registers for %s(%s)" % \
                     (self.comm, self.pid))
 
         # return result #
