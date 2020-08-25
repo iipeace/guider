@@ -31,7 +31,7 @@ try:
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
-    print("[Error] Fail to import essential packages: %s" % err.args[0])
+    print("[Error] fail to import essential packages: %s" % err.args[0])
     sys.exit(0)
 
 # convert types not supported #
@@ -3493,7 +3493,7 @@ class ConfigMgr(object):
     @staticmethod
     def writeConfData(fd, line):
         if not fd:
-            SysMgr.printErr("Fail to get file descriptor")
+            SysMgr.printErr("fail to get file descriptor")
             return None
 
         fd.write(line)
@@ -3599,7 +3599,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to parse %s by seperator %s" % (item, sep), True)
+                    "fail to parse %s by seperator %s" % (item, sep), True)
                 continue
 
         return newDict
@@ -3680,7 +3680,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to convert word %s to string" % word, True)
+                "fail to convert word %s to string" % word, True)
             return None
 
 
@@ -3706,7 +3706,7 @@ class UtilMgr(object):
         # check redundant files #
         if len(rlist) != len(set(rlist)):
             SysMgr.printWarn(\
-                "Detected redundant files in [ %s ]" % \
+                "detected redundant files in [ %s ]" % \
                     ', '.join(rlist), True)
 
         # remove redundant files #
@@ -3760,7 +3760,7 @@ class UtilMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr('Fail to convert %s to strings' % path, True)
+            SysMgr.printErr('fail to convert %s to strings' % path, True)
             return False
 
 
@@ -3774,7 +3774,7 @@ class UtilMgr(object):
                 num |= vlist[flag]
             except:
                 SysMgr.printErr(\
-                    "Fail to get %s in [%s]" % \
+                    "fail to get %s in [%s]" % \
                         (flag, '|'.join(list(vlist.keys()))))
                 sys.exit(0)
 
@@ -3807,7 +3807,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to get flag info for %s" % value, reason=True)
+                    "fail to get flag info for %s" % value, reason=True)
 
         # check value for 0 index #
         if 0 in flist:
@@ -3989,7 +3989,7 @@ class UtilMgr(object):
             res = glob.glob(value)
             if len(res) == 0 and isExit:
                 SysMgr.printErr(\
-                    "Fail to find a file matching '%s'" % value)
+                    "fail to find a file matching '%s'" % value)
                 sys.exit(0)
 
             # str #
@@ -4016,7 +4016,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to convert string %s to word" % bstring)
+                "fail to convert string %s to word" % bstring)
             return None
 
 
@@ -4035,7 +4035,7 @@ class UtilMgr(object):
         except:
             if verb:
                 SysMgr.printErr(\
-                    "Fail to convert %s to number" % string, True)
+                    "fail to convert %s to number" % string, True)
             return None
         return string
 
@@ -4161,7 +4161,7 @@ class UtilMgr(object):
         else:
             ret = 0
             SysMgr.printErr(\
-                "Fail to convert '%s' to seconds" % data)
+                "fail to convert '%s' to seconds" % data)
 
         return ret
 
@@ -4204,7 +4204,7 @@ class UtilMgr(object):
                 return long(float(value[:-2]) * sizePB)
 
             SysMgr.printErr(\
-                "Fail to convert %s to size" % value)
+                "fail to convert %s to size" % value)
 
             raise Exception()
         except SystemExit:
@@ -4229,7 +4229,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to write JSON format data", reason=True)
+                    "fail to write JSON format data", reason=True)
             return
 
         # check write option #
@@ -4246,7 +4246,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to write JSON format data to %s" % path, True)
+                "fail to write JSON format data to %s" % path, True)
             sys.exit(0)
 
 
@@ -4279,7 +4279,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to save ELF cache to %s" % path, reason=True)
+                "fail to save ELF cache to %s" % path, reason=True)
             return False
 
 
@@ -4372,7 +4372,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to print %s" % path, reason=True)
+                "fail to print %s" % path, reason=True)
 
 
 
@@ -4423,7 +4423,7 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to convert %s to string" % [dictObj], reason=True)
+                "fail to convert %s to string" % [dictObj], reason=True)
             return None
 
         # when encode flag is disabled, remove whitespace [\t\n\r\f\v] #
@@ -4457,7 +4457,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to convert %s to dict" % [strObj], \
+                    "fail to convert %s to dict" % [strObj], \
                         always=verb, reason=True)
                 return None
 
@@ -4494,7 +4494,8 @@ class NetworkMgr(object):
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF, \
                 SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO, SOCK_RAW
         except:
-            SysMgr.printWarn("Fail to import socket", True, reason=True)
+            SysMgr.printWarn(\
+                "fail to import socket", True, reason=True)
             return None
 
         try:
@@ -4509,7 +4510,7 @@ class NetworkMgr(object):
                             ConfigMgr.NETLINK_TYPE['NETLINK_GENERIC'])
                 except:
                     SysMgr.printWarn(\
-                        "Fail to create NETLINK socket", True, reason=True)
+                        "fail to create NETLINK socket", True, reason=True)
                     return None
             else:
                 self.socket = socket(AF_INET, SOCK_DGRAM)
@@ -4579,7 +4580,7 @@ class NetworkMgr(object):
                 feedback = ''
 
             SysMgr.printErr(\
-                "Fail to create socket with %s:%s as server because %s%s" % \
+                "fail to create socket with %s:%s as server because %s%s" % \
                     (self.ip, self.port, err, feedback))
 
             '''
@@ -4701,7 +4702,7 @@ class NetworkMgr(object):
                     targetIp, targetPort, origPath))
             except:
                 SysMgr.printErr(\
-                    'Fail to download %s from %s:%s:%s' % \
+                    'fail to download %s from %s:%s:%s' % \
                         (origPath, targetIp, targetPort, targetPath), True)
             finally:
                 receiver.close()
@@ -4767,7 +4768,7 @@ class NetworkMgr(object):
                             addr, targetPath))
             except:
                 SysMgr.printErr(\
-                    "Fail to upload %s to %s:%s" % \
+                    "fail to upload %s to %s:%s" % \
                         (origPath, addr, targetPath), True)
             finally:
                 sender.close()
@@ -4812,7 +4813,7 @@ class NetworkMgr(object):
 
             # print output from server #
             if not isPrint:
-                print('No response')
+                print('no response')
 
             print(oneLine)
 
@@ -4854,11 +4855,11 @@ class NetworkMgr(object):
 
             else:
                 SysMgr.printErr(\
-                    "Fail to recognize '%s' request" % req)
+                    "fail to recognize '%s' request" % req)
 
         elif not req:
             SysMgr.printErr(\
-                "No response from server")
+                "no response from server")
 
         else:
             SysMgr.printErr(\
@@ -4869,11 +4870,11 @@ class NetworkMgr(object):
     def send(self, message, write=False):
         if self.ip is None or self.port is None:
             SysMgr.printWarn(\
-                "Fail to use IP address for client because it is not set")
+                "fail to use IP address for client because it is not set")
             return False
         elif not self.socket:
             SysMgr.printErr(\
-                "Fail to use socket for client because it is not set")
+                "fail to use socket for client because it is not set")
             return False
 
         # encode message #
@@ -4900,7 +4901,7 @@ class NetworkMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to send data to %s:%d as server" % \
+                "fail to send data to %s:%d as server" % \
                 (self.ip, self.port), True)
             return False
 
@@ -4909,11 +4910,11 @@ class NetworkMgr(object):
     def sendto(self, message, ip, port):
         if not ip or not port:
             SysMgr.printWarn(\
-                "Fail to use IP address for client because it is not set")
+                "fail to use IP address for client because it is not set")
             return False
         elif not self.socket:
             SysMgr.printErr(\
-                "Fail to use socket for client because it is not set")
+                "fail to use socket for client because it is not set")
             return False
 
         # encode message #
@@ -4927,7 +4928,7 @@ class NetworkMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to send data to %s:%d as client" % \
+                "fail to send data to %s:%d as client" % \
                 (self.ip, self.port), True)
             return False
 
@@ -4936,11 +4937,11 @@ class NetworkMgr(object):
     def recv(self, size=0):
         if self.ip is None or self.port is None:
             SysMgr.printWarn(\
-                "Fail to use IP address for server because it is not set")
+                "fail to use IP address for server because it is not set")
             return False
         elif not self.socket:
             SysMgr.printErr(\
-                "Fail to use socket for client because it is not set")
+                "fail to use socket for client because it is not set")
             return False
 
         # set recv size #
@@ -4953,7 +4954,7 @@ class NetworkMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to receive data from %s:%d as client" % \
+                "fail to receive data from %s:%d as client" % \
                     (self.ip, self.port), reason=True)
             return False
 
@@ -4993,7 +4994,7 @@ class NetworkMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to get data from %s:%d as client" % \
+                "fail to get data from %s:%d as client" % \
                 (self.ip, self.port), True)
             return None
 
@@ -5009,11 +5010,11 @@ class NetworkMgr(object):
     def recvfrom(self, size=0, noTimeout=False, verbose=True):
         if self.ip is None or self.port is None:
             SysMgr.printWarn(\
-                "Fail to use IP address for server because it is not set")
+                "fail to use IP address for server because it is not set")
             return False
         elif not self.socket:
             SysMgr.printErr(\
-                "Fail to use socket for client because it is not set")
+                "fail to use socket for client because it is not set")
             return False
 
         # get socket object #
@@ -5031,7 +5032,7 @@ class NetworkMgr(object):
                 if noTimeout:
                     continue
                 SysMgr.printWarn(\
-                    "Fail to receive data from %s:%d as client because of %s" % \
+                    "fail to receive data from %s:%d as client because of %s" % \
                     (self.ip, self.port, 'timeout'))
                 return None
             except KeyboardInterrupt:
@@ -5041,7 +5042,7 @@ class NetworkMgr(object):
             except:
                 if verbose:
                     SysMgr.printWarn(\
-                        "Fail to receive data from %s:%d as client" % \
+                        "fail to receive data from %s:%d as client" % \
                             (self.ip, self.port), reason=True)
                 return None
 
@@ -5138,7 +5139,7 @@ class NetworkMgr(object):
     def getServerConn():
         def printErr():
             SysMgr.printErr(\
-                "No running server or wrong server address")
+                "no running server or wrong server address")
 
         # set server address in local #
         if SysMgr.isLinux and not SysMgr.remoteServObj:
@@ -5178,7 +5179,7 @@ class NetworkMgr(object):
                 SysMgr.remoteServObj.socket.bind((lip, lport))
         except:
             SysMgr.printErr(\
-                "Fail to bind socket to %s:%s for connection" % \
+                "fail to bind socket to %s:%s for connection" % \
                     (lip, lport), True)
 
         # do connect to server #
@@ -5194,7 +5195,7 @@ class NetworkMgr(object):
                     break
                 except:
                     SysMgr.printWarn(\
-                        "Fail to connect to %s:%s" % (ip, port), reason=True)
+                        "fail to connect to %s:%s" % (ip, port), reason=True)
                     et, err, to = sys.exc_info()
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
@@ -5204,7 +5205,7 @@ class NetworkMgr(object):
             return connObj
         except:
             SysMgr.printErr(\
-                "Fail to set socket for connection", True)
+                "fail to set socket for connection", True)
             return None
 
 
@@ -5353,7 +5354,7 @@ class NetworkMgr(object):
         ip, port, force=False, blocking=False, tcp=False, anyPort=False):
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(\
-                "Ignored to set server network because it is already set")
+                "ignored to set server network because it is already set")
             return
 
         # get internet available IP first #
@@ -5385,7 +5386,7 @@ class NetworkMgr(object):
             'server', ip, port, blocking, tcp, anyPort)
         if not networkObject.ip:
             SysMgr.printWarn(\
-                "Fail to set server IP", True)
+                "fail to set server IP", True)
             return
 
         if tcp:
@@ -5588,7 +5589,7 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn("Fail to get public IP address")
+            SysMgr.printWarn("fail to get public IP address")
 
         if not ret:
             ret = NetworkMgr.getMainIp()
@@ -5623,7 +5624,7 @@ class GlMgr(object):
                 SysMgr.libglesObj = SysMgr.loadLib(SysMgr.libglesPath)
         except:
             SysMgr.printErr(\
-                "Fail to load GLES object")
+                "fail to load GLES object")
             sys.exit(0)
 
         gl = GlMgr.instance = SysMgr.libglesObj
@@ -6342,7 +6343,7 @@ class PageAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to recognize target", reason=True)
+                "fail to recognize target", reason=True)
             sys.exit(0)
 
         comm = SysMgr.getComm(pid)
@@ -6357,7 +6358,7 @@ class PageAnalyzer(object):
 
         if rangeCnt > 2:
             SysMgr.printErr(\
-                "Fail to recognize address, "
+                "fail to recognize address, "
                 "input address such as 102400 or 0x1234a-0x123ff")
             sys.exit(0)
         else:
@@ -6374,7 +6375,7 @@ class PageAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to recognize address, "
+                    "fail to recognize address, "
                     "input address such as 0xabcd or 78901234")
                 sys.exit(0)
 
@@ -6393,14 +6394,14 @@ class PageAnalyzer(object):
 
                 if addrs > addre:
                     SysMgr.printErr(\
-                        "Fail to recognize address, "
+                        "fail to recognize address, "
                         "input bigger second address than first address")
                     sys.exit(0)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to recognize address, "
+                    "fail to recognize address, "
                     "input address such as 0x1234-0x4444")
                 sys.exit(0)
 
@@ -6547,7 +6548,7 @@ class PageAnalyzer(object):
                 break
 
         if count == 0:
-            SysMgr.printPipe('No involved memory area')
+            SysMgr.printPipe('no involved memory area')
 
 
 
@@ -6571,7 +6572,7 @@ class PageAnalyzer(object):
                 return struct.unpack('Q', f.read(size))[0]
             except:
                 SysMgr.printErr(\
-                    "Fail to read %s byte from %s of %s" % \
+                    "fail to read %s byte from %s of %s" % \
                     (size, offset, path))
                 sys.exit(0)
 
@@ -6581,7 +6582,7 @@ class PageAnalyzer(object):
     def getPagemapEntry(pid, addr):
         maps_path = "{0}/{1}/pagemap".format(SysMgr.procPath, pid)
         if not os.path.isfile(maps_path):
-            SysMgr.printErr("Fail to find %s process" % pid)
+            SysMgr.printErr("fail to find %s process" % pid)
             sys.exit(0)
 
         pageSize = os.sysconf("SC_PAGE_SIZE")
@@ -6839,10 +6840,10 @@ class FunctionAnalyzer(object):
             len(self.kernelCallData) == 0 and \
             len(self.target) > 0:
             if self.target == []:
-                SysMgr.printErr("No collected stack data")
+                SysMgr.printErr("no collected stack data")
             else:
                 SysMgr.printErr(\
-                    "No collected stack data related to %s" % self.target)
+                    "no collected stack data related to %s" % self.target)
             sys.exit(0)
         elif SysMgr.userEnable and \
             len(self.userCallData) == 1 and \
@@ -6850,10 +6851,10 @@ class FunctionAnalyzer(object):
             SysMgr.userEnable = False
             if self.target == []:
                 SysMgr.printWarn(\
-                    "No collected user stack data", True)
+                    "no collected user stack data", True)
             else:
                 SysMgr.printWarn(\
-                    "No collected user stack data related to %s" % \
+                    "no collected user stack data related to %s" % \
                     self.target, True)
 
         # Get symbols from call address #
@@ -6920,7 +6921,7 @@ class FunctionAnalyzer(object):
             self.kerSymData[ksym]['heapSize'] -= size
         except:
             SysMgr.printWarn(\
-                "Fail to find heap segment to be freed")
+                "fail to find heap segment to be freed")
             return
 
         # Set user stack list #
@@ -7608,7 +7609,7 @@ class FunctionAnalyzer(object):
                     self.ignoreTable[arg] = {'ignCnt': long(1)}
 
             else:
-                SysMgr.printWarn("Fail to recognize event %s" % event)
+                SysMgr.printWarn("fail to recognize event %s" % event)
 
         UtilMgr.deleteProgress()
 
@@ -7620,7 +7621,7 @@ class FunctionAnalyzer(object):
     def printIgnoreEvents(self):
         for idx, value in self.ignoreTable.items():
             SysMgr.printWarn(\
-                "Ignore %s event %d times" % (idx, value['ignCnt']))
+                "ignore %s event %d times" % (idx, value['ignCnt']))
 
 
 
@@ -7718,7 +7719,7 @@ class FunctionAnalyzer(object):
 
         if nrNoFile > 0:
             SysMgr.printWarn(\
-                "Fail to find total %s binaries to analyze functions" % \
+                "fail to find total %s binaries to analyze functions" % \
                     nrNoFile, True)
 
 
@@ -7803,7 +7804,7 @@ class FunctionAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to find address %s" % addr)
+                        "fail to find address %s" % addr)
             return -1
 
         # check user-mode enabled #
@@ -7828,7 +7829,7 @@ class FunctionAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to get symbol from %s" % binPath, True)
+                    "fail to get symbol from %s" % binPath, True)
 
             return None
 
@@ -7837,7 +7838,7 @@ class FunctionAnalyzer(object):
 
             if not addr2linePath:
                 SysMgr.printErr((\
-                    "Fail to find addr2line to analyze user-level functions, "
+                    "fail to find addr2line to analyze user-level functions, "
                     "use -l option to set custom path"))
                 sys.exit(0)
 
@@ -7848,7 +7849,7 @@ class FunctionAnalyzer(object):
             for path in SysMgr.addr2linePath:
                 if not os.path.isfile(path):
                     SysMgr.printErr(\
-                        "Fail to find %s to use addr2line" % path)
+                        "fail to find %s to use addr2line" % path)
                     sys.exit(0)
 
         # get subprocess object #
@@ -7878,7 +7879,7 @@ class FunctionAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to execute %s to pick symbols from binary" % \
+                        "fail to execute %s to pick symbols from binary" % \
                             path)
                     sys.exit(0)
 
@@ -7898,7 +7899,7 @@ class FunctionAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        'No response of addr2line for %s' % binPath)
+                        'no response of addr2line for %s' % binPath)
                     continue
 
                 while 1:
@@ -8094,7 +8095,7 @@ class FunctionAnalyzer(object):
                 targetEvent, targetCnt, targetArg)
         except:
             SysMgr.printErr(\
-                "Fail to save full stacks", True)
+                "fail to save full stacks", True)
             sys.exit(0)
 
 
@@ -8325,7 +8326,7 @@ class FunctionAnalyzer(object):
             self.heapTable.pop(addr, None)
         except:
             SysMgr.printWarn(\
-                'Fail to free heap segment %s of %s(%s) at %s' % \
+                'fail to free heap segment %s of %s(%s) at %s' % \
                     (addr, self.threadData[tid]['comm'], tid, \
                     SysMgr.dbgEventLine))
 
@@ -8337,7 +8338,7 @@ class FunctionAnalyzer(object):
             del self.heapTable['%s-ready' % tid]
         except:
             SysMgr.printWarn(\
-                'Fail to set address of heap segment %s of %s(%s) at %s' % \
+                'fail to set address of heap segment %s of %s(%s) at %s' % \
                     (addr, self.threadData[tid]['comm'], tid, \
                     SysMgr.dbgEventLine))
 
@@ -8519,7 +8520,7 @@ class FunctionAnalyzer(object):
         if self.nowCtx['nested'] > 2:
             #self.printDbgInfo()
             SysMgr.printWarn((\
-                "Fail to analyze stack data "\
+                "fail to analyze stack data "\
                 "because of corruption (overflow) at %s line\n"\
                 "\tso report results may differ from actual") % \
                 SysMgr.dbgEventLine, True)
@@ -8648,7 +8649,7 @@ class FunctionAnalyzer(object):
                 self.saveEventParam('IGNORE', 0, func[:-1])
 
                 SysMgr.printWarn(\
-                    "Fail to recognize event %s at %d" % \
+                    "fail to recognize event %s at %d" % \
                     (func[:-1], SysMgr.dbgEventLine))
 
             return False
@@ -8699,7 +8700,7 @@ class FunctionAnalyzer(object):
 
                 return False
 
-            SysMgr.printWarn("Fail to recognize event %s at %d" % \
+            SysMgr.printWarn("fail to recognize event %s at %d" % \
                 (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -8844,7 +8845,7 @@ class FunctionAnalyzer(object):
 
             else:
                 SysMgr.printWarn(\
-                    "Fail to recognize event %s at %d" % \
+                    "fail to recognize event %s at %d" % \
                     (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -8913,7 +8914,7 @@ class FunctionAnalyzer(object):
                         self.threadData[pid]['lastBrk'] = addr
             else:
                 SysMgr.printWarn(\
-                    "Fail to recognize event %s at %d" % \
+                    "fail to recognize event %s at %d" % \
                     (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -8949,7 +8950,7 @@ class FunctionAnalyzer(object):
 
                     return False
 
-            SysMgr.printWarn("Fail to recognize event %s at %d" % \
+            SysMgr.printWarn("fail to recognize event %s at %d" % \
                     (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -9009,7 +9010,7 @@ class FunctionAnalyzer(object):
 
                     return False
 
-            SysMgr.printWarn("Fail to recognize event %s at %d" % \
+            SysMgr.printWarn("fail to recognize event %s at %d" % \
                     (func[:-1], SysMgr.dbgEventLine))
 
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -9070,7 +9071,7 @@ class FunctionAnalyzer(object):
             if self.nowCtx['nested'] < 0:
                 #self.printDbgInfo()
                 SysMgr.printWarn((\
-                    "Fail to analyze stack data "
+                    "fail to analyze stack data "
                     "because of corruption (underflow) at %s line\n"\
                     "\tso report results may differ from actual") % \
                     SysMgr.dbgEventLine, True)
@@ -9336,7 +9337,7 @@ class FunctionAnalyzer(object):
                     return SysMgr.rootPath + data['binName'], \
                         hex(long(addr, 16))
         SysMgr.printWarn(\
-            "Fail to get the binary info of %s in mapping table" % addr)
+            "fail to get the binary info of %s in mapping table" % addr)
 
 
 
@@ -9386,7 +9387,7 @@ class FunctionAnalyzer(object):
                     syscall = ConfigMgr.sysList[sysId][4:]
                 except:
                     SysMgr.printErr(\
-                        "Fail to get syscall name by number %s" % sysId)
+                        "fail to get syscall name by number %s" % sysId)
                     syscall = sysId
 
                 syscallInfo = \
@@ -9588,7 +9589,7 @@ class FunctionAnalyzer(object):
         # Exit because of no target #
         if len(self.target) == 0:
             SysMgr.printWarn(\
-                "No specific thread targeted, input TID with -g option")
+                "no specific thread targeted, input TID with -g option")
 
         # Print syscall usage of threads #
         self.printSyscallSummary()
@@ -11663,7 +11664,7 @@ class LeakAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to analyze leakage", True)
+                "fail to analyze leakage", True)
 
         SysMgr.printInfo("start resolving symbols...")
 
@@ -11869,7 +11870,7 @@ class LeakAnalyzer(object):
                 ret = proc.getSymbolInfo(long(pos, 16))
             except:
                 SysMgr.printWarn(\
-                    "Fail to get symbol for %s" % pos, reason=True)
+                    "fail to get symbol for %s" % pos, reason=True)
                 continue
 
             if ret and len(ret) > 3:
@@ -12100,7 +12101,7 @@ class FileAnalyzer(object):
                         self.procList[pid]['tids'][tid]['comm'] = val['comm']
 
         if len(self.procList) == 0:
-            SysMgr.printErr('No process profiled')
+            SysMgr.printErr('no process profiled')
             sys.exit(0)
 
         # Merge file info into a global list #
@@ -12116,7 +12117,7 @@ class FileAnalyzer(object):
                     self.fileList[fileName]['totalSize'] = fileStat['totalSize']
 
         if len(self.fileList) == 0:
-            SysMgr.printErr('No file profiled')
+            SysMgr.printErr('no file profiled')
             sys.exit(0)
 
         SysMgr.printLogo(big=True)
@@ -12293,7 +12294,7 @@ class FileAnalyzer(object):
     def getMapAddr(pid, fname, fd=None):
         if not fname:
             SysMgr.printWarn(\
-                "No memory-mapped file name to be searched")
+                "no memory-mapped file name to be searched")
             return
 
         if not fd:
@@ -12317,7 +12318,7 @@ class FileAnalyzer(object):
     def getMapFilePath(pid, fname, fd=None):
         if not fname:
             SysMgr.printWarn(\
-                "No memory-mapped file name to be searched")
+                "no file name to be searched on memory-map")
             return
 
         if not fd:
@@ -12492,10 +12493,10 @@ class FileAnalyzer(object):
 
     def printUsage(self):
         if len(self.procData) == 0:
-            SysMgr.printErr('No process profiled')
+            SysMgr.printErr('no process profiled')
             sys.exit(0)
         if len(self.fileData) == 0:
-            SysMgr.printErr('No file profiled')
+            SysMgr.printErr('no file profiled')
             sys.exit(0)
 
         SysMgr.printLogo(big=True)
@@ -12882,7 +12883,7 @@ class FileAnalyzer(object):
             if val['totalSize'] <= 0:
                 self.profFailedCnt += 1
                 if SysMgr.warnEnable:
-                    SysMgr.printWarn('Fail to mmap %s' % fileName)
+                    SysMgr.printWarn('fail to mmap %s' % fileName)
                 continue
 
             # prepare variables for mincore systemcall #
@@ -12942,7 +12943,7 @@ class FileAnalyzer(object):
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printWarn('Fail to access %s' % fileName)
+                    SysMgr.printWarn('fail to access %s' % fileName)
                     val['fileMap'] = None
                     self.profFailedCnt += 1
             else:
@@ -12953,12 +12954,12 @@ class FileAnalyzer(object):
             SysMgr.printGood(\
                 'Profiled a total of %d files' % self.profSuccessCnt)
         else:
-            SysMgr.printErr('Fail to profile files')
+            SysMgr.printErr('fail to profile files')
             sys.exit(0)
 
         if self.profFailedCnt > 0:
             SysMgr.printWarn(\
-                'Fail to open a total of %d files' % self.profFailedCnt)
+                'fail to open a total of %d files' % self.profFailedCnt)
 
 
 
@@ -13022,7 +13023,7 @@ class LogMgr(object):
             except:
                 err = SysMgr.getErrMsg()
                 SysMgr.printWarn((\
-                    'Fail to make %s directory because %s '
+                    'fail to make %s directory because %s '
                     'so that use /tmp dir') % \
                         (SysMgr.cacheDirPath, err), True)
                 SysMgr.cacheDirPath = '/tmp'
@@ -13031,7 +13032,7 @@ class LogMgr(object):
         errorFile = '%s/guider.err' % SysMgr.cacheDirPath
         if not SysMgr.isWritable(errorFile):
             SysMgr.printWarn((\
-                'Fail to get write permission for %s '
+                'fail to get write permission for %s '
                 'so that use /tmp/guider.err') % errorFile, True)
             SysMgr.cacheDirPath = '/tmp'
             errorFile = '%s/guider.err' % SysMgr.cacheDirPath
@@ -13159,7 +13160,7 @@ class LogMgr(object):
             if not SysMgr.systemdObj:
                 SysMgr.systemdObj = SysMgr.loadLib(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
-                    raise Exception("No %s" % SysMgr.libsystemdPath)
+                    raise Exception("no %s" % SysMgr.libsystemdPath)
 
             func = 'sd_journal_open'
             if not hasattr(SysMgr.systemdObj, func):
@@ -13167,7 +13168,7 @@ class LogMgr(object):
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
         except:
             SysMgr.printErr(\
-                "Fail to print journal", True)
+                "fail to print journal", True)
             sys.exit(0)
 
         # define shortcut for object #
@@ -13179,7 +13180,7 @@ class LogMgr(object):
         res = systemdObj.sd_journal_open(byref(jrl), c_int(flag))
         if res < 0:
             SysMgr.printErr(\
-                "Fail to print journal because no journal")
+                "fail to print journal because no journal")
             return
 
         SysMgr.printInfo(\
@@ -13189,7 +13190,7 @@ class LogMgr(object):
         res = systemdObj.sd_journal_seek_head(jrl)
         if res < 0:
             SysMgr.printErr(\
-                "Fail to print journal because no journal head")
+                "fail to print journal because no journal head")
             return
 
         # initialize variables #
@@ -13432,7 +13433,7 @@ class LogMgr(object):
             SysMgr.kmsgFd.flush()
         except:
             SysMgr.printWarn(\
-                "Fail to write kmsg", reason=True)
+                "fail to write kmsg", reason=True)
 
         return 0
 
@@ -13471,7 +13472,7 @@ class LogMgr(object):
             if not SysMgr.systemdObj:
                 SysMgr.systemdObj = SysMgr.loadLib(SysMgr.libsystemdPath)
                 if not SysMgr.systemdObj:
-                    raise Exception("No %s" % SysMgr.libsystemdPath)
+                    raise Exception("no %s" % SysMgr.libsystemdPath)
 
             func = 'sd_journal_print'
             if not hasattr(SysMgr.systemdObj, func):
@@ -13479,7 +13480,7 @@ class LogMgr(object):
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
         except:
             SysMgr.printErr(\
-                "Fail to log journal", True)
+                "fail to log journal", True)
             sys.exit(0)
 
         return SysMgr.systemdObj.sd_journal_print(level, msg.encode())
@@ -13563,6 +13564,7 @@ class SysMgr(object):
     syslogPath = '/var/log/syslog'
     lmkPath = '/sys/module/lowmemorykiller/parameters/minfree'
     pythonPath = sys.executable
+    pyLibPath = None
     addr2linePath = []
     objdumpPath = []
     rootPath = ''
@@ -13970,10 +13972,10 @@ class SysMgr(object):
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(\
-                    "Logged a %s message '%s' successfully" % (mtype, msg))
+                    "logged a %s message '%s' successfully" % (mtype, msg))
             else:
                 SysMgr.printErr(\
-                    "Fail to log a %s message" % mtype)
+                    "fail to log a %s message" % mtype)
                 break
 
             if SysMgr.intervalEnable:
@@ -14059,7 +14061,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to get the maximum file descriptor", reason=True)
+                "fail to get the maximum file descriptor", reason=True)
 
 
 
@@ -14176,7 +14178,7 @@ class SysMgr(object):
 
             if not SysMgr.isThreadMode():
                 SysMgr.printErr(\
-                    "Fail to draw because this data is not supported")
+                    "fail to draw because this data is not supported")
                 sys.exit(0)
 
             SysMgr.inputFile = sys.argv[1] = sys.argv[2]
@@ -14448,7 +14450,7 @@ class SysMgr(object):
                         SysMgr.networkEnable = False
             else:
                 SysMgr.printWarn(\
-                    "Fail to get disk and network start "
+                    "fail to get disk and network start "
                     "because no root permission")
 
             if not SysMgr.checkRepTopCond():
@@ -14471,7 +14473,7 @@ class SysMgr(object):
     def loadLibCache():
         try:
             if not os.path.exists(SysMgr.ldCachePath):
-                raise Exception("No %s" % SysMgr.ldCachePath)
+                raise Exception("no %s" % SysMgr.ldCachePath)
 
             libDict = {}
             libList = UtilMgr.convBin2Str(SysMgr.ldCachePath)
@@ -14490,7 +14492,7 @@ class SysMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn('Fail to load library cache', reason=True)
+            SysMgr.printWarn('fail to load library cache', reason=True)
             return False
 
 
@@ -14531,6 +14533,8 @@ class SysMgr(object):
                 res = cdll.LoadLibrary(item)
                 if res:
                     return res
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -14589,7 +14593,7 @@ class SysMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to set signal", True)
+                    "fail to set signal", True)
                 sys.exit(0)
 
 
@@ -14625,7 +14629,7 @@ class SysMgr(object):
                     targetList = list(map(long, targetList))
                     if not targetList:
                         SysMgr.printErr(\
-                            "No threads related to %s" % tid)
+                            "no threads related to %s" % tid)
                         sys.exit(0)
                     SysMgr.setAffinity(mask, targetList)
 
@@ -14648,15 +14652,15 @@ class SysMgr(object):
     def doDump():
         if not SysMgr.filterGroup:
             SysMgr.printErr(\
-                "No COMM or PID with -g option")
+                "no COMM or PID with -g option")
             sys.exit(0)
         elif not SysMgr.inputParam:
             SysMgr.printErr(\
-                "No memory info with -I option")
+                "no memory info with -I option")
             sys.exit(0)
         elif not SysMgr.outPath:
             SysMgr.printErr(\
-                "No PATH with -o option")
+                "no PATH with -o option")
             sys.exit(0)
 
         # convert comm to pid #
@@ -14667,7 +14671,7 @@ class SysMgr(object):
 
         # check target #
         if not targetList:
-            SysMgr.printErr("No target process")
+            SysMgr.printErr("no target process")
             sys.exit(0)
         elif len(targetList) > 1:
             SysMgr.printErr(\
@@ -14688,7 +14692,7 @@ class SysMgr(object):
     def doStrings():
         if not SysMgr.inputParam:
             SysMgr.printErr(\
-                "No file path with -I option")
+                "no file path with -I option")
             sys.exit(0)
 
         SysMgr.ttyCols = 0
@@ -14699,7 +14703,7 @@ class SysMgr(object):
         # convert binary file to string #
         clist = UtilMgr.convBin2Str(SysMgr.inputParam, pos=True)
         if not clist:
-            SysMgr.printErr("No available string")
+            SysMgr.printErr("no available string")
             return
 
         lastPos = sorted(clist.values())[-1]
@@ -14721,7 +14725,7 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to set CPU affinity of task because of no target")
+                "fail to set CPU affinity of task because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -14817,7 +14821,7 @@ class SysMgr(object):
         value = SysMgr.filterGroup
         if len(value) == 0:
             SysMgr.printErr(\
-                "Fail to get CPU affinity of task because of no target")
+                "fail to get CPU affinity of task because of no target")
             sys.exit(0)
 
         SysMgr.checkPerm()
@@ -14831,7 +14835,7 @@ class SysMgr(object):
 
             if not targetList:
                 SysMgr.printErr(\
-                    "No threads related to %s" % item)
+                    "no threads related to %s" % item)
                 sys.exit(0)
 
             targetList = list(set(targetList))
@@ -14841,7 +14845,7 @@ class SysMgr(object):
                 mask = SysMgr.getAffinity(tid)
                 if not mask:
                     SysMgr.printErr(\
-                        "Fail to get CPU affinity of %s(%s)" % \
+                        "fail to get CPU affinity of %s(%s)" % \
                             (SysMgr.getComm(tid), tid))
                 else:
                     SysMgr.printInfo(\
@@ -14851,7 +14855,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to get CPU affinity of task", True)
+                "fail to get CPU affinity of task", True)
             sys.exit(0)
 
 
@@ -14865,7 +14869,7 @@ class SysMgr(object):
             pass
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to set affinity")
+                "fail to get root permission to set affinity")
             return
 
         # check pid list #
@@ -14874,10 +14878,10 @@ class SysMgr(object):
         elif type(pids) is list:
             for pid in pids:
                 if not str(pid).isdigit():
-                    SysMgr.printErr('Fail to recognize pid %s' % pid)
+                    SysMgr.printErr('fail to recognize pid %s' % pid)
                     return
         else:
-            SysMgr.printErr('Fail to recognize pid type')
+            SysMgr.printErr('fail to recognize pid type')
             return
 
         # check mask type #
@@ -14885,10 +14889,10 @@ class SysMgr(object):
             mask = long(mask, 16)
             if mask == 0:
                 SysMgr.printErr(\
-                    'Fail to set mask to 0, use bit mask bigger than 0')
+                    'fail to set mask to 0, use bit mask bigger than 0')
                 return
         except:
-            SysMgr.printErr('Fail to recognize mask type')
+            SysMgr.printErr('fail to recognize mask type')
             return
 
         # get ctypes object #
@@ -14927,7 +14931,7 @@ class SysMgr(object):
                 except:
                     ret = -1
                     SysMgr.printWarn(\
-                        "Fail to set CPU affinity of tasks "
+                        "fail to set CPU affinity of tasks "
                         "because of sched_setaffinity fail")
 
                 if ret >= 0:
@@ -14936,7 +14940,7 @@ class SysMgr(object):
                             (SysMgr.getComm(pid), pid, mask))
                 else:
                     SysMgr.printErr(\
-                        'Fail to set affinity of %s(%s) as 0x%X' % \
+                        'fail to set affinity of %s(%s) as 0x%X' % \
                             (SysMgr.getComm(pid), pid, mask))
 
 
@@ -14978,7 +14982,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn((\
-                "Fail to get CPU affinity of tasks "
+                "fail to get CPU affinity of tasks "
                 "because of sched_getaffinity fail"))
 
 
@@ -15004,7 +15008,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to write %s" % oomPath, reason=True)
+                "fail to write %s" % oomPath, reason=True)
 
 
 
@@ -15078,7 +15082,7 @@ class SysMgr(object):
         except:
             if verb:
                 SysMgr.printErr(\
-                    "Fail to load configuration from %s" % fname, reason=True)
+                    "fail to load configuration from %s" % fname, reason=True)
             return None
         finally:
             if fd:
@@ -15095,19 +15099,27 @@ class SysMgr(object):
 
     @staticmethod
     def getPyLibPath(load=True):
+        if SysMgr.pyLibPath:
+            return SysMgr.pyLibPath
+
         try:
             exePath = SysMgr.getExeName(SysMgr.pid)
             exeName = os.path.basename(exePath)
             libName = 'lib%s' % exeName
             if not load:
                 return libName
-            else:
-                return SysMgr.loadLib(libName)._name
+
+            libName = SysMgr.loadLib(libName)._name
+            if libName:
+                SysMgr.pyLibPath = \
+                    FileAnalyzer.getMapFilePath(SysMgr.pid, libName)
+
+            return SysMgr.pyLibPath
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to get path for python library", reason=True)
+                "fail to get path for python library", reason=True)
 
 
 
@@ -15120,7 +15132,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to get binary path for %s process" % pid, reason=True)
+                "fail to get binary path for %s process" % pid, reason=True)
             return None
 
 
@@ -15271,7 +15283,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to get python configuration", True, True)
+                "fail to get python configuration", True, True)
             return None
 
 
@@ -15332,7 +15344,7 @@ class SysMgr(object):
             funcp.restype = c_ulong
             return funcp(path, 1)
         except:
-            SysMgr.printErr("Fail to call dlopen", reason=True)
+            SysMgr.printErr("fail to call dlopen", reason=True)
             return None
 
 
@@ -15365,7 +15377,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to set comm', True, reason=True)
+                'fail to set comm', True, reason=True)
 
 
 
@@ -15422,7 +15434,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to import python package: %s " % name, isExit)
+                "fail to import python package: %s " % name, isExit)
 
             # register to blacklist #
             SysMgr.skipImpPkg[name] = True
@@ -15908,7 +15920,7 @@ class SysMgr(object):
         elif value == 'C':
             if not SysMgr.isThreadTopMode():
                 SysMgr.printErr(\
-                   "Fail to sort by CONTEXTSWITCH because "
+                   "fail to sort by CONTEXTSWITCH because "
                     "it is supported on thread mode")
                 sys.exit(0)
             SysMgr.printInfo("sorted by CONTEXTSWITCH")
@@ -18803,7 +18815,7 @@ Copyright:
         else:
             support = ' / '.join(ConfigMgr.supportArch)
             SysMgr.printErr(\
-                'Fail to set architecture to %s, only %s supported' % \
+                'fail to set architecture to %s, only %s supported' % \
                 (arch, support))
             sys.exit(0)
 
@@ -18849,13 +18861,13 @@ Copyright:
         for item in path:
             if not os.path.exists(item):
                 SysMgr.printWarn(\
-                    "Fail to access to %s" % item, verb)
+                    "fail to access to %s" % item, verb)
                 return False
 
         # check flags type #
         if type(flags) is not list:
             SysMgr.printErr(\
-                "Fail to get flags as a list")
+                "fail to get flags as a list")
             return False
 
         if not SysMgr.inotifyEnable :
@@ -18871,7 +18883,7 @@ Copyright:
             for func in inotifyFuncs:
                 if not hasattr(SysMgr.libcObj, func):
                     SysMgr.printWarn(\
-                        "No %s in %s" % (func, SysMgr.libcPath), verb)
+                        "no %s in %s" % (func, SysMgr.libcPath), verb)
                     return False
 
             SysMgr.inotifyEnable = True
@@ -18894,7 +18906,7 @@ Copyright:
         # create a file descriptor #
         fd = SysMgr.libcObj.inotify_init()
         if fd < 0:
-            SysMgr.printWarn("Fail to inotify_init", verb)
+            SysMgr.printWarn("fail to inotify_init", verb)
             return False
 
         # get flag bits #
@@ -18913,14 +18925,14 @@ Copyright:
         for item in path:
             wd = SysMgr.libcObj.inotify_add_watch(fd, item.encode(), fbits)
             if wd < 0:
-                SysMgr.printWarn("Fail to inotify_add_watch", verb)
+                SysMgr.printWarn("fail to inotify_add_watch", verb)
                 return False
             wlist[wd] = item
 
         # read events #
         length = SysMgr.libcObj.read(fd, byref(buf), BUF_LEN)
         if length < 0:
-            SysMgr.printWarn("Fail to read inotify event", verb)
+            SysMgr.printWarn("fail to read inotify event", verb)
             return False
 
         # check events #
@@ -18986,13 +18998,13 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to get the number of arguments for %s" % nmSyscall)
+                    "fail to get the number of arguments for %s" % nmSyscall)
                 raise Exception()
 
             # check arguments #
             if len(args) != nrParams:
                 SysMgr.printErr((\
-                    "Fail to get arguments for %s "
+                    "fail to get arguments for %s "
                     "because of wrong parameters") % nmSyscall)
                 raise Exception()
 
@@ -19024,7 +19036,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to call %s syscall' % syscall, True, reason=True)
+                'fail to call %s syscall' % syscall, True, reason=True)
 
 
 
@@ -19033,7 +19045,7 @@ Copyright:
         if not SysMgr.isRoot():
             if verb:
                 SysMgr.printErr(\
-                    "Fail to get root permission")
+                    "fail to get root permission")
             if exit:
                 sys.exit(0)
             return False
@@ -19067,7 +19079,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                'Fail to recognize %s as perf event type' % econfig)
+                'fail to recognize %s as perf event type' % econfig)
             return
 
         if SysMgr.guiderObj:
@@ -19078,7 +19090,7 @@ Copyright:
                 # check root permission #
                 if not SysMgr.isRoot():
                     SysMgr.printWarn(\
-                        'Fail to get root permission to open perf event')
+                        'fail to get root permission to open perf event')
                     return
                 else:
                     return -1
@@ -19418,7 +19430,7 @@ Copyright:
             # check root permission #
             if not SysMgr.isRoot():
                 SysMgr.printWarn(\
-                    'Fail to get root permission to open perf event')
+                    'fail to get root permission to open perf event')
                 return
             else:
                 return -1
@@ -19701,7 +19713,7 @@ Copyright:
                     list(SysMgr.perfEventChannel[coreId].keys())
 
         if successCnt == 0:
-            SysMgr.printWarn('Fail to find available perf event')
+            SysMgr.printWarn('fail to find available perf event')
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
 
@@ -20016,12 +20028,12 @@ Copyright:
             if cmd != '':
                 SysMgr.writeCmd("kprobes/filter", cmd)
             else:
-                SysMgr.printErr("Fail to apply kprobe filter")
+                SysMgr.printErr("fail to apply kprobe filter")
                 sys.exit(0)
 
         # enable kprobe events #
         if SysMgr.writeCmd("kprobes/enable", '1') < 0:
-            SysMgr.printErr("Fail to apply kprobe events")
+            SysMgr.printErr("fail to apply kprobe events")
             sys.exit(0)
 
 
@@ -20066,7 +20078,7 @@ Copyright:
             # check binary file #
             if not os.path.isfile(cmdFormat[2]):
                 SysMgr.printErr(\
-                    "Fail to find '%s' binary" % cmdFormat[2])
+                    "fail to find '%s' binary" % cmdFormat[2])
                 sys.exit(0)
 
             # symbol input #
@@ -20084,7 +20096,7 @@ Copyright:
 
                         if not objdumpPath:
                             SysMgr.printErr((\
-                                "Fail to find objdump "
+                                "fail to find objdump "
                                 "to get address of user-level function, "
                                 "use -l option to set custom path"))
                             sys.exit(0)
@@ -20097,7 +20109,7 @@ Copyright:
                 # symbol input with objdump #
                 elif not os.path.isfile(SysMgr.objdumpPath):
                     SysMgr.printErr(\
-                        "Fail to find %s to use objdump" % \
+                        "fail to find %s to use objdump" % \
                         SysMgr.objdumpPath)
                     sys.exit(0)
 
@@ -20105,7 +20117,7 @@ Copyright:
                 addr = ElfAnalyzer.getSymOffset(\
                     cmdFormat[1], cmdFormat[2], SysMgr.objdumpPath)
                 if not addr:
-                    SysMgr.printErr("Fail to find '%s' in %s" % \
+                    SysMgr.printErr("fail to find '%s' in %s" % \
                         (cmdFormat[1], cmdFormat[2]))
                     sys.exit(0)
             # address input #
@@ -20115,7 +20127,7 @@ Copyright:
                     hex(long(addr, base=16))
                 except:
                     SysMgr.printErr(\
-                        "Fail to recognize address %s" % addr)
+                        "fail to recognize address %s" % addr)
                     sys.exit(0)
 
             for item in effectiveCmd:
@@ -20130,8 +20142,9 @@ Copyright:
             effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
 
         # print uprobe event list #
-        SysMgr.printInfo("enabled user events [ %s ]" % \
-            ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
+        SysMgr.printInfo(\
+            "enabled user events [ %s ]" % \
+                ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
 
         # clear uprobe event filter #
         SysMgr.writeCmd("../uprobe_events", '')
@@ -20158,12 +20171,12 @@ Copyright:
             if cmd != '':
                 SysMgr.writeCmd("uprobes/filter", cmd)
             else:
-                SysMgr.printErr("Fail to apply uprobe filter")
+                SysMgr.printErr("fail to apply uprobe filter")
                 sys.exit(0)
 
         # enable uprobe events #
         if SysMgr.writeCmd("uprobes/enable", '1') < 0:
-            SysMgr.printErr("Fail to apply uprobe events")
+            SysMgr.printErr("fail to apply uprobe events")
             sys.exit(0)
 
 
@@ -20226,7 +20239,7 @@ Copyright:
         SysMgr.writeCmd('raw_syscalls/filter', scmd)
         ret = SysMgr.writeCmd(cmd, '1')
         if ret < 0:
-            SysMgr.printWarn("Fail to enable syscall events", True)
+            SysMgr.printWarn("fail to enable syscall events", True)
 
 
 
@@ -20238,7 +20251,7 @@ Copyright:
             printFunc = SysMgr.printErr
 
         printFunc(\
-            "Fail to send %s to thread %s" % (signal, tid), reason=True)
+            "fail to send %s to thread %s" % (signal, tid), reason=True)
 
 
 
@@ -20588,7 +20601,7 @@ Copyright:
         # create a memory file #
         fd = MemoryFile(addr, name='vdso')
         if not fd:
-            SysMgr.printErr("Fail to create memory file for vdso object")
+            SysMgr.printErr("fail to create memory file for vdso object")
             return None
         elif not elf:
             return fd
@@ -20611,7 +20624,7 @@ Copyright:
             nrType = ConfigMgr.AT_TYPE[attype]
         except:
             SysMgr.printErr(\
-                "Fail to get entry type %s" % attype, True)
+                "fail to get entry type %s" % attype, True)
             return
 
         # import ctypes #
@@ -20625,7 +20638,7 @@ Copyright:
             SysMgr.libcObj.getauxval.restype = c_ulong
             SysMgr.libcObj.getauxval.argtypes = [c_ulong]
         except:
-            SysMgr.printErr("Fail to find getauxval in libc")
+            SysMgr.printErr("fail to find getauxval in libc")
             return None
 
         return SysMgr.libcObj.getauxval(c_ulong(nrType))
@@ -21254,7 +21267,7 @@ Copyright:
                 sys.exit(0)
         else:
             SysMgr.printErr(\
-                'Fail to save data because file path is not set')
+                'fail to save data because file path is not set')
             sys.exit(0)
 
         # set alarm again #
@@ -21288,7 +21301,7 @@ Copyright:
                     '%s is renamed to %s' % (outputFile, backupFile))
         except:
             SysMgr.printErr(\
-                "Fail to backup %s to %s" % \
+                "fail to backup %s to %s" % \
                     (outputFile, backupFile), True)
 
         # compress by gzip #
@@ -21327,7 +21340,7 @@ Copyright:
                     lstring = lstring.encode()
                 except:
                     SysMgr.printErr(\
-                        "Fail to encoding data")
+                        "fail to encoding data")
                     sys.exit(0)
 
                 f.write(lstring)
@@ -21359,7 +21372,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to write trace data to %s" % outputFile, True)
+                "fail to write trace data to %s" % outputFile, True)
 
 
 
@@ -21381,7 +21394,7 @@ Copyright:
                             (val, path))
                 except:
                     SysMgr.printWarn(\
-                        "Fail to apply command '%s' to %s" % (val, path))
+                        "fail to apply command '%s' to %s" % (val, path))
             elif len(cmd) == 1:
                 os.system(cmd[0])
 
@@ -21396,7 +21409,7 @@ Copyright:
                 return fd.read()[:-1]
         except:
             SysMgr.printErr(\
-                "Fail to read data from %s\n" % target)
+                "fail to read data from %s\n" % target)
             return None
 
 
@@ -21448,7 +21461,7 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr("Fail to write command")
+                    SysMgr.printErr("fail to write command")
                     return -1
 
         # open for applying command #
@@ -21487,7 +21500,7 @@ Copyright:
                 pass
 
             SysMgr.printWarn(\
-                "Fail to use %s event, please check kernel configuration" % \
+                "fail to use %s event, please check kernel configuration" % \
                     epath, reason=True)
             return -1
 
@@ -21512,7 +21525,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to apply command '%s' to %s" % \
+                "fail to apply command '%s' to %s" % \
                     (val, path), reason=True)
             return -2
 
@@ -22054,7 +22067,7 @@ Copyright:
                     open(SysMgr.eventLogPath, 'w')
             except:
                 SysMgr.printOpenWarn(\
-                    "Fail to open %s" % SysMgr.eventLogPath)
+                    "fail to open %s" % SysMgr.eventLogPath)
                 return
 
         if SysMgr.eventLogFd:
@@ -22067,11 +22080,11 @@ Copyright:
                 return True
             except:
                 SysMgr.printWarn(\
-                    "Fail to write %s event" % (message), reason=True)
+                    "fail to write %s event" % (message), reason=True)
                 return
         else:
             SysMgr.printErr(\
-                "Fail to write %s event because there is no file descriptor\n" % \
+                "fail to write %s event because there is no file descriptor\n" % \
                 message)
 
 
@@ -22092,7 +22105,7 @@ Copyright:
     @staticmethod
     def printPipWarn(name, pkg):
         SysMgr.printWarn((\
-            "Fail to import python package: %s, "
+            "fail to import python package: %s, "
             "Try to enter 'pip%s install %s'") % \
                 (name, sys.version_info[0], pkg), True)
 
@@ -22124,7 +22137,7 @@ Copyright:
         except ImportError:
             err = sys.exc_info()[1]
             SysMgr.printWarn(\
-                "Fail to import python package: %s" % err.args[0])
+                "fail to import python package: %s" % err.args[0])
 
         # load bmp plugin instead of jpeg #
         try:
@@ -22134,11 +22147,11 @@ Copyright:
         except ImportError:
             err = sys.exc_info()[1]
             SysMgr.printErr(\
-                "Fail to import python package: %s" % err.args[0])
+                "fail to import python package: %s" % err.args[0])
             return
 
         if not SysMgr.imagePath:
-            SysMgr.printErr("Fail to load image path")
+            SysMgr.printErr("fail to load image path")
             return
 
         # set image file extension #
@@ -22150,7 +22163,7 @@ Copyright:
                 imageFont = ImageFont.truetype(SysMgr.fontPath, 10)
             except:
                 SysMgr.printErr(\
-                    "Fail to load font from %s" % SysMgr.fontPath)
+                    "fail to load font from %s" % SysMgr.fontPath)
                 return
         else:
             try:
@@ -22158,7 +22171,7 @@ Copyright:
                 imageFont = ImageFont.load_default().font
             except:
                 SysMgr.printErr((\
-                    "Fail to load default font because %s, "
+                    "fail to load default font because %s, "
                     "try to use -T option") % SysMgr.getErrMsg())
                 return
 
@@ -22186,7 +22199,7 @@ Copyright:
             imageObject = \
                 Image.new("RGB", (900, imageSizeY), (255, 255, 255))
         else:
-            SysMgr.printErr("No output image type")
+            SysMgr.printErr("no output image type")
             return
 
         # make palette #
@@ -22206,7 +22219,7 @@ Copyright:
             imageObject.save(SysMgr.imagePath)
         except:
             SysMgr.printErr(\
-                "Fail to save image as %s\n" % SysMgr.imagePath)
+                "fail to save image as %s\n" % SysMgr.imagePath)
             return
 
         try:
@@ -22269,7 +22282,7 @@ Copyright:
             jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData, pretty=False)
             if not jsonObj:
                 SysMgr.printWarn(\
-                    "Fail to convert report data to JSON type")
+                    "fail to convert report data to JSON type")
             else:
                 SysMgr.printPipe(jsonObj)
         # realtime mode #
@@ -22413,7 +22426,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to use pager", True, reason=True)
+                    "fail to use pager", True, reason=True)
 
         # pager output #
         if SysMgr.pipeForPrint:
@@ -22429,7 +22442,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to print to pager\n", True)
+                    "fail to print to pager\n", True)
                 SysMgr.pipeForPrint = None
 
         # file initialization #
@@ -22489,7 +22502,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to backup %s to %s" % \
+                        "fail to backup %s to %s" % \
                             (SysMgr.inputFile, backupFile), True)
 
             # open file #
@@ -22523,7 +22536,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to write to file", True)
+                    "fail to write to file", True)
         # console output #
         else:
             ttyCols = SysMgr.ttyCols
@@ -22538,7 +22551,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn("Fail to print to console", reason=True)
+                SysMgr.printWarn("fail to print to console", reason=True)
                 return
 
             # convert to extended ascii #
@@ -22725,14 +22738,14 @@ Copyright:
     @staticmethod
     def printOpenErr(path):
         SysMgr.printErr(\
-            'Fail to open %s' % path, True)
+            'fail to open %s' % path, True)
 
 
 
     @staticmethod
     def printOpenWarn(path, always=False):
         SysMgr.printWarn(\
-            'Fail to open %s' % path, always, reason=True)
+            'fail to open %s' % path, always, reason=True)
 
 
 
@@ -23134,7 +23147,7 @@ Copyright:
 
                     if len(SysMgr.preemptGroup) == 0:
                         SysMgr.printErr((\
-                            "No specific thread targeted, "
+                            "no specific thread targeted, "
                             "input TID with -p option"))
                         sys.exit(0)
 
@@ -23469,7 +23482,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "No %s syscall in %s ABI" % \
+                            "no %s syscall in %s ABI" % \
                             (val, SysMgr.arch))
                         sys.exit(0)
 
@@ -23828,7 +23841,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "No %s syscall in %s ABI" % \
+                            "no %s syscall in %s ABI" % \
                             (val, SysMgr.arch))
                         sys.exit(0)
 
@@ -23850,7 +23863,7 @@ Copyright:
                 SysMgr.outPath = str(value)
                 if not SysMgr.outPath:
                     SysMgr.printErr(\
-                        "No value with -o option")
+                        "no value with -o option")
                     sys.exit(0)
 
             elif option == 'c':
@@ -23858,7 +23871,7 @@ Copyright:
                 SysMgr.customCmd = SysMgr.clearList(itemList)
                 if len(SysMgr.customCmd) == 0:
                     SysMgr.printErr(\
-                        "Fail to recognize custom events")
+                        "fail to recognize custom events")
                     sys.exit(0)
 
             elif option == 'd':
@@ -24664,7 +24677,7 @@ Copyright:
         elif SysMgr.isPauseMode():
             if not SysMgr.filterGroup:
                 SysMgr.printErr(\
-                    "No COMM or TID with -g option")
+                    "no COMM or TID with -g option")
                 sys.exit(0)
 
             # convert comm to pid #
@@ -24683,7 +24696,7 @@ Copyright:
             path = SysMgr.inputParam
             if not path:
                 SysMgr.printErr(\
-                    "No PATH with -I option")
+                    "no PATH with -I option")
                 sys.exit(0)
 
             # set debug flag #
@@ -24706,7 +24719,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to analyze %s" % path, True)
+                    "fail to analyze %s" % path, True)
 
         # LEAKTRACE MODE #
         elif SysMgr.isLeaktraceMode():
@@ -25270,12 +25283,12 @@ Copyright:
     def checkPerfTopCond():
         if not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to use PMU")
+                "fail to get root permission to use PMU")
             return False
         elif not os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
             SysMgr.procPath):
             SysMgr.printErr(\
-                "Fail to use PMU, please check kernel configuration")
+                "fail to use PMU, please check kernel configuration")
             return False
         else:
             return True
@@ -25286,7 +25299,7 @@ Copyright:
     def checkMemTopCond():
         if not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to analyze memory details")
+                "fail to get root permission to analyze memory details")
             return False
         else:
             return True
@@ -25309,7 +25322,7 @@ Copyright:
             return True
         else:
             SysMgr.printErr(\
-                "Fail to get path to save output, use -o option")
+                "fail to get path to save output, use -o option")
             return False
 
 
@@ -25362,7 +25375,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to backup %s to %s" % \
+                    "fail to backup %s to %s" % \
                         (reportPath, backupFile), True)
 
         # open report file #
@@ -25397,7 +25410,7 @@ Copyright:
             return False
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to clear refcnts")
+                "fail to get root permission to clear refcnts")
             return False
         else:
             return True
@@ -25409,11 +25422,11 @@ Copyright:
         procPath = SysMgr.procPath
         if not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to analyze block I/O")
+                "fail to get root permission to analyze block I/O")
             return False
         elif not os.path.isfile('%s/self/io' % procPath):
             SysMgr.printErr(\
-                "Fail to use bio event, please check kernel configuration")
+                "fail to use bio event, please check kernel configuration")
             return False
         else:
             return True
@@ -25424,7 +25437,7 @@ Copyright:
     def checkStackTopCond():
         if not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to sample stack")
+                "fail to get root permission to sample stack")
             return False
         elif not SysMgr.getOption('g'):
             SysMgr.printErr(\
@@ -25433,7 +25446,7 @@ Copyright:
             return False
         elif not os.path.isfile('%s/self/stack' % SysMgr.procPath):
             SysMgr.printErr(\
-                "Fail to sample stack, please check kernel configuration")
+                "fail to sample stack, please check kernel configuration")
             return False
         else:
             return True
@@ -25481,7 +25494,7 @@ Copyright:
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printErr(\
-                "Fail to mount debugfs to trace events")
+                "fail to mount debugfs to trace events")
             sys.exit(0)
 
 
@@ -25494,7 +25507,7 @@ Copyright:
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printWarn(\
-                "Fail to get debugfs mount point", True)
+                "fail to get debugfs mount point", True)
 
         while 1:
             SysMgr.printStat(\
@@ -25616,7 +25629,7 @@ Copyright:
             addrs = SysMgr.getSocketAddrList(objs)
             if len(addrs) == 0:
                 SysMgr.printWarn(\
-                    "Fail to get socket attribute of server", True)
+                    "fail to get socket attribute of server", True)
                 return None
 
             # get server address #
@@ -25629,7 +25642,7 @@ Copyright:
                 "Found multiple running %s processes" % name, True)
         else:
             SysMgr.printWarn(\
-                "Fail to find %s process" % name, True)
+                "fail to find %s process" % name, True)
 
         return None
 
@@ -26063,9 +26076,9 @@ Copyright:
         # set default message #
         if not msg:
             if SysMgr.idList:
-                msg = "Input a task index... ( Help / Quit)"
+                msg = "input a task index... ( Help / Quit)"
             else:
-                msg = "Input a command... ( Help / Quit )"
+                msg = "input a command... ( Help / Quit )"
 
         # wait for user input #
         try:
@@ -26102,7 +26115,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn("Fail to read user input", reason=True)
+            SysMgr.printWarn("fail to read user input", reason=True)
         finally:
             SysMgr.inWaitStatus = False
 
@@ -26138,7 +26151,7 @@ Copyright:
             ''')
 
             # wait for enter #
-            SysMgr.printPipe("Input enter to continue...")
+            SysMgr.printPipe("input ENTER to continue...")
             sys.stdin.readline()
 
         ulist = uinput.split()
@@ -26252,7 +26265,7 @@ Copyright:
             sys.exit(0)
 
         '''
-        SysMgr.printPipe("Input ENTER to continue...")
+        SysMgr.printPipe("input ENTER to continue...")
         sys.stdin.readline()
         '''
 
@@ -26262,7 +26275,7 @@ Copyright:
     def getLimitCpuInfo(limitInfo):
         if len(limitInfo) == 0:
             SysMgr.printErr(\
-                "Fail to get task info to limit cpu, "
+                "fail to get task info to limit cpu, "
                 "input {tid:percentage} with -g option")
             sys.exit(0)
 
@@ -26282,7 +26295,7 @@ Copyright:
                         limitList[tid] = long(per)
         except:
             SysMgr.printErr(\
-                "Fail to get task info to limit cpu, "
+                "fail to get task info to limit cpu, "
                 "input {tid:percentage} with -g option")
             sys.exit(0)
 
@@ -26308,7 +26321,7 @@ Copyright:
             os.execvp(cmd[0], cmd)
         except:
             SysMgr.printErr(\
-                "Fail to execute '%s'" % ' '.join(cmd), True)
+                "fail to execute '%s'" % ' '.join(cmd), True)
             return -1
 
 
@@ -26473,7 +26486,7 @@ Copyright:
         # error #
         else:
             SysMgr.printErr(\
-                "Fail to launch Guider because of process creation fail")
+                "fail to launch Guider because of process creation fail")
 
 
 
@@ -26509,7 +26522,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to wait %s task" % pid, reason=True)
+                "fail to wait %s task" % pid, reason=True)
 
 
 
@@ -26575,7 +26588,7 @@ Copyright:
         # fail #
         else:
             SysMgr.printErr(\
-                "Fail to create process")
+                "fail to create process")
             return -1
 
 
@@ -26727,7 +26740,7 @@ Copyright:
             atype = SIG_UNBLOCK = 1
         else:
             SysMgr.printErr(\
-                "No supported '%s' for blocking signal" % act)
+                "no supported '%s' for blocking signal" % act)
             return
 
         SysMgr.libcObj.memset(\
@@ -26851,7 +26864,7 @@ Copyright:
                             os.path.getsize(targetPath)), addr, remotePath))
             except:
                 SysMgr.printErr(\
-                    "Fail to upload %s to %s:%s" % \
+                    "fail to upload %s to %s:%s" % \
                     (targetPath, addr, remotePath), True)
             finally:
                 netObj.close()
@@ -26914,7 +26927,7 @@ Copyright:
                         os.path.getsize(targetPath)), addr, origPath))
             except:
                 SysMgr.printErr(\
-                    'Fail to download %s from %s:%s' % \
+                    'fail to download %s from %s:%s' % \
                         (origPath, addr, targetPath), True)
             finally:
                 netObj.close()
@@ -26995,7 +27008,7 @@ Copyright:
                     "'%s' command is terminated for %s" % (value, addr))
             except:
                 SysMgr.printErr(\
-                    "Fail to execute '%s' from %s" % (value, addr), True)
+                    "fail to execute '%s' from %s" % (value, addr), True)
             finally:
                 try:
                     connObj.close()
@@ -27034,7 +27047,7 @@ Copyright:
                         port = req[1][1]
                     except:
                         SysMgr.printWarn(\
-                            "Fail to get address of client from message")
+                            "fail to get address of client from message")
                         return False
 
                 SysMgr.printInfo(\
@@ -27054,7 +27067,7 @@ Copyright:
             # handle request #
             if not request:
                 SysMgr.printWarn(\
-                    'Fail to recognize the request', True)
+                    'fail to recognize the request', True)
                 return False
 
             # convert request to capital #
@@ -27066,8 +27079,8 @@ Copyright:
                 request != 'RUN' and \
                 request != 'PING':
                 SysMgr.printWarn(\
-                    "Fail to recognize the request '%s'" % message, True)
-                sendErrMsg(connObj, "No support request '%s'" % message)
+                    "fail to recognize the request '%s'" % message, True)
+                sendErrMsg(connObj, "no support request '%s'" % message)
 
                 return False
 
@@ -27136,7 +27149,7 @@ Copyright:
             connMan.timeout()
         except:
             SysMgr.printErr(\
-                'Fail to listen to prepare for connection', True)
+                'fail to listen to prepare for connection', True)
             sys.exit(0)
 
         # run mainloop #
@@ -27150,7 +27163,7 @@ Copyright:
                 continue
             except:
                 SysMgr.printWarn(\
-                    'Fail to accept to prepare for connection', reason=True)
+                    'fail to accept to prepare for connection', reason=True)
                 continue
 
             SysMgr.printInfo(\
@@ -27199,7 +27212,7 @@ Copyright:
                 service, ip, port = NetworkMgr.parseAddr(addrs)
                 if service == ip == port == None:
                     SysMgr.printErr(\
-                        "Fail to recognize command %s" % uinput, True)
+                        "fail to recognize command %s" % uinput, True)
                     return
                 else:
                     NetworkMgr.setRemoteServer(addrs, tcp=True)
@@ -27271,7 +27284,7 @@ Copyright:
                 pipe = NetworkMgr.execRemoteCmd(uinput)
                 if not pipe:
                     SysMgr.printErr(\
-                        "Fail to execute remote command")
+                        "fail to execute remote command")
                     continue
 
                 signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
@@ -27355,7 +27368,7 @@ Copyright:
         value = ' '.join(sys.argv[2:])
         if len(value) == 0:
             SysMgr.printErr(\
-                ("No PATH to convert file, "
+                ("no PATH to convert file, "
                 "input the path of a text file"))
             sys.exit(0)
         elif not os.path.isfile(value):
@@ -27372,7 +27385,7 @@ Copyright:
                 textBuf = fd.read()
         except:
             SysMgr.printErr(\
-                "Fail to read data from %s" % value)
+                "fail to read data from %s" % value)
             sys.exit(0)
 
         # draw image #
@@ -27388,11 +27401,11 @@ Copyright:
 
         if not os.path.isdir(freqPath):
             SysMgr.printErr(\
-                "Fail to find CPU node for governor")
+                "fail to find CPU node for governor")
             sys.exit(0)
         elif not SysMgr.filterGroup:
             SysMgr.printErr(\
-                "No core value with -g option")
+                "no core value with -g option")
             sys.exit(0)
 
         # parse values #
@@ -27485,7 +27498,7 @@ Copyright:
                 pass
             elif not core in cpulist:
                 SysMgr.printErr((\
-                    "Fail to set CPU(%s) clock because "
+                    "fail to set CPU(%s) clock because "
                     "it doesn't support governor") % core)
                 sys.exit(0)
             # check available clock #
@@ -27496,7 +27509,7 @@ Copyright:
                 avail = ' '.join(cpulist[core]['avail'])
                 governors = ' '.join(cpulist[core]['governors'])
                 SysMgr.printErr((\
-                    "Fail to set CPU(%s) clock because it only supports \n\t"
+                    "fail to set CPU(%s) clock because it only supports \n\t"
                     "[%s] clock list \n\t[%s] governor list") % \
                         (core, avail, governors))
                 sys.exit(0)
@@ -27529,7 +27542,7 @@ Copyright:
                         res = 'governor'
 
                     SysMgr.printErr(\
-                        "Fail to set %s of CPU(%s)" % (res, core), True)
+                        "fail to set %s of CPU(%s)" % (res, core), True)
                     sys.exit(0)
 
                 # cur_governor #
@@ -27582,7 +27595,7 @@ Copyright:
 
         pids = SysMgr.convertPidList(SysMgr.filterGroup, exceptMe=True)
         if not pids:
-            SysMgr.printErr("Fail to find %s process" % \
+            SysMgr.printErr("fail to find %s process" % \
                 ', '.join(SysMgr.filterGroup))
             sys.exit(0)
 
@@ -27726,7 +27739,7 @@ Copyright:
         geAttr = SysMgr.geAttr
 
         if not sockObj:
-            SysMgr.printErr("Not initialized netlink socket yet")
+            SysMgr.printErr("not initialized netlink socket yet")
             return None
 
         NLMSG_MIN_TYPE  = 0x10
@@ -27857,7 +27870,7 @@ Copyright:
                     attrList[name.strip()] = value.strip()
                 except:
                     SysMgr.printWarn(\
-                        "Fail to parse line '%s'" % line[:-1], reason=True)
+                        "fail to parse line '%s'" % line[:-1], reason=True)
 
             return attrList
 
@@ -28017,7 +28030,7 @@ Copyright:
             jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
             if not jsonObj:
                 SysMgr.printWarn(\
-                    "Fail to convert report data to JSON type")
+                    "fail to convert report data to JSON type")
             else:
                 SysMgr.printPipe(jsonObj)
         else:
@@ -28125,7 +28138,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to watch", reason=True)
+                SysMgr.printErr("fail to watch", reason=True)
                 sys.exit(0)
 
 
@@ -28154,6 +28167,9 @@ Copyright:
             for pid in pidList:
                 mapList += getProcMapInfo(pid, onlyExec=True).keys()
             mapList = list(set(mapList))
+
+            if mapList:
+                SysMgr.printInfo('start preloading binaries...')
 
             # load symbol caches at once #
             for item in mapList:
@@ -28251,10 +28267,10 @@ Copyright:
         # check condition #
         if mode == 'remote' or mode == 'hook':
             if not SysMgr.customCmd:
-                SysMgr.printErr("Fail to get remote command")
+                SysMgr.printErr("fail to get remote command")
                 sys.exit(0)
             elif SysMgr.inputParam:
-                SysMgr.printErr("Executing a program is not supported")
+                SysMgr.printErr("executing a program is not supported")
                 sys.exit(0)
 
         # set priority #
@@ -28292,19 +28308,19 @@ Copyright:
         # check permission #
         elif not SysMgr.isRoot():
             SysMgr.printErr(\
-                "Fail to get root permission to trace %s" % mode)
+                "fail to get root permission to trace %s" % mode)
             sys.exit(0)
         # check pid #
         elif not pids or len(pids) == 0:
             if SysMgr.filterGroup:
                 flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(\
-                    "No thread related to %s" % flist)
+                    "no thread related to %s" % flist)
             elif not SysMgr.inputParam:
                 SysMgr.printErr(\
-                    "No TID with -g option or command with -I option")
+                    "no TID with -g option or command with -I option")
             else:
-                SysMgr.printErr("No TID with -g option")
+                SysMgr.printErr("no TID with -g option")
 
             SysMgr.outPath = SysMgr.fileForPrint = None
 
@@ -28458,19 +28474,19 @@ Copyright:
 
         # check input #
         if not SysMgr.inputParam:
-            SysMgr.printErr("No PATH with -I option")
+            SysMgr.printErr("no PATH with -I option")
             sys.exit(0)
 
         # check symbol #
         if not SysMgr.filterGroup:
-            SysMgr.printErr("No offset with -g option")
+            SysMgr.printErr("no offset with -g option")
             sys.exit(0)
         else:
             addrList = list()
             for idx, addr in enumerate(SysMgr.filterGroup):
                 if not UtilMgr.isNumber(addr):
                     SysMgr.printErr(\
-                        "Fail to recognize '%s' as a number" % addr)
+                        "fail to recognize '%s' as a number" % addr)
                     sys.exit(0)
 
                 try:
@@ -28504,7 +28520,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to load %s as an ELF object" % filePath, True)
+                        "fail to load %s as an ELF object" % filePath, True)
                     sys.exit(0)
 
                 for addr in addrList:
@@ -28517,12 +28533,12 @@ Copyright:
                         resInfo[addr] = ['??', filePath]
             else:
                 SysMgr.printErr(\
-                    "Fail to recognize %s as a file or a process" % inputArg)
+                    "fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((\
-                "Fail to find a unique process because "
+                "fail to find a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
@@ -28536,13 +28552,13 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to analyze %s" % procInfo, True)
+                SysMgr.printErr("fail to analyze %s" % procInfo, True)
                 sys.exit(0)
 
             for addr in addrList:
                 ret = dobj.getSymbolInfo(addr)
                 if not ret:
-                    SysMgr.printErr("Fail to analyze %s" % procInfo, True)
+                    SysMgr.printErr("fail to analyze %s" % procInfo, True)
                     sys.exit(0)
                 elif type(ret) is list:
                     resInfo[addr] = [ret[0], ret[1]]
@@ -28682,7 +28698,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(\
-                            "Fail to access %s" % fullPath, \
+                            "fail to access %s" % fullPath, \
                             always=True, reason=True)
                         continue
 
@@ -28706,7 +28722,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printWarn( \
-                            'Fail to get size of %s' % fullPath, reason=True)
+                            'fail to get size of %s' % fullPath, reason=True)
                         size = ''
 
                     if not SysMgr.showAll:
@@ -28771,7 +28787,7 @@ Copyright:
         # check input #
         if not SysMgr.inputParam:
             SysMgr.printErr(\
-                "No PATH or COMM or PID with -I option")
+                "no PATH or COMM or PID with -I option")
             sys.exit(0)
 
         # check symbol #
@@ -28812,16 +28828,16 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "Fail to get '%s' info" % sym, True)
+                            "fail to get '%s' info" % sym, True)
                         sys.exit(0)
             else:
                 SysMgr.printErr(\
-                    "Fail to recognize %s as a file or a process" % inputArg)
+                    "fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((\
-                "Fail to find a unique process because "
+                "fail to find a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
@@ -28833,7 +28849,7 @@ Copyright:
             # get file list on memory map #
             fileList = FileAnalyzer.getProcMapInfo(pid, onlyExec=True)
             if not fileList:
-                SysMgr.printErr("Fail to analyze %s" % procInfo)
+                SysMgr.printErr("fail to analyze %s" % procInfo)
                 sys.exit(0)
 
             for filePath, attr in fileList.items():
@@ -28852,7 +28868,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(\
-                            "Fail to save offset info", True, reason=True)
+                            "fail to save offset info", True, reason=True)
 
         SysMgr.printPipe("\n[Symbol Info]\n%s" % twoLine)
         SysMgr.printPipe(\
@@ -28905,7 +28921,7 @@ Copyright:
                             "%s(%s) is terminated" % (comm, pid))
                     else:
                         SysMgr.printErr(\
-                            "Fail to get RSS of %s(%s)" % (comm, pid))
+                            "fail to get RSS of %s(%s)" % (comm, pid))
                     return -1
 
                 procData = tobj.procData[pid]['stat']
@@ -28915,7 +28931,8 @@ Copyright:
                 if previous != rssUnit:
                     SysMgr.printInfo(\
                         '%s(%s)\'s VSS(%s), RSS(%s%s) for %s' % \
-                            (comm, pid, vss, rssUnit, condUnit, purpose))
+                            (comm, pid, vss, rssUnit, condUnit, purpose), \
+                                prefix=False)
                 previous = rssUnit
 
                 if cond <= rss:
@@ -28937,7 +28954,7 @@ Copyright:
                         (ConfigMgr.SIG_LIST[sig], comm, pid, purpose))
             except:
                 SysMgr.printErr(\
-                    "Fail to send signal %s to %s profiling" % \
+                    "fail to send signal %s to %s profiling" % \
                         (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
                 return -1
 
@@ -28952,7 +28969,7 @@ Copyright:
         targetList = SysMgr.filterGroup
         if len(targetList) == 0:
             SysMgr.printErr(\
-                "No PID or COMM with -g option")
+                "no PID or COMM with -g option")
             sys.exit(0)
 
         # convert comm to pid #
@@ -28961,7 +28978,7 @@ Copyright:
         startTime = endTime = 0
         pids = SysMgr.convertPidList(targetList, exceptMe=True)
         if len(pids) == 0:
-            SysMgr.printErr("No %s process" % \
+            SysMgr.printErr("no %s process" % \
                 ', '.join(targetList))
             sys.exit(0)
         elif len(pids) > 1:
@@ -29027,12 +29044,12 @@ Copyright:
             elif not 'LD_PRELOAD' in envList or \
                 not 'libleaktracer' in envList['LD_PRELOAD']:
                 SysMgr.printErr(\
-                    'Fail to find libleaktracer.so on memory map '
+                    'fail to find libleaktracer.so on memory map '
                     'because the library is not preloaded')
                 sys.exit(0)
             else:
                 SysMgr.printErr(\
-                    'Fail to find libleaktracer.so on memory map '
+                    'fail to find libleaktracer.so on memory map '
                     'because the library is not preloaded\n'
                     '\tIf the target process is on secure-execution mode,\n'
                     '\tlibleaktracer.so should be in standard search directories'
@@ -29077,7 +29094,7 @@ Copyright:
                     fname = '%s/leaks.out' % current
             else:
                 SysMgr.printErr(\
-                    "No PATH for temporary input with -I option")
+                    "no PATH for temporary input with -I option")
                 sys.exit(0)
 
             # set output file path #
@@ -29102,7 +29119,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to backup %s to %s" % (fname, oldpath), True)
+                    "fail to backup %s to %s" % (fname, oldpath), True)
 
         # check signal on platform #
         try:
@@ -29175,18 +29192,18 @@ Copyright:
             sigList = tobj.procData[pid]['status']['SigCgt']
             if startSig and UtilMgr.isBitEnabled(startSig, sigList) is False:
                 SysMgr.printErr(\
-                    "Fail to find start handler for %s(%s)" % \
+                    "fail to find start handler for %s(%s)" % \
                         (ConfigMgr.SIG_LIST[startSig], startSig))
                 sys.exit(0)
             if stopSig and UtilMgr.isBitEnabled(stopSig, sigList) is False:
                 SysMgr.printErr(\
-                    "Fail to find stop handler for %s(%s)" % \
+                    "fail to find stop handler for %s(%s)" % \
                         (ConfigMgr.SIG_LIST[stopSig], stopSig))
                 sys.exit(0)
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("Fail to check signal", reason=True)
+            SysMgr.printErr("fail to check signal", reason=True)
 
         # START #
         cmd = SysMgr.customCmd
@@ -29226,7 +29243,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to send signal %s to start profiling" % \
+                    "fail to send signal %s to start profiling" % \
                         ConfigMgr.SIG_LIST[startSig], reason=True)
                 sys.exit(0)
 
@@ -29264,7 +29281,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to send signal %s to stop profiling" % \
+                    "fail to send signal %s to stop profiling" % \
                         ConfigMgr.SIG_LIST[stopSig], reason=True)
                 sys.exit(0)
 
@@ -29312,7 +29329,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to analyze memory leakage for %s(%s)" % \
+                "fail to analyze memory leakage for %s(%s)" % \
                     (comm, pid), True)
 
 
@@ -29611,7 +29628,7 @@ Copyright:
                     if op != 'write' and \
                         not os.path.exists(path):
                         SysMgr.printErr(\
-                            "Fail to access %s" % path)
+                            "fail to access %s" % path)
                         sys.exit(0)
 
                     workload.append(\
@@ -29650,7 +29667,7 @@ Copyright:
 
                 if not os.path.exists(mountPoint):
                     SysMgr.printErr(\
-                        "Fail to access %s" % mountPoint)
+                        "fail to access %s" % mountPoint)
                     sys.exit(0)
 
                 workload.append(\
@@ -30123,7 +30140,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to allocate memory", True)
+                    "fail to allocate memory", True)
                 sys.exit(0)
 
             if wrPipe:
@@ -30145,7 +30162,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to get memory stat", True)
+                SysMgr.printErr("fail to get memory stat", True)
                 return
 
             # get vmstat #
@@ -30154,7 +30171,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to get virtual memory stat", True)
+                SysMgr.printErr("fail to get virtual memory stat", True)
                 return
 
             # get zone stat #
@@ -30163,7 +30180,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to get zone memory stat", True)
+                SysMgr.printErr("fail to get zone memory stat", True)
                 return
 
             # get LMK stat #
@@ -30172,7 +30189,7 @@ Copyright:
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn("Fail to get LMK stat", reason=True)
+                SysMgr.printWarn("fail to get LMK stat", reason=True)
 
             # get process stat #
             pid = str(pid)
@@ -30190,7 +30207,7 @@ Copyright:
                 mlist = SysMgr.getMemStat(pid)
                 if not mlist:
                     SysMgr.printErr(\
-                        "Fail to get memory size of Guider")
+                        "fail to get memory size of Guider")
                     sys.exit(0)
 
                 # get memory size #
@@ -30300,7 +30317,7 @@ Copyright:
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr("Fail to alloc memory", True)
+                        SysMgr.printErr("fail to alloc memory", True)
                         sys.exit(0)
                 else:
                     pidList.append(pid)
@@ -30316,7 +30333,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "Fail to print memory stats", reason=True)
+                            "fail to print memory stats", reason=True)
 
                 time.sleep(interval)
         elif interval > 0:
@@ -30339,7 +30356,7 @@ Copyright:
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr("Fail to alloc memory", True)
+                        SysMgr.printErr("fail to alloc memory", True)
                         sys.exit(0)
                 else:
                     pidList.append(pid)
@@ -30355,7 +30372,7 @@ Copyright:
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "Fail to print memory stats", reason=True)
+                            "fail to print memory stats", reason=True)
 
                 time.sleep(interval)
         else:
@@ -30373,13 +30390,13 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to print memory stats", reason=True)
+                        "fail to print memory stats", reason=True)
 
                 time.sleep(interval)
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("Fail to alloc memory", True)
+                SysMgr.printErr("fail to alloc memory", True)
                 sys.exit(0)
 
         # wait for childs #
@@ -30391,7 +30408,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to print memory stats", reason=True)
+                        "fail to print memory stats", reason=True)
 
                 time.sleep(interval)
 
@@ -30416,7 +30433,7 @@ Copyright:
         # check target #
         if not SysMgr.filterGroup:
             SysMgr.printErr(\
-                "No PID or COMM with -g option")
+                "no PID or COMM with -g option")
             sys.exit(0)
 
         # get pid list #
@@ -30424,7 +30441,7 @@ Copyright:
         for item in SysMgr.filterGroup:
             pids += SysMgr.getPids(item)
         if not pids:
-            SysMgr.printErr("No target threads")
+            SysMgr.printErr("no target threads")
 
         tobj = ThreadAnalyzer(onlyInstance=True)
         for pid in pids:
@@ -30489,7 +30506,7 @@ Copyright:
             SysMgr.networkEnable = True
         else:
             SysMgr.printWarn(\
-                "Fail to get disk and network stats "
+                "fail to get disk and network stats "
                 "because no root permission")
 
         # initialize perf events #
@@ -30598,20 +30615,20 @@ Copyright:
                 taskList[task]['group'] = SysMgr.getThreadList(task)
                 if not taskList[task]['group']:
                     SysMgr.printErr(\
-                        "Fail to get thread list of '%s' process" % task)
+                        "fail to get thread list of '%s' process" % task)
                     return
 
                 taskList[task]['fd'] = openStatFd(task, isProcess)
                 if not taskList[task]['fd']:
                     SysMgr.printErr(\
-                        "Fail to get stats of %s thread" % task)
+                        "fail to get stats of %s thread" % task)
                     return
             else:
                 taskList[task]['group'] = [int(task)]
                 taskList[task]['fd'] = openStatFd(task, isProcess)
                 if not taskList[task]['fd']:
                     SysMgr.printErr(\
-                        "Fail to get stats of %s thread" % task)
+                        "fail to get stats of %s thread" % task)
                     return
 
         # set alarm #
@@ -30634,14 +30651,14 @@ Copyright:
                     stat = getTaskStat(val['fd'])
                     if not stat:
                         SysMgr.printErr(\
-                            "Fail to get CPU time of %s thread" % tid)
+                            "fail to get CPU time of %s thread" % tid)
                         taskList.pop(tid, None)
                     else:
                         val['comm'], val['nowTick'] = stat
 
                 if len(taskList) == 0:
                     SysMgr.printErr(\
-                        "Fail to find task to limit CPU usage")
+                        "fail to find task to limit CPU usage")
                     return
 
                 if not prevTime:
@@ -30855,7 +30872,7 @@ Copyright:
                     pid = long(pid)
                 except:
                     SysMgr.printErr(\
-                        "Fail to recognize %s as a PID" % pid)
+                        "fail to recognize %s as a PID" % pid)
                     return
 
                 # skip myself #
@@ -30885,7 +30902,7 @@ Copyright:
         myComm = SysMgr.getComm(SysMgr.pid)
         if not myComm:
             SysMgr.printErr(\
-                "Fail to get my comm", True)
+                "fail to get my comm", True)
             sys.exit(0)
 
         # get my cmdline #
@@ -30894,7 +30911,7 @@ Copyright:
             myCmdline = myCmdline.split()
         else:
             SysMgr.printErr(\
-                "Fail to get my cmdline", True)
+                "fail to get my cmdline", True)
             sys.exit(0)
 
         # handle Guider processes #
@@ -30964,7 +30981,7 @@ Copyright:
             nrProc += 1
 
         if nrProc == 0 and verbose:
-            SysMgr.printInfo("No running process in the background")
+            SysMgr.printInfo("no running process in the background")
 
 
 
@@ -31035,7 +31052,7 @@ Copyright:
 
                 if not targetList:
                     SysMgr.printErr(\
-                        "No threads related to %s" % tid)
+                        "no threads related to %s" % tid)
                     sys.exit(0)
 
                 for tid in targetList:
@@ -31078,14 +31095,14 @@ Copyright:
             # check whether kernel version is higher than 3.14 #
             if ver < 3.14:
                 SysMgr.printErr((\
-                    "Fail to set priority of %d "
+                    "fail to set priority of %d "
                     "because kernel version %g is lesser than 3.14") % \
                     (pid, ver))
                 return -1
         except:
             err = sys.exc_info()[1]
             SysMgr.printWarn(\
-                ("Fail to check kernel version because %s "
+                ("fail to check kernel version because %s "
                 "to set deadline priority") % err.args[0], True)
             return -1
 
@@ -31143,7 +31160,7 @@ Copyright:
         # check deadline and period #
         if deadline == period == 0:
             SysMgr.printErr((\
-                "Fail to set priority of %s "
+                "fail to set priority of %s "
                 "as runtime(ns)/deadline(ns)/period(ns)[D]") % pid)
             return -1
         elif deadline == 0:
@@ -31165,12 +31182,12 @@ Copyright:
         # check return value #
         if ret == 0:
             SysMgr.printInfo((\
-                "the priority of %s(%s) is changed to "
+                "changed the priority of %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
         else:
             SysMgr.printErr((\
-                "Fail to set priority of %s(%s) as "
+                "fail to set priority of %s(%s) as "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
 
@@ -31188,7 +31205,7 @@ Copyright:
                 elist = fd.readlines()[0].split('\x00')[:-1]
         except:
             SysMgr.printErr(\
-                "Fail to get environment variables of process %s" % pid, True)
+                "fail to get environment variables of process %s" % pid, True)
             elist = []
 
         # convert list to dictionary #
@@ -31267,10 +31284,10 @@ Copyright:
 
             if verb:
                 SysMgr.printInfo(\
-                    'the priority of %s(%s) is changed to %d[%s]' % \
+                    'changed the priority of %s(%s) to %d[%s]' % \
                         (comm, pid, pri, upolicy))
         except:
-            err = "Fail to set priority of %d as %s[%s]" % \
+            err = "fail to set priority of %d as %s[%s]" % \
                 (pid, pri, upolicy)
 
             if not SysMgr.isRoot():
@@ -31378,7 +31395,7 @@ Copyright:
         # update tty info by stty #
         try:
             if not UtilMgr.which('stty'):
-                raise Exception("No stty")
+                raise Exception("no stty")
 
             subprocess = SysMgr.getPkg('subprocess', False)
             pd = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
@@ -31386,7 +31403,7 @@ Copyright:
                 list(map(long, pd.stdout.readline().split()))
         except:
             SysMgr.printWarn(\
-                "Fail to get terminal info", reason=True)
+                "fail to get terminal info", reason=True)
 
 
 
@@ -31405,7 +31422,7 @@ Copyright:
             self.loadData = SysMgr.procReadline('loadavg')
         except:
             SysMgr.printWarn(\
-                "Fail to get load", reason=True)
+                "fail to get load", reason=True)
 
         self.loadData = self.loadData.split()
         '''
@@ -31525,7 +31542,7 @@ Copyright:
             self.cpuData = SysMgr.procReadlines('cpuinfo')
         except:
             SysMgr.printWarn(\
-                "Fail to save CPU info", reason=True)
+                "fail to save CPU info", reason=True)
 
 
 
@@ -31602,7 +31619,7 @@ Copyright:
                     target[num] = [item[1]]
         except:
             SysMgr.printWarn(\
-                "Fail to save deice info", reason=True)
+                "fail to save deice info", reason=True)
 
 
 
@@ -31666,7 +31683,7 @@ Copyright:
                 self.memData['next'] = lines
         except:
             SysMgr.printWarn(\
-                "Fail to update memory", reason=True)
+                "fail to update memory", reason=True)
 
 
 
@@ -31765,7 +31782,7 @@ Copyright:
             lines = SysMgr.procReadlines('mounts')
         except:
             SysMgr.printErr(\
-                "Fail to get mount path", True)
+                "fail to get mount path", True)
             return None
 
         ret = None
@@ -31894,7 +31911,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to execute %s" % func, True)
+                    "fail to execute %s" % func, True)
 
         # destroy objects registered #
         del SysMgr.exitFuncList
@@ -32091,13 +32108,13 @@ Copyright:
                 # tracing status #
                 else:
                     SysMgr.printErr(\
-                        "Fail to start tracing because "
+                        "fail to start tracing because "
                         "tracing is already in progress on system\n"
                         "\tit would be stopped so that try to record again")
                     sys.exit(0)
             else:
                 SysMgr.printErr(\
-                    "Fail to start tracing because "
+                    "fail to start tracing because "
                     "another Guider is already running")
                 os._exit(0)
 
@@ -32158,7 +32175,7 @@ Copyright:
                     "through %s") % cmd)
             else:
                 SysMgr.printErr(\
-                    "Fail to get root permission to trace system")
+                    "fail to get root permission to trace system")
 
             sys.exit(0)
 
@@ -32181,7 +32198,7 @@ Copyright:
         # check system buffer size #
         if long(SysMgr.bufferSize) != setBufferSize:
             SysMgr.printWarn(\
-                "Fail to set buffer size to %s KB, buffer size is %s KB now" % \
+                "fail to set buffer size to %s KB, buffer size is %s KB now" % \
                 (SysMgr.bufferSize, setBufferSize), True)
 
         # initialize event list to enable #
@@ -32229,7 +32246,7 @@ Copyright:
                         SysMgr.writeCmd('../set_ftrace_pid', pid, True)
                     except:
                         SysMgr.printErr((\
-                            "Fail to add %s to PID filter "
+                            "fail to add %s to PID filter "
                             "for function graph tracing") % pid)
                         sys.exit(0)
 
@@ -32250,7 +32267,7 @@ Copyright:
                     if SysMgr.writeCmd(\
                         '../set_ftrace_filter', params) < 0:
                         SysMgr.printErr(\
-                            "Fail to set function filter")
+                            "fail to set function filter")
                         sys.exit(0)
                     else:
                         SysMgr.printStat(\
@@ -32340,7 +32357,7 @@ Copyright:
                 if SysMgr.heapEnable or \
                     SysMgr.lockEnable:
                     SysMgr.printErr(\
-                        "Fail to enable syscall events with other events")
+                        "fail to enable syscall events with other events")
                     sys.exit(0)
                 elif len(SysMgr.syscallList) == 0:
                     pass
@@ -32434,14 +32451,14 @@ Copyright:
                 cmd = cmd[0:cmd.rfind("||")]
                 if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
                     SysMgr.printErr(\
-                        "Fail to set filter [ %s ]" % \
+                        "fail to set filter [ %s ]" % \
                         ' '.join(SysMgr.filterGroup))
                     sys.exit(0)
             else:
                 SysMgr.writeCmd('sched/sched_switch/filter', '0')
 
             if SysMgr.writeCmd('sched/sched_switch/enable', '1') < 0:
-                SysMgr.printErr("Fail to enable sched events")
+                SysMgr.printErr("fail to enable sched events")
                 sys.exit(0)
 
         # build sched filter #
@@ -32477,7 +32494,7 @@ Copyright:
         if self.cmdList["sched/sched_wakeup"]:
             if SysMgr.writeCmd('sched/sched_wakeup/filter', cmd) < 0:
                 SysMgr.printErr(\
-                    "Fail to set filter [ %s ]" % \
+                    "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
@@ -32486,7 +32503,7 @@ Copyright:
         if self.cmdList["sched/sched_wakeup_new"]:
             if SysMgr.writeCmd('sched/sched_wakeup_new/filter', cmd) < 0:
                 SysMgr.printErr(\
-                    "Fail to set filter [ %s ]" % \
+                    "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
@@ -32496,7 +32513,7 @@ Copyright:
             if SysMgr.writeCmd(\
                 'sched/sched_migrate_task/filter', cmd) < 0:
                 SysMgr.printErr(\
-                    "Fail to set filter [ %s ]" % \
+                    "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
@@ -32506,7 +32523,7 @@ Copyright:
             if SysMgr.writeCmd(\
                 'sched/sched_process_wait/filter', cmd) < 0:
                 SysMgr.printWarn(\
-                    "Fail to set filter [ %s ]" % \
+                    "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
 
             SysMgr.writeCmd('sched/sched_process_wait/enable', '1')
@@ -32704,7 +32721,7 @@ Copyright:
                     SysMgr.printInfo("write commands to %s" %\
                         SysMgr.cmdEnable)
                 except:
-                    SysMgr.printErr("Fail to write signal command")
+                    SysMgr.printErr("fail to write signal command")
             elif SysMgr.outputFile:
                 SysMgr.saveCmd =\
                     'cat %s../trace > %s\n' % \
@@ -32740,7 +32757,7 @@ Copyright:
                     "echo '\nsaved command for tracing into %s\n'\n"\
                     % SysMgr.outputFile)
             except:
-                SysMgr.printErr("Fail to write save command")
+                SysMgr.printErr("fail to write save command")
 
 
 
@@ -32811,7 +32828,7 @@ Copyright:
                 if SysMgr.jsonOutputEnable:
                     jsonData[name] = value
         except:
-            SysMgr.printWarn("Fail to parse osData")
+            SysMgr.printWarn("fail to parse osData")
 
         # save device data #
         try:
@@ -33217,7 +33234,7 @@ Copyright:
             for idx, item in enumerate(list(l.split())):
                 if len(ConfigMgr.DISKSTAT) <= idx:
                     SysMgr.printWarn(\
-                        "Fail to parse all diskstat because of overflow")
+                        "fail to parse all diskstat because of overflow")
                     break
                 diskStat[ConfigMgr.DISKSTAT[idx]] = item
 
@@ -34929,7 +34946,7 @@ class DbusAnalyzer(object):
         elif bus == 'session' or bus == 'user':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']
         else:
-            SysMgr.printWarn("Fail to recognize %s bus" % bus)
+            SysMgr.printWarn("fail to recognize %s bus" % bus)
             return None
 
         # get connection #
@@ -34960,12 +34977,12 @@ class DbusAnalyzer(object):
                     c_void_p(conn), DbusAnalyzer.getErrP())
                 if not ret:
                     SysMgr.printWarn(\
-                        "Fail to register D-Bus %s bus because %s" % \
+                        "fail to register D-Bus %s bus because %s" % \
                             (bus, DbusAnalyzer.getErrInfo()))
                     return None
             else:
                 SysMgr.printWarn(\
-                    "Fail to get D-Bus %s bus because %s" % \
+                    "fail to get D-Bus %s bus because %s" % \
                         (bus, DbusAnalyzer.getErrInfo()))
                 return None
 
@@ -34978,7 +34995,7 @@ class DbusAnalyzer(object):
             DbusAnalyzer.getErrP())
         if ret < 0:
             SysMgr.printWarn(\
-                "Fail to request D-Bus bus name to %s because %s" % \
+                "fail to request D-Bus bus name to %s because %s" % \
                     (name.decode(), DbusAnalyzer.getErrInfo()))
         '''
 
@@ -35006,7 +35023,7 @@ class DbusAnalyzer(object):
         if dbusObj.dbus_validate_path(\
             c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
             SysMgr.printWarn(\
-                "Fail to create a D-Bus message because %s" % \
+                "fail to create a D-Bus message because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35019,7 +35036,7 @@ class DbusAnalyzer(object):
             method = 'GetAllMatchRules'
             timeout = c_int(-1)
         else:
-            SysMgr.printErr('Unknown request %s' % request)
+            SysMgr.printErr('unknown request %s' % request)
             sys.exit(0)
 
         # create a message for method call #
@@ -35028,7 +35045,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a D-Bus message")
+            SysMgr.printWarn("fail to create a D-Bus message")
             return
 
         # call a remote method #
@@ -35038,7 +35055,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(\
-                "Fail to call a D-Bus remote method because %s" % \
+                "fail to call a D-Bus remote method because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35063,7 +35080,7 @@ class DbusAnalyzer(object):
                 dbusObj.dbus_message_unref(reply)
                 dbusObj.dbus_connection_unref(conn)
                 SysMgr.printWarn(\
-                    "Fail to parse D-Bus message args because %s" % \
+                    "fail to parse D-Bus message args because %s" % \
                         DbusAnalyzer.getErrInfo())
                 return
 
@@ -35074,7 +35091,7 @@ class DbusAnalyzer(object):
                     byref(strRes), DBUS_TYPE_INVALID)
             if not res:
                 SysMgr.printWarn(\
-                    "Fail to parse D-Bus message args because %s" % \
+                    "fail to parse D-Bus message args because %s" % \
                         DbusAnalyzer.getErrInfo())
                 return
 
@@ -35126,7 +35143,7 @@ class DbusAnalyzer(object):
         # initialize iteration #
         ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
         if not ret:
-            SysMgr.printWarn("Fail to initialize D-Bus message iteration")
+            SysMgr.printWarn("fail to initialize D-Bus message iteration")
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
@@ -35134,7 +35151,7 @@ class DbusAnalyzer(object):
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
         if ret != DBUS_TYPE_ARRAY.value:
-            SysMgr.printWarn("Fail to parse array in D-Bus message")
+            SysMgr.printWarn("fail to parse array in D-Bus message")
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
@@ -35150,7 +35167,7 @@ class DbusAnalyzer(object):
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
             if ret != DBUS_TYPE_DICT_ENTRY.value:
-                SysMgr.printWarn("Fail to parse dict in D-Bus message")
+                SysMgr.printWarn("fail to parse dict in D-Bus message")
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
                 dbusObj.dbus_connection_unref(conn)
@@ -35163,7 +35180,7 @@ class DbusAnalyzer(object):
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != DBUS_TYPE_STRING.value:
                     SysMgr.printWarn(\
-                        "Fail to parse 1st string in D-Bus message")
+                        "fail to parse 1st string in D-Bus message")
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -35173,7 +35190,7 @@ class DbusAnalyzer(object):
                 dbusObj.dbus_message_iter_get_basic(dictIterP, byref(procInfo))
                 if not procInfo.value:
                     SysMgr.printWarn(\
-                        "Fail to parse process info in D-Bus message")
+                        "fail to parse process info in D-Bus message")
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -35184,7 +35201,7 @@ class DbusAnalyzer(object):
 
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != DBUS_TYPE_ARRAY.value:
-                    SysMgr.printWarn("Fail to parse array in D-Bus message")
+                    SysMgr.printWarn("fail to parse array in D-Bus message")
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -35208,7 +35225,7 @@ class DbusAnalyzer(object):
                     ret = dbusObj.dbus_message_iter_get_arg_type(arraySigIterP)
                     if ret != DBUS_TYPE_STRING.value:
                         SysMgr.printWarn(\
-                            "Fail to parse 2nd string in D-Bus message")
+                            "fail to parse 2nd string in D-Bus message")
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
                         dbusObj.dbus_connection_unref(conn)
@@ -35219,7 +35236,7 @@ class DbusAnalyzer(object):
                         arraySigIterP, byref(sigInfo))
                     if not sigInfo.value:
                         SysMgr.printWarn(\
-                            "Fail to parse signal info in D-Bus message")
+                            "fail to parse signal info in D-Bus message")
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
                         dbusObj.dbus_connection_unref(conn)
@@ -35299,7 +35316,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a D-Bus message")
+            SysMgr.printWarn("fail to create a D-Bus message")
             return
 
         # prepare args #
@@ -35315,7 +35332,7 @@ class DbusAnalyzer(object):
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to append D-Bus message args")
+            SysMgr.printWarn("fail to append D-Bus message args")
             return
 
         # call a remote method #
@@ -35325,7 +35342,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(\
-                "Fail to call a D-Bus remote method because %s" % \
+                "fail to call a D-Bus remote method because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35341,7 +35358,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(\
-                "Fail to parse D-Bus message args because %s" % \
+                "fail to parse D-Bus message args because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35385,7 +35402,7 @@ class DbusAnalyzer(object):
             iface.encode(), method.encode())
         if not msg:
             dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("Fail to create a D-Bus message")
+            SysMgr.printWarn("fail to create a D-Bus message")
             return
 
         # call a remote method #
@@ -35395,7 +35412,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(\
-                "Fail to call a D-Bus remote method because %s" % \
+                "fail to call a D-Bus remote method because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35419,7 +35436,7 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(\
-                "Fail to parse D-Bus message args because %s" % \
+                "fail to parse D-Bus message args because %s" % \
                     DbusAnalyzer.getErrInfo())
             return
 
@@ -35460,7 +35477,7 @@ class DbusAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to load library to analyze D-Bus packets", True)
+                "fail to load library to analyze D-Bus packets", True)
             sys.exit(0)
 
         # define error object #
@@ -35756,7 +35773,7 @@ class DbusAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to update system stat", True)
+                    "fail to update system stat", True)
 
             convertNum = UtilMgr.convNum
             convertSize = UtilMgr.convSize2Unit
@@ -35837,7 +35854,7 @@ class DbusAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to update task info", True, reason=True)
+                        "fail to update task info", True, reason=True)
 
         def printSummary(signum, frame):
             def checkRepeatCnt():
@@ -35993,7 +36010,7 @@ class DbusAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to handle %s for %s(%s)" % \
+                    "fail to handle %s for %s(%s)" % \
                         ([jsonData], jsonData['comm'], jsonData['tid']), \
                             reason=True)
 
@@ -36109,7 +36126,7 @@ class DbusAnalyzer(object):
                         buf, c_ulong(len(call)), byref(errp))
                     if direction == 'OUT' and errp:
                         SysMgr.printWarn((\
-                            "Fail to handle D-Bus message %s for %s(%s) "
+                            "fail to handle D-Bus message %s for %s(%s) "
                             "because %s(%s)") % \
                                 ([call], jsonData['comm'], jsonData['tid'], \
                                 G_IO_ERROR_TYPE[errp.contents.code], \
@@ -36134,7 +36151,7 @@ class DbusAnalyzer(object):
                     # check error #
                     if not gdmsg and errp:
                         SysMgr.printWarn((\
-                            "Fail to handle D-Bus message %s for %s(%s) "
+                            "fail to handle D-Bus message %s for %s(%s) "
                             "because %s(%s)") % \
                                 ([call], jsonData['comm'], jsonData['tid'], \
                                 G_IO_ERROR_TYPE[errp.contents.code], \
@@ -36174,7 +36191,7 @@ class DbusAnalyzer(object):
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(\
-                            "Fail to get type of GDbusMessage", reason=True)
+                            "fail to get type of GDbusMessage", reason=True)
                         ThreadAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -36342,7 +36359,7 @@ class DbusAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to handle %s" % [jsonData], reason=True)
+                    "fail to handle %s" % [jsonData], reason=True)
             finally:
                 # free gdbus message object #
                 if gdmsg != 0:
@@ -36401,7 +36418,7 @@ class DbusAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn('Fail to read data from pipe', reason=True)
+                SysMgr.printWarn('fail to read data from pipe', reason=True)
                 return
 
         def getDefaultTasks(comm, sibling=True):
@@ -36437,7 +36454,7 @@ class DbusAnalyzer(object):
                     taskList += getDefaultTasks(val)
         if not taskList:
             SysMgr.printErr(\
-                "Fail to find task to analyze D-Bus message")
+                "fail to find task to analyze D-Bus message")
             sys.exit(0)
         else:
             # remove redundant tasks #
@@ -36543,7 +36560,7 @@ class DbusAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get D-Bus configuration", reason=True)
+                        "fail to get D-Bus configuration", reason=True)
             busList.append(bus)
 
             # get servce list #
@@ -36822,7 +36839,7 @@ class DltAnalyzer(object):
         if DltAnalyzer.dltData['cnt'] == 0 and \
             not SysMgr.inWaitStatus:
             SysMgr.printWarn(\
-                "No DLT message received", True)
+                "no DLT message received", True)
         else:
             DltAnalyzer.printSummary()
 
@@ -36964,7 +36981,7 @@ class DltAnalyzer(object):
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(\
-                'Fail to find %s to log DLT' % SysMgr.libdltPath, True)
+                'fail to find %s to log DLT' % SysMgr.libdltPath, True)
             sys.exit(0)
 
         # register #
@@ -36973,14 +36990,14 @@ class DltAnalyzer(object):
             ret = dltObj.dlt_register_app(appid, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(\
-                    "Fail to register app '%s'" % appid)
+                    "fail to register app '%s'" % appid)
                 sys.exit(0)
 
             ret = dltObj.dlt_register_context(\
                 byref(ctx), context, 'Guider'.encode())
             if ret < 0:
                 SysMgr.printErr(\
-                    "Fail to register context '%s'" % context)
+                    "fail to register context '%s'" % context)
                 sys.exit(0)
 
             SysMgr.dltCtx = ctx
@@ -37029,19 +37046,19 @@ class DltAnalyzer(object):
             if init and \
                 dltObj.dlt_filter_init(byref(dltFilter), verbose) == -1:
                 SysMgr.printErr(\
-                    "Fail to initialize the DLTFilter object")
+                    "fail to initialize the DLTFilter object")
                 return -1
 
             if dltObj.dlt_filter_add(\
                 byref(dltFilter), apid or b"", ctid or b"", verbose) == -1:
                 SysMgr.printErr(\
-                    "Fail to add %s and %s to the DLTFilter object" % \
+                    "fail to add %s and %s to the DLTFilter object" % \
                         (apid, ctid))
                 return -1
 
             if dltFilter.counter >= DltAnalyzer.DLT_FILTER_MAX:
                 SysMgr.printErr((\
-                    "Fail to add %s and %s to the DLTFilter object "
+                    "fail to add %s and %s to the DLTFilter object "
                     "because maximum filter count %s exceed") % \
                         (apid, ctid, DltAnalyzer.DLT_FILTER_MAX))
                 return -1
@@ -37398,7 +37415,7 @@ class DltAnalyzer(object):
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(\
-                'Fail to find %s to get DLT log' % \
+                'fail to find %s to get DLT log' % \
                     SysMgr.libdltPath, True)
             sys.exit(0)
 
@@ -37423,7 +37440,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to import socket", True)
+                "fail to import socket", True)
             sys.exit(0)
 
         # define default variables #
@@ -37458,7 +37475,7 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_file_init(byref(dltFile), verbose)
                 if ret < 0:
                     SysMgr.printErr(\
-                        "Fail to initialize a DLTFile object")
+                        "fail to initialize a DLTFile object")
 
                 # set filter #
                 #setFilter(dltObj, dltFilter, dltFile, apid=b"", ctid=b"", init=True)
@@ -37467,11 +37484,11 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_file_open(byref(dltFile), path, verbose)
                 if ret != 0:
                     SysMgr.printErr(\
-                        "Fail to open %s" % path)
+                        "fail to open %s" % path)
                     return
                 elif dltFile.file_length == 0:
                     SysMgr.printErr(\
-                        "Fail to read %s because size is 0" % path)
+                        "fail to read %s because size is 0" % path)
                     return
 
                 # read a file #
@@ -37493,7 +37510,7 @@ class DltAnalyzer(object):
                     ret = dltObj.dlt_file_message(byref(dltFile), index, verbose)
                     if ret < 0:
                         SysMgr.printWarn(\
-                            "Fail to read %s message from %s" % (index, path), True)
+                            "fail to read %s message from %s" % (index, path), True)
                         continue
 
                     # print message #
@@ -37504,7 +37521,7 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_file_free(byref(dltFile), verbose)
                 if ret < 0:
                     SysMgr.printErr(\
-                        "Fail to free a DLTFile object")
+                        "fail to free a DLTFile object")
 
             # handle buffered logs #
             if buffered:
@@ -37519,7 +37536,7 @@ class DltAnalyzer(object):
         if not DltAnalyzer.pids:
             if not SysMgr.remoteServObj:
                 SysMgr.printErr(\
-                    "Fail to find running dlt-daemon process")
+                    "fail to find running dlt-daemon process")
                 sys.exit(0)
 
         # set connection info #
@@ -37541,7 +37558,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to get the address of dlt-daemon", True)
+                "fail to get the address of dlt-daemon", True)
             sys.exit(0)
 
         # connect to server #
@@ -37558,7 +37575,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to connect to dlt-daemon with %s:%s" % \
+                "fail to connect to dlt-daemon with %s:%s" % \
                     (servIp, servPort), True)
             sys.exit(0)
 
@@ -37578,7 +37595,7 @@ class DltAnalyzer(object):
                 dltObj.dlt_client_send_all_log_level(byref(dltClient), level)
         except:
             SysMgr.printErr(\
-                "Fail to set %s to default log level" % val)
+                "fail to set %s to default log level" % val)
             sys.exit(0)
 
         # print log level #
@@ -37598,7 +37615,7 @@ class DltAnalyzer(object):
                             (app.app_id, con.context_id, con.log_level))
         except:
             SysMgr.printWarn(\
-                "Fail to print log level", reason=True)
+                "fail to print log level", reason=True)
 
         # initialize receiver #
         dltReceiver = dltClient.receiver
@@ -37612,13 +37629,13 @@ class DltAnalyzer(object):
                 byref(dltReceiver), c_int(nrConnSock), c_int(RECVBUFSIZE))
             if ret < 0:
                 SysMgr.printErr(\
-                    "Fail to initialize DLT receiver")
+                    "fail to initialize DLT receiver")
                 sys.exit(0)
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to initialize connection", True)
+                "fail to initialize connection", True)
             sys.exit(0)
 
         # define receiver symbol #
@@ -37631,7 +37648,7 @@ class DltAnalyzer(object):
                 raise Exception()
         except:
             SysMgr.printErr(\
-                "Fail to get dlt_receiver_receive symbol")
+                "fail to get dlt_receiver_receive symbol")
             sys.exit(0)
 
         # save timestamp #
@@ -37665,7 +37682,7 @@ class DltAnalyzer(object):
                 ret = dltObj.dlt_message_init(byref(msg), verbose)
                 if ret < 0:
                     SysMgr.printErr(\
-                        "Fail to initialize DLT message")
+                        "fail to initialize DLT message")
                     sys.exit(0)
 
                 # check DLT data to be read #
@@ -37687,7 +37704,7 @@ class DltAnalyzer(object):
                             byref(dltReceiver))
                         if ret < 0:
                             SysMgr.printErr(\
-                                "Fail to move the pointer to receiver buffer")
+                                "fail to move the pointer to receiver buffer")
                             sys.exit(0)
 
                         break
@@ -37702,7 +37719,7 @@ class DltAnalyzer(object):
                     if dltObj.dlt_receiver_remove(\
                         byref(dltReceiver), size) < 0:
                         SysMgr.printErr(\
-                            "Fail to remove data from buffer")
+                            "fail to remove data from buffer")
                         sys.exit(0)
 
                     # print DLT message #
@@ -37724,7 +37741,7 @@ class DltAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to process DLT message", True, reason=True)
+                    "fail to process DLT message", True, reason=True)
                 continue
 
         # free message #
@@ -38079,7 +38096,7 @@ struct cmsghdr {
 
             if self.isInRun() is None:
                 SysMgr.printErr(\
-                    'Fail to find %s(%s)' % (self.comm, pid))
+                    'fail to find %s(%s)' % (self.comm, pid))
                 sys.exit(0)
 
             # update comm #
@@ -38159,7 +38176,7 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("Fail to analyze %s" % procInfo)
+            SysMgr.printErr("fail to analyze %s" % procInfo)
             sys.exit(0)
 
         # load libraries in advance #
@@ -38180,7 +38197,7 @@ struct cmsghdr {
                 fpath = symbols[1]
                 newSym = symbols[2]
             else:
-                SysMgr.printErr("Fail to recognize %s" % item)
+                SysMgr.printErr("fail to recognize %s" % item)
                 sys.exit(0)
 
             # load the library #
@@ -38190,7 +38207,7 @@ struct cmsghdr {
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
                     SysMgr.printErr(\
-                        "Fail to find '%s' on memory map in %s" % \
+                        "fail to find '%s' on memory map in %s" % \
                             (fpath, procInfo))
                     sys.exit(0)
 
@@ -38198,14 +38215,14 @@ struct cmsghdr {
             oldSet = dobj.getAddrBySymbol(oldSym)
             if not oldSet:
                 SysMgr.printWarn(\
-                    "Fail to find '%s' info from %s" % (oldSym, procInfo))
+                    "fail to find '%s' info from %s" % (oldSym, procInfo))
                 continue
 
             # get hook symbol info #
             newSet = dobj.getAddrBySymbol(newSym, fpath)
             if not newSet:
                 SysMgr.printErr(\
-                    "Fail to find '%s' info in %s from %s" % \
+                    "fail to find '%s' info in %s from %s" % \
                         (newSym, fpath, procInfo))
                 continue
 
@@ -38219,10 +38236,10 @@ struct cmsghdr {
             hookHash[targetSym] = item
 
         # stop target #
-        SysMgr.sendSignalProcs(signal.SIGSTOP, [pid])
+        SysMgr.sendSignalProcs(signal.SIGSTOP, [pid], verbose=False)
 
         # print context #
-        dobj.printContext()
+        dobj.printContext(regs=SysMgr.showAll, newline=True)
 
         for fpath, mapInfo in dobj.pmap.items():
             # skip same binary to prevent infinite recursive call #
@@ -38299,16 +38316,17 @@ struct cmsghdr {
                 if hookAddr == newAddr:
                     SysMgr.printInfo(\
                         "updated %s(%s@%s) to %s(%s@%s) for %s" % \
-                            (targetSym, hex(targetAddr), fpath, \
-                                hookSym, hex(hookAddr), hookBin, procInfo))
+                            (targetSym, hex(targetAddr), fpath, hookSym, \
+                                hex(hookAddr), hookBin, procInfo), \
+                                    prefix=False)
                 else:
                     SysMgr.printErr(\
-                        "Fail to update %s(%s@%s) to %s(%s@%s) for %s" % \
+                        "fail to update %s(%s@%s) to %s(%s@%s) for %s" % \
                             (targetSym, hex(targetAddr), fpath, \
                                 hookSym, hex(hookAddr), hookBin, procInfo))
 
         # continue target #
-        SysMgr.sendSignalProcs(signal.SIGCONT, [pid])
+        SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verbose=False)
 
 
 
@@ -38339,7 +38357,7 @@ struct cmsghdr {
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to create %s for lock" % Debugger.gLockPath, True)
+                "fail to create %s for lock" % Debugger.gLockPath, True)
 
             if not SysMgr.forceEnable:
                 sys.exit(0)
@@ -38464,7 +38482,7 @@ struct cmsghdr {
 
     def setPid(self, pid):
         if self.checkPid(pid) < 0:
-            SysMgr.printErr('Fail to set PID %s' % pid)
+            SysMgr.printErr('fail to set PID %s' % pid)
             return -1
 
         self.pid = pid
@@ -38649,7 +38667,7 @@ struct cmsghdr {
                 ret = self.setRetBp(sym, fname)
                 if not ret:
                     SysMgr.printErr((\
-                        "Fail to set breakpoint to "
+                        "fail to set breakpoint to "
                         "return position for %s") % sym)
                     return repeat
 
@@ -38661,7 +38679,7 @@ struct cmsghdr {
                 ret = self.setRetBp(sym, fname)
                 if not ret:
                     SysMgr.printErr((\
-                        "Fail to set breakpoint to "
+                        "fail to set breakpoint to "
                         "return position for %s") % sym)
                     return repeat
 
@@ -38799,7 +38817,7 @@ struct cmsghdr {
                 ret = self.writeMem(addr, val, size)
                 if ret == -1:
                     SysMgr.printErr(\
-                        "Fail to write '%s' to %s" % \
+                        "fail to write '%s' to %s" % \
                             (val, hex(addr).rstrip('L')))
                     return repeat
 
@@ -38877,7 +38895,7 @@ struct cmsghdr {
                             val = self.retList[data[1:]]
                         else:
                             SysMgr.printErr(\
-                                "No %s in list" % data)
+                                "no %s in list" % data)
                             return repeat
                     else:
                         val = UtilMgr.convStr2Num(data)
@@ -38982,7 +39000,7 @@ struct cmsghdr {
 
                 if ret == -1:
                     SysMgr.printErr(\
-                        "Fail to read from %s" % \
+                        "fail to read from %s" % \
                             hex(addr).rstrip('L'))
                     return repeat
 
@@ -39033,7 +39051,7 @@ struct cmsghdr {
                     ret = self.setRetBp(sym, fname)
                     if not ret:
                         SysMgr.printErr((\
-                            "Fail to set breakpoint to "
+                            "fail to set breakpoint to "
                             "return position for %s") % sym)
 
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
@@ -39165,7 +39183,7 @@ struct cmsghdr {
                 if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
-                        SysMgr.printErr("No found %s" % val)
+                        SysMgr.printErr("no found %s" % val)
                         return repeat
                     addr = ret
 
@@ -39230,7 +39248,7 @@ struct cmsghdr {
                 if not addr:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
-                        SysMgr.printErr("No found %s" % val)
+                        SysMgr.printErr("no found %s" % val)
                         return repeat
                     addr = ret
 
@@ -39368,7 +39386,7 @@ struct cmsghdr {
                 sys.exit(0)
 
             else:
-                raise Exception("No command supported")
+                raise Exception("no command supported")
 
             return repeat
 
@@ -39399,7 +39417,7 @@ struct cmsghdr {
             except:
                 flushPrint()
                 SysMgr.printErr(\
-                    "Fail to handle '%s' command" % cmd, True)
+                    "fail to handle '%s' command" % cmd, True)
                 sys.exit(0)
 
             # re-register command #
@@ -39409,7 +39427,7 @@ struct cmsghdr {
         # recovery stream #
         SysMgr.printStreamEnable = origin
 
-        flushPrint()
+        flushPrint(False)
 
         return newCmdList
 
@@ -39500,7 +39518,7 @@ struct cmsghdr {
             savedData = self.bpList[addr]['data']
         else:
             SysMgr.printWarn(\
-                'No breakpoint with addr %s' % hex(addr).rstrip('L'))
+                'no breakpoint with addr %s' % hex(addr).rstrip('L'))
             return None
 
         # lock between processes #
@@ -39553,7 +39571,7 @@ struct cmsghdr {
                     val = long(val, 16)
                 except:
                     SysMgr.printErr(\
-                        "Fail to recognize %s as a number" % val, True)
+                        "fail to recognize %s as a number" % val, True)
                     sys.exit(0)
 
             cmds[3] = str(val)
@@ -39652,13 +39670,13 @@ struct cmsghdr {
                                 break
                         if not found:
                             SysMgr.printErr(\
-                                "Fail to find '%s' on memory map" % \
+                                "fail to find '%s' on memory map" % \
                                     ', '.join(binlist))
                             sys.exit(0)
 
                     # no symbol #
                     SysMgr.printErr(\
-                        "Fail to find address for '%s'" % value)
+                        "fail to find address for '%s'" % value)
                     sys.exit(0)
                 else:
                     addrList += ret
@@ -39784,7 +39802,7 @@ struct cmsghdr {
                 ret = self.readMem(addr, size)
                 if ret == -1:
                     SysMgr.printErr(\
-                        "Fail to read from %s" % addr)
+                        "fail to read from %s" % addr)
                     return False
             # get value from register #
             else:
@@ -39855,7 +39873,7 @@ struct cmsghdr {
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to read original data from %s" % \
+                "fail to read original data from %s" % \
                     fname, reason=True)
             sys.exit(0)
 
@@ -39873,7 +39891,7 @@ struct cmsghdr {
                 if not sym:
                     sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s(%s) for %s '
+                    'fail to inject a breakpoint to %s(%s) for %s '
                     'because it is already injected by this task') % \
                         (hex(addr).rstrip('L'), sym, procInfo))
                 return False
@@ -39901,7 +39919,7 @@ struct cmsghdr {
                 return False
             elif origWord.startswith(self.brkInst):
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s(%s) for %s '
+                    'fail to inject a breakpoint to %s(%s) for %s '
                     'because no original code') % \
                         (hex(addr).rstrip('L'), sym, procInfo))
 
@@ -39911,7 +39929,7 @@ struct cmsghdr {
                     offset = long(ret[2], 16)
                 except:
                     SysMgr.printErr((\
-                        'Fail to inject a breakpoint to %s(%s) for %s' % \
+                        'fail to inject a breakpoint to %s(%s) for %s' % \
                             (hex(addr).rstrip('L'), sym, procInfo)), \
                                 reason=True)
                     return
@@ -39962,7 +39980,7 @@ struct cmsghdr {
                 origWord = self.bpList[addr]['data']
             else:
                 SysMgr.printWarn((\
-                    'Fail to inject a breakpoint to %s(%s) for %s '
+                    'fail to inject a breakpoint to %s(%s) for %s '
                     'because it is already injected by another task') % \
                         (hex(addr).rstrip('L'), sym, procInfo))
                 return False
@@ -39977,7 +39995,7 @@ struct cmsghdr {
                 reason = 'because of remote write failure'
 
             SysMgr.printErr(\
-                'Fail to inject a breakpoint to %s(%s) for %s %s' % \
+                'fail to inject a breakpoint to %s(%s) for %s %s' % \
                     (hex(addr).rstrip('L'), sym, procInfo, reason))
 
             return False
@@ -39996,7 +40014,7 @@ struct cmsghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to attach %s(%s) to guider(%s) because of wrong pid' % \
+                'fail to attach %s(%s) to guider(%s) because of wrong pid' % \
                     (self.comm, pid, SysMgr.pid), verb)
             return -1
 
@@ -40007,7 +40025,7 @@ struct cmsghdr {
         while 1:
             ret = self.ptrace(cmd)
             if ret != 0:
-                SysMgr.printWarn('Fail to attach %s(%s) to guider(%s)' % \
+                SysMgr.printWarn('fail to attach %s(%s) to guider(%s)' % \
                     (self.comm, pid, SysMgr.pid), verb)
 
                 # check return #
@@ -40033,7 +40051,7 @@ struct cmsghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to stop %s(%s) because of wrong pid' % \
+                'fail to stop %s(%s) because of wrong pid' % \
                     (self.comm, pid))
             return -1
 
@@ -40045,7 +40063,7 @@ struct cmsghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to stop %s(%s)" % (self.comm, pid), reason=True)
+                "fail to stop %s(%s)" % (self.comm, pid), reason=True)
 
         # send signal to a process #
         try:
@@ -40071,7 +40089,7 @@ struct cmsghdr {
         ret = self.remoteUsercall(func, args)
         if ret < 0:
             SysMgr.printErr(\
-                "Fail to free %s memory for %s(%s)" % \
+                "fail to free %s memory for %s(%s)" % \
                     (hex(addr), self.comm, self.pid))
             return None
 
@@ -40117,7 +40135,7 @@ struct cmsghdr {
                 size = len(string) + 1
             else:
                 SysMgr.printErr(\
-                    "Fail to alloc memory for %s(%s) because no size" % \
+                    "fail to alloc memory for %s(%s) because no size" % \
                         (self.comm, self.pid))
                 return None
 
@@ -40135,7 +40153,7 @@ struct cmsghdr {
             addr = self.remoteUsercall(func, args)
             if addr < 0:
                 SysMgr.printErr(\
-                    "Fail to alloc %s size of memory for %s(%s)" % \
+                    "fail to alloc %s size of memory for %s(%s)" % \
                         (UtilMgr.convNum(size), self.comm, self.pid))
                 return None
 
@@ -40144,7 +40162,7 @@ struct cmsghdr {
             ret = self.writeMem(addr, string.encode(), skipCheck=True)
             if ret == -1:
                 SysMgr.printErr(\
-                    "Fail to write '%s' to %s" % (string, hex(addr)))
+                    "fail to write '%s' to %s" % (string, hex(addr)))
                 return None
 
         return addr
@@ -40188,10 +40206,23 @@ struct cmsghdr {
 
 
 
-    def isPyLibLoaded(self):
+    def isPyLoaded(self):
         if self.pyLibPath:
             return True
 
+        # check python program #
+        try:
+            exePath = SysMgr.getExeName(self.pid)
+            exeName = os.path.basename(exePath)
+            if exeName.startswith('python'):
+                self.pyLibPath = exePath
+                return True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check memory map #
         self.pyLibPath = self.getMapFilePath('libpython')
         if self.pyLibPath:
             return True
@@ -40237,7 +40268,7 @@ struct cmsghdr {
             # check file #
             if not os.path.exists(path):
                 SysMgr.printErr(\
-                    "Fail to access %s" % path)
+                    "fail to access %s" % path)
                 return None
 
             # open script #
@@ -40264,32 +40295,33 @@ struct cmsghdr {
 
 
     def loadPyLib(self):
-        if self.isPyLibLoaded():
+        if self.isPyLoaded():
             return True
 
-        # get libpython path #
-        pylib = SysMgr.getPyLibPath()
-        if not pylib:
-            if 'LIBPYTHON' in SysMgr.binPathList:
-                pylib = SysMgr.binPathList['LIBPYTHON']
-            else:
-                libName = SysMgr.getPyLibPath(load=False)
-                platDir = SysMgr.getPyConfig(None, 'LIBPL')
-                pylib = '%s/%s.so' % (platDir, libName)
-                if not os.path.exists(pylib):
-                    SysMgr.printErr("Fail to get path for python library")
-                    return False
-
         # set environment #
-        self.setenv('PYTHONHOME', os.environ['PYTHONHOME'], False)
+        if 'PYTHONHOME' in os.environ:
+            self.setenv('PYTHONHOME', os.environ['PYTHONHOME'], False)
+
+        # get libpython path #
+        if 'LIBPYTHON' in SysMgr.binPathList:
+            pylib = SysMgr.binPathList['LIBPYTHON']
+        elif SysMgr.getPyLibPath():
+            pylib = SysMgr.pyLibPath
+        else:
+            libName = SysMgr.getPyLibPath(load=False)
+            platDir = SysMgr.getPyConfig(None, 'LIBPL')
+            pylib = '%s/%s.so' % (platDir, libName)
+            if not os.path.exists(pylib):
+                SysMgr.printErr("fail to get path for python library")
+                return False
 
         # load the library #
         ret = self.dlopen(pylib)
-        if self.isPyLibLoaded():
+        if self.isPyLoaded():
             return True
         else:
             SysMgr.printErr(\
-                "Fail to load %s for %s(%s)" % \
+                "fail to load %s for %s(%s)" % \
                     (pylib, self.comm, self.pid))
             return False
 
@@ -40299,7 +40331,7 @@ struct cmsghdr {
         # check fname #
         if not os.path.exists(fname):
             SysMgr.printErr(\
-                "Fail to find %s for %s(%s)" % \
+                "fail to find %s for %s(%s)" % \
                     (fname, self.comm, self.pid))
             return None
 
@@ -40312,7 +40344,7 @@ struct cmsghdr {
             fcache = ElfAnalyzer.getObject(libcPath)
             if not hasattr(fcache, 'attr'):
                 SysMgr.printErr(\
-                    "Fail to find attr field from the cache for %s" % libcPath)
+                    "fail to find attr field from the cache for %s" % libcPath)
                 return None
 
             # get mapping info #
@@ -40345,7 +40377,7 @@ struct cmsghdr {
             # alloc a memory segment for file name string #
             addr = self.getTempPage()
             if not addr:
-                SysMgr.printErr("Fail to allocate a new page")
+                SysMgr.printErr("fail to allocate a new page")
                 return None
 
             # copy file name string to the new page #
@@ -40353,12 +40385,13 @@ struct cmsghdr {
             ret = self.writeMem(addr, fname.encode())
             if ret == -1:
                 SysMgr.printErr(\
-                    "Fail to write '%s' to %s" % (fname, hex(addr)))
+                    "fail to write '%s' to %s" % (fname, hex(addr)))
                 return None
             '''
 
+        # RTLD_LAZY | RTLD_GLOABL #
         if not flags:
-            flags = 1 # RTLD_LAZY #
+            flags = 0x00001 | 0x00100
 
         # set args #
         args = [fname, flags]
@@ -40414,7 +40447,7 @@ struct cmsghdr {
                 return None
         else:
             SysMgr.printErr(\
-                "Fail to recognize %s as a function for %s" % \
+                "fail to recognize %s as a function for %s" % \
                     (usercall, procInfo), True)
             return None
         setattr(self.regs, self.retreg, func)
@@ -40446,7 +40479,7 @@ struct cmsghdr {
         elif self.arch == 'x86':
             # toDo: save all args to stack and install the trap finally #
             SysMgr.printErr(\
-                "Fail to set trap for return because %s is not supported" % \
+                "fail to set trap for return because %s is not supported" % \
                     self.arch)
             sys.exit(0)
 
@@ -40505,11 +40538,11 @@ struct cmsghdr {
                 try:
                     sysid = ConfigMgr.sysList.index(syscall)
                 except:
-                    SysMgr.printErr("Fail to find %s" % syscall, True)
+                    SysMgr.printErr("fail to find %s" % syscall, True)
                     return -1
         else:
             SysMgr.printErr(\
-                "Fail to recognize syscall %s" % syscall, True)
+                "fail to recognize syscall %s" % syscall, True)
             return -1
         setattr(self.regs, self.retreg, sysid)
 
@@ -40524,7 +40557,7 @@ struct cmsghdr {
         if not addr:
             if verb:
                 SysMgr.printErr(\
-                    "Fail to find the address for syscall function")
+                    "fail to find the address for syscall function")
             return -1
         else:
             self.setPC(addr)
@@ -40580,7 +40613,7 @@ struct cmsghdr {
         if ret == -1:
             procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printErr(\
-                "Fail to set %s(%s) environment variable for %s" % \
+                "fail to set %s(%s) environment variable for %s" % \
                     (name, value, procInfo))
         return ret
 
@@ -40629,7 +40662,7 @@ struct cmsghdr {
         if ret != 0:
             procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn(\
-                "Fail to change access permission to %s page for %s" % \
+                "fail to change access permission to %s page for %s" % \
                     (hex(maddr), procInfo))
         return ret
 
@@ -40641,7 +40674,7 @@ struct cmsghdr {
         ret = self.ptrace(cmd)
         if ret != 0:
             SysMgr.printWarn(\
-                'Fail to kill %s(%s)' % (self.comm, self.pid))
+                'fail to kill %s(%s)' % (self.comm, self.pid))
             return -1
         else:
             SysMgr.printWarn(\
@@ -40659,7 +40692,7 @@ struct cmsghdr {
 
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(\
-                'Fail to continue %s(%s) because of wrong pid' % \
+                'fail to continue %s(%s) because of wrong pid' % \
                     (self.comm, pid))
             return -1
 
@@ -40670,7 +40703,7 @@ struct cmsghdr {
             sys.exit(0)
         except:
             errMsg = \
-                'Fail to continue %s(%s) because it is terminated' % \
+                'fail to continue %s(%s) because it is terminated' % \
                     (self.comm, pid)
             if not self.isAlive():
                 SysMgr.printWarn(errMsg)
@@ -40690,7 +40723,7 @@ struct cmsghdr {
                     continue
 
                 errMsg = \
-                    'Fail to continue %s(%s) because it is terminated' % \
+                    'fail to continue %s(%s) because it is terminated' % \
                         (self.comm, pid)
                 SysMgr.printErr(errMsg)
                 return -1
@@ -40699,7 +40732,7 @@ struct cmsghdr {
         ret = self.ptrace(self.contCmd, 0, sig)
         if ret != 0:
             SysMgr.printWarn(\
-                'Fail to continue %s(%s)' % (self.comm, pid), reason=True)
+                'fail to continue %s(%s)' % (self.comm, pid), reason=True)
             return -1
 
         return 0
@@ -40719,7 +40752,7 @@ struct cmsghdr {
             ret = self.ptrace(cmd, pid=pid)
             if ret != 0:
                 SysMgr.printWarn(\
-                    'Fail to detach %s(%s) from guider(%s)' % \
+                    'fail to detach %s(%s) from guider(%s)' % \
                         (self.comm, pid, SysMgr.pid))
 
                 # check return #
@@ -40787,13 +40820,13 @@ struct cmsghdr {
 
         if addr < wordSize:
             SysMgr.printWarn((\
-                "Fail to access %s memory "
+                "fail to access %s memory "
                 "because of wrong address") % hex(addr).rstrip('L'))
             return -1
 
         if addr % wordSize:
             SysMgr.printWarn((\
-                "Fail to access %s memory "
+                "fail to access %s memory "
                 "because of unaligned address") % hex(addr).rstrip('L'))
             return -1
 
@@ -40807,7 +40840,7 @@ struct cmsghdr {
 
         if addr < wordSize:
             SysMgr.printWarn((\
-                "Fail to write to %s memory "
+                "fail to write to %s memory "
                 "because of wrong address") % hex(addr).rstrip('L'))
             return None
 
@@ -40885,7 +40918,7 @@ struct cmsghdr {
                 data = UtilMgr.encodeStr(data)
             elif type(data) is not bytes:
                 SysMgr.printErr((\
-                    "Fail to recognize data to write because "
+                    "fail to recognize data to write because "
                     "%s type is not supported") % type(data))
                 return -1
 
@@ -40962,7 +40995,7 @@ struct cmsghdr {
 
         if addr < wordSize:
             SysMgr.printWarn((\
-                "Fail to read from %s memory "
+                "fail to read from %s memory "
                 "because of wrong address") % hex(addr).rstrip('L'))
             return None
 
@@ -41026,7 +41059,7 @@ struct cmsghdr {
             if word == -1:
                 if verb:
                     SysMgr.printErr(\
-                        "Fail to read memory %s from %s(%s)" % \
+                        "fail to read memory %s from %s(%s)" % \
                             (hex(addr).rstrip('L'), self.comm, self.pid))
                 return None
 
@@ -41061,7 +41094,7 @@ struct cmsghdr {
             cnt += 1
             if cnt > maxCnt:
                 SysMgr.printWarn(\
-                    'Read %s time from %s for %s(%s)' % \
+                    'read %s time from %s for %s(%s)' % \
                         (UtilMgr.convNum(cnt), hex(long(addr)), \
                             self.comm, self.pid), True)
                 maxCnt *= 2
@@ -41069,7 +41102,7 @@ struct cmsghdr {
             # check string size #
             if len(ret) > maxsize:
                 SysMgr.printWarn(\
-                    'Exceed maximum size %s to read string for %s(%s)' % \
+                    'exceed maximum size %s to read string for %s(%s)' % \
                         (UtilMgr.convSize2Unit(maxsize), \
                             self.comm, self.pid), True)
                 return ret
@@ -41257,7 +41290,7 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get msghdr for %s" % \
+                        "fail to get msghdr for %s" % \
                             syscall, True, reason=True)
 
         # handle sendmmsg / recvmmsg #
@@ -41273,7 +41306,7 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to get mmsghdr for %s" % \
+                        "fail to get mmsghdr for %s" % \
                             syscall, True, reason=True)
 
         # convert fd to name #
@@ -41501,14 +41534,14 @@ struct cmsghdr {
 
         if self.multi and len(self.callTable) == 0:
             SysMgr.printWarn(\
-                "No call data for %s(%s)" % \
+                "no call data for %s(%s)" % \
                     (self.comm, self.pid))
             resetStats()
             return
 
         # check user input #
         SysMgr.waitUserInput(\
-            wait=0.000001, msg="Press enter key...")
+            wait=0.000001, msg="press enter key...")
 
         SysMgr.updateUptime()
 
@@ -41790,6 +41823,8 @@ struct cmsghdr {
             elif fname.startswith('libpthread'):
                 self.dftBpFileList[fpath] = 0
 
+        SysMgr.printInfo('start loading binaries...')
+
         # load file-mapped objects #
         for mfile in list(self.pmap.keys()):
             try:
@@ -41805,7 +41840,7 @@ struct cmsghdr {
         self.fileList, self.addrList = self.getAddrLists()
         if len(self.fileList) == 0:
             SysMgr.printWarn(\
-                'Fail to get file list on memory map')
+                'fail to get file list on memory map')
 
         return True
 
@@ -41816,7 +41851,7 @@ struct cmsghdr {
             return None
 
         if not self.pid:
-            SysMgr.printErr("Fail to get PID to get symbol")
+            SysMgr.printErr("fail to get PID to get symbol")
             return None
 
         # check of maps fd #
@@ -41840,7 +41875,7 @@ struct cmsghdr {
             # print error message and return #
             procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn(\
-                'Fail to get file name via addr %s for %s' % \
+                'fail to get file name via addr %s for %s' % \
                     (hex(vaddr).rstrip('L'), procInfo))
             return None
 
@@ -41856,7 +41891,7 @@ struct cmsghdr {
             # print error message and return #
             procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn((\
-                'Fail to get offset in %s via %s for %s '
+                'fail to get offset in %s via %s for %s '
                 'because of wrong memory map') % \
                     (fname, hex(vaddr).rstrip('L'), procInfo))
             return ['??', fname, '??', '??', '??']
@@ -42080,7 +42115,7 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("Fail to get syscall number", reason=True)
+            SysMgr.printErr("fail to get syscall number", reason=True)
             sys.exit(0)
 
         self.setRegs()
@@ -42238,7 +42273,7 @@ struct cmsghdr {
         signal.alarm(0)
 
         SysMgr.waitUserInput(wait=0, \
-            msg="%s() is detected! Press enter to continue..." % sym)
+            msg="%s() is detected! press enter to continue..." % sym)
 
         # enable timer #
         SysMgr.updateTimer()
@@ -42578,7 +42613,7 @@ struct cmsghdr {
             sys.exit(0)
 
         # print context #
-        self.printContext(newline=True)
+        self.printContext(regs=SysMgr.showAll, newline=True)
 
         # read args #
         args = self.readArgs()
@@ -42652,7 +42687,7 @@ struct cmsghdr {
                 origSym = sym.rstrip(Debugger.RETSTR)
                 if origSym not in self.entryTime:
                     SysMgr.printWarn(\
-                        "No entry time of %s for %s(%s)" % \
+                        "no entry time of %s for %s(%s)" % \
                             (sym, self.comm, self.pid))
                     raise Exception()
                 entry = self.entryTime[origSym]
@@ -42677,7 +42712,7 @@ struct cmsghdr {
                     oaddr = syminfo[3]
 
                 # build context string #
-                callString = '\n%s %s%s%s%s%s -> %s/%s [%s]\n' % \
+                callString = '\n%s %s%s%s%s%s -> %s/%s [%s]' % \
                     (diffstr, tinfo, indent, sym, retstr, elapsed, \
                         osym, hex(oaddr).rstrip('L'), ofname)
             else:
@@ -42763,7 +42798,7 @@ struct cmsghdr {
             # check memory map again #
             if addr not in self.bpList:
                 SysMgr.printErr((\
-                    "Fail to find %s in the breakpoint list "
+                    "fail to find %s in the breakpoint list "
                     "for %s(%s), update ELF caches in %s") % \
                         (hex(origAddr).rstrip('L'), self.comm, \
                             self.pid, SysMgr.cacheDirPath))
@@ -42880,7 +42915,7 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        "Fail to handle breakpoint for %s(%s)" % \
+                        "fail to handle breakpoint for %s(%s)" % \
                             (self.comm, self.pid), True, reason=True)
 
             if self.cont(check=True) < 0:
@@ -43199,7 +43234,7 @@ struct cmsghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to convert %s to JSON for marshalling" % \
+                    "fail to convert %s to JSON for marshalling" % \
                         [jsonData], True)
             return
 
@@ -43327,7 +43362,7 @@ struct cmsghdr {
             # check prototype #
             if name not in proto:
                 SysMgr.printWarn(\
-                    "Fail to get args info of %s" % name, True)
+                    "fail to get args info of %s" % name, True)
                 return
 
             args = []
@@ -43465,7 +43500,7 @@ struct cmsghdr {
 
         else:
             SysMgr.printErr(\
-                'Fail to recognize syscall status')
+                'fail to recognize syscall status')
 
 
 
@@ -43544,7 +43579,7 @@ struct cmsghdr {
         stat = self.getStatList(retstr=True)
         if not stat:
             SysMgr.printWarn(\
-                "Fail to get CPU usage for %s(%s)" % \
+                "fail to get CPU usage for %s(%s)" % \
                     (self.comm, self.pid))
             return [0, 0, 0]
 
@@ -43665,7 +43700,7 @@ struct cmsghdr {
                 return addrList[0][0]
             else:
                 SysMgr.printErr(\
-                    "Fail to find %s symbol for %s(%s)" % \
+                    "fail to find %s symbol for %s(%s)" % \
                         (symbol, self.comm, self.pid))
                 return None
 
@@ -43750,7 +43785,7 @@ struct cmsghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to wait for tracer of %s(%s)" % \
+                    "fail to wait for tracer of %s(%s)" % \
                         (self.comm, tid), reason=True)
         # child tracee #
         elif pid == 0:
@@ -43784,7 +43819,7 @@ struct cmsghdr {
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to notify initialization to %s(%s)" % \
+                    "fail to notify initialization to %s(%s)" % \
                         (self.comm, origPid), reason=True)
         else:
             return
@@ -43936,7 +43971,7 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            errMsg = "Fail to get return value for %s" % sym
+            errMsg = "fail to get return value for %s" % sym
             SysMgr.printWarn(errMsg, reason=True)
 
 
@@ -44249,14 +44284,14 @@ struct cmsghdr {
                             long(sampleTime) / float(1000000)
                     except:
                         SysMgr.printErr(\
-                            "Fail to set sampling time", True)
+                            "fail to set sampling time", True)
                         sys.exit(0)
                 else:
                     self.sampleTime = 0.0001
 
                 if not self.multi:
                     SysMgr.printInfo(\
-                        'Do sampling every %g second' % self.sampleTime)
+                        'do sampling every %g second' % self.sampleTime)
 
             # set default interval #
             if not SysMgr.findOption('R') or \
@@ -44274,7 +44309,7 @@ struct cmsghdr {
                 self.skipInst = SysMgr.funcDepth
 
                 SysMgr.printInfo(\
-                    'Do sampling every %s instrunctions' % \
+                    'do sampling every %s instrunctions' % \
                         UtilMgr.convNum(SysMgr.funcDepth))
 
         # prepare environment for the running target #
@@ -44288,7 +44323,7 @@ struct cmsghdr {
                 ereason = SysMgr.getErrMsg()
                 if ereason != '0':
                     SysMgr.printErr(\
-                        'Fail to trace %s(%s) because %s' % \
+                        'fail to trace %s(%s) because %s' % \
                             (self.comm, self.pid, ereason))
                 sys.exit(0)
 
@@ -44301,13 +44336,13 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to load symbols", True)
+                        "fail to load symbols", True)
                     sys.exit(0)
 
             # print target task info #
             if SysMgr.printEnable:
                 SysMgr.printInfo(\
-                    "Start profiling %s(%d)" % (self.comm, self.pid))
+                    "start profiling %s(%d)" % (self.comm, self.pid))
 
             # check attach status #
             if not self.attached:
@@ -44338,7 +44373,7 @@ struct cmsghdr {
             self.cmd = self.singlestepCmd
             if self.arch == 'arm':
                 SysMgr.printErr(\
-                    "Not supported on %s" % self.arch.upper())
+                    "not supported on %s" % self.arch.upper())
                 sys.exit(0)
         elif self.mode == 'sample':
             self.cmd = None
@@ -44366,7 +44401,7 @@ struct cmsghdr {
             sys.exit(0)
         else:
             SysMgr.printErr(\
-                "Fail to recognize trace mode '%s'" % self.mode)
+                "fail to recognize trace mode '%s'" % self.mode)
             sys.exit(0)
 
         # register summary callback #
@@ -44508,7 +44543,7 @@ struct cmsghdr {
         printSystemStat()
 
         SysMgr.printInfo(\
-            "Start analyzing calls...")
+            "start analyzing calls...")
 
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
@@ -44744,7 +44779,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 perm = long(fd.readline()[:-1])
                 if perm == 3:
                     SysMgr.printErr((\
-                        'Fail to use ptrace because it is not allowed, '
+                        'fail to use ptrace because it is not allowed, '
                         'check %s') % filePath)
                     return -1
                 return 0
@@ -44773,7 +44808,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                'Fail to dump memory for %s(%s)' % \
+                'fail to dump memory for %s(%s)' % \
                     (SysMgr.getComm(pid), pid), reason=True)
 
 
@@ -44804,7 +44839,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # check thread list #
         if not tlist:
             SysMgr.printErr(\
-                "Fail to task to pause")
+                "fail to task to pause")
             return
 
         # set alarm #
@@ -44828,7 +44863,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     dobj.__del__()
                     sys.exit(0)
                 else:
-                    SysMgr.printErr('Fail to create a process')
+                    SysMgr.printErr('fail to create a process')
                     sys.exit(0)
 
             # wait for user event to continue threads #
@@ -44839,12 +44874,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 if SysMgr.isNoChild():
                     break
 
-            SysMgr.printErr("No target threads")
+            SysMgr.printErr("no target threads")
         except SystemExit:
             return
         except:
             SysMgr.printErr(\
-                'Fail to pause thread %s' % lastTid, True)
+                'fail to pause thread %s' % lastTid, True)
 
 
 
@@ -44997,7 +45032,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
 
         SysMgr.printErr(\
-            "Fail to write remote registers for %s(%s)" % \
+            "fail to write remote registers for %s(%s)" % \
                 (self.comm, self.pid))
 
         return False
@@ -45042,7 +45077,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(\
-                "Fail to get fp register set of %s(%s)" % \
+                "fail to get fp register set of %s(%s)" % \
                     (self.comm, self.pid))
 
         return ret
@@ -45097,7 +45132,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 sys.exit(0)
 
             SysMgr.printErr(\
-                "Fail to read registers for %s(%s)" % \
+                "fail to read registers for %s(%s)" % \
                     (self.comm, self.pid))
 
         # return result #
@@ -45153,7 +45188,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             ret = meminfo.split('-')
             if not ret:
                 SysMgr.printErr(\
-                    "Fail to search %s on memory map for %s(%s)" % \
+                    "fail to search %s on memory map for %s(%s)" % \
                         (meminfo, self.comm, self.pid))
                 return 0
 
@@ -45296,7 +45331,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to call waitpid', reason=True)
+                'fail to call waitpid', reason=True)
             return 0, 0
 
 
@@ -45332,7 +45367,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                'Fail to call ptrace', reason=True)
+                'fail to call ptrace', reason=True)
             return -1
 
 
@@ -45466,7 +45501,7 @@ class MemoryFile(object):
         ret = memmove(ptr, self.addr, size)
         if ret < 0:
             SysMgr.printErr(\
-                "Fail to copy memory from %s" % self.addr)
+                "fail to copy memory from %s" % self.addr)
         else:
             self.size = size
 
@@ -46098,7 +46133,7 @@ class ElfAnalyzer(object):
     }
 
     EI_MACHINE_TYPE = {
-        0:"No machine",
+        0:"no machine",
         1:"AT&T WE 32100",
         2:"SPARC",
         3:"Intel 80386",
@@ -46450,7 +46485,7 @@ class ElfAnalyzer(object):
                 os.makedirs(SysMgr.cacheDirPath)
             except:
                 SysMgr.printWarn(\
-                    'Fail to make %s directory' % \
+                    'fail to make %s directory' % \
                         SysMgr.cacheDirPath, reason=True)
 
         # build cache path #
@@ -46517,7 +46552,7 @@ class ElfAnalyzer(object):
                     return None
 
             SysMgr.printInfo(\
-                "Start loading %s... " % path, suffix=False)
+                "load %s... " % path, suffix=False, prefix=False)
 
             # return a exceptional file object #
             if fobj:
@@ -46552,7 +46587,7 @@ class ElfAnalyzer(object):
                 SysMgr.printInfo(failLog, prefix=False, notitle=True)
 
                 SysMgr.printWarn(\
-                    "Fail to load %s as an ELF object" % path, reason=True)
+                    "fail to load %s as an ELF object" % path, reason=True)
 
                 if raiseExcept:
                     raise Exception(err)
@@ -46594,7 +46629,7 @@ class ElfAnalyzer(object):
         # get ctypes object #
         if not SysMgr.importPkgItems('ctypes', False):
             SysMgr.printWarn((\
-                "Fail to import python package: ctypes "
+                "fail to import python package: ctypes "
                 "to demangle symbol, so that "
                 "disable demangle feature"), True)
             SysMgr.demangleEnable = False
@@ -46631,19 +46666,19 @@ class ElfAnalyzer(object):
                     dmSymbol = str(retc.value)
             elif status.value == -1:
                 SysMgr.printWarn(\
-                    "Fail to allocate memory to demangle symbol %s" % symbol)
+                    "fail to allocate memory to demangle symbol %s" % symbol)
                 dmSymbol = symbol
             elif status.value == -2:
                 SysMgr.printWarn(\
-                    "Fail to demangle %s because of invalid name" % symbol)
+                    "fail to demangle %s because of invalid name" % symbol)
                 dmSymbol = symbol
             elif status.value == -3:
                 SysMgr.printWarn(\
-                    "Fail to demangle %s because of invalid args" % symbol)
+                    "fail to demangle %s because of invalid args" % symbol)
                 dmSymbol = symbol
             else:
                 SysMgr.printWarn(\
-                    "Fail to demangle %s because of unknown status %d" % \
+                    "fail to demangle %s because of unknown status %d" % \
                         (symbol, status.value))
                 dmSymbol = symbol
 
@@ -46665,7 +46700,7 @@ class ElfAnalyzer(object):
         except:
             err = SysMgr.getErrMsg()
             SysMgr.printWarn((\
-                "Fail to demangle symbol %s because %s "
+                "fail to demangle symbol %s because %s "
                 "so that disable demangle feature") % \
                     (symbol, err), True)
             SysMgr.demangleEnable = False
@@ -46741,7 +46776,7 @@ class ElfAnalyzer(object):
                 stderr=subprocess.PIPE, bufsize=-1)
         except:
             SysMgr.printErr(\
-                "Fail to execute %s to get address from binary" % objdumpPath)
+                "fail to execute %s to get address from binary" % objdumpPath)
             sys.exit(0)
 
         while 1:
@@ -46750,7 +46785,7 @@ class ElfAnalyzer(object):
                 line = proc.stdout.readline()
             except:
                 SysMgr.printErr(\
-                    "Fail to read output from objdump", True)
+                    "fail to read output from objdump", True)
 
             # handle error #
             if not line:
@@ -46801,7 +46836,7 @@ class ElfAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(\
-                "Fail to check relocatable format", reason=True)
+                "fail to check relocatable format", reason=True)
             return False
 
         # check file name #
@@ -47439,7 +47474,7 @@ class ElfAnalyzer(object):
         EI_NIDENT = 16
 
         # define err string #
-        errStr = "Fail to recognize %s as an ELF object because %s"
+        errStr = "fail to recognize %s as an ELF object because %s"
 
         # check size #
         if self.fileSize < EI_NIDENT:
@@ -48080,7 +48115,7 @@ Section header string table index: %d
         else:
             ElfAnalyzer.stripedFiles[path] = True
             SysMgr.printWarn(\
-                "Fail to get static symbol of %s (stripped)" % path)
+                "fail to get static symbol of %s (stripped)" % path)
 
         # parse REL table #
         for idx in e_shrellist:
@@ -48355,7 +48390,7 @@ class ThreadAnalyzer(object):
     @staticmethod
     def doSumReport(fname):
         if not fname:
-            SysMgr.printErr("No input file")
+            SysMgr.printErr("no input file")
             sys.exit(0)
 
         # load file #
@@ -48376,7 +48411,7 @@ class ThreadAnalyzer(object):
         # check data #
         if start == end == -1:
             SysMgr.printErr(\
-                "Fail to recognize %s" % fname)
+                "fail to recognize %s" % fname)
             sys.exit(0)
 
         # check data #
@@ -48405,7 +48440,7 @@ class ThreadAnalyzer(object):
         flist = UtilMgr.getFileList(flist)
         if len(flist) < 2:
             SysMgr.printErr(\
-                "Fail to get file list to diff, "
+                "fail to get file list to diff, "
                 "input at least two effective file paths")
             sys.exit(0)
 
@@ -49148,7 +49183,7 @@ class ThreadAnalyzer(object):
                 SysMgr.initNetlink()
             except:
                 SysMgr.printWarn(\
-                    "Fail to initialize netlink", reason=True)
+                    "fail to initialize netlink", reason=True)
 
             # check to return just instance #
             if onlyInstance:
@@ -49224,7 +49259,7 @@ class ThreadAnalyzer(object):
             # wait for input #
             if SysMgr.waitEnable:
                 SysMgr.waitUserInput(\
-                    0, msg="\nPress enter key...", force=True)
+                    0, msg="\npress enter key...", force=True)
 
             # file top mode #
             if SysMgr.fileTopEnable:
@@ -49390,14 +49425,14 @@ class ThreadAnalyzer(object):
             # warn uncompleted block request #
             if len(self.ioData) > 0:
                 SysMgr.printWarn(\
-                    "Fail to handle %s block requests" % len(self.ioData))
+                    "fail to handle %s block requests" % len(self.ioData))
 
         # calculate usage of threads in last interval #
         self.processIntervalData(self.finishTime)
 
         if len(self.threadData) == 0:
             SysMgr.printErr(\
-                "No recognized data in %s" % SysMgr.inputFile)
+                "no recognized data in %s" % SysMgr.inputFile)
             sys.exit(0)
 
         self.totalTime = \
@@ -49469,7 +49504,7 @@ class ThreadAnalyzer(object):
         SysMgr.checkPerm()
 
         if not os.path.isdir(SysMgr.procPath):
-            SysMgr.printErr("Fail to access proc filesystem")
+            SysMgr.printErr("fail to access proc filesystem")
             sys.exit(0)
 
         # import select package in the foreground #
@@ -49525,14 +49560,14 @@ class ThreadAnalyzer(object):
 
             # wait for next interval #
             if not SysMgr.waitUserInput(\
-                waitTime, msg="Press enter key..."):
+                waitTime, msg="press enter key..."):
                 time.sleep(waitTime)
 
 
 
     def runProcTop(self):
         if not os.path.isdir(SysMgr.procPath):
-            SysMgr.printErr("Fail to access proc filesystem")
+            SysMgr.printErr("fail to access proc filesystem")
             sys.exit(0)
 
         # initialize perf events #
@@ -49659,7 +49694,7 @@ class ThreadAnalyzer(object):
         try:
             fd = UtilMgr.getTextLines(logFile, retfd=True)
         except:
-            SysMgr.printErr("Fail to read %s\n" % logFile)
+            SysMgr.printErr("fail to read %s\n" % logFile)
             sys.exit(0)
 
         SysMgr.printStat(\
@@ -50180,11 +50215,11 @@ class ThreadAnalyzer(object):
         # check output data #
         if not totalRam:
             SysMgr.printErr(\
-                "Fail to find Detailed Statistics in %s" % logFile)
+                "fail to find Detailed Statistics in %s" % logFile)
             sys.exit(0)
         elif not timeline:
             SysMgr.printErr(\
-                "Fail to find interval data in %s" % logFile)
+                "fail to find interval data in %s" % logFile)
             sys.exit(0)
 
         # get indexes for trim #
@@ -50200,7 +50235,7 @@ class ThreadAnalyzer(object):
                     condMax = long(trim[1])
             except:
                 SysMgr.printErr(\
-                    "Fail to recognize %s as START:END time" % \
+                    "fail to recognize %s as START:END time" % \
                         ':'.join(trim))
                 sys.exit(0)
 
@@ -50418,7 +50453,7 @@ class ThreadAnalyzer(object):
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
             except:
                 SysMgr.printErr(\
-                    "Fail to draw history graph", True)
+                    "fail to draw history graph", True)
             return
 
         # draw graphs #
@@ -50429,7 +50464,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to draw graph", True)
+                "fail to draw graph", True)
             return
 
         # draw charts #
@@ -50440,7 +50475,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to draw chart", True)
+                "fail to draw chart", True)
             return
 
 
@@ -50724,7 +50759,7 @@ class ThreadAnalyzer(object):
                         SysMgr.boundaryLine))
             except:
                 SysMgr.printErr(\
-                    "Fail to set boundary line", True)
+                    "fail to set boundary line", True)
                 sys.exit(0)
 
             # draw boundary graph #
@@ -52111,7 +52146,7 @@ class ThreadAnalyzer(object):
                     try:
                         layoutDict[target]
                         SysMgr.printErr(\
-                            "Fail to draw graph "
+                            "fail to draw graph "
                             "because %s graph is duplicated" % target)
                         sys.exit(0)
                     except SystemExit:
@@ -52129,7 +52164,7 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Fail to draw graph "
+                        "fail to draw graph "
                         "because graph format [TYPE:SIZE] is wrong")
                     sys.exit(0)
 
@@ -52153,7 +52188,7 @@ class ThreadAnalyzer(object):
                         drawIo(graphStats, xtype, pos, size)
                     else:
                         SysMgr.printErr(\
-                            "Fail to draw graph "
+                            "fail to draw graph "
                             "because '%s' is not recognized" % target)
                         sys.exit(0)
 
@@ -52186,7 +52221,7 @@ class ThreadAnalyzer(object):
                         va='top', ha='left', size=2)
         except:
             SysMgr.printWarn(\
-                "Fail to write system info", True, reason=True)
+                "fail to write system info", True, reason=True)
 
         # remove stats to free memory #
         graphStats.clear()
@@ -52274,7 +52309,7 @@ class ThreadAnalyzer(object):
                         SysMgr.boundaryLine))
             except:
                 SysMgr.printErr(\
-                    "Fail to set boundary line", True)
+                    "fail to set boundary line", True)
                 sys.exit(0)
 
             # draw boundary graph #
@@ -52630,7 +52665,7 @@ class ThreadAnalyzer(object):
                     '%s is renamed to %s' % (outputFile, oldPath))
         except:
             SysMgr.printErr(\
-                "Fail to backup %s to %s" % (outputFile, oldPath), True)
+                "fail to backup %s to %s" % (outputFile, oldPath), True)
 
         # get pylab object #
         SysMgr.importPkgItems('pylab')
@@ -52652,7 +52687,7 @@ class ThreadAnalyzer(object):
                 "write resource %s into %s [%s]" % (itype, outputFile, fsize))
         except:
             SysMgr.printErr(\
-                "Fail to draw image to %s" % outputFile, True)
+                "fail to draw image to %s" % outputFile, True)
             return
 
 
@@ -53788,7 +53823,7 @@ class ThreadAnalyzer(object):
             try:
                 self.threadData[tid]
             except:
-                SysMgr.printErr('Fail to find "%s" thread' % tid)
+                SysMgr.printErr('fail to find "%s" thread' % tid)
                 continue
 
             SysMgr.clearPrint()
@@ -54454,7 +54489,7 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        'Fail to recognize syscall %s for %s number' % \
+                        'fail to recognize syscall %s for %s number' % \
                             (nowData[0], nowData[4]), True)
                     continue
 
@@ -54519,7 +54554,7 @@ class ThreadAnalyzer(object):
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(\
-                            "Fail to analyze syscall info", True, reason=True)
+                            "fail to analyze syscall info", True, reason=True)
 
                 elif nowData[0] == 'RET':
                     eventType = nowData[0]
@@ -54563,7 +54598,7 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Fail to analyze syscall info", True)
+                    "fail to analyze syscall info", True)
 
         if cnt == 0:
             SysMgr.printPipe("\tNone")
@@ -55874,7 +55909,7 @@ class ThreadAnalyzer(object):
             SysMgr.oomEnable = True
         else:
             SysMgr.printErr(\
-                "Fail to set '%s' as a last field" % option)
+                "fail to set '%s' as a last field" % option)
 
 
 
@@ -57433,7 +57468,7 @@ class ThreadAnalyzer(object):
                 reverse=True)
         except:
             SysMgr.printWarn(\
-                "Fail to get memory details because of sort error")
+                "fail to get memory details because of sort error")
             SysMgr.printPipe("\tNone\n%s\n" % oneLine)
             return
 
@@ -57609,7 +57644,7 @@ class ThreadAnalyzer(object):
             except:
                 compressor = None
                 SysMgr.printErr(\
-                    "Fail to check compression for %s" % fname, True)
+                    "fail to check compression for %s" % fname, True)
 
         while 1:
             start = end = -1
@@ -57638,7 +57673,7 @@ class ThreadAnalyzer(object):
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr("Fail to read %s\n" % fname, reason=True)
+                        SysMgr.printErr("fail to read %s\n" % fname, reason=True)
                         sys.exit(0)
             except SystemExit:
                 sys.exit(0)
@@ -57708,7 +57743,7 @@ class ThreadAnalyzer(object):
                 return 0
             elif not SysMgr.recordStatus:
                 SysMgr.printErr(\
-                    "Fail to read because there is no log")
+                    "fail to read because there is no log")
                 sys.exit(0)
 
 
@@ -57776,7 +57811,7 @@ class ThreadAnalyzer(object):
             targetTable = writeTable
         else:
             SysMgr.printWarn(\
-                "Fail to recognize block operation '%s'" % opt)
+                "fail to recognize block operation '%s'" % opt)
             return
 
         # apply total block info #
@@ -57791,7 +57826,7 @@ class ThreadAnalyzer(object):
             targetTable = taskTable[tid][1]
         else:
             SysMgr.printWarn(\
-                "Fail to recognize block operation '%s'" % opt)
+                "fail to recognize block operation '%s'" % opt)
             return
 
         # apply thread block info #
@@ -58311,7 +58346,7 @@ class ThreadAnalyzer(object):
     def parse(self, string):
         def printEventWarning(func):
             SysMgr.printWarn(\
-                "Fail to recognize '%s' event at line %d" % \
+                "fail to recognize '%s' event at line %d" % \
                 (func, SysMgr.curLine))
 
         SysMgr.curLine += 1
@@ -59290,7 +59325,7 @@ class ThreadAnalyzer(object):
                     # check recursive entry caused by log loss #
                     if td['ftxEnter'] > 0:
                         SysMgr.printWarn((\
-                            "Fail to find return of %s for thread %s at %s line\n"\
+                            "fail to find return of %s for thread %s at %s line\n"\
                             "\tso report results may differ from actual") %\
                             (td['ftxEnt'], thread, SysMgr.curLine))
 
@@ -59916,7 +59951,7 @@ class ThreadAnalyzer(object):
             try:
                 data = self.threadData[pid]
                 SysMgr.printWarn((\
-                    "Fail to handle a new task %s(%s) "
+                    "fail to handle a new task %s(%s) "
                     "because it is already exist") % (data['comm'], pid))
             except:
                 self.threadData[pid] = dict(self.init_threadData)
@@ -59948,7 +59983,7 @@ class ThreadAnalyzer(object):
             try:
                 data = self.threadData[cpid]
                 SysMgr.printWarn((\
-                    "Fail to handle a new task %s(%s) "
+                    "fail to handle a new task %s(%s) "
                     "because it is already exist") % (data['comm'], cpid))
             except:
                 self.threadData[cpid] = dict(self.init_threadData)
@@ -60413,7 +60448,7 @@ class ThreadAnalyzer(object):
                     else:
                         isSaved = False
                         SysMgr.printWarn(\
-                            "Fail to recognize '%s' kernel event" % etc)
+                            "fail to recognize '%s' kernel event" % etc)
 
                 if not isSaved:
                     continue
@@ -60469,7 +60504,7 @@ class ThreadAnalyzer(object):
                     else:
                         isSaved = False
                         SysMgr.printWarn(\
-                            "Fail to recognize '%s' kernel event" % etc)
+                            "fail to recognize '%s' kernel event" % etc)
 
                 if not isSaved:
                     continue
@@ -60669,7 +60704,7 @@ class ThreadAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(\
-                        'Fail to read attributes from %s' % fdinfoPath, \
+                        'fail to read attributes from %s' % fdinfoPath, \
                             reason=True)
 
                 SysMgr.addPrint(\
@@ -61056,7 +61091,7 @@ class ThreadAnalyzer(object):
                 cpuBuf = SysMgr.statFd.readlines()
             except:
                 SysMgr.printErr(\
-                    'Fail to read %s' % cpuPath, True)
+                    'fail to read %s' % cpuPath, True)
 
         # stat list from http://man7.org/linux/man-pages/man5/proc.5.html #
         if cpuBuf:
@@ -61301,7 +61336,7 @@ class ThreadAnalyzer(object):
         try:
             SysMgr.procInstance[tid]['maps'] = ptable
         except:
-            SysMgr.printWarn('Fail to find %s process' % tid)
+            SysMgr.printWarn('fail to find %s process' % tid)
             return
 
         try:
@@ -61842,7 +61877,7 @@ class ThreadAnalyzer(object):
         except:
             comm = self.procData[tid]['stat'][self.commIdx][1:-1]
             SysMgr.printWarn(\
-                'Fail to read namespace value for %s(%s)' % \
+                'fail to read namespace value for %s(%s)' % \
                     (comm, tid), reason=True)
 
 
@@ -61926,7 +61961,7 @@ class ThreadAnalyzer(object):
             totalMem = memData['MemTotal'] >> 10
         except:
             totalMem = long(0)
-            SysMgr.printWarn("Fail to get totalMem")
+            SysMgr.printWarn("fail to get totalMem")
 
         # free memory #
         try:
@@ -61934,7 +61969,7 @@ class ThreadAnalyzer(object):
             freeMemDiff = freeMem - (prevMemData['MemFree'] >> 10)
         except:
             freeMem = freeMemDiff = long(0)
-            SysMgr.printWarn("Fail to get freeMem")
+            SysMgr.printWarn("fail to get freeMem")
 
         # available memory #
         try:
@@ -61970,7 +62005,7 @@ class ThreadAnalyzer(object):
                 self.prevVmData['nr_anon_pages']) >> 8
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = long(0)
-            SysMgr.printWarn("Fail to get anonMem")
+            SysMgr.printWarn("fail to get anonMem")
 
         # file memory #
         try:
@@ -61981,7 +62016,7 @@ class ThreadAnalyzer(object):
                 self.prevVmData['nr_file_pages']) >> 8
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = long(0)
-            SysMgr.printWarn("Fail to get fileMem")
+            SysMgr.printWarn("fail to get fileMem")
 
         # dirty memory #
         try:
@@ -61997,7 +62032,7 @@ class ThreadAnalyzer(object):
             '''
         except:
             pgDirty = long(0)
-            SysMgr.printWarn("Fail to get dirtyMem")
+            SysMgr.printWarn("fail to get dirtyMem")
 
         # slab memory #
         try:
@@ -62016,7 +62051,7 @@ class ThreadAnalyzer(object):
         except:
             slabReclm = slabUnReclm = slabReclmDiff = \
                 slabUnReclmDiff = totalSlabMem = slabMemDiff = long(0)
-            SysMgr.printWarn("Fail to get slabMem")
+            SysMgr.printWarn("fail to get slabMem")
 
         totalCacheMem = totalFileMem + totalSlabMem
 
@@ -62034,7 +62069,7 @@ class ThreadAnalyzer(object):
             nrMinFault = nrTotalFault - nrMajFault
         except:
             nrMajFault = nrTotalFault = nrMinFault = long(0)
-            SysMgr.printWarn("Fail to get faultMem")
+            SysMgr.printWarn("fail to get faultMem")
 
         # paged in/out from/to disk #
         try:
@@ -62044,7 +62079,7 @@ class ThreadAnalyzer(object):
                 (vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
         except:
             pgInMemDiff = pgOutMemDiff = long(0)
-            SysMgr.printWarn("Fail to get pgMem")
+            SysMgr.printWarn("fail to get pgMem")
 
         # swap memory #
         try:
@@ -62065,7 +62100,7 @@ class ThreadAnalyzer(object):
         except:
             swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
                 swapFreePer = swapInMem = swapOutMem = long(0)
-            SysMgr.printWarn("Fail to get swapMem")
+            SysMgr.printWarn("fail to get swapMem")
 
         # background reclaim #
         try:
@@ -62106,7 +62141,7 @@ class ThreadAnalyzer(object):
                 nrBgReclaim = long(0)
         except:
             pgRclmBg = nrBgReclaim = long(0)
-            SysMgr.printWarn("Fail to get bgReclmMem")
+            SysMgr.printWarn("fail to get bgReclmMem")
 
         # direct reclaim #
         try:
@@ -62147,7 +62182,7 @@ class ThreadAnalyzer(object):
                 nrDrReclaim = long(0)
         except:
             pgRclmFg = nrDrReclaim = long(0)
-            SysMgr.printWarn("Fail to get drReclmMem")
+            SysMgr.printWarn("fail to get drReclmMem")
 
 
         # mlock #
@@ -62156,14 +62191,14 @@ class ThreadAnalyzer(object):
             #mappedMem = vmData['nr_mapped'] >> 8
         except:
             pgMlock = long(0)
-            SysMgr.printWarn("Fail to get mlockMem")
+            SysMgr.printWarn("fail to get mlockMem")
 
         # pending #
         try:
             nrBlocked = self.cpuData['procs_blocked']['procs_blocked']
         except:
             nrBlocked = long(0)
-            SysMgr.printWarn("Fail to get nrBlocked")
+            SysMgr.printWarn("fail to get nrBlocked")
 
         # cma mem #
         try:
@@ -62182,7 +62217,7 @@ class ThreadAnalyzer(object):
                 cmaTotalMem = long(0)
         except:
             cmaTotalMem = cmaFreeMem = cmaDevMem = long(0)
-            SysMgr.printWarn("Fail to get cmaMem")
+            SysMgr.printWarn("fail to get cmaMem")
 
         try:
             pass
@@ -62192,7 +62227,7 @@ class ThreadAnalyzer(object):
             kernelStackMem = vmData['nr_kernel_stack'] * 8 >> 10
             '''
         except:
-            SysMgr.printWarn("Fail to get etcMem")
+            SysMgr.printWarn("fail to get etcMem")
 
         # check available memory type #
         if SysMgr.freeMemEnable:
@@ -62249,7 +62284,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to get system CPU stat")
+                "fail to get system CPU stat")
             return
 
         if SysMgr.cpuAvrEnable:
@@ -64841,7 +64876,7 @@ class ThreadAnalyzer(object):
     def replyService(self, ip, port):
         if not SysMgr.remoteServObj:
             SysMgr.printErr(\
-                "Fail to use server because it is not initialized")
+                "fail to use server because it is not initialized")
             return
 
         # send reply message to server #
@@ -64868,7 +64903,7 @@ class ThreadAnalyzer(object):
                 pass
 
         if not UtilMgr.isString(data):
-            SysMgr.printErr("Fail to recognize data from server")
+            SysMgr.printErr("fail to recognize data from server")
             return
 
         # get address info from server #
@@ -64876,20 +64911,20 @@ class ThreadAnalyzer(object):
             ip = addr[0]
             port = long(addr[1])
         except:
-            SysMgr.printErr("Fail to recognize address from server")
+            SysMgr.printErr("fail to recognize address from server")
 
         # wrong request from client #
         if SysMgr.remoteServObj == 'NONE' and \
             data in ThreadAnalyzer.requestType:
             SysMgr.printErr(\
-                "Fail to handle %s request from client" % data)
+                "fail to handle %s request from client" % data)
             return
 
         # reply ACK to server #
         try:
             self.replyService(ip, port)
         except:
-            SysMgr.printErr("Fail to send ACK to server")
+            SysMgr.printErr("fail to send ACK to server")
 
         # REPORT service #
         if data[0] == '{' and \
@@ -64907,13 +64942,13 @@ class ThreadAnalyzer(object):
         # REFUSE response #
         elif data == 'REFUSE':
             SysMgr.printErr(\
-                "Fail to request service because of no support from server")
+                "fail to request service because of no support from server")
             sys.exit(0)
 
         # DUPLICATED response #
         elif data == 'PRINT' or data.startswith('REPORT'):
             SysMgr.printErr(\
-                "Fail to request service "
+                "fail to request service "
                 "because of same port used between client and sever")
             sys.exit(0)
 
@@ -64965,7 +65000,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Fail to send request '%s'" % \
+                "fail to send request '%s'" % \
                 SysMgr.remoteServObj.request)
 
 
@@ -65003,7 +65038,7 @@ class ThreadAnalyzer(object):
                 port = ret[1][1]
             except:
                 SysMgr.printWarn(\
-                    "Fail to get address of client from message")
+                    "fail to get address of client from message")
                 continue
 
             networkObject = NetworkMgr('client', ip, port)
@@ -65046,12 +65081,12 @@ class ThreadAnalyzer(object):
                         (ip, port))
                 else:
                     SysMgr.printWarn(\
-                        "Duplicated %s:%d as remote address" % (ip, port))
+                        "duplicated %s:%d as remote address" % (ip, port))
 
             elif message == 'REPORT_ALWAYS' or message == 'REPORT_BOUND':
                 if not SysMgr.reportEnable:
                     SysMgr.printWarn(\
-                        "Ignored %s request from %s:%d because no service" % \
+                        "ignored %s request from %s:%d because no service" % \
                         (message, ip, port))
                     networkObject.send("REFUSE")
                     del networkObject
@@ -65081,12 +65116,12 @@ class ThreadAnalyzer(object):
                     SysMgr.addrListForReport[index].status = 'READY'
                 else:
                     SysMgr.printWarn(\
-                        "Fail to find %s:%d as remote address" % (ip, port))
+                        "fail to find %s:%d as remote address" % (ip, port))
 
             # wrong request or just data from server #
             else:
                 SysMgr.printErr(\
-                    "Fail to recognize the request from client")
+                    "fail to recognize the request from client")
 
 
 
@@ -65136,7 +65171,7 @@ class ThreadAnalyzer(object):
                         sys.exit(0)
                     except:
                         SysMgr.printErr(\
-                            "Fail to launch guider", reason=True)
+                            "fail to launch guider", reason=True)
                 # launch command #
                 else:
                     ret = SysMgr.createProcess(cmd)
@@ -65555,14 +65590,14 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "Fail to rename %s to %s" % \
+                    "fail to rename %s to %s" % \
                     SysMgr.inputFile, filePath)
 
         # convert dict data to JSON-type string #
         jsonObj = UtilMgr.convDict2Str(self.reportData, ignore=True)
         if not jsonObj:
             SysMgr.printWarn(\
-                "Fail to convert report data to JSON type")
+                "fail to convert report data to JSON type")
             return
 
         # transfer data to file or socket #
@@ -65878,7 +65913,7 @@ def main(args=None):
         # wait for input #
         if SysMgr.waitEnable:
             SysMgr.waitUserInput(\
-                0, msg="\nPress enter key...", force=True)
+                0, msg="\npress enter key...", force=True)
 
         # set normal signal #
         SysMgr.setNormalSignal()
