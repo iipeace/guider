@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200825"
+__revision__ = "200826"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3651,7 +3651,15 @@ class UtilMgr(object):
                 if cond in string:
                     return True
             else:
-                if cond == string:
+                if cond == '*':
+                    return True
+                elif cond.startswith('*') and \
+                    string.endswith(cond[1:]):
+                    return True
+                elif cond.endswith('*') and \
+                    string.startswith(cond[:-1]):
+                    return True
+                elif cond == string:
                     return True
 
         return False
@@ -4696,7 +4704,7 @@ class NetworkMgr(object):
                 UtilMgr.deleteProgress()
 
                 SysMgr.printInfo(\
-                    "%s [%s] is downloaded from %s:%s:%s successfully\n" % \
+                    "downloaded %s [%s] from %s:%s:%s successfully\n" % \
                     (targetPath, \
                     UtilMgr.convSize2Unit(os.path.getsize(targetPath)), \
                     targetIp, targetPort, origPath))
@@ -4722,7 +4730,7 @@ class NetworkMgr(object):
             # check file #
             if not os.path.isfile(origPath):
                 SysMgr.printErr(\
-                    'Failed to find %s to transfer' % origPath)
+                    'failed to find %s to transfer' % origPath)
                 return
 
             convert = UtilMgr.convSize2Unit
@@ -4763,7 +4771,7 @@ class NetworkMgr(object):
                 UtilMgr.deleteProgress()
 
                 SysMgr.printInfo(\
-                    "%s [%s] is uploaded to %s:%s successfully\n" % \
+                    "uploaded %s [%s] to %s:%s successfully\n" % \
                         (origPath, convert(os.path.getsize(origPath)), \
                             addr, targetPath))
             except:
@@ -4783,7 +4791,7 @@ class NetworkMgr(object):
 
             if not onlySocket:
                 SysMgr.printInfo(\
-                    "'%s' is executed from %s\n" % (command, addr))
+                    "executed '%s' from %s\n" % (command, addr))
 
             # return just the connected socket #
             if onlySocket:
@@ -14498,13 +14506,18 @@ class SysMgr(object):
 
 
     @staticmethod
-    def findLib(lib):
+    def findLib(lib, inc=False):
         if len(SysMgr.libCache) == 0:
             SysMgr.loadLibCache()
 
         for key, val in SysMgr.libCache.items():
-            if key.startswith(lib) and \
-                (key[len(lib)] == '.' or key[len(lib)] == '-'):
+            if not key.startswith(lib):
+                continue
+
+            if inc and key.startswith(lib):
+                return val
+
+            if (key[len(lib)] == '.' or key[len(lib)] == '-'):
                 if len(val) > 1:
                     SysMgr.printWarn(\
                         'Multiple libraries [ %s ] exist for %s' % \
@@ -15103,16 +15116,22 @@ class SysMgr(object):
             return SysMgr.pyLibPath
 
         try:
+            # set library name #
             exePath = SysMgr.getExeName(SysMgr.pid)
             exeName = os.path.basename(exePath)
             libName = 'lib%s' % exeName
             if not load:
                 return libName
 
-            libName = SysMgr.loadLib(libName)._name
-            if libName:
-                SysMgr.pyLibPath = \
-                    FileAnalyzer.getMapFilePath(SysMgr.pid, libName)
+            # search ld.so.cache #
+            if not SysMgr.pyLibPath:
+                SysMgr.pyLibPath = SysMgr.findLib(libName, inc=True)[0]
+            # search standard path #
+            else:
+                libName = SysMgr.loadLib(libName)._name
+                if libName:
+                    SysMgr.pyLibPath = \
+                        FileAnalyzer.getMapFilePath(SysMgr.pid, libName)
 
             return SysMgr.pyLibPath
         except SystemExit:
@@ -16568,7 +16587,7 @@ Description:
 Options:
     -v                          verbose
     -g  <WORD|TID>              set filter
-    -c  <WORD>                  set filter
+    -c  <LEVEL>                 set log level
     -I  <FILE|FIELD>            set path / field
     -J                          print in JSON format
     -o  <DIR|FILE>              save output data
@@ -18127,6 +18146,8 @@ Options:
     -v                          verbose
     -I  <DIR>                   set input path
     -a                          show all attributes
+    -g  <WORD>                  set filter
+    -c  <COMMAND>               set command
     -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
@@ -18141,8 +18162,16 @@ Examples:
     - Print directory structure in 2-depth from / dir
         # {0:1} {1:1} -I / -H 2
 
-    - Print directory structure with attributes from / dir
+    - Print directory structure with files from / dir
         # {0:1} {1:1} -I / -a
+
+    - Print specific directories and files from / dir
+        # {0:1} {1:1} -I / -a -g test
+        # {0:1} {1:1} -I / -a -g "test*"
+        # {0:1} {1:1} -I / -a -g "*test"
+
+    - Print specific directories and files from / dir and apply command
+        # {0:1} {1:1} -I / -a -g test -c "rm -rf TARGET"
                     '''.format(cmd, mode)
 
                 # leaktracer #
@@ -21298,7 +21327,7 @@ Copyright:
 
                 os.rename(outputFile, backupFile)
                 SysMgr.printInfo(\
-                    '%s is renamed to %s' % (outputFile, backupFile))
+                    'renamed %s to %s' % (outputFile, backupFile))
         except:
             SysMgr.printErr(\
                 "fail to backup %s to %s" % \
@@ -22496,7 +22525,7 @@ Copyright:
 
                 try:
                     os.rename(SysMgr.inputFile, backupFile)
-                    SysMgr.printInfo('%s is renamed to %s' % \
+                    SysMgr.printInfo('renamed %s to %s' % \
                         (SysMgr.inputFile, backupFile))
                 except SystemExit:
                     sys.exit(0)
@@ -25369,7 +25398,7 @@ Copyright:
             try:
                 backupFile = '%s.old' % reportPath
                 os.rename(reportPath, backupFile)
-                SysMgr.printInfo('%s is renamed to %s' % \
+                SysMgr.printInfo('renamed %s to %s' % \
                     (reportPath, backupFile))
             except SystemExit:
                 sys.exit(0)
@@ -25723,7 +25752,7 @@ Copyright:
                     print("\nno running process in the background\n")
                 else:
                     SysMgr.printWarn(\
-                        "Failed to find running %s process to send event" % \
+                        "failed to find running %s process to send event" % \
                         __module__)
                 return []
 
@@ -25741,7 +25770,7 @@ Copyright:
                     attr, ip, port = addr.split(':')
                 except:
                     SysMgr.printWarn(\
-                        "Failed to use %s as remote address" % (addr))
+                        "failed to use %s as remote address" % (addr))
                     continue
 
                 networkObject = NetworkMgr('client', ip, long(port))
@@ -25750,7 +25779,7 @@ Copyright:
 
                 if not networkObject.ip or not networkObject.port:
                     SysMgr.printWarn(\
-                        "Failed to use %s:%s as remote address" % (ip, port))
+                        "failed to use %s:%s as remote address" % (ip, port))
                     continue
 
                 try:
@@ -25761,7 +25790,7 @@ Copyright:
                         (event, ip, port, pid))
                 except:
                     SysMgr.printWarn((\
-                        "Failed to send event '%s' "
+                        "failed to send event '%s' "
                         "to %s:%s address of %s process") % \
                         (event, ip, port, pid))
 
@@ -26815,7 +26844,7 @@ Copyright:
                 src, des = value.split(',')
             except:
                 SysMgr.printWarn(\
-                    'Failed to recognize path', True)
+                    'failed to recognize path', True)
                 sendErrMsg(netObj,\
                     "wrong format for path, input in the format {SRC,DES}")
                 return
@@ -26824,7 +26853,7 @@ Copyright:
             targetPath = src.strip()
             if not os.path.isfile(targetPath):
                 SysMgr.printWarn(\
-                    'Failed to find %s to transfer' % targetPath, True)
+                    'failed to find %s to transfer' % targetPath, True)
                 sendErrMsg(netObj, "wrong PATH %s" % targetPath)
                 return
 
@@ -26859,7 +26888,7 @@ Copyright:
                         buf = fd.read(netObj.sendSize)
 
                 SysMgr.printInfo(\
-                    "%s [%s] is uploaded to %s:%s successfully" % \
+                    "uploaded %s [%s] to %s:%s successfully" % \
                         (targetPath, UtilMgr.convSize2Unit(\
                             os.path.getsize(targetPath)), addr, remotePath))
             except:
@@ -26874,7 +26903,7 @@ Copyright:
                 src, des = value.split(',')
             except:
                 SysMgr.printWarn(\
-                    'Failed to recognize path', True)
+                    'failed to recognize path', True)
                 sendErrMsg(netObj,\
                     "wrong format for path, input in the format {SRC,DES}")
                 return
@@ -26921,7 +26950,7 @@ Copyright:
                         #UtilMgr.printProgress(curSize, totalSize)
 
                 SysMgr.printInfo(\
-                    "%s [%s] is downloaded from %s:%s successfully" % \
+                    "downloaded %s [%s] from %s:%s successfully" % \
                     (targetPath, \
                     UtilMgr.convSize2Unit(\
                         os.path.getsize(targetPath)), addr, origPath))
@@ -26967,7 +26996,7 @@ Copyright:
                     preexec_fn=os.setsid)
 
                 SysMgr.printInfo(\
-                    "'%s' command is executed for %s" % (value, addr))
+                    "executed '%s' for %s" % (value, addr))
 
                 # get select object #
                 selectObj = SysMgr.getPkg('select')
@@ -27005,7 +27034,7 @@ Copyright:
                         break
 
                 SysMgr.printInfo(\
-                    "'%s' command is terminated for %s" % (value, addr))
+                    "terminated '%s' for %s" % (value, addr))
             except:
                 SysMgr.printErr(\
                     "fail to execute '%s' from %s" % (value, addr), True)
@@ -27167,7 +27196,7 @@ Copyright:
                 continue
 
             SysMgr.printInfo(\
-                "Connected to client %s:%s" % (addr[0], addr[1]))
+                "connected to client %s:%s" % (addr[0], addr[1]))
 
             # create a TCP socket #
             connObj = NetworkMgr(\
@@ -27227,7 +27256,7 @@ Copyright:
 
         def getUserInput():
             printMenu()
-            sys.stdout.write('Input command to request service...\n=> ')
+            sys.stdout.write('input command to request service...\n=> ')
             sys.stdout.flush()
 
             return sys.stdin.readline()[:-1]
@@ -27561,7 +27590,7 @@ Copyright:
                     affectstring = ''
 
                 SysMgr.printInfo(\
-                    "the CPU(%s) is set to %shz in [%s] successfuly %s" %
+                    "set CPU(%s)'s clock to %shz in [%s] successfuly %s" %
                         (core, UtilMgr.convNum(clock), \
                             curgovernor, affectstring))
 
@@ -28082,7 +28111,7 @@ Copyright:
                 {'event': events, 'cmd': cmd, 'fname': fname}
 
         SysMgr.printInfo(\
-            "Start watching [%s]" % ', '.join(targetList))
+            "start watching [%s]" % ', '.join(targetList))
 
         # start watching #
         while 1:
@@ -28618,10 +28647,12 @@ Copyright:
 
                 if os.path.isdir(fullPath):
                     totalDir += 1
+
                     if SysMgr.showAll:
                         info = dict(subDirs=dict(), subFiles=dict())
                     else:
                         info = dict(subDirs=dict())
+
                     result[parentAbsPath]['subDirs'][subAbsPath] = info
                     totalInfo = \
                         getDirs(result[parentAbsPath]['subDirs'], \
@@ -28650,13 +28681,22 @@ Copyright:
 
             return (totalSize, totalDir, totalFile)
 
+        def executeCmd(path):
+            for cmd in SysMgr.customCmd:
+                command = cmd.replace("TARGET", path)
+                SysMgr.printInfo("execute '%s'" % command)
+                pid = SysMgr.createProcess(command)
+                if pid > 0:
+                    os.waitpid(pid, 0)
+                elif pid == 0:
+                    sys.exit(0)
+
         def recurse(parentPath, fileList, prefix, result, level, maxLevel):
             totalSize = long(0)
             totalFile = long(0)
             totalDir = long(0)
 
-            if len(fileList) == 0 or \
-                    (maxLevel != -1 and maxLevel <= level):
+            if not fileList or (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
             UtilMgr.printProgress()
@@ -28666,7 +28706,8 @@ Copyright:
                 fileList.sort( \
                     key=lambda name: os.path.getsize( \
                         '%s/%s' % (parentPath, name)) \
-                        if os.path.exists('%s/%s' % (parentPath, name)) else 0, \
+                        if os.path.exists('%s/%s' % \
+                            (parentPath, name)) else 0, \
                             reverse=True)
             # sort by type #
             else:
@@ -28685,9 +28726,21 @@ Copyright:
                 # check dir #
                 if os.path.isdir(fullPath):
                     totalDir += 1
+                    isEffective = False
 
-                    string = "%s%s[%s]" % (prefix, idc, subPath)
-                    result.append(string)
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if UtilMgr.isEffectiveStr(subPath, inc=False):
+                            isEffective = True
+                            result.append('[%s]' % fullPath)
+                    else:
+                        isEffective = True
+                        string = "%s%s[%s]" % (prefix, idc, subPath)
+                        result.append(string)
+
+                    # apply for command #
+                    if isEffective and SysMgr.customCmd:
+                        executeCmd(fullPath)
 
                     # update prefix #
                     tmpPrefix = prefix + "|  "
@@ -28707,10 +28760,21 @@ Copyright:
                             result, level + 1, maxLevel)
 
                     totalSize += rlist[0]
-                    totalDir += rlist[1]
                     totalFile += rlist[2]
+                    if isEffective:
+                        totalDir += rlist[1]
                 # check file #
                 elif os.path.isfile(fullPath):
+                    if SysMgr.filterGroup:
+                        if UtilMgr.isEffectiveStr(subPath, inc=False):
+                            result.append(fullPath)
+
+                            # apply for command #
+                            if SysMgr.customCmd:
+                                executeCmd(fullPath)
+                        else:
+                            continue
+
                     totalFile += 1
 
                     try:
@@ -28725,8 +28789,12 @@ Copyright:
                             'fail to get size of %s' % fullPath, reason=True)
                         size = ''
 
-                    if not SysMgr.showAll:
+                    if not SysMgr.showAll or SysMgr.filterGroup:
                         continue
+
+                    # apply for command #
+                    if SysMgr.customCmd:
+                        executeCmd(fullPath)
 
                     string = "%s%s%s%s" % (prefix, idc, subPath, size)
                     result.append(string)
@@ -28792,11 +28860,11 @@ Copyright:
 
         # check symbol #
         if not SysMgr.filterGroup:
-            SysMgr.printInfo('Print all symbols')
+            SysMgr.printInfo('print all symbols')
             SysMgr.filterGroup.append('**')
         else:
             SysMgr.printInfo(\
-                'Print all symbols including [ %s ]' % \
+                'print all symbols including [ %s ]' % \
                     ','.join(SysMgr.filterGroup))
 
         resInfo = {}
@@ -29114,7 +29182,7 @@ Copyright:
                 oldpath = "%s.old" % fname
                 os.rename(fname, oldpath)
                 SysMgr.printInfo(\
-                    "%s is renamed to %s" % (fname, oldpath))
+                    "renamed %s to %s" % (fname, oldpath))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -29416,7 +29484,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
-                    "Failed to create process", True)
+                    "failed to create process", True)
                 sys.exit(0)
 
         # set alarm #
@@ -29552,7 +29620,7 @@ Copyright:
                 opFunc = writeChunk
             else:
                 SysMgr.printErr(\
-                    "Failed to recognize operation %s" % op)
+                    "failed to recognize operation %s" % op)
                 sys.exit(0)
 
             # set direction #
@@ -29575,7 +29643,7 @@ Copyright:
                 target = 'file'
             else:
                 SysMgr.printErr(\
-                    "Failed to access '%s'" % path)
+                    "failed to access '%s'" % path)
                 return
 
             SysMgr.printInfo(\
@@ -29697,7 +29765,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(\
-                        "Failed to create process", True)
+                        "failed to create process", True)
                     sys.exit(0)
 
         # set alarm #
@@ -29905,7 +29973,7 @@ Copyright:
                 pass
             except:
                 SysMgr.printErr(\
-                    "Failed to create process", True)
+                    "failed to create process", True)
                 sys.exit(0)
 
         if len(limitInfo) > 1:
@@ -30308,7 +30376,7 @@ Copyright:
                     pass
                 except:
                     SysMgr.printErr(\
-                        "Failed to start process", True)
+                        "failed to start process", True)
                     sys.exit(0)
 
                 if pid == 0:
@@ -30347,7 +30415,7 @@ Copyright:
                     pass
                 except:
                     SysMgr.printErr(\
-                        "Failed to start process", True)
+                        "failed to start process", True)
                     sys.exit(0)
 
                 if pid == 0:
@@ -33080,7 +33148,7 @@ Copyright:
 
 
     def printCpuCacheInfo(self):
-        if len(self.cpuCacheInfo) == 0:
+        if not self.cpuCacheInfo:
             return
 
         # add JSON stats #
@@ -33119,17 +33187,17 @@ Copyright:
 
 
     def printCpuInfo(self):
-        # parse data #
-        if self.cpuData:
-            for l in self.cpuData:
-                m = re.match(r'(?P<type>.*):\s+(?P<val>.*)', l)
-                if not m:
-                    continue
-
-                d = m.groupdict()
-                self.cpuInfo[d['type'][0:len(d['type'])-1]] = d['val']
-        else:
+        if not self.cpuData:
             return
+
+        # parse data #
+        for l in self.cpuData:
+            m = re.match(r'(?P<type>.*):\s+(?P<val>.*)', l)
+            if not m:
+                continue
+
+            d = m.groupdict()
+            self.cpuInfo[d['type'][0:len(d['type'])-1]] = d['val']
 
         # add JSON stats #
         if SysMgr.jsonOutputEnable:
@@ -37452,7 +37520,11 @@ class DltAnalyzer(object):
 
         # initialize input path #
         flist = []
-        if SysMgr.inputParam:
+        if SysMgr.inputParam is not None and \
+            not SysMgr.inputParam:
+            SysMgr.printErr("no path for DLT file")
+            sys.exit(0)
+        elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
                 ret = UtilMgr.convPath(item, retStr=False)
                 flist += ret
@@ -38212,14 +38284,14 @@ struct cmsghdr {
                     sys.exit(0)
 
             # get target symbol info #
-            oldSet = dobj.getAddrBySymbol(oldSym)
+            oldSet = dobj.getAddrBySymbol(oldSym, verb=False)
             if not oldSet:
                 SysMgr.printWarn(\
                     "fail to find '%s' info from %s" % (oldSym, procInfo))
                 continue
 
             # get hook symbol info #
-            newSet = dobj.getAddrBySymbol(newSym, fpath)
+            newSet = dobj.getAddrBySymbol(newSym, fpath, verb=False)
             if not newSet:
                 SysMgr.printErr(\
                     "fail to find '%s' info in %s from %s" % \
@@ -40271,13 +40343,30 @@ struct cmsghdr {
                     "fail to access %s" % path)
                 return None
 
-            # open script #
-            fp = self.remoteUsercall(\
-                "_Py_fopen", [path, "r"])
+            if sys.version_info >= (3, 0):
+                # open script #
+                fp = self.remoteUsercall("_Py_fopen", [path, "r"])
+                if not fp:
+                    SysMgr.printErr("fail to call _Py_fopen")
+                    return
 
-            # execute script #
-            return self.remoteUsercall(\
-                "PyRun_SimpleFile", [fp, path], wait=wait)
+                # execute file #
+                return self.remoteUsercall(\
+                    "PyRun_SimpleFile", [fp, path], wait=wait)
+            else:
+                # open file #
+                po = self.remoteUsercall("PyFile_FromString", [path, "r"])
+                if not po:
+                    SysMgr.printErr("fail to call PyFile_FromString")
+                    return
+                fp = self.remoteUsercall("PyFile_AsFile", [po])
+                if not fp:
+                    SysMgr.printErr("fail to call PyFile_AsFile")
+                    return
+
+                # execute file #
+                return self.remoteUsercall(\
+                    "PyRun_SimpleFileEx", [fp, path, 1], wait=wait)
 
 
 
@@ -43629,7 +43718,7 @@ struct cmsghdr {
 
     def getAddrBySymbol(\
         self, symbol, binary=None, inc=False, \
-        start=False, end=False, one=False):
+        start=False, end=False, one=False, verb=True):
 
         # check memory map #
         if not self.pmap:
@@ -43682,7 +43771,11 @@ struct cmsghdr {
                     addrDict[offset] = True
 
         # return address #
-        if len(addrList) == 0:
+        if not addrList:
+            if verb:
+                SysMgr.printErr(\
+                    "fail to find %s symbol for %s(%s)" % \
+                        (symbol, self.comm, self.pid))
             return None
         elif len(addrList) > 1:
             self.printSymbolList(addrList)
@@ -43698,11 +43791,6 @@ struct cmsghdr {
 
             if addrList:
                 return addrList[0][0]
-            else:
-                SysMgr.printErr(\
-                    "fail to find %s symbol for %s(%s)" % \
-                        (symbol, self.comm, self.pid))
-                return None
 
         return addrList
 
@@ -52662,7 +52750,7 @@ class ThreadAnalyzer(object):
                 os.rename(outputFile, oldPath)
 
                 SysMgr.printInfo(\
-                    '%s is renamed to %s' % (outputFile, oldPath))
+                    'renamed %s to %s' % (outputFile, oldPath))
         except:
             SysMgr.printErr(\
                 "fail to backup %s to %s" % (outputFile, oldPath), True)
