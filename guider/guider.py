@@ -38284,14 +38284,14 @@ struct cmsghdr {
                     sys.exit(0)
 
             # get target symbol info #
-            oldSet = dobj.getAddrBySymbol(oldSym, verb=False)
+            oldSet = dobj.getAddrBySymbol(oldSym)
             if not oldSet:
                 SysMgr.printWarn(\
                     "fail to find '%s' info from %s" % (oldSym, procInfo))
                 continue
 
             # get hook symbol info #
-            newSet = dobj.getAddrBySymbol(newSym, fpath, verb=False)
+            newSet = dobj.getAddrBySymbol(newSym, fpath)
             if not newSet:
                 SysMgr.printErr(\
                     "fail to find '%s' info in %s from %s" % \
@@ -43391,6 +43391,7 @@ struct cmsghdr {
             # get arguments from previous register set #
             self.getArgs(ref=False)
         else:
+            self.clearArgs()
             args = self.convArgs()
 
         self.handleSyscallOutput(args, deferrable=True)
@@ -43718,7 +43719,7 @@ struct cmsghdr {
 
     def getAddrBySymbol(\
         self, symbol, binary=None, inc=False, \
-        start=False, end=False, one=False, verb=True):
+        start=False, end=False, one=False, verb=False):
 
         # check memory map #
         if not self.pmap:
@@ -43898,6 +43899,10 @@ struct cmsghdr {
             self.initValues()
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
+
+            # skip clone syscall #
+            if self.status == 'deferrable':
+                self.status = 'skip'
 
             # notify to tracer of parent task #
             try:
