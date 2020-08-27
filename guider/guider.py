@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200826"
+__revision__ = "200827"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16418,6 +16418,7 @@ Commands:
     start
     stop
     syscall [FUNC#ARGS]
+    thread
     usercall [FUNC#ARGS]
     wrmem [ADDR|REG:VAL:SIZE]
 
@@ -16541,6 +16542,9 @@ Examples:
 
     - Handle a write function call as a exit point
         # {0:1} {1:1} -g a.out -c write\\|exit
+
+    - Handle a write function call as a thread creation point
+        # {0:1} {1:1} -g a.out -c write\\|thread
 
     - Handle a write function call as a excution point for python code
         # {0:1} {1:1} -g a.out -c write\\|pystr:"print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
@@ -18166,6 +18170,7 @@ Examples:
         # {0:1} {1:1} -I / -a
 
     - Print specific directories and files from / dir
+        # {0:1} {1:1} -I / -a -g
         # {0:1} {1:1} -I / -a -g test
         # {0:1} {1:1} -I / -a -g "test*"
         # {0:1} {1:1} -I / -a -g "*test"
@@ -28732,7 +28737,7 @@ Copyright:
                     if SysMgr.filterGroup:
                         if UtilMgr.isEffectiveStr(subPath, inc=False):
                             isEffective = True
-                            result.append('[%s]' % fullPath)
+                            SysMgr.printPipe('[%s]' % fullPath)
                     else:
                         isEffective = True
                         string = "%s%s[%s]" % (prefix, idc, subPath)
@@ -28745,6 +28750,7 @@ Copyright:
                     # update prefix #
                     tmpPrefix = prefix + "|  "
 
+                    # get subdir #
                     try:
                         subdirs = os.listdir(fullPath)
                     except SystemExit:
@@ -28755,6 +28761,7 @@ Copyright:
                             always=True, reason=True)
                         continue
 
+                    # traverse subdirs #
                     rlist = recurse( \
                         fullPath, subdirs, tmpPrefix, \
                             result, level + 1, maxLevel)
@@ -28765,9 +28772,23 @@ Copyright:
                         totalDir += rlist[1]
                 # check file #
                 elif os.path.isfile(fullPath):
+                    size = ''
+
+                    # apply for filter #
                     if SysMgr.filterGroup:
                         if UtilMgr.isEffectiveStr(subPath, inc=False):
-                            result.append(fullPath)
+                            # get size #
+                            try:
+                                size = os.stat(fullPath).st_size
+                                totalSize += size
+                                size = ' <%s>' % UtilMgr.convSize2Unit(size)
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                size = ''
+
+                            string = '%s%s' % (fullPath, size)
+                            SysMgr.printPipe(string)
 
                             # apply for command #
                             if SysMgr.customCmd:
@@ -28777,11 +28798,12 @@ Copyright:
 
                     totalFile += 1
 
+                    # get size #
                     try:
-                        size = os.stat(fullPath).st_size
-                        totalSize += size
-                        size = ' <%s>' % \
-                               UtilMgr.convSize2Unit(size)
+                        if not size:
+                            size = os.stat(fullPath).st_size
+                            totalSize += size
+                            size = ' <%s>' % UtilMgr.convSize2Unit(size)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -28823,6 +28845,12 @@ Copyright:
 
             return (totalSize, totalDir, totalFile)
 
+        # check filter option #
+        if SysMgr.findOption('g'):
+            SysMgr.printStreamEnable = True
+            if not SysMgr.filterGroup:
+                SysMgr.filterGroup = ['*']
+
         # print start path #
         if SysMgr.jsonOutputEnable:
             result = dict()
@@ -28831,15 +28859,27 @@ Copyright:
                     dict(subDirs=dict(), subFiles=dict())
             else:
                 result[os.path.abspath(path)] = dict(subDirs=dict())
+
             getDirs(result, path, 0, -1)
             jsonResult = UtilMgr.convDict2Str(result)
             SysMgr.printPipe(jsonResult)
         else:
+            try:
+                initDir = os.listdir(path)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(\
+                    "fail to access %s" % path, reason=True)
+                sys.exit(0)
+
             abspath = "[%s]" % (os.path.abspath(path))
             result = [abspath]
-            recurse(path, os.listdir(path), "  ", result, 0, maxLevel)
+
+            recurse(path, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
+
             SysMgr.printStat( \
                 r"start traversing dirs from %s..." % abspath)
             SysMgr.printPipe(output)
@@ -38639,6 +38679,8 @@ struct cmsghdr {
                 cmdformat = "VAR"
             elif cmd == 'repeat':
                 cmdformat = "CNT"
+            elif cmd == 'thread':
+                cmdformat = ""
             elif cmd == 'pystr':
                 cmdformat = "CODE:SYNC"
             elif cmd == 'pyfile':
@@ -38893,6 +38935,28 @@ struct cmsghdr {
                             (val, hex(addr).rstrip('L')))
                     return repeat
 
+            elif cmd == 'thread':
+                ret = self.loadPyLib()
+                if not ret:
+                    return
+
+                self.initPyLib()
+
+                # init thread objects #
+                origPid = self.pid
+                self.remoteUsercall('PyEval_InitThreads')
+                mainState = self.remoteUsercall('PyEval_SaveThread')
+                gilState = self.remoteUsercall('PyGILState_Ensure')
+
+                string = "import sys, time, threading\ndef func():\n\twhile 1:\n\t\ttime.sleep(1)\ntobj = threading.Thread(target=func)\ntobj.daemon = True\ntobj.start();"
+                self.remotePyCall(string=string, wait=True)
+
+                # release thread objects #
+                if self.pid == origPid:
+                    self.remoteUsercall('PyGILState_Release', [gilState])
+                    self.remoteUsercall('PyEval_RestoreThread', [mainState])
+                    self.finishPyLib()
+
             elif cmd == 'pystr' or cmd == 'pyfile':
                 if len(cmdset) == 1:
                     printCmdErr(cmdval, cmd)
@@ -38902,7 +38966,9 @@ struct cmsghdr {
                 source = memset[0]
                 if len(memset) > 1:
                     sync = memset[1]
-                    if sync.upper() == 'FALSE':
+                    if not sync:
+                        sync = True
+                    elif sync.upper() == 'FALSE':
                         sync = False
                     else:
                         sync = True
@@ -38918,6 +38984,7 @@ struct cmsghdr {
                 SysMgr.addPrint(\
                     "\n[%s] %s [sync=%s]" % (cmdstr, source, sync))
 
+                # call python #
                 if cmd == 'pystr':
                     self.remotePyCall(string=source, wait=sync)
                 elif cmd == 'pyfile':
@@ -40582,7 +40649,14 @@ struct cmsghdr {
         self.cont(check=True)
         if not wait:
             return None
-        self.waitpid()
+
+        # wait process #
+        rid, ostat = self.waitpid()
+        # handle clone event #
+        if SysMgr.cloneEnable and self.isCloned(ostat):
+            pid = self.handoverNewTarget()
+            if pid == 0:
+                return None
 
         # read regs to check results #
         if not self.updateRegs():
