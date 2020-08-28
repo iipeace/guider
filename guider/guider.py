@@ -5131,9 +5131,9 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def execRemoteCmd(command):
+    def execRemoteCmd(command, addr=None):
         # get new connection #
-        connObj = NetworkMgr.getServerConn()
+        connObj = NetworkMgr.getServerConn(addr)
         if not connObj:
             return None
 
@@ -5144,13 +5144,21 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def getServerConn():
+    def getServerConn(addr=None):
         def printErr():
             SysMgr.printErr(\
                 "no running server or wrong server address")
 
         # set server address in local #
-        if SysMgr.isLinux and not SysMgr.remoteServObj:
+        if addr:
+            # classify ip and port #
+            service, ip, port = NetworkMgr.parseAddr(addr)
+            if service == ip == port == None:
+                printErr()
+                return None
+            else:
+                NetworkMgr.setRemoteServer('%s:%s' % (ip, port), tcp=True)
+        elif SysMgr.isLinux and not SysMgr.remoteServObj:
             try:
                 addr = SysMgr.getProcAddrs(__module__)
             except:
@@ -18720,8 +18728,15 @@ Options:
     -x  <IP:PORT>               set local address
     -X  <IP:PORT>               set request address
     -E  <DIR>                   set cache dir path
+    -c  <COMMAND>               set command
     -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Execute remote commands
+        # {0:1} {1:1} -c "ls -lha", "date"
+                    '''.format(cmd, mode)
 
                 # default #
                 elif mode.startswith('-') or \
@@ -23251,7 +23266,8 @@ Copyright:
                 itemList = UtilMgr.parseInputString(value)
 
                 # set union option #
-                if SysMgr.isTraceMode():
+                if SysMgr.isTraceMode() or \
+                    SysMgr.isClientMode():
                     union = False
                 else:
                     union = True
@@ -27231,7 +27247,7 @@ Copyright:
                 '- RUN:Command\n'
                 '- HISTORY\n'
                 '- PING\n'
-                '- EXIT\n'
+                '- QUIT\n'
                 '\n'
             )
 
@@ -27266,13 +27282,70 @@ Copyright:
 
             return sys.stdin.readline()[:-1]
 
+        def convUserCmd(uinput):
+            if uinput.upper().startswith('D:'):
+                uinput = 'download' + uinput[1:]
+            elif uinput.upper().startswith('U:'):
+                uinput = 'upload' + uinput[1:]
+            elif uinput.upper().startswith('R:'):
+                uinput = 'run' + uinput[1:]
+            elif uinput.upper() == 'H':
+                uinput = 'history'
+            elif uinput.upper() == 'P':
+                uinput = 'ping'
+            elif uinput.upper() == 'Q':
+                uinput = 'quit'
+
+            return uinput
+
+        def execUserCmd(uinput):
+            # launch remote command #
+            pipe = NetworkMgr.execRemoteCmd(uinput)
+            if not pipe:
+                SysMgr.printErr(\
+                    "fail to execute remote command")
+                return
+
+            signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
+            SysMgr.intervalEnable = 1
+            SysMgr.repeatCount = sys.maxsize
+
+            # block signal #
+            SysMgr.blockSignal(signal.SIGINT, act='block')
+
+            while 1:
+                try:
+                    SysMgr.updateTimer()
+
+                    output = pipe.getData()
+                    if not output:
+                        break
+
+                    dataType = pipe.getDataType(output)
+
+                    print(output[:-1])
+                except SystemExit:
+                    pass
+                except:
+                    SysMgr.printErr(SysMgr.getErrMsg())
+                    break
+
+                if SysMgr.pendingSignal(signal.SIGINT):
+                    break
+
+            # disable alarm handler #
+            signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
+
+            # unblock signal #
+            SysMgr.blockSignal(signal.SIGINT, act='unblock')
+
 
 
         # start client mode #
         SysMgr.printInfo("CLIENT MODE")
 
-        # get address info #
         '''
+        # get address info #
         localAddr = SysMgr.getOption('x')
         remoteAddr = SysMgr.getOption('X')
         local, remote = \
@@ -27282,7 +27355,18 @@ Copyright:
         if SysMgr.loadLibcObj():
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        # run mainloop #
+        # run commands #
+        for idx, uinput in enumerate(SysMgr.customCmd):
+            # convert command shortcut #
+            uinput = convUserCmd(uinput)
+
+            # execute an user command #
+            execUserCmd(uinput)
+
+            if idx == len(SysMgr.customCmd)-1:
+                sys.exit(0)
+
+        # run mainloop for user input #
         hlist = list()
         while 1:
             try:
@@ -27298,18 +27382,7 @@ Copyright:
                     isHistory = True
 
                 # convert command shortcut #
-                if uinput.upper().startswith('D:'):
-                    uinput = 'download' + uinput[1:]
-                elif uinput.upper().startswith('U:'):
-                    uinput = 'upload' + uinput[1:]
-                elif uinput.upper().startswith('R:'):
-                    uinput = 'run' + uinput[1:]
-                elif uinput.upper() == 'H':
-                    uinput = 'history'
-                elif uinput.upper() == 'P':
-                    uinput = 'ping'
-                elif uinput.upper() == 'E':
-                    uinput = 'exit'
+                uinput = convUserCmd(uinput)
 
                 # handle local command #
                 if not uinput or \
@@ -27320,7 +27393,7 @@ Copyright:
                 elif uinput.upper().startswith('PING'):
                     doPing(uinput)
                     continue
-                elif uinput.upper() == 'EXIT':
+                elif uinput.upper() == 'QUIT':
                     break
 
                 # backup command #
@@ -27328,46 +27401,8 @@ Copyright:
                     (not hlist or hlist[-1] != uinput):
                     hlist.append(uinput)
 
-                # launch remote command #
-                pipe = NetworkMgr.execRemoteCmd(uinput)
-                if not pipe:
-                    SysMgr.printErr(\
-                        "fail to execute remote command")
-                    continue
-
-                signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
-                SysMgr.intervalEnable = 1
-                SysMgr.repeatCount = sys.maxsize
-
-                # block signal #
-                SysMgr.blockSignal(signal.SIGINT, act='block')
-
-                while 1:
-                    try:
-                        SysMgr.updateTimer()
-
-                        output = pipe.getData()
-                        if not output:
-                            break
-
-                        dataType = pipe.getDataType(output)
-
-                        print(output[:-1])
-                    except SystemExit:
-                        pass
-                    except:
-                        SysMgr.printErr(SysMgr.getErrMsg())
-                        break
-
-                    if SysMgr.pendingSignal(signal.SIGINT):
-                        break
-
-                # disable alarm handler #
-                signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
-
-                # unblock signal #
-                SysMgr.blockSignal(signal.SIGINT, act='unblock')
-
+                # execute an user command #
+                execUserCmd(uinput)
             except SystemExit:
                 return
             except:
