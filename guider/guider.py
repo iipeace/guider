@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200827"
+__revision__ = "200828"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8307,7 +8307,7 @@ class FunctionAnalyzer(object):
             self.heapTable[tid + '-ready']['tid'] = tid
             self.threadData[tid]['heapSize'] -= size
             SysMgr.printWarn(\
-                'Overwrite heap segment of %s(%s) at %s' % \
+                'overwrite heap segment of %s(%s) at %s' % \
                     (self.threadData[tid]['comm'], tid, \
                     SysMgr.dbgEventLine))
         except:
@@ -8444,7 +8444,7 @@ class FunctionAnalyzer(object):
 
         if self.duplicatedPos > 0:
             SysMgr.printWarn(\
-                "Found %d addresses duplicated" % self.duplicatedPos)
+                "found %d addresses duplicated" % self.duplicatedPos)
 
 
 
@@ -9496,7 +9496,7 @@ class FunctionAnalyzer(object):
                 targetCnt += 1
                 if targetCnt == 2:
                     SysMgr.printWarn(\
-                        "Multiple target threads are selected")
+                        "multiple target threads are selected")
                 targetMark = '*'
 
             # get CPU usage #
@@ -12778,7 +12778,7 @@ class FileAnalyzer(object):
                 continue
             elif fileName.startswith('/dev'):
                 SysMgr.printWarn(\
-                    "Skip to analyze %s because it is device node" % fileName)
+                    "skip analyzing %s because it is device node" % fileName)
                 continue
 
             if len(self.intervalFileData) > 0:
@@ -12960,7 +12960,7 @@ class FileAnalyzer(object):
 
         if len(self.fileData) > 0:
             SysMgr.printGood(\
-                'Profiled a total of %d files' % self.profSuccessCnt)
+                'profiled a total of %d files' % self.profSuccessCnt)
         else:
             SysMgr.printErr('fail to profile files')
             sys.exit(0)
@@ -13048,7 +13048,7 @@ class LogMgr(object):
         try:
             if not self.notified:
                 SysMgr.printErr((\
-                    'Please report %s file to '
+                    'please report %s file to '
                     'https://github.com/iipeace/guider/issues') % \
                         errorFile)
                 self.notified = True
@@ -14520,7 +14520,7 @@ class SysMgr(object):
             if (key[len(lib)] == '.' or key[len(lib)] == '-'):
                 if len(val) > 1:
                     SysMgr.printWarn(\
-                        'Multiple libraries [ %s ] exist for %s' % \
+                        'multiple libraries [ %s ] exist for %s' % \
                             (', '.join(val), key))
 
                 return val
@@ -14688,7 +14688,7 @@ class SysMgr(object):
             sys.exit(0)
         elif len(targetList) > 1:
             SysMgr.printErr(\
-                "Found multiple tasks [%s]" % \
+                "found multiple tasks [%s]" % \
                     SysMgr.getCommList(targetList))
             sys.exit(0)
 
@@ -19674,7 +19674,7 @@ Copyright:
                         # write all privilege to read perf events #
                         fd.write('-1')
                         SysMgr.printWarn((\
-                            'Change value of %s from %s to -1 '
+                            'change value of %s from %s to -1 '
                             'to read all perf events') % \
                             (attrPath, paranoid))
             except SystemExit:
@@ -21221,7 +21221,7 @@ Copyright:
         signal.alarm(0)
         SysMgr.condExit = True
 
-        SysMgr.printWarn('Terminated by user\n')
+        SysMgr.printWarn('terminated by user\n')
 
         sys.exit(0)
 
@@ -21231,7 +21231,7 @@ Copyright:
     def faultHandler(signum, frame):
         '''
         SysMgr.releaseResource()
-        sys.stdout.write('Terminated by SEGFAULT signal\n')
+        sys.stdout.write('terminated by SEGFAULT signal\n')
         '''
         os._exit(0)
 
@@ -22140,7 +22140,7 @@ Copyright:
     def printPipWarn(name, pkg):
         SysMgr.printWarn((\
             "fail to import python package: %s, "
-            "Try to enter 'pip%s install %s'") % \
+            "try to enter 'pip%s install %s'") % \
                 (name, sys.version_info[0], pkg), True)
 
 
@@ -22278,9 +22278,9 @@ Copyright:
         while SysMgr.procBufferSize > bufferSize > 0:
             if not SysMgr.bufferOverflowed:
                 SysMgr.printWarn((\
-                    "New data is going to be overwritten to the buffer"
+                    "new data is going to be overwritten to the buffer"
                     " because of buffer overflow\n"
-                    "\tIncrease Buffer size (%s) with -b option"
+                    "\tincrease buffer size (%s) with -b option"
                     " if you want to prevent data loss") % \
                         UtilMgr.convSize2Unit(SysMgr.bufferSize), True)
                 SysMgr.bufferOverflowed = True
@@ -27297,6 +27297,20 @@ Copyright:
                     uinput = hlist[long(uinput[1:])]
                     isHistory = True
 
+                # convert command shortcut #
+                if uinput.upper().startswith('D:'):
+                    uinput = 'download' + uinput[1:]
+                elif uinput.upper().startswith('U:'):
+                    uinput = 'upload' + uinput[1:]
+                elif uinput.upper().startswith('R:'):
+                    uinput = 'run' + uinput[1:]
+                elif uinput.upper() == 'H':
+                    uinput = 'history'
+                elif uinput.upper() == 'P':
+                    uinput = 'ping'
+                elif uinput.upper() == 'E':
+                    uinput = 'exit'
+
                 # handle local command #
                 if not uinput or \
                     uinput == '!' or \
@@ -28370,7 +28384,7 @@ Copyright:
                     SysMgr.printStreamEnable = True
 
                 SysMgr.printWarn(\
-                    "multiple tasks [ %s ] are traced" % \
+                    "multiple tasks [ %s ] are targeted" % \
                         SysMgr.getCommList(pids), True)
 
             # load symbol caches #
@@ -28494,7 +28508,7 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(\
-                "Stopped to trace %s" % mode, True)
+                "stopped to trace %s" % mode, True)
 
         sys.exit(0)
 
@@ -29091,7 +29105,7 @@ Copyright:
             sys.exit(0)
         elif len(pids) > 1:
             SysMgr.printWarn(\
-                "multiple tasks [ %s ] are traced" % \
+                "multiple tasks [ %s ] are targeted" % \
                     SysMgr.getCommList(pids), True)
 
             isMulti = True
@@ -29632,7 +29646,7 @@ Copyright:
                         SysMgr.printInfo("[Done]", prefix=False, notitle=True)
             except:
                 SysMgr.printWarn(\
-                    'Fali to flush system cache', reason=True)
+                    'fali to flush system cache', reason=True)
 
         def iotask(num, load):
             def readChunk(fobj, size=4096):
@@ -38956,6 +38970,9 @@ struct cmsghdr {
                     self.remoteUsercall('PyGILState_Release', [gilState])
                     self.remoteUsercall('PyEval_RestoreThread', [mainState])
                     self.finishPyLib()
+                else:
+                    SysMgr.addPrint(\
+                        "\n[%s] %s(%s)" % (cmdstr, self.comm, self.pid))
 
             elif cmd == 'pystr' or cmd == 'pyfile':
                 if len(cmdset) == 1:
@@ -39685,7 +39702,7 @@ struct cmsghdr {
 
         if SysMgr.warnEnable:
             SysMgr.printWarn(\
-                'Removed the breakpoint %s(%s) by %s(%s)' % \
+                'removed the breakpoint %s(%s) by %s(%s)' % \
                     (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
 
         return (symbol, filename, reins)
@@ -39884,7 +39901,7 @@ struct cmsghdr {
     def checkFilterCond(self, filterCmd, args):
         def printErr(cmd):
             SysMgr.printErr(\
-                "Wrong command '%s', input in the format {%s:%s}" % \
+                "wrong command '%s', input in the format {%s:%s}" % \
                     (cmd, 'filter', 'ADDR|REG:OP:VAL:SIZE'))
 
         if not filterCmd:
@@ -39933,7 +39950,7 @@ struct cmsghdr {
                     addr = long(addr)
             else:
                 SysMgr.printErr(\
-                    "Wrong addr %s" % addr)
+                    "wrong addr %s" % addr)
                 return False
 
             # get value from memory #
@@ -40140,7 +40157,7 @@ struct cmsghdr {
             return False
         elif ret == 0 and SysMgr.warnEnable:
             SysMgr.printWarn(\
-                'Added the new breakpoint %s(%s)[%s] by %s' % \
+                'added the new breakpoint %s(%s)[%s] by %s' % \
                     (hex(addr).rstrip('L'), sym, fname, procInfo))
 
         return True
@@ -40177,7 +40194,7 @@ struct cmsghdr {
                     sys.exit(0)
             else:
                 SysMgr.printWarn(\
-                    'Attached %s(%s) to guider(%s)' % \
+                    'attached %s(%s) to guider(%s)' % \
                         (self.comm, pid, SysMgr.pid))
                 self.attached = True
                 return 0
@@ -40841,7 +40858,7 @@ struct cmsghdr {
             return -1
         else:
             SysMgr.printWarn(\
-                'Killed %s(%s)' % (self.comm, self.pid))
+                'killed %s(%s)' % (self.comm, self.pid))
             return 0
 
 
@@ -40928,7 +40945,7 @@ struct cmsghdr {
                     sys.exit(0)
             else:
                 SysMgr.printWarn(\
-                    'Detached %s(%s) from guider(%s)' % \
+                    'detached %s(%s) from guider(%s)' % \
                         (self.comm, pid, SysMgr.pid))
                 return 0
 
@@ -43787,7 +43804,7 @@ struct cmsghdr {
             (item[1], hex(item[0]).rstrip('L'), item[2]) for item in slist]
 
         SysMgr.printWarn(\
-            "Found multiple symbols [ %s ]" % ', '.join(string))
+            "found multiple symbols [ %s ]" % ', '.join(string))
 
 
 
@@ -44199,7 +44216,7 @@ struct cmsghdr {
     def checkStat(self, ret, reason=None):
         stat = self.getStatus(ret[1])
         if SysMgr.isTermSignal(stat) or stat == -1:
-            msg = "Terminated %s(%s)" % (self.comm, self.pid)
+            msg = "terminated %s(%s)" % (self.comm, self.pid)
             if reason:
                 msg = "%s because %s" % (msg, reason)
             SysMgr.printErr(msg)
@@ -44254,7 +44271,7 @@ struct cmsghdr {
                         self.restartTrace()
                     else:
                         SysMgr.printErr(\
-                            'Terminated %s(%s) because of exec' % \
+                            'terminated %s(%s) because of exec' % \
                                 (self.comm, self.pid))
                     sys.exit(0)
 
@@ -44306,7 +44323,7 @@ struct cmsghdr {
 
                     self.status = 'stop'
                     SysMgr.printWarn(\
-                        'Blocked %s(%s) because of %s' % \
+                        'blocked %s(%s) because of %s' % \
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
@@ -44324,7 +44341,7 @@ struct cmsghdr {
                     self.printContext(newline=True)
 
                     SysMgr.printErr(\
-                        'Terminated %s(%s) because of %s' % \
+                        'terminated %s(%s) because of %s' % \
                             (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # set fault flag to shared memory #
@@ -44341,7 +44358,7 @@ struct cmsghdr {
                         SysMgr.printPipe(' ')
 
                     SysMgr.printErr(\
-                        'Terminated %s(%s)' % (self.comm, self.pid))
+                        'terminated %s(%s)' % (self.comm, self.pid))
 
                     if SysMgr.isTopMode() and self.totalCall:
                         SysMgr.waitEvent()
@@ -44359,7 +44376,7 @@ struct cmsghdr {
                 # other #
                 else:
                     SysMgr.printWarn(\
-                        'Detected %s(%s) with %s' % \
+                        'detected %s(%s) with %s' % \
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     if self.mode == 'sample':
@@ -44374,12 +44391,12 @@ struct cmsghdr {
             except:
                 if not self.isAlive():
                     SysMgr.printErr(\
-                        "Terminated tracing %s(%s)" % \
+                        "terminated tracing %s(%s)" % \
                             (self.comm, self.pid))
                     return
 
                 SysMgr.printWarn(\
-                    'Detected %s(%s) with error' % \
+                    'detected %s(%s) with error' % \
                         (self.comm, self.pid), reason=True)
 
                 if self.mode == 'break':
@@ -44554,7 +44571,7 @@ struct cmsghdr {
                 stat = self.getStatList(status=True)
                 if not stat:
                     SysMgr.printErr(\
-                        'Terminated %s(%s)' % (self.comm, self.pid))
+                        'terminated %s(%s)' % (self.comm, self.pid))
                 elif stat == 'S':
                     SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
         elif self.mode == 'signal':
@@ -44992,7 +45009,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             for tid in list(set(dlist)):
                 SysMgr.printWarn(\
-                    'Terminated %s(%s)' % (taskList[tid], tid), True)
+                    'terminated %s(%s)' % (taskList[tid], tid), True)
                 taskList.pop(tid, None)
 
             return taskList
@@ -45195,7 +45212,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         if not self.isAlive():
             SysMgr.printErr(\
-                'Terminated %s(%s)' % (self.comm, self.pid))
+                'terminated %s(%s)' % (self.comm, self.pid))
             sys.exit(0)
 
         SysMgr.printErr(\
@@ -45240,7 +45257,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if ret != 0:
             if not self.isAlive():
                 SysMgr.printErr(\
-                    'Terminated %s(%s)' % (self.comm, self.pid))
+                    'terminated %s(%s)' % (self.comm, self.pid))
                 sys.exit(0)
 
             SysMgr.printErr(\
@@ -45295,7 +45312,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if ret != 0:
             if not self.isAlive():
                 SysMgr.printErr(\
-                    'Terminated %s(%s)' % (self.comm, self.pid))
+                    'terminated %s(%s)' % (self.comm, self.pid))
                 sys.exit(0)
 
             SysMgr.printErr(\
@@ -46682,7 +46699,7 @@ class ElfAnalyzer(object):
 
             if otime > ctime:
                 SysMgr.printWarn(\
-                    "The binary '%s' is more recent than the cache '%s'" % \
+                    "'%s' is more recent than the cache '%s'" % \
                         (path, cpath), True)
         except SystemExit:
             sys.exit(0)
