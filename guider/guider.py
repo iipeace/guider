@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200828"
+__revision__ = "200829"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13608,7 +13608,7 @@ class SysMgr(object):
     demangleEnable = True
     compressEnable = True
     nrTop = None
-    pipeForPrint = None
+    pipeForPager = None
     fileForPrint = None
     fileSuffix = None
     parsedAnalOption = False
@@ -16028,9 +16028,7 @@ class SysMgr(object):
         # check locale #
         try:
             lang = os.getenv('LANG')
-            if lang and 'UTF' in lang:
-                SysMgr.encodeEnable = True
-            else:
+            if not lang or not 'UTF' in lang:
                 SysMgr.encodeEnable = False
         except:
             pass
@@ -17240,6 +17238,12 @@ Description:
 
                     examStr = '''
 Examples:
+    - Report system status in JSON format to /tmp/guider.report
+        # {0:1} {1:1}
+
+    - Report system status in JSON format to console standard output
+        # {0:1} {1:1} -Q
+
     - Report system status in JSON format to ./guider.report in the background every second
         # {0:1} {1:1} -j . -u
 
@@ -21678,7 +21682,7 @@ Copyright:
     def clearScreen():
         # check stdout status #
         if not SysMgr.printEnable or \
-            SysMgr.pipeForPrint:
+            SysMgr.pipeForPager:
             return
 
         if SysMgr.isLinux and \
@@ -22433,11 +22437,8 @@ Copyright:
                 line = '\n'.join(line)
 
         # pager initialization #
-        if not pager:
-            pass
-        elif SysMgr.pipeForPrint or \
-            SysMgr.outPath or \
-            SysMgr.printStreamEnable:
+        if not pager or SysMgr.pipeForPager or \
+            SysMgr.outPath or SysMgr.printStreamEnable:
             pass
         elif not SysMgr.isTopMode() or SysMgr.isHelpMode():
             try:
@@ -22455,18 +22456,15 @@ Copyright:
                             poption = 'less'
 
                         # run less as pager #
-                        SysMgr.pipeForPrint = \
-                            os.popen(poption, 'w')
+                        SysMgr.pipeForPager = os.popen(poption, 'w')
                     elif UtilMgr.which('more'):
-                        SysMgr.pipeForPrint = \
-                            os.popen('more', 'w')
+                        SysMgr.pipeForPager = os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
                     if UtilMgr.which('more'):
-                        SysMgr.pipeForPrint = \
-                            os.popen('more', 'w')
+                        SysMgr.pipeForPager = os.popen('more', 'w')
                 else:
                     # no supported OS #
-                    SysMgr.pipeForPrint = None
+                    SysMgr.pipeForPager = None
 
                 SysMgr.encodeEnable = False
 
@@ -22478,13 +22476,13 @@ Copyright:
                     "fail to use pager", True, reason=True)
 
         # pager output #
-        if SysMgr.pipeForPrint:
+        if SysMgr.pipeForPager:
             try:
                 if line:
-                    SysMgr.pipeForPrint.write(line)
+                    SysMgr.pipeForPager.write(line)
 
                     if newline and line[-1] != '\n':
-                        SysMgr.pipeForPrint.write('\n')
+                        SysMgr.pipeForPager.write('\n')
 
                 return
             except SystemExit:
@@ -22492,7 +22490,7 @@ Copyright:
             except:
                 SysMgr.printErr(\
                     "fail to print to pager\n", True)
-                SysMgr.pipeForPrint = None
+                SysMgr.pipeForPager = None
 
         # file initialization #
         if SysMgr.outPath and \
@@ -27025,10 +27023,12 @@ Copyright:
                 # run mainloop #
                 while 1:
                     try:
+                        listenFds = \
+                            [procObj.stdout, procObj.stderr, connObj.socket]
+
                         # wait for event #
                         [read, write, error] = \
-                            selectObj.select(\
-                                [procObj.stdout, connObj.socket], [], [], 1)
+                            selectObj.select(listenFds, [], [], 1)
 
                         # read output from pipe #
                         for robj in read:
@@ -27303,7 +27303,7 @@ Copyright:
             pipe = NetworkMgr.execRemoteCmd(uinput)
             if not pipe:
                 SysMgr.printErr(\
-                    "fail to execute remote command")
+                    "fail to execute '%s'" % uinput)
                 return
 
             signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
@@ -32110,9 +32110,9 @@ Copyright:
         except:
             pass
 
-        if SysMgr.pipeForPrint:
+        if SysMgr.pipeForPager:
             try:
-                SysMgr.pipeForPrint.flush()
+                SysMgr.pipeForPager.flush()
             except:
                 pass
 
@@ -32126,13 +32126,13 @@ Copyright:
 
     @staticmethod
     def closeAllForPrint():
-        if SysMgr.pipeForPrint:
+        if SysMgr.pipeForPager:
             try:
-                SysMgr.pipeForPrint.close()
+                SysMgr.pipeForPager.close()
             except:
                 pass
             finally:
-                SysMgr.pipeForPrint = None
+                SysMgr.pipeForPager = None
 
         if SysMgr.fileForPrint:
             try:
