@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200829"
+__revision__ = "200830"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4968,16 +4968,18 @@ class NetworkMgr(object):
 
 
 
-    def getData(self):
+    def getData(self, noTimeout=True):
         try:
             data = b''
 
             # receive and composite packets #
             while 1:
-                output = self.recvfrom(noTimeout=True)
+                output = self.recvfrom(noTimeout=noTimeout)
 
                 # handle timeout #
                 if not output:
+                    if not noTimeout:
+                        return data
                     continue
 
                 # get only data #
@@ -27023,6 +27025,7 @@ Copyright:
                 # run mainloop #
                 while 1:
                     try:
+                        # set fds #
                         listenFds = \
                             [procObj.stdout, procObj.stderr, connObj.socket]
 
@@ -27061,6 +27064,7 @@ Copyright:
                     "fail to execute '%s' from %s" % (value, addr), True)
             finally:
                 try:
+                    connObj.shutdown(socket.SHUT_RDWR)
                     connObj.close()
 
                     # send TERM signal first #
@@ -27298,13 +27302,16 @@ Copyright:
 
             return uinput
 
-        def execUserCmd(uinput):
+        def execUserCmd(uinput, addr=None, retPipe=False):
             # launch remote command #
-            pipe = NetworkMgr.execRemoteCmd(uinput)
+            pipe = NetworkMgr.execRemoteCmd(uinput, addr)
             if not pipe:
                 SysMgr.printErr(\
                     "fail to execute '%s'" % uinput)
                 return
+
+            if retPipe:
+                return pipe
 
             signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
             SysMgr.intervalEnable = 1
@@ -27355,16 +27362,61 @@ Copyright:
         if SysMgr.loadLibcObj():
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        # run commands #
+        # get select object #
+        if SysMgr.customCmd:
+            selectObj = SysMgr.getPkg('select')
+
+        # run parallel commands #
+        cmdPipeList = {}
         for idx, uinput in enumerate(SysMgr.customCmd):
+            fullInput = uinput
+
+            # get address #
+            if '|' in uinput:
+                addr, uinput = uinput.split('|', 1)
+            else:
+                addr = None
+
             # convert command shortcut #
             uinput = convUserCmd(uinput)
 
             # execute an user command #
-            execUserCmd(uinput)
+            pipe = execUserCmd(uinput, addr, retPipe=True)
 
-            if idx == len(SysMgr.customCmd)-1:
+            if pipe:
+                cmdPipeList[pipe.socket] = (fullInput, pipe)
+                pipe.timeout(0.0)
+
+        while 1:
+            if not cmdPipeList:
+                if SysMgr.customCmd:
+                    sys.exit(0)
+                break
+
+            try:
+                # set fds #
+                listenFds = [ item for item in cmdPipeList.keys() ]
+
+                # wait for event #
+                [read, write, error] = \
+                    selectObj.select(listenFds, [], [], 1)
+
+                # read output from pipe #
+                for robj in read:
+                    # handle data arrived #
+                    while 1:
+                        output = cmdPipeList[robj][1].getData(noTimeout=False)
+                        if output == '\n':
+                            continue
+                        elif output and len(output) > 0:
+                            sys.stdout.write(output)
+                        else:
+                            cmdPipeList.pop(robj, None)
+                            break
+            except SystemExit:
                 sys.exit(0)
+            except:
+                pass
 
         # run mainloop for user input #
         hlist = list()
