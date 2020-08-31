@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200830"
+__revision__ = "200831"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4976,11 +4976,17 @@ class NetworkMgr(object):
             while 1:
                 output = self.recvfrom(noTimeout=noTimeout)
 
-                # handle timeout #
+                # handle error #
                 if not output:
-                    if not noTimeout:
-                        return data
                     continue
+
+                # handle timeout #
+                if not noTimeout and \
+                    (not output[0] and not output[1]):
+                    if data:
+                        return data
+                    else:
+                        return None
 
                 # get only data #
                 output = output[0]
@@ -5213,7 +5219,8 @@ class NetworkMgr(object):
                     break
                 except:
                     SysMgr.printWarn(\
-                        "fail to connect to %s:%s" % (ip, port), reason=True)
+                        "fail to connect to %s:%s" % (ip, port), \
+                            reason=True, always=True)
                     et, err, to = sys.exc_info()
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
@@ -16262,7 +16269,7 @@ Usage:
          Contextswitch>
     -P                          group threads in a same process
     -I  <DIR|FILE>              set input path
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -i  <SEC>                   set interval
@@ -16354,7 +16361,10 @@ Examples:
         # {0:1} {1:1} -m
 
     - Monitor status of processes on the optimized-size terminal
-        # {0:1} {1:1} -m:
+        # {0:1} {1:1} -m :
+
+    - Monitor status of processes after change terminal size optimization
+        # {0:1} {1:1} -m ::system
 
     - Report analysis results of processes to ./guider.out and console
         # {0:1} {1:1} -o . -Q
@@ -16655,7 +16665,7 @@ Options:
     -O  <CORE>                  set core filter
     -l  <FILE>                  set addr2line path
     -r  <DIR>                   set root path
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
 
   [common]
     -a                          show all stats and events
@@ -16744,7 +16754,7 @@ Options:
     -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -Q                          print all rows in a stream
@@ -16785,7 +16795,7 @@ Options:
     -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -E  <DIR>                   set cache dir path
@@ -16818,7 +16828,7 @@ Options:
     -d  <CHARACTER>             disable options
           e:encode
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -I  <DIR|FILE>              set input path
@@ -16855,7 +16865,7 @@ Options:
     -u                          run in the background
     -W                          wait for input
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
     -q                          set path for binaries
     -E  <DIR>                   set cache dir path
@@ -16910,7 +16920,7 @@ Options:
     -p  <TID>                   show preemption info
     -O  <CORE>                  set core filter
     -L  <RES:PER>               set graph Layout
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
     -q                          set path for binaries
@@ -17408,7 +17418,7 @@ Options:
           e:encode
     -I  <FILE>                  set file path
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
 
@@ -17440,7 +17450,7 @@ Options:
     -I  <RANGE>                 set memory address
     -R  <TIME>                  set timer
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
 
@@ -17482,7 +17492,7 @@ Options:
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17535,7 +17545,7 @@ Options:
     -c  <EVENT>                 set breakpoint
     -H  <SKIP>                  set instrunction sampling rate
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17592,7 +17602,7 @@ Options:
     -c  <SYM|ADDR{:CMD}>        set breakpoint
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17619,7 +17629,7 @@ Options:
     -c  <SYM|ADDR{:CMD}>        set command
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17646,7 +17656,7 @@ Options:
     -c  <TARGET#BIN#HOOK>       set command
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
 
@@ -17677,7 +17687,7 @@ Options:
     -R  <TIME>                  set timer
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              save output data
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17713,7 +17723,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set filter
     -o  <DIR|FILE>              save output data
     -I  <ADDR>                  set address area
-    -m  <ROWS:COLS>             set terminal size
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
 
@@ -18740,8 +18750,15 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Execute remote commands
+    - Execute remote commands in interaction menu
+        # {0:1} {1:1}
+
+    - Execute remote commands in parallel
         # {0:1} {1:1} -c "ls -lha", "date"
+        # {0:1} {1:1} -c 192.168.0.100:5050\|"vmstat 1", 192.168.0.101:1234\|"find /"
+
+    - Execute remote Guider commands in fixed-line-output
+        # {0:1} {1:1} -c 192.168.0.100:5050\|"GUIDER top -m 15:", 192.168.0.101:1234\|"GUIDER ttop -m 15:"
                     '''.format(cmd, mode)
 
                 # default #
@@ -23552,14 +23569,22 @@ Copyright:
                     else:
                         rows = cols = long(0)
                         term = value.split(':')
-                        if len(term) == 2:
-                            if term[0].isdigit():
-                                rows = long(term[0])
-                            if term[1].isdigit():
-                                cols = long(term[1])
+
+                        # get size #
+                        if term[0].isdigit():
+                            rows = long(term[0])
+                        if term[1].isdigit():
+                            cols = long(term[1])
+
+                        # update system terminal #
+                        if len(term) > 2 and term[2].upper() == 'SYSTEM':
                             SysMgr.setTty(rows, cols)
+                        # update local terminal #
                         else:
-                            raise Exception()
+                            if rows > 0:
+                                SysMgr.ttyRows = rows
+                            if cols > 0:
+                                SysMgr.ttyCols = cols
                 except:
                     SysMgr.printErr(\
                         "wrong value with -m option, "
@@ -27362,9 +27387,12 @@ Copyright:
         if SysMgr.loadLibcObj():
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        # get select object #
+        # set environment for parallel commands #
         if SysMgr.customCmd:
+            SysMgr.setDefaultSignal()
             selectObj = SysMgr.getPkg('select')
+            if not SysMgr.ttyEnable:
+                SysMgr.setTtyAuto(True)
 
         # run parallel commands #
         cmdPipeList = {}
@@ -27383,10 +27411,17 @@ Copyright:
             # execute an user command #
             pipe = execUserCmd(uinput, addr, retPipe=True)
 
+            # set timeout and register socket to command list #
             if pipe:
-                cmdPipeList[pipe.socket] = (fullInput, pipe)
-                pipe.timeout(0.0)
+                cmdPipeList[pipe.socket] = \
+                    [fullInput, pipe, [''] * SysMgr.ttyRows]
+                pipe.timeout(0.1)
 
+        # print window size for commands #
+        windowSize = (SysMgr.ttyRows / len(cmdPipeList))
+        SysMgr.printInfo("set each window size to %s" % windowSize)
+
+        # run mainloop for parallel commands #
         while 1:
             if not cmdPipeList:
                 if SysMgr.customCmd:
@@ -27397,28 +27432,69 @@ Copyright:
                 # set fds #
                 listenFds = [ item for item in cmdPipeList.keys() ]
 
+                if len(listenFds) > 1:
+                    isMulti = True
+                else:
+                    isMulti = False
+
+                # update window size #
+                windowSize = (SysMgr.ttyRows / len(cmdPipeList))
+                mod = SysMgr.ttyRows % windowSize
+
                 # wait for event #
                 [read, write, error] = \
-                    selectObj.select(listenFds, [], [], 1)
+                    selectObj.select(listenFds, [], [], 0.1)
 
-                # read output from pipe #
+                # handle output from multiple commands #
                 for robj in read:
-                    # handle data arrived #
                     while 1:
                         output = cmdPipeList[robj][1].getData(noTimeout=False)
                         if output == '\n':
+                            if isMulti:
+                                break
                             continue
-                        elif output and len(output) > 0:
-                            sys.stdout.write(output)
-                        else:
+                        elif not output:
                             cmdPipeList.pop(robj, None)
+                            break
+
+                        # handle output #
+                        if len(cmdPipeList) == 1:
+                            sys.stdout.write(output)
+                            if isMulti:
+                                break
+                            else:
+                                continue
+
+                        fullSurface = ''
+                        surface = cmdPipeList[robj][2]
+                        output = [ line for line in output.split('\n') if line ]
+                        surface = surface[len(output):] + output
+                        cmdPipeList[robj][2] = surface
+
+                        # update and composite surfaces #
+                        for idx, item in enumerate(cmdPipeList.values()):
+                            surface = item[2]
+                            if idx == 0:
+                                window = surface[-windowSize-mod:]
+                            else:
+                                window = surface[-windowSize:]
+                            fullSurface += '\n'.join(window)
+                            if idx < len(cmdPipeList)-1:
+                                fullSurface += '\n%s\n' % splitLine
+
+                        # update screen in 20 FPS #
+                        sys.stdout.write(fullSurface)
+                        time.sleep(0.05)
+
+                        if isMulti:
                             break
             except SystemExit:
                 sys.exit(0)
             except:
-                pass
+                SysMgr.printErr(\
+                    "fail to handle multiple commands", reason=True)
 
-        # run mainloop for user input #
+        # run mainloop for user interaction #
         hlist = list()
         while 1:
             try:
@@ -66263,6 +66339,7 @@ def main(args=None):
 # define line variables #
 oneLine = "-" * SysMgr.lineLength
 twoLine = "=" * SysMgr.lineLength
+splitLine = ">" * SysMgr.lineLength
 
 # define print method for debugging #
 def dbgp(msg):
