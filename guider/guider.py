@@ -13878,6 +13878,7 @@ class SysMgr(object):
         self.userData = {}
         self.mountData = None
         self.loadData = None
+        self.nrMaxThread = 0
         self.cmdlineData = None
         self.osData = None
         self.devData = None
@@ -15021,6 +15022,21 @@ class SysMgr(object):
             SysMgr.printWarn((\
                 "fail to get CPU affinity of tasks "
                 "because of sched_getaffinity fail"))
+
+
+
+    @staticmethod
+    def getMaxThread():
+        maxThdPath = '/proc/sys/kernel/threads-max'
+        try:
+            with open(maxThdPath, 'r') as fd:
+                return long(fd.readline()[:-1])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "fail to read %s" % maxThdPath, reason=True)
+            return None
 
 
 
@@ -29507,12 +29523,13 @@ Copyright:
         # START #
         cmd = SysMgr.customCmd
         startSize = endSize =  0
+        convUnit = UtilMgr.convUnit2Size
         if cmd:
             if len(cmd) >= 2:
-                startSize = UtilMgr.convUnit2Size(cmd[0])
-                endSize = UtilMgr.convUnit2Size(cmd[1])
+                startSize = convUnit(cmd[0])
+                endSize = convUnit(cmd[1])
             else:
-                endSize = UtilMgr.convUnit2Size(cmd[0])
+                endSize = convUnit(cmd[0])
 
             # hook #
             if not startSize and hookCmd:
@@ -31734,6 +31751,9 @@ Copyright:
         [4] = lastPid
         '''
 
+        # maximum threads #
+        self.nrMaxThread = SysMgr.getMaxThread()
+
         # rtc #
         try:
             timeInfo = SysMgr.procReadlines('driver/rtc')
@@ -33324,10 +33344,18 @@ Copyright:
 
         # task #
         try:
+            convNum = UtilMgr.convNum
+
+            try:
+                maxThd = ' / %s(max)' % convNum(self.nrMaxThread)
+            except:
+                maxThd = ''
+
             running, total = self.loadData[3].split('/')
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<10}".format('Threads', \
-                '%s(running) / %s(total)' % (running, total)))
+                '%s(running) / %s(total)%s' % \
+                    (convNum(running), convNum(total), maxThd)))
 
             if SysMgr.jsonOutputEnable:
                 jsonData['nrRunTask'] = running
@@ -57631,7 +57659,7 @@ class ThreadAnalyzer(object):
             ppidType = 'PID'
 
         SysMgr.printPipe((\
-            "\n{0:1}\n{1:>16}({2:>5}/{3:>5}) "
+            "\n{0:1}\n{1:>16}({2:>6}/{3:>6}) "
             "{4:>8} {5:>8} {6:>8} {7:>12} {8:>20}\n{9:^1}\n").format(\
                 twoLine, 'Name', pidType, ppidType, 'VSS', 'RSS', 'SHM', \
                 'OOM_SCORE', 'LifeTime', oneLine))
@@ -57662,7 +57690,7 @@ class ThreadAnalyzer(object):
                 ppid = val['mainID']
 
             SysMgr.printPipe((\
-                "{0:>16}({1:>5}/{2:>5}) "
+                "{0:>16}({1:>6}/{2:>6}) "
                 "{3:>8} {4:>8} {5:>8} {6:>12} {7:>20}\n").format(\
                     comm, pid, ppid, \
                     convertFunc(long(stat[vssIdx])), \
