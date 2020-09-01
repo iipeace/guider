@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200831"
+__revision__ = "200901"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3069,7 +3069,9 @@ class ConfigMgr(object):
         'ENDCODE', 'STARTSTACK', 'SP', 'PC', 'SIGNAL', #30#
         'BLOCKED', 'SIGIGNORE', 'SIGCATCH', 'WCHEN', 'NSWAP', #35#
         'CNSWAP', 'EXITSIGNAL', 'PROCESSOR', 'RTPRIORITY', #39#
-        'POLICY', 'DELAYBLKTICK', 'GUESTTIME', 'CGUESTTIME' # 43 #
+        'POLICY', 'DELAYBLKTICK', 'GUESTTIME', 'CGUESTTIME' #43#
+        'STARTDATA', 'ENDDATA', 'STARTBRK', 'ARGSTART', 'ARGEND', #48#
+        'ENVSTART', 'ENVEND', 'EXITCODE', #51#
         ]
 
     SCHED_POLICY = [
@@ -4214,7 +4216,7 @@ class UtilMgr(object):
             SysMgr.printErr(\
                 "fail to convert %s to size" % value)
 
-            raise Exception()
+            raise Exception('wrong number unit')
         except SystemExit:
             sys.exit(0)
         except:
@@ -4762,7 +4764,7 @@ class NetworkMgr(object):
 
                         ret = sender.send(buf)
                         if not ret:
-                            raise Exception()
+                            raise Exception('send error')
                         else:
                             curSize = len(buf)
 
@@ -4900,7 +4902,7 @@ class NetworkMgr(object):
                 ret = self.socket.sendto(message, (self.ip, self.port))
 
             if ret < 0:
-                raise Exception()
+                raise Exception('send error')
 
             if self.status != 'ALWAYS':
                 self.status = 'SENT'
@@ -6354,7 +6356,7 @@ class PageAnalyzer(object):
 
         try:
             if type(pid) is not list or len(pid) != 1:
-                raise Exception()
+                raise Exception('wrong pid')
 
             pid = SysMgr.getPids(pid[0], isThread=False)
             if len(pid) == 0:
@@ -14253,10 +14255,15 @@ class SysMgr(object):
         SysMgr.parseAnalOption()
 
         SysMgr.printStat(\
-            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+            r'start analyzing... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
         # start analyzing files #
-        pi = FileAnalyzer()
+        try:
+            pi = FileAnalyzer()
+        except:
+            SysMgr.printErr(\
+                "fail to analyze memory-mapped files", reason=True)
+            sys.exit(0)
 
         # save system info #
         SysMgr.sysInstance.saveSysStat()
@@ -14991,7 +14998,7 @@ class SysMgr(object):
 
         try:
             if not SysMgr.loadLibcObj():
-                raise Exception()
+                raise Exception('no libc')
 
             nrCore = SysMgr.getNrCore()
 
@@ -15007,7 +15014,7 @@ class SysMgr(object):
             if ret >= 0:
                 return hex(cpuset.value).rstrip('L')
             else:
-                raise Exception()
+                raise Exception('wrong affinity')
         except SystemExit:
             sys.exit(0)
         except:
@@ -19047,7 +19054,7 @@ Copyright:
 
         try:
             if not SysMgr.loadLibcObj():
-                raise Exception()
+                raise Exception('no libc')
 
             if UtilMgr.isNumber(syscall):
                 nrSyscall = long(syscall)
@@ -19061,7 +19068,7 @@ Copyright:
 
                 nrSyscall = ConfigMgr.sysList.index(nmSyscall)
             else:
-                raise Exception()
+                raise Exception('wrong syscall')
 
             try:
                 nrParams = \
@@ -19071,14 +19078,14 @@ Copyright:
             except:
                 SysMgr.printErr(\
                     "fail to get the number of arguments for %s" % nmSyscall)
-                raise Exception()
+                raise Exception('wrong syscall')
 
             # check arguments #
             if len(args) != nrParams:
                 SysMgr.printErr((\
                     "fail to get arguments for %s "
                     "because of wrong parameters") % nmSyscall)
-                raise Exception()
+                raise Exception('wrong params')
 
             if nrParams == 0:
                 ret = SysMgr.libcObj.syscall(nrSyscall)
@@ -19146,7 +19153,7 @@ Copyright:
                 nrType = perfEventList.index('PERF_TYPE_SOFTWARE')
                 nrConfig = ConfigMgr.PERF_SW_EVENT_TYPE.index(econfig)
             else:
-                raise Exception()
+                raise Exception('wrong perf event')
         except SystemExit:
             sys.exit(0)
         except:
@@ -21189,7 +21196,7 @@ Copyright:
         if not "ISMAIN" in os.environ:
             sys.exit(0)
 
-        raise Exception()
+        raise Exception('stop signal')
 
 
 
@@ -21277,7 +21284,7 @@ Copyright:
 
     @staticmethod
     def timerHandler(signum, frame):
-        raise Exception()
+        raise Exception('timer expired')
 
 
 
@@ -22791,7 +22798,7 @@ Copyright:
                 ThreadAnalyzer.requestType.index(request):
                 pass
             else:
-                raise Exception()
+                raise Exception('wrong request')
 
             return True
         except SystemExit:
@@ -22850,7 +22857,7 @@ Copyright:
             try:
                 if not opt[0] in usedOpt:
                     usedOpt[opt[0]] = True
-                    raise Exception()
+                    continue
             except:
                 continue
 
@@ -23037,7 +23044,7 @@ Copyright:
                 else:
                     SysMgr.outputFile = value
             else:
-                raise Exception()
+                raise Exception('not writable')
         except:
             SysMgr.printErr(\
                 "wrong PATH %s with -s option because of permission" % value)
@@ -23662,7 +23669,7 @@ Copyright:
                         SysMgr.funcDepth = long(value)
 
                     if SysMgr.funcDepth < 0:
-                        raise Exception()
+                        raise Exception('wrong depth')
                 except:
                     SysMgr.printErr(\
                         "wrong value with -H option, "
@@ -23836,7 +23843,7 @@ Copyright:
                         SysMgr.funcDepth = long(value)
 
                     if SysMgr.funcDepth < 0:
-                        raise Exception()
+                        raise Exception('wrong depth')
                 except:
                     SysMgr.printErr(\
                         "wrong value with -H option, "
@@ -23883,7 +23890,7 @@ Copyright:
                         else:
                             SysMgr.cmdEnable = value
                     else:
-                        raise Exception()
+                        raise Exception('not writable')
                 except:
                     SysMgr.printErr(\
                         "wrong value %s with -B option" % value)
@@ -27062,7 +27069,7 @@ Copyright:
                         for robj in read:
                             # check connection close #
                             if robj == connObj.socket:
-                                raise Exception()
+                                raise Exception('connection close')
 
                             # handle data arrived #
                             while 1:
@@ -27072,7 +27079,7 @@ Copyright:
                                 elif output and len(output) > 0:
                                     ret = connObj.write(output)
                                     if not ret:
-                                        raise Exception()
+                                        raise Exception('connection close')
                                 else:
                                     break
                     except:
@@ -27390,9 +27397,15 @@ Copyright:
         # set environment for parallel commands #
         if SysMgr.customCmd:
             SysMgr.setDefaultSignal()
+
             selectObj = SysMgr.getPkg('select')
+
             if not SysMgr.ttyEnable:
                 SysMgr.setTtyAuto(True)
+
+            # print window size for commands #
+            windowSize = (SysMgr.ttyRows / len(SysMgr.customCmd)) - 1
+            SysMgr.printInfo("set each window height to %s" % (windowSize+2))
 
         # run parallel commands #
         cmdPipeList = {}
@@ -27408,6 +27421,11 @@ Copyright:
             # convert command shortcut #
             uinput = convUserCmd(uinput)
 
+            # fit Guider's window size #
+            if uinput.startswith('run:GUIDER') and \
+                not ' -m' in uinput:
+                uinput += ' -m %s:%s' % (windowSize+2, SysMgr.ttyCols)
+
             # execute an user command #
             pipe = execUserCmd(uinput, addr, retPipe=True)
 
@@ -27416,10 +27434,6 @@ Copyright:
                 cmdPipeList[pipe.socket] = \
                     [fullInput, pipe, [''] * SysMgr.ttyRows]
                 pipe.timeout(0.1)
-
-        # print window size for commands #
-        windowSize = (SysMgr.ttyRows / len(cmdPipeList))
-        SysMgr.printInfo("set each window size to %s" % windowSize)
 
         # run mainloop for parallel commands #
         while 1:
@@ -27438,7 +27452,7 @@ Copyright:
                     isMulti = False
 
                 # update window size #
-                windowSize = (SysMgr.ttyRows / len(cmdPipeList))
+                windowSize = (SysMgr.ttyRows / len(cmdPipeList)) - 1
                 mod = SysMgr.ttyRows % windowSize
 
                 # wait for event #
@@ -27474,13 +27488,13 @@ Copyright:
                         # update and composite surfaces #
                         for idx, item in enumerate(cmdPipeList.values()):
                             surface = item[2]
-                            if idx == 0:
-                                window = surface[-windowSize-mod:]
-                            else:
-                                window = surface[-windowSize:]
-                            fullSurface += '\n'.join(window)
+                            window = surface[-windowSize:]
                             if idx < len(cmdPipeList)-1:
+                                fullSurface += '\n'.join(window)
                                 fullSurface += '\n%s\n' % splitLine
+                            else:
+                                fullSurface += '\n'.join(window)
+                                fullSurface += '\n'
 
                         # update screen in 20 FPS #
                         sys.stdout.write(fullSurface)
@@ -30146,7 +30160,7 @@ Copyright:
             # parse values #
             value = sys.argv[2].split(':')
             if len(value) > 2:
-                raise Exception()
+                raise Exception('too much args')
             elif len(value) == 2:
                 totalLoad, nrTask = list(map(long, value))
                 if nrTask == 0:
@@ -30550,7 +30564,7 @@ Copyright:
                 size = value[0]
                 interval = count = long(0)
             else:
-                raise Exception()
+                raise Exception('wrong args')
 
             if interval:
                 interval = UtilMgr.convUnit2Time(interval)
@@ -30562,7 +30576,7 @@ Copyright:
             # convert memory size #
             size = UtilMgr.convUnit2Size(size)
             if not size:
-                raise Exception()
+                raise Exception('wrong size')
         except SystemExit:
             sys.exit(0)
         except:
@@ -30991,7 +31005,7 @@ Copyright:
                                 try:
                                     os.kill(tid, signal.SIGSTOP)
                                 except SystemExit:
-                                    raise Exception()
+                                    raise Exception('exit')
                                 except:
                                     SysMgr.printSigError(tid, 'SIGSTOP')
                             val['running'] = False
@@ -31003,7 +31017,7 @@ Copyright:
                                 try:
                                     os.kill(tid, signal.SIGCONT)
                                 except SystemExit:
-                                    raise Exception()
+                                    raise Exception('exit')
                                 except:
                                     SysMgr.printSigError(tid, 'SIGCONT')
 
@@ -31526,7 +31540,7 @@ Copyright:
             upolicy = policy.upper()
 
             if not SysMgr.loadLibcObj():
-                raise Exception()
+                raise Exception('no libc')
 
             argPolicy = ConfigMgr.SCHED_POLICY.index(upolicy)
             if not SysMgr.guiderObj:
@@ -31549,9 +31563,10 @@ Copyright:
             else:
                 func = SysMgr.guiderObj.sched_setscheduler # pylint: disable=no-member
                 ret = func(pid, argPolicy, argPriority)
+
             if ret != 0:
                 policy = upolicy
-                raise Exception()
+                raise Exception('no sched_setscheduler')
 
             # set nice value #
             if upolicy == 'C' or upolicy == 'B':
@@ -31563,9 +31578,10 @@ Copyright:
                     argPriority = pri
                     func = SysMgr.guiderObj.setpriority # pylint: disable=no-member
                     ret = func(0, pid, argPriority)
+
                 if ret != 0:
                     policy = upolicy
-                    raise Exception()
+                    raise Exception('no setpriority')
 
             if verb:
                 SysMgr.printInfo(\
@@ -32025,8 +32041,8 @@ Copyright:
 
                 if SysMgr.recordStatus:
                     continue
-                else:
-                    raise Exception()
+
+                raise Exception('recording termination')
             except:
                 # close pipe #
                 pd.close()
@@ -32573,7 +32589,7 @@ Copyright:
                 try:
                     cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
                     if len(cmd) == 0:
-                        raise Exception()
+                        raise Exception('no command')
                 except:
                     SysMgr.printErr(\
                         "wrong TID %s" % SysMgr.filterGroup)
@@ -33332,7 +33348,7 @@ Copyright:
         # MAC #
         try:
             if self.macAddr is None:
-                raise Exception()
+                raise Exception('no MAC address')
 
             macStr = '%s_%s' % (self.macAddr[0], self.macAddr[1])
             SysMgr.infoBufferPrint(\
@@ -34330,7 +34346,7 @@ Copyright:
 
                     comm = SysMgr.getComm(pid)
                     if not comm:
-                        raise Exception()
+                        raise Exception('no comm')
 
                     owner = '%s(%s)' % (comm, pid)
                 else:
@@ -34341,7 +34357,7 @@ Copyright:
             # print total stat #
             try:
                 if len(owner) == 0:
-                    raise Exception()
+                    raise Exception('no owner')
 
                 try:
                     user = self.userData[stats['uid']]['name']
@@ -34371,7 +34387,7 @@ Copyright:
                 pid = stats['lpid']
                 comm = SysMgr.getComm(pid)
                 if not comm:
-                    raise Exception()
+                    raise Exception('no comm')
 
                 access = '%s (%s)' % (comm, pid)
             except:
@@ -37261,7 +37277,7 @@ class DltAnalyzer(object):
             if not SysMgr.dltObj:
                 SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
             if not SysMgr.dltObj:
-                raise Exception()
+                raise Exception('no DLT library')
             dltObj = SysMgr.dltObj
         except:
             SysMgr.dltObj = None
@@ -37692,7 +37708,7 @@ class DltAnalyzer(object):
                 SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
 
             if not SysMgr.dltObj:
-                raise Exception()
+                raise Exception('no DLT library')
 
             dltObj = SysMgr.dltObj
         except SystemExit:
@@ -37855,11 +37871,11 @@ class DltAnalyzer(object):
             servIpStr = string_at(servIp.encode())
             connSock = create_connection((servIpStr, servPort), timeout=1)
 
+            if not connSock:
+                raise Exception('no connection')
+
             # set blocking #
             connSock.setblocking(1) # pylint: disable=no-member
-
-            if not connSock:
-                raise Exception()
         except SystemExit:
             sys.exit(0)
         except:
@@ -37934,7 +37950,7 @@ class DltAnalyzer(object):
             elif hasattr(dltObj, 'dlt_receiver_receive'):
                 dlt_receiver_receive = dltObj.dlt_receiver_receive
             else:
-                raise Exception()
+                raise Exception('no DLT receiver')
         except:
             SysMgr.printErr(\
                 "fail to get dlt_receiver_receive symbol")
@@ -38298,7 +38314,7 @@ class Debugger(object):
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
-            raise Exception()
+            raise Exception('no ptrace permission')
 
         if not SysMgr.loadLibcObj():
             raise Exception('no libc')
@@ -43032,7 +43048,7 @@ struct cmsghdr {
                     SysMgr.printWarn(\
                         "no entry time of %s for %s(%s)" % \
                             (sym, self.comm, self.pid))
-                    raise Exception()
+                    raise Exception('no entry time')
                 entry = self.entryTime[origSym]
                 etime = self.current - entry
                 elapsed = '/%.6f' % etime
@@ -45337,7 +45353,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # read registers #
         try:
             if not self.supportSetRegset:
-                raise Exception()
+                raise Exception('not support setregset')
 
             cmd = PTRACE_SETREGSET = 0x4205
             NT_PRSTATUS = 1
@@ -45352,7 +45368,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
-                raise Exception()
+                raise Exception('no regset')
         except SystemExit:
             sys.exit(0)
         except:
@@ -45441,7 +45457,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # read registers #
         try:
             if not self.supportGetRegset:
-                raise Exception()
+                raise Exception('not support getregset')
 
             if new:
                 addr = addressof(self.getIovec(newObj))
@@ -45456,7 +45472,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
-                raise Exception()
+                raise Exception('no regset')
         except SystemExit:
             sys.exit(0)
         except:
@@ -47086,7 +47102,7 @@ class ElfAnalyzer(object):
             try:
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
-                    raise Exception()
+                    raise Exception('no binary')
 
                 symbol, inc, start, end = ElfAnalyzer.getFilterFlags(symbol)
 
@@ -47171,7 +47187,7 @@ class ElfAnalyzer(object):
         try:
             cachedObject = ElfAnalyzer.getObject(path)
             if not cachedObject:
-                raise Exception()
+                raise Exception('no binary')
 
             etype = cachedObject.attr['elfHeader']['type']
             if etype == 'Relocatable' or \
@@ -50145,7 +50161,7 @@ class ThreadAnalyzer(object):
                 try:
                     memStat = sline[3].split('/')
                     if len(memStat) != 3:
-                        raise Exception()
+                        raise Exception('wrong format')
                     memFree.append(long(memStat[0]))
                     memAnon.append(long(memStat[1]))
                     memCache.append(long(memStat[2]))
@@ -50193,7 +50209,7 @@ class ThreadAnalyzer(object):
                 try:
                     netstat = sline[13].strip().split('/')
                     if netstat[0] == '-':
-                        raise Exception()
+                        raise Exception('wrong format')
 
                     if netstat[0][-1] == 'T':
                         netRead.append(long(netstat[0][:-1]) << 30)
@@ -52503,7 +52519,7 @@ class ThreadAnalyzer(object):
 
                     size = long(size)
                     if size == 0:
-                        raise Exception()
+                        raise Exception('wrong size')
                     else:
                         total += size
                         layoutList.append([target, long(size)])
@@ -54542,14 +54558,14 @@ class ThreadAnalyzer(object):
                 core = value[2]
 
                 try:
-                    if icount == 0:
-                        raise Exception()
+                    if icount > 0:
+                        if self.futexData[icount-1][2] == value[2]:
+                            core = ''
 
-                    if self.futexData[icount-1][2] == value[2]:
-                        core = ''
-
-                    if self.futexData[icount-1][0] == value[0]:
-                        tid = comm = ''
+                        if self.futexData[icount-1][0] == value[0]:
+                            tid = comm = ''
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -55446,7 +55462,7 @@ class ThreadAnalyzer(object):
                     # revise core usage in DVFS system #
                     if self.threadData[key]['coreSchedCnt'] == 0 and \
                         self.threadData[key]['offCnt'] > 0:
-                        raise Exception()
+                        raise Exception('core off')
                     else:
                         per = (100 - self.intData[icount][key]['cpuPer'])
                         timeLine += '%3d ' % per
@@ -58774,7 +58790,7 @@ class ThreadAnalyzer(object):
             if d['tgid'] != '-----':
                 self.threadData[thread]['tgid'] = d['tgid']
             else:
-                raise Exception()
+                raise Exception('no tgid')
         except:
             try:
                 self.threadData[thread]['tgid'] = \
@@ -59423,7 +59439,7 @@ class ThreadAnalyzer(object):
                 try:
                     # this allocated page is not freed #
                     if self.pageTable[pfnv] == {}:
-                        raise Exception()
+                        raise Exception('double page allocation')
                     else:
                         self.threadData[thread]['nrPages'] -= 1
                         self.threadData[coreId]['nrPages'] -= 1
@@ -59859,7 +59875,7 @@ class ThreadAnalyzer(object):
 
             try:
                 if not SysMgr.depEnable:
-                    raise Exception()
+                    raise Exception('skip dependency analysis')
                 elif nr == ConfigMgr.sysList.index("sys_write") and \
                     self.wakeupData['valid'] > 0:
                     self.wakeupData['valid'] -= 1
@@ -60997,7 +61013,7 @@ class ThreadAnalyzer(object):
                         addr = SysMgr.getSocketAddrList([obj])
                         if len(addr) > 0:
                             path = '%s (%s)' % (path, addr[0])
-                            raise Exception()
+                            raise Exception('skip UDS socket')
                         uds = SysMgr.getSocketPathList([obj])
                         if len(uds) > 0:
                             path = '%s (%s)' % (path, uds[0])
@@ -61632,7 +61648,7 @@ class ThreadAnalyzer(object):
                     relationList.insert(0, tmpId)
                     tmpId = procInstance[tmpId]['stat'][ppidIdx]
                     if tmpId == '0':
-                        raise Exception()
+                        return relationList
                 except:
                     return relationList
 
@@ -62321,7 +62337,7 @@ class ThreadAnalyzer(object):
         # available memory #
         try:
             if SysMgr.freeMemEnable:
-                raise Exception()
+                raise Exception('skip available memory')
 
             # assume MemAvailable #
             if not 'MemAvailable' in memData:
@@ -64632,7 +64648,7 @@ class ThreadAnalyzer(object):
                 self.saveProcSchedData(value['taskPath'], idx)
 
             # save wait channel info  #
-            if SysMgr.isRoot() and SysMgr.wchanEnable:
+            if SysMgr.wchanEnable and SysMgr.isRoot():
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
@@ -64904,6 +64920,31 @@ class ThreadAnalyzer(object):
                     "{0:>39} | WSS: {1:1}\n".format(' ', tstr), newline)
                 if not ret:
                     return
+
+            # print memory summary #
+            if memBuf:
+                vmlist = \
+                    ['VmPeak', 'VmHWM', 'VmData', 'HugetlbPages', \
+                        'RssAnon', 'RssFile', 'RssShmem']
+
+                if 'status' in value:
+                    memstr = ''
+                    memset = value['status']
+
+                    for item in vmlist:
+                        try:
+                            vmsize = long(memset[item].split()[0]) << 10
+                            memstr += \
+                                '%s: %s, ' % (item, convertFunc(vmsize))
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+
+                    if memstr:
+                        SysMgr.addPrint(\
+                            "{0:>39} | {1:111}|\n".format(\
+                                'MEM(SUM)', memstr[:-2]))
 
             # print cmdline #
             if SysMgr.cmdlineEnable and \
