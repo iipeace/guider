@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200901"
+__revision__ = "200902"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6476,7 +6476,7 @@ class PageAnalyzer(object):
 
 
     @staticmethod
-    def printMemoryArea(pid, start=-1, end=-1, comm=None):
+    def printMemoryArea(pid, start=-1, end=-1, comm=None, lastLine=False):
         count = long(0)
         switch = long(0)
         fpath = '%s/%s/maps' % (SysMgr.procPath, pid)
@@ -6576,6 +6576,8 @@ class PageAnalyzer(object):
 
         if count == 0:
             SysMgr.printPipe('no involved memory area')
+        elif lastLine:
+            SysMgr.printPipe(oneLine)
 
 
 
@@ -7779,34 +7781,35 @@ class FunctionAnalyzer(object):
                         fileIdx = src.rfind('/')
                         if fileIdx >= 0:
                             self.posData[addr]['src'] = src[fileIdx + 1:]
-            else:
-                inBinArea = False
 
-                for idx, value in sorted(self.posData.items(), \
-                    key=lambda e: e[1]['binary'], reverse=True):
-                    if value['binary'] == binPath:
-                        inBinArea = True
+                return
 
-                        if value['offset'] == addr:
-                            savedSymbol = self.posData[idx]['symbol']
+            inBinArea = False
+            for idx, value in sorted(self.posData.items(), \
+                key=lambda e: e[1]['binary'], reverse=True):
+                if value['binary'] == binPath:
+                    inBinArea = True
 
-                            if not savedSymbol or \
-                                savedSymbol == '' or \
-                                savedSymbol == addr or \
-                                savedSymbol[0] == '$':
-                                self.posData[idx]['symbol'] = symbol
+                    if value['offset'] == addr:
+                        savedSymbol = self.posData[idx]['symbol']
 
-                                if SysMgr.showAll:
-                                    self.posData[idx]['src'] = src
-                                else:
-                                    fileIdx = src.rfind('/')
-                                    if fileIdx >= 0:
-                                        self.posData[idx]['src'] = \
-                                            src[fileIdx + 1:]
+                        if not savedSymbol or \
+                            savedSymbol == '' or \
+                            savedSymbol == addr or \
+                            savedSymbol[0] == '$':
+                            self.posData[idx]['symbol'] = symbol
 
-                                break
-                    elif inBinArea:
-                        break
+                            if SysMgr.showAll:
+                                self.posData[idx]['src'] = src
+                            else:
+                                fileIdx = src.rfind('/')
+                                if fileIdx >= 0:
+                                    self.posData[idx]['src'] = \
+                                        src[fileIdx + 1:]
+
+                            break
+                elif inBinArea:
+                    break
 
         # Recognize binary type #
         relocated = ElfAnalyzer.isRelocFile(binPath)
@@ -12502,6 +12505,20 @@ class FileAnalyzer(object):
         newSize = endAddr - startAddr
         newEnd = newOffset + newSize
 
+        # handle discontiguous segment #
+        if fileName in procMap and \
+            procMap[fileName]['vend'] != startAddr:
+            cnt = 0
+            while 1:
+                newFileName = '%s#%s' % (fileName, cnt)
+                if newFileName in procMap:
+                    cnt += 1
+                    continue
+                else:
+                    break
+
+            fileName = newFileName
+
         # merge map line #
         FileAnalyzer.addMapLine(procMap, fileName, newOffset, newSize)
 
@@ -13559,6 +13576,7 @@ class SysMgr(object):
     launchBuffer = ''
     lineLength = 154
     pid = long(0)
+    comm = __module__
     masterPid = long(0)
     prio = None
     funcDepth = long(0)
@@ -15884,6 +15902,33 @@ class SysMgr(object):
         # restore SIGINT handler #
         if SysMgr.waitEnable and block:
             signal.signal(signal.SIGINT, handle)
+
+
+
+    @staticmethod
+    def convRealPath(flist):
+        if UtilMgr.isString(flist):
+            flist = [flist]
+
+        nlist = []
+        for path in flist:
+            try:
+                rpath = os.readlink(path)
+                if not rpath.startswith('/'):
+                    dirname = os.path.dirname(path)
+                    rpath = os.path.join(dirname, rpath)
+                nlist.append(rpath)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                if os.path.exists(path):
+                    nlist.append(path)
+                else:
+                    SysMgr.printWarn(\
+                        "fail to convert '%s' to real path" % path, \
+                            reason=True, always=True)
+
+        return nlist
 
 
 
@@ -18595,16 +18640,19 @@ Examples:
     - Create 10 processes using 5% of a core each other
         # {0:1} {1:1} 50:10
 
-    - Create threads using 250% CPU totally
+    - Create processes using 250% CPU totally
         # {0:1} {1:1} 250
 
-    - Create threads using 250% CPU totally with RR 1 priority
+    - Create threads in a process using 250% CPU totally
+        # {0:1} {1:1} 250 -et
+
+    - Create processes using 250% CPU totally with RR 1 priority
         # {0:1} {1:1} 250 -Y r:1
 
-    - Create threads using 250% CPU totally and run them only on CPU 1
+    - Create processes using 250% CPU totally and run them only on CPU 1
         # {0:1} {1:1} 250 -z :1
 
-    - Create threads using 250% CPU totally and terminate them after 3 seconds
+    - Create processes using 250% CPU totally and terminate them after 3 seconds
         # {0:1} {1:1} 250 -R 3
                     '''.format(cmd, mode)
 
@@ -26454,9 +26502,6 @@ Copyright:
         # import Guider native module #
         SysMgr.importNative()
 
-        # set comm #
-        SysMgr.setComm(__module__)
-
         # create shared memory #
         SysMgr.shmObj = SysMgr.createShm()
 
@@ -26466,6 +26511,10 @@ Copyright:
         # set pid #
         SysMgr.getMaxPid()
         SysMgr.pid = os.getpid()
+
+        # set comm #
+        SysMgr.setComm(__module__)
+        SysMgr.comm = SysMgr.getComm(SysMgr.pid)
 
         # set arch #
         SysMgr.setArch(SysMgr.getArch())
@@ -30162,12 +30211,24 @@ Copyright:
     def doCpuTest():
         random = SysMgr.getPkg('random')
 
-        def cputask(num, load):
-            SysMgr.setDefaultSignal()
+        def cputask(idx, load):
+            try:
+                SysMgr.setDefaultSignal()
+            except:
+                pass
+
+            # print profile #
+            tid = SysMgr.syscall('gettid')
+            SysMgr.printWarn(\
+                "started %sth %s(%s)" % \
+                    (UtilMgr.convNum(idx), SysMgr.comm, tid))
 
             # run loop #
             while 1:
-                sorted([random.random() for i in range(1<<10)])
+                if load == 0:
+                    signal.pause()
+                else:
+                    sorted([random.random() for i in range(1<<10)])
 
         # get the number of task and load #
         try:
@@ -30203,31 +30264,46 @@ Copyright:
                         SysMgr.getErrMsg())
             sys.exit(0)
 
-        if nrTask > 1:
-            taskstr = '%d processes' % nrTask
+        if SysMgr.processEnable:
+            taskType = 'process'
         else:
-            taskstr = 'a process'
+            taskType = 'thread'
+
+        if nrTask > 1:
+            taskstr = '%s %s' % (UtilMgr.convNum(nrTask), taskType)
+        else:
+            taskstr = 'a %s' % taskType
 
         # run tasks #
         limitInfo = dict()
-        for idx in range(0, nrTask):
-            try:
+        try:
+            # process #
+            if SysMgr.processEnable:
+                for idx in range(1, nrTask+1):
+                    pid = SysMgr.createProcess()
+                    if pid == 0:
+                        cputask(idx, load)
+                    else:
+                        limitInfo[pid] = load
+            # thread #
+            else:
+                threadObj = SysMgr.getPkg('threading')
                 pid = SysMgr.createProcess()
                 if pid == 0:
-                    cputask(idx, load)
+                    for idx in range(1, nrTask):
+                        tobj = threadObj.Thread(\
+                            target=cputask, args=[idx, load])
+                        tobj.daemon = True
+                        tobj.start()
+                    cputask(nrTask, load)
                 else:
                     limitInfo[pid] = load
-            except SystemExit:
-                pass
-            except:
-                SysMgr.printErr(\
-                    "failed to create process", True)
-                sys.exit(0)
-
-        if len(limitInfo) > 1:
-            taskstr = '%d processes' % len(limitInfo)
-        else:
-            taskstr = 'a process'
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "failed to create %s" % taskstr, True)
+            sys.exit(0)
 
         SysMgr.printInfo((\
             "created %s and limited them to use CPU a total of %d%% " \
@@ -38542,6 +38618,10 @@ struct cmsghdr {
                     SysMgr.printErr(\
                         "fail to find '%s' on memory map in %s" % \
                             (fpath, procInfo))
+
+                    PageAnalyzer.printMemoryArea(\
+                        self.pid, comm=comm, lastLine=True)
+
                     sys.exit(0)
 
             # get target symbol info #
@@ -39965,7 +40045,7 @@ struct cmsghdr {
             # add all symbols of loader #
             if not self.isRunning and not self.ldInjected and \
                 os.path.basename(lib).startswith('ld-'):
-                ret = self.getAddrBySymbol('', binary=lib, inc=True)
+                ret = self.getAddrBySymbol('', binary=[lib], inc=True)
 
                 for item in ret:
                     ldaddr, ldsym, ldlib = item
@@ -39980,7 +40060,7 @@ struct cmsghdr {
 
             # add specific default symbols #
             for dsym in list(self.dftBpSymList.keys()):
-                ret = self.getAddrBySymbol(dsym, binary=lib)
+                ret = self.getAddrBySymbol(dsym, binary=[lib])
                 if not ret:
                     continue
 
@@ -40019,8 +40099,7 @@ struct cmsghdr {
                     symbol, binary=binlist, inc=inc, start=start, end=end)
                 if not ret:
                     # execution mode #
-                    if self.execCmd or \
-                        value == '' or \
+                    if self.execCmd or value == '' or \
                         value in self.dftBpSymList:
                         continue
 
@@ -40035,6 +40114,10 @@ struct cmsghdr {
                             SysMgr.printErr(\
                                 "fail to find '%s' on memory map" % \
                                     ', '.join(binlist))
+
+                            PageAnalyzer.printMemoryArea(\
+                                self.pid, comm=self.comm, lastLine=True)
+
                             sys.exit(0)
 
                     # no symbol #
@@ -41351,15 +41434,22 @@ struct cmsghdr {
 
 
 
+    def updateFileList(self):
+        fileList = SysMgr.getOption('T')
+        if fileList:
+            fileList = list(set(fileList.split(',')))
+            fileList = SysMgr.convRealPath(fileList)
+            self.targetBpFileList.update(dict.fromkeys(fileList, 0))
+        return list(self.targetBpFileList.keys())
+
+
+
     def updateBpList(self, verb=True):
         if self.mode != 'break':
             return
 
         # update file list #
-        fileList = SysMgr.getOption('T')
-        if fileList:
-            fileList = list(set(fileList.split(',')))
-            self.targetBpFileList.update(dict.fromkeys(fileList, 0))
+        fileList = self.updateFileList()
 
         # update symbol list #
         if SysMgr.customCmd is None:
@@ -43173,7 +43263,17 @@ struct cmsghdr {
             ret = self.getSymbolInfo(addr)
             sym = ret[0]
             fname = ret[1]
-            offset = long(ret[2], 16)
+            if not UtilMgr.isNumber(ret[2]):
+                SysMgr.printErr(\
+                    "fail to recognize address %s in %s for %s(%s)" % \
+                        (hex(addr), fname, self.comm, self.pid))
+
+                PageAnalyzer.printMemoryArea(\
+                    self.pid, comm=self.comm, lastLine=True)
+
+                sys.exit(0)
+            else:
+                offset = long(ret[2], 16)
 
             # load orignal data from storage #
             origWord = self.loadInst(fname, offset)
@@ -44030,44 +44130,47 @@ struct cmsghdr {
             if binary and not mfile in binary:
                 continue
 
+            # get ELF object #
             fcache = ElfAnalyzer.getObject(mfile)
-            if fcache:
-                offset = fcache.getOffsetBySymbol(\
-                    symbol, inc=inc, start=start, end=end)
-                if type(offset) is str:
-                    offset = long(offset, 16)
+            if not fcache:
+                continue
 
-                    if ElfAnalyzer.isRelocFile(mfile):
-                        if offset in addrDict:
-                            continue
-                        addrList.append(\
-                            [self.pmap[mfile]['vstart']+offset, symbol, mfile])
-                    else:
-                        if offset in addrDict:
-                            continue
-                        addrList.append([offset, symbol, mfile])
+            offset = fcache.getOffsetBySymbol(\
+                symbol, inc=inc, start=start, end=end)
+            if type(offset) is str:
+                offset = long(offset, 16)
 
-                    addrDict[offset] = True
-                    continue
-                elif type(offset) is not list:
-                    continue
+                if ElfAnalyzer.isRelocFile(mfile):
+                    if offset in addrDict:
+                        continue
+                    addrList.append(\
+                        [self.pmap[mfile]['vstart']+offset, symbol, mfile])
+                else:
+                    if offset in addrDict:
+                        continue
+                    addrList.append([offset, symbol, mfile])
 
-                for item in offset:
-                    sym = item[0]
-                    offset = long(item[1], 16)
-                    if ElfAnalyzer.isRelocFile(mfile):
-                        if offset in addrDict:
-                            continue
+                addrDict[offset] = True
+                continue
+            elif type(offset) is not list:
+                continue
 
-                        addrList.append(\
-                            [self.pmap[mfile]['vstart']+offset, sym, mfile])
-                    else:
-                        if offset in addrDict:
-                            continue
+            for item in offset:
+                sym = item[0]
+                offset = long(item[1], 16)
+                if ElfAnalyzer.isRelocFile(mfile):
+                    if offset in addrDict:
+                        continue
 
-                        addrList.append([offset, sym, mfile])
+                    addrList.append(\
+                        [self.pmap[mfile]['vstart']+offset, sym, mfile])
+                else:
+                    if offset in addrDict:
+                        continue
 
-                    addrDict[offset] = True
+                    addrList.append([offset, sym, mfile])
+
+                addrDict[offset] = True
 
         # return address #
         if not addrList:
@@ -44254,6 +44357,10 @@ struct cmsghdr {
         # create a new controller #
         dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
         dobj.attached = True
+        if cmdline:
+            dobj.execCmd = cmdline.split()
+            dobj.targetBpList = self.targetBpList
+            dobj.targetBpFileList = self.targetBpFileList
 
         # load symbols and inject breakpoints #
         if (dobj.mode != 'syscall' and dobj.mode != 'signal') or \
@@ -44630,8 +44737,10 @@ struct cmsghdr {
         self.initValues()
 
         # apply common breakpoint list #
-        self.targetBpList = targetBpList
-        self.targetBpFileList = targetBpFileList
+        if not self.targetBpList:
+            self.targetBpList = targetBpList
+        if not self.targetBpFileList:
+            self.targetBpFileList = targetBpFileList
 
         # context variables #
         self.cmd = None
@@ -47466,6 +47575,8 @@ class ElfAnalyzer(object):
                         [val[0], hex(self.sortedAddrTable[idx]).rstrip('L')])
                 elif (symbol == val[0] or symbol == target):
                     return hex(self.sortedAddrTable[idx]).rstrip('L')
+        except SystemExit:
+            sys.exit(0)
         except:
             return None
 
