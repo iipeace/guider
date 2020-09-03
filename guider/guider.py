@@ -16274,6 +16274,7 @@ class SysMgr(object):
                 'printdlt': 'DLT',
                 'printkmsg': 'Kernel',
                 'printsys': 'Syslog',
+                'printjrl': 'Journal',
                 },
             'control': {
                 'client': 'Client',
@@ -44645,6 +44646,10 @@ struct cmsghdr {
 
                         self.ptraceEvent(self.traceEventList)
 
+                        SysMgr.printInfo(\
+                            "start profiling %s(%d)..." % \
+                                (self.comm, self.pid))
+
                         if self.cmd:
                             self.ptrace(self.cmd)
 
@@ -44886,7 +44891,7 @@ struct cmsghdr {
             # print target task info #
             if SysMgr.printEnable:
                 SysMgr.printInfo(\
-                    "start profiling %s(%d)" % (self.comm, self.pid))
+                    "start profiling %s(%d)..." % (self.comm, self.pid))
 
             # check attach status #
             if not self.attached:
