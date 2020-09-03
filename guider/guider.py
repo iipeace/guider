@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200902"
+__revision__ = "200903"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5219,6 +5219,8 @@ class NetworkMgr(object):
                 try:
                     connObj.connect()
                     break
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printWarn(\
                         "fail to connect to %s:%s" % (ip, port), \
@@ -5227,9 +5229,12 @@ class NetworkMgr(object):
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
                         continue
-                    break
+                    else:
+                        raise Exception(err.args[0])
 
             return connObj
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "fail to set socket for connection", True)
@@ -22464,6 +22469,9 @@ Copyright:
 
     @staticmethod
     def updateTimer(interval=None):
+        if not SysMgr.isLinux:
+            return
+
         if interval:
             signal.alarm(long(interval))
         else:
@@ -26861,10 +26869,14 @@ Copyright:
 
 
     @staticmethod
-    def blockSignal(sig, act='block', wait=False):
+    def blockSignal(sig=None, act='block', wait=False):
         if not SysMgr.libcObj:
             if not SysMgr.loadLibcObj():
                 return False
+
+        # set default signal #
+        if not sig:
+            sig = signal.SIGINT
 
         if not SysMgr.sigsetObj:
             NWORDS = long(1024 / (8 * sizeof(c_uint)))
@@ -27399,6 +27411,16 @@ Copyright:
 
             return uinput
 
+        def unsetAlarm():
+            if SysMgr.isLinux:
+                signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
+
+        def setAlarm():
+            if SysMgr.isLinux:
+                signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
+                SysMgr.intervalEnable = 1
+                SysMgr.repeatCount = sys.maxsize
+
         def execUserCmd(uinput, addr=None, retPipe=False):
             # launch remote command #
             pipe = NetworkMgr.execRemoteCmd(uinput, addr)
@@ -27410,12 +27432,11 @@ Copyright:
             if retPipe:
                 return pipe
 
-            signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
-            SysMgr.intervalEnable = 1
-            SysMgr.repeatCount = sys.maxsize
+            # set alarm #
+            setAlarm()
 
             # block signal #
-            SysMgr.blockSignal(signal.SIGINT, act='block')
+            SysMgr.blockSignal(act='block')
 
             while 1:
                 try:
@@ -27429,7 +27450,12 @@ Copyright:
 
                     print(output[:-1])
                 except SystemExit:
-                    pass
+                    if SysMgr.isLinux:
+                        pass
+                    else:
+                        break
+                except KeyboardInterrupt:
+                    break
                 except:
                     SysMgr.printErr(SysMgr.getErrMsg())
                     break
@@ -27438,10 +27464,10 @@ Copyright:
                     break
 
             # disable alarm handler #
-            signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
+            unsetAlarm()
 
             # unblock signal #
-            SysMgr.blockSignal(signal.SIGINT, act='unblock')
+            SysMgr.blockSignal(act='unblock')
 
 
 
@@ -27469,7 +27495,7 @@ Copyright:
                 SysMgr.setTtyAuto(True)
 
             # print window size for commands #
-            windowSize = (SysMgr.ttyRows / len(SysMgr.customCmd)) - 1
+            windowSize = long(SysMgr.ttyRows / len(SysMgr.customCmd))
             SysMgr.printInfo("set each window height to %s" % (windowSize+2))
 
         # run parallel commands #
@@ -27493,12 +27519,13 @@ Copyright:
 
             # execute an user command #
             pipe = execUserCmd(uinput, addr, retPipe=True)
+            if not pipe:
+                sys.exit(0)
 
             # set timeout and register socket to command list #
-            if pipe:
-                cmdPipeList[pipe.socket] = \
-                    [fullInput, pipe, [''] * SysMgr.ttyRows]
-                pipe.timeout(0.1)
+            cmdPipeList[pipe.socket] = \
+                [fullInput, pipe, [''] * SysMgr.ttyRows]
+            pipe.timeout(0.1)
 
         # run mainloop for parallel commands #
         while 1:
@@ -27517,7 +27544,7 @@ Copyright:
                     isMulti = False
 
                 # update window size #
-                windowSize = (SysMgr.ttyRows / len(cmdPipeList)) - 1
+                windowSize = long(SysMgr.ttyRows / len(cmdPipeList))
                 mod = SysMgr.ttyRows % windowSize
 
                 # wait for event #
@@ -27527,6 +27554,10 @@ Copyright:
                 # handle output from multiple commands #
                 for robj in read:
                     while 1:
+                        # clear screen #
+                        SysMgr.clearScreen()
+
+                        # read output #
                         output = cmdPipeList[robj][1].getData(noTimeout=False)
                         if output == '\n':
                             if isMulti:
@@ -27544,16 +27575,26 @@ Copyright:
                             else:
                                 continue
 
+                        # update a surface #
                         fullSurface = ''
                         surface = cmdPipeList[robj][2]
                         output = [ line for line in output.split('\n') if line ]
                         surface = surface[len(output):] + output
                         cmdPipeList[robj][2] = surface
 
-                        # update and composite surfaces #
+                        # composite surfaces #
+                        nrLine = 0
                         for idx, item in enumerate(cmdPipeList.values()):
                             surface = item[2]
-                            window = surface[-windowSize:]
+
+                            if idx == len(cmdPipeList)-1:
+                                nrStrip = SysMgr.ttyRows - nrLine - windowSize - 1
+                                window = surface[-windowSize:nrStrip]
+                            else:
+                                window = surface[-windowSize:]
+
+                            nrLine += len(window) + 1
+
                             if idx < len(cmdPipeList)-1:
                                 fullSurface += '\n'.join(window)
                                 fullSurface += '\n%s\n' % splitLine
@@ -27568,6 +27609,8 @@ Copyright:
                         if isMulti:
                             break
             except SystemExit:
+                sys.exit(0)
+            except KeyboardInterrupt:
                 sys.exit(0)
             except:
                 SysMgr.printErr(\
@@ -39809,7 +39852,7 @@ struct cmsghdr {
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                 flushPrint(newline=False)
 
-                SysMgr.blockSignal(signal.SIGINT, act='unblock')
+                SysMgr.blockSignal(act='unblock')
                 SysMgr.waitEvent(exit=True)
 
             elif cmd == 'kill':
@@ -43105,6 +43148,7 @@ struct cmsghdr {
         # read args #
         args = self.readArgs()
 
+        # strip syscall args #
         if sym in ConfigMgr.SYSCALL_PROTOTYPES and \
             len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1]) < len(args):
             args = args[:len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1])]
@@ -43392,7 +43436,7 @@ struct cmsghdr {
             self.handleUsercall()
         elif self.mode == 'break':
             # block signal #
-            SysMgr.blockSignal(signal.SIGINT, act='block')
+            SysMgr.blockSignal(act='block')
 
             while 1:
                 try:
@@ -43409,7 +43453,7 @@ struct cmsghdr {
                 sys.exit(0)
 
             # unblock signal #
-            SysMgr.blockSignal(signal.SIGINT, act='unblock')
+            SysMgr.blockSignal(act='unblock')
 
         self.status = previous
 
@@ -44880,8 +44924,10 @@ struct cmsghdr {
         elif self.mode == 'break':
             if self.isRunning:
                 # register breakpoint data #
-                self.bpList = bpList
-                self.exceptBpList = exceptBpList
+                if bpList:
+                    self.bpList = bpList
+                if exceptBpList:
+                    self.exceptBpList = exceptBpList
 
                 # check thread status #
                 stat = self.getStatList(status=True)
