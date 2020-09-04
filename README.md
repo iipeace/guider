@@ -169,21 +169,35 @@ Output
 
 >>>
 
-	# guider/guider.py brktop -g yes -H
+	# guider/guider.py brktop -g a.out -H
 
-	[Top Breakpoint Info] [Time: 81966.620000] [Interval: 1.002108] [NrSamples: 656] [yes(7202): 2%(Usr/0%+Sys/2%)] [SampleTime: 0.000000] 
-	==========================================================================================================================================================
-	 Usage  |                                                                 Function [Path]                                                                 
-	==========================================================================================================================================================
-	  25.0% | _IO_file_xsputn@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006058, Min: 0.004348, Max: 0.016169]                                     
-	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  25.0% | fputs_unlocked@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006058, Min: 0.004346, Max: 0.016001]                                      
-	           100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  25.0% | strlen@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006075, Min: 0.004380, Max: 0.016195]                                              
-	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  25.0% | memcpy@GLIBC_2.17 [Path: /lib/libc-2.24.so, Cnt: 164, Avg: 0.006056, Min: 0.004314, Max: 0.015648]                                              
-	           100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    [Top Breakcall Info] [Time: 1146111.080] [Interval: 1.001] [NrSamples: 2,386] [a.out(214460): 4%(Usr/1%+Sys/2%)] [guider(214459): 92%]
+    ==========================================================================================================================================================
+     Usage  |                                                            Function [PATH] <Interval>
+    ==========================================================================================================================================================
+      15.8% | __mempcpy_sse2_unaligned_erms [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 378, Avg: 0.002639, Min: 0.001029, Max: 0.006689]
+               100.0% |  <- _IO_new_file_xsputn[/lib/x86_64-linux-gnu/libc-2.31.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+      15.8% | _IO_new_file_xsputn [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 378, Avg: 0.002639, Min: 0.001026, Max: 0.006699]
+               100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
+                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+      10.6% | __strchrnul_sse2 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 252, Avg: 0.003959, Min: 0.002209, Max: 0.006634]
+               100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
+                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       5.3% | _itoa_word [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 126, Avg: 0.007900, Min: 0.007699, Max: 0.009268]
+               100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
+                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       5.3% | usleep@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 126, Avg: 0.007899, Min: 0.007766, Max: 0.009188]
+               100.0% |
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafda
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
+                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
 	----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -255,21 +269,25 @@ Output
            
     # guider/guider.py memtop
 
-    [Top Info] [Time: 7176233.650] [Interval: 1.0] [Ctxt: 289] [Life: +2/-2] [IRQ: 1397] [Core: 24] [Task: 323/430] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
-               [Cycle: 127M / Inst: 121M / IPC: 0.95 / CacheMiss: 280K(23%) / BranchMiss: 437K(1%) / Clock: 22G / MinFlt: 714 / MajFlt: 0]
+    [Top Info] [Time: 1144292.910] [Inter: 1.0] [Ctxt: 739] [Life: +0/-0] [IRQ: 10740] [Core: 40] [Task: 509/725] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
+               [N0-DMA     > diff:       0 / free:  15.5M / high:  32.0K / low:  20.0K / managed:  15.5M / min:   8.0K / present:  15.6M / spanned:  16.0M ]
+               [N0-DMA32   > diff:       0 / free:   1.9G / high:   4.6M / low:   2.8M / managed:   1.9G / min: 956.0K / present:   1.9G / spanned:   4.0G ]
+               [N0-Device  > diff:       0 / free:      0 / high:      0 / low:      0 / managed:      0 / min:      0 / present:      0 / spanned:      0 ]
+               [N0-Movable > diff:       0 / free:      0 / high:      0 / low:      0 / managed:      0 / min:      0 / present:      0 / spanned:      0 ]
+               [N0-Normal  > diff:   -3.9M / free: 113.4G / high: 318.7M / low: 191.9M / managed: 123.9G / min:  65.1M / present: 126.0G / spanned: 126.0G ]
     ==========================================================================================================================================================
-      ID   | CPU (Usr/Ker/Blk/IRQ)| Mem (Diff/ User/Cache/Kern)| Swap (Diff/  I/O  )|NrPgRclm | BlkRW | NrFlt | NrBlk | NrSIRQ | NrMlk | NrDrt  |  Network   |
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl( Per/ User/Cache/Kern)|  Swap( Per/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-    Total  |  1 %( 0 / 0 / 0 / 0 )| 4706(   1/  865/57151/1154)|  0   ( 0  /  0/0  )|   0/0   |  0/0  |   0   |   0   |  484   |   0   |   35   |   1K/4K    |
+    Total  | 98 %(97 / 0 / 0 / 0 )|12417(  96/ 1117/ 7915/1739)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   | 12975  | 4613  |   67   |   2K/52    |
     ==========================================================================================================================================================
         Process      (  PID/ PPID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  Mem(RSS/Txt/Shr/Swp)| Blk( RD / WR /NrFlt)| Yld | Prmt | FD | LifeTime|     WaitChannel     |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-              guider (22307/ 9085/   1/C  0)|   2(  2/  0/  0)|  101( 62/  2/  5/  0)|   0(   -/   -/    0)|    1|     0|1024|  0: 0: 5|       RUNNING       |
-                                 (1)[STACK] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT: 140K / NOPM:   0K|
-                                   (1)[SHM] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   0K / NOPM:   0K|
-                                 (19)[FILE] | SIZE:  44M / RSS:   6M / PSS:   2M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT: 632K / NOPM:  31M|
-                                   (3)[ETC] | SIZE:   0M / RSS:   0M / PSS:   0M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:   0K / NOPM:   0K|
-                                 (12)[ANON] | SIZE:  56M / RSS:  56M / PSS:  56M / SWAP:   0M / HUGE:  0M / LOCK:   0K / SDRT:   0K / PDRT:  56M / NOPM:   0K|
+     FahCore_a8 ( 214159/ 214155/  41/C 19)|3792(3791/  0/  -)|3219( 548/ 14/ 13/  0)|   0(   -/   -/    0)| 1197|fahcli|  64| 00:20:54|FAHCoreWrapper(214155|
+                               MEM(STACK/1) | VSS: 132.0K / RSS:  48.0K / PSS:  48.0K / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:  48.0K|
+                                MEM(FILE/6) | VSS:  20.4M / RSS:  13.2M / PSS:  10.7M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:  92.0K|
+                                 MEM(ETC/3) | VSS:  20.0K / RSS:   4.0K / PSS:      0 / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT:      0|
+                              MEM(ANON/165) | VSS:   3.1G / RSS: 539.7M / PSS: 539.7M / SWAP:      0 / HUGE:    0 / LOCK:     0 / SDRT:      0 / PDRT: 539.7M|
+                                   MEM(SUM) | VmPeak: 4.0G, VmHWM: 548.6M, VmData: 948.2M, HugetlbPages: 0, RssAnon: 535.5M, RssFile: 13.2M, RssShmem: 0     |
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -513,7 +531,7 @@ Output
            
     # guider/guider.py setsched r:90:22371
 
-    [Info] priority of 22371 task is changed to 90(R)
+    [Info] changed the priority of guider(22371) to 90[R]
 
 >>>
            
@@ -988,7 +1006,7 @@ Help
 
 ```
 Usage:
-    $ guider/guider.py COMMAND|FILE [OPTIONS] [--help] [--version]
+    $ guider/guider.py COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
     [CONTROL]       client          <Client>
@@ -1003,26 +1021,27 @@ COMMAND:
                     logkmsg         <Kernel>
                     logsys          <Syslog>
                     printdlt        <DLT>
+                    printjrl        <Journal>
                     printkmsg       <Kernel>
-                    printsyslog     <Syslog>
+                    printsys        <Syslog>
 
     [MONITOR]       bgtop           <Background>
-                    btop            <Breakpoint>
+                    btop            <Function>
                     dbustop         <D-Bus>
                     disktop         <Storage>
                     dlttop          <DLT>
                     ftop            <File>
-                    memtop          <Memory>
-                    nettop          <Network>
-                    perftop         <PMU>
-                    reptop          <JSON>
+                    mtop            <Memory>
+                    ntop            <Network>
+                    ptop            <PMU>
+                    rtop            <JSON>
+                    smtop           <System>
                     stacktop        <Stack>
-                    sttop           <System>
-                    systop          <syscall>
+                    systop          <Syscall>
                     top             <Process>
                     ttop            <Thread>
                     utop            <Function>
-                    wsstop          <Memory>
+                    wtop            <WSS>
 
     [PROFILE]       filerec         <File>
                     funcrec         <Function>
@@ -1033,7 +1052,9 @@ COMMAND:
                     sysrec          <Syscall>
 
     [TEST]          cputest         <CPU>
+                    iotest          <Storage>
                     memtest         <Memory>
+                    nettest         <Network>
 
     [TRACE]         btrace          <Breakpoint>
                     sigtrace        <Signal>
@@ -1041,7 +1062,9 @@ COMMAND:
                     utrace          <Function>
 
     [UTIL]          addr2sym        <Symbol>
+                    dump            <Memory>
                     getafnt         <Affinity>
+                    hook            <Function>
                     kill/tkill      <Signal>
                     leaktrace       <Leak>
                     limitcpu        <CPU>
@@ -1051,28 +1074,37 @@ COMMAND:
                     printdir        <Dir>
                     printenv        <Env>
                     printinfo       <System>
+                    printns         <Namespace>
+                    printsig        <Signal>
+                    printsubsc      <D-Bus>
+                    printsvc        <systemd>
                     pstree          <Process>
                     readelf         <File>
+                    remote          <Command>
                     setafnt         <Affinity>
                     setcpu          <Clock>
                     setsched        <Priority>
+                    strings         <Text>
                     sym2addr        <Address>
                     systat          <Status>
                     topdiff         <Diff>
+                    topsum          <Summary>
+                    watch           <File>
 
     [VISUAL]        convert         <Text>
-                    cpudraw         <CPU>
                     draw            <System>
-                    iodraw          <I/O>
-                    leakdraw        <Leak>
-                    memdraw         <Memory>
-                    rssdraw         <RSS>
-                    vssdraw         <VSS>
+                    drawavg         <Average>
+                    drawcpu         <CPU>
+                    drawio          <I/O>
+                    drawleak        <Leak>
+                    drawmem         <Memory>
+                    drawrss         <RSS>
+                    drawvss         <VSS>
 
 FILE:
     Profile file (e.g. guider.dat)
     Report  file (e.g. guider.out)
 
-OPTIONS:
+Options:
     Check COMMAND with --help (e.g. guider/guider.py top --help)
 ```

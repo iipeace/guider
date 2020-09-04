@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200903"
+__revision__ = "200904"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13667,6 +13667,7 @@ class SysMgr(object):
     cmdAttachCache = {}
     thresholdData = {}
     thresholdEventList = {}
+    thresholdEventHistory = {}
 
     impPkg = {}
     impGlbPkg = {}
@@ -14868,7 +14869,7 @@ class SysMgr(object):
             SysMgr.maxInterval = maxInterval
 
         SysMgr.printInfo(\
-            "applied thresholds from %s" % SysMgr.confFileName)
+            "applied for thresholds from %s" % SysMgr.confFileName)
 
         SysMgr.printWarn(UtilMgr.convDict2Str(confData))
 
@@ -26324,7 +26325,7 @@ Copyright:
             for cmd in SysMgr.customCmd:
                 cmd = cmd.replace('PID', pid)
 
-                SysMgr.printInfo("execute '%s'" % cmd)
+                SysMgr.printInfo("executed '%s'" % cmd)
                 ret = SysMgr.createProcess(cmd.split())
                 if ret < 0:
                     continue
@@ -40204,7 +40205,7 @@ struct cmsghdr {
         tgid = SysMgr.getTgid(self.pid)
         if verb:
             SysMgr.printStat(\
-                r"start injecting %s breakpoints for %s(%s) process..." % \
+                r"start injecting %s breakpoints for %s(%s)..." % \
                     (UtilMgr.convNum(len(addrList)), \
                         SysMgr.getComm(tgid, cache=True), tgid))
 
@@ -65722,6 +65723,8 @@ class ThreadAnalyzer(object):
             # skip processing event #
             if event in self.eventCommandList:
                 continue
+            elif not value['run']:
+                continue
 
             for cmd in value['command']:
                 # convert PID #
@@ -65734,7 +65737,7 @@ class ThreadAnalyzer(object):
                     cmd = cmd.replace('TIME', str(long(SysMgr.uptime)))
 
                 SysMgr.printInfo(\
-                    'execute [ %s ] by %s event' % (cmd, event))
+                    'executed "%s" by %s event' % (cmd, event))
 
                 # launch Guider #
                 if cmd.startswith('GUIDER'):
@@ -65773,7 +65776,7 @@ class ThreadAnalyzer(object):
         rlist = set(plist) - set(elist)
         if rlist:
             SysMgr.printInfo(\
-                "the threshold events [ %s ] are removed" % \
+                "finished the threshold events [ %s ]" % \
                     ', '.join(rlist))
 
         # print new events #
@@ -65875,7 +65878,7 @@ class ThreadAnalyzer(object):
 
     def setThresholdEvent(\
         self, intval, comval, item, event, attr, \
-        comp='big', target=None, addval=None):
+        comp='big', target=None, addval=None, oneshot=False):
 
         value = None
 
@@ -65899,20 +65902,39 @@ class ThreadAnalyzer(object):
             comval.update(addval)
         comval['value'] = value
 
-        # add event #
+        # set event name #
         ename = '%s_%s_%s' % (event, attr, item)
+
+        # handle oneshot command #
+        if oneshot and ename in SysMgr.thresholdEventHistory:
+            run = False
+        else:
+            run = True
+            SysMgr.thresholdEventHistory.setdefault(ename, None)
+
+        # add event #
         if 'task' in comval:
             addinfo = ''
             for pid, data in comval['task'].items():
                 addinfo += '_%s_%s' % (data['comm'], pid)
             ename = '%s%s' % (ename, addinfo)
+
+        # set value for event #
         self.reportData['event'].setdefault(ename, comval)
+        self.reportData['event'][ename]['run'] = run
 
 
 
     def checkThreshold(\
         self, resource, item, event, comp='big', \
         target=None, attr='SYSTEM', intval=None, addval=None):
+
+        def getOneshotFlag(items):
+            if 'oneshot' in items and \
+                items ['oneshot'].upper() == 'TRUE':
+                return True
+            else:
+                return False
 
         if not SysMgr.thresholdData:
             return
@@ -65935,13 +65957,19 @@ class ThreadAnalyzer(object):
             target = self.reportData[resource][item]
 
         # set event #
-        if type(comval) is list:
-            for comitem in comval:
-                self.setThresholdEvent(\
-                    intval, comitem, item, event, attr, comp, target, addval)
-        elif type(comval) is dict:
+        if type(comval) is dict:
+            oneshot = getOneshotFlag(comval)
             self.setThresholdEvent(\
-                intval, comval, item, event, attr, comp, target, addval)
+                intval, comval, item, event, attr, \
+                comp, target, addval, oneshot)
+        elif type(comval) is not list:
+            return
+
+        for comitem in comval:
+            oneshot = getOneshotFlag(comitem)
+            self.setThresholdEvent(\
+                intval, comitem, item, event, attr, \
+                comp, target, addval, oneshot)
 
 
 
@@ -65956,14 +65984,16 @@ class ThreadAnalyzer(object):
             ['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big'],
         ]
 
-        exceptTaskResource = {}
-
         if SysMgr.processEnable:
             mode = 'Process'
         else:
             mode = 'Thread'
+
         mode = mode.lower()
 
+        exceptTaskResource = {}
+
+        # traverse all tasks #
         for pid, data in self.procData.items():
             for item in ilist:
                 resource, cattr, pattr, intname, event, comp = item
