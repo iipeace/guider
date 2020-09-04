@@ -38665,7 +38665,7 @@ struct cmsghdr {
                             (fpath, procInfo))
 
                     PageAnalyzer.printMemoryArea(\
-                        self.pid, comm=comm, lastLine=True)
+                        pid, comm=comm, lastLine=True)
 
                     sys.exit(0)
 
