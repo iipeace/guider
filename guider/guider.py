@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200904"
+__revision__ = "200906"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13755,6 +13755,7 @@ class SysMgr(object):
     bgStatus = False
     condExit = False
     sort = None
+    sortCond = None
 
     # file descriptor #
     maxFd = 512
@@ -16000,9 +16001,21 @@ class SysMgr(object):
 
 
     @staticmethod
-    def setSortValue(value):
+    def setSortValue(values):
+        if not values:
+            value = cond = None
+        else:
+            values = values.split(':')
+            if len(values) == 1:
+                value = values[0]
+                cond = None
+            elif len(values) > 1:
+                value, cond = values[:2]
+
         if value == 'c':
-            SysMgr.printInfo("sorted by COMM")
+            SysMgr.printInfo("sorted by CPU")
+        elif value == 'N':
+            SysMgr.printInfo("sorted by NAME")
         elif value == 'm':
             SysMgr.printInfo("sorted by MEMORY")
         elif value == 'b':
@@ -16017,8 +16030,20 @@ class SysMgr(object):
         elif value == 'e':
             SysMgr.printInfo("sorted by EXECTIME")
             SysMgr.schedEnable = True
+            try:
+                cond = UtilMgr.convUnit2Time(cond)
+            except:
+                SysMgr.printErr(\
+                    "fail to convert time '%s'" % cond)
+                sys.exit(0)
         elif value == 'r':
             SysMgr.printInfo("sorted by RUNTIME")
+            try:
+                cond = UtilMgr.convUnit2Time(cond)
+            except:
+                SysMgr.printErr(\
+                    "fail to convert time '%s'" % cond)
+                sys.exit(0)
         elif value == 'o':
             SysMgr.printInfo("sorted by OOMSCORE")
             ThreadAnalyzer.setLastField('oom')
@@ -16034,7 +16059,6 @@ class SysMgr(object):
                     "it is supported on thread mode")
                 sys.exit(0)
             SysMgr.printInfo("sorted by CONTEXTSWITCH")
-            SysMgr.showAll = True
         elif not value:
             value = None
         else:
@@ -16042,7 +16066,10 @@ class SysMgr(object):
                 "wrong option value '%s' for sort" % value)
             return False
 
+        # set values #
         SysMgr.sort = value
+        SysMgr.sortCond = cond
+
         return True
 
 
@@ -16337,11 +16364,11 @@ Usage:
     -x  <IP:PORT>               set local address
     -X  <REQ@IP:PORT>           set request address
     -N  <REQ@IP:PORT>           set report address
-    -S  <comm/memory/pid        sort by key
+    -S  <cpu/mem/pid/Name       sort by key
          block/wfc/new/file
          runtime/exectime
-         Priority/oomscore
-         Contextswitch>
+         Prio/ContextSwitch
+         oomscore{:VALUE}>
     -P                          group threads in a same process
     -I  <DIR|FILE>              set input path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -16401,6 +16428,10 @@ Examples:
 
     - Monitor status of all processes sorted by memory(RSS)
         # {0:1} {1:1} -S m
+        # {0:1} {1:1} -S m:500
+
+    - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
+        # {0:1} {1:1} -S C:5000
 
     - Report analysis results of processes to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
@@ -16449,6 +16480,9 @@ Examples:
 
     - Monitor status of processes and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
+
+    - Monitor status of processes after setting hot commands in advance
+        # {0:1} {1:1} -c "guider utop -g PID"
 
     - Monitor status of processes after setting hot commands in advance
         # {0:1} {1:1} -c "guider utop -g PID"
@@ -39039,7 +39073,7 @@ struct cmsghdr {
             if cmdformat:
                 cmdformat = ":%s" % cmdformat
             SysMgr.printErr(\
-                "Wrong command '%s', input in the format {%s%s}" % \
+                "wrong command '%s', input in the format {%s%s}" % \
                     (cmdset, cmd, cmdformat))
             sys.exit(0)
 
@@ -39099,7 +39133,7 @@ struct cmsghdr {
                 ret = UtilMgr.convStr2Num(cmdset[1])
                 if not ret:
                     SysMgr.printErr(\
-                        "Wrong return value %s" % cmdset[1])
+                        "wrong return value %s" % cmdset[1])
                     return False
 
                 # get return address #
@@ -64352,6 +64386,8 @@ class ThreadAnalyzer(object):
 
 
     def getSortedProcData(self):
+        checkCond = True
+
         # memory #
         if SysMgr.sort == 'm':
             sortedProcData = sorted(self.procData.items(), \
@@ -64368,10 +64404,12 @@ class ThreadAnalyzer(object):
         elif SysMgr.sort == 'p':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: long(e[0]))
+            checkCond = False
         # new #
         elif SysMgr.sort == 'n':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['new'], reverse=True)
+            checkCond = False
         # runtime #
         elif SysMgr.sort == 'r':
             sortedProcData = sorted(self.procData.items(), \
@@ -64384,6 +64422,7 @@ class ThreadAnalyzer(object):
         elif SysMgr.sort == 'P':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: long(e[1]['stat'][self.prioIdx]), reverse=False)
+            checkCond = False
         # exectime #
         elif SysMgr.sort == 'e':
             try:
@@ -64420,41 +64459,80 @@ class ThreadAnalyzer(object):
                 key=lambda e: \
                     long(e[1]['dbusCnt']) \
                         if 'dbusCnt' in e[1] else 0, reverse=True)
-        # comm #
-        elif SysMgr.sort == 'c':
+            checkCond = False
+        # name #
+        elif SysMgr.sort == 'N':
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['stat'][self.commIdx], reverse=False)
+            checkCond = False
         # CPU #
         else:
             # set CPU usage as default #
             sortedProcData = sorted(self.procData.items(), \
                 key=lambda e: e[1]['ttime'], reverse=True)
 
+        # convert sort condition type to number #
+        if checkCond and SysMgr.sortCond:
+            try:
+                SysMgr.sortCond = long(SysMgr.sortCond)
+            except:
+                SysMgr.printErr(\
+                    "fail to convert '%s' to number for sort condition" % \
+                        SysMgr.sortCond)
+                sys.exit(0)
+
         return sortedProcData
 
 
 
     def printProcUsage(self, idIndex=False):
-        def isBreakCond(value):
-            # get focus value #
-            if not SysMgr.sort:
-                focusVal = value['ttime']
+        def isBreakCond(idx, value):
+            # define target #
+            if not SysMgr.sort or SysMgr.sort == 'c':
+                target = value['ttime']
             elif SysMgr.sort == 'm':
-                focusVal = long(stat[self.rssIdx]) >> 8
+                target = long(stat[self.rssIdx]) >> 8
             elif SysMgr.sort == 'b':
-                focusVal = value['btime']
+                target = value['btime']
             elif SysMgr.sort == 'w':
-                focusVal = value['cttime']
+                target = value['cttime']
             elif SysMgr.sort == 'n':
-                focusVal = value['new']
+                target = value['new']
             elif SysMgr.sort == 'o':
-                focusVal = value['oomScore']
-            else:
-                focusVal = 1
+                target = value['oomScore']
+            elif SysMgr.sort == 'r':
+                target = value['runtime']
+            elif SysMgr.sort == 'e':
+                target = value['execTime']
+            elif SysMgr.sort == 'C':
+                try:
+                    prevStat = self.prevProcData[idx]['status']
+                    prevCtx = \
+                        long(prevStat['voluntary_ctxt_switches']) + \
+                        long(prevStat['nonvoluntary_ctxt_switches'])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    prevCtx = 0
 
+                nowStat = value['status']
+                nowCtx = \
+                    long(nowStat['voluntary_ctxt_switches']) + \
+                    long(nowStat['nonvoluntary_ctxt_switches'])
+
+                target = nowCtx - prevCtx
+            else:
+                target = 1
+
+            # check sort condition #
+            if SysMgr.sortCond and \
+                target < SysMgr.sortCond:
+                return True
+
+            # check filter #
             if not SysMgr.filterGroup and \
                 not SysMgr.showAll and \
-                not focusVal:
+                not target:
                 return True
             else:
                 return False
@@ -64790,7 +64868,7 @@ class ThreadAnalyzer(object):
                         self.stackTable.pop(idx, None)
 
             # check limit #
-            if isBreakCond(value):
+            if isBreakCond(idx, value):
                 break
 
             if SysMgr.checkCutCond():
