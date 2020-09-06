@@ -16421,76 +16421,80 @@ Options:
     -v                          verbose
                     '''
 
+                if SysMgr.isThreadTopMode():
+                    target = 'threads'
+                else:
+                    target = 'processes'
+
                 topExamStr = '''
 Examples:
-    - Monitor status of processes used CPU resource more than 1%
+    - Monitor status of {2:2} used CPU resource more than 1%%
         # {0:1} {1:1}
 
-    - Monitor status of all processes sorted by memory(RSS)
+    - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
 
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Report analysis results of processes to ./guider.out when SIGINT signal arrives
+    - Report analysis results of {2:2} to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - Report analysis results of processes to ./guider.out with unlimited memory buffer
+    - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
 
-    - Report analysis results of processes to ./guider.out in real-time until SIGINT signal arrives
+    - Report analysis results of {2:2} to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - Report analysis results of processes collected every 3 seconds for 5 minutes to ./guider.out
+    - Report analysis results of {2:2} collected every 3 seconds for 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
 
-    - Report analysis results of processes collected every 10 seconds for 60 minutes to ./guider.out
+    - Report analysis results of {2:2} collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - Report analysis results of processes collected every 3 seconds for 5 minutes to ./guider.out continuously
+    - Report analysis results of {2:2} collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
-    - Monitor status of processes including memory(USS)
+    - Monitor status of {2:2} including memory(USS)
         # {0:1} {1:1} -e u
 
-    - Monitor status of processes including memory(PSS)
+    - Monitor status of {2:2} including memory(PSS)
         # {0:1} {1:1} -e S
 
-    - Monitor status of all processes including block usage every 2 seconds
+    - Monitor status of all {2:2} including block usage every 2 seconds
         # {0:1} {1:1} -e b -i 2 -a
 
-    - Monitor status of processes involved in a same process group with specific processes having name including system
+    - Monitor status of {2:2} involved in a same process group with specific {2:2} having name including system
         # {0:1} {1:1} -g system -P
 
-    - Monitor status of processes on the minimum-size terminal
+    - Monitor status of {2:2} on the minimum terminal
         # {0:1} {1:1} -m
 
-    - Monitor status of processes on the optimized-size terminal
+    - Monitor status of {2:2} on the optimized terminal
         # {0:1} {1:1} -m :
 
-    - Monitor status of processes after change terminal size optimization
+    - Monitor status of {2:2} after optimizing system terminal
         # {0:1} {1:1} -m ::system
 
-    - Report analysis results of processes to ./guider.out and console
+    - Report analysis results of {2:2} to ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
-    - Monitor status of processes and execute special commands
+    - Monitor status of {2:2} and execute special commands
         # {0:1} {1:1} -w AFTER:/tmp/touched:1, AFTER:ls
 
-    - Monitor status of processes and report to 192.168.0.5:5555 in real-time
+    - Monitor status of {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
-    - Monitor status of processes after setting hot commands in advance
+    - Monitor status of {2:2} after setting hot commands in advance
         # {0:1} {1:1} -c "guider utop -g PID"
 
-    - Monitor status of processes after setting hot commands in advance
+    - Monitor status of {2:2} and execute specific commands for them
         # {0:1} {1:1} -c "guider utop -g PID"
 
-    - Monitor status of processes after setting configuration from guider.conf
+    - Monitor status of {2:2} after setting configuration from guider.conf
         # {0:1} {1:1} -C guider.conf
-
-                '''.format(cmd, mode)
+                '''.format(cmd, mode, target)
 
                 drawExamStr = '''
 Examples:
@@ -17149,15 +17153,7 @@ Description:
     Monitor the status of threads
                         '''.format(cmd, mode)
 
-                    examStr = '''
-Examples:
-    - Monitor status of all threads
-        # {0:1} {1:1} -a
-
-    See the top COMMAND help for more examples.
-                    '''.format(cmd, mode)
-
-                    helpStr += topSubStr + topCommonStr + examStr
+                    helpStr += topSubStr + topCommonStr + topExamStr
 
                 # syscall top #
                 elif SysMgr.isSysTopMode():
@@ -26813,9 +26809,22 @@ Copyright:
 
         # close all fds without standard #
         if closeAll:
-            for fd in range(3, SysMgr.maxFd):
+            try:
+                path = '%s/self/fd' % SysMgr.procPath
+                fdList = os.listdir(path)
+            except:
+                SysMgr.printErr(\
+                    "fail to read %s for file descriptors" % path,\
+                        reason=True)
+                return
+
+            for fd in fdList:
                 try:
-                    os.close(fd)
+                    fd = long(fd)
+                    if fd < 2:
+                        os.close(fd)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
