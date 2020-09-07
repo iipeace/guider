@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200906"
+__revision__ = "200908"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3596,7 +3596,10 @@ class UtilMgr(object):
         for item in optList:
             try:
                 key, value = item.split(sep, 1)
-                newDict[key] = value
+                if key in newDict:
+                    newDict[key].append(value)
+                else:
+                    newDict[key] = [value]
             except SystemExit:
                 sys.exit(0)
             except:
@@ -7846,8 +7849,8 @@ class FunctionAnalyzer(object):
         if not SysMgr.userEnable:
             return None
 
-        # Check addr2line path #
-        if not SysMgr.addr2linePath:
+        # check addr2line path #
+        if not 'ADDR2LINE' in SysMgr.binPathList:
             try:
                 symbolList = list()
                 binObj = ElfAnalyzer.getObject(binPath)
@@ -7874,14 +7877,13 @@ class FunctionAnalyzer(object):
             if not addr2linePath:
                 SysMgr.printErr((\
                     "fail to find addr2line to analyze user-level functions, "
-                    "use -l option to set custom path"))
+                    "use -q option with ADDR2LINE to set binary path"))
                 sys.exit(0)
 
             SysMgr.printInfo(\
                 "use %s as addr2line path" % ', '.join(addr2linePath))
-            SysMgr.addr2linePath = addr2linePath
         else:
-            for path in SysMgr.addr2linePath:
+            for path in SysMgr.binPathList['ADDR2LINE']:
                 if not os.path.isfile(path):
                     SysMgr.printErr(\
                         "fail to find %s to use addr2line" % path)
@@ -7892,7 +7894,7 @@ class FunctionAnalyzer(object):
         if not subprocess:
             sys.exit(0)
 
-        for path in SysMgr.addr2linePath:
+        for path in SysMgr.binPathList['ADDR2LINE']:
             # Set addr2line command #
             args = [path, "-C", "-f", "-a", "-e", binPath]
 
@@ -12185,13 +12187,14 @@ class FileAnalyzer(object):
         for pid, val in sorted(self.procList.items(), \
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
             printMsg = "{0:>16}({1:>6})|{2:>11} |".\
-                format(val['comm'][:16], pid, \
+                format(val['comm'][:SysMgr.commLen], pid, \
                 convert(val['pageCnt'] * pageSize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:>16}({1:>6}) |".format(threadVal['comm'][:16], tid)
+                    "{0:>16}({1:>6}) |".format(\
+                        threadVal['comm'][:SysMgr.commLen], tid)
 
                 linePos += threadLength
 
@@ -12584,12 +12587,13 @@ class FileAnalyzer(object):
                 pass
 
             printMsg = "{0:>16}({1:>6})|{2:>12} |".\
-                format(val['comm'][:16], pid, convert(rsize))
+                format(val['comm'][:SysMgr.commLen], pid, convert(rsize))
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:^16}({1:>6}) |".format(threadVal['comm'][:16], tid)
+                    "{0:^16}({1:>6}) |".format(\
+                        threadVal['comm'][:SysMgr.commLen], tid)
 
                 linePos += threadLength
 
@@ -12656,7 +12660,8 @@ class FileAnalyzer(object):
                     linePos = indentLength + pidLength
                     pidInfo += '\n' + (' ' * indentLength) + '|'
 
-                pidInfo += " %16s (%6s) |" % (comm[:16], pid)
+                pidInfo += " %16s (%6s) |" % \
+                    (comm[:SysMgr.commLen], pid)
 
                 linePos += pidLength
 
@@ -13582,6 +13587,7 @@ class SysMgr(object):
     lineLength = 154
     pid = long(0)
     comm = __module__
+    commLen = 16
     masterPid = long(0)
     prio = None
     funcDepth = long(0)
@@ -13615,7 +13621,6 @@ class SysMgr(object):
     lmkPath = '/sys/module/lowmemorykiller/parameters/minfree'
     pythonPath = sys.executable
     pyLibPath = None
-    addr2linePath = []
     objdumpPath = []
     rootPath = ''
     fontPath = None
@@ -13787,7 +13792,7 @@ class SysMgr(object):
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
-    execEnable = True
+    execEnable = None
     latEnable = cpuEnable
     gpuEnable = True
     memEnable = False
@@ -16395,11 +16400,11 @@ Usage:
 Options:
     -e  <CHARACTER>             enable options
             a:affinity | b:block | c:cpu | C:cgroup
-            d:disk | D:DLT | e:encode | E:Elastic
+            d:disk | D:DLT | e:encode | E:exec
             f:float | F:wfc | h:sigHandler | H:sched
-            i:irq | j:journal | k:kmsg | L:cmdline
-            m:memory | n:net | N:namespace | o:oomScore
-            p:pipe | P:perf | q:quit | r:report
+            i:irq | I:elastic | j:journal | k:kmsg
+            L:cmdline | m:memory | n:net | N:namespace
+            o:oomScore | p:pipe | P:perf | q:quit | r:report
             R:fileReport | s:stack | S:pss | t:thread
             u:uss | w:wss | W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
@@ -16456,10 +16461,10 @@ Examples:
     - Report analysis results of {2:2} collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
-    - Monitor status of {2:2} including memory(USS)
+    - Monitor status of {2:2} with memory(USS)
         # {0:1} {1:1} -e u
 
-    - Monitor status of {2:2} including memory(PSS)
+    - Monitor status of {2:2} with memory(PSS)
         # {0:1} {1:1} -e S
 
     - Monitor status of all {2:2} including block usage every 2 seconds
@@ -16477,6 +16482,9 @@ Examples:
     - Monitor status of {2:2} after optimizing system terminal
         # {0:1} {1:1} -m ::system
 
+    - Monitor status of {2:2} and report to elastic search
+        # {0:1} {1:1} -e I
+
     - Report analysis results of {2:2} to ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
@@ -16490,7 +16498,7 @@ Examples:
         # {0:1} {1:1} -c "guider utop -g PID"
 
     - Monitor status of {2:2} and execute specific commands for them
-        # {0:1} {1:1} -c "guider utop -g PID"
+        # {0:1} {1:1} -c "guider utop -g PID" -e E
 
     - Monitor status of {2:2} after setting configuration from guider.conf
         # {0:1} {1:1} -C guider.conf
@@ -16765,7 +16773,6 @@ Options:
     -B  <DIR|FILE>              set command script path
     -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
-    -M  <FILE>                  set objdump path
     -U  <NAME:FUNC|ADDR:FILE>   set user event
     -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
 
@@ -16776,7 +16783,6 @@ Options:
          runtime/file>
     -P                          group threads in a same process
     -O  <CORE>                  set core filter
-    -l  <FILE>                  set addr2line path
     -r  <DIR>                   set root path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
 
@@ -17087,7 +17093,7 @@ Examples:
         # {0:1} {1:1} -s . -e L
 
     - record default events including specific user function of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out
+        # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -q OBJDUMP:/usr/bin/objdump
 
     - record default events including specific kernel function of all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
@@ -20262,9 +20268,10 @@ Copyright:
                 sys.exit(0)
 
             # symbol input #
+            objdumpPath = None
             if not cmdFormat[1].startswith('0x'):
                 # symbol input with no objdump path #
-                if not SysMgr.objdumpPath:
+                if not 'OBJDUMP' in SysMgr.binPathList:
                     # get address of symbol in binary #
                     addr = ElfAnalyzer.getSymOffset(\
                         cmdFormat[1], cmdFormat[2])
@@ -20277,25 +20284,26 @@ Copyright:
                         if not objdumpPath:
                             SysMgr.printErr((\
                                 "fail to find objdump "
-                                "to get address of user-level function, "
-                                "use -l option to set custom path"))
+                                "to get address for user-level functions, "
+                                "use -q option with OBJDUMP to set binary path"))
                             sys.exit(0)
 
-                        SysMgr.objdumpPath = objdumpPath[0]
+                        SysMgr.binPathList['OBJDUMP'] = objdumpPath
+                        objdumpPath = objdumpPath[0]
 
                         SysMgr.printInfo(\
-                            "use %s as objdump path" % \
-                            SysMgr.objdumpPath)
+                            "use %s as objdump path" % objdumpPath)
                 # symbol input with objdump #
-                elif not os.path.isfile(SysMgr.objdumpPath):
-                    SysMgr.printErr(\
-                        "fail to find %s to use objdump" % \
-                        SysMgr.objdumpPath)
-                    sys.exit(0)
+                else:
+                    objdumpPath = SysMgr.binPathList['OBJDUMP'][0]
+                    if not os.path.isfile(objdumpPath):
+                        SysMgr.printErr(\
+                            "fail to find %s to use objdump" % objdumpPath)
+                        sys.exit(0)
 
                 # get address of symbol in binary #
                 addr = ElfAnalyzer.getSymOffset(\
-                    cmdFormat[1], cmdFormat[2], SysMgr.objdumpPath)
+                    cmdFormat[1], cmdFormat[2], objdumpPath)
                 if not addr:
                     SysMgr.printErr("fail to find '%s' in %s" % \
                         (cmdFormat[1], cmdFormat[2]))
@@ -23558,12 +23566,15 @@ Copyright:
                 if 'r' in options:
                     SysMgr.reportEnable = True
 
+                if 'I' in options:
+                    SysMgr.reportEnable = True
+                    SysMgr.elasticEnable = True
+
                 if 'd' in options:
                     SysMgr.diskEnable = True
 
                 if 'E' in options:
-                    SysMgr.reportEnable = True
-                    SysMgr.elasticEnable = True
+                    SysMgr.execEnable = True
 
                 if 'C' in options:
                     SysMgr.cgroupEnable = True
@@ -23585,14 +23596,6 @@ Copyright:
                     SysMgr.printInfo(\
                         "set %s as a boundary line" % \
                         ', '.join(SysMgr.boundaryLine))
-                elif SysMgr.isKillMode():
-                    pass
-                else:
-                    SysMgr.addr2linePath = value.split(',')
-
-                    SysMgr.printInfo(\
-                        "use %s as addr2line path" % \
-                        ', '.join(SysMgr.addr2linePath))
 
             elif option == 'r':
                 SysMgr.rootPath = value
@@ -26351,20 +26354,7 @@ Copyright:
             except:
                 return
 
-            # execute command #
-            for cmd in SysMgr.customCmd:
-                cmd = cmd.replace('PID', pid)
-
-                SysMgr.printInfo("executed '%s'" % cmd)
-                ret = SysMgr.createProcess(cmd.split())
-                if ret < 0:
-                    continue
-
-                # ignore signals and wait for child #
-                SysMgr.setIgnoreSignal()
-                os.wait()
-                SysMgr.setNormalSignal()
-
+            SysMgr.executeCommand(pid=pid)
             return
 
         # help #
@@ -26500,6 +26490,34 @@ Copyright:
 
 
     @staticmethod
+    def executeCommand(cmds=None, pid=None, comm=None):
+        if not cmds:
+            cmds = SysMgr.customCmd
+
+        # execute command #
+        for cmd in cmds:
+            if pid:
+                cmd = cmd.replace('PID', pid)
+
+            if comm:
+                cmd = cmd.replace('COMM', comm)
+
+            cmd = cmd.replace('TIME', str(SysMgr.uptime))
+
+            SysMgr.printInfo("executed '%s'" % cmd)
+
+            ret = SysMgr.createProcess(cmd.split())
+            if ret < 0:
+                continue
+
+            # ignore signals and wait for child #
+            SysMgr.setIgnoreSignal()
+            os.wait()
+            SysMgr.setNormalSignal()
+
+
+
+    @staticmethod
     def executeProcess(cmd=None, mute=False, closeAll=True):
         try:
             SysMgr.resetFileTable(mute, closeAll)
@@ -26597,6 +26615,11 @@ Copyright:
     def launchGuider(\
         cmd, log=False, mute=False, pipe=True, stderr=False, \
         wait=False, stream=True, logo=True):
+        '''
+        - desc: launch a new Guider process as a child
+        - pros: save memory such as ELF caches
+        - pros: control Guider functions such as logo, stdio
+        '''
 
         # check mute #
         if mute:
@@ -26663,9 +26686,13 @@ Copyright:
             if not stderr:
                 sys.stderr.close()
 
-            # launch Guider command #
+            # initialize variables #
             SysMgr.parsedAnalOption = False
             SysMgr.optionList = []
+            ConfigMgr.confData = {}
+            SysMgr.thresholdData = {}
+
+            # launch Guider command #
             main(cmd)
 
             sys.exit(0)
@@ -26821,7 +26848,7 @@ Copyright:
             for fd in fdList:
                 try:
                     fd = long(fd)
-                    if fd < 2:
+                    if fd > 2:
                         os.close(fd)
                 except SystemExit:
                     sys.exit(0)
@@ -31799,6 +31826,27 @@ Copyright:
 
         # update current terminal size #
         SysMgr.getTty()
+
+
+
+    @staticmethod
+    def disableBuffer(fd=None):
+        if not SysMgr.isLinux:
+            return
+
+        if not fd:
+            fd = sys.stdin.fileno()
+
+        try:
+            termios = SysMgr.getPkg('termios', False)
+            attr = termios.tcgetattr(fd)
+            attr[3] = attr[3] & ~termios.ECHO
+            termios.tcsetattr(fd, termios.TCSANOW, attr)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "fail to remove buffer for fd %s" % fd, reason=True)
 
 
 
@@ -40866,15 +40914,19 @@ struct cmsghdr {
                 SysMgr.printErr("fail to get path for python library")
                 return False
 
+        if type(pylib) is not list:
+            pylib = [pylib]
+
         # load the library #
-        ret = self.dlopen(pylib)
-        if self.isPyLoaded():
-            return True
-        else:
-            SysMgr.printErr(\
-                "fail to load %s for %s(%s)" % \
-                    (pylib, self.comm, self.pid))
-            return False
+        for lib in pylib:
+            ret = self.dlopen(lib)
+            if self.isPyLoaded():
+                return True
+
+        SysMgr.printErr(\
+            "fail to load %s for %s(%s)" % \
+                (','.join(pylib), self.comm, self.pid))
+        return False
 
 
 
@@ -44492,6 +44544,12 @@ struct cmsghdr {
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
+        # exec variable #
+        if SysMgr.execEnable is None:
+            self.execEnable = True
+        else:
+            self.execEnable = False
+
         # register variables #
         self.pc = None
         self.lr = None
@@ -44670,11 +44728,11 @@ struct cmsghdr {
 
                 # handle exec event #
                 if self.isExeced(ostat):
-                    if SysMgr.execEnable:
+                    if self.execEnable:
                         self.restartTrace()
                     else:
                         SysMgr.printErr(\
-                            'terminated %s(%s) because of exec' % \
+                            'terminated tracing for %s(%s) because of exec' % \
                                 (self.comm, self.pid))
                     sys.exit(0)
 
@@ -47331,6 +47389,7 @@ class ElfAnalyzer(object):
         if not objdumpPath:
             offset = None
 
+            # get offset #
             try:
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
@@ -47340,10 +47399,16 @@ class ElfAnalyzer(object):
 
                 offset = binObj.getOffsetBySymbol(\
                     symbol, inc=inc, start=start, end=end)
+
+                # handle executable #
+                if not ElfAnalyzer.isRelocFile(binPath):
+                    offset = long(offset, 16) - 0x400000
             except SystemExit:
                 sys.exit(0)
             except:
-                pass
+                SysMgr.printWarn(\
+                    'fail to get offset for %s from %s' % (symbol, binPath),\
+                        reason=True)
 
             if type(offset) is str:
                 offset = long(offset, 16)
@@ -47386,7 +47451,10 @@ class ElfAnalyzer(object):
             if not line:
                 err = proc.stderr.read()
                 if len(err) > 0:
-                    proc.terminate()
+                    try:
+                        proc.terminate()
+                    except:
+                        pass
                     SysMgr.printErr(err[err.find(':') + 2:])
                     sys.exit(0)
                 break
@@ -47401,7 +47469,10 @@ class ElfAnalyzer(object):
 
             d = m.groupdict()
             if d['symbol'] == symbol:
-                proc.terminate()
+                try:
+                    proc.terminate()
+                except:
+                    pass
                 return d['offset']
             elif symbol in d['symbol']:
                 syms.append([d['symbol'], d['offset']])
@@ -49750,7 +49821,7 @@ class ThreadAnalyzer(object):
             self.prevVmData = {}
             self.stackTable = {}
             self.prevSwaps = None
-            self.abnormalTaskList = {}
+            self.abnormalTasks = {}
             self.intervalData = {}
 
             # set index of attributes #
@@ -49857,6 +49928,12 @@ class ThreadAnalyzer(object):
             if SysMgr.waitEnable:
                 SysMgr.waitUserInput(\
                     0, msg="\npress enter key...", force=True)
+
+            # exec variable #
+            if SysMgr.execEnable is None:
+                self.execEnable = False
+            else:
+                self.execEnable = True
 
             # file top mode #
             if SysMgr.fileTopEnable:
@@ -50247,7 +50324,7 @@ class ThreadAnalyzer(object):
         self.nsData = {}
         self.cpuData = {}
         self.fileData = {}
-        self.abnormalTaskList = {}
+        self.abnormalTasks = {}
         self.nrPrevThread = self.nrThread
         self.nrPrevProcess = self.nrProcess
         self.nrThread = long(0)
@@ -55835,7 +55912,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(\
-                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+                "%16s(%5s/%5s): " % \
+                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
 
         # total user event usage on timeline #
         newLine = True
@@ -55870,7 +55948,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(\
-                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+                "%16s(%5s/%5s): " % \
+                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
 
         # total kernel event usage on timeline #
         newLine = True
@@ -55904,7 +55983,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(\
-                "%16s(%5s/%5s): " % (evt[:16], '0', '-----') + timeLine + '\n')
+                "%16s(%5s/%5s): " % \
+                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
 
         # print buffered info #
         SysMgr.printPipe("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
@@ -56414,39 +56494,41 @@ class ThreadAnalyzer(object):
 
 
     def getNetworkUsage(self, prev, now):
-        if prev == now:
+        if not now or \
+            prev == now:
             return (0, 0)
 
         nowIn = nowOut = prevIn = prevOut = long(0)
 
-        try:
-            idx = -1
+        idx = -1
 
-            for line in now:
-                idx += 1
-                if not line.startswith('IpExt'):
-                    continue
+        for line in now:
+            idx += 1
+            if not line:
+                continue
+            elif not line.startswith('IpExt'):
+                continue
 
+            try:
                 if SysMgr.netInIndex < 0:
                     SysMgr.netInIndex = line.split().index('InOctets')
 
-                try:
-                    nowStat = line.split()
-                    nowIn = long(nowStat[SysMgr.netInIndex])
-                    nowOut = long(nowStat[SysMgr.netInIndex + 1])
+                nowStat = line.split()
+                nowIn = long(nowStat[SysMgr.netInIndex])
+                nowOut = long(nowStat[SysMgr.netInIndex + 1])
 
-                    prevStat = prev[idx].split()
-                    prevIn = long(prevStat[SysMgr.netInIndex])
-                    prevOut = long(prevStat[SysMgr.netInIndex + 1])
+                prevStat = prev[idx].split()
+                prevIn = long(prevStat[SysMgr.netInIndex])
+                prevOut = long(prevStat[SysMgr.netInIndex + 1])
 
-                    inDiff = nowIn - prevIn
-                    outDiff = nowOut - prevOut
+                inDiff = nowIn - prevIn
+                outDiff = nowOut - prevOut
 
-                    return (inDiff, outDiff)
-                except:
-                    pass
-        except:
-            return (0, 0)
+                return (inDiff, outDiff)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return (0, 0)
 
 
 
@@ -62328,7 +62410,7 @@ class ThreadAnalyzer(object):
         except:
             SysMgr.printOpenWarn(statPath)
             self.procData.pop(tid, None)
-            self.abnormalTaskList[pid] = '?'
+            self.abnormalTasks[pid] = '?'
             return False
 
         # check stat change #
@@ -62358,7 +62440,7 @@ class ThreadAnalyzer(object):
         # check task status #
         tstat = self.procData[tid]['stat'][self.statIdx]
         if tstat != 'S' and tstat != 'R' and tstat != 'I':
-            self.abnormalTaskList[tid] = tstat
+            self.abnormalTasks[tid] = tstat
 
         # set comm #
         comm = self.procData[tid]['comm'] = \
@@ -63952,15 +64034,22 @@ class ThreadAnalyzer(object):
 
 
     def printDefaultUsage(self, title):
-        nrNewThreads = \
-            self.cpuData['processes']['processes'] - \
-            self.prevCpuData['processes']['processes']
+        try:
+            nrNewThreads = \
+                self.cpuData['processes']['processes'] - \
+                self.prevCpuData['processes']['processes']
+        except SystemExit:
+            sys.exit(0)
+        except:
+            nrNewThreads = 0
 
         try:
             loadlist = SysMgr.loadavg.split()[:3]
             for idx, load in enumerate(loadlist):
                 loadlist[idx] = str('%d' % float(load))
             loadavg = '/'.join(loadlist)
+        except SystemExit:
+            sys.exit(0)
         except:
             loadavg = '?'
 
@@ -63970,6 +64059,8 @@ class ThreadAnalyzer(object):
                 oomstr = ' [OOM: %d] ' % oom_kill
             else:
                 oomstr = ' '
+        except SystemExit:
+            sys.exit(0)
         except:
             oomstr = ' '
             oom_kill = long(0)
@@ -63977,30 +64068,40 @@ class ThreadAnalyzer(object):
         try:
             nrCtxt = \
                 self.cpuData['ctxt']['ctxt'] - self.prevCpuData['ctxt']['ctxt']
+        except SystemExit:
+            sys.exit(0)
         except:
             nrCtxt = long(0)
 
         try:
             nrTermThreads = \
                 abs(self.nrThread - nrNewThreads - self.nrPrevThread)
+        except SystemExit:
+            sys.exit(0)
         except:
             nrTermThreads = long(0)
 
         try:
             nrIrq = \
                 self.cpuData['intr']['intr'] - self.prevCpuData['intr']['intr']
+        except SystemExit:
+            sys.exit(0)
         except:
             nrIrq = long(0)
 
         try:
             memTotal = UtilMgr.convSize2Unit(\
                 self.memData['MemTotal'] << 10)
+        except SystemExit:
+            sys.exit(0)
         except:
             memTotal = long(0)
 
         try:
             swapTotal = UtilMgr.convSize2Unit(\
                 self.memData['SwapTotal'] << 10)
+        except SystemExit:
+            sys.exit(0)
         except:
             swapTotal = long(0)
 
@@ -65061,10 +65162,17 @@ class ThreadAnalyzer(object):
             elif SysMgr.ussEnable:
                 mems = uss >> 8
 
-            # make directory #
-            if SysMgr.customCmd and idIndex:
-                SysMgr.idList.append(idx)
-                comm = '%s>%s' % (len(SysMgr.idList)-1, comm)
+            if SysMgr.customCmd:
+                # execute command #
+                if self.execEnable:
+                    SysMgr.executeCommand(pid=idx, comm=comm)
+
+                # add shortcut prefix to comm #
+                if idIndex:
+                    SysMgr.idList.append(idx)
+                    idStr = '%s>' % (len(SysMgr.idList)-1)
+                    spaces = ' ' * (SysMgr.commLen - len(idStr) - len(comm))
+                    comm = '%s%s%s' % (idStr, spaces, comm)
 
             # remove unshown field in lifetime #
             if len(lifeTime.split(':')) > 3:
@@ -65344,7 +65452,7 @@ class ThreadAnalyzer(object):
 
         # get task list #
         if taskType == 'abnormal':
-            taskList = set(self.abnormalTaskList.keys())
+            taskList = set(self.abnormalTasks.keys())
         elif taskType == 'new':
             taskList = \
                 set(self.procData.keys()) - set(self.prevProcData.keys())
@@ -65372,14 +65480,13 @@ class ThreadAnalyzer(object):
                     stat = value['stat']
 
             # set comm #
+            comm = stat[self.commIdx][1:-1]
             if taskType == 'new':
-                comm = ('[+]%s' % stat[self.commIdx][1:-1])[:16]
+                comm = '[+]%s' % comm
             elif taskType == 'die':
-                comm = ('[-]%s' % stat[self.commIdx][1:-1])[:16]
+                comm = '[-]%s' % comm
             elif taskType == 'abnormal':
-                comm = ('[%s]%s' % \
-                    (self.abnormalTaskList[idx], \
-                        stat[self.commIdx][1:-1]))[:16]
+                comm = '[%s]%s' % (self.abnormalTasks[idx], comm)
 
             if SysMgr.processEnable:
                 pid = stat[self.ppidIdx]
@@ -65827,17 +65934,19 @@ class ThreadAnalyzer(object):
                     'executed "%s" by %s event' % (cmd, event))
 
                 # launch Guider #
-                if cmd.startswith('GUIDER'):
+                if cmd.startswith('GUIDER '):
                     # build command list #
                     cmdList = cmd.lstrip('GUIDER ').split(' ')
 
                     # launch command #
                     try:
                         ret = SysMgr.launchGuider(\
-                            cmdList, pipe=False, stderr=True, stream=False, logo=False)
+                            cmdList, pipe=False, stderr=True, \
+                            stream=False, logo=False)
                     except SystemExit:
                         sys.exit(0)
                     except:
+                        ret = False
                         SysMgr.printErr(\
                             "fail to launch guider", reason=True)
                 # launch command #
@@ -65874,7 +65983,7 @@ class ThreadAnalyzer(object):
                     ', '.join(nlist))
 
             # execute commands #
-            self.executeEventCommand(elist)
+            self.executeEventCommand(nlist)
 
         # update event list #
         SysMgr.thresholdEventList = self.reportData['event']
@@ -65956,7 +66065,8 @@ class ThreadAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            SysMgr.printWarn(\
+                'fail to check task thresholds', reason=True)
 
         # handle events #
         self.handleThresholdEvents()
@@ -66049,14 +66159,12 @@ class ThreadAnalyzer(object):
             self.setThresholdEvent(\
                 intval, comval, item, event, attr, \
                 comp, target, addval, oneshot)
-        elif type(comval) is not list:
-            return
-
-        for comitem in comval:
-            oneshot = getOneshotFlag(comitem)
-            self.setThresholdEvent(\
-                intval, comitem, item, event, attr, \
-                comp, target, addval, oneshot)
+        elif type(comval) is list:
+            for comitem in comval:
+                oneshot = getOneshotFlag(comitem)
+                self.setThresholdEvent(\
+                    intval, comitem, item, event, attr, \
+                    comp, target, addval, oneshot)
 
 
 
@@ -66083,41 +66191,55 @@ class ThreadAnalyzer(object):
         # traverse all tasks #
         for pid, data in self.procData.items():
             for item in ilist:
-                resource, cattr, pattr, intname, event, comp = item
+                try:
+                    resource, cattr, pattr, intname, event, comp = item
 
-                if not resource in td:
-                    continue
-
-                value = data[pattr]
-
-                if intname in data:
-                    intval = data[intname]
-                else:
-                    intval = None
-
-                if not value:
-                    if not intval:
-                        continue
-                    if set(intval) == set([0]):
+                    if not resource in td:
                         continue
 
-                if False and pid in SysMgr.jsonData[mode]:
-                    append = {'task': {pid: SysMgr.jsonData[mode][pid]}}
-                else:
-                    append = {'task': {pid: data}}
+                    value = data[pattr]
 
-                if not resource in exceptTaskResource and \
-                    'TASK' in td[resource]:
-                    self.checkThreshold(\
-                        resource, cattr, event, comp,\
-                            value, 'TASK', intval, append)
-                else:
-                    exceptTaskResource.setdefault(resource, None)
+                    if intname in data:
+                        intval = data[intname]
+                    else:
+                        intval = None
 
-                if data['comm'] in td[resource]:
-                    self.checkThreshold(\
-                        resource, cattr, event, comp,\
-                            value, data['comm'], intval, append)
+                    if not value:
+                        if not intval:
+                            continue
+                        if set(intval) == set([0]):
+                            continue
+
+                    if False and pid in SysMgr.jsonData[mode]:
+                        append = {'task': {pid: SysMgr.jsonData[mode][pid]}}
+                    else:
+                        append = {'task': {pid: data}}
+
+                    # check all tasks #
+                    if not resource in exceptTaskResource and \
+                        'TASK' in td[resource]:
+                        try:
+                            self.checkThreshold(\
+                                resource, cattr, event, comp,\
+                                    value, 'TASK', intval, append)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(\
+                                'fail to check task thresholds', reason=True)
+                    else:
+                        exceptTaskResource.setdefault(resource, None)
+
+                    # check a specific task #
+                    if data['comm'] in td[resource]:
+                        self.checkThreshold(\
+                            resource, cattr, event, comp,\
+                                value, data['comm'], intval, append)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(\
+                        'fail to check task thresholds', reason=True)
 
 
 
