@@ -18,6 +18,7 @@ set tabstop=4
 set softtabstop=4
 set expandtab 
 set ignorecase
+set redrawtime=100000
 
 filetype plugin indent on
 
