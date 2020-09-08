@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200908"
+__revision__ = "200909"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13589,6 +13589,7 @@ class SysMgr(object):
     comm = __module__
     commLen = 16
     masterPid = long(0)
+    parentPid = long(0)
     prio = None
     funcDepth = long(0)
     maxPid = 32768
@@ -15246,6 +15247,22 @@ class SysMgr(object):
                 return []
             else:
                 return ''
+
+
+
+    @staticmethod
+    def getTracerId(pid):
+        statusPath = \
+            '%s/%s/status' % (SysMgr.procPath, pid)
+        try:
+            with open(statusPath, 'r') as fd:
+                for line in fd.readlines():
+                    if line.startswith('TracerPid'):
+                        return long(line.split(':')[1].split()[0])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return 0
 
 
 
@@ -22646,10 +22663,11 @@ Copyright:
 
                 # append suffix to output file #
                 if SysMgr.fileSuffix:
-                    name, ext = os.path.splitext(\
-                        os.path.basename(SysMgr.inputFile))
-                    SysMgr.inputFile = \
-                        '%s_%s%s' % (name, SysMgr.fileSuffix, ext)
+                    dirname = os.path.dirname(SysMgr.inputFile)
+                    filename = os.path.basename(SysMgr.inputFile)
+                    name, ext = os.path.splitext(filename)
+                    SysMgr.inputFile = '%s/%s_%s%s' % \
+                        (dirname, name, SysMgr.fileSuffix, ext)
 
                 # append uptime to the output file #
                 if not SysMgr.termFlag:
@@ -22805,8 +22823,14 @@ Copyright:
         else:
             rstring = ''
 
-        msg = ('\n%s%s%s%s%s\n' % \
-            (ConfigMgr.WARNING, '[Warning] ', line, rstring, ConfigMgr.ENDC))
+        if SysMgr.parentPid > 0:
+            proc = '<%s(%s)> ' % (SysMgr.comm, SysMgr.pid)
+        else:
+            proc = ''
+
+        msg = ('\n%s%s%s%s%s%s\n' % \
+            (ConfigMgr.WARNING, '[Warning] ', proc, \
+                line, rstring, ConfigMgr.ENDC))
 
         if 'REMOTERUN' in os.environ:
             print(msg.replace('\n', ''))
@@ -22820,8 +22844,10 @@ Copyright:
         # print backtrace #
         #SysMgr.printBacktrace()
 
+        '''
         if not SysMgr.logEnable:
             return
+        '''
 
         SysMgr.flushAllForPrint()
 
@@ -22835,8 +22861,14 @@ Copyright:
         except:
             pass
 
-        msg = ('\n%s%s%s%s%s\n' % \
-            (ConfigMgr.FAIL, '[Error] ', line, rstring, ConfigMgr.ENDC))
+        if SysMgr.parentPid > 0:
+            proc = '<%s(%s)> ' % (SysMgr.comm, SysMgr.pid)
+        else:
+            proc = ''
+
+        msg = ('\n%s%s%s%s%s%s\n' % \
+            (ConfigMgr.FAIL, '[Error] ', proc, \
+                line, rstring, ConfigMgr.ENDC))
 
         if 'REMOTERUN' in os.environ:
             print(msg.replace('\n', ''))
@@ -22931,6 +22963,36 @@ Copyright:
     def printOpenWarn(path, always=False):
         SysMgr.printWarn(\
             'fail to open %s' % path, always, reason=True)
+
+
+
+    @staticmethod
+    def splitOptionString(option):
+        stringList = {}
+
+        # process strings in "" #
+        strings = re.findall("\"(.*?)\"", option)
+        if strings:
+            # create an dictionary for strings #
+            for idx, item in enumerate(strings):
+                if not item:
+                    continue
+
+                val = '#%s#' % idx
+                stringList.setdefault(item.strip('"'), val)
+
+            # replace strings #
+            for string, value in stringList.items():
+                option = option.replace('"%s"' % string, value)
+
+        # split the option string #
+        option = option.split(' ')
+        for string, value in stringList.items():
+            for idx, item in enumerate(deepcopy(option)):
+                if value in item:
+                    option[idx] = item.replace(value, string)
+
+        return option
 
 
 
@@ -23175,8 +23237,7 @@ Copyright:
                 SysMgr.outPath = '%s.out' % \
                     os.path.splitext(SysMgr.outputFile)[0]
             else:
-                SysMgr.outPath = \
-                    SysMgr.outputFile
+                SysMgr.outPath = SysMgr.outputFile
 
 
 
@@ -23257,18 +23318,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'o':
-                # apply default path #
-                if value == '':
-                    value = '.'
-
-                # check writable access #
-                if not SysMgr.isWritable(value):
-                    SysMgr.printErr((\
-                        "wrong PATH %s with -o option "
-                        "because of permission") % value)
-                    sys.exit(0)
-
-                SysMgr.outPath = os.path.normpath(value)
+                SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
                 SysMgr.inputParam = value
@@ -23795,6 +23845,26 @@ Copyright:
                     "unrecognized option -%s for analysis" % option)
                 sys.exit(0)
 
+
+
+    @staticmethod
+    def parseCommonOption(option, value):
+        if option == 'o':
+            # apply default path #
+            if value == '':
+                value = '.'
+
+            # check writable access #
+            if not SysMgr.isWritable(value):
+                SysMgr.printErr((\
+                    "wrong PATH %s with -o option "
+                    "because of permission") % value)
+                sys.exit(0)
+
+            SysMgr.outPath = os.path.normpath(value)
+
+
+
     @staticmethod
     def parseRecordOption():
         if not "ISMAIN" in os.environ:
@@ -24045,15 +24115,7 @@ Copyright:
                 SysMgr.parseRuntimeOption(value)
 
             elif option == 'o':
-                # apply default path #
-                if value == '':
-                    value = '.'
-
-                SysMgr.outPath = str(value)
-                if not SysMgr.outPath:
-                    SysMgr.printErr(\
-                        "no value with -o option")
-                    sys.exit(0)
+                SysMgr.parseCommonOption(option, value)
 
             elif option == 'c':
                 itemList = UtilMgr.parseInputString(value)
@@ -26496,17 +26558,40 @@ Copyright:
 
         # execute command #
         for cmd in cmds:
+            # convert PID #
             if pid:
                 cmd = cmd.replace('PID', pid)
 
+            # convert COMM #
             if comm:
                 cmd = cmd.replace('COMM', comm)
 
+            # convert TIME #
             cmd = cmd.replace('TIME', str(SysMgr.uptime))
 
             SysMgr.printInfo("executed '%s'" % cmd)
 
-            ret = SysMgr.createProcess(cmd.split())
+            # launch Guider #
+            if cmd.startswith('GUIDER '):
+                # build command list #
+                cmdList = SysMgr.splitOptionString(cmd.lstrip('GUIDER '))
+
+                # launch command #
+                try:
+                    ret = SysMgr.launchGuider(\
+                        cmdList, pipe=False, stderr=True, \
+                        stream=False, logo=False)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    ret = False
+                    SysMgr.printErr(\
+                        "fail to launch guider", reason=True)
+            # launch command #
+            else:
+                ret = SysMgr.createProcess(cmd.split())
+
+            # check return #
             if ret < 0:
                 continue
 
@@ -26660,11 +26745,14 @@ Copyright:
             # reinitialize static variables #
             #globals().update(vars(SysMgr))
 
-            # disable pager #
+            # disable pager, print output both to file and to stdout #
             if stream:
                 SysMgr.printStreamEnable = True
-            SysMgr.outPath = SysMgr.fileForPrint = None
+            SysMgr.inputFile = None
+            SysMgr.outPath = None
+            SysMgr.fileForPrint = None
             SysMgr.printEnable = True
+            SysMgr.encodeEnable = False
             SysMgr.reportEnable = SysMgr.jsonOutputEnable = False
 
             # disable logo #
@@ -26674,7 +26762,6 @@ Copyright:
             # disable logs #
             if not log:
                 SysMgr.logEnable = False
-                SysMgr.encodeEnable = False
 
             # change standard I/O #
             if pipe:
@@ -26691,6 +26778,8 @@ Copyright:
             SysMgr.optionList = []
             ConfigMgr.confData = {}
             SysMgr.thresholdData = {}
+            SysMgr.procBuffer = []
+            SysMgr.clearPrint()
 
             # launch Guider command #
             main(cmd)
@@ -26757,6 +26846,9 @@ Copyright:
             return pid
         # child #
         elif pid == 0:
+            # update parent PID #
+            SysMgr.parentPid = SysMgr.pid
+
             # initialize child list #
             SysMgr.clearChildList()
 
@@ -40607,8 +40699,15 @@ struct cmsghdr {
         while 1:
             ret = self.ptrace(cmd)
             if ret != 0:
-                SysMgr.printWarn('fail to attach %s(%s) to guider(%s)' % \
-                    (self.comm, pid, SysMgr.pid), verb)
+                tracer = SysMgr.getTracerId(pid)
+                if tracer > 0:
+                    reason = ' because it is being traced by %s(%s)' % \
+                        (SysMgr.getComm(tracer), tracer)
+                else:
+                    reason = ''
+
+                SysMgr.printWarn('fail to attach %s(%s) to guider(%s)%s' % \
+                    (self.comm, pid, SysMgr.pid, reason), verb)
 
                 # check return #
                 if not cont:
@@ -63507,7 +63606,7 @@ class ThreadAnalyzer(object):
         if not SysMgr.reportEnable and not SysMgr.jsonOutputEnable:
             return
 
-        self.reportData = {}
+        self.reportData = dict()
 
         # timestamp #
         self.reportData['timestamp'] = SysMgr.uptime
@@ -65165,7 +65264,7 @@ class ThreadAnalyzer(object):
             if SysMgr.customCmd:
                 # execute command #
                 if self.execEnable:
-                    SysMgr.executeCommand(pid=idx, comm=comm)
+                    SysMgr.executeCommand(pid=idx, comm=comm.lstrip('*'))
 
                 # add shortcut prefix to comm #
                 if idIndex:
@@ -65914,7 +66013,7 @@ class ThreadAnalyzer(object):
                 type(value['command']) is not list:
                 continue
 
-            # skip processing event #
+            # skip events that already exist #
             if event in self.eventCommandList:
                 continue
             elif not value['run']:
@@ -65924,11 +66023,13 @@ class ThreadAnalyzer(object):
                 # convert PID #
                 if 'task' in value:
                     pid = list(value['task'].keys())[0]
-                    cmd = cmd.replace('PID', pid)
+                    cmd = cmd.replace('EVTPID', pid)
+
+                # convert EVENT #
+                cmd = cmd.replace('EVTNAME', event)
 
                 # convert TIME #
-                if 'TIME' in cmd:
-                    cmd = cmd.replace('TIME', str(long(SysMgr.uptime)))
+                cmd = cmd.replace('EVTTIME', str(long(SysMgr.uptime)))
 
                 SysMgr.printInfo(\
                     'executed "%s" by %s event' % (cmd, event))
@@ -65936,7 +66037,7 @@ class ThreadAnalyzer(object):
                 # launch Guider #
                 if cmd.startswith('GUIDER '):
                     # build command list #
-                    cmdList = cmd.lstrip('GUIDER ').split(' ')
+                    cmdList = SysMgr.splitOptionString(cmd.lstrip('GUIDER '))
 
                     # launch command #
                     try:
@@ -66117,7 +66218,7 @@ class ThreadAnalyzer(object):
             ename = '%s%s' % (ename, addinfo)
 
         # set value for event #
-        self.reportData['event'].setdefault(ename, comval)
+        self.reportData['event'][ename] = deepcopy(comval)
         self.reportData['event'][ename]['run'] = run
 
 
@@ -66138,11 +66239,13 @@ class ThreadAnalyzer(object):
 
         td = SysMgr.thresholdData
 
+        # check attribute #
         if resource in td and attr in td[resource]:
             comval = td[resource][attr]
         else:
             return
 
+        # get previous usages #
         if intval:
             pass
         elif resource in self.intervalData:
@@ -66150,6 +66253,7 @@ class ThreadAnalyzer(object):
         else:
             intval = []
 
+        # get current usage #
         if not target:
             target = self.reportData[resource][item]
 
@@ -66190,6 +66294,10 @@ class ThreadAnalyzer(object):
 
         # traverse all tasks #
         for pid, data in self.procData.items():
+            # skip Guider #
+            if data['comm'] == __module__:
+                continue
+
             for item in ilist:
                 try:
                     resource, cattr, pattr, intname, event, comp = item
@@ -66362,11 +66470,8 @@ class ThreadAnalyzer(object):
         # check resource threshold #
         self.checkResourceThreshold()
 
-        # get event number #
-        nrEvent = len(self.reportData['event'])
-
         # print system status to file if condition is met #
-        if nrEvent > 0 and \
+        if len(self.reportData['event']) > 0 and \
             SysMgr.reportFileEnable and \
             SysMgr.outPath:
 
