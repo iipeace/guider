@@ -3604,7 +3604,7 @@ class UtilMgr(object):
                 sys.exit(0)
             except:
                 SysMgr.printWarn(\
-                    "fail to parse %s by seperator %s" % (item, sep), True)
+                    "fail to parse %s by seperator %s" % (item, sep))
                 continue
 
         return newDict
@@ -22666,8 +22666,9 @@ Copyright:
                     dirname = os.path.dirname(SysMgr.inputFile)
                     filename = os.path.basename(SysMgr.inputFile)
                     name, ext = os.path.splitext(filename)
-                    SysMgr.inputFile = '%s/%s_%s%s' % \
-                        (dirname, name, SysMgr.fileSuffix, ext)
+                    filepath = os.path.join(dirname, name)
+                    SysMgr.inputFile = '%s_%s%s' % \
+                        (filepath, SysMgr.fileSuffix, ext)
 
                 # append uptime to the output file #
                 if not SysMgr.termFlag:
@@ -22811,11 +22812,8 @@ Copyright:
 
     @staticmethod
     def printWarn(line, always=False, reason=False):
-        if not SysMgr.logEnable:
-            return
-
-        if not SysMgr.warnEnable and \
-            not always:
+        if not SysMgr.logEnable or \
+            (not SysMgr.warnEnable and not always):
             return
 
         if reason:
@@ -22823,10 +22821,7 @@ Copyright:
         else:
             rstring = ''
 
-        if SysMgr.parentPid > 0:
-            proc = '<%s(%s)> ' % (SysMgr.comm, SysMgr.pid)
-        else:
-            proc = ''
+        proc = SysMgr.getProcInfo()
 
         msg = ('\n%s%s%s%s%s%s\n' % \
             (ConfigMgr.WARNING, '[Warning] ', proc, \
@@ -22844,10 +22839,8 @@ Copyright:
         # print backtrace #
         #SysMgr.printBacktrace()
 
-        '''
-        if not SysMgr.logEnable:
+        if not SysMgr.logEnable and SysMgr.forceEnable:
             return
-        '''
 
         SysMgr.flushAllForPrint()
 
@@ -22861,10 +22854,7 @@ Copyright:
         except:
             pass
 
-        if SysMgr.parentPid > 0:
-            proc = '<%s(%s)> ' % (SysMgr.comm, SysMgr.pid)
-        else:
-            proc = ''
+        proc = SysMgr.getProcInfo()
 
         msg = ('\n%s%s%s%s%s%s\n' % \
             (ConfigMgr.FAIL, '[Error] ', proc, \
@@ -22874,6 +22864,15 @@ Copyright:
             print(msg.replace('\n', ''))
         else:
             SysMgr.stderr.write(msg)
+
+
+
+    @staticmethod
+    def getProcInfo():
+        if SysMgr.parentPid > 0:
+            return '<%s(%s)> ' % (SysMgr.comm, SysMgr.pid)
+        else:
+            return ''
 
 
 
@@ -22892,15 +22891,17 @@ Copyright:
         else:
             prefix = ''
 
+        proc = SysMgr.getProcInfo()
+
         if suffix:
             try:
-                print('%s%s%s%s%s' % \
-                    (prefix, ConfigMgr.BOLD, title, line, ConfigMgr.ENDC))
+                print('%s%s%s%s%s%s' % \
+                    (prefix, ConfigMgr.BOLD, title, proc, line, ConfigMgr.ENDC))
             except:
                 return
         else:
-            sys.stdout.write('%s%s%s%s%s' % \
-                (prefix, ConfigMgr.BOLD, title, line, ConfigMgr.ENDC))
+            sys.stdout.write('%s%s%s%s%s%s' % \
+                (prefix, ConfigMgr.BOLD, title, proc, line, ConfigMgr.ENDC))
             sys.stdout.flush()
 
 
@@ -22910,8 +22911,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        print('\n%s%s%s%s' % \
-            (ConfigMgr.OKGREEN, '[Info] ', line, ConfigMgr.ENDC))
+        proc = SysMgr.getProcInfo()
+
+        print('\n%s%s%s%s%s' % \
+            (ConfigMgr.OKGREEN, '[Info] ', proc, line, ConfigMgr.ENDC))
 
 
 
@@ -22920,8 +22923,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        print('\n%s%s%s' % \
-            (ConfigMgr.UNDERLINE, line, ConfigMgr.ENDC))
+        proc = SysMgr.getProcInfo()
+
+        print('\n%s%s%s%s' % \
+            (ConfigMgr.UNDERLINE, proc, line, ConfigMgr.ENDC))
 
 
 
@@ -22930,8 +22935,10 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        print('\n%s%s%s%s' % \
-            (ConfigMgr.SPECIAL, '[Step] ', line, ConfigMgr.ENDC))
+        proc = SysMgr.getProcInfo()
+
+        print('\n%s%s%s%s%s' % \
+            (ConfigMgr.SPECIAL, '[Step] ', proc, line, ConfigMgr.ENDC))
 
 
 
@@ -26580,13 +26587,13 @@ Copyright:
                 try:
                     ret = SysMgr.launchGuider(\
                         cmdList, pipe=False, stderr=True, \
-                        stream=False, logo=False)
+                        stream=False, logo=False, log=True)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     ret = False
                     SysMgr.printErr(\
-                        "fail to launch guider", reason=True)
+                        "fail to launch %s" % __module__, reason=True)
             # launch command #
             else:
                 ret = SysMgr.createProcess(cmd.split())
@@ -26733,9 +26740,12 @@ Copyright:
             # wait for child temrination #
             if wait:
                 SysMgr.waitChild(pid)
-                return None
+                return pid
 
-            return (pid, rdFd)
+            if pipe:
+                return (pid, rdFd)
+            else:
+                return pid
 
         # child #
         elif pid == 0:
@@ -26754,6 +26764,28 @@ Copyright:
             SysMgr.printEnable = True
             SysMgr.encodeEnable = False
             SysMgr.reportEnable = SysMgr.jsonOutputEnable = False
+
+            # inherit enable and disable option value #
+            disOptVal = SysMgr.getOption('d')
+            enOptVal = SysMgr.getOption('e')
+            if disOptVal or enOptVal:
+                applyDisable = False
+                applyEnable = False
+
+                # append option values #
+                for idx, val in enumerate(cmd):
+                    if val.startswith('-d'):
+                        cmd[idx] = val + disOptVal
+                        applyDisable = True
+                    elif val.startswith('-e'):
+                        cmd[idx] = val + enOptVal
+                        applyEnable = True
+
+                # append option #
+                if disOptVal and not applyDisable:
+                    cmd.append('-d %s' % disOptVal)
+                if enOptVal and not applyEnable:
+                    cmd.append('-e %s' % enOptVal)
 
             # disable logo #
             if not logo:
@@ -26780,6 +26812,7 @@ Copyright:
             SysMgr.thresholdData = {}
             SysMgr.procBuffer = []
             SysMgr.clearPrint()
+            SysMgr.groupProcEnable = False
 
             # launch Guider command #
             main(cmd)
@@ -26789,7 +26822,8 @@ Copyright:
         # error #
         else:
             SysMgr.printErr(\
-                "fail to launch Guider because of process creation fail")
+                "fail to launch Guider because of fork fail")
+            return -1
 
 
 
@@ -31464,20 +31498,27 @@ Copyright:
             taskType = 'process'
 
         nrProc = long(0)
+        isSent = False
         if pidList and type(pidList) is list:
             for pid in pidList:
+                pid = pid.strip()
+                if not pid:
+                    continue
+
                 # check pid type #
                 try:
                     pid = long(pid)
                 except:
                     SysMgr.printErr(\
-                        "fail to recognize %s as a PID" % pid)
+                        "fail to recognize '%s' as a PID" % pid)
                     return
 
                 # skip myself #
                 if pid == SysMgr.pid or \
                     pid in exceptList:
                     continue
+
+                isSent = True
 
                 # send signal to a process #
                 try:
@@ -31495,7 +31536,8 @@ Copyright:
                 except:
                     SysMgr.printSigError(pid, SIG_LIST[nrSig], False)
 
-            return
+            if isSent:
+                return
 
         # get my comm #
         myComm = SysMgr.getComm(SysMgr.pid)
@@ -31556,7 +31598,7 @@ Copyright:
                         if SysMgr.isStartMode() and waitStatus:
                             SysMgr.printInfo(\
                                 "started %s(%s) to profile" % (comm, pid))
-                        elif SysMgr.isStopMode():
+                        else:
                             SysMgr.printInfo(\
                                 "sent signal %s to %s(%s) %s" % \
                                     (SIG_LIST[nrSig], comm, pid, taskType))
@@ -42694,6 +42736,8 @@ struct cmsghdr {
 
         if not regs and not bt:
             return
+        elif not SysMgr.printEnable:
+            return
 
         if newline:
             prefix = '\n'
@@ -44676,6 +44720,16 @@ struct cmsghdr {
         self.repeatCntList = dict()
         self.prevReturn = -1
 
+        # index variables #
+        self.sigExecFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
+        self.sigCloneFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
+        self.sigForkFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
+        self.sigVforkFlag = signal.SIGTRAP | \
+            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
+
         # make object for myself #
         if not Debugger.selfInstance or \
             Debugger.selfInstance.pid != SysMgr.pid:
@@ -44972,17 +45026,6 @@ struct cmsghdr {
     def trace(\
         self, mode, wait=None, multi=False, lock=None, bpList={}, \
             exceptBpList={}, targetBpList={}, targetBpFileList={}):
-
-        # index variables #
-        self.sigExecFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
-        self.sigCloneFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
-        self.sigForkFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
-        self.sigVforkFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
-
         # initialize variables #
         self.initValues()
 
@@ -58166,8 +58209,11 @@ class ThreadAnalyzer(object):
                     runtime = long(instance[pid]['stat'][stttimeIdx]) / 100
                     runtime = SysMgr.uptime - runtime
                     runtimestr = UtilMgr.convTime(runtime)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     runtime = '?'
+                    runtimestr = '?'
 
                 # get CPU time #
                 try:
@@ -58175,12 +58221,17 @@ class ThreadAnalyzer(object):
                     stime = long(instance[pid]['stat'][stimeIdx])
                     ttime = (utime + stime) / 100
                     ttimestr = UtilMgr.convTime(ttime)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     ttime = '?'
+                    ttimestr = '?'
 
                 # get CPU time by runtime #
                 try:
                     cpuPer = round(ttime / float(runtime) * 100, 1)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     cpuPer = 0
 
@@ -66020,15 +66071,18 @@ class ThreadAnalyzer(object):
                 continue
 
             for cmd in value['command']:
-                # convert PID #
+                # convert EVTPID #
                 if 'task' in value:
                     pid = list(value['task'].keys())[0]
                     cmd = cmd.replace('EVTPID', pid)
 
-                # convert EVENT #
+                # convert SELFPID #
+                cmd = cmd.replace('SELFPID', str(SysMgr.pid))
+
+                # convert EVTNAME #
                 cmd = cmd.replace('EVTNAME', event)
 
-                # convert TIME #
+                # convert EVTTIME #
                 cmd = cmd.replace('EVTTIME', str(long(SysMgr.uptime)))
 
                 SysMgr.printInfo(\
@@ -66043,13 +66097,13 @@ class ThreadAnalyzer(object):
                     try:
                         ret = SysMgr.launchGuider(\
                             cmdList, pipe=False, stderr=True, \
-                            stream=False, logo=False)
+                            stream=False, logo=False, log=True)
                     except SystemExit:
                         sys.exit(0)
                     except:
                         ret = False
                         SysMgr.printErr(\
-                            "fail to launch guider", reason=True)
+                            "fail to launch %s" % __module__, reason=True)
                 # launch command #
                 else:
                     ret = SysMgr.createProcess(cmd)
@@ -66073,15 +66127,15 @@ class ThreadAnalyzer(object):
         rlist = set(plist) - set(elist)
         if rlist:
             SysMgr.printInfo(\
-                "finished the threshold events [ %s ]" % \
-                    ', '.join(rlist))
+                "finished the threshold events [ %s ] at %s" % \
+                    (', '.join(rlist), SysMgr.uptime))
 
         # print new events #
         nlist = set(elist) - set(plist)
         if nlist:
             SysMgr.printInfo(\
-                "the threshold events [ %s ] occurred" % \
-                    ', '.join(nlist))
+                "the threshold events [ %s ] occurred at %s" % \
+                    (', '.join(nlist), SysMgr.uptime))
 
             # execute commands #
             self.executeEventCommand(nlist)
@@ -66103,64 +66157,72 @@ class ThreadAnalyzer(object):
         if not SysMgr.thresholdData:
             return
 
-        # check CPU threshold #
+        # check CPU #
         try:
-            self.checkThreshold(\
-                'cpu', 'total', 'CPU', 'big')
+            self.checkThreshold('cpu', 'total', 'CPU', 'big')
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check memory threshold #
+        # check memory #
         try:
-            self.checkThreshold(\
-                'mem', 'available', 'MEM', 'less')
+            self.checkThreshold('mem', 'available', 'MEM', 'less')
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check swap threshold #
+        # check swap #
         try:
-            self.checkThreshold(\
-                'swap', 'usagePer', 'SWAP', 'big')
+            self.checkThreshold('swap', 'usagePer', 'SWAP', 'big')
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check iowait threshold #
+        # check iowait #
         try:
-            self.checkThreshold(\
-                'block', 'ioWait', 'IO', 'big')
+            self.checkThreshold('block', 'ioWait', 'IO', 'big')
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check storage threshold #
+        # check storage #
         try:
+            # total #
+            vals = self.reportData['storage']['total']
             target = self.reportData['storage']['total']['usagePer']
             self.checkThreshold(\
-                'storage', 'usagePer', 'STORAGE', 'big', target)
+                'storage', 'usagePer', 'STORAGE', 'big', \
+                target, addval=vals)
+
+            # each devices #
+            for dev, vals in self.reportData['storage'].items():
+                if dev == 'total':
+                    continue
+
+                target = vals['usagePer']
+                vals.update({'dev': dev})
+                self.checkThreshold(\
+                    'storage', 'usagePer', 'STORAGE', 'big', \
+                    target, 'DEVICE', addval=vals)
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check network threshold #
+        # check network #
         try:
-            self.checkThreshold(\
-                'net', 'inbound', 'NETIN', 'big')
-            self.checkThreshold(\
-                'net', 'outbound', 'NETOUT', 'big')
+            self.checkThreshold('net', 'inbound', 'NETIN', 'big')
+            self.checkThreshold('net', 'outbound', 'NETOUT', 'big')
         except SystemExit:
             sys.exit(0)
         except:
             pass
 
-        # check task threshold #
+        # check task #
         try:
             self.checkTaskThreshold()
         except SystemExit:
@@ -66216,9 +66278,11 @@ class ThreadAnalyzer(object):
             for pid, data in comval['task'].items():
                 addinfo += '_%s_%s' % (data['comm'], pid)
             ename = '%s%s' % (ename, addinfo)
+        elif 'dev' in comval:
+            ename = '%s%s' % (ename, comval['dev'].replace('/', '_'))
 
         # set value for event #
-        self.reportData['event'][ename] = deepcopy(comval)
+        self.reportData['event'][ename] = dict(comval)
         self.reportData['event'][ename]['run'] = run
 
 
@@ -66259,12 +66323,20 @@ class ThreadAnalyzer(object):
 
         # set event #
         if type(comval) is dict:
+            # check apply attribute #
+            if 'apply' in comval and \
+                comval['apply'].upper() == 'FALSE':
+                return
             oneshot = getOneshotFlag(comval)
             self.setThresholdEvent(\
                 intval, comval, item, event, attr, \
                 comp, target, addval, oneshot)
         elif type(comval) is list:
             for comitem in comval:
+                # check apply attribute #
+                if 'apply' in comitem and \
+                    comitem['apply'].upper() == 'FALSE':
+                    continue
                 oneshot = getOneshotFlag(comitem)
                 self.setThresholdEvent(\
                     intval, comitem, item, event, attr, \
