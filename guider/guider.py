@@ -66238,9 +66238,21 @@ class ThreadAnalyzer(object):
 
                 target = vals['usagePer']
                 vals.update({'dev': dev})
-                self.checkThreshold(\
-                    'storage', 'usagePer', 'STORAGE', 'big', \
-                    target, 'DEVICE', addval=vals)
+
+                try:
+                    # a specific device #
+                    self.checkThreshold(\
+                        'storage', 'usagePer', 'STORAGE', 'big', \
+                        target, dev, addval=vals)
+
+                    # all devices #
+                    self.checkThreshold(\
+                        'storage', 'usagePer', 'STORAGE', 'big', \
+                        target, 'DEVICE', addval=vals)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
         except SystemExit:
             sys.exit(0)
         except:
@@ -66250,6 +66262,16 @@ class ThreadAnalyzer(object):
         try:
             self.checkThreshold('net', 'inbound', 'NETIN', 'big')
             self.checkThreshold('net', 'outbound', 'NETOUT', 'big')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check sched #
+        try:
+            target = self.reportData['task']['nrCtx']
+            self.checkThreshold(\
+                'task', 'nrCtx', 'CTXSWC', 'big', target)
         except SystemExit:
             sys.exit(0)
         except:
@@ -66287,7 +66309,8 @@ class ThreadAnalyzer(object):
             (comp == 'less' and comval[item] >= target):
             value = target
 
-        if not value:
+        # check value #
+        if value is None:
             return
 
         # add task info #
@@ -66312,7 +66335,10 @@ class ThreadAnalyzer(object):
                 addinfo += '_%s_%s' % (data['comm'], pid)
             ename = '%s%s' % (ename, addinfo)
         elif 'dev' in comval:
-            ename = '%s%s' % (ename, comval['dev'].replace('/', '_'))
+            ename = '%s%s' % (ename, comval['dev'])
+
+        # replace '/' with '_' for path by event name #
+        ename = ename.replace('/', '_')
 
         # set value for event #
         self.reportData['event'][ename] = dict(comval)
