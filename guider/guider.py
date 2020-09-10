@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200909"
+__revision__ = "200910"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -57335,10 +57335,17 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Top CPU Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
+        if SysMgr.processEnable:
+            idName = 'PID'
+            pidName = 'PPID'
+        else:
+            idName = 'TID'
+            pidName = 'PID'
+
         # Print menu #
         procInfo = \
             "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^12} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", "Min/Avg/Max", \
+            format('COMM', idName, pidName, "Nr", "Pri", "Min/Avg/Max", \
             cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
@@ -57516,9 +57523,16 @@ class ThreadAnalyzer(object):
             '\n[Top %s Info] (Unit: MB)\n' % mtype)
         SysMgr.printPipe("%s\n" % twoLine)
 
+        if SysMgr.processEnable:
+            idName = 'PID'
+            pidName = 'PPID'
+        else:
+            idName = 'TID'
+            pidName = 'PID'
+
         # Print menu #
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:^6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", " Max", cl=cl, pd=pd)
+            format('COMM', idName, pidName, "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -57646,9 +57660,16 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Top VSS Info] (Unit: MB)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
+        if SysMgr.processEnable:
+            idName = 'PID'
+            pidName = 'PPID'
+        else:
+            idName = 'TID'
+            pidName = 'PID'
+
         # Print menu #
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})|{5:^6} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", " Max", cl=cl, pd=pd)
+            format('COMM', idName, pidName, "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -57776,9 +57797,16 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Top Block Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
+        if SysMgr.processEnable:
+            idName = 'PID'
+            pidName = 'PPID'
+        else:
+            idName = 'TID'
+            pidName = 'PID'
+
         # Print menu #
         procInfo = "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}/{3:^4}/{4:>4})| {5:^5} |".\
-            format('COMM', "ID", "Pid", "Nr", "Pri", " Sum", cl=cl, pd=pd)
+            format('COMM', idName, pidName, "Nr", "Pri", " Sum", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -58277,12 +58305,17 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Top Memory Details] (Unit: MB/KB/NR)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
+        if SysMgr.processEnable:
+            idName = 'PID'
+        else:
+            idName = 'TID'
+
         # Print menu #
         SysMgr.printPipe((\
             "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
             "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
-            format('COMM', 'ID', 'Pid', 'Type', 'Cnt', \
+            format('COMM', idName, 'Pid', 'Type', 'Cnt', \
             'VSS/M', 'RSS/M', 'PSS/M', 'SWAP/M', 'HUGE/M', 'LOCK/K', \
             'PDRT/K', 'SDRT/K', 'NOPM/K', twoLine, cl=cl, pd=pd))
 
