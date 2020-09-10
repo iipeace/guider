@@ -13443,7 +13443,7 @@ class LogMgr(object):
                 else:
                     log = log[npos + 1:]
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonResult = \
                         dict(time=ltime, level=level, name=name, log=log)
                 else:
@@ -13464,7 +13464,7 @@ class LogMgr(object):
                 if not found:
                     continue
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonResult = UtilMgr.convDict2Str(jsonResult)
                 SysMgr.printPipe(jsonResult)
             else:
@@ -13827,7 +13827,7 @@ class SysMgr(object):
     userRecordEnable = True
     userEnableWarn = True
     printEnable = True
-    jsonOutputEnable = False
+    jsonEnable = False
     powerEnable = False
     pipeEnable = False
     depEnable = False
@@ -14500,7 +14500,7 @@ class SysMgr(object):
 
         # report #
         elif SysMgr.isRepTopMode():
-            SysMgr.jsonOutputEnable = True
+            SysMgr.jsonEnable = True
 
             if SysMgr.isRoot():
                 SysMgr.diskEnable = True
@@ -22482,7 +22482,7 @@ Copyright:
     @staticmethod
     def printTopStats():
         # JSON mode #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             # convert dict data to JSON-type string #
             jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData, pretty=False)
             if not jsonObj:
@@ -22512,7 +22512,7 @@ Copyright:
         if SysMgr.terminalOver:
             return True
         elif not SysMgr.outPath and \
-            not SysMgr.jsonOutputEnable and \
+            not SysMgr.jsonEnable and \
             not SysMgr.printStreamEnable and \
             SysMgr.bufferRows + newline >= \
                 SysMgr.ttyRows - SysMgr.ttyRowsMargin:
@@ -22747,7 +22747,7 @@ Copyright:
 
             # cut output by terminal size #
             try:
-                if ttyCols == 0 or SysMgr.jsonOutputEnable:
+                if ttyCols == 0 or SysMgr.jsonEnable:
                     line = '\n'.join([nline for nline in line.split('\n')])
                 else:
                     line = '\n'.join(\
@@ -23401,7 +23401,7 @@ Copyright:
                 SysMgr.parseAffinityOption(value.split(','))
 
             elif option == 'J':
-                SysMgr.jsonOutputEnable = True
+                SysMgr.jsonEnable = True
 
             elif option == 'k':
                 if not SysMgr.isKillMode():
@@ -24958,7 +24958,7 @@ Copyright:
                 sys.exit(0)
 
             # set debug flag #
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 debug = False
             else:
                 debug = True
@@ -24970,7 +24970,7 @@ Copyright:
                 else:
                     obj = ElfAnalyzer(path, debug, incArg=True)
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonStr = UtilMgr.convDict2Str(obj.attr)
                     SysMgr.printPipe(jsonStr)
             except SystemExit:
@@ -26092,7 +26092,7 @@ Copyright:
 
     @staticmethod
     def printBgProcs(cache=False, pager=False):
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             result = (SysMgr.getBgProcList(isJson=True))
             jsonResult = UtilMgr.convDict2Str(result)
             SysMgr.printPipe(jsonResult)
@@ -26763,7 +26763,7 @@ Copyright:
             SysMgr.fileForPrint = None
             SysMgr.printEnable = True
             SysMgr.encodeEnable = False
-            SysMgr.reportEnable = SysMgr.jsonOutputEnable = False
+            SysMgr.reportEnable = SysMgr.jsonEnable = False
 
             # inherit enable and disable option value #
             disOptVal = SysMgr.getOption('d')
@@ -28137,7 +28137,7 @@ Copyright:
         for pid in pids:
             comm = SysMgr.getComm(pid)
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 envs = SysMgr.getEnv(pid, retdict=True)
                 if not envs:
                     sys.exit(0)
@@ -28556,7 +28556,7 @@ Copyright:
         SysMgr()
         SysMgr.sysInstance.saveSysStat()
 
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             # convert dict data to JSON-type string #
             jsonObj = UtilMgr.convDict2Str(SysMgr.jsonData)
             if not jsonObj:
@@ -29349,7 +29349,7 @@ Copyright:
                 SysMgr.filterGroup = ['*']
 
         # print start path #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             result = dict()
             if SysMgr.showAll:
                 result[os.path.abspath(path)] = \
@@ -31160,7 +31160,7 @@ Copyright:
         obj.saveSystemStat()
 
         # print stat #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             # process system stat #
             obj.printSystemUsage()
 
@@ -33466,7 +33466,7 @@ Copyright:
             return
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['os'] = dict()
             jsonData = SysMgr.jsonData['general']['os']
@@ -33492,7 +33492,7 @@ Copyright:
                 SysMgr.infoBufferPrint(\
                     "{0:35} {1:<100}".format(name, value))
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonData[name] = value
         except:
             SysMgr.printWarn("fail to parse osData")
@@ -33512,7 +33512,7 @@ Copyright:
                 SysMgr.infoBufferPrint(\
                     "{0:35} {1:<100}".format(name, value))
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonData[name] = value
         except:
             pass
@@ -33523,7 +33523,7 @@ Copyright:
 
     def printSystemInfo(self):
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             jsonData = SysMgr.jsonData['general']
 
@@ -33539,7 +33539,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} # {1:<100}".\
                 format('Launch', launchOption))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['launch'] = launchOption
         except:
             pass
@@ -33549,7 +33549,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Version', '%s' % __version__))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['version'] = __version__
         except:
             pass
@@ -33560,7 +33560,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Python', pv))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['python'] = pv
         except:
             pass
@@ -33571,7 +33571,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Host', hostname))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['host'] = hostname
         except:
             pass
@@ -33582,7 +33582,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('OS', osInfo))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['os'] = osInfo
         except:
             pass
@@ -33593,7 +33593,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Kernel', kernelInfo))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['kernel'] = kernelInfo
         except:
             pass
@@ -33604,7 +33604,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Release', releaseInfo))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['release'] = releaseInfo
         except:
             pass
@@ -33614,7 +33614,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Arch', SysMgr.arch))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['arch'] = SysMgr.arch
         except:
             pass
@@ -33626,7 +33626,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Date', timeInfo))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['date'] = self.systemInfo['date']
                 jsonData['time'] = self.systemInfo['time']
         except:
@@ -33644,7 +33644,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('User', self.userData[uid]['name']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['user'] = self.userData[uid]['name']
         except:
             pass
@@ -33655,7 +33655,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Uptime', uptime))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['uptime'] = uptime
         except:
             pass
@@ -33668,7 +33668,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<100}".format('Runtime', runtime))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['runtime'] = runtime
         except:
             pass
@@ -33681,7 +33681,7 @@ Copyright:
                 '%s(5m)' % self.loadData[1], \
                 '%s(15m)' % self.loadData[2]))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['load1m'] = self.loadData[0]
                 jsonData['load5m'] = self.loadData[1]
                 jsonData['load15m'] = self.loadData[2]
@@ -33703,7 +33703,7 @@ Copyright:
                 '%s(running) / %s(total)%s' % \
                     (convNum(running), convNum(total), maxThd)))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['nrRunTask'] = running
                 jsonData['nrTotalTask'] = total
         except:
@@ -33714,7 +33714,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['lastPid'] = self.loadData[4]
         except:
             pass
@@ -33728,7 +33728,7 @@ Copyright:
             SysMgr.infoBufferPrint(\
                 "{0:20} {1:<10}".format('Mac', macStr))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['mac'] = macStr
         except:
             pass
@@ -33745,7 +33745,7 @@ Copyright:
                     "{0:20} {1:<100}".format(title, string))
                 title = ''
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['cmdline'] = self.cmdlineData
         except:
             pass
@@ -33759,7 +33759,7 @@ Copyright:
             return
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['cache'] = dict()
             jsonData = SysMgr.jsonData['general']['cache']
@@ -33779,7 +33779,7 @@ Copyright:
                         "{0:^20} {1:<100}".format(core[3:], info.strip()))
                     cnt += 1
 
-                    if SysMgr.jsonOutputEnable:
+                    if SysMgr.jsonEnable:
                         jsonData[core[3:]] = info.strip()
                 except:
                     pass
@@ -33807,7 +33807,7 @@ Copyright:
             self.cpuInfo[d['type'][0:len(d['type'])-1]] = d['val']
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['cpu'] = dict()
             jsonData = SysMgr.jsonData['general']['cpu']
@@ -33823,7 +33823,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Physical', physical))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['physical'] = physical
         except:
             pass
@@ -33832,7 +33832,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('CoresPerCPU', self.cpuInfo['cpu cores']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['corePerCPU'] = self.cpuInfo['cpu cores']
         except:
             pass
@@ -33842,7 +33842,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Logical', logical))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['logical'] = logical
         except:
             pass
@@ -33851,7 +33851,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Vendor', self.cpuInfo['vendor_id']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['vendor'] = self.cpuInfo['vendor_id']
         except:
             pass
@@ -33860,7 +33860,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Model', self.cpuInfo['model name']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['model'] = self.cpuInfo['model name']
         except:
             pass
@@ -33869,7 +33869,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Cache(L2)', self.cpuInfo['cache size']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['cacheL2'] = self.cpuInfo['cache size']
         except:
             pass
@@ -33878,7 +33878,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Perf', self.cpuInfo['bogomips']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['perf'] = self.cpuInfo['bogomips']
         except:
             pass
@@ -33887,7 +33887,7 @@ Copyright:
             SysMgr.infoBufferPrint("{0:20} {1:<100}".\
                 format('Address', self.cpuInfo['address sizes']))
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData['address'] = self.cpuInfo['address sizes']
         except:
             pass
@@ -34649,7 +34649,7 @@ Copyright:
             SysMgr.infoBufferPrint(twoLine)
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['cgroup'] = cgroupTree
 
@@ -34824,7 +34824,7 @@ Copyright:
             return None
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['gpu'] = dict()
             jsonData = SysMgr.jsonData['general']['gpu']
@@ -34838,7 +34838,7 @@ Copyright:
 
         for item in gpuInfo.values():
             name = item['name']
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 origName = name
                 jsonData.setdefault(origName, dict())
 
@@ -34850,7 +34850,7 @@ Copyright:
                     "{0:^32} | {1:>16} | {2:>32} |".format(\
                         name, key, value))
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonData[origName].setdefault(key, value)
 
                 name = ''
@@ -34870,7 +34870,7 @@ Copyright:
             return
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['gpu'] = dict()
             jsonData = SysMgr.jsonData['general']['gpumem']
@@ -34900,7 +34900,7 @@ Copyright:
 
             proc = '%s(%s)' % (comm, pid)
 
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData.setdefault(proc, size)
 
             SysMgr.infoBufferPrint(\
@@ -34916,7 +34916,7 @@ Copyright:
 
     def printNetworkInfo(self):
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['network'] = dict()
             jsonData = SysMgr.jsonData['general']['network']
@@ -35017,7 +35017,7 @@ Copyright:
 
                 cnt += 1
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonData[dev] = dict()
 
                     jsonData[dev]['ipaddr'] = val['ipaddr']
@@ -35083,7 +35083,7 @@ Copyright:
 
     def printStorageInfo(self):
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['storage'] = dict()
             jsonData = SysMgr.jsonData['general']['storage']
@@ -35247,7 +35247,7 @@ Copyright:
                 pass
 
             try:
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     jsonData[key] = {
                         'major': major,
                         'minor': minor,
@@ -35463,7 +35463,7 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
             SysMgr.jsonData['general']['mem'] = {
                 'memTotal': convertFunc(long(after['MemTotal']) << 10),
@@ -37308,7 +37308,7 @@ class DbusAnalyzer(object):
                 SysMgr.outPath = SysMgr.fileForPrint = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
-                SysMgr.jsonOutputEnable = True
+                SysMgr.jsonEnable = True
 
                 # execute strace mode #
                 SysMgr.doTrace('syscall')
@@ -43979,7 +43979,7 @@ struct cmsghdr {
             bts = ''
 
         # print context in JSON format #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             jsonData = {
                 "type": "enter",
                 "time": self.current,
@@ -44146,7 +44146,7 @@ struct cmsghdr {
                 if self.isDeferrableCall(name):
                     self.status = 'deferrable'
 
-                    if SysMgr.jsonOutputEnable:
+                    if SysMgr.jsonEnable:
                         return
 
                     # build call string #
@@ -44235,7 +44235,7 @@ struct cmsghdr {
                 pass
 
             # print context in JSON format #
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData = {
                     "type": "exit",
                     "time": self.current,
@@ -58033,7 +58033,7 @@ class ThreadAnalyzer(object):
     def printIntervalUsage():
         if SysMgr.fileTopEnable:
             ThreadAnalyzer.printFileTable()
-        elif SysMgr.jsonOutputEnable or \
+        elif SysMgr.jsonEnable or \
             SysMgr.dltTopEnable:
             pass
         else:
@@ -63378,7 +63378,7 @@ class ThreadAnalyzer(object):
         # print CPU stat #
         if SysMgr.cpuEnable or \
             SysMgr.reportEnable or \
-            SysMgr.jsonOutputEnable:
+            SysMgr.jsonEnable:
             percoreStats = {}
 
             if len(self.cpuData) > 0:
@@ -63686,10 +63686,11 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
-        # save report data #
-        if not SysMgr.reportEnable and not SysMgr.jsonOutputEnable:
+        # check report option #
+        if not SysMgr.reportEnable and not SysMgr.jsonEnable:
             return
 
+        # initialize report data #
         self.reportData = dict()
 
         # timestamp #
@@ -63908,7 +63909,7 @@ class ThreadAnalyzer(object):
         else:
             self.reportData['storage'] = dict()
 
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.update(self.reportData)
 
 
@@ -64289,7 +64290,7 @@ class ThreadAnalyzer(object):
             swapTotal = long(0)
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('system', dict())
             jsonData = SysMgr.jsonData['system']
 
@@ -64324,7 +64325,7 @@ class ThreadAnalyzer(object):
         lenZone = len(zoneData)
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('zone', dict())
 
         for node, items in sorted(self.zoneData.items()):
@@ -64333,7 +64334,7 @@ class ThreadAnalyzer(object):
             nrZone += 1
 
             for info, val in sorted(items.items()):
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     SysMgr.jsonData['zone'].setdefault(node, dict())
 
                 if info == 'free':
@@ -64346,7 +64347,7 @@ class ThreadAnalyzer(object):
                     diff = UtilMgr.convSize2Unit(diff << 12)
                     ninfo = 'diff'
 
-                    if SysMgr.jsonOutputEnable:
+                    if SysMgr.jsonEnable:
                         SysMgr.jsonData['zone'][node][ninfo] = diff
 
                     zoneStat = '%s: %7s / ' % (ninfo, diff)
@@ -64361,7 +64362,7 @@ class ThreadAnalyzer(object):
 
                 stat = UtilMgr.convSize2Unit(val << 12)
 
-                if SysMgr.jsonOutputEnable:
+                if SysMgr.jsonEnable:
                     SysMgr.jsonData['zone'][node][info] = stat
                     continue
 
@@ -64388,7 +64389,7 @@ class ThreadAnalyzer(object):
         lenIrq = len(irqData)
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('irq', dict())
 
         for irq, cnt in sorted(self.irqData.items(), key=lambda e: \
@@ -64402,7 +64403,7 @@ class ThreadAnalyzer(object):
 
             if irqDiff <= 0:
                 break
-            elif SysMgr.jsonOutputEnable:
+            elif SysMgr.jsonEnable:
                 SysMgr.jsonData['irq'][irq] = irqDiff
 
             nrIrq += 1
@@ -64431,7 +64432,7 @@ class ThreadAnalyzer(object):
             SysMgr.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
             # add JSON stats #
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 SysMgr.jsonData.setdefault('PMU', dict())
                 jsonData = SysMgr.jsonData['PMU']
 
@@ -64469,7 +64470,7 @@ class ThreadAnalyzer(object):
 
         convertFunc = UtilMgr.convSize2Unit
 
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('net', dict())
 
         cnt = long(0)
@@ -64557,7 +64558,7 @@ class ThreadAnalyzer(object):
         storageData = SysMgr.sysInstance.storageData
         prevStorageData = SysMgr.sysInstance.prevStorageData
 
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('storage', dict())
 
         printCnt = long(0)
@@ -65089,7 +65090,7 @@ class ThreadAnalyzer(object):
             pgrpType, dprop, etc, mem = getTypes()
 
         # add JSON stats #
-        if SysMgr.jsonOutputEnable:
+        if SysMgr.jsonEnable:
             jtype = mode.lower()
             SysMgr.jsonData.setdefault(jtype, dict())
             jsonData = SysMgr.jsonData[jtype]
@@ -65140,7 +65141,7 @@ class ThreadAnalyzer(object):
                 continue
 
             # add task into JSON data #
-            if SysMgr.jsonOutputEnable:
+            if SysMgr.jsonEnable:
                 jsonData.setdefault(\
                     idx, UtilMgr.convStr2Dict(\
                         UtilMgr.convDict2Str(value, ignore=True)))
@@ -65633,6 +65634,11 @@ class ThreadAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26-(SysMgr.pidDigit*2)
 
+        if SysMgr.reportEnable:
+            self.reportData.setdefault('task', dict())
+            self.reportData['task'].setdefault(taskType, dict())
+            jsonData = self.reportData['task'][taskType]
+
         # get task list #
         if taskType == 'abnormal':
             taskList = set(self.abnormalTasks.keys())
@@ -65654,6 +65660,11 @@ class ThreadAnalyzer(object):
             if taskType == 'die':
                 value = self.prevProcData[idx]
                 stat = value['stat']
+
+                try:
+                    jsonData[idx] = value
+                except:
+                    pass
             else:
                 if not idx in self.procData:
                     value = dict(self.init_procData)
@@ -65661,6 +65672,11 @@ class ThreadAnalyzer(object):
                 else:
                     value = self.procData[idx]
                     stat = value['stat']
+
+                try:
+                    jsonData[idx] = value
+                except:
+                    pass
 
             # set comm #
             comm = stat[self.commIdx][1:-1]
@@ -66269,9 +66285,31 @@ class ThreadAnalyzer(object):
 
         # check sched #
         try:
+            # context switch #
             target = self.reportData['task']['nrCtx']
             self.checkThreshold(\
                 'task', 'nrCtx', 'CTXSWC', 'big', target)
+
+            # new status #
+            if self.reportData['task']['new']:
+                newList = list(self.reportData['task']['new'].keys())
+                target = '_'.join(newList)
+                self.checkThreshold(\
+                    'task', 'new', 'NEW', None, target)
+
+            # die status #
+            if self.reportData['task']['die']:
+                dieList = list(self.reportData['task']['die'].keys())
+                target = '_'.join(dieList)
+                self.checkThreshold(\
+                    'task', 'die', 'DIE', None, target)
+
+            # abnormal status #
+            if self.reportData['task']['abnormal']:
+                dieList = list(self.reportData['task']['abnormal'].keys())
+                target = '_'.join(abnormalList)
+                self.checkThreshold(\
+                    'task', 'abnormal', 'ABNORMAL', None, target)
         except SystemExit:
             sys.exit(0)
         except:
@@ -66297,7 +66335,12 @@ class ThreadAnalyzer(object):
 
         value = None
 
-        if intval and 'interval' in comval:
+        # check condition #
+        if not item in comval:
+            return
+        elif not comp:
+            value = target
+        elif intval and 'interval' in comval:
             if comval['interval'] > len(intval):
                 return
 
@@ -66337,6 +66380,9 @@ class ThreadAnalyzer(object):
         elif 'dev' in comval:
             ename = '%s%s' % (ename, comval['dev'])
 
+        if 'value' in comval:
+            ename = '%s_%s' % (ename, comval['value'])
+
         # replace '/' with '_' for path by event name #
         ename = ename.replace('/', '_')
 
@@ -66347,12 +66393,12 @@ class ThreadAnalyzer(object):
 
 
     def checkThreshold(\
-        self, resource, item, event, comp='big', \
+        self, resource, item, event, comp=None, \
         target=None, attr='SYSTEM', intval=None, addval=None):
 
         def getOneshotFlag(items):
             if 'oneshot' in items and \
-                items ['oneshot'].upper() == 'TRUE':
+                items ['oneshot'] == 'true':
                 return True
             else:
                 return False
@@ -66363,10 +66409,11 @@ class ThreadAnalyzer(object):
         td = SysMgr.thresholdData
 
         # check attribute #
-        if resource in td and attr in td[resource]:
-            comval = td[resource][attr]
-        else:
+        if not resource in td or not attr in td[resource]:
             return
+
+        # get threshold attributes #
+        comval = td[resource][attr]
 
         # get previous usages #
         if intval:
@@ -66380,12 +66427,12 @@ class ThreadAnalyzer(object):
         if not target:
             target = self.reportData[resource][item]
 
-        # set event #
+        # check conditions and trigger events #
         if type(comval) is dict:
             # check apply attribute #
-            if 'apply' in comval and \
-                comval['apply'].upper() == 'FALSE':
+            if 'apply' in comval and comval['apply'] == 'false':
                 return
+
             oneshot = getOneshotFlag(comval)
             self.setThresholdEvent(\
                 intval, comval, item, event, attr, \
@@ -66393,9 +66440,9 @@ class ThreadAnalyzer(object):
         elif type(comval) is list:
             for comitem in comval:
                 # check apply attribute #
-                if 'apply' in comitem and \
-                    comitem['apply'].upper() == 'FALSE':
+                if 'apply' in comitem and comitem['apply'] == 'false':
                     continue
+
                 oneshot = getOneshotFlag(comitem)
                 self.setThresholdEvent(\
                     intval, comitem, item, event, attr, \
@@ -66407,20 +66454,18 @@ class ThreadAnalyzer(object):
         if not SysMgr.thresholdData:
             return
 
-        td = SysMgr.thresholdData
-
+        # mapping table between thresholds and stats #
         ilist = [
             ['cpu', 'total', 'ttime', 'cpuInterval', 'CPU', 'big'],
             ['mem', 'rss', 'rss', 'rssInterval', 'MEM', 'big'],
         ]
 
         if SysMgr.processEnable:
-            mode = 'Process'
+            mode = 'process'
         else:
-            mode = 'Thread'
+            mode = 'thread'
 
-        mode = mode.lower()
-
+        td = SysMgr.thresholdData
         exceptTaskResource = {}
 
         # traverse all tasks #
@@ -66602,7 +66647,7 @@ class ThreadAnalyzer(object):
         self.checkResourceThreshold()
 
         # print system status to file if condition is met #
-        if len(self.reportData['event']) > 0 and \
+        if self.reportData['event'] and \
             SysMgr.reportFileEnable and \
             SysMgr.outPath:
 
