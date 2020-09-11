@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200910"
+__revision__ = "200911"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7693,8 +7693,8 @@ class FunctionAnalyzer(object):
         signal.signal(signal.SIGALRM, SysMgr.timerHandler)
 
         # Get symbols and source pos #
-        for idx, value in sorted(\
-            self.posData.items(), key=lambda e: e[1]['binary'], reverse=True):
+        for idx, value in sorted(self.posData.items(),\
+            key=lambda e: e[1]['binary'], reverse=True):
             curIdx += 1
 
             UtilMgr.printProgress(curIdx, lastIdx)
@@ -7830,8 +7830,7 @@ class FunctionAnalyzer(object):
                         self.posData[addr]['symbol'] = 'NoFile'
                         self.posData[addr]['src'] = 'NoFile'
                     else:
-                        for idx, value in sorted(\
-                            self.posData.items(), \
+                        for idx, value in sorted(self.posData.items(),\
                             key=lambda e: e[1]['binary'], reverse=True):
                             if value['binary'] == binPath and \
                                 value['offset'] == hex(long(addr, 16)):
@@ -9396,8 +9395,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         outputCnt = long(0)
-        for key, value in sorted(\
-            self.threadData.items(), \
+        for key, value in sorted(self.threadData.items(),\
             key=lambda e: e[1]['nrSyscall'], reverse=True):
             threadInfo = ''
             syscallInfo = ''
@@ -9414,8 +9412,7 @@ class FunctionAnalyzer(object):
             except:
                 continue
 
-            for sysId, val in sorted(\
-                value['syscallTable'].items(), \
+            for sysId, val in sorted(value['syscallTable'].items(),\
                 key=lambda e: e[1], reverse=True):
                 if val == 0:
                     continue
@@ -9748,8 +9745,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Function", "Binary", "Source"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userSymData.items(), \
+        for idx, value in sorted(self.userSymData.items(),\
             key=lambda e: e[1]['syscallCnt'], reverse=True):
 
             if value['syscallCnt'] == 0:
@@ -9796,8 +9792,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Binary"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userFileData.items(), \
+        for idx, value in sorted(self.userFileData.items(),\
             key=lambda e: e[1]['syscallCnt'], reverse=True):
 
             if value['syscallCnt'] == 0:
@@ -9911,8 +9906,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary", "Source"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['customCnt'], reverse=True):
 
                 if value['customCnt'] == 0:
@@ -9960,8 +9954,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userFileData.items(), \
+            for idx, value in sorted(self.userFileData.items(),\
                 key=lambda e: e[1]['customCnt'], reverse=True):
 
                 if value['customCnt'] == 0:
@@ -9991,8 +9984,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe(twoLine)
 
         # Print custom usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['customCnt'], reverse=True):
 
             if value['customCnt'] == 0:
@@ -10163,8 +10155,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['tickCnt'], reverse=True):
 
                 if value['tickCnt'] == 0:
@@ -10230,8 +10221,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['totalTickCnt'], reverse=True):
 
                 if value['totalTickCnt'] == 0:
@@ -10265,8 +10255,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userFileData.items(), \
+            for idx, value in sorted(self.userFileData.items(),\
                 key=lambda e: e[1]['tickCnt'], reverse=True):
 
                 if value['tickCnt'] == 0:
@@ -10311,8 +10300,7 @@ class FunctionAnalyzer(object):
                 exceptList.setdefault(pos, dict())
 
         # Print CPU usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['tickCnt'], reverse=True):
 
             if value['tickCnt'] == 0:
@@ -10422,8 +10410,7 @@ class FunctionAnalyzer(object):
                 format("Free", "Function", "Binary", "Source"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
                 if value['unknownPageFreeCnt'] == 0:
                     break
@@ -10471,8 +10458,7 @@ class FunctionAnalyzer(object):
         # Make exception list to remove a redundant part of stack #
         exceptList = self.getExceptionList()
 
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
 
             if value['unknownPageFreeCnt'] == 0:
@@ -10529,8 +10515,7 @@ class FunctionAnalyzer(object):
                 "LifeTime", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['pagePairCnt'], reverse=True):
 
                 if value['pagePairCnt'] == 0:
@@ -10563,8 +10548,7 @@ class FunctionAnalyzer(object):
                     convertFunc(typeList['KERNEL'] << 12), idx, \
                     lifeTime, self.posData[value['pos']]['origBin']))
 
-                for pairId, item in sorted(\
-                    value['pagePair'].items(), \
+                for pairId, item in sorted(value['pagePair'].items(),\
                     key=lambda e: e[1]['size'], reverse=True):
                     try:
                         userPages = item['valueList']['USER']
@@ -10645,8 +10629,7 @@ class FunctionAnalyzer(object):
         exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['pagePairCnt'], reverse=True):
 
             if value['pagePairCnt'] == 0:
@@ -10676,8 +10659,7 @@ class FunctionAnalyzer(object):
                 convertFunc(typeList['CACHE'] << 12), \
                 convertFunc(typeList['KERNEL'] << 12), idx, lifeTime))
 
-            for pairId, item in sorted(\
-                value['pagePair'].items(), \
+            for pairId, item in sorted(value['pagePair'].items(),\
                 key=lambda e: e[1]['size'], reverse=True):
                 try:
                     userPages = item['valueList']['USER']
@@ -10804,8 +10786,7 @@ class FunctionAnalyzer(object):
                     "Function", "LifeTime", "Binary"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['pageCnt'], reverse=True):
 
                 if value['pageCnt'] == 0:
@@ -10879,8 +10860,7 @@ class FunctionAnalyzer(object):
         exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['pageCnt'], reverse=True):
 
             if value['pageCnt'] == 0:
@@ -10972,8 +10952,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Function", "Binary", "Source"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userSymData.items(), \
+        for idx, value in sorted(self.userSymData.items(),\
             key=lambda e: e[1]['heapSize'], reverse=True):
 
             if value['heapSize'] == 0:
@@ -11157,8 +11136,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Function", "Binary", "Source"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userSymData.items(), \
+        for idx, value in sorted(self.userSymData.items(),\
             key=lambda e: e[1]['lockTryCnt'], reverse=True):
 
             if value['lockTryCnt'] == 0:
@@ -11205,8 +11183,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Binary"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userFileData.items(), \
+        for idx, value in sorted(self.userFileData.items(),\
             key=lambda e: e[1]['lockTryCnt'], reverse=True):
 
             if value['lockTryCnt'] == 0:
@@ -11233,8 +11210,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Function", "Binary", "Source"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userSymData.items(), \
+        for idx, value in sorted(self.userSymData.items(),\
             key=lambda e: e[1]['unlockCnt'], reverse=True):
 
             if value['unlockCnt'] == 0:
@@ -11282,8 +11258,7 @@ class FunctionAnalyzer(object):
             format("Usage", "Binary"))
         SysMgr.printPipe(twoLine)
 
-        for idx, value in sorted(\
-            self.userFileData.items(), \
+        for idx, value in sorted(self.userFileData.items(),\
             key=lambda e: e[1]['unlockCnt'], reverse=True):
 
             if value['unlockCnt'] == 0:
@@ -11392,8 +11367,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary", "Source"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['blockWrCnt'], reverse=True):
 
                 if value['blockWrCnt'] == 0:
@@ -11446,8 +11420,7 @@ class FunctionAnalyzer(object):
         exceptList = self.getExceptionList()
 
         # Print block write usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['blockWrCnt'], reverse=True):
 
             if value['blockWrCnt'] == 0:
@@ -11546,8 +11519,7 @@ class FunctionAnalyzer(object):
                 format("Usage", "Function", "Binary", "Source"))
             SysMgr.printPipe(twoLine)
 
-            for idx, value in sorted(\
-                self.userSymData.items(), \
+            for idx, value in sorted(self.userSymData.items(),\
                 key=lambda e: e[1]['blockRdCnt'], reverse=True):
 
                 if value['blockRdCnt'] == 0:
@@ -11597,8 +11569,7 @@ class FunctionAnalyzer(object):
         exceptList = self.getExceptionList()
 
         # Print block read usage of stacks #
-        for idx, value in sorted(\
-            self.kerSymData.items(), \
+        for idx, value in sorted(self.kerSymData.items(),\
             key=lambda e: e[1]['blockRdCnt'], reverse=True):
 
             if value['blockRdCnt'] == 0:
@@ -12578,8 +12549,7 @@ class FileAnalyzer(object):
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
 
-        for pid, val in sorted(\
-            self.procData.items(), \
+        for pid, val in sorted(self.procData.items(),\
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
             try:
                 rsize = val['pageCnt'] * pageSize
@@ -12617,8 +12587,7 @@ class FileAnalyzer(object):
             format("RAM", "File", "%", "Library & Process"))
         SysMgr.printPipe(twoLine)
 
-        for fileName, val in sorted(\
-            self.fileData.items(), \
+        for fileName, val in sorted(self.fileData.items(),\
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
             memSize = val['pageCnt'] * pageSize
 
@@ -13547,7 +13516,7 @@ class SysMgr(object):
     """ Manager for system """
 
     arch = None
-    origArgs = None
+    origArgs = []
     kernelVersion = None
     isLinux = True
     isAndroid = False
@@ -14249,17 +14218,21 @@ class SysMgr(object):
         # top draw mode #
         else:
             # CPU #
-            if SysMgr.isDrawCpuMode():
+            if SysMgr.isDrawCpuMode() or \
+                SysMgr.isDrawCpuAvgMode():
                 SysMgr.layout = 'CPU'
             # memory #
-            elif SysMgr.isDrawMemMode():
+            elif SysMgr.isDrawMemMode() or \
+                SysMgr.isDrawMemAvgMode():
                 SysMgr.layout = 'MEM'
             # vss #
-            elif SysMgr.isDrawVssMode():
+            elif SysMgr.isDrawVssMode() or \
+                SysMgr.isDrawVssAvgMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.vssEnable = True
             # rss #
-            elif SysMgr.isDrawRssMode():
+            elif SysMgr.isDrawRssMode() or \
+                SysMgr.isDrawRssAvgMode():
                 SysMgr.layout = 'MEM'
                 SysMgr.rssEnable = True
             # leak #
@@ -14269,7 +14242,9 @@ class SysMgr(object):
             # io #
             elif SysMgr.isDrawIoMode():
                 SysMgr.layout = 'IO'
-            elif SysMgr.isDrawAvgMode():
+
+            # average #
+            if SysMgr.isDrawAvgMode():
                 SysMgr.avgEnable = True
 
             # modify args for drawing multiple input files #
@@ -16277,13 +16252,16 @@ class SysMgr(object):
             'visual': {
                 'convert': 'Text',
                 'draw': 'System',
-                'drawavg': 'Average',
                 'drawcpu': 'CPU',
+                'drawcpuavg': 'CPU',
                 'drawio': 'I/O',
                 'drawleak': 'Leak',
                 'drawmem': 'Memory',
+                'drawmemavg': 'Memory',
                 'drawrss': 'RSS',
+                'drawrssavg': 'RSS',
                 'drawvss': 'VSS',
+                'drawvssavg': 'VSS',
                 },
             'util': {
                 'addr2sym': 'Symbol',
@@ -16543,6 +16521,9 @@ Examples:
 
     - Draw graphs of resource usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
+
+    - Draw graphs of total resource usage with multiple files for comparison
+        # {0:1} {1:1} guider*.out worstcase.out -a -g TOTAL
                 '''.format(cmd, mode)
 
                 brkExamStr = '''
@@ -17861,14 +17842,50 @@ Examples:
         # {0:1} {1:1} -g a.out -I 0x0-0x4000
                     '''.format(cmd, mode)
 
-                # average draw #
-                elif SysMgr.isDrawAvgMode():
+                # CPU average draw #
+                elif SysMgr.isDrawCpuAvgMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
     Draw CPU average graphs
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # memory average draw #
+                elif SysMgr.isDrawMemAvgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw memory average graphs for system
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # VSS average draw #
+                elif SysMgr.isDrawVssAvgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw VSS average graphs for processes
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # RSS average draw #
+                elif SysMgr.isDrawRssAvgMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw RSS average graphs for processes
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -24241,8 +24258,7 @@ Copyright:
     @staticmethod
     def isThreadRecordMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'record' or \
-            sys.argv[1] == 'rec'):
+            (sys.argv[1] == 'record' or sys.argv[1] == 'rec'):
             return True
         else:
             return False
@@ -24252,8 +24268,7 @@ Copyright:
     @staticmethod
     def isFuncRecordMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'funcrecord' or \
-            sys.argv[1] == 'funcrec'):
+            (sys.argv[1] == 'funcrecord' or sys.argv[1] == 'funcrec'):
             return True
         else:
             return False
@@ -24263,8 +24278,7 @@ Copyright:
     @staticmethod
     def isFileRecordMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'filerecord' or \
-            sys.argv[1] == 'filerec'):
+            (sys.argv[1] == 'filerecord' or sys.argv[1] == 'filerec'):
             return True
         else:
             return False
@@ -24274,8 +24288,7 @@ Copyright:
     @staticmethod
     def isSyscallRecordMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'sysrecord' or \
-            sys.argv[1] == 'sysrec'):
+            (sys.argv[1] == 'sysrecord' or sys.argv[1] == 'sysrec'):
             return True
         else:
             return False
@@ -24285,8 +24298,7 @@ Copyright:
     @staticmethod
     def isGeneralRecordMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'genrecord' or \
-            sys.argv[1] == 'genrec'):
+            (sys.argv[1] == 'genrecord' or sys.argv[1] == 'genrec'):
             return True
         else:
             return False
@@ -24304,8 +24316,7 @@ Copyright:
     @staticmethod
     def isServerMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'server' or \
-            sys.argv[1] == 'serv'):
+            (sys.argv[1] == 'server' or sys.argv[1] == 'serv'):
             return True
         else:
             return False
@@ -24327,8 +24338,7 @@ Copyright:
     @staticmethod
     def isClientMode():
         if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'client' or \
-            sys.argv[1] == 'cli'):
+            (sys.argv[1] == 'client' or sys.argv[1] == 'cli'):
             return True
         else:
             return False
@@ -25261,8 +25271,46 @@ Copyright:
 
     @staticmethod
     def isDrawAvgMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawavg' or sys.argv[1] == 'avgdraw'):
+        if SysMgr.isDrawCpuAvgMode() or \
+            SysMgr.isDrawMemAvgMode() or \
+            SysMgr.isDrawVssAvgMode() or \
+            SysMgr.isDrawRssAvgMode():
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawCpuAvgMode():
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawcpuavg':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawMemAvgMode():
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawmemavg':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawVssAvgMode():
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawvssavg':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawRssAvgMode():
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawrssavg':
             return True
         else:
             return False
@@ -33772,8 +33820,8 @@ Copyright:
 
         cnt = long(0)
         try:
-            for core, info in sorted(\
-                self.cpuCacheInfo.items(), key=lambda e: long(e[0][3:])):
+            for core, info in sorted(self.cpuCacheInfo.items(),\
+                key=lambda e: long(e[0][3:])):
                 try:
                     SysMgr.infoBufferPrint(\
                         "{0:^20} {1:<100}".format(core[3:], info.strip()))
@@ -34557,8 +34605,7 @@ Copyright:
 
             tempRoot = deepcopy(root)
 
-            for curdir, subdir in sorted(\
-                tempRoot.items(), \
+            for curdir, subdir in sorted(tempRoot.items(),\
                 key=lambda e: long(e[0]) if e[0].isdigit() else e[0]):
                 cstr = ''
                 nrProcs = long(0)
@@ -34708,8 +34755,8 @@ Copyright:
                 ownerData[owner]['swap'] = stats['swap']
 
         # print stats #
-        for shmid, stats in sorted(\
-            self.ipcData['shm'].items(), key=lambda e:e[1]['cpid']):
+        for shmid, stats in sorted(self.ipcData['shm'].items(),\
+            key=lambda e:e[1]['cpid']):
 
             # get owner name #
             try:
@@ -38941,8 +38988,7 @@ struct cmsghdr {
                 vstart = 0
 
             # get mapping info #
-            for sym, attr in sorted(\
-                fcache.attr['dynsymTable'].items(),\
+            for sym, attr in sorted(fcache.attr['dynsymTable'].items(),\
                 key=lambda x:x[1]['size'], reverse=False):
                 if attr['size'] > 0:
                     break
@@ -41099,8 +41145,7 @@ struct cmsghdr {
             vstart = self.pmap[libcPath]['vstart']
 
             # get mapping info #
-            for sym, attr in sorted(\
-                fcache.attr['dynsymTable'].items(),\
+            for sym, attr in sorted(fcache.attr['dynsymTable'].items(),\
                 key=lambda x:x[1]['size'], reverse=False):
                 if attr['size'] > 0:
                     break
@@ -42380,8 +42425,8 @@ struct cmsghdr {
 
         cnt = long(0)
         isBtPrinted = False
-        for sym, value in sorted(\
-            self.callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+        for sym, value in sorted(self.callTable.items(),\
+            key=lambda x:x[1]['cnt'], reverse=True):
             if sym[0] == '/':
                 sym = '??'
 
@@ -42433,8 +42478,7 @@ struct cmsghdr {
 
             # backtrace #
             if len(value['backtrace']) > 0:
-                for bt, cnt in sorted(\
-                    value['backtrace'].items(), \
+                for bt, cnt in sorted(value['backtrace'].items(),\
                     key=lambda x:x[1], reverse=True):
 
                     bper = cnt / float(value['cnt']) * 100
@@ -42681,8 +42725,8 @@ struct cmsghdr {
         if not self.pmap:
             return [], []
 
-        for f, item in sorted(\
-            self.pmap.items(), key=lambda x: x[1]['vend']):
+        for f, item in sorted(self.pmap.items(),\
+            key=lambda x: x[1]['vend']):
             fileList.append(f)
             addrList.append(item['vend'])
 
@@ -45451,8 +45495,8 @@ struct cmsghdr {
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
 
         cnt = long(0)
-        for sym, value in sorted(\
-            callTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+        for sym, value in sorted(callTable.items(),\
+            key=lambda x:x[1]['cnt'], reverse=True):
             if sym[0] == '/':
                 sym = '??'
 
@@ -45507,8 +45551,8 @@ struct cmsghdr {
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
 
             cnt = long(0)
-            for filename, value in sorted(\
-                fileTable.items(), key=lambda x:x[1]['cnt'], reverse=True):
+            for filename, value in sorted(fileTable.items(),\
+                key=lambda x:x[1]['cnt'], reverse=True):
                 try:
                     per = value['cnt'] / nrTotal * 100
                 except:
@@ -46243,8 +46287,8 @@ class EventAnalyzer(object):
         eventData = EventAnalyzer.eventData
         startTime = float(SysMgr.startTime)
 
-        for key, value in sorted(\
-            eventData.items(), key=lambda x: float(x[1]['summary'][0][5])):
+        for key, value in sorted(eventData.items(),\
+            key=lambda x: float(x[1]['summary'][0][5])):
             string = ''
             head = '%10s: [total: %s] [subEvent: %s] ' % \
                 (key, len(eventData[key]['list']), \
@@ -49612,8 +49656,8 @@ class ThreadAnalyzer(object):
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
-        for pname, value in sorted(\
-            unionCpuList.items(), key=lambda e:float(e[1]), reverse=True):
+        for pname, value in sorted(unionCpuList.items(),\
+            key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
@@ -49688,8 +49732,8 @@ class ThreadAnalyzer(object):
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
-        for pname, value in sorted(\
-            unionGpuList.items(), key=lambda e:float(e[1]), reverse=True):
+        for pname, value in sorted(unionGpuList.items(),\
+            key=lambda e:float(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
@@ -49768,8 +49812,8 @@ class ThreadAnalyzer(object):
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
-        for pname, value in sorted(\
-            unionRssList.items(), key=lambda e:long(e[1]), reverse=True):
+        for pname, value in sorted(unionRssList.items(),\
+            key=lambda e:long(e[1]), reverse=True):
             printBuf = "%16s | " % pname
             for idx, fname in enumerate(flist):
                 try:
@@ -50209,8 +50253,7 @@ class ThreadAnalyzer(object):
         # add block waiting time of jobs not finished yet to each threads #
         if SysMgr.blockEnable:
             # waiting for read #
-            for idx, item in sorted(\
-                self.threadData.items(), \
+            for idx, item in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['readStart'], reverse=True):
 
                 if item['readStart'] > 0:
@@ -50222,8 +50265,7 @@ class ThreadAnalyzer(object):
                     break
 
             # waiting for synchronous write #
-            for idx, item in sorted(\
-                self.threadData.items(), \
+            for idx, item in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['writeStart'], reverse=True):
 
                 # cancel to add blocking time for write because async write #
@@ -51154,7 +51196,13 @@ class ThreadAnalyzer(object):
         avgList = {}
 
         for name, value in stats.items():
-            fname, sname = name.split(':', 1)
+            try:
+                fname, sname = name.split(':', 1)
+            except:
+                SysMgr.printErr(\
+                    "fail to get file name from '%s" % name, True)
+                sys.exit(0)
+
             if sname.endswith('List'):
                 continue
             elif sname.endswith('ProcUsage'):
@@ -51197,6 +51245,8 @@ class ThreadAnalyzer(object):
 
                     avgList[sname].setdefault(item, [0] * len(flist))
                     avgList[sname][item][fileIdxList[fname]] = usage
+            else:
+                avgList.setdefault(sname, value)
 
         return avgList
 
@@ -51267,6 +51317,8 @@ class ThreadAnalyzer(object):
                 graphStats = self.getAvgStats(flist, graphStats)
                 graphStats['fileList'] = flist
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
+            except SystemExit:
+                return
             except:
                 SysMgr.printErr(\
                     "fail to draw history graph", True)
@@ -51391,8 +51443,11 @@ class ThreadAnalyzer(object):
             try:
                 ypos = seq >> 1
                 xpos = seq - (ypos << 1)
-                ax = subplot2grid((height,2), (ypos,xpos), rowspan=1, colspan=1)
+                ax = subplot2grid(\
+                    (height,2), (ypos,xpos), rowspan=1, colspan=1)
                 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            except SystemExit:
+                sys.exit(0)
             except:
                 continue
 
@@ -51454,7 +51509,8 @@ class ThreadAnalyzer(object):
 
         # draw image #
         figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
-            subplots_adjust(left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
+            subplots_adjust(\
+                left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
         self.saveImage(logFile, 'chart', outFile=outFile)
@@ -51508,14 +51564,16 @@ class ThreadAnalyzer(object):
                     evtbox = '%s%s' % (prefix, '\n'.join(evts))
 
                     try:
-                        text(timeline[tm], yticks()[0][-1], evtbox, fontsize=3,\
-                            verticalalignment='top', style='italic',\
+                        text(timeline[tm], yticks()[0][-1], evtbox,\
+                            fontsize=3, verticalalignment='top',\
+                            style='italic',\
                             bbox={'facecolor':'green', 'alpha': 1, 'pad': 1},\
                             ha=getTextAlign(tm, timeline))
 
-                        axvline(\
-                            x=timeline[tm], linewidth=1, \
-                                linestyle='--', color='green')
+                        axvline(x=timeline[tm], linewidth=1,\
+                            linestyle='--', color='green')
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -51529,6 +51587,8 @@ class ThreadAnalyzer(object):
                         xlim([xtickLabel[0], xtickLabel[-1]])
                         xtickLabel[-1] = '   TIME(Sec)'
                         ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             elif xtype == 3:
@@ -51544,10 +51604,14 @@ class ThreadAnalyzer(object):
                             try:
                                 xtickLabel[seq] = \
                                     effectProcList[timeline.index(long(cnt))]
+                            except SystemExit:
+                                sys.exit(0)
                             except:
                                 xtickLabel[seq] = ' '
                     xtickLabel[-1] = '   TASK(NR)'
                     ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             elif xtype == 2:
@@ -51558,10 +51622,14 @@ class ThreadAnalyzer(object):
                     for seq, cnt in enumerate(xtickLabel):
                         try:
                             xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             xtickLabel[seq] = ' '
                     xtickLabel[-1] = '   CORE(NR)'
                     ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -51573,6 +51641,8 @@ class ThreadAnalyzer(object):
                 boundaryList = \
                     list(map(UtilMgr.convUnit2Size, \
                         SysMgr.boundaryLine))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "fail to set boundary line", True)
@@ -51645,8 +51715,7 @@ class ThreadAnalyzer(object):
                     cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
-                if SysMgr.showAll or \
-                    not SysMgr.filterGroup:
+                if SysMgr.showAll or not SysMgr.filterGroup:
                     isVisibleTotal = True
                 else:
                     isVisibleTotal = False
@@ -51784,7 +51853,7 @@ class ThreadAnalyzer(object):
                         break
 
                 #-------------------- Process CPU usage --------------------#
-                # total CPU usage of processes filtered #
+                # total Process CPU usage filtered #
                 if "[ TOTAL ]" in cpuProcUsage and \
                     cpuProcUsage["[ TOTAL ]"]['count'] > 1:
                     totalUsage = cpuProcUsage["[ TOTAL ]"]['usage'].split()
@@ -51803,7 +51872,8 @@ class ThreadAnalyzer(object):
                     maxUsage = max(totalUsage)
                     maxIdx = totalUsage.index(maxUsage)
 
-                    labelList.append('%s[ TOTAL ] - %.1f%%' % (prefix, avgUsage))
+                    labelList.append(\
+                        '%s[ TOTAL ] - %.1f%%' % (prefix, avgUsage))
 
                     # update the maximum ytick #
                     if ymax < maxUsage:
@@ -51829,9 +51899,8 @@ class ThreadAnalyzer(object):
                 if SysMgr.nrTop:
                     tcnt = long(0)
 
-                # CPU usage of processes #
-                for idx, item in sorted(\
-                    cpuProcUsage.items(), \
+                # Process CPU usage #
+                for idx, item in sorted(cpuProcUsage.items(),\
                     key=lambda e: e[1]['average'], reverse=True):
 
                     if not SysMgr.cpuEnable:
@@ -51854,12 +51923,14 @@ class ThreadAnalyzer(object):
                         avgUsage = long(0)
 
                     if not SysMgr.blockEnable:
-                        # merge CPU usage and wait time of processes #
+                        # merge CPU usage and wait time for processes #
                         try:
                             blkUsage = blkProcUsage[idx]['usage'].split()
                             blkUsage = list(map(long, blkUsage))
                             for interval, value in enumerate(blkUsage):
                                 usage[interval] += value
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             pass
 
@@ -51936,6 +52007,8 @@ class ThreadAnalyzer(object):
                     ['%s%%' % val for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -52254,7 +52327,7 @@ class ThreadAnalyzer(object):
                         labelList.append(\
                             '%s%s Read - %s' % (prefix, idx, totalsize))
 
-                # IO usage of processes #
+                # Process IO usage #
                 for idx, item in blkProcUsage.items():
                     if not SysMgr.blockEnable:
                         break
@@ -52436,6 +52509,8 @@ class ThreadAnalyzer(object):
                         ax.set_ylim(bottom=0)
                     except:
                         pass
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -52544,8 +52619,8 @@ class ThreadAnalyzer(object):
                 # Process VSS #
                 if SysMgr.vssEnable:
                     for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        key=lambda e: \
+                        0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
                         # check top number #
                         if SysMgr.nrTop:
@@ -52554,7 +52629,8 @@ class ThreadAnalyzer(object):
                             else:
                                 tcnt += 1
 
-                        usage = list(map(long, item['vssUsage'].split()))[:lent]
+                        usage = \
+                            list(map(long, item['vssUsage'].split()))[:lent]
 
                         # update the maximum ytick #
                         maxusage = max(usage)
@@ -52582,7 +52658,8 @@ class ThreadAnalyzer(object):
                             continue
 
                         # ignore 0 #
-                        usage = list(map(lambda x: x if x != 0 else None, usage))
+                        usage = \
+                            list(map(lambda x: x if x != 0 else None, usage))
 
                         # get color #
                         color = plot(timeline, usage, '-', \
@@ -52608,10 +52685,11 @@ class ThreadAnalyzer(object):
                 elif SysMgr.leakEnable:
                     # get VSS diffs #
                     for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxVss' in e[1] else e[1]['maxVss'], \
+                        key=lambda e: \
+                        0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
                         reverse=True):
-                        usage = list(map(long, item['vssUsage'].split()))[:lent]
+                        usage = \
+                            list(map(long, item['vssUsage'].split()))[:lent]
 
                         # update the maximum ytick #
                         maxusage = max(usage)
@@ -52628,10 +52706,13 @@ class ThreadAnalyzer(object):
                             item['vssDiff'] = long(0)
                             continue
 
-                        # get index of maximum and minimum values greater than 0 #
+                        # get index for maximum/minimum values greater than 0 #
                         try:
-                            first = next(val for val in usage if val > 0)
-                            last = next(val for val in reversed(usage) if val > 0)
+                            first = \
+                                next(val for val in usage if val > 0)
+                            last = \
+                                next(val for val in reversed(usage) if val > 0)
+
                             if long(first) >= long(last):
                                 item['vssDiff'] = long(0)
                                 continue
@@ -52648,8 +52729,7 @@ class ThreadAnalyzer(object):
                         item['vssDiff'] = diff
 
                     # draw leakage plots #
-                    for key, item in sorted(\
-                        memProcUsage.items(), \
+                    for key, item in sorted(memProcUsage.items(),\
                         key=lambda e: e[1]['vssDiff'], reverse=True):
 
                         # check top number #
@@ -52662,7 +52742,8 @@ class ThreadAnalyzer(object):
                         if item['vssDiff'] == 0:
                             break
 
-                        usage = list(map(long, item['vssUsage'].split()))[:lent]
+                        usage = \
+                            list(map(long, item['vssUsage'].split()))[:lent]
 
                         # update the maximum ytick #
                         maxusage = max(usage)
@@ -52693,7 +52774,8 @@ class ThreadAnalyzer(object):
                             continue
 
                         # ignore 0 #
-                        usage = list(map(lambda x: x if x != 0 else None, usage))
+                        usage = \
+                            list(map(lambda x: x if x != 0 else None, usage))
 
                         # get color #
                         color = plot(timeline, usage, '-', \
@@ -52714,9 +52796,9 @@ class ThreadAnalyzer(object):
                 elif SysMgr.rssEnable or \
                     SysMgr.pssEnable or \
                     SysMgr.ussEnable:
-                    for key, item in sorted(memProcUsage.items(), \
-                        key=lambda e: 0 \
-                        if not 'maxRss' in e[1] else e[1]['maxRss'], \
+                    for key, item in sorted(memProcUsage.items(),\
+                        key=lambda e: \
+                        0 if not 'maxRss' in e[1] else e[1]['maxRss'], \
                         reverse=True):
 
                         # check top number #
@@ -52727,8 +52809,10 @@ class ThreadAnalyzer(object):
                                 tcnt += 1
 
                         try:
-                            usage = \
-                                list(map(long, item['rssUsage'].split()))[:lent]
+                            rssList = item['rssUsage'].split()
+                            usage = list(map(long, rssList))[:lent]
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             continue
 
@@ -52739,11 +52823,15 @@ class ThreadAnalyzer(object):
 
                         try:
                             minIdx = usage.index(min(usage))
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             minIdx = long(0)
 
                         try:
                             maxIdx = usage.index(item['maxRss'])
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             maxIdx = long(0)
 
@@ -52759,7 +52847,8 @@ class ThreadAnalyzer(object):
                             continue
 
                         # ignore 0 #
-                        usage = list(map(lambda x: x if x != 0 else None, usage))
+                        usage = \
+                            list(map(lambda x: x if x != 0 else None, usage))
 
                         # get color #
                         color = plot(timeline, usage, '-', \
@@ -52835,7 +52924,8 @@ class ThreadAnalyzer(object):
                 legend(labelList, bbox_to_anchor=(1.12, 0.75), \
                     fontsize=3.5, loc='upper right')
             else:
-                legend(labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
+                legend(\
+                    labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -52888,6 +52978,8 @@ class ThreadAnalyzer(object):
                         lastTick = ytick
 
                 ax.set_yticklabels(ytickLabel)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -53035,6 +53127,8 @@ class ThreadAnalyzer(object):
                 self.figure.text(\
                     0, 1, SysMgr.systemInfoBuffer,\
                         va='top', ha='left', size=2)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(\
                 "fail to write system info", True, reason=True)
@@ -53079,6 +53173,8 @@ class ThreadAnalyzer(object):
                         xlim([xtickLabel[0], xtickLabel[-1]])
                         xtickLabel[-1] = '   TIME(Sec)'
                         ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             elif xtype == 3:
@@ -53094,10 +53190,14 @@ class ThreadAnalyzer(object):
                             try:
                                 xtickLabel[seq] = \
                                     effectProcList[timeline.index(long(cnt))]
+                            except SystemExit:
+                                sys.exit(0)
                             except:
                                 xtickLabel[seq] = ' '
                     xtickLabel[-1] = '   TASK(NR)'
                     ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             elif xtype == 2:
@@ -53112,6 +53212,8 @@ class ThreadAnalyzer(object):
                             xtickLabel[seq] = ' '
                     xtickLabel[-1] = '   CORE(NR)'
                     ax.set_xticklabels(xtickLabel)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -53121,8 +53223,9 @@ class ThreadAnalyzer(object):
 
             try:
                 boundaryList = \
-                    list(map(UtilMgr.convUnit2Size, \
-                        SysMgr.boundaryLine))
+                    list(map(UtilMgr.convUnit2Size, SysMgr.boundaryLine))
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     "fail to set boundary line", True)
@@ -53148,17 +53251,13 @@ class ThreadAnalyzer(object):
                 except:
                     continue
 
-        def drawCpu(graphStats, xtype, pos, size):
+        def drawAvgCpu(graphStats, xtype, pos, size):
             # pylint: disable=undefined-variable
 
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-
-            if SysMgr.avgEnable:
-                suptitle('Guider Average Graph', fontsize=8)
-            else:
-                suptitle('Guider Graph', fontsize=8)
+            suptitle('Guider Average Graph', fontsize=8)
 
             # define common label list #
             ymax = long(0)
@@ -53184,8 +53283,7 @@ class ThreadAnalyzer(object):
                 cpuUsage = [maxCore * i for i in cpuUsage]
 
             # set visible total usage flag #
-            if SysMgr.showAll or \
-                not SysMgr.filterGroup:
+            if SysMgr.showAll or not SysMgr.filterGroup:
                 isVisibleTotal = True
             else:
                 isVisibleTotal = False
@@ -53207,7 +53305,7 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-                    # draw total gpu graph #
+                    # draw total GPU graph #
                     plot(timeline, stat, '-', c='olive', linestyle='-',\
                         linewidth=1, marker='d', markersize=1, \
                         solid_capstyle='round')
@@ -53216,19 +53314,19 @@ class ThreadAnalyzer(object):
                     labelList.append(\
                         '[ %s ] - %s%%' % (gpu, maxUsage))
 
-                margin = self.getMargin()
+                    margin = self.getMargin()
 
-                for idx, usage in enumerate(stat):
-                    if usage == 0:
-                        continue
-                    text(timeline[idx], usage+margin, \
-                        '%d%%' % usage,\
-                        fontsize=4, color='olive', fontweight='bold',\
-                        bbox=dict(boxstyle='round', facecolor='wheat',\
-                        alpha=0.3),\
-                        ha=getTextAlign(idx, timeline))
+                    for idx, usage in enumerate(stat):
+                        if usage == 0:
+                            continue
+                        text(timeline[idx], usage+margin, '%d%%' % usage,\
+                            fontsize=4, color='olive', fontweight='bold',\
+                            bbox=dict(boxstyle='round', facecolor='wheat',\
+                            alpha=0.3),\
+                            ha=getTextAlign(idx, timeline))
 
             #-------------------- Total CPU usage --------------------#
+            if isVisibleTotal:
                 if sum(blkWait) > 0:
                     for idx, item in enumerate(blkWait):
                         blkWait[idx] += cpuUsage[idx]
@@ -53283,7 +53381,7 @@ class ThreadAnalyzer(object):
                         ha=getTextAlign(idx, timeline))
 
             #-------------------- Process CPU usage --------------------#
-            # total CPU usage of processes filtered #
+            # Total Process CPU usage filtered #
             if "[ TOTAL ]" in cpuProcUsage and len(cpuProcUsage) > 2:
                 totalUsage = cpuProcUsage["[ TOTAL ]"]
                 totalUsage = list(map(long, totalUsage))[:lent]
@@ -53315,9 +53413,8 @@ class ThreadAnalyzer(object):
             if SysMgr.nrTop:
                 tcnt = long(0)
 
-            # CPU usage of processes #
-            for idx, item in sorted(\
-                cpuProcUsage.items(), \
+            # Process CPU usage #
+            for idx, item in sorted(cpuProcUsage.items(),\
                 key=lambda e: sum(list(map(long, e[1]))), reverse=True):
 
                 if not SysMgr.cpuEnable:
@@ -53337,12 +53434,14 @@ class ThreadAnalyzer(object):
                 cpuUsage = list(usage)
 
                 if not SysMgr.blockEnable:
-                    # merge CPU usage and wait time of processes #
+                    # merge CPU usage and wait time for processes #
                     try:
                         blkUsage = blkProcUsage[idx]
                         blkUsage = list(map(long, blkUsage))
                         for interval, value in enumerate(blkUsage):
                             usage[interval] += value
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -53422,8 +53521,269 @@ class ThreadAnalyzer(object):
                     ['%s%%' % val for val in ytickLabel]
 
                 ax.set_yticklabels(ytickLabel)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
+
+            #ticklabel_format(useOffset=False)
+            locator_params(axis = 'x', nbins=30)
+            self.figure = \
+                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
+            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+
+            drawBottom(xtype, ax)
+
+        def drawAvgMem(graphStats, xtype, pos, size):
+            # pylint: disable=undefined-variable
+            def drawSystemMem(statList, color, ymax):
+                usage = list(map(long, statList))
+                minIdx = usage.index(min(usage))
+                maxIdx = usage.index(max(usage))
+
+                if usage[minIdx] == usage[maxIdx] == 0:
+                    return None, ymax
+
+                # update the maximum ytick #
+                maxUsage = max(usage)
+                if ymax < maxUsage:
+                    ymax = maxUsage
+
+                plot(timeline, usage, '-', c=color, \
+                    linewidth=1, solid_capstyle='round')
+
+                for pidx, value in enumerate(usage):
+                    if value == 0:
+                        continue
+                    size = convSize2Unit(value << 20)
+                    text(timeline[pidx], value, \
+                        size, color=color, fontsize=4, \
+                        ha=getTextAlign(maxIdx, timeline))
+
+                return usage[-1], ymax
+
+            # define common label list #
+            ymax = long(0)
+            labelList = []
+
+            # set convert size #
+            convSize2Unit = UtilMgr.convSize2Unit
+
+            # draw title #
+            ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle('Guider Graph', fontsize=8)
+
+            # add boundary line #
+            drawBoundary('mem', labelList)
+
+            # define top variable #
+            if SysMgr.nrTop:
+                tcnt = long(0)
+
+            # create new timeline #
+            timeline = range(0, len(graphStats['timeline']))
+            lent = len(timeline)
+
+            totalRam = graphStats['totalRam']
+            memFree = graphStats['memFree']
+            memAnon = graphStats['memAnon']
+            memCache = graphStats['memCache']
+            memProcUsage = graphStats['memProcUsage']
+            totalSwap = graphStats['totalSwap']
+            swapUsage = graphStats['swapUsage']
+
+            # get margin #
+            margin = self.getMargin()
+
+            # Process VSS #
+            if SysMgr.vssEnable:
+                for key, item in sorted(memProcUsage.items(), \
+                    key=lambda e: sum(list(map(long, e[1]))), reverse=True):
+
+                    # check top number #
+                    if SysMgr.nrTop:
+                        if tcnt >= SysMgr.nrTop:
+                            break
+                        else:
+                            tcnt += 1
+
+                    usage = list(map(long, item))[:lent]
+
+                    # update the maximum ytick #
+                    maxUsage = max(usage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
+                    maxIdx = usage.index(maxUsage)
+
+                    # get color #
+                    color = \
+                        plot(timeline, usage, '-', linewidth=1)[0].get_color()
+
+                    lastUsage = '?'
+                    for pidx, value in enumerate(usage):
+                        if value == 0:
+                            continue
+                        lastUsage = size = convSize2Unit(value << 20)
+                        text(timeline[pidx], value + margin, \
+                            size, color=color, fontsize=4, \
+                            ha=getTextAlign(maxIdx, timeline))
+
+                    labelList.append(\
+                        '%s [VSS] - %s' % (key, lastUsage))
+
+            # Process RSS #
+            elif SysMgr.rssEnable or \
+                SysMgr.pssEnable or \
+                SysMgr.ussEnable:
+                for key, item in sorted(memProcUsage.items(), \
+                    key=lambda e: sum(list(map(long, e[1]))), reverse=True):
+
+                    # check top number #
+                    if SysMgr.nrTop:
+                        if tcnt >= SysMgr.nrTop:
+                            break
+                        else:
+                            tcnt += 1
+
+                    usage = list(map(long, item))[:lent]
+
+                    # update the maximum ytick #
+                    maxUsage = max(usage)
+                    if ymax < maxUsage:
+                        ymax = maxUsage
+                    maxIdx = usage.index(maxUsage)
+
+                    # get color #
+                    color = \
+                        plot(timeline, usage, '-', linewidth=1)[0].get_color()
+
+                    lastUsage = '?'
+                    for pidx, value in enumerate(usage):
+                        if value == 0:
+                            continue
+                        lastUsage = size = convSize2Unit(value << 20)
+                        text(timeline[pidx], value + margin, \
+                            size, color=color, fontsize=4, \
+                            ha=getTextAlign(maxIdx, timeline))
+
+                    # set memory type #
+                    if SysMgr.pssEnable:
+                        mem = 'PSS'
+                    elif SysMgr.ussEnable:
+                        mem = 'USS'
+                    else:
+                        mem = 'RSS'
+
+                    labelList.append('%s [%s] - %s' % (key, mem, lastUsage))
+
+            # System #
+            else:
+                # System Free Memory #
+                lastsize, ymax = drawSystemMem(memFree, 'blue', ymax)
+                if lastsize is not None:
+                    if totalRam:
+                        label = \
+                            '[ RAM Total ] - %s\nRAM Available - %s' % \
+                                (convSize2Unit(totalRam), lastsize)
+                        labelList.append(label)
+                    else:
+                        labelList.append('RAM Available - %s' % lastsize)
+
+                # System Anon Memory #
+                lastsize, ymax = drawSystemMem(memAnon, 'skyblue', ymax)
+                if lastsize is not None:
+                    labelList.append('RAM User - %s' % lastsize)
+
+                # System Cache Memory #
+                lastsize, ymax = drawSystemMem(memCache, 'darkgray', ymax)
+                if lastsize is not None:
+                    labelList.append('RAM Cache - %s' % lastsize)
+
+                # System Swap Memory #
+                lastsize, ymax = drawSystemMem(swapUsage, 'orange', ymax)
+                if lastsize is not None:
+                    if totalSwap:
+                        label = \
+                            '[ Swap Total ] - %s\nSwap Usage - %s' % \
+                                (convSize2Unit(totalSwap), lastsize)
+                        labelList.append(label)
+                    else:
+                        labelList.append('Swap Usage - %s' % lastsize)
+
+            '''
+            ylabel('MEMORY', fontsize=5)
+            ax.yaxis.set_label_coords(-0.05,0.5)
+            '''
+
+            if SysMgr.matplotlibVersion >= 1.2:
+                legend(labelList, bbox_to_anchor=(1.12, 0.75), \
+                    fontsize=3.5, loc='upper right')
+            else:
+                legend(\
+                    labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
+
+            grid(which='both', linestyle=':', linewidth=0.2)
+            tick_params(axis='x', direction='in')
+            tick_params(axis='y', direction='in')
+
+            # adjust yticks #
+            ylist = ax.get_yticks().tolist()
+
+            # set ymin #
+            ymin = long(min(ylist))
+            if ymin < 0:
+                ymin = long(0)
+            elif ymin == 0:
+                try:
+                    ax.set_ylim(bottom=0)
+                except:
+                    pass
+
+            # update ymax #
+            if SysMgr.funcDepth > 0:
+                ymax = SysMgr.funcDepth
+
+            # update yticks #
+            if ymax > 0:
+                ylim([ymin, ymax+int(ymax/10)])
+
+            inc = long(ymax / 10)
+            if inc == 0:
+                inc = 1
+
+            # set yticks #
+            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+
+            try:
+                #ax.get_xaxis().set_visible(False)
+                ytickLabel = ax.get_yticks().tolist()
+                ytickLabel = list(map(long, ytickLabel))
+
+                # convert label units #
+                ytickLabel = \
+                    [convSize2Unit(val << 20) for val in ytickLabel]
+
+                # remove redundant ticks #
+                lastTick = ''
+                tempLabelList = list(ytickLabel)
+                for idx, ytick in enumerate(tempLabelList):
+                    if lastTick == ytick:
+                        ytickLabel[idx] = ''
+                    else:
+                        lastTick = ytick
+
+                ax.set_yticklabels(ytickLabel)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # set xticks attributes #
+            ax.set_xticklabels(graphStats['fileList'])
+            xticks(fontsize=4)
+            if len(timeline) > 1:
+                xlim([timeline[0], timeline[-1]])
 
             #ticklabel_format(useOffset=False)
             locator_params(axis = 'x', nbins=30)
@@ -53436,7 +53796,11 @@ class ThreadAnalyzer(object):
         SysMgr.printStat(r"start drawing average graphs...")
 
         # draw CPU #
-        drawCpu(graphStats, 3, 0, 6)
+        if SysMgr.isDrawCpuAvgMode():
+            drawAvgCpu(graphStats, 3, 0, 6)
+        # draw Memory #
+        else:
+            drawAvgMem(graphStats, 3, 0, 6)
 
         # remove stats to free memory #
         graphStats.clear()
@@ -53479,6 +53843,8 @@ class ThreadAnalyzer(object):
 
                 SysMgr.printInfo(\
                     'renamed %s to %s' % (outputFile, oldPath))
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "fail to backup %s to %s" % (outputFile, oldPath), True)
@@ -53493,14 +53859,17 @@ class ThreadAnalyzer(object):
 
             # get output size #
             try:
-                fsize = \
-                    UtilMgr.convSize2Unit(\
-                        long(os.path.getsize(outputFile)))
+                fsize = long(os.path.getsize(outputFile))
+                fsize = UtilMgr.convSize2Unit(fsize)
+            except SystemExit:
+                sys.exit(0)
             except:
                 fsize = '?'
 
             SysMgr.printStat(\
                 "write resource %s into %s [%s]" % (itype, outputFile, fsize))
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(\
                 "fail to draw image to %s" % outputFile, True)
@@ -53630,8 +53999,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
 
             cnt = long(0)
-            for key, value in sorted(\
-                self.threadData.items(), \
+            for key, value in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['waitChild'], reverse=True):
 
                 # print tree from root threads #
@@ -53784,9 +54152,8 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
 
             newLine = False
-            for idx, val in sorted(\
-                self.customEventInfo.items(), key=lambda e: e[1]['count'], \
-                reverse=True):
+            for idx, val in sorted(self.customEventInfo.items(),\
+                key=lambda e: e[1]['count'], reverse=True):
                 if newLine:
                     SysMgr.printPipe()
                 else:
@@ -53858,8 +54225,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
 
             newLine = False
-            for idx, val in sorted(\
-                self.userEventInfo.items(), \
+            for idx, val in sorted(self.userEventInfo.items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 if newLine:
@@ -53949,8 +54315,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
 
             newLine = False
-            for idx, val in sorted(\
-                self.kernelEventInfo.items(),\
+            for idx, val in sorted(self.kernelEventInfo.items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 if newLine:
@@ -54181,7 +54546,8 @@ class ThreadAnalyzer(object):
         count = long(0)
         SysMgr.clearPrint()
         for key, value in sorted(self.threadData.items(), \
-            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
+            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), \
+            reverse=False):
 
             if key[0:2] != '0[':
                 # convert priority #
@@ -54643,8 +55009,7 @@ class ThreadAnalyzer(object):
                 continue
 
             SysMgr.clearPrint()
-            for key, value in sorted(\
-                self.preemptData[index][1].items(), \
+            for key, value in sorted(self.preemptData[index][1].items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 count += 1
@@ -55070,8 +55435,7 @@ class ThreadAnalyzer(object):
             'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLocked'))
         SysMgr.printPipe(twoLine)
 
-        for key, value in sorted(\
-            self.threadData.items(), \
+        for key, value in sorted(self.threadData.items(),\
             key=lambda e: e[1]['lockWait'], reverse=True):
 
             if key[0:2] == '0[':
@@ -55153,9 +55517,9 @@ class ThreadAnalyzer(object):
 
         totalInfo = dict()
 
-        for key, value in sorted(\
-            self.threadData.items(), key=lambda e: e[1]['nrSyscall'], \
-            reverse=True):
+        for key, value in sorted(self.threadData.items(),\
+            key=lambda e: e[1]['nrSyscall'], reverse=True):
+
             threadInfo = ''
             syscallInfo = ''
 
@@ -55171,8 +55535,7 @@ class ThreadAnalyzer(object):
             except:
                 continue
 
-            for sysId, val in sorted(\
-                value['syscallInfo'].items(), \
+            for sysId, val in sorted(value['syscallInfo'].items(),\
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 if val['count'] == 0:
@@ -55239,8 +55602,8 @@ class ThreadAnalyzer(object):
 
             # print total info #
             syscallInfo = ''
-            for sysId, val in sorted(\
-                totalInfo.items(), key=lambda e: e[1]['usage'], reverse=True):
+            for sysId, val in sorted(totalInfo.items(),\
+                key=lambda e: e[1]['usage'], reverse=True):
                 try:
                     syscall = ConfigMgr.sysList[int(sysId)][4:]
                 except:
@@ -55474,8 +55837,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(oneLine)
 
         # print task pages #
-        for tid, value in sorted(\
-            self.threadData.items(), \
+        for tid, value in sorted(self.threadData.items(),\
             key=lambda e:e[1]['nrAllocPages'], reverse=True):
             if tid[0] == '0':
                 continue
@@ -55587,8 +55949,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # sort threads by read size #
-        for tid, data in sorted(\
-            self.blockTable[2].items(), \
+        for tid, data in sorted(self.blockTable[2].items(),\
             key=lambda e:sorted(e[1][0]), reverse=True):
             tcnt = long(0)
             comm = self.threadData[tid]['comm']
@@ -55618,8 +55979,7 @@ class ThreadAnalyzer(object):
         # custom event usage on timeline #
         SysMgr.clearPrint()
         if len(SysMgr.customEventList) > 0:
-            for idx, val in sorted(\
-                self.customEventInfo.items(), \
+            for idx, val in sorted(self.customEventInfo.items(),\
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.customInfo.items(), \
@@ -55686,8 +56046,7 @@ class ThreadAnalyzer(object):
         # user event usage on timeline #
         SysMgr.clearPrint()
         if len(SysMgr.userEventList) > 0:
-            for idx, val in sorted(\
-                self.userEventInfo.items(), \
+            for idx, val in sorted(self.userEventInfo.items(),\
                 key=lambda e: e[1]['count'], reverse=True):
 
                 for key, value in sorted(self.userInfo.items(), \
@@ -55759,12 +56118,10 @@ class ThreadAnalyzer(object):
         # kernel event usage on timeline #
         SysMgr.clearPrint()
         if len(SysMgr.kernelEventList) > 0:
-            for idx, val in sorted(\
-                self.kernelEventInfo.items(), \
+            for idx, val in sorted(self.kernelEventInfo.items(),\
                 key=lambda e: e[1]['count'], reverse=True):
 
-                for key, value in sorted(\
-                    self.kernelInfo.items(), \
+                for key, value in sorted(self.kernelInfo.items(),\
                     key=lambda e: 0 if not idx in e[1] else e[1][idx]['usage'], \
                     reverse=True):
                     timeLine = ''
@@ -55900,7 +56257,9 @@ class ThreadAnalyzer(object):
 
         # total CPU usage on timeline #
         for key, value in sorted(self.threadData.items(), \
-            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), reverse=False):
+            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']), \
+            reverse=False):
+
             if not SysMgr.cpuEnable:
                 break
 
@@ -56029,9 +56388,8 @@ class ThreadAnalyzer(object):
 
         # total custom event usage on timeline #
         newLine = True
-        for evt, value in sorted(\
-            self.customEventInfo.items(), key=lambda e: e[1]['count'], \
-            reverse=True):
+        for evt, value in sorted(self.customEventInfo.items(),\
+            key=lambda e: e[1]['count'], reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
@@ -56059,9 +56417,8 @@ class ThreadAnalyzer(object):
 
         # total user event usage on timeline #
         newLine = True
-        for evt, value in sorted(\
-            self.userEventInfo.items(), key=lambda e: e[1]['count'], \
-            reverse=True):
+        for evt, value in sorted(self.userEventInfo.items(),\
+            key=lambda e: e[1]['count'], reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
@@ -56095,9 +56452,8 @@ class ThreadAnalyzer(object):
 
         # total kernel event usage on timeline #
         newLine = True
-        for evt, value in sorted(\
-            self.kernelEventInfo.items(), key=lambda e: e[1]['count'], \
-            reverse=True):
+        for evt, value in sorted(self.kernelEventInfo.items(),\
+            key=lambda e: e[1]['count'], reverse=True):
 
             timeLine = ''
             timeLineLen = titleLineLen
@@ -56213,8 +56569,7 @@ class ThreadAnalyzer(object):
                 subplots_adjust(left=0.06, top=0.95, bottom=0.05)
 
         # CPU usage on timeline #
-        for key, value in sorted(\
-            self.threadData.items(), \
+        for key, value in sorted(self.threadData.items(),\
             key=lambda e: e[1]['usage'], reverse=True):
 
             if key[0:2] == '0[':
@@ -56360,8 +56715,7 @@ class ThreadAnalyzer(object):
 
         # preempted units on timeline #
         SysMgr.clearPrint()
-        for key, value in sorted(\
-            self.threadData.items(), \
+        for key, value in sorted(self.threadData.items(),\
             key=lambda e: e[1]['cpuWait'], reverse=True):
 
             if value['cpuWait'] / float(self.totalTime) * 100 < 1 and \
@@ -56430,8 +56784,7 @@ class ThreadAnalyzer(object):
         # memory usage on timeline #
         SysMgr.clearPrint()
         if SysMgr.memEnable:
-            for key, value in sorted(\
-                self.threadData.items(), \
+            for key, value in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['nrPages'], reverse=True):
 
                 if not SysMgr.showAll and \
@@ -56497,8 +56850,7 @@ class ThreadAnalyzer(object):
         # block read usage on timeline #
         SysMgr.clearPrint()
         if SysMgr.blockEnable:
-            for key, value in sorted(\
-                self.threadData.items(), \
+            for key, value in sorted(self.threadData.items(),\
                 key=lambda e: e[1]['reqRdBlock'], reverse=True):
 
                 if value['readBlock'] < 1 and not SysMgr.showAll:
@@ -57395,8 +57747,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print CPU usage of processes #
-        for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), \
+        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),\
             key=lambda e: e[1]['cpu'], reverse=True):
 
             if pid == 'total':
@@ -57576,8 +57927,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print rss of processes #
-        for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), \
+        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),\
             key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'], \
             reverse=True):
 
@@ -57713,8 +58063,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print vss of processes #
-        for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), \
+        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),\
             key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'], \
             reverse=True):
 
@@ -57826,9 +58175,8 @@ class ThreadAnalyzer(object):
 
         # Print block usage of processes #
         itemCnt = long(0)
-        for pid, value in sorted(\
-            ThreadAnalyzer.procTotData.items(), key=lambda e: e[1]['blk'], \
-            reverse=True):
+        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),\
+            key=lambda e: e[1]['blk'], reverse=True):
 
             if pid == 'total' or \
                 value['blk'] == value['blkrd'] == value['blkwr'] == 0:
@@ -60592,9 +60940,8 @@ class ThreadAnalyzer(object):
             bioStart = long(address)
             bioEnd = long(address) + long(size)
 
-            for key, request in sorted(\
-                self.ioData.items(), key=lambda e: e[1]['address'], \
-                reverse=False):
+            for key, request in sorted(self.ioData.items(),\
+                key=lambda e: e[1]['address'], reverse=False):
 
                 # skip different requests with device number #
                 if request['major'] != d['major'] or \
@@ -62792,7 +63139,8 @@ class ThreadAnalyzer(object):
 
     def reclaimFds(self, nrReq=64):
         nrRclm = long(0)
-        for pid, val in sorted(self.procData.items(), key=lambda x:int(x[0])):
+        for pid, val in sorted(\
+            self.procData.items(), key=lambda x:int(x[0])):
             for item in val.keys():
                 if not item.endswith('Fd'):
                     continue
@@ -64962,8 +65310,7 @@ class ThreadAnalyzer(object):
             # set indent size including arrow #
             initIndent = 42
 
-            for stack, cnt in sorted(\
-                self.stackTable[idx]['stack'].items(), \
+            for stack, cnt in sorted(self.stackTable[idx]['stack'].items(),\
                 key=lambda e: e[1], reverse=True):
 
                 line = ''
@@ -65814,8 +66161,8 @@ class ThreadAnalyzer(object):
             for event, proc in reportStat['event'].items():
                 printBuf += '[event] (%s)\n' % (event)
 
-                for rank, stat in sorted(\
-                    proc.items(), key=lambda e: long(e[0]), reverse=False):
+                for rank, stat in sorted(proc.items(),\
+                    key=lambda e: long(e[0]), reverse=False):
 
                     printBuf += '[%s] ' % (rank)
 

@@ -1093,17 +1093,19 @@ COMMAND:
 
     [VISUAL]        convert         <Text>
                     draw            <System>
-                    drawavg         <Average>
                     drawcpu         <CPU>
+                    drawcpuavg      <CPU>
                     drawio          <I/O>
                     drawleak        <Leak>
                     drawmem         <Memory>
+                    drawmemavg      <Memory>
                     drawrss         <RSS>
+                    drawrssavg      <RSS>
                     drawvss         <VSS>
+                    drawvssavg      <VSS>
 
 FILE:
     Profile file (e.g. guider.dat)
-    Report  file (e.g. guider.out)
 
 Options:
     Check COMMAND with --help (e.g. guider/guider.py top --help)
