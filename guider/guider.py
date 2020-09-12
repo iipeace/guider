@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200911"
+__revision__ = "200912"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13698,7 +13698,7 @@ class SysMgr(object):
     terminalOver = False
     logoEnable = True
 
-    cpuAvrEnable = True
+    cpuAvgEnable = True
     reportEnable = False
     truncEnable = True
     countEnable = False
@@ -16252,6 +16252,7 @@ class SysMgr(object):
             'visual': {
                 'convert': 'Text',
                 'draw': 'System',
+                'drawavg': 'Average',
                 'drawcpu': 'CPU',
                 'drawcpuavg': 'CPU',
                 'drawio': 'I/O',
@@ -16414,8 +16415,8 @@ Options:
     -o  <DIR>                   save output data
     -a                          show all stats and events
     -T  <NUM>                   set top number
-    -t  <START:END>             set range
-    -L  <RES:PER>               set graph Layout
+    -t  <START:END>             set y axis range
+    -L  <RES:PER>               set graph layout (sum of PER: 6)
     -l  <BOUNDARY>              set boundary lines
     -E  <DIR>                   set cache dir path
     -v                          verbose
@@ -16510,7 +16511,7 @@ Examples:
     - Draw graphs of resource usage with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw graphs of resource usage after cutting range
+    - Draw graphs of resource usage after setting range
         # {0:1} {1:1} guider.out -t 1234:1239
 
     - Draw graphs of resource usage of top 5 processes
@@ -16518,6 +16519,13 @@ Examples:
 
     - Draw graphs of resource usage with ylimit 100
         # {0:1} {1:1} guider.out worstcase.out -H 100
+
+    - Draw graphs of total CPU usage by applying the multiplication of the number of CPUs
+        # {0:1} {1:1} guider.out worstcase.out -d A
+
+    - Draw graphs of resource usage on customized layout
+        # {0:1} {1:1} guider.out -L c:2, m:2, i:2
+        # {0:1} {1:1} guider.out -L c:4, r:1, v:1
 
     - Draw graphs of resource usage with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
@@ -17036,7 +17044,7 @@ Options:
     -P                          group threads in a same process
     -p  <TID>                   show preemption info
     -O  <CORE>                  set core filter
-    -L  <RES:PER>               set graph Layout
+    -L  <RES:PER>               set graph layout (sum of PER: 6)
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
@@ -23455,7 +23463,7 @@ Copyright:
                     SysMgr.gpuEnable = False
 
                 if 'A' in options:
-                    SysMgr.cpuAvrEnable = False
+                    SysMgr.cpuAvgEnable = False
 
                 if 'L' in options:
                     SysMgr.logEnable = False
@@ -25271,10 +25279,20 @@ Copyright:
 
     @staticmethod
     def isDrawAvgMode():
-        if SysMgr.isDrawCpuAvgMode() or \
+        if SysMgr.isDrawTotalAvgMode() or \
+            SysMgr.isDrawCpuAvgMode() or \
             SysMgr.isDrawMemAvgMode() or \
             SysMgr.isDrawVssAvgMode() or \
             SysMgr.isDrawRssAvgMode():
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDrawTotalAvgMode():
+        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawavg':
             return True
         else:
             return False
@@ -51621,7 +51639,8 @@ class ThreadAnalyzer(object):
                     xlim([xtickLabel[0], xtickLabel[-1]])
                     for seq, cnt in enumerate(xtickLabel):
                         try:
-                            xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
+                            xtickLabel[seq] = \
+                                nrCore[timeline.index(long(cnt))]
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -51711,7 +51730,7 @@ class ThreadAnalyzer(object):
                 maxCore = max(nrCore)
 
                 # convert total CPU usage by core number #
-                if not SysMgr.cpuAvrEnable:
+                if not SysMgr.cpuAvgEnable:
                     cpuUsage = [maxCore * i for i in cpuUsage]
 
                 # set visible total usage flag #
@@ -53092,6 +53111,12 @@ class ThreadAnalyzer(object):
                         drawCpu(graphStats, xtype, pos, size)
                     elif targetc == 'MEM' or targetc.startswith('M'):
                         drawMem(graphStats, xtype, pos, size)
+                    elif targetc == 'VSS' or targetc.startswith('V'):
+                        SysMgr.vssEnable = True
+                        drawMem(graphStats, xtype, pos, size)
+                    elif targetc == 'RSS' or targetc.startswith('R'):
+                        SysMgr.rssEnable = True
+                        drawMem(graphStats, xtype, pos, size)
                     elif targetc == 'IO' or targetc.startswith('I'):
                         drawIo(graphStats, xtype, pos, size)
                     else:
@@ -53279,7 +53304,7 @@ class ThreadAnalyzer(object):
             maxCore = max(nrCore)
 
             # convert total CPU usage by core number #
-            if not SysMgr.cpuAvrEnable:
+            if not SysMgr.cpuAvgEnable:
                 cpuUsage = [maxCore * i for i in cpuUsage]
 
             # set visible total usage flag #
@@ -53795,8 +53820,90 @@ class ThreadAnalyzer(object):
 
         SysMgr.printStat(r"start drawing average graphs...")
 
+        # draw All #
+        if SysMgr.isDrawTotalAvgMode():
+            if not SysMgr.layout:
+                drawAvgCpu(graphStats, 3, 0, 4)
+                drawAvgMem(graphStats, 1, 4, 2)
+            else:
+                pos = long(0)
+                total = long(0)
+                layoutDict = {}
+                layoutList = []
+                layout = SysMgr.layout.split(',')
+
+                # sum size of graph boxes #
+                for idx, graph in enumerate(layout):
+                    try:
+                        if len(graph.split(':')) == 1:
+                            target = graph
+                            size = 1
+                        else:
+                            (target, size) = graph.split(':')
+
+                        # check duplicated graph #
+                        try:
+                            layoutDict[target]
+                            SysMgr.printErr(\
+                                "fail to draw graph "
+                                "because %s graph is duplicated" % target)
+                            sys.exit(0)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            layoutDict[target] = True
+
+                        size = long(size)
+                        if size == 0:
+                            raise Exception('wrong size')
+                        else:
+                            total += size
+                            layoutList.append([target, long(size)])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(\
+                            "fail to draw graph "
+                            "because graph format [TYPE:SIZE] is wrong")
+                        sys.exit(0)
+
+                for idx, item in enumerate(layoutList):
+                    target = item[0]
+                    size = item[1]
+
+                    # convert size to proportion #
+                    size = long((size / float(total)) * 6)
+
+                    try:
+                        xtype = len(layoutList) - idx
+
+                        targetc = target.upper()
+
+                        if targetc == 'CPU' or targetc.startswith('C'):
+                            drawAvgCpu(graphStats, xtype, pos, size)
+                        elif targetc == 'MEM' or targetc.startswith('M'):
+                            drawAvgMem(graphStats, xtype, pos, size)
+                        elif targetc == 'VSS' or targetc.startswith('V'):
+                            SysMgr.vssEnable = True
+                            drawAvgMem(graphStats, xtype, pos, size)
+                        elif targetc == 'RSS' or targetc.startswith('R'):
+                            SysMgr.rssEnable = True
+                            drawAvgMem(graphStats, xtype, pos, size)
+                        else:
+                            SysMgr.printErr(\
+                                "fail to draw graph "
+                                "because '%s' is not recognized" % target)
+                            sys.exit(0)
+
+                        pos += size
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        err = SysMgr.getErrMsg()
+                        raise Exception(err)
+
         # draw CPU #
-        if SysMgr.isDrawCpuAvgMode():
+        elif SysMgr.isDrawCpuAvgMode():
             drawAvgCpu(graphStats, 3, 0, 6)
         # draw Memory #
         else:
@@ -63497,7 +63604,7 @@ class ThreadAnalyzer(object):
                 "fail to get system CPU stat")
             return
 
-        if SysMgr.cpuAvrEnable:
+        if SysMgr.cpuAvgEnable:
             nrCore = SysMgr.nrCore
             maxUsage = 100
         else:

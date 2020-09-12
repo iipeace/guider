@@ -1093,6 +1093,7 @@ COMMAND:
 
     [VISUAL]        convert         <Text>
                     draw            <System>
+                    drawavg         <Average>
                     drawcpu         <CPU>
                     drawcpuavg      <CPU>
                     drawio          <I/O>
