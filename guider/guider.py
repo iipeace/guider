@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200912"
+__revision__ = "200913"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5078,10 +5078,10 @@ class NetworkMgr(object):
 
         if data.startswith('{'):
             return 'JSON'
-        elif '[Info' in data[:10] or \
-            '[Error' in data[:10] or \
-            '[Warning' in data[:10] or \
-            '[Step' in data[:10]:
+        elif '[INFO' in data[:10] or \
+            '[ERROR' in data[:10] or \
+            '[WARN' in data[:10] or \
+            '[STEP' in data[:10]:
             return 'LOG'
         else:
             return 'CONSOLE'
@@ -22849,7 +22849,7 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         msg = ('\n%s%s%s%s%s%s\n' % \
-            (ConfigMgr.WARNING, '[Warning] ', proc, \
+            (ConfigMgr.WARNING, '[WARN] ', proc, \
                 line, rstring, ConfigMgr.ENDC))
 
         if 'REMOTERUN' in os.environ:
@@ -22882,7 +22882,7 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         msg = ('\n%s%s%s%s%s%s\n' % \
-            (ConfigMgr.FAIL, '[Error] ', proc, \
+            (ConfigMgr.FAIL, '[ERROR] ', proc, \
                 line, rstring, ConfigMgr.ENDC))
 
         if 'REMOTERUN' in os.environ:
@@ -22909,7 +22909,7 @@ Copyright:
         if notitle:
             title = ''
         else:
-            title = '[Info] '
+            title = '[INFO] '
 
         if prefix:
             prefix = '\n'
@@ -22917,16 +22917,17 @@ Copyright:
             prefix = ''
 
         proc = SysMgr.getProcInfo()
+        BOLD = ConfigMgr.BOLD
 
         if suffix:
             try:
                 print('%s%s%s%s%s%s' % \
-                    (prefix, ConfigMgr.BOLD, title, proc, line, ConfigMgr.ENDC))
+                    (prefix, BOLD, title, proc, line, ConfigMgr.ENDC))
             except:
                 return
         else:
             sys.stdout.write('%s%s%s%s%s%s' % \
-                (prefix, ConfigMgr.BOLD, title, proc, line, ConfigMgr.ENDC))
+                (prefix, BOLD, title, proc, line, ConfigMgr.ENDC))
             sys.stdout.flush()
 
 
@@ -22939,7 +22940,7 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         print('\n%s%s%s%s%s' % \
-            (ConfigMgr.OKGREEN, '[Info] ', proc, line, ConfigMgr.ENDC))
+            (ConfigMgr.OKGREEN, '[INFO] ', proc, line, ConfigMgr.ENDC))
 
 
 
@@ -22963,7 +22964,7 @@ Copyright:
         proc = SysMgr.getProcInfo()
 
         print('\n%s%s%s%s%s' % \
-            (ConfigMgr.SPECIAL, '[Step] ', proc, line, ConfigMgr.ENDC))
+            (ConfigMgr.SPECIAL, '[STEP] ', proc, line, ConfigMgr.ENDC))
 
 
 
@@ -31567,7 +31568,11 @@ Copyright:
         isSent = False
         if pidList and type(pidList) is list:
             for pid in pidList:
-                pid = pid.strip()
+                try:
+                    pid = pid.strip()
+                except:
+                    pass
+
                 if not pid:
                     continue
 
@@ -40456,7 +40461,7 @@ struct cmsghdr {
 
                     # no symbol #
                     SysMgr.printErr(\
-                        "fail to find address for '%s'" % value)
+                        "fail to find address for symbol '%s'" % value)
                     sys.exit(0)
                 else:
                     addrList += ret
@@ -47413,7 +47418,7 @@ class ElfAnalyzer(object):
 
             # return a exceptional file object #
             if fobj:
-                SysMgr.printInfo("[Done]", prefix=False, notitle=True)
+                SysMgr.printInfo("[done]", prefix=False, notitle=True)
                 return fobj
 
             # try to load a object from cache #
@@ -47421,7 +47426,7 @@ class ElfAnalyzer(object):
             if fobj:
                 ElfAnalyzer.cachedFiles[path] = fobj
                 ElfAnalyzer.cachedFiles[path].saved = True
-                SysMgr.printInfo("[Cached]", prefix=False, notitle=True)
+                SysMgr.printInfo("[cached]", prefix=False, notitle=True)
                 return fobj
 
             # create a new object #
@@ -47434,13 +47439,13 @@ class ElfAnalyzer(object):
                     raise Exception('not an ELF file')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
-                SysMgr.printInfo("[Done]", prefix=False, notitle=True)
+                SysMgr.printInfo("[done]", prefix=False, notitle=True)
             except SystemExit:
                 sys.exit(0)
             except:
                 ElfAnalyzer.failedFiles[path] = True
 
-                failLog = UtilMgr.convColor("[Fail]", 'RED')
+                failLog = UtilMgr.convColor("[fail]", 'RED')
                 SysMgr.printInfo(failLog, prefix=False, notitle=True)
 
                 SysMgr.printWarn(\
