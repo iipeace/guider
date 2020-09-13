@@ -158,7 +158,7 @@ class ImplAnalyzer(object):
 
         # out #
         if args.out:
-            out = SysMgr.printFile = args.out
+            out = SysMgr.outPath = args.out
         else:
             out = None
 
@@ -939,7 +939,7 @@ class ImplAnalyzer(object):
             args['out'] = configData['out']
         outPath = list(set(args['out']))
         if outPath:
-            SysMgr.printFile = outPath[0]
+            SysMgr.outPath = outPath[0]
 
         return args
 
