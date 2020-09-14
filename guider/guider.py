@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200913"
+__revision__ = "200914"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20910,7 +20910,7 @@ Copyright:
 
         # check current mode #
         if SysMgr.isTopMode():
-            SysMgr.printInfo("TOP MODE")
+            SysMgr.printInfo("<TOP MODE>")
 
             if SysMgr.fileTopEnable:
                 enableStat += 'FILE '
@@ -21063,7 +21063,7 @@ Copyright:
                     disableStat += 'REPORT '
 
         elif SysMgr.isFunctionMode():
-            SysMgr.printInfo("FUNCTION MODE")
+            SysMgr.printInfo("<FUNCTION MODE>")
 
             if SysMgr.graphEnable:
                 enableStat += 'GRAPH '
@@ -21116,13 +21116,13 @@ Copyright:
                     disableStat += 'DISABLE '
 
         elif SysMgr.isFileMode():
-            SysMgr.printInfo("FILE MODE")
+            SysMgr.printInfo("<FILE MODE>")
 
         elif SysMgr.isSystemMode():
-            SysMgr.printInfo("SYSTEM MODE")
+            SysMgr.printInfo("<SYSTEM MODE>")
 
         else:
-            SysMgr.printInfo("THREAD MODE")
+            SysMgr.printInfo("<THREAD MODE>")
             SysMgr.threadEnable = True
 
             if not SysMgr.cpuEnable:
@@ -23058,11 +23058,11 @@ Copyright:
         # save parsed option #
         SysMgr.optionList = parsedOpt[1:]
 
-        # check double option #
+        # check redundant option #
         usedOpt = {}
         for opt in SysMgr.optionList:
             try:
-                if not opt[0] in usedOpt:
+                if not opt[0] in usedOpt or opt[0] == '-':
                     usedOpt[opt[0]] = True
                     continue
             except:
@@ -42672,10 +42672,14 @@ struct cmsghdr {
 
 
     def getSymbolInfo(self, vaddr):
+        # get symbol info from cache list #
+        if vaddr in self.symbolCacheList:
+            return self.symbolCacheList[vaddr]
+
+        # check exceptional cases #
         if not vaddr or vaddr < 0:
             return None
-
-        if not self.pid:
+        elif not self.pid:
             SysMgr.printErr("fail to get PID to get symbol")
             return None
 
@@ -42724,7 +42728,9 @@ struct cmsghdr {
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
-            return ['??', fname, '??', '??', '??']
+            ret = ['??', fname, '??', '??', '??']
+            self.symbolCacheList[vaddr] = ret
+            return ret
 
         # check executable type #
         if not ElfAnalyzer.isRelocFile(fname):
@@ -42733,10 +42739,16 @@ struct cmsghdr {
         # get symbol #
         try:
             sym = fcache.getSymbolByOffset(offset)
-            return [sym, fname, hex(offset).rstrip('L'), vstart, vend]
+            ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend]
+            self.symbolCacheList[vaddr] = ret
+            return ret
         except SystemExit:
             sys.exit(0)
         except:
+            SysMgr.printWarn(\
+                'fail to get symbol from %x for %s(%s)' % \
+                    (hex(offset).rstrip('L'), self.comm, self.pid), \
+                        reason=True)
             return ['??', fname, '??', '??', '??']
 
 
@@ -43814,18 +43826,18 @@ struct cmsghdr {
             sys.exit(0)
 
         # check previous function boundary #
-        if self.prevCallInfo and \
-            ((not self.isRealtime and \
-            self.prevCallInfo[2] <= self.pc <= self.prevCallInfo[3]) or \
-            (self.isRealtime and self.pc == self.prevCallInfo[5])):
-            if self.isRealtime:
+        if not self.prevCallInfo:
+            pass
+        elif self.isRealtime:
+            if self.pc == self.prevCallInfo[5]:
                 self.addSample(\
                     self.prevCallInfo[0], self.prevCallInfo[1], \
                     realtime=True, bt=self.prevCallInfo[4])
-            elif SysMgr.outPath:
+                return
+        elif self.prevCallInfo[2] <= self.pc <= self.prevCallInfo[3]:
+            if SysMgr.outPath:
                 self.addSample(\
                     self.prevCallInfo[0], self.prevCallInfo[1])
-
             return
 
         # get symbol info #
@@ -44785,6 +44797,7 @@ struct cmsghdr {
         self.setRetList = dict()
         self.regList = dict()
         self.repeatCntList = dict()
+        self.symbolCacheList = dict()
         self.prevReturn = -1
 
         # index variables #
@@ -45965,9 +45978,9 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             else:
                 addr = addressof(self.iovecObj)
 
-            cmd = PTRACE_GETREGSET = 0x4204
+            # PTRACE_GETREGSET #
+            cmd = 0x4204
             NT_PRSTATUS = 1
-            nrWords = sizeof(self.regs) * wordSize
 
             ret = self.ptrace(cmd, NT_PRSTATUS, addr)
             if ret != 0:
@@ -47193,6 +47206,7 @@ class ElfAnalyzer(object):
     cachedHeaderFiles = {}
     stripedFiles = {}
     failedFiles = {}
+    relocTypes = {}
     cachedDemangleTable = {}
 
 
@@ -47400,12 +47414,22 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(path, raiseExcept=False, fobj=None):
+        # check black-list #
+        if path in ElfAnalyzer.failedFiles:
+            return None
+
+        # check deleted files #
+        if '(deleted)' in path:
+            ElfAnalyzer.failedFiles[path] = True
+            SysMgr.printWarn(\
+                "fail to load %s because it is already deleted" % path)
+            return None
+
+        # remove segment number part #
+        path = path.split('#')[0]
+
         # load files #
         if not path in ElfAnalyzer.cachedFiles:
-            # check black-list #
-            if path in ElfAnalyzer.failedFiles:
-                return None
-
             # check exceptional case #
             if not path.startswith('/'):
                 if path == 'vdso':
@@ -47608,10 +47632,6 @@ class ElfAnalyzer(object):
 
                 offset = binObj.getOffsetBySymbol(\
                     symbol, inc=inc, start=start, end=end)
-
-                # handle executable #
-                if not ElfAnalyzer.isRelocFile(binPath):
-                    offset = long(offset, 16) - 0x400000
             except SystemExit:
                 sys.exit(0)
             except:
@@ -47619,13 +47639,26 @@ class ElfAnalyzer(object):
                     'fail to get offset for %s from %s' % (symbol, binPath),\
                         reason=True)
 
+            # check whether it is relocatable #
+            isReloc = ElfAnalyzer.isRelocFile(binPath)
+
             if type(offset) is str:
                 offset = long(offset, 16)
+
+                # handle executable #
+                if not isReloc:
+                    offset -= 0x400000
+
                 syms.append([offset, symbol, binPath])
             elif type(offset) is list:
                 for item in offset:
                     sym = item[0]
                     offset = long(item[1], 16)
+
+                    # handle executable #
+                    if not isReloc:
+                        offset -= 0x400000
+
                     syms.append([offset, sym, binPath])
 
             return syms
@@ -47696,16 +47729,20 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def isRelocFile(path):
+        if path in ElfAnalyzer.relocTypes:
+            return ElfAnalyzer.relocTypes[path]
+
         try:
             cachedObject = ElfAnalyzer.getObject(path)
             if not cachedObject:
                 raise Exception('no binary')
 
             etype = cachedObject.attr['elfHeader']['type']
-            if etype == 'Relocatable' or \
-                etype == 'Shared-object':
+            if etype == 'Relocatable' or etype == 'Shared-object':
+                ElfAnalyzer.relocTypes[path] = True
                 return True
             else:
+                ElfAnalyzer.relocTypes[path] = False
                 return False
         except SystemExit:
             sys.exit(0)
@@ -47718,8 +47755,10 @@ class ElfAnalyzer(object):
         if '.so' in path or \
             '.ttf' in path or \
             '.pak' in path:
+            ElfAnalyzer.relocTypes[path] = True
             return True
         else:
+            ElfAnalyzer.relocTypes[path] = False
             return False
 
 
