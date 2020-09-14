@@ -34263,11 +34263,15 @@ Copyright:
         try:
             SysMgr.netdevFd.seek(0)
             data = SysMgr.netdevFd.readlines()[2:]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 devPath = '%s/net/dev' % SysMgr.procPath
                 SysMgr.netdevFd = open(devPath, 'r')
                 data = SysMgr.netdevFd.readlines()[2:]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(devPath)
                 return
@@ -34275,6 +34279,8 @@ Copyright:
         try:
             socket = SysMgr.getPkg('socket', False)
             fcntl = SysMgr.getPkg('fcntl', False)
+        except SystemExit:
+            sys.exit(0)
         except:
             socket = fcntl = None
 
@@ -34284,12 +34290,9 @@ Copyright:
 
                 dev = dev.strip()
 
-                try:
-                    self.networkInfo[dev]
-                except:
-                    self.networkInfo[dev] = dict()
+                self.networkInfo.setdefault(dev, dict())
 
-                # set ip addr #
+                # set IP addr #
                 try:
                     if not SysMgr.localServObj:
                         NetworkMgr.setServerNetwork(None, None)
@@ -34300,6 +34303,8 @@ Copyright:
                         sockObj.socket.fileno(), 0x8915, # SIOCGIFADDR
                         struct.pack('256s', dev[:15].encode('utf-8')))
                     ipaddr = socket.inet_ntoa(res[20:24])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     ipaddr = ''
 
@@ -34340,6 +34345,8 @@ Copyright:
                     self.networkInfo[dev]['inittran'] = tlist
 
                 self.networkInfo[dev]['tran'] = tlist
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -57139,8 +57146,7 @@ class ThreadAnalyzer(object):
 
 
     def getNetworkUsage(self, prev, now):
-        if not now or \
-            prev == now:
+        if not now or prev == now:
             return (0, 0)
 
         nowIn = nowOut = prevIn = prevOut = long(0)
@@ -57173,7 +57179,9 @@ class ThreadAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                return (0, 0)
+                continue
+
+        return (0, 0)
 
 
 
@@ -62444,11 +62452,15 @@ class ThreadAnalyzer(object):
             cpuBuf = None
             SysMgr.statFd.seek(0)
             cpuBuf = SysMgr.statFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
                 cpuBuf = SysMgr.statFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(\
                     'fail to read %s' % cpuPath, True)
@@ -62497,12 +62509,16 @@ class ThreadAnalyzer(object):
             memBuf = None
             SysMgr.memFd.seek(0)
             memBuf = SysMgr.memFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 memPath = "%s/%s" % (SysMgr.procPath, 'meminfo')
                 SysMgr.memFd = open(memPath, 'r')
 
                 memBuf = SysMgr.memFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(memPath)
 
@@ -62528,12 +62544,16 @@ class ThreadAnalyzer(object):
             vmBuf = None
             SysMgr.vmstatFd.seek(0)
             vmBuf = SysMgr.vmstatFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
                 SysMgr.vmstatFd = open(vmstatPath, 'r')
 
                 vmBuf = SysMgr.vmstatFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(vmstatPath)
 
@@ -62550,12 +62570,16 @@ class ThreadAnalyzer(object):
             swapBuf = None
             SysMgr.swapFd.seek(0)
             swapBuf = SysMgr.swapFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 swapPath = "%s/%s" % (SysMgr.procPath, 'swaps')
                 SysMgr.swapFd = open(swapPath, 'r')
 
                 swapBuf = SysMgr.swapFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(swapPath)
 
@@ -62593,11 +62617,15 @@ class ThreadAnalyzer(object):
             SysMgr.netstatFd.seek(0)
             SysMgr.prevNetstat = SysMgr.netstat
             SysMgr.netstat = SysMgr.netstatFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 netstatPath = "%s/%s" % (SysMgr.procPath, 'net/netstat')
                 SysMgr.netstatFd = open(netstatPath, 'r')
                 SysMgr.netstat = SysMgr.netstatFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(netstatPath)
 
@@ -62605,11 +62633,15 @@ class ThreadAnalyzer(object):
         try:
             SysMgr.loadavgFd.seek(0)
             SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 loadavgPath = "%s/%s" % (SysMgr.procPath, 'loadavg')
                 SysMgr.loadavgFd = open(loadavgPath, 'r')
                 SysMgr.loadavg = SysMgr.loadavgFd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(loadavgPath)
 
@@ -63732,8 +63764,7 @@ class ThreadAnalyzer(object):
 
         # get network usage in bytes #
         (netIn, netOut) = \
-            self.getNetworkUsage(\
-            SysMgr.prevNetstat, SysMgr.netstat)
+            self.getNetworkUsage(SysMgr.prevNetstat, SysMgr.netstat)
 
         # add network interval #
         self.addSysInterval('inbound', netIn)
