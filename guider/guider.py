@@ -22129,15 +22129,15 @@ Copyright:
 
         # apply mode option #
         if SysMgr.isDrawMode():
-            SysMgr.printInfo("DRAW MODE")
+            SysMgr.printInfo("<DRAW MODE>")
         elif ' funcrec ' in SysMgr.launchBuffer or \
             ' funcrecord ' in SysMgr.launchBuffer:
             SysMgr.threadEnable = False
             SysMgr.functionEnable = True
-            SysMgr.printInfo("FUNCTION MODE")
+            SysMgr.printInfo("<FUNCTION MODE>")
         else:
             SysMgr.threadEnable = True
-            SysMgr.printInfo("THREAD MODE")
+            SysMgr.printInfo("<THREAD MODE>")
 
         # apply filter option #
         filterList = None
@@ -49345,7 +49345,13 @@ class ThreadAnalyzer(object):
             SysMgr.procBuffer = list(reversed(SysMgr.procBuffer))
 
         # print summary #
-        ThreadAnalyzer.printIntervalUsage()
+        try:
+            ThreadAnalyzer.printIntervalUsage()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(\
+                "fail to print interval summary", reason=True)
 
 
 
@@ -66698,25 +66704,32 @@ class ThreadAnalyzer(object):
             return
 
         # print events #
-        plist = list(SysMgr.thresholdEventList.keys())
-        elist = list(self.reportData['event'].keys())
+        prevList = list(SysMgr.thresholdEventList.keys())
+        nowList = list(self.reportData['event'].keys())
 
-        # check removed events #
-        rlist = set(plist) - set(elist)
-        if rlist:
+        # print finished events #
+        endList = set(prevList) - set(nowList)
+        if endList:
             SysMgr.printInfo(\
-                "finished the threshold events [ %s ] at %s" % \
-                    (', '.join(rlist), SysMgr.uptime))
+                "finished threshold events [ %s ] at %s" % \
+                    (', '.join(endList), SysMgr.uptime))
 
         # print new events #
-        nlist = set(elist) - set(plist)
-        if nlist:
+        newList = set(nowList) - set(prevList)
+        if newList:
             SysMgr.printInfo(\
-                "the threshold events [ %s ] occurred at %s" % \
-                    (', '.join(nlist), SysMgr.uptime))
+                "threshold events [ %s ] occurred at %s" % \
+                    (', '.join(newList), SysMgr.uptime))
 
             # execute commands #
-            self.executeEventCommand(nlist)
+            self.executeEventCommand(newList)
+
+        # print cont events #
+        contList = set(nowList) & set(prevList)
+        if contList:
+            SysMgr.printInfo(\
+                "continued threshold events [ %s ] at %s" % \
+                    (', '.join(contList), SysMgr.uptime))
 
         # update event list #
         SysMgr.thresholdEventList = self.reportData['event']
@@ -66785,15 +66798,15 @@ class ThreadAnalyzer(object):
                 vals.update({'dev': dev})
 
                 try:
-                    # a specific device #
-                    self.checkThreshold(\
-                        'storage', 'usagePer', 'STORAGE', 'big', \
-                        target, dev, addval=vals)
-
                     # all devices #
                     self.checkThreshold(\
                         'storage', 'usagePer', 'STORAGE', 'big', \
                         target, 'DEVICE', addval=vals)
+
+                    # a specific device #
+                    self.checkThreshold(\
+                        'storage', 'usagePer', 'STORAGE', 'big', \
+                        target, dev, addval=vals)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -66805,8 +66818,56 @@ class ThreadAnalyzer(object):
 
         # check network #
         try:
-            self.checkThreshold('net', 'inbound', 'NETIN', 'big')
-            self.checkThreshold('net', 'outbound', 'NETOUT', 'big')
+            # total inbound #
+            target = self.reportData['net']['inbound']
+            intval = self.intervalData['inbound']
+            self.checkThreshold(\
+                'net', 'inbound', 'NETIN', 'big', target, intval=intval)
+
+            # total outbound #
+            target = self.reportData['net']['outbound']
+            intval = self.intervalData['outbound']
+            self.checkThreshold(\
+                'net', 'outbound', 'NETOUT', 'big', target, intval=intval)
+
+            # each devices #
+            for dev, vals in self.reportData['net'].items():
+                if dev == 'inbound' or dev == 'outbound':
+                    continue
+                elif type(vals) is not dict:
+                    continue
+
+                recv = vals['recv']['bytes']
+                trans = vals['trans']['bytes']
+                vals.update({'dev': dev})
+
+                # all devices #
+                try:
+                    # recv #
+                    self.checkThreshold(\
+                        'net', 'recv', 'NETWORK', 'big', recv, 'DEVICE')
+
+                    # send #
+                    self.checkThreshold(\
+                        'net', 'trans', 'NETWORK', 'big', trans, 'DEVICE')
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # a specific device #
+                try:
+                    # recv #
+                    self.checkThreshold(\
+                        'net', 'recv', 'NETWORK', 'big', recv, dev)
+
+                    # send #
+                    self.checkThreshold(\
+                        'net', 'trans', 'NETWORK', 'big', trans, dev)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
         except SystemExit:
             sys.exit(0)
         except:
@@ -66888,17 +66949,9 @@ class ThreadAnalyzer(object):
         # add task info #
         if addval:
             comval.update(addval)
-        comval['value'] = value
 
         # set event name #
         ename = '%s_%s_%s' % (event, attr, item)
-
-        # handle oneshot command #
-        if oneshot and ename in SysMgr.thresholdEventHistory:
-            run = False
-        else:
-            run = True
-            SysMgr.thresholdEventHistory.setdefault(ename, None)
 
         # add event #
         if 'task' in comval:
@@ -66909,15 +66962,22 @@ class ThreadAnalyzer(object):
         elif 'dev' in comval:
             ename = '%s%s' % (ename, comval['dev'])
 
-        if 'value' in comval:
-            ename = '%s_%s' % (ename, comval['value'])
+        if item in comval:
+            ename = '%s_%s' % (ename, comval[item])
 
         # replace '/' with '_' for path by event name #
         ename = ename.replace('/', '_')
 
+        # handle oneshot command #
+        if oneshot and ename in SysMgr.thresholdEventHistory:
+            run = False
+        else:
+            run = True
+
         # set value for event #
         self.reportData['event'][ename] = dict(comval)
         self.reportData['event'][ename]['run'] = run
+        SysMgr.thresholdEventHistory.setdefault(ename, None)
 
 
 
