@@ -27,6 +27,7 @@ try:
     import signal
     import atexit
     import struct
+    import platform
     #from ctypes import *
     from copy import deepcopy
 except ImportError:
@@ -50447,6 +50448,11 @@ class ThreadAnalyzer(object):
 
 
     def runProcTop(self):
+        if platform.platform().startswith('Windows'):
+            command_clr = 'cls'
+        else:
+            command_clr = 'clear'
+
         if not os.path.isdir(SysMgr.procPath):
             SysMgr.printErr("fail to access proc filesystem")
             sys.exit(0)
@@ -50513,6 +50519,8 @@ class ThreadAnalyzer(object):
 
             # check request from client #
             self.checkServer()
+
+            os.system(command_clr)       
 
 
 
