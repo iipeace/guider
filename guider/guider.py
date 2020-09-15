@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200914"
+__revision__ = "200915"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6360,7 +6360,7 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         try:
             if type(pid) is not list or len(pid) != 1:
@@ -14256,7 +14256,7 @@ class SysMgr(object):
 
     @staticmethod
     def execFileAnalysis():
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         # parse analysis option #
         SysMgr.parseAnalOption()
@@ -14604,7 +14604,7 @@ class SysMgr(object):
             SysMgr.printErr("wrong value %s with -k option")
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         sigList = ConfigMgr.SIG_LIST
 
@@ -14648,7 +14648,7 @@ class SysMgr(object):
             SysMgr.printErr("wrong option value")
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         for origVal in jobs:
             try:
@@ -14772,7 +14772,7 @@ class SysMgr(object):
                 "fail to set CPU affinity of task because of no target")
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         SysMgr.parseAffinityOption(value, launch=True)
 
@@ -14831,6 +14831,41 @@ class SysMgr(object):
                         maxVal = item
             return maxVal
 
+        def checkResource(item):
+            try:
+                if item['apply'] == 'true':
+                    return True
+            except:
+                pass
+
+            if type(item) is list:
+                for value in item:
+                    if checkResource(value):
+                        return True
+            elif type(item) is dict:
+                for key, value in item.items():
+                    if checkResource(value):
+                        return True
+
+            return False
+
+        def checkPerm(item):
+            try:
+                if item['apply'] == 'true' and \
+                    item['perm'] == 'root':
+                    SysMgr.checkRootPerm(msg=item)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            if type(item) is list:
+                for value in item:
+                    ret = checkPerm(value)
+            elif type(item) is dict:
+                for key, value in item.items():
+                    ret = checkPerm(value)
+
         if not 'threshold' in ConfigMgr.confData:
             return
 
@@ -14844,6 +14879,27 @@ class SysMgr(object):
         SysMgr.reportEnable = True
         SysMgr.rankProcEnable = False
         SysMgr.thresholdData = confData
+
+        # check permission #
+        checkPerm(SysMgr.thresholdData)
+
+        # check storage option #
+        try:
+            if checkResource(SysMgr.thresholdData['storage']):
+                SysMgr.diskEnable = True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check network option #
+        try:
+            if checkResource(SysMgr.thresholdData['net']):
+                SysMgr.networkEnable = True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         # update maximum interval #
         maxInterval = getMaxInterval(confData)
@@ -14868,7 +14924,7 @@ class SysMgr(object):
                 "fail to get CPU affinity of task because of no target")
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         sibling = SysMgr.groupProcEnable
         targetList = []
@@ -19269,11 +19325,13 @@ Copyright:
 
 
     @staticmethod
-    def checkPerm(exit=True, verb=True):
+    def checkRootPerm(exit=True, verb=True, msg=''):
         if not SysMgr.isRoot():
             if verb:
+                if msg:
+                    msg = ' to %s' % msg
                 SysMgr.printErr(\
-                    "fail to get root permission")
+                    "fail to get root permission%s" % msg)
             if exit:
                 sys.exit(0)
             return False
@@ -23578,12 +23636,12 @@ Copyright:
                         sys.exit(0)
 
                 if 'S' in options:
-                    SysMgr.checkPerm()
+                    SysMgr.checkRootPerm()
                     SysMgr.pssEnable = True
                     SysMgr.sort = 'm'
 
                 if 'u' in options:
-                    SysMgr.checkPerm()
+                    SysMgr.checkRootPerm()
                     SysMgr.ussEnable = True
                     SysMgr.sort = 'm'
 
@@ -26591,7 +26649,7 @@ Copyright:
                 "input {tid:percentage} with -g option")
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         limitList = {}
         try:
@@ -27995,7 +28053,7 @@ Copyright:
     def doSetCpu():
         freqPath = '/sys/devices/system/cpu'
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         if not os.path.isdir(freqPath):
             SysMgr.printErr(\
@@ -28186,7 +28244,7 @@ Copyright:
     def doPrintEnv():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         if not SysMgr.filterGroup:
             SysMgr.filterGroup.append(str(SysMgr.pid))
@@ -28577,7 +28635,7 @@ Copyright:
     def doPrintNs():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         SysMgr.nsEnable = True
 
@@ -29682,7 +29740,7 @@ Copyright:
         envList = SysMgr.getEnv(pid, retdict=True)
 
         # check permission #
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         # define remote command list #
         remoteCmd = []
@@ -30182,7 +30240,7 @@ Copyright:
 
         def flushCache(verb=False):
             try:
-                ret = SysMgr.checkPerm(exit=False, verb=False)
+                ret = SysMgr.checkRootPerm(exit=False, verb=False)
                 if not ret:
                     raise Exception('no root permission')
 
@@ -31729,7 +31787,7 @@ Copyright:
                 "input POLICY:PRIORITY|TIME:TID|COMM in the format") % value)
             sys.exit(0)
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         schedGroup = value.split(',')
         schedGroup = SysMgr.clearList(schedGroup)
@@ -37189,7 +37247,7 @@ class DbusAnalyzer(object):
         SysMgr.getPkg('json')
 
         # check permission #
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         # check filter #
         taskList = []
@@ -45672,7 +45730,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     @staticmethod
     def dumpTaskMemory(pid, meminfo, output):
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
@@ -45712,7 +45770,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             return taskList
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
@@ -50215,8 +50273,13 @@ class ThreadAnalyzer(object):
             # request service to remote server #
             self.requestService()
 
-            # process top mode #
-            self.runProcTop()
+            # task top mode #
+            try:
+                self.runTaskTop()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("fail to monitor tasks", reason=True)
 
             # terminate top mode #
             sys.exit(0)
@@ -50434,7 +50497,7 @@ class ThreadAnalyzer(object):
 
             return [procFilter, fileFilter]
 
-        SysMgr.checkPerm()
+        SysMgr.checkRootPerm()
 
         if not os.path.isdir(SysMgr.procPath):
             SysMgr.printErr("fail to access proc filesystem")
@@ -50498,7 +50561,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def runProcTop(self):
+    def runTaskTop(self):
         if not os.path.isdir(SysMgr.procPath):
             SysMgr.printErr("fail to access proc filesystem")
             sys.exit(0)
@@ -66907,6 +66970,7 @@ class ThreadAnalyzer(object):
 
         # check task #
         try:
+            asdf
             self.checkTaskThreshold()
         except SystemExit:
             sys.exit(0)
