@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200915"
+__revision__ = "200916"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13023,15 +13023,47 @@ class LogMgr(object):
 
 
 
-    def __init__(self):
-        self.terminal = sys.stderr
-        self.notified = False
-        self.error = False
+    def __init__(self, target='error'):
+        if target == 'error':
+            self.terminal = sys.stderr
+            self.notified = False
+            self.error = False
+        else:
+            # backup #
+            try:
+                if os.path.isfile(target):
+                    backupFile = target + '.old'
+
+                    os.rename(target, backupFile)
+                    SysMgr.printInfo(
+                        'renamed %s to %s for backup' %
+                            (target, backupFile))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to backup %s to %s" % (target, backupFile), True)
+
+            # open #
+            try:
+                self.terminal = open(target, 'w')
+                self.error = True
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to open %s" % target, True)
 
 
 
     def write(self, message):
-        self.terminal.write(message)
+        try:
+            self.terminal.write(message)
+            self.terminal.flush()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
 
         if self.error:
             return
@@ -13563,6 +13595,7 @@ class SysMgr(object):
     maxPid = 32768
     maxRdCnt = 1024
     pidDigit = 5
+    stdlog = None
     stderr = sys.stderr
     packetSize = 32767
     defaultPort = 5555
@@ -13617,7 +13650,7 @@ class SysMgr(object):
     compressEnable = True
     nrTop = None
     pipeForPager = None
-    fileForPrint = None
+    printFd = None
     fileSuffix = None
     parsedAnalOption = False
     optionList = []
@@ -15825,13 +15858,13 @@ class SysMgr(object):
             # record-tgid option #
             m = re.match((
                 r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
-                r'\[(?P<core>[0-9]+)\]\s+\(s*(?P<tgid>.+)\)\s+'
+                r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                 r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
             if not m:
                 # print-tgid option #
                 m = re.match((
                     r'^\s*(?P<comm>.+)-(?P<thread>[0-9]+)\s+'
-                    r'\(s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+)(?P<etc>.+)'), string)
 
             return m
@@ -16437,6 +16470,7 @@ Usage:
     -Q                          print all rows in a stream
     -q                          set path for binaries
     -J                          print in JSON format
+    -L  <PATH>                  set log file path
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
@@ -17833,7 +17867,7 @@ Options:
     -v                          verbose
 
 Examples:
-    - Replace malloc functions with the malloc function in libhook.so for a.out process
+    - Replace standard malloc function calls with customized malloc function calls in libhook.so for a.out process
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc
                     '''.format(cmd, mode)
 
@@ -21439,11 +21473,11 @@ Copyright:
 
             # close an output file to sync #
             try:
-                SysMgr.fileForPrint.close()
+                SysMgr.printFd.close()
             except:
                 pass
             finally:
-                SysMgr.fileForPrint = None
+                SysMgr.printFd = None
 
             # print output info #
             fsize = \
@@ -21585,7 +21619,9 @@ Copyright:
 
                 os.rename(outputFile, backupFile)
                 SysMgr.printInfo(
-                    'renamed %s to %s' % (outputFile, backupFile))
+                    'renamed %s to %s for backup' % (outputFile, backupFile))
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "fail to backup %s to %s" % \
@@ -22731,7 +22767,7 @@ Copyright:
 
         # file initialization #
         if SysMgr.outPath and \
-            not SysMgr.fileForPrint:
+            not SysMgr.printFd:
 
             # profile #
             if SysMgr.isRuntimeMode():
@@ -22782,7 +22818,7 @@ Copyright:
 
                 try:
                     os.rename(SysMgr.inputFile, backupFile)
-                    SysMgr.printInfo('renamed %s to %s' % \
+                    SysMgr.printInfo('renamed %s to %s for backup' % \
                         (SysMgr.inputFile, backupFile))
                 except SystemExit:
                     sys.exit(0)
@@ -22793,8 +22829,7 @@ Copyright:
 
             # open file #
             try:
-                SysMgr.fileForPrint = \
-                    open(SysMgr.inputFile, 'w+')
+                SysMgr.printFd = open(SysMgr.inputFile, 'w+')
 
                 # print file name #
                 if SysMgr.outPath:
@@ -22808,21 +22843,21 @@ Copyright:
                 sys.exit(0)
 
         # file output #
-        if SysMgr.fileForPrint:
+        if SysMgr.printFd:
             try:
                 if line:
-                    SysMgr.fileForPrint.write(line)
+                    SysMgr.printFd.write(line)
 
                     if newline and line[-1] != '\n':
-                        SysMgr.fileForPrint.write('\n')
+                        SysMgr.printFd.write('\n')
 
                 if flush:
-                    SysMgr.fileForPrint.flush()
+                    SysMgr.printFd.flush()
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "fail to write to file", True)
+                    "fail to write to %s" % SysMgr.printFd.name, True)
         # console output #
         else:
             ttyCols = SysMgr.ttyCols
@@ -22905,14 +22940,17 @@ Copyright:
 
         proc = SysMgr.getProcInfo()
 
-        msg = ('\n%s%s%s%s%s%s\n' % \
+        log = ('\n%s%s%s%s%s%s\n' % \
             (ConfigMgr.WARNING, '[WARN] ', proc,
                 line, rstring, ConfigMgr.ENDC))
 
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
+
         if 'REMOTERUN' in os.environ:
-            print(msg.replace('\n', ''))
+            print(log.replace('\n', ''))
         else:
-            SysMgr.stderr.write(msg)
+            SysMgr.stderr.write(log)
 
 
 
@@ -22938,14 +22976,17 @@ Copyright:
 
         proc = SysMgr.getProcInfo()
 
-        msg = ('\n%s%s%s%s%s%s\n' % \
+        log = ('\n%s%s%s%s%s%s\n' % \
             (ConfigMgr.FAIL, '[ERROR] ', proc,
                 line, rstring, ConfigMgr.ENDC))
 
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
+
         if 'REMOTERUN' in os.environ:
-            print(msg.replace('\n', ''))
+            print(log.replace('\n', ''))
         else:
-            SysMgr.stderr.write(msg)
+            SysMgr.stderr.write(log)
 
 
 
@@ -22975,16 +23016,19 @@ Copyright:
 
         proc = SysMgr.getProcInfo()
         BOLD = ConfigMgr.BOLD
+        log = '%s%s%s%s%s%s' % \
+            (prefix, BOLD, title, proc, line, ConfigMgr.ENDC)
+
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
 
         if suffix:
             try:
-                print('%s%s%s%s%s%s' % \
-                    (prefix, BOLD, title, proc, line, ConfigMgr.ENDC))
+                print(log)
             except:
                 return
         else:
-            sys.stdout.write('%s%s%s%s%s%s' % \
-                (prefix, BOLD, title, proc, line, ConfigMgr.ENDC))
+            sys.stdout.write(log)
             sys.stdout.flush()
 
 
@@ -22995,9 +23039,13 @@ Copyright:
             return
 
         proc = SysMgr.getProcInfo()
+        log = '\n%s%s%s%s%s' % \
+            (ConfigMgr.OKGREEN, '[INFO] ', proc, line, ConfigMgr.ENDC)
 
-        print('\n%s%s%s%s%s' % \
-            (ConfigMgr.OKGREEN, '[INFO] ', proc, line, ConfigMgr.ENDC))
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
+
+        print(log)
 
 
 
@@ -23007,9 +23055,13 @@ Copyright:
             return
 
         proc = SysMgr.getProcInfo()
+        log = '\n%s%s%s%s' % \
+            (ConfigMgr.UNDERLINE, proc, line, ConfigMgr.ENDC)
 
-        print('\n%s%s%s%s' % \
-            (ConfigMgr.UNDERLINE, proc, line, ConfigMgr.ENDC))
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
+
+        print(log)
 
 
 
@@ -23019,9 +23071,13 @@ Copyright:
             return
 
         proc = SysMgr.getProcInfo()
+        log = '\n%s%s%s%s%s' % \
+            (ConfigMgr.SPECIAL, '[STEP] ', proc, line, ConfigMgr.ENDC)
 
-        print('\n%s%s%s%s%s' % \
-            (ConfigMgr.SPECIAL, '[STEP] ', proc, line, ConfigMgr.ENDC))
+        if SysMgr.stdlog:
+            SysMgr.stdlog.write(log)
+
+        print(log)
 
 
 
@@ -23278,7 +23334,7 @@ Copyright:
                 SysMgr.printOpenErr(path)
                 sys.exit(0)
         else:
-            fd = SysMgr.fileForPrint
+            fd = SysMgr.printFd
 
         try:
             fd.seek(0, 0)
@@ -23429,10 +23485,16 @@ Copyright:
                         sys.exit(0)
 
             elif option == 'L':
-                SysMgr.layout = value
-                if len(value) == 0:
+                if not value:
                     SysMgr.printErr("no option value with -L option")
                     sys.exit(0)
+                elif SysMgr.isDrawMode():
+                    SysMgr.layout = value
+                elif not SysMgr.stdlog:
+                    if os.path.isdir(value):
+                        value = os.path.join(value, 'guider.log')
+                    SysMgr.printInfo("use '%s' for log" % value)
+                    SysMgr.stdlog = LogMgr(value)
 
             elif option == 'w':
                 SysMgr.rcmdList = \
@@ -25470,8 +25532,6 @@ Copyright:
             return False
         elif sys.argv[1] == 'draw' or orig:
             return True
-        elif SysMgr.isDrawAvgMode():
-            return True
         elif SysMgr.isDrawCpuMode():
             return True
         elif SysMgr.isDrawMemMode():
@@ -25483,6 +25543,8 @@ Copyright:
         elif SysMgr.isDrawLeakMode():
             return True
         elif SysMgr.isDrawIoMode():
+            return True
+        elif SysMgr.isDrawAvgMode():
             return True
         else:
             SysMgr.drawMode = orig
@@ -25751,7 +25813,7 @@ Copyright:
             try:
                 backupFile = '%s.old' % reportPath
                 os.rename(reportPath, backupFile)
-                SysMgr.printInfo('renamed %s to %s' % \
+                SysMgr.printInfo('renamed %s to %s for backup' % \
                     (reportPath, backupFile))
             except SystemExit:
                 sys.exit(0)
@@ -26884,7 +26946,7 @@ Copyright:
                 SysMgr.printStreamEnable = True
             SysMgr.inputFile = None
             SysMgr.outPath = None
-            SysMgr.fileForPrint = None
+            SysMgr.printFd = None
             SysMgr.printEnable = True
             SysMgr.encodeEnable = False
             SysMgr.reportEnable = SysMgr.jsonEnable = False
@@ -27015,13 +27077,13 @@ Copyright:
 
             # close fd for output #
             try:
-                SysMgr.fileForPrint.close()
+                SysMgr.printFd.close()
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
             finally:
-                SysMgr.fileForPrint = None
+                SysMgr.printFd = None
 
             # Guider #
             if not cmd:
@@ -28977,7 +29039,7 @@ Copyright:
             else:
                 SysMgr.printErr("no TID with -g option")
 
-            SysMgr.outPath = SysMgr.fileForPrint = None
+            SysMgr.outPath = SysMgr.printFd = None
 
             sys.exit(0)
         # check targets #
@@ -29033,7 +29095,7 @@ Copyright:
                             break
 
                 # disable printing to file #
-                SysMgr.outPath = SysMgr.fileForPrint = None
+                SysMgr.outPath = SysMgr.printFd = None
 
                 # broadcast term signal to childs and wait for them #
                 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -29843,7 +29905,7 @@ Copyright:
                 oldpath = "%s.old" % fname
                 os.rename(fname, oldpath)
                 SysMgr.printInfo(
-                    "renamed %s to %s" % (fname, oldpath))
+                    "renamed %s to %s for backup" % (fname, oldpath))
             except SystemExit:
                 sys.exit(0)
             except:
@@ -32754,9 +32816,9 @@ Copyright:
             except:
                 pass
 
-        if SysMgr.fileForPrint:
+        if SysMgr.printFd:
             try:
-                SysMgr.fileForPrint.flush()
+                SysMgr.printFd.flush()
             except:
                 pass
 
@@ -32772,24 +32834,24 @@ Copyright:
             finally:
                 SysMgr.pipeForPager = None
 
-        if SysMgr.fileForPrint:
+        if SysMgr.printFd:
             try:
-                SysMgr.fileForPrint.flush()
+                SysMgr.printFd.flush()
 
                 fsize = UtilMgr.convSize2Unit(
-                    long(os.fstat(SysMgr.fileForPrint.fileno()).st_size))
+                    long(os.fstat(SysMgr.printFd.fileno()).st_size))
 
                 SysMgr.printInfo(
                     "finish saving all results into %s [%s] successfully" % \
-                    (SysMgr.fileForPrint.name, fsize))
+                    (SysMgr.printFd.name, fsize))
 
-                SysMgr.fileForPrint.close()
+                SysMgr.printFd.close()
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
             finally:
-                SysMgr.fileForPrint = None
+                SysMgr.printFd = None
 
 
 
@@ -33513,8 +33575,8 @@ Copyright:
                 try:
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
                     SysMgr.signalCmd = None
-                    SysMgr.printInfo("write commands to %s" %\
-                        SysMgr.cmdEnable)
+                    SysMgr.printInfo(
+                        "write commands to %s" % SysMgr.cmdEnable)
                 except:
                     SysMgr.printErr("fail to write signal command")
             elif SysMgr.outputFile:
@@ -37439,7 +37501,7 @@ class DbusAnalyzer(object):
                 SysMgr.optStrace = True
                 SysMgr.encodeB64Enable = True
                 SysMgr.intervalEnable = long(0)
-                SysMgr.outPath = SysMgr.fileForPrint = None
+                SysMgr.outPath = SysMgr.printFd = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonEnable = True
@@ -44773,13 +44835,13 @@ struct cmsghdr {
 
         # close fd for output #
         try:
-            SysMgr.fileForPrint.close()
+            SysMgr.printFd.close()
         except SystemExit:
             sys.exit(0)
         except:
             pass
         finally:
-            SysMgr.fileForPrint = None
+            SysMgr.printFd = None
 
         # create a new controller #
         dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
@@ -50887,7 +50949,7 @@ class ThreadAnalyzer(object):
             # CPU #
             elif context == 'CPU':
                 if slen == 3:
-                    m = re.match(r'\s*(?P<comm>.+)\(s*(?P<pid>[0-9]+)', line)
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
                         continue
 
@@ -50993,7 +51055,7 @@ class ThreadAnalyzer(object):
             # VSS #
             elif context == 'VSS':
                 if slen == 3:
-                    m = re.match(r'\s*(?P<comm>.+)\(s*(?P<pid>[0-9]+)', line)
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
                         continue
 
@@ -51037,7 +51099,7 @@ class ThreadAnalyzer(object):
                     context == 'PSS' or \
                     context == 'USS'):
                 if slen == 3:
-                    m = re.match(r'\s*(?P<comm>.+)\(s*(?P<pid>[0-9]+)', line)
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
                         continue
 
@@ -51076,7 +51138,7 @@ class ThreadAnalyzer(object):
             # Block #
             elif context == 'Block':
                 if slen == 3:
-                    m = re.match(r'\s*(?P<comm>.+)\(s*(?P<pid>[0-9]+)', line)
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
                     if not m:
                         continue
 
@@ -51185,7 +51247,7 @@ class ThreadAnalyzer(object):
                     continue
 
                 m = re.match(
-                    r'\s*(?P<comm>.+)\(s*(?P<pid>[0-9]+)', sline[0])
+                    r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', sline[0])
                 if m:
                     d = m.groupdict()
                     pid = d['pid']
@@ -54068,7 +54130,7 @@ class ThreadAnalyzer(object):
                 os.rename(outputFile, oldPath)
 
                 SysMgr.printInfo(
-                    'renamed %s to %s' % (outputFile, oldPath))
+                    'renamed %s to %s for backup' % (outputFile, oldPath))
         except SystemExit:
             sys.exit(0)
         except:
@@ -57345,7 +57407,7 @@ class ThreadAnalyzer(object):
 
             # CPU & BLOCK stat #
             m = re.match((
-                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(s*'
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*'
                 r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<block>\-*[0-9]+)'), tokenList[1])
@@ -57385,9 +57447,9 @@ class ThreadAnalyzer(object):
 
             # MEM stat #
             m = re.match((
-                r'\s*(?P<free>\-*[0-9]+)\s*\(s*(?P<freePer>\-*[0-9]+)\s*'
-                r'/\s*(?P<anon>\-*[0-9]+)\s*/\s*(?P<cache>\-*[0-9]+)\s*'
-                r'/\s*(?P<kernel>\-*[0-9]+)'), tokenList[2])
+                r'\s*(?P<free>[0-9]+)\s*\(\s*(?P<freePer>[0-9]+)\s*'
+                r'/\s*(?P<anon>[0-9]+)\s*/\s*(?P<cache>[0-9]+)\s*'
+                r'/\s*(?P<kernel>[0-9]+)'), tokenList[2])
             if not m:
                 return
 
@@ -57451,7 +57513,7 @@ class ThreadAnalyzer(object):
         # Get GPU resource usage #
         elif len(tokenList) == 5:
             m = re.match(
-                r'\s*(?P<gpu>.+)\s*\(s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m:
                 d = m.groupdict()
 
@@ -57597,10 +57659,10 @@ class ThreadAnalyzer(object):
 
         # Get process resource usage #
         m = re.match((
-            r'\s*(?P<comm>.+) \(s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
+            r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
             r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(s*(?P<rss>[0-9]+)\/.+\)\|\s*'
-            r'(?P<blk>\S+)\(s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
+            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
+            r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if not m:
             return
 
@@ -57766,6 +57828,8 @@ class ThreadAnalyzer(object):
         if not SysMgr.fileInstance:
             return
 
+        convNum = UtilMgr.convNum
+
         nrEvent = nrSocket = nrDevice = nrPipe = nrProc = nrFile = long(0)
         for filename in list(SysMgr.fileInstance.keys()):
             # increase type count per process #
@@ -57783,10 +57847,11 @@ class ThreadAnalyzer(object):
                 nrFile += 1
 
         SysMgr.printPipe(
-            ('\n[Top File Table] [TOTAL: %d] [FILE: %d] [EVENT: %d] '\
-            '[SOCKET: %d] [DEV: %d] [PIPE: %d] [PROC: %d]\n') %\
-            (len(SysMgr.fileInstance), nrFile, nrEvent,
-            nrSocket, nrDevice, nrPipe, nrProc))
+            ('\n[Top File Table] [TOTAL: %s] [FILE: %s] [EVENT: %s] '\
+            '[SOCKET: %s] [DEV: %s] [PIPE: %s] [PROC: %s]\n') %\
+                (convNum(len(SysMgr.fileInstance)), convNum(nrFile),
+                convNum(nrEvent), convNum(nrSocket), convNum(nrDevice),
+                convNum(nrPipe), convNum(nrProc)))
         SysMgr.printPipe("%s\n" % twoLine)
         SysMgr.printPipe("{0:^5} | {1:^144} |\n".format('REF', 'FILE'))
         SysMgr.printPipe("%s\n" % oneLine)
@@ -57836,6 +57901,7 @@ class ThreadAnalyzer(object):
                 continue
 
             task = '%s/%s' % (val['nrProc'], val['nrThread'])
+
             SysMgr.printPipe((
                 "{0:>5} | {1:>12} - {2:>12} | {3:>3} | {4:^18} | "
                 "{5:^7} | {6:>3} | {7:>4} | {8:^9} | {9:>5} | {10:>6} | "
@@ -59143,7 +59209,7 @@ class ThreadAnalyzer(object):
                 # print-tgid option #
                 m = re.match((
                     r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
-                    r'\(s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
+                    r'\(\s*(?P<tgid>\S+)\)\s+\[(?P<core>[0-9]+)\]\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m:
                     d = m.groupdict()
@@ -59153,7 +59219,7 @@ class ThreadAnalyzer(object):
                 # record-tgid option #
                 m = re.match((
                     r'^\s*(?P<comm>\S+)-(?P<thread>[0-9]+)\s+'
-                    r'\[(?P<core>[0-9]+)\]\s+\(s*(?P<tgid>.+)\)\s+'
+                    r'\[(?P<core>[0-9]+)\]\s+\(\s*(?P<tgid>.+)\)\s+'
                     r'(?P<time>\S+):\s+(?P<func>\S+):(?P<etc>.+)'), line)
                 if m:
                     d = m.groupdict()
@@ -62000,7 +62066,7 @@ class ThreadAnalyzer(object):
         # update uptime #
         SysMgr.updateUptime()
 
-        convertNum = UtilMgr.convNum
+        convNum = UtilMgr.convNum
 
         # print cpu usage #
         cpuUsage = ThreadAnalyzer.dbgObj.getCpuUsage()
@@ -62015,8 +62081,8 @@ class ThreadAnalyzer(object):
         SysMgr.addPrint((
             "[Top File Info] [Time: %7.3f] [Proc: %s] "
             "[FD: %s] [File: %s] [CPU: %s] (Unit: %%/MB/NR)\n") % \
-            (SysMgr.uptime, convertNum(self.nrProcess),
-            convertNum(self.nrFd), convertNum(len(self.fileData)), cpuStr))
+            (SysMgr.uptime, convNum(self.nrProcess),
+            convNum(self.nrFd), convNum(len(self.fileData)), cpuStr))
 
         SysMgr.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
@@ -65110,6 +65176,8 @@ class ThreadAnalyzer(object):
                         convertFunc(tdiff[2]), convertFunc(tdiff[3]),
                         convertFunc(tdiff[-1])))
                 cnt += 1
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -65223,6 +65291,8 @@ class ThreadAnalyzer(object):
                     prevStorageData[origDev]['write']
 
                 writeSize = convSize2Unit(writeSize << 20)
+            except SystemExit:
+                sys.exit(0)
             except:
                 writeSize = long(0)
 
@@ -65244,6 +65314,8 @@ class ThreadAnalyzer(object):
 
                 freeDiff = '%s%s' % \
                     (op, convSize2Unit(long(abs(freeDiff)) << 20))
+            except SystemExit:
+                sys.exit(0)
             except:
                 freeDiff = long(0)
 
@@ -65843,6 +65915,8 @@ class ThreadAnalyzer(object):
                 userData = SysMgr.sysInstance.userData
                 uid = value['status']['Uid'].split()[0]
                 value['user'] = userData[uid]['name']
+            except SystemExit:
+                sys.exit(0)
             except:
                 value['user'] = '-'
 
@@ -65888,6 +65962,8 @@ class ThreadAnalyzer(object):
                 execPer = (execTime / (execTime + waitTime)) * 100
                 totalTime = value['ttime'] * (100 / execPer)
                 dtime = long(totalTime - value['ttime'])
+            except SystemExit:
+                sys.exit(0)
             except:
                 dtime = '-'
 
@@ -65921,6 +65997,8 @@ class ThreadAnalyzer(object):
                     pgid = procData[idx]['stat'][self.ppidIdx]
                     etc = '%s(%s)' % \
                         (procData[pgid]['stat'][self.commIdx][1:-1], pgid)
+            except SystemExit:
+                sys.exit(0)
             except:
                 etc = '-'
 
@@ -65993,6 +66071,8 @@ class ThreadAnalyzer(object):
                 totalStats['btime'] += value['btime']
                 totalStats['majflt'] += value['majflt']
                 totalStats['task'] += 1
+            except SystemExit:
+                sys.exit(0)
             except:
                 totalStats['ttime'] = value['ttime']
                 totalStats['utime'] = value['utime']
@@ -66303,6 +66383,8 @@ class ThreadAnalyzer(object):
                 schedPolicy = \
                     ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
                     str(schedValue)
+            except SystemExit:
+                sys.exit(0)
             except:
                 schedPolicy = '?'
 
@@ -66311,6 +66393,8 @@ class ThreadAnalyzer(object):
                 lifeTime = UtilMgr.convTime(runtime)
                 if len(lifeTime.split(':')) > 3:
                     lifeTime = lifeTime[:lifeTime.rfind(':')]
+            except SystemExit:
+                sys.exit(0)
             except:
                 lifeTime = '?'
 
@@ -66492,6 +66576,8 @@ class ThreadAnalyzer(object):
         # reply ACK to server #
         try:
             self.replyService(ip, port)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr("fail to send ACK to server")
 
@@ -67307,13 +67393,13 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.printIntervalUsage()
 
             # sync and close output file #
-            if SysMgr.fileForPrint:
+            if SysMgr.printFd:
                 try:
-                    SysMgr.fileForPrint.close()
+                    SysMgr.printFd.close()
                 except:
                     pass
                 finally:
-                    SysMgr.fileForPrint = None
+                    SysMgr.printFd = None
 
             # make output path #
             filePath = os.path.dirname(SysMgr.inputFile) + '/guider'
@@ -67329,6 +67415,8 @@ class ThreadAnalyzer(object):
                 try:
                     fsize = UtilMgr.convSize2Unit(
                         long(os.path.getsize(filePath)))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     fsize = '?'
 
