@@ -30297,7 +30297,7 @@ Copyright:
 
     @staticmethod
     def doIoTest():
-        # gather system info including mount #
+        # snapshot system info including mount #
         SysMgr()
 
         workload = []
@@ -31335,7 +31335,7 @@ Copyright:
         # initialize perf events #
         SysMgr.initSystemPerfEvents()
 
-        # initialize system stat #
+        # snapshot system info #
         SysMgr()
         obj = ThreadAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
@@ -59179,7 +59179,8 @@ class ThreadAnalyzer(object):
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr("fail to read %s\n" % fname, reason=True)
+                        SysMgr.printErr(
+                            "fail to read %s\n" % fname, reason=True)
                         sys.exit(0)
             except SystemExit:
                 sys.exit(0)
@@ -59398,10 +59399,10 @@ class ThreadAnalyzer(object):
                 key, dict(self.init_intData))
 
             # define thread alias in this interval #
-            intervalThread = self.intData[index][key]
+            curIntval = self.intData[index][key]
 
             # save start time in this interval #
-            intervalThread['firstLogTime'] = float(time)
+            curIntval['firstLogTime'] = float(time)
 
             # make interval list #
             try:
@@ -59414,20 +59415,20 @@ class ThreadAnalyzer(object):
                 key, dict(self.init_intData))
 
             # save total usage in this interval #
-            intervalThread['totalUsage'] = \
+            curIntval['totalUsage'] = \
                 float(self.threadData[key]['usage'])
-            intervalThread['totalPreempted'] = \
+            curIntval['totalPreempted'] = \
                 float(self.threadData[key]['cpuWait'])
-            intervalThread['totalCoreSchedCnt'] = \
+            curIntval['totalCoreSchedCnt'] = \
                 long(self.threadData[key]['coreSchedCnt'])
-            intervalThread['totalBrUsage'] = \
+            curIntval['totalBrUsage'] = \
                 long(self.threadData[key]['reqRdBlock'])
-            intervalThread['totalBwUsage'] = \
+            curIntval['totalBwUsage'] = \
                 long(self.threadData[key]['writeBlock']) + \
                 (long(self.threadData[key]['awriteBlock']) << 3)
-            intervalThread['totalMemUsage'] = \
+            curIntval['totalMemUsage'] = \
                 long(self.threadData[key]['nrPages'])
-            intervalThread['totalKmemUsage'] = \
+            curIntval['totalKmemUsage'] = \
                 long(self.threadData[key]['remainKmem'])
 
             # add core time not calculated yet in this interval #
@@ -59442,82 +59443,82 @@ class ThreadAnalyzer(object):
                         self.threadData[coreId]['start'] = float(time)
                     continue
 
-                intervalThread['totalUsage'] += \
+                curIntval['totalUsage'] += \
                     (float(time) - float(self.threadData[val]['start']))
 
             # mark life flag #
             if self.threadData[key]['new'] != ' ':
-                intervalThread['new'] = self.threadData[key]['new']
+                curIntval['new'] = self.threadData[key]['new']
             if self.threadData[key]['die'] != ' ':
-                intervalThread['die'] = self.threadData[key]['die']
+                curIntval['die'] = self.threadData[key]['die']
 
             # initialize custom event list #
             if len(SysMgr.customEventList) > 0:
-                intervalThread['customEvent'] = {}
-                intervalThread['totalCustomEvent'] = {}
+                curIntval['customEvent'] = {}
+                curIntval['totalCustomEvent'] = {}
                 for evt in SysMgr.customEventList:
-                    intervalThread['customEvent'][evt] = \
+                    curIntval['customEvent'][evt] = \
                         dict(self.init_eventData)
-                    intervalThread['totalCustomEvent'][evt] = \
+                    curIntval['totalCustomEvent'][evt] = \
                         dict(self.init_eventData)
                     try:
-                        intervalThread['totalCustomEvent'][evt]['count'] = \
+                        curIntval['totalCustomEvent'][evt]['count'] = \
                             self.threadData[key]['customEvent'][evt]['count']
                     except:
                         pass
 
             # initialize user event list #
             if len(SysMgr.userEventList) > 0:
-                intervalThread['userEvent'] = {}
-                intervalThread['totalUserEvent'] = {}
+                curIntval['userEvent'] = {}
+                curIntval['totalUserEvent'] = {}
                 for evt in SysMgr.userEventList:
-                    intervalThread['userEvent'][evt] = \
+                    curIntval['userEvent'][evt] = \
                         dict(self.init_eventData)
-                    intervalThread['totalUserEvent'][evt] = \
+                    curIntval['totalUserEvent'][evt] = \
                         dict(self.init_eventData)
                     try:
-                        intervalThread['totalUserEvent'][evt]['count'] = \
+                        curIntval['totalUserEvent'][evt]['count'] = \
                             self.threadData[key]['userEvent'][evt]['count']
 
-                        intervalThread['totalUserEvent'][evt]['usage'] = \
+                        curIntval['totalUserEvent'][evt]['usage'] = \
                             self.threadData[key]['userEvent'][evt]['usage']
                     except:
                         pass
 
             # initialize kernel event list #
             if len(SysMgr.kernelEventList) > 0:
-                intervalThread['kernelEvent'] = {}
-                intervalThread['totalKernelEvent'] = {}
+                curIntval['kernelEvent'] = {}
+                curIntval['totalKernelEvent'] = {}
                 for evt in SysMgr.kernelEventList:
-                    intervalThread['kernelEvent'][evt] = \
+                    curIntval['kernelEvent'][evt] = \
                         dict(self.init_eventData)
-                    intervalThread['totalKernelEvent'][evt] = \
+                    curIntval['totalKernelEvent'][evt] = \
                         dict(self.init_eventData)
                     try:
-                        intervalThread['totalKernelEvent'][evt]['count'] = \
+                        curIntval['totalKernelEvent'][evt]['count'] = \
                             self.threadData[key]['kernelEvent'][evt]['count']
 
-                        intervalThread['totalKernelEvent'][evt]['usage'] = \
+                        curIntval['totalKernelEvent'][evt]['usage'] = \
                             self.threadData[key]['kernelEvent'][evt]['usage']
                     except:
                         pass
 
             # first interval #
             if SysMgr.intervalNow == intervalEnable:
-                intervalThread['cpuUsage'] = \
+                curIntval['cpuUsage'] = \
                     float(self.threadData[key]['usage'])
-                intervalThread['preempted'] = \
+                curIntval['preempted'] = \
                     float(self.threadData[key]['cpuWait'])
-                intervalThread['coreSchedCnt'] = \
+                curIntval['coreSchedCnt'] = \
                     float(self.threadData[key]['coreSchedCnt'])
-                intervalThread['brUsage'] = \
+                curIntval['brUsage'] = \
                     long(self.threadData[key]['reqRdBlock'])
-                intervalThread['bwUsage'] = \
+                curIntval['bwUsage'] = \
                     long(self.threadData[key]['writeBlock']) + \
                     (long(self.threadData[key]['awriteBlock']) << 3)
-                intervalThread['memUsage'] = \
+                curIntval['memUsage'] = \
                     long(self.threadData[key]['nrPages'])
-                intervalThread['kmemUsage'] = \
+                curIntval['kmemUsage'] = \
                     long(self.threadData[key]['remainKmem'])
 
             # later intervals #
@@ -59528,96 +59529,96 @@ class ThreadAnalyzer(object):
                     self.intData[index - 1][key] = dict(self.init_intData)
 
                 # define thread alias in previous interval #
-                prevIntervalThread = self.intData[index - 1][key]
+                prevIntval = self.intData[index - 1][key]
 
                 # calculate resource usage in this interval #
-                intervalThread['cpuUsage'] += \
-                    intervalThread['totalUsage'] - \
-                        prevIntervalThread['totalUsage']
-                intervalThread['preempted'] += \
-                    intervalThread['totalPreempted'] - \
-                        prevIntervalThread['totalPreempted']
-                intervalThread['coreSchedCnt'] = \
-                    intervalThread['totalCoreSchedCnt'] - \
-                        prevIntervalThread['totalCoreSchedCnt']
-                intervalThread['brUsage'] = \
-                    intervalThread['totalBrUsage'] - \
-                        prevIntervalThread['totalBrUsage']
-                intervalThread['bwUsage'] = \
-                    intervalThread['totalBwUsage'] - \
-                        prevIntervalThread['totalBwUsage']
-                intervalThread['memUsage'] = \
-                    intervalThread['totalMemUsage'] - \
-                        prevIntervalThread['totalMemUsage']
-                intervalThread['kmemUsage'] = \
-                    intervalThread['totalKmemUsage'] - \
-                        prevIntervalThread['totalKmemUsage']
+                curIntval['cpuUsage'] += \
+                    curIntval['totalUsage'] - \
+                        prevIntval['totalUsage']
+                curIntval['preempted'] += \
+                    curIntval['totalPreempted'] - \
+                        prevIntval['totalPreempted']
+                curIntval['coreSchedCnt'] = \
+                    curIntval['totalCoreSchedCnt'] - \
+                        prevIntval['totalCoreSchedCnt']
+                curIntval['brUsage'] = \
+                    curIntval['totalBrUsage'] - \
+                        prevIntval['totalBrUsage']
+                curIntval['bwUsage'] = \
+                    curIntval['totalBwUsage'] - \
+                        prevIntval['totalBwUsage']
+                curIntval['memUsage'] = \
+                    curIntval['totalMemUsage'] - \
+                        prevIntval['totalMemUsage']
+                curIntval['kmemUsage'] = \
+                    curIntval['totalKmemUsage'] - \
+                        prevIntval['totalKmemUsage']
 
             # calculate custom event usage in this interval #
-            if 'totalCustomEvent' in intervalThread:
-                for evt in list(intervalThread['totalCustomEvent'].keys()):
+            if 'totalCustomEvent' in curIntval:
+                for evt in list(curIntval['totalCustomEvent'].keys()):
                     try:
-                        intervalThread['customEvent'][evt]['count'] = \
-                            intervalThread['totalCustomEvent'][evt]['count'] - \
-                                prevIntervalThread['totalCustomEvent'][evt]['count']
+                        curIntval['customEvent'][evt]['count'] = \
+                            curIntval['totalCustomEvent'][evt]['count'] - \
+                                prevIntval['totalCustomEvent'][evt]['count']
                     except:
-                        intervalThread['customEvent'][evt]['count'] = \
-                            intervalThread['totalCustomEvent'][evt]['count']
+                        curIntval['customEvent'][evt]['count'] = \
+                            curIntval['totalCustomEvent'][evt]['count']
 
                     self.intData[index]['toTal']['customEvent'][evt]['count'] += \
-                        intervalThread['customEvent'][evt]['count']
+                        curIntval['customEvent'][evt]['count']
 
             # calculate user event usage in this interval #
-            if 'totalUserEvent' in intervalThread:
-                for evt in list(intervalThread['totalUserEvent'].keys()):
+            if 'totalUserEvent' in curIntval:
+                for evt in list(curIntval['totalUserEvent'].keys()):
                     try:
-                        intervalThread['userEvent'][evt]['count'] = \
-                            intervalThread['totalUserEvent'][evt]['count'] - \
-                                prevIntervalThread['totalUserEvent'][evt]['count']
+                        curIntval['userEvent'][evt]['count'] = \
+                            curIntval['totalUserEvent'][evt]['count'] - \
+                                prevIntval['totalUserEvent'][evt]['count']
 
-                        intervalThread['userEvent'][evt]['usage'] = \
-                            intervalThread['totalUserEvent'][evt]['usage'] - \
-                                prevIntervalThread['totalUserEvent'][evt]['usage']
+                        curIntval['userEvent'][evt]['usage'] = \
+                            curIntval['totalUserEvent'][evt]['usage'] - \
+                                prevIntval['totalUserEvent'][evt]['usage']
                     except:
-                        intervalThread['userEvent'][evt]['count'] = \
-                            intervalThread['totalUserEvent'][evt]['count']
+                        curIntval['userEvent'][evt]['count'] = \
+                            curIntval['totalUserEvent'][evt]['count']
 
-                        intervalThread['userEvent'][evt]['usage'] = \
-                            intervalThread['totalUserEvent'][evt]['usage']
+                        curIntval['userEvent'][evt]['usage'] = \
+                            curIntval['totalUserEvent'][evt]['usage']
 
                     self.intData[index]['toTal']['userEvent'][evt]['count'] += \
-                        intervalThread['userEvent'][evt]['count']
+                        curIntval['userEvent'][evt]['count']
 
                     self.intData[index]['toTal']['userEvent'][evt]['usage'] += \
-                        intervalThread['userEvent'][evt]['usage']
+                        curIntval['userEvent'][evt]['usage']
 
             # calculate kernel event usage in this interval #
-            if 'totalKernelEvent' in intervalThread:
-                for evt in list(intervalThread['totalKernelEvent'].keys()):
+            if 'totalKernelEvent' in curIntval:
+                for evt in list(curIntval['totalKernelEvent'].keys()):
                     try:
-                        intervalThread['kernelEvent'][evt]['count'] = \
-                            intervalThread['totalKernelEvent'][evt]['count'] - \
-                                prevIntervalThread['totalKernelEvent'][evt]['count']
+                        curIntval['kernelEvent'][evt]['count'] = \
+                            curIntval['totalKernelEvent'][evt]['count'] - \
+                                prevIntval['totalKernelEvent'][evt]['count']
 
-                        intervalThread['kernelEvent'][evt]['usage'] = \
-                            intervalThread['totalKernelEvent'][evt]['usage'] - \
-                                prevIntervalThread['totalKernelEvent'][evt]['usage']
+                        curIntval['kernelEvent'][evt]['usage'] = \
+                            curIntval['totalKernelEvent'][evt]['usage'] - \
+                                prevIntval['totalKernelEvent'][evt]['usage']
                     except:
-                        intervalThread['kernelEvent'][evt]['count'] = \
-                            intervalThread['totalKernelEvent'][evt]['count']
+                        curIntval['kernelEvent'][evt]['count'] = \
+                            curIntval['totalKernelEvent'][evt]['count']
 
-                        intervalThread['kernelEvent'][evt]['usage'] = \
-                            intervalThread['totalKernelEvent'][evt]['usage']
+                        curIntval['kernelEvent'][evt]['usage'] = \
+                            curIntval['totalKernelEvent'][evt]['usage']
 
                     self.intData[index]['toTal']['kernelEvent'][evt]['count'] += \
-                        intervalThread['kernelEvent'][evt]['count']
+                        curIntval['kernelEvent'][evt]['count']
 
                     self.intData[index]['toTal']['kernelEvent'][evt]['usage'] += \
-                        intervalThread['kernelEvent'][evt]['usage']
+                        curIntval['kernelEvent'][evt]['usage']
 
             # fix CPU usage exceed this interval #
             self.thisInterval = intervalEnable
-            if intervalThread['cpuUsage'] > intervalEnable or \
+            if curIntval['cpuUsage'] > intervalEnable or \
                 self.finishTime != '0':
                 ftime = float(self.intData[index - 1][key]['firstLogTime'])
 
@@ -59639,10 +59640,10 @@ class ThreadAnalyzer(object):
                             float(time) - float(SysMgr.startTime)
 
                 # recalculate previous intervals if no context switching since profile start #
-                remainTime = intervalThread['cpuUsage']
-                if intervalThread['cpuUsage'] > self.thisInterval:
+                remainTime = curIntval['cpuUsage']
+                if curIntval['cpuUsage'] > self.thisInterval:
                     for idx in range(
-                        long(intervalThread['cpuUsage'] / intervalEnable), -1, -1):
+                        long(curIntval['cpuUsage'] / intervalEnable), -1, -1):
                         try:
                             self.intData[idx][key]
                         except:
@@ -59686,31 +59687,31 @@ class ThreadAnalyzer(object):
             if SysMgr.intervalNow - intervalEnable > 0 and \
                 self.thisInterval > intervalEnable:
                 diff = self.thisInterval - intervalEnable
-                if prevIntervalThread['cpuUsage'] + diff > intervalEnable:
-                    diff = intervalEnable - prevIntervalThread['cpuUsage']
+                if prevIntval['cpuUsage'] + diff > intervalEnable:
+                    diff = intervalEnable - prevIntval['cpuUsage']
 
-                prevIntervalThread['cpuUsage'] += diff
-                prevIntervalThread['cpuPer'] = \
-                    prevIntervalThread['cpuUsage'] / intervalEnable * 100
+                prevIntval['cpuUsage'] += diff
+                prevIntval['cpuPer'] = \
+                    prevIntval['cpuUsage'] / intervalEnable * 100
 
             # calculate percentage of CPU usage of this thread in this interval #
             if self.thisInterval > 0:
-                intervalThread['cpuPer'] = \
-                    intervalThread['cpuUsage'] / self.thisInterval * 100
+                curIntval['cpuPer'] = \
+                    curIntval['cpuUsage'] / self.thisInterval * 100
             else:
-                intervalThread['cpuPer'] = long(0)
+                curIntval['cpuPer'] = long(0)
 
             # revise thread interval usage in DVFS system #
-            if intervalThread['cpuPer'] > 100:
-                intervalThread['cpuPer'] = 100
-            elif intervalThread['cpuPer'] < 0:
-                intervalThread['cpuPer'] = long(0)
+            if curIntval['cpuPer'] > 100:
+                curIntval['cpuPer'] = 100
+            elif curIntval['cpuPer'] < 0:
+                curIntval['cpuPer'] = long(0)
 
             # fix preempted time exceed this interval #
-            if intervalThread['preempted'] > intervalEnable and \
-                intervalThread['preempted'] > self.thisInterval:
+            if curIntval['preempted'] > intervalEnable and \
+                curIntval['preempted'] > self.thisInterval:
                 # recalculate previous intervals if no context switching since profile start #
-                remainTime = intervalThread['preempted']
+                remainTime = curIntval['preempted']
                 for idx in range(index + 1, -1, -1):
                     try:
                         self.intData[idx][key]
@@ -59928,15 +59929,18 @@ class ThreadAnalyzer(object):
         if comm[0] != '<':
             self.threadData[thread]['comm'] = comm
 
+        # define shortcut variable #
+        threadData = self.threadData[thread]
+
         # set tgid #
         try:
             if d['tgid'] != '-----':
-                self.threadData[thread]['tgid'] = d['tgid']
+                threadData['tgid'] = d['tgid']
             else:
                 raise Exception('no tgid')
         except:
             try:
-                self.threadData[thread]['tgid'] = \
+                threadData['tgid'] = \
                     SysMgr.savedProcTree[thread]
             except:
                 pass
@@ -59966,6 +59970,8 @@ class ThreadAnalyzer(object):
 
                     self.threadData[tid]['usage'] += usage
                     self.threadData[tid]['start'] = float(time)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -60304,20 +60310,20 @@ class ThreadAnalyzer(object):
             self.irqData[irqId]['name'].setdefault(d['name'], 0)
 
             # make per-thread irq list #
-            self.threadData[thread].setdefault('irqList', dict())
-            self.threadData[thread]['irqList'].setdefault(
+            threadData.setdefault('irqList', dict())
+            threadData['irqList'].setdefault(
                 irqId, dict(self.init_irqData))
-            self.threadData[thread]['irqList'][irqId]['name'] = d['name']
+            threadData['irqList'][irqId]['name'] = d['name']
 
             # save irq period per thread #
-            if self.threadData[thread]['irqList'][irqId]['start'] > 0:
-                diff = float(time) - self.threadData[thread]['irqList'][irqId]['start']
-                if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
-                    self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
-                if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
-                    self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
+            if threadData['irqList'][irqId]['start'] > 0:
+                diff = float(time) - threadData['irqList'][irqId]['start']
+                if diff > threadData['irqList'][irqId]['maxPeriod'] or \
+                    threadData['irqList'][irqId]['maxPeriod'] <= 0:
+                    threadData['irqList'][irqId]['maxPeriod'] = diff
+                if diff < threadData['irqList'][irqId]['minPeriod'] or \
+                    threadData['irqList'][irqId]['minPeriod'] <= 0:
+                    threadData['irqList'][irqId]['minPeriod'] = diff
 
             # save irq period #
             if self.irqData[irqId]['start'] > 0:
@@ -60331,8 +60337,8 @@ class ThreadAnalyzer(object):
 
             self.irqData[irqId]['start'] = float(time)
             self.irqData[irqId]['count'] += 1
-            self.threadData[thread]['irqList'][irqId]['start'] = float(time)
-            self.threadData[thread]['irqList'][irqId]['count'] += 1
+            threadData['irqList'][irqId]['start'] = float(time)
+            threadData['irqList'][irqId]['count'] += 1
 
         elif func == "irq_handler_exit":
             m = re.match(r'^\s*irq=(?P<irq>[0-9]+)\s+ret=(?P<return>\S+)', etc)
@@ -60347,16 +60353,16 @@ class ThreadAnalyzer(object):
             # make list #
             try:
                 self.irqData[irqId]
-                self.threadData[thread]['irqList'][irqId]
+                threadData['irqList'][irqId]
             except:
                 return time
 
-            if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+            if threadData['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
                 diff = float(time) - \
-                    self.threadData[thread]['irqList'][irqId]['start']
-                self.threadData[thread]['irqList'][irqId]['usage'] += diff
-                self.threadData[thread]['irq'] += diff
+                    threadData['irqList'][irqId]['start']
+                threadData['irqList'][irqId]['usage'] += diff
+                threadData['irq'] += diff
                 self.irqData[irqId]['usage'] += diff
 
                 # add CPU usage of this thread to core usage #
@@ -60364,14 +60370,14 @@ class ThreadAnalyzer(object):
                     self.threadData[coreId]['irq'] += diff
 
                 # save softirq period per thread #
-                if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
-                    self.threadData[thread]['irqList'][irqId]['max'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['max'] = diff
-                if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
-                    self.threadData[thread]['irqList'][irqId]['min'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['min'] = diff
+                if diff > threadData['irqList'][irqId]['max'] or \
+                    threadData['irqList'][irqId]['max'] <= 0:
+                    threadData['irqList'][irqId]['max'] = diff
+                if diff < threadData['irqList'][irqId]['min'] or \
+                    threadData['irqList'][irqId]['min'] <= 0:
+                    threadData['irqList'][irqId]['min'] = diff
 
-                self.threadData[thread]['irqList'][irqId]['start'] = long(0)
+                threadData['irqList'][irqId]['start'] = long(0)
 
             if self.irqData[irqId]['start'] > 0:
                 diff = float(time) - self.irqData[irqId]['start']
@@ -60407,25 +60413,25 @@ class ThreadAnalyzer(object):
 
             # make per-thread irq list #
             try:
-                self.threadData[thread]['irqList'][irqId]
+                threadData['irqList'][irqId]
             except:
-                self.threadData[thread]['irqList'] = {}
+                threadData['irqList'] = {}
             try:
-                self.threadData[thread]['irqList'][irqId]
+                threadData['irqList'][irqId]
             except:
-                self.threadData[thread]['irqList'][irqId] = dict(self.init_irqData)
-                self.threadData[thread]['irqList'][irqId]['name'] = d['action']
+                threadData['irqList'][irqId] = dict(self.init_irqData)
+                threadData['irqList'][irqId]['name'] = d['action']
 
             # save softirq period per thread #
-            if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+            if threadData['irqList'][irqId]['start'] > 0:
                 diff = float(time) - \
-                    self.threadData[thread]['irqList'][irqId]['start']
-                if diff > self.threadData[thread]['irqList'][irqId]['maxPeriod'] or \
-                    self.threadData[thread]['irqList'][irqId]['maxPeriod'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['maxPeriod'] = diff
-                if diff < self.threadData[thread]['irqList'][irqId]['minPeriod'] or \
-                    self.threadData[thread]['irqList'][irqId]['minPeriod'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['minPeriod'] = diff
+                    threadData['irqList'][irqId]['start']
+                if diff > threadData['irqList'][irqId]['maxPeriod'] or \
+                    threadData['irqList'][irqId]['maxPeriod'] <= 0:
+                    threadData['irqList'][irqId]['maxPeriod'] = diff
+                if diff < threadData['irqList'][irqId]['minPeriod'] or \
+                    threadData['irqList'][irqId]['minPeriod'] <= 0:
+                    threadData['irqList'][irqId]['minPeriod'] = diff
 
             # save softirq period #
             if self.irqData[irqId]['start'] > 0:
@@ -60439,8 +60445,8 @@ class ThreadAnalyzer(object):
 
             self.irqData[irqId]['start'] = float(time)
             self.irqData[irqId]['count'] += 1
-            self.threadData[thread]['irqList'][irqId]['start'] = float(time)
-            self.threadData[thread]['irqList'][irqId]['count'] += 1
+            threadData['irqList'][irqId]['start'] = float(time)
+            threadData['irqList'][irqId]['count'] += 1
 
         elif func == "softirq_exit":
             m = re.match(
@@ -60456,16 +60462,16 @@ class ThreadAnalyzer(object):
             # make list #
             try:
                 self.irqData[irqId]
-                self.threadData[thread]['irqList'][irqId]
+                threadData['irqList'][irqId]
             except:
                 return time
 
-            if self.threadData[thread]['irqList'][irqId]['start'] > 0:
+            if threadData['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
                 diff = float(time) - \
-                    self.threadData[thread]['irqList'][irqId]['start']
-                self.threadData[thread]['irqList'][irqId]['usage'] += diff
-                self.threadData[thread]['irq'] += diff
+                    threadData['irqList'][irqId]['start']
+                threadData['irqList'][irqId]['usage'] += diff
+                threadData['irq'] += diff
                 self.irqData[irqId]['usage'] += diff
 
                 # add CPU usage of this thread to core usage #
@@ -60473,14 +60479,14 @@ class ThreadAnalyzer(object):
                     self.threadData[coreId]['irq'] += diff
 
                 # save softirq period per thread #
-                if diff > self.threadData[thread]['irqList'][irqId]['max'] or \
-                    self.threadData[thread]['irqList'][irqId]['max'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['max'] = diff
-                if diff < self.threadData[thread]['irqList'][irqId]['min'] or \
-                    self.threadData[thread]['irqList'][irqId]['min'] <= 0:
-                    self.threadData[thread]['irqList'][irqId]['min'] = diff
+                if diff > threadData['irqList'][irqId]['max'] or \
+                    threadData['irqList'][irqId]['max'] <= 0:
+                    threadData['irqList'][irqId]['max'] = diff
+                if diff < threadData['irqList'][irqId]['min'] or \
+                    threadData['irqList'][irqId]['min'] <= 0:
+                    threadData['irqList'][irqId]['min'] = diff
 
-                self.threadData[thread]['irqList'][irqId]['start'] = long(0)
+                threadData['irqList'][irqId]['start'] = long(0)
 
             if self.irqData[irqId]['start'] > 0:
                 diff = float(time) - self.irqData[irqId]['start']
@@ -60548,31 +60554,31 @@ class ThreadAnalyzer(object):
             nr = pow(2, order)
 
             # register page order #
-            self.threadData[thread].setdefault('orderPages', dict())
-            self.threadData[thread]['orderPages'].setdefault(order, 0)
-            self.threadData[thread]['orderPages'][order] += 1
+            threadData.setdefault('orderPages', dict())
+            threadData['orderPages'].setdefault(order, 0)
+            threadData['orderPages'][order] += 1
             self.allocPageData.setdefault(order, 0)
             self.allocPageData[order] += 1
 
             # accumulate pages allocated #
-            self.threadData[thread]['nrAllocPages'] += nr
+            threadData['nrAllocPages'] += nr
             self.threadData[coreId]['nrAllocPages'] += nr
-            self.threadData[thread]['nrPages'] += nr
+            threadData['nrPages'] += nr
             self.threadData[coreId]['nrPages'] += nr
 
             if 'NOFS' in flags or \
                 'GFP_WRITE' in flags or \
                 '0x1000000' in flags:
                 pageType = 'CACHE'
-                self.threadData[thread]['cachePages'] += nr
+                threadData['cachePages'] += nr
                 self.threadData[coreId]['cachePages'] += nr
             elif 'USER' in flags:
                 pageType = 'USER'
-                self.threadData[thread]['userPages'] += nr
+                threadData['userPages'] += nr
                 self.threadData[coreId]['userPages'] += nr
             else:
                 pageType = 'KERNEL'
-                self.threadData[thread]['kernelPages'] += nr
+                threadData['kernelPages'] += nr
                 self.threadData[coreId]['kernelPages'] += nr
 
             # make PTE in page table #
@@ -60584,7 +60590,7 @@ class ThreadAnalyzer(object):
                     if self.pageTable[pfnv] == {}:
                         raise Exception('double page allocation')
                     else:
-                        self.threadData[thread]['nrPages'] -= 1
+                        threadData['nrPages'] -= 1
                         self.threadData[coreId]['nrPages'] -= 1
                 except:
                     self.pageTable[pfnv] = dict(self.init_pageData)
@@ -60637,7 +60643,7 @@ class ThreadAnalyzer(object):
                     self.pageTable.pop(pfnv)
                 except:
                     # this page is allocated before starting profile #
-                    self.threadData[thread]['anonReclaimedPages'] += 1
+                    threadData['anonReclaimedPages'] += 1
                     self.threadData[coreId]['anonReclaimedPages'] += 1
 
         elif func == "mm_filemap_delete_from_page_cache":
@@ -60701,8 +60707,8 @@ class ThreadAnalyzer(object):
             self.kmemTable[ptr]['waste'] = alloc - req
             self.kmemTable[ptr]['core'] = coreId
 
-            self.threadData[thread]['remainKmem'] += alloc
-            self.threadData[thread]['wasteKmem'] += alloc - req
+            threadData['remainKmem'] += alloc
+            threadData['wasteKmem'] += alloc - req
             self.threadData[coreId]['remainKmem'] += alloc
             self.threadData[coreId]['wasteKmem'] += alloc - req
 
@@ -60777,7 +60783,7 @@ class ThreadAnalyzer(object):
 
                     kicker_pid = self.wakeupData['tid']
                 else:
-                    kicker = self.threadData[thread]['comm']
+                    kicker = threadData['comm']
                     kicker_pid = thread
 
                 ntime = round(float(time) - \
@@ -60801,8 +60807,9 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
 
             nr = long(d['nr'])
+            nrstr = str(nr)
             args = d['args']
-            td = self.threadData[thread]
+            td = threadData
 
             # apply thread filter #
             if SysMgr.isExceptTarget(thread, self.threadData):
@@ -60877,7 +60884,7 @@ class ThreadAnalyzer(object):
             # write syscall #
             if nr == ConfigMgr.sysList.index("sys_write"):
                 self.wakeupData['tid'] = thread
-                self.wakeupData['nr'] = str(nr)
+                self.wakeupData['nr'] = nrstr
                 self.wakeupData['args'] = args
 
                 if not (self.wakeupData['valid'] > 0 and \
@@ -60892,21 +60899,20 @@ class ThreadAnalyzer(object):
 
             # register syscall #
             try:
-                self.threadData[thread]['syscallInfo']
+                threadData['syscallInfo']
             except:
-                self.threadData[thread]['syscallInfo'] = dict()
+                threadData['syscallInfo'] = dict()
             try:
-                self.threadData[thread]['syscallInfo'][str(nr)]
+                threadData['syscallInfo'][nrstr]
             except:
-                self.threadData[thread]['syscallInfo'][str(nr)] = \
+                threadData['syscallInfo'][nrstr] = \
                     dict(self.init_syscallInfo)
 
             # save syscall info #
-            nrstr = str(nr)
-            self.threadData[thread]['nrSyscall'] += 1
-            self.threadData[thread]['lastNrSyscall'] = nr
-            self.threadData[thread]['syscallInfo'][nrstr]['count'] += 1
-            self.threadData[thread]['syscallInfo'][nrstr]['last'] = float(time)
+            threadData['nrSyscall'] += 1
+            threadData['lastNrSyscall'] = nr
+            threadData['syscallInfo'][nrstr]['count'] += 1
+            threadData['syscallInfo'][nrstr]['last'] = float(time)
 
             # save syscall history #
             if len(SysMgr.syscallList) > 0:
@@ -60914,12 +60920,14 @@ class ThreadAnalyzer(object):
                     idx = SysMgr.syscallList.index(nr)
 
                     self.syscallData.append(
-                        ['ENT', time, thread, core, str(nr), args])
+                        ['ENT', time, thread, core, nrstr, args])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
             else:
                 self.syscallData.append(
-                    ['ENT', time, thread, core, str(nr), args])
+                    ['ENT', time, thread, core, nrstr, args])
 
         elif func == "sys_exit":
             m = re.match(r'^\s*NR (?P<nr>\S+) = (?P<ret>.+)', etc)
@@ -60930,8 +60938,9 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
 
             nr = long(d['nr'])
+            nrstr = str(nr)
             ret = d['ret']
-            td = self.threadData[thread]
+            td = threadData
 
             # apply filter #
             if SysMgr.isExceptTarget(thread, self.threadData):
@@ -61035,7 +61044,7 @@ class ThreadAnalyzer(object):
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
-                            self.threadData[thread]['comm'], thread, "wakeup"))
+                            threadData['comm'], thread, "wakeup"))
 
                         self.wakeupData['time'] = \
                             float(time) - float(SysMgr.startTime)
@@ -61051,40 +61060,42 @@ class ThreadAnalyzer(object):
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
-                            self.threadData[thread]['comm'], thread, "recv"))
+                            threadData['comm'], thread, "recv"))
 
                         self.wakeupData['time'] = \
                             float(time) - float(SysMgr.startTime)
                         self.lastJob[core]['prevWakeupTid'] = thread
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
             # register syscall #
             try:
-                self.threadData[thread]['syscallInfo']
+                threadData['syscallInfo']
             except:
-                self.threadData[thread]['syscallInfo'] = {}
+                threadData['syscallInfo'] = {}
             try:
-                self.threadData[thread]['syscallInfo'][str(nr)]
+                threadData['syscallInfo'][nrstr]
             except:
-                self.threadData[thread]['syscallInfo'][str(nr)] = \
+                threadData['syscallInfo'][nrstr] = \
                     dict(self.init_syscallInfo)
 
             # save syscall usage #
             diff = ''
-            sysItem = self.threadData[thread]['syscallInfo'][str(nr)]
+            sysItem = threadData['syscallInfo'][nrstr]
             if sysItem['last'] > 0:
                 diff = float(time) - sysItem['last']
-                self.threadData[thread]['syscallInfo'][str(nr)]['usage'] += diff
-                self.threadData[thread]['syscallInfo'][str(nr)]['last'] = long(0)
+                threadData['syscallInfo'][nrstr]['usage'] += diff
+                threadData['syscallInfo'][nrstr]['last'] = long(0)
 
                 if sysItem['max'] == 0 or sysItem['max'] < diff:
-                    self.threadData[thread]['syscallInfo'][str(nr)]['max'] = diff
+                    threadData['syscallInfo'][nrstr]['max'] = diff
                 if sysItem['min'] <= 0 or sysItem['min'] > diff:
-                    self.threadData[thread]['syscallInfo'][str(nr)]['min'] = diff
+                    threadData['syscallInfo'][nrstr]['min'] = diff
 
                 if ret[0] == '-':
-                    self.threadData[thread]['syscallInfo'][str(nr)]['err'] += 1
+                    threadData['syscallInfo'][nrstr]['err'] += 1
 
             # save syscall history #
             if len(SysMgr.syscallList) > 0:
@@ -61092,12 +61103,12 @@ class ThreadAnalyzer(object):
                     idx = SysMgr.syscallList.index(nr)
 
                     self.syscallData.append(
-                        ['RET', time, thread, core, str(nr), ret, diff])
+                        ['RET', time, thread, core, nrstr, ret, diff])
                 except:
                     pass
             else:
                 self.syscallData.append(
-                    ['RET', time, thread, core, str(nr), ret, diff])
+                    ['RET', time, thread, core, nrstr, ret, diff])
 
         elif func == "signal_generate":
             m = re.match((
@@ -61119,7 +61130,7 @@ class ThreadAnalyzer(object):
                 "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
                 (round(ttime, 7),
                 round(ttime - float(self.wakeupData['time']), 7),
-                self.threadData[thread]['comm'], thread,
+                threadData['comm'], thread,
                 target_comm, pid, "sigsend", sig))
 
             self.sigData.append(('SEND', ttime, thread, pid, sig))
@@ -61134,7 +61145,7 @@ class ThreadAnalyzer(object):
                             self.threadData[pid]['waitPid'] == long(thread):
                             diff = float(time) - \
                                 self.threadData[pid]['waitStartAsParent']
-                            self.threadData[thread]['waitParent'] = diff
+                            threadData['waitParent'] = diff
                             self.threadData[pid]['waitChild'] += diff
                 elif sig == str(signal.SIGSEGV):
                     self.threadData[pid]['die'] = 'F'
@@ -61160,7 +61171,7 @@ class ThreadAnalyzer(object):
             self.depData.append(
                 "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
                 (round(ttime, 7), round(itime, 7), "", "",
-                self.threadData[thread]['comm'], thread, "sigrecv", sig))
+                threadData['comm'], thread, "sigrecv", sig))
 
             self.sigData.append(('RECV', ttime, None, thread, sig))
 
@@ -61197,24 +61208,24 @@ class ThreadAnalyzer(object):
 
             # read operations #
             if opt[0] == 'R':
-                self.threadData[thread]['reqRdBlock'] += long(d['size'])
-                self.threadData[thread]['readQueueCnt'] += 1
-                self.threadData[thread]['readBlockCnt'] += 1
-                self.threadData[thread]['blkCore'] = coreId
+                threadData['reqRdBlock'] += long(d['size'])
+                threadData['readQueueCnt'] += 1
+                threadData['readBlockCnt'] += 1
+                threadData['blkCore'] = coreId
                 self.threadData[coreId]['readBlockCnt'] += 1
 
-                if self.threadData[thread]['readStart'] == 0:
-                    self.threadData[thread]['readStart'] = float(time)
+                if threadData['readStart'] == 0:
+                    threadData['readStart'] = float(time)
             # synchronous write operation #
             elif opt == 'WS':
-                self.threadData[thread]['reqWrBlock'] += long(d['size'])
-                self.threadData[thread]['writeQueueCnt'] += 1
-                self.threadData[thread]['writeBlockCnt'] += 1
-                self.threadData[thread]['blkCore'] = coreId
+                threadData['reqWrBlock'] += long(d['size'])
+                threadData['writeQueueCnt'] += 1
+                threadData['writeBlockCnt'] += 1
+                threadData['blkCore'] = coreId
                 self.threadData[coreId]['writeBlockCnt'] += 1
 
-                if self.threadData[thread]['writeStart'] == 0:
-                    self.threadData[thread]['writeStart'] = float(time)
+                if threadData['writeStart'] == 0:
+                    threadData['writeStart'] = float(time)
 
         elif func == "block_rq_complete":
             m = re.match((
@@ -61310,52 +61321,53 @@ class ThreadAnalyzer(object):
                 if bioEnd < request['address'] + request['size']:
                     pass
 
+                reqThd = request['thread']
+
                 if opt[0] == 'R':
-                    self.threadData[request['thread']]['readBlock'] += \
-                        matchBlock
+                    self.threadData[reqThd]['readBlock'] += matchBlock
                     self.threadData[coreId]['readBlock'] += matchBlock
 
                     if request['size'] != 0:
                         continue
 
-                    if self.threadData[request['thread']]['readQueueCnt'] > 0:
-                        self.threadData[request['thread']]['readQueueCnt'] -= 1
+                    if self.threadData[reqThd]['readQueueCnt'] > 0:
+                        self.threadData[reqThd]['readQueueCnt'] -= 1
 
                     """
                     if error of size and time of block read is big then \
                     consider inserting below conditions
-                    # self.threadData[request['thread']]['readQueueCnt'] == 0 #
+                    # self.threadData[reqThd]['readQueueCnt'] == 0 #
                     """
-                    if self.threadData[request['thread']]['readStart'] > 0:
+                    if self.threadData[reqThd]['readStart'] > 0:
                         waitTime = \
                             float(time) - \
-                            self.threadData[request['thread']]['readStart']
+                            self.threadData[reqThd]['readStart']
                         self.threadData[coreId]['ioRdWait'] += waitTime
-                        self.threadData[request['thread']]['ioRdWait'] += waitTime
-                        self.threadData[request['thread']]['readStart'] = long(0)
+                        self.threadData[reqThd]['ioRdWait'] += waitTime
+                        self.threadData[reqThd]['readStart'] = long(0)
 
                 elif opt == 'WS':
-                    self.threadData[request['thread']]['writeBlock'] += matchBlock
+                    self.threadData[reqThd]['writeBlock'] += matchBlock
                     self.threadData[coreId]['writeBlock'] += matchBlock
 
-                    if thread != request['thread'] or request['size'] != 0:
+                    if thread != reqThd or request['size'] != 0:
                         continue
 
-                    if self.threadData[request['thread']]['writeQueueCnt'] > 0:
-                        self.threadData[request['thread']]['writeQueueCnt'] -= 1
+                    if self.threadData[reqThd]['writeQueueCnt'] > 0:
+                        self.threadData[reqThd]['writeQueueCnt'] -= 1
 
                     """
                     if error of size and time of block read is big then \
                     consider inserting below conditions
-                    # self.threadData[request['thread']]['writeQueueCnt'] == 0 #
+                    # self.threadData[reqThd]['writeQueueCnt'] == 0 #
                     """
-                    if self.threadData[request['thread']]['writeStart'] > 0:
+                    if self.threadData[reqThd]['writeStart'] > 0:
                         waitTime = \
                             float(time) - \
-                            self.threadData[request['thread']]['writeStart']
+                            self.threadData[reqThd]['writeStart']
                         self.threadData[coreId]['ioWrWait'] += waitTime
-                        self.threadData[request['thread']]['ioWrWait'] += waitTime
-                        self.threadData[request['thread']]['writeStart'] = long(0)
+                        self.threadData[reqThd]['ioWrWait'] += waitTime
+                        self.threadData[reqThd]['writeStart'] = long(0)
 
         elif func == "writeback_dirty_page":
             m = re.match((
@@ -61371,8 +61383,8 @@ class ThreadAnalyzer(object):
 
             bid = d['ino'] + d['index']
 
-            self.threadData[thread]['awriteBlock'] += 1
-            self.threadData[thread]['awriteBlockCnt'] += 1
+            threadData['awriteBlock'] += 1
+            threadData['awriteBlockCnt'] += 1
             self.threadData[coreId]['awriteBlock'] += 1
             self.threadData[coreId]['awriteBlockCnt'] += 1
 
@@ -61392,8 +61404,8 @@ class ThreadAnalyzer(object):
             if d['skip'] == '0':
                 SysMgr.blockEnable = True
 
-                self.threadData[thread]['awriteBlock'] += 1
-                self.threadData[thread]['awriteBlockCnt'] += 1
+                threadData['awriteBlock'] += 1
+                threadData['awriteBlockCnt'] += 1
                 self.threadData[coreId]['awriteBlock'] += 1
                 self.threadData[coreId]['awriteBlockCnt'] += 1
 
@@ -61409,7 +61421,7 @@ class ThreadAnalyzer(object):
             if self.reclaimData[thread]['start'] <= 0:
                 self.reclaimData[thread]['start'] = float(time)
 
-            self.threadData[thread]['reclaimCnt'] += 1
+            threadData['reclaimCnt'] += 1
 
         elif func == "mm_vmscan_kswapd_sleep":
             for key, value in self.reclaimData.items():
@@ -61421,10 +61433,10 @@ class ThreadAnalyzer(object):
                 self.reclaimData.pop(key, None)
 
         elif func == "mm_vmscan_direct_reclaim_begin":
-            if self.threadData[thread]['dReclaimStart'] <= 0:
-                self.threadData[thread]['dReclaimStart'] = float(time)
+            if threadData['dReclaimStart'] <= 0:
+                threadData['dReclaimStart'] = float(time)
 
-            self.threadData[thread]['dReclaimCnt'] += 1
+            threadData['dReclaimCnt'] += 1
             self.threadData[coreId]['dReclaimCnt'] += 1
 
         elif func == "mm_vmscan_direct_reclaim_end":
@@ -61435,13 +61447,13 @@ class ThreadAnalyzer(object):
 
             d = m.groupdict()
 
-            if self.threadData[thread]['dReclaimStart'] > 0:
-                self.threadData[thread]['dReclaimWait'] += \
-                    float(time) - self.threadData[thread]['dReclaimStart']
+            if threadData['dReclaimStart'] > 0:
+                threadData['dReclaimWait'] += \
+                    float(time) - threadData['dReclaimStart']
                 self.threadData[coreId]['dReclaimWait'] += \
-                    float(time) - self.threadData[thread]['dReclaimStart']
+                    float(time) - threadData['dReclaimStart']
 
-            self.threadData[thread]['dReclaimStart'] = long(0)
+            threadData['dReclaimStart'] = long(0)
 
         elif func == "task_newtask":
             m = re.match(r'^\s*pid=(?P<pid>[0-9]+)\s+comm=(?P<comm>\S+)', etc)
@@ -61465,10 +61477,10 @@ class ThreadAnalyzer(object):
                 self.threadData[pid]['new'] = 'N'
                 self.threadData[pid]['createdTime'] = float(time)
 
-                if not self.threadData[thread]['childList']:
-                    self.threadData[thread]['childList'] = list()
+                if not threadData['childList']:
+                    threadData['childList'] = list()
 
-                self.threadData[thread]['childList'].append(pid)
+                threadData['childList'].append(pid)
                 self.nrNewTask += 1
 
         elif func == "sched_process_fork":
@@ -61497,10 +61509,10 @@ class ThreadAnalyzer(object):
                 self.threadData[cpid]['new'] = 'N'
                 self.threadData[cpid]['createdTime'] = float(time)
 
-                if not self.threadData[thread]['childList']:
-                    self.threadData[thread]['childList'] = list()
+                if not threadData['childList']:
+                    threadData['childList'] = list()
 
-                self.threadData[thread]['childList'].append(cpid)
+                threadData['childList'].append(cpid)
                 self.nrNewTask += 1
 
         elif func == "task_rename":
@@ -61546,12 +61558,12 @@ class ThreadAnalyzer(object):
             if ltype == 'F_UNLCK':
                 try:
                     if self.lockTable[fid]['owner'] == thread:
-                        self.threadData[thread]['lockTime'] += \
+                        threadData['lockTime'] += \
                             float(time) - self.lockTable[fid]['time']
-                        self.threadData[thread]['lockCnt'] += 1
+                        threadData['lockCnt'] += 1
                 except:
                     self.lockTable[fid] = {}
-                    self.threadData[thread]['lockCnt'] += 1
+                    threadData['lockCnt'] += 1
 
                 # initialize lock data #
                 self.lockTable[fid]['owner'] = None
@@ -61559,7 +61571,7 @@ class ThreadAnalyzer(object):
                 self.lockTable[fid]['type'] = None
             # try to lock #
             else:
-                self.threadData[thread]['tryLockCnt'] += 1
+                threadData['tryLockCnt'] += 1
 
                 try:
                     # get lock #
@@ -61567,31 +61579,31 @@ class ThreadAnalyzer(object):
                         self.lockTable[fid]['owner'] = thread
                         self.lockTable[fid]['time'] = float(time)
                         self.lockTable[fid]['type'] = ltype
-                        self.threadData[thread]['lastLockTime'] = float(time)
+                        threadData['lastLockTime'] = float(time)
 
                         # add wait time to get lock #
-                        if self.threadData[thread]['lastLockWait'] > 0:
-                            llw = self.threadData[thread]['lastLockWait']
-                            self.threadData[thread]['lockWait'] += \
+                        if threadData['lastLockWait'] > 0:
+                            llw = threadData['lastLockWait']
+                            threadData['lockWait'] += \
                                 float(time) - llw
 
-                            self.threadData[thread]['lastLockWait'] = long(0)
+                            threadData['lastLockWait'] = long(0)
                     # wait lock #
                     else:
                         # add wait time to get lock #
-                        if self.threadData[thread]['lastLockWait'] > 0:
-                            llw = self.threadData[thread]['lastLockWait']
-                            self.threadData[thread]['lockWait'] += \
+                        if threadData['lastLockWait'] > 0:
+                            llw = threadData['lastLockWait']
+                            threadData['lockWait'] += \
                                 float(time) - llw
 
-                        self.threadData[thread]['lastLockWait'] = float(time)
+                        threadData['lastLockWait'] = float(time)
                 except:
                     # no lock #
                     self.lockTable[fid] = {}
                     self.lockTable[fid]['owner'] = thread
                     self.lockTable[fid]['time'] = float(time)
                     self.lockTable[fid]['type'] = ltype
-                    self.threadData[thread]['lastLockTime'] = float(time)
+                    threadData['lastLockTime'] = float(time)
 
         elif func == "sched_process_exit":
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -61621,8 +61633,8 @@ class ThreadAnalyzer(object):
 
             d = m.groupdict()
 
-            self.threadData[thread]['waitStartAsParent'] = float(time)
-            self.threadData[thread]['waitPid'] = long(d['pid'])
+            threadData['waitStartAsParent'] = float(time)
+            threadData['waitPid'] = long(d['pid'])
 
         elif func == "suspend_resume":
             SysMgr.powerEnable = True
@@ -61798,19 +61810,19 @@ class ThreadAnalyzer(object):
                 [func, comm, thread, ntime, etc.strip()])
 
             # make event list #
-            if not self.threadData[thread]['customEvent']:
-                self.threadData[thread]['customEvent'] = {}
+            if not threadData['customEvent']:
+                threadData['customEvent'] = {}
 
-            self.threadData[thread]['customEvent'].setdefault(
+            threadData['customEvent'].setdefault(
                 func, dict(self.init_eventData))
 
             self.customEventInfo.setdefault(func, dict(self.init_eventData))
 
-            self.threadData[thread]['customEvent'][func]['count'] += 1
+            threadData['customEvent'][func]['count'] += 1
             self.customEventInfo[func]['count'] += 1
 
             # define eventObj #
-            eventObj = self.threadData[thread]['customEvent'][func]
+            eventObj = threadData['customEvent'][func]
 
             # get interval #
             interDiff = long(0)
@@ -61820,9 +61832,9 @@ class ThreadAnalyzer(object):
             # update period of thread #
             if interDiff > eventObj['maxPeriod'] or \
                 eventObj['maxPeriod'] == 0:
-                self.threadData[thread]['customEvent'][func]['maxPeriod'] = interDiff
+                threadData['customEvent'][func]['maxPeriod'] = interDiff
             if interDiff < eventObj['minPeriod'] or eventObj == 0:
-                self.threadData[thread]['customEvent'][func]['minPeriod'] = interDiff
+                threadData['customEvent'][func]['minPeriod'] = interDiff
 
             # update period of system #
             if interDiff > self.customEventInfo[func]['maxPeriod'] or \
@@ -61832,7 +61844,7 @@ class ThreadAnalyzer(object):
                 self.customEventInfo[func]['minPeriod'] == 0:
                 self.customEventInfo[func]['minPeriod'] = interDiff
 
-            self.threadData[thread]['customEvent'][func]['start'] = float(time)
+            threadData['customEvent'][func]['start'] = float(time)
 
             handleSpecialEvents = True
 
@@ -61845,16 +61857,16 @@ class ThreadAnalyzer(object):
             if not func.startswith(name):
                 continue
 
-            if not self.threadData[thread]['userEvent']:
-                self.threadData[thread]['userEvent'] = {}
+            if not threadData['userEvent']:
+                threadData['userEvent'] = {}
 
-            self.threadData[thread]['userEvent'].setdefault(
+            threadData['userEvent'].setdefault(
                 name, dict(self.init_eventData))
 
             self.userEventInfo.setdefault(name, dict(self.init_eventData))
 
             # define eventObj #
-            eventObj = self.threadData[thread]['userEvent'][name]
+            eventObj = threadData['userEvent'][name]
 
             if func == '%s_enter' % name:
                 # add data into list #
@@ -61867,16 +61879,16 @@ class ThreadAnalyzer(object):
                 if eventObj['start'] > 0:
                     interDiff = float(time) - eventObj['start']
 
-                self.threadData[thread]['userEvent'][name]['count'] += 1
-                self.threadData[thread]['userEvent'][name]['start'] = float(time)
+                threadData['userEvent'][name]['count'] += 1
+                threadData['userEvent'][name]['start'] = float(time)
 
                 # update period of thread #
                 if interDiff > eventObj['maxPeriod'] or \
                     eventObj['maxPeriod'] == 0:
-                    self.threadData[thread]['userEvent'][name]['maxPeriod'] = interDiff
+                    threadData['userEvent'][name]['maxPeriod'] = interDiff
                 if interDiff < eventObj['minPeriod'] or \
                     eventObj['minPeriod'] == 0:
-                    self.threadData[thread]['userEvent'][name]['minPeriod'] = interDiff
+                    threadData['userEvent'][name]['minPeriod'] = interDiff
 
                 self.userEventInfo[name]['count'] += 1
 
@@ -61899,14 +61911,14 @@ class ThreadAnalyzer(object):
                 usage = long(0)
                 if eventObj['start'] > 0:
                     usage = float(time) - eventObj['start']
-                    self.threadData[thread]['userEvent'][name]['usage'] += usage
+                    threadData['userEvent'][name]['usage'] += usage
                     self.userEventInfo[name]['usage'] += usage
 
                     # update usage of thread #
                     if usage > eventObj['max'] or eventObj['max'] == 0:
-                        self.threadData[thread]['userEvent'][name]['max'] = usage
+                        threadData['userEvent'][name]['max'] = usage
                     if usage < eventObj['min'] or eventObj['min'] == 0:
-                        self.threadData[thread]['userEvent'][name]['min'] = usage
+                        threadData['userEvent'][name]['min'] = usage
 
                     # update usage of system #
                     if usage > self.userEventInfo[name]['max'] or \
@@ -61921,16 +61933,16 @@ class ThreadAnalyzer(object):
             if not func.startswith(name):
                 continue
 
-            if not self.threadData[thread]['kernelEvent']:
-                self.threadData[thread]['kernelEvent'] = {}
+            if not threadData['kernelEvent']:
+                threadData['kernelEvent'] = {}
 
-            self.threadData[thread]['kernelEvent'].setdefault(
+            threadData['kernelEvent'].setdefault(
                 name, dict(self.init_eventData))
 
             self.kernelEventInfo.setdefault(name, dict(self.init_eventData))
 
             # define eventObj #
-            eventObj = self.threadData[thread]['kernelEvent'][name]
+            eventObj = threadData['kernelEvent'][name]
 
             if func == '%s_enter' % name:
                 # add data into list #
@@ -61963,16 +61975,16 @@ class ThreadAnalyzer(object):
                 if eventObj['start'] > 0:
                     interDiff = float(time) - eventObj['start']
 
-                self.threadData[thread]['kernelEvent'][name]['count'] += 1
-                self.threadData[thread]['kernelEvent'][name]['start'] = float(time)
+                threadData['kernelEvent'][name]['count'] += 1
+                threadData['kernelEvent'][name]['start'] = float(time)
 
                 # update period of thread #
                 if interDiff > eventObj['maxPeriod'] or \
                     eventObj['maxPeriod'] == 0:
-                    self.threadData[thread]['kernelEvent'][name]['maxPeriod'] = interDiff
+                    threadData['kernelEvent'][name]['maxPeriod'] = interDiff
                 if interDiff < eventObj['minPeriod'] or \
                     eventObj['minPeriod'] == 0:
-                    self.threadData[thread]['kernelEvent'][name]['minPeriod'] = interDiff
+                    threadData['kernelEvent'][name]['minPeriod'] = interDiff
 
                 self.kernelEventInfo[name]['count'] += 1
 
@@ -62019,16 +62031,16 @@ class ThreadAnalyzer(object):
                     continue
 
                 usage = float(time) - eventObj['start']
-                self.threadData[thread]['kernelEvent'][name]['usage'] += usage
+                threadData['kernelEvent'][name]['usage'] += usage
                 self.kernelEventInfo[name]['usage'] += usage
 
                 # update usage of thread #
                 if usage > eventObj['max'] or \
                     eventObj['max'] == 0:
-                    self.threadData[thread]['kernelEvent'][name]['max'] = usage
+                    threadData['kernelEvent'][name]['max'] = usage
                 if usage < eventObj['min'] or \
                     eventObj['min'] == 0:
-                    self.threadData[thread]['kernelEvent'][name]['min'] = usage
+                    threadData['kernelEvent'][name]['min'] = usage
 
                 # update usage of system #
                 if usage > self.kernelEventInfo[name]['max'] or \
@@ -67753,7 +67765,7 @@ def main(args=None):
     if not SysMgr.isRecordMode():
         SysMgr.checkCmdMode()
 
-    # save system info first #
+    # snapshot system info #
     SysMgr()
 
     #==================== RECORD PART ====================#
