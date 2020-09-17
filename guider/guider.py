@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200916"
+__revision__ = "200917"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22407,8 +22407,7 @@ Copyright:
                 return
         else:
             SysMgr.printErr(
-                "fail to write %s event because there is no file descriptor\n" % \
-                message)
+                "fail to write %s event because of no file\n" % message)
 
 
 
@@ -25963,7 +25962,7 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    pass
+                    continue
 
                 if len(event.strip()) == 0:
                     SysMgr.writeEvent("EVENT_USER")
@@ -26155,14 +26154,18 @@ Copyright:
 
     @staticmethod
     def broadcastEvent(event, pids=[]):
-        # convert event name #
-        if not event.startswith('EVENT_'):
-            event = 'EVENT_%s' % event
+        if type(event) is not list:
+            event = [event]
 
-        if len(pids) == 0:
+        # convert event name #
+        for idx, item in enumerate(list(event)):
+            if not item.startswith('EVENT_'):
+                event[idx] = 'EVENT_%s' % item
+
+        if not pids:
             # get pid list of Guider processes #
             pids = SysMgr.getProcPids(__module__)
-            if len(pids) == 0:
+            if not pids:
                 if SysMgr.isEventMode():
                     print("\nno running process in the background\n")
                 else:
@@ -26197,17 +26200,18 @@ Copyright:
                         "failed to use %s:%s as remote address" % (ip, port))
                     continue
 
-                try:
-                    networkObject.request = event
-                    networkObject.send('%s@%s' % (event, SysMgr.uptime))
-                    SysMgr.printInfo(
-                        "sent event '%s' to %s:%s address of %s process" % \
-                        (event, ip, port, pid))
-                except:
-                    SysMgr.printWarn((
-                        "failed to send event '%s' "
-                        "to %s:%s address of %s process") % \
-                        (event, ip, port, pid))
+                for item in event:
+                    try:
+                        networkObject.request = item
+                        networkObject.send('%s@%s' % (item, SysMgr.uptime))
+                        SysMgr.printInfo(
+                            "sent event '%s' to %s:%s address of %s process" % \
+                                (item, ip, port, pid))
+                    except:
+                        SysMgr.printWarn((
+                            "failed to send event '%s' "
+                            "to %s:%s address of %s process") % \
+                                (item, ip, port, pid))
 
         return pids
 
@@ -51763,9 +51767,8 @@ class ThreadAnalyzer(object):
                     evtbox = '%s%s' % (prefix, '\n'.join(evts))
 
                     try:
-                        text(timeline[tm], yticks()[0][-1], evtbox,
-                            fontsize=3, verticalalignment='top',
-                            style='italic',
+                        text(timeline[tm], ylim()[-1], evtbox,
+                            fontsize=3, verticalalignment='top', style='italic',
                             bbox={'facecolor':'green', 'alpha': 1, 'pad': 1},
                             ha=getTextAlign(tm, timeline))
 
@@ -66696,12 +66699,17 @@ class ThreadAnalyzer(object):
                     "fail to get address of client from message")
                 continue
 
-            networkObject = NetworkMgr('client', ip, port)
-            if not networkObject.ip:
-                continue
+            # create network object for send event info #
+            if SysMgr.localServObj.ip != ip or \
+                SysMgr.localServObj.port != port:
+                networkObject = NetworkMgr('client', ip, port)
+                if not networkObject.ip:
+                    continue
 
-            # save current time in new object #
-            networkObject.time = time.time()
+                # save current time in new object #
+                networkObject.time = time.time()
+            else:
+                networkObject = None
 
             if message.startswith('EVENT_'):
                 event = message[message.find('_')+1:]
@@ -66720,11 +66728,14 @@ class ThreadAnalyzer(object):
                 SysMgr.printInfo(
                     "added event '%s' from %s:%d" % (event, ip, port))
 
-                networkObject.send(message)
-                del networkObject
-                continue
+                if networkObject:
+                    networkObject.send(message)
+                    del networkObject
 
             elif message == 'LOG':
+                pass
+
+            elif not networkObject:
                 pass
 
             elif message == 'PRINT':
@@ -66868,6 +66879,9 @@ class ThreadAnalyzer(object):
             SysMgr.printInfo(
                 "threshold events [ %s ] occurred at %s" % \
                     (', '.join(newList), SysMgr.uptime))
+
+            # save event timestamp #
+            SysMgr.broadcastEvent(list(newList), [SysMgr.pid])
 
             # execute commands #
             self.executeEventCommand(newList)
@@ -67055,7 +67069,6 @@ class ThreadAnalyzer(object):
 
         # check task #
         try:
-            asdf
             self.checkTaskThreshold()
         except SystemExit:
             sys.exit(0)
