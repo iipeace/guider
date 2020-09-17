@@ -23516,9 +23516,7 @@ Copyright:
                 SysMgr.groupProcEnable = True
 
             elif option == 'p':
-                if not SysMgr.isThreadRecordMode():
-                    pass
-                elif SysMgr.findOption('i'):
+                if SysMgr.findOption('i'):
                     SysMgr.printErr(
                         "wrong -p option, -i option is already used")
                     sys.exit(0)
@@ -55312,8 +55310,8 @@ class ThreadAnalyzer(object):
                     self.threadData[key]['die'], value['usage'],
                     '%.2f' % (value['usage'] / self.preemptData[index][4] * 100)))
             SysMgr.printPipe(
-                "%s# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
-                ('', 'PRT', tid, self.threadData[tid]['comm'],
+                "# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
+                ('PRT', tid, self.threadData[tid]['comm'],
                 self.preemptData[index][4], count))
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
