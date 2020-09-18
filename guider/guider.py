@@ -4761,15 +4761,14 @@ class NetworkMgr(object):
                 totalSize = long(st_size)
                 with open(origPath, 'rb') as fd:
                     buf = fd.read(sender.sendSize)
+
                     while buf:
                         # print progress #
                         UtilMgr.printProgress(curSize, totalSize)
 
-                        ret = sender.send(buf)
-                        if not ret:
-                            raise Exception('send error')
-                        else:
-                            curSize = len(buf)
+                        assert sender.send(buf)
+
+                        curSize = len(buf)
 
                         buf = fd.read(sender.sendSize)
 
@@ -19271,6 +19270,8 @@ Copyright:
             try:
                 rtypes = UtilMgr.getFlagList(mask, ConfigMgr.INOTIFY_TYPE)
                 revents.append([wlist[wd], rtypes, fname])
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -27532,8 +27533,7 @@ Copyright:
                         # read output from pipe #
                         for robj in read:
                             # check connection close #
-                            if robj == connObj.socket:
-                                raise Exception('connection close')
+                            assert robj != connObj.socket
 
                             # handle data arrived #
                             while 1:
@@ -27541,9 +27541,7 @@ Copyright:
                                 if output == '\n':
                                     continue
                                 elif output and len(output) > 0:
-                                    ret = connObj.write(output)
-                                    if not ret:
-                                        raise Exception('connection close')
+                                    assert connObj.write(output)
                                 else:
                                     break
                     except:
@@ -30911,7 +30909,8 @@ Copyright:
                         zonestr += "%s:%7s, " % (name, conv(val << 12))
 
                 if 'protection' in items:
-                    zonestr += "%s: %7s" % ('protection', ', '.join(items['protection']))
+                    zonestr += "%s: %7s" % \
+                        ('protection', ', '.join(items['protection']))
                     zonestr += ", "
 
                 zonestr = zonestr + '\n'
@@ -38374,7 +38373,8 @@ class DltAnalyzer(object):
                     ret = dltObj.dlt_file_read(byref(dltFile), verbose)
                     # storage header corrupted #
                     if ret < 0:
-                        nextHeaderPos = findNextHeader(path, dltFile.file_position)
+                        nextHeaderPos = \
+                            findNextHeader(path, dltFile.file_position)
                         if nextHeaderPos is not None:
                             if dltFile.file_position == nextHeaderPos:
                                 break
@@ -38385,15 +38385,17 @@ class DltAnalyzer(object):
 
                 # read messages #
                 for index in range(0, dltFile.counter_total):
-                    ret = dltObj.dlt_file_message(byref(dltFile), index, verbose)
+                    ret = dltObj.dlt_file_message(
+                        byref(dltFile), index, verbose)
                     if ret < 0:
                         SysMgr.printWarn(
-                            "fail to read %s message from %s" % (index, path), True)
+                            "fail to read %s message from %s" %
+                                (index, path), True)
                         continue
 
                     # print message #
                     DltAnalyzer.handleMessage(
-                        dltObj, dltFile.msg, buf, mode, verbose, buffered=buffered)
+                        dltObj, dltFile.msg, buf, mode, verbose, buffered)
 
                 # free file object #
                 ret = dltObj.dlt_file_free(byref(dltFile), verbose)
@@ -38411,11 +38413,10 @@ class DltAnalyzer(object):
 
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
-        if not DltAnalyzer.pids:
-            if not SysMgr.remoteServObj:
-                SysMgr.printErr(
-                    "fail to find running dlt-daemon process")
-                sys.exit(0)
+        if not DltAnalyzer.pids and not SysMgr.remoteServObj:
+            SysMgr.printErr(
+                "fail to find running dlt-daemon process")
+            sys.exit(0)
 
         # set connection info #
         try:
@@ -38481,8 +38482,10 @@ class DltAnalyzer(object):
             ret = dltObj.dlt_client_get_log_info(byref(dltClient))
             if ret == 0:
                 resp = DltServiceGetLogInfoResponse()
-                resp.service_id = DltAnalyzer.SERVICEID['DLT_SERVICE_ID_GET_LOG_INFO']
-                resp.status = DltAnalyzer.SERVICERESPONSE['DLT_SERVICE_RESPONSE_ERROR']
+                resp.service_id = \
+                    DltAnalyzer.SERVICEID['DLT_SERVICE_ID_GET_LOG_INFO']
+                resp.status = \
+                    DltAnalyzer.SERVICERESPONSE['DLT_SERVICE_RESPONSE_ERROR']
                 dltObj.dlt_client_main_loop(byref(dltClient), byref(resp), 0)
                 appids = resp.log_info_type.count_app_ids
                 for idx in range(0, appids):
@@ -50858,8 +50861,9 @@ class ThreadAnalyzer(object):
 
                 try:
                     memStat = sline[3].split('/')
-                    if len(memStat) != 3:
-                        raise Exception('wrong format')
+
+                    assert len(memStat) == 3, 'wrong format'
+
                     memFree.append(long(memStat[0]))
                     memAnon.append(long(memStat[1]))
                     memCache.append(long(memStat[2]))
@@ -50906,8 +50910,8 @@ class ThreadAnalyzer(object):
 
                 try:
                     netstat = sline[13].strip().split('/')
-                    if netstat[0] == '-':
-                        raise Exception('wrong format')
+
+                    assert netstat[0] != '-', 'wrong format'
 
                     if netstat[0][-1] == 'T':
                         netRead.append(long(netstat[0][:-1]) << 30)
@@ -53266,11 +53270,10 @@ class ThreadAnalyzer(object):
                         layoutDict[target] = True
 
                     size = long(size)
-                    if size == 0:
-                        raise Exception('wrong size')
-                    else:
-                        total += size
-                        layoutList.append([target, long(size)])
+                    assert size > 0, 'wrong size'
+
+                    total += size
+                    layoutList.append([target, long(size)])
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -54038,11 +54041,10 @@ class ThreadAnalyzer(object):
                             layoutDict[target] = True
 
                         size = long(size)
-                        if size == 0:
-                            raise Exception('wrong size')
-                        else:
-                            total += size
-                            layoutList.append([target, long(size)])
+                        assert size >= 0, 'wrong size'
+
+                        total += size
+                        layoutList.append([target, long(size)])
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -55988,40 +55990,42 @@ class ThreadAnalyzer(object):
                     try:
                         call = syscall[4:]
                         nrArgs = len(proto[call][1])
-                        if nrArgs > 0:
-                            paramlist = param[1:-1].split(',')[:nrArgs]
-                            # convert values #
-                            for idx, args in enumerate(proto[call][1]):
-                                val = paramlist[idx]
+                        assert nrArgs > 0
 
-                                # check type #
-                                if '*' in args[0]:
-                                    paramlist[idx] = '0x%s' % val.strip()
-                                    continue
-                                if not 'int' in args[0] and \
-                                    not 'short' in args[0] and \
-                                    not 'long' in args[0]:
-                                    paramlist[idx] = '0x%s' % val.strip()
-                                    continue
+                        paramlist = param[1:-1].split(',')[:nrArgs]
 
-                                # type casting #
-                                if 'unsigned' in args[0]:
-                                    paramlist[idx] = str(long(val, 16))
-                                    continue
+                        # convert values #
+                        for idx, args in enumerate(proto[call][1]):
+                            val = paramlist[idx]
 
-                                val = long(val, 16)
-                                if 'short' in args[0]:
-                                    paramlist[idx] = \
-                                        -(val & 0x8000) | (val & 0x7fff)
-                                elif 'int' in args[0]:
-                                    paramlist[idx] = \
-                                        -(val & 0x80000000) | (val & 0x7fffffff)
+                            # check type #
+                            if '*' in args[0]:
+                                paramlist[idx] = '0x%s' % val.strip()
+                                continue
+                            if not 'int' in args[0] and \
+                                not 'short' in args[0] and \
+                                not 'long' in args[0]:
+                                paramlist[idx] = '0x%s' % val.strip()
+                                continue
 
-                            param = '(%s)' % ', '.join(list(map(str, paramlist)))
-                        else:
-                            param = ' '
+                            # type casting #
+                            if 'unsigned' in args[0]:
+                                paramlist[idx] = str(long(val, 16))
+                                continue
+
+                            val = long(val, 16)
+                            if 'short' in args[0]:
+                                paramlist[idx] = \
+                                    -(val & 0x8000) | (val & 0x7fff)
+                            elif 'int' in args[0]:
+                                paramlist[idx] = \
+                                    -(val & 0x80000000) | (val & 0x7fffffff)
+
+                        param = '(%s)' % ', '.join(list(map(str, paramlist)))
                     except SystemExit:
                         sys.exit(0)
+                    except AssertionError:
+                        param = ' '
                     except:
                         SysMgr.printWarn(
                             "fail to analyze syscall info", True, reason=True)
@@ -59934,10 +59938,8 @@ class ThreadAnalyzer(object):
 
         # set tgid #
         try:
-            if d['tgid'] != '-----':
-                threadData['tgid'] = d['tgid']
-            else:
-                raise Exception('no tgid')
+            assert d['tgid'] != '-----', 'no tgid'
+            threadData['tgid'] = d['tgid']
         except:
             try:
                 threadData['tgid'] = \
@@ -62194,8 +62196,7 @@ class ThreadAnalyzer(object):
 
                 # read pos and permission #
                 try:
-                    if not path.startswith('/'):
-                        raise Exception(exception.NameError)
+                    assert path.startswith('/')
 
                     attr = ''
                     fdinfoPath = "%s/%s/fdinfo/%s" % \
@@ -62215,7 +62216,7 @@ class ThreadAnalyzer(object):
                     # append attributes #
                     if attr:
                         path = '%s (%s)' % (path, attr)
-                except NameError:
+                except AssertionError:
                     pass
                 except SystemExit:
                     sys.exit(0)
@@ -63515,8 +63516,7 @@ class ThreadAnalyzer(object):
 
         # available memory #
         try:
-            if SysMgr.freeMemEnable:
-                raise Exception('skip available memory')
+            assert not SysMgr.freeMemEnable
 
             # assume MemAvailable #
             if not 'MemAvailable' in memData:
@@ -64055,9 +64055,7 @@ class ThreadAnalyzer(object):
                     pass
 
         # print CPU stat #
-        if SysMgr.cpuEnable or \
-            SysMgr.reportEnable or \
-            SysMgr.jsonEnable:
+        if SysMgr.cpuEnable or SysMgr.reportEnable or SysMgr.jsonEnable:
             percoreStats = {}
 
             if len(self.cpuData) > 0:
@@ -64186,6 +64184,8 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
                         maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         maxFreq = None
 
@@ -66828,6 +66828,10 @@ class ThreadAnalyzer(object):
                 continue
 
             for cmd in value['command']:
+                if 'COMMAND' in SysMgr.thresholdData and \
+                    cmd in SysMgr.thresholdData['COMMAND']:
+                    cmd = SysMgr.thresholdData['COMMAND'][cmd]
+
                 # convert EVTPID #
                 if 'task' in value:
                     pid = list(value['task'].keys())[0]
