@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200917"
+__revision__ = "200918"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20213,7 +20213,8 @@ Copyright:
             cmdCnt = len(cmdFormat)
             if not (2 <= cmdCnt <= 4):
                 SysMgr.printErr(
-                    "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
+                    "wrong format used with -K option, "
+                    "NAME:FUNC|ADDR{:ARGS:RET}")
                 sys.exit(0)
 
             for item in effectiveCmd:
@@ -21778,7 +21779,7 @@ Copyright:
                     return -1
             if SysMgr.cmdFd:
                 try:
-                    cmd = 'echo "%s" > %s%s 2>/dev/null\n' %\
+                    cmd = 'echo "%s" > %s%s 2>/dev/null\n' % \
                         (str(val), SysMgr.mountPath, path)
                     SysMgr.cmdFd.write(cmd)
                 except SystemExit:
@@ -38834,6 +38835,7 @@ class Debugger(object):
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
+        self.symbolCacheList = dict()
         self.ldInjected = False
         self.libcLoaded = False
         self.dftBpFileList = {}
@@ -51677,7 +51679,7 @@ class ThreadAnalyzer(object):
 
             totalList =\
                 [('\n%s\n%s\n\n- TOTAL: %s \n- RSS: %s \n- SWAP: %s \n%s\n\n'
-                '- VIRT: %s \n- PSS: %s \n- LOCK: %s \n- DIRTY: %s') %\
+                '- VIRT: %s \n- PSS: %s \n- LOCK: %s \n- DIRTY: %s') % \
                 ('[%s] %s' % (str(seq+1), idx), line, total,
                 rss, swap, line, vmem, pss, lock, dirty)]
 
@@ -57408,7 +57410,7 @@ class ThreadAnalyzer(object):
 
             # CPU & BLOCK stat #
             m = re.match((
-                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*'
+                r'\s*(?P<cpu>\-*[0-9]+)\s*% \s*\(\s*'
                 r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<block>\-*[0-9]+)'), tokenList[1])
@@ -57514,7 +57516,7 @@ class ThreadAnalyzer(object):
         # Get GPU resource usage #
         elif len(tokenList) == 5:
             m = re.match(
-                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*% \)', tokenList[0])
             if m:
                 d = m.groupdict()
 
@@ -57849,7 +57851,7 @@ class ThreadAnalyzer(object):
 
         SysMgr.printPipe(
             ('\n[Top File Table] [TOTAL: %s] [FILE: %s] [EVENT: %s] '\
-            '[SOCKET: %s] [DEV: %s] [PIPE: %s] [PROC: %s]\n') %\
+            '[SOCKET: %s] [DEV: %s] [PIPE: %s] [PROC: %s]\n') % \
                 (convNum(len(SysMgr.fileInstance)), convNum(nrFile),
                 convNum(nrEvent), convNum(nrSocket), convNum(nrDevice),
                 convNum(nrPipe), convNum(nrProc)))
@@ -60837,7 +60839,7 @@ class ThreadAnalyzer(object):
                     if td['ftxEnter'] > 0:
                         SysMgr.printWarn((
                             "fail to find return of %s for thread %s at %s line\n"\
-                            "\tso report results may differ from actual") %\
+                            "\tso report results may differ from actual") % \
                             (td['ftxEnt'], thread, SysMgr.curLine))
 
                     # futex operation #
@@ -65031,7 +65033,8 @@ class ThreadAnalyzer(object):
                     lenZoneStat = len(zoneStat)
 
                     if lenZone + lenZoneStat >= len(oneLine):
-                        zoneData = '%s\n%s %s' % (zoneData, ' ' * 7, ' ' * nrIndent)
+                        zoneData = '%s\n%s %s' % \
+                            (zoneData, ' ' * 7, ' ' * nrIndent)
                         lenZone = nrIndent
 
                     zoneData = '%s%s' % (zoneData, zoneStat)
@@ -65047,7 +65050,8 @@ class ThreadAnalyzer(object):
                 lenZoneStat = len(zoneStat)
 
                 if lenZone + lenZoneStat >= len(oneLine):
-                    zoneData = '%s\n%s %s' % (zoneData, ' ' * 7, ' ' * nrIndent)
+                    zoneData = '%s\n%s %s' % \
+                        (zoneData, ' ' * 7, ' ' * nrIndent)
                     lenZone = nrIndent
 
                 zoneData = '%s%s' % (zoneData, zoneStat)
