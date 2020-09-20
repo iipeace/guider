@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200918"
+__revision__ = "200920"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -43354,8 +43354,7 @@ struct cmsghdr {
         btList.insert(0, value)
 
         while 1:
-            if not nextFp or \
-                nextFp < self.sp:
+            if not nextFp or nextFp < self.sp:
                 break
 
             # check max length #
@@ -43412,9 +43411,7 @@ struct cmsghdr {
         savedLr = nextLr
 
         while 1:
-            if not nextLr or \
-                not nextFp or \
-                nextLr & 0x1:
+            if not nextLr or not nextFp or nextLr & 0x1:
                 break
 
             # check max length #
@@ -43463,9 +43460,7 @@ struct cmsghdr {
         savedLr = nextLr
 
         while 1:
-            if not nextLr or \
-                not nextFp or \
-                nextLr & 0x1:
+            if not nextLr or not nextFp or nextLr & 0x1:
                 break
 
             # check max length #
@@ -67201,6 +67196,18 @@ class ThreadAnalyzer(object):
             # check apply attribute #
             if 'apply' in comval and comval['apply'] == 'false':
                 return
+            # check except attribute #
+            elif attr == 'TASK' and 'except' in comval:
+                pid = next(iter(addval['task']))
+                comm = addval['task'][pid]['comm']
+
+                if type(comval['except']) is list:
+                    for excomm in comval['except']:
+                        if comm == excomm:
+                            return
+                else:
+                    if comm == comval['except']:
+                        return
 
             oneshot = getOneshotFlag(comval)
             self.setThresholdEvent(
@@ -67211,6 +67218,22 @@ class ThreadAnalyzer(object):
                 # check apply attribute #
                 if 'apply' in comitem and comitem['apply'] == 'false':
                     continue
+                # check except attribute #
+                elif attr == 'TASK' and 'except' in comitem:
+                    pid = next(iter(addval['task']))
+                    comm = addval['task'][pid]['comm']
+
+                    if type(comitem['except']) is list:
+                        found = False
+                        for excomm in comitem['except']:
+                            if comm == excomm:
+                                found = True
+                                break
+                        if found:
+                            continue
+                    else:
+                        if comm == comitem['except']:
+                            continue
 
                 oneshot = getOneshotFlag(comitem)
                 self.setThresholdEvent(
@@ -67269,8 +67292,9 @@ class ThreadAnalyzer(object):
                         append = {'task': {pid: data}}
 
                     # check all tasks #
-                    if not resource in exceptTaskResource and \
-                        'TASK' in td[resource]:
+                    if not 'TASK' in td[resource]:
+                        pass
+                    elif not resource in exceptTaskResource:
                         try:
                             self.checkThreshold(
                                 resource, cattr, event, comp,
