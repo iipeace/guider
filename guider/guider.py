@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200920"
+__revision__ = "200921"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4219,9 +4219,11 @@ class UtilMgr(object):
             SysMgr.printErr(
                 "fail to convert %s to size" % value)
 
-            raise Exception('wrong number unit')
+            assert False
         except SystemExit:
             sys.exit(0)
+        except AssertionError:
+            raise Exception('wrong number unit')
         except:
             return value
 
@@ -13613,7 +13615,7 @@ class SysMgr(object):
     mountCmd = None
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
-    outFileName = 'guider.out'
+    outFilePath = 'guider.out'
     confFileName = 'guider.conf'
     cmdFileName = 'guider.cmd'
     tmpPath = '/tmp'
@@ -13827,6 +13829,7 @@ class SysMgr(object):
     userRecordEnable = True
     userEnableWarn = True
     printEnable = True
+    bufferLossEnable = False
     jsonEnable = False
     powerEnable = False
     pipeEnable = False
@@ -14217,7 +14220,7 @@ class SysMgr(object):
     @staticmethod
     def setVisualAttr():
         if len(sys.argv) <= 2:
-            sys.argv.append(SysMgr.outFileName)
+            sys.argv.append(SysMgr.outFilePath)
 
         SysMgr.graphEnable = True
 
@@ -16492,7 +16495,7 @@ Options:
             R:fileReport | s:stack | S:pss | t:thread
             u:uss | w:wss | W:wchan | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
-            a:memAvailable | A:cpuAverage
+            a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | e:encode | E:exec | G:gpu
             L:log | p:print | t:truncate | T:task
                                     '''
@@ -16532,6 +16535,12 @@ Examples:
 
     - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
+
+    - Report analysis results of {2:2} to ./guider.out with limited memory buffer 50MB
+        # {0:1} {1:1} -o . -b 50m
+
+    - Report analysis results of {2:2} to ./guider.out with limited memory buffer 50MB loss possible
+        # {0:1} {1:1} -o . -d b
 
     - Report analysis results of {2:2} to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
@@ -21248,6 +21257,11 @@ Copyright:
             else:
                 disableStat += 'KEVT '
 
+            if SysMgr.bufferLossEnable:
+                enableStat += 'BLOSS '
+            else:
+                disableStat += 'BLOSS '
+
             if SysMgr.networkEnable:
                 enableStat += 'NET '
             else:
@@ -21364,12 +21378,13 @@ Copyright:
 
 
     @staticmethod
-    def stopHandler(signum, frame):
+    def stopHandler(signum=None, frame=None):
         if SysMgr.exitFlag:
             os._exit(0)
 
         # masking signal #
-        signal.signal(signum, signal.SIG_IGN)
+        if signum:
+            signal.signal(signum, signal.SIG_IGN)
 
         # write user command #
         SysMgr.writeTraceCmd('STOP')
@@ -21398,14 +21413,15 @@ Copyright:
                         long(os.path.getsize(SysMgr.inputFile)))
 
                 SysMgr.printInfo(
-                    "save results based monitoring into "
+                    "saved results based monitoring into "
                     "%s [%s] successfully" % \
                     (SysMgr.inputFile, fsize))
 
             SysMgr.releaseResource()
 
-            # enable signal again #
-            signal.signal(signum, SysMgr.stopHandler)
+            # re-enable signal again #
+            if signum:
+                signal.signal(signum, SysMgr.stopHandler)
 
             # quit to avoid termination #
             if not SysMgr.termFlag:
@@ -21423,7 +21439,8 @@ Copyright:
 
         else:
             SysMgr.writeEvent("EVENT_STOP", False)
-            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            if signum:
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
             SysMgr.stopRecording()
 
         # update record status #
@@ -21435,7 +21452,8 @@ Copyright:
             'ready to save and analyze... [ STOP(Ctrl+c) ]')
 
         # enable signal again #
-        signal.signal(signum, SysMgr.stopHandler)
+        if signum:
+            signal.signal(signum, SysMgr.stopHandler)
 
         if not "ISMAIN" in os.environ:
             sys.exit(0)
@@ -21445,7 +21463,7 @@ Copyright:
 
 
     @staticmethod
-    def newHandler(signum, frame):
+    def newHandler(signum=None, frame=None):
         SysMgr.condExit = False
 
         if SysMgr.isFileMode():
@@ -21458,7 +21476,8 @@ Copyright:
                 return
 
             # masking signal #
-            signal.signal(signum, signal.SIG_IGN)
+            if signum:
+                signal.signal(signum, signal.SIG_IGN)
 
             # reload data written to file #
             if SysMgr.pipeEnable:
@@ -21487,12 +21506,13 @@ Copyright:
                     long(os.path.getsize(SysMgr.inputFile)))
 
             SysMgr.printInfo(
-                "save results based monitoring into "
+                "saved results based monitoring into "
                 "%s [%s] successfully" % \
                     (SysMgr.inputFile, fsize))
 
             # enable signal again #
-            signal.signal(signum, SysMgr.newHandler)
+            if signum:
+                signal.signal(signum, SysMgr.newHandler)
         elif SysMgr.resetEnable:
             SysMgr.writeEvent("EVENT_START")
         else:
@@ -22566,6 +22586,42 @@ Copyright:
         bufferSize = SysMgr.bufferSize
 
         while SysMgr.procBufferSize > bufferSize > 0:
+            # flush all data in buffer to the file #
+            if not SysMgr.bufferLossEnable:
+                SysMgr.printInfo((
+                    "start writing interval statistics because "
+                    "buffer (%s) exceed %s") %
+                        (UtilMgr.convSize2Unit(SysMgr.procBufferSize),
+                        UtilMgr.convSize2Unit(SysMgr.bufferSize)))
+
+                # create a new process #
+                pid = SysMgr.createProcess(isDaemon=True, chPgid=True)
+                # save output to file as child #
+                if pid == 0:
+                    try:
+                        SysMgr.printFd.close()
+                    except:
+                        pass
+                    finally:
+                        SysMgr.printFd = None
+
+                    # append uptime to the output file #
+                    SysMgr.fileSuffix = long(SysMgr.getUptime())
+
+                    # flush all data to the file #
+                    SysMgr.newHandler()
+
+                    sys.exit(0)
+                # clear buffer as parent #
+                elif pid > 0:
+                    SysMgr.procBufferSize = 0
+                    SysMgr.procBuffer = []
+                    break
+                # pop old data in buffer because of fork failure #
+                else:
+                    pass
+
+            # pop old data in buffer #
             if not SysMgr.bufferOverflowed:
                 SysMgr.printWarn((
                     "new data is going to be overwritten to the buffer"
@@ -22575,11 +22631,10 @@ Copyright:
                         UtilMgr.convSize2Unit(SysMgr.bufferSize), True)
                 SysMgr.bufferOverflowed = True
 
-            if len(SysMgr.procBuffer) == 1:
+            if len(SysMgr.procBuffer) <= 1:
                 break
 
             SysMgr.procBufferSize -= len(SysMgr.procBuffer[-1])
-
             SysMgr.procBuffer.pop(-1)
 
 
@@ -22767,15 +22822,13 @@ Copyright:
                 SysMgr.pipeForPager = None
 
         # file initialization #
-        if SysMgr.outPath and \
-            not SysMgr.printFd:
-
+        if SysMgr.outPath and not SysMgr.printFd:
             # profile #
             if SysMgr.isRuntimeMode():
                 # dir #
                 if os.path.isdir(SysMgr.outPath):
                     SysMgr.inputFile = \
-                        os.path.join(SysMgr.outPath, SysMgr.outFileName)
+                        os.path.join(SysMgr.outPath, SysMgr.outFilePath)
                 # file #
                 else:
                     SysMgr.inputFile = SysMgr.outPath
@@ -23554,6 +23607,9 @@ Copyright:
             elif option == 'd':
                 options = value
 
+                if 'b' in options:
+                    SysMgr.bufferLossEnable = True
+
                 if 'p' in options:
                     SysMgr.printEnable = False
 
@@ -23909,16 +23965,22 @@ Copyright:
             elif option == 'b' and \
                 not SysMgr.isRecordMode():
                 try:
-                    bsize = long(value)
+                    if value.isdigit():
+                        osize = bsize = long(value) << 10
+                    else:
+                        osize = UtilMgr.convUnit2Size(value)
+                        bsize = osize >> 10
+
                     if bsize >= 0:
-                        SysMgr.bufferSize = str(value)
+                        SysMgr.bufferSize = str(bsize)
 
                         if bsize == 0:
                             SysMgr.printInfo(
                                 "set buffer size to unlimited")
                         else:
                             SysMgr.printInfo(
-                                "set buffer size to %sKB" % bsize)
+                                "set buffer size to %s" %
+                                    UtilMgr.convSize2Unit(osize))
                     else:
                         SysMgr.printErr(
                             "wrong value with -b option, "
@@ -24035,12 +24097,18 @@ Copyright:
 
             if option == 'b':
                 try:
-                    bsize = long(value)
+                    if value.isdigit():
+                        osize = bsize = long(value) << 10
+                    else:
+                        osize = UtilMgr.convUnit2Size(value)
+                        bsize = osize >> 10
+
                     if bsize > 0:
-                        SysMgr.bufferSize = str(value)
+                        SysMgr.bufferSize = str(bsize)
 
                         SysMgr.printInfo(
-                            "set buffer size to %sKB" % bsize)
+                            "set buffer size to %s" %
+                                UtilMgr.convSize2Unit(osize))
                     else:
                         SysMgr.printErr(
                             "wrong value with -b option, "
@@ -25062,7 +25130,7 @@ Copyright:
             if len(sys.argv) > 2:
                 fname = sys.argv[2]
             else:
-                fname = SysMgr.outFileName
+                fname = SysMgr.outFilePath
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -29029,7 +29097,7 @@ Copyright:
                 "fail to get root permission to trace %s" % mode)
             sys.exit(0)
         # check pid #
-        elif not pids or len(pids) == 0:
+        elif not pids:
             if SysMgr.filterGroup:
                 flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(
@@ -51491,7 +51559,7 @@ class ThreadAnalyzer(object):
             graphStats, chartStats = ThreadAnalyzer.getStatsFile(logFile)
         # get stats from multiple files for comparison #
         else:
-            logFile = SysMgr.outFileName
+            logFile = SysMgr.outFilePath
 
             # define integrated stats #
             graphStats = dict()
@@ -57409,7 +57477,7 @@ class ThreadAnalyzer(object):
 
             # CPU & BLOCK stat #
             m = re.match((
-                r'\s*(?P<cpu>\-*[0-9]+)\s*% \s*\(\s*'
+                r'\s*(?P<cpu>\-*[0-9]+)\s*%\s*\(\s*'
                 r'(?P<user>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<kernel>\-*[0-9]+)\s*\/s*\s*'
                 r'(?P<block>\-*[0-9]+)'), tokenList[1])
@@ -57515,7 +57583,7 @@ class ThreadAnalyzer(object):
         # Get GPU resource usage #
         elif len(tokenList) == 5:
             m = re.match(
-                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*% \)', tokenList[0])
+                r'\s*(?P<gpu>.+)\s*\(\s*(?P<usage>[0-9]+)\s*%\)', tokenList[0])
             if m:
                 d = m.groupdict()
 
@@ -67095,8 +67163,8 @@ class ThreadAnalyzer(object):
 
 
     def setThresholdEvent(
-        self, intval, comval, item, event, attr,
-        comp='big', target=None, addval=None, oneshot=False):
+        self, comval, item, event, comp='big', target=None,
+        attr='SYSTEM', intval=None, addval=None, oneshot=False):
 
         value = None
 
@@ -67157,8 +67225,8 @@ class ThreadAnalyzer(object):
 
 
     def checkThreshold(
-        self, resource, item, event, comp=None,
-        target=None, attr='SYSTEM', intval=None, addval=None):
+        self, resource, item, event, comp=None, target=None,
+        attr='SYSTEM', intval=None, addval=None):
 
         def getOneshotFlag(items):
             if 'oneshot' in items and \
@@ -67211,8 +67279,8 @@ class ThreadAnalyzer(object):
 
             oneshot = getOneshotFlag(comval)
             self.setThresholdEvent(
-                intval, comval, item, event, attr,
-                comp, target, addval, oneshot)
+                comval, item, event, comp,
+                target, attr, intval, addval, oneshot)
         elif type(comval) is list:
             for comitem in comval:
                 # check apply attribute #
@@ -67237,8 +67305,8 @@ class ThreadAnalyzer(object):
 
                 oneshot = getOneshotFlag(comitem)
                 self.setThresholdEvent(
-                    intval, comitem, item, event, attr,
-                    comp, target, addval, oneshot)
+                    comitem, item, event, comp,
+                    target, attr, intval, addval, oneshot)
 
 
 
@@ -67476,7 +67544,7 @@ class ThreadAnalyzer(object):
                     fsize = '?'
 
                 SysMgr.printStat((
-                    "save results based monitoring into "
+                    "saved results based monitoring into "
                     "%s [%s] successfully") % \
                     (filePath, fsize))
             except SystemExit:
