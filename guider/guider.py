@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200921"
+__revision__ = "200923"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30033,37 +30033,60 @@ Copyright:
             remoteCmd.insert(
                 0, 'setenv:LEAKTRACER_ONSIG_REPORT#"%s"' % stopSig)
 
-        # set environment #
         if remoteCmd:
             if not libPath:
                 remoteCmd.append(
                     'usercall:leaktracer::MemoryTrace::init_full_from_once()')
-            rcmd = \
-                ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
-            SysMgr.launchGuider(
-                rcmd, pipe=False, stderr=True, log=True, wait=True)
+
+        # check signal handler #
+        curCnt = 0
+        retryCnt = 5
+        while 1:
+            # set environment command #
+            if remoteCmd:
+                rcmd = \
+                    ['remote', '-g%s' % pid, '-c%s' % ','.join(remoteCmd), '-I']
+                SysMgr.launchGuider(
+                    rcmd, pipe=False, stderr=True, log=True, wait=True)
+
+            try:
+                tobj.saveProcStatusData(path, pid)
+
+                sigList = tobj.procData[pid]['status']['SigCgt']
+                if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
+                    SysMgr.printWarn(
+                        "fail to find start handler for %s(%s)" % \
+                            (ConfigMgr.SIG_LIST[startSig], startSig), True)
+
+                    tryCnt += 1
+                    if tryCnt >= retryCnt:
+                        break
+
+                    time.sleep(1)
+                    continue
+
+                if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
+                    SysMgr.printWarn(
+                        "fail to find stop handler for %s(%s)" % \
+                            (ConfigMgr.SIG_LIST[stopSig], stopSig), True)
+
+                    tryCnt += 1
+                    if tryCnt >= retryCnt:
+                        break
+
+                    time.sleep(1)
+                    continue
+
+                break
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr("fail to check signal", reason=True)
+
+        # set hook command #
         if hookCmd:
             hcmd = \
                 ['hook', '-g%s' % pid, '-c%s' % ','.join(hookCmd), '-I']
-
-        # check signal handler #
-        try:
-            tobj.saveProcStatusData(path, pid)
-            sigList = tobj.procData[pid]['status']['SigCgt']
-            if startSig and UtilMgr.isBitEnabled(startSig, sigList) is False:
-                SysMgr.printErr(
-                    "fail to find start handler for %s(%s)" % \
-                        (ConfigMgr.SIG_LIST[startSig], startSig))
-                sys.exit(0)
-            if stopSig and UtilMgr.isBitEnabled(stopSig, sigList) is False:
-                SysMgr.printErr(
-                    "fail to find stop handler for %s(%s)" % \
-                        (ConfigMgr.SIG_LIST[stopSig], stopSig))
-                sys.exit(0)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr("fail to check signal", reason=True)
 
         # START #
         cmd = SysMgr.customCmd
@@ -39133,7 +39156,11 @@ struct cmsghdr {
         dobj.loadSymbols()
         dobj.attach()
 
+        SysMgr.printInfo(
+            "start gathering symbol info for %s" % procInfo)
+
         # get symbol info #
+        loadBin = {}
         hooks = []
         for item in hookList:
             symbols = item.split('#')
@@ -39150,9 +39177,13 @@ struct cmsghdr {
                 SysMgr.printErr("fail to recognize %s" % item)
                 sys.exit(0)
 
-            # load the library #
+            # convert realpath #
             if fpath:
                 fpath = os.path.realpath(fpath)
+
+            # load the library #
+            if not fpath in loadBin:
+                loadBin.setdefault(fpath, None)
                 dobj.dlopen(fpath)
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
