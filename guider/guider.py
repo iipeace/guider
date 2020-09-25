@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200923"
+__revision__ = "200926"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22888,7 +22888,7 @@ Copyright:
                 # print file name #
                 if SysMgr.outPath:
                     SysMgr.printInfo(
-                        "start writing statistics to %s" % \
+                        "start writing statistics to '%s'" % \
                             SysMgr.inputFile)
             except SystemExit:
                 sys.exit(0)
@@ -23217,10 +23217,10 @@ Copyright:
         # parse option string #
         for idx, opt in enumerate(optList):
             if opt.startswith('-'):
-                parsedOpt.append(''.join(optList[previousIdx:idx])[1:])
+                parsedOpt.append(' '.join(optList[previousIdx:idx])[1:])
                 previousIdx = idx
 
-        parsedOpt.append(''.join(optList[previousIdx:])[1:])
+        parsedOpt.append(' '.join(optList[previousIdx:])[1:])
 
         # save parsed option #
         SysMgr.optionList = parsedOpt[1:]
@@ -23521,7 +23521,7 @@ Copyright:
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
-                SysMgr.inputParam = value
+                SysMgr.inputParam = value.strip()
 
             elif option == 'f':
                 SysMgr.forceEnable = True
@@ -24062,6 +24062,9 @@ Copyright:
 
     @staticmethod
     def parseCommonOption(option, value):
+        if value:
+            value = value.strip()
+
         if option == 'o':
             # apply default path #
             if value == '':
@@ -26630,6 +26633,9 @@ Copyright:
                     sys.stdout.write("\033[F")
         except SystemExit:
             sys.exit(0)
+        except IOError:
+            SysMgr.printWarn("fail to read user input", reason=True)
+            sys.stdin = None
         except:
             SysMgr.printWarn("fail to read user input", reason=True)
         finally:
@@ -32935,7 +32941,7 @@ Copyright:
                     long(os.fstat(SysMgr.printFd.fileno()).st_size))
 
                 SysMgr.printInfo(
-                    "finish saving all results into %s [%s] successfully" % \
+                    "finish saving all results into '%s' [%s] successfully" % \
                     (SysMgr.printFd.name, fsize))
 
                 SysMgr.printFd.close()
@@ -42143,10 +42149,12 @@ struct cmsghdr {
 
     def readString(self, addr, chunk=256, maxsize=sys.maxsize):
         cnt = 0
-        maxCnt = SysMgr.maxRdCnt
         ret = b''
+        maxCnt = SysMgr.maxRdCnt
         while 1:
             string = self.readMem(addr, chunk)
+            if not string:
+                return ret
 
             # check read count #
             cnt += 1
