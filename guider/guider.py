@@ -13739,6 +13739,7 @@ class SysMgr(object):
     reportFileEnable = False
     graphEnable = False
     procBuffer = []
+    fixedProcList = {}
     topInstance = None
     procInstance = {}
     fileInstance = {}
@@ -13792,6 +13793,7 @@ class SysMgr(object):
     syslogFd = None
 
     # flags #
+    fixedListEnable = False
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
@@ -15901,8 +15903,9 @@ class SysMgr(object):
             'd' in options or 'o' in options or \
             'C' in options or 'E' in options or \
             'D' in options or 'k' in options or \
-            'j' in options or 'y' in options or \
-            'Y' in options or 'q' in options:
+            'j' in options or 'x' in options or \
+            'y' in options or 'Y' in options or \
+            'q' in options:
             return True
         else:
             return False
@@ -16491,9 +16494,10 @@ Options:
             f:float | F:wfc | h:sigHandler | H:sched
             i:irq | I:elastic | j:journal | k:kmsg
             L:cmdline | m:memory | n:net | N:namespace
-            o:oomScore | p:pipe | P:perf | q:quit | r:report
-            R:fileReport | s:stack | S:pss | t:thread
-            u:uss | w:wss | W:wchan | y:syslog | Y:delay
+            o:oomScore | p:pipe | P:perf | q:quit
+            r:report | R:fileReport | s:stack | S:pss
+            t:thread | u:uss | w:wss | W:wchan
+            x:fixedList | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | e:encode | E:exec | G:gpu
@@ -16532,6 +16536,9 @@ Examples:
 
     - Report analysis results of {2:2} to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
+
+    - Report analysis results of {2:2} with the fixed task list for CPU resource
+        # {0:1} {1:1} -g a.out -e f
 
     - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
@@ -23836,6 +23843,9 @@ Copyright:
 
                 if 'q' in options:
                     SysMgr.exitFlag = True
+
+                if 'x' in options:
+                    SysMgr.fixedListEnable = True
 
                 if not SysMgr.isEffectiveEnableOption(options):
                     SysMgr.printErr(
@@ -62557,12 +62567,15 @@ class ThreadAnalyzer(object):
 
 
     def saveProcStat(self):
-        # get process list #
-        try:
-            pids = os.listdir(SysMgr.procPath)
-        except:
-            SysMgr.printOpenErr(SysMgr.procPath)
-            sys.exit(0)
+        if SysMgr.fixedProcList:
+            pids = list(SysMgr.fixedProcList.keys())
+        else:
+            # get process list #
+            try:
+                pids = os.listdir(SysMgr.procPath)
+            except:
+                SysMgr.printOpenErr(SysMgr.procPath)
+                sys.exit(0)
 
         # reset and save proc instance #
         self.saveProcInstance()
@@ -65928,6 +65941,9 @@ class ThreadAnalyzer(object):
             if isExceptTask(idx):
                 continue
 
+            if SysMgr.fixedListEnable:
+                SysMgr.fixedProcList.setdefault(idx, None)
+
             # add task into JSON data #
             if SysMgr.jsonEnable:
                 jsonData.setdefault(
@@ -66451,6 +66467,11 @@ class ThreadAnalyzer(object):
                 return -1
 
             idx = str(tid)
+
+            if SysMgr.fixedProcList:
+                SysMgr.fixedProcList.pop(idx, None)
+                if not idx in SysMgr.fixedProcList:
+                    continue
 
             # define stat variables #
             if taskType == 'die':
