@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200926"
+__revision__ = "200927"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3616,7 +3616,7 @@ class UtilMgr(object):
         string = string.replace('\,', '$%')
         clist = string.split(',')
         for idx, item in enumerate(list(clist)):
-            clist[idx] = item.replace('$%', ',')
+            clist[idx] = item.replace('$%', ',').strip()
         return clist
 
 
@@ -21414,7 +21414,7 @@ Copyright:
 
                 SysMgr.printInfo(
                     "saved results based monitoring into "
-                    "%s [%s] successfully" % \
+                    "'%s' [%s] successfully" % \
                     (SysMgr.inputFile, fsize))
 
             SysMgr.releaseResource()
@@ -21507,7 +21507,7 @@ Copyright:
 
             SysMgr.printInfo(
                 "saved results based monitoring into "
-                "%s [%s] successfully" % \
+                "'%s' [%s] successfully" % \
                     (SysMgr.inputFile, fsize))
 
             # enable signal again #
@@ -22068,8 +22068,7 @@ Copyright:
         if targetType is str:
             targetStr = ''
             for val in targetList:
-                if val != '':
-                    targetStr = '%s%s' % (targetStr, val)
+                if val: targetStr = '%s%s' % (targetStr, val)
             return targetStr
         elif targetType is list:
             # remove redundant values #
@@ -22079,8 +22078,7 @@ Copyright:
             # remove empty values #
             newList = []
             for val in targetList:
-                if val != '':
-                    newList.append(val)
+                if val: newList.append(val.strip())
 
             return newList
         else:
@@ -23206,7 +23204,7 @@ Copyright:
 
         # parse options #
         parsedOpt = []
-        previousIdx = long(0)
+        prevIdx = long(0)
 
         # choose option #
         if option:
@@ -23217,10 +23215,10 @@ Copyright:
         # parse option string #
         for idx, opt in enumerate(optList):
             if opt.startswith('-'):
-                parsedOpt.append(' '.join(optList[previousIdx:idx])[1:])
-                previousIdx = idx
+                parsedOpt.append(' '.join(optList[prevIdx:idx])[1:])
+                prevIdx = idx
 
-        parsedOpt.append(' '.join(optList[previousIdx:])[1:])
+        parsedOpt.append(' '.join(optList[prevIdx:])[1:])
 
         # save parsed option #
         SysMgr.optionList = parsedOpt[1:]
@@ -23493,7 +23491,7 @@ Copyright:
                 continue
 
             option = item[0]
-            value = item[1:]
+            value = item[1:].strip()
 
             if option == 'i':
                 # set default interval #
@@ -23580,9 +23578,8 @@ Copyright:
                         "wrong -p option, -g option is already used")
                     sys.exit(0)
                 else:
-                    SysMgr.preemptGroup = value.split(',')
                     SysMgr.preemptGroup = \
-                        SysMgr.clearList(SysMgr.preemptGroup)
+                        SysMgr.clearList(value.split(','))
 
                     if len(SysMgr.preemptGroup) == 0:
                         SysMgr.printErr((
@@ -23595,7 +23592,8 @@ Copyright:
                     SysMgr.parsePriorityOption(value)
 
             elif option == 'z':
-                SysMgr.parseAffinityOption(value.split(','))
+                SysMgr.parseAffinityOption(
+                    SysMgr.clearList(value.split(',')))
 
             elif option == 'J':
                 SysMgr.jsonEnable = True
@@ -23849,7 +23847,8 @@ Copyright:
 
             elif option == 'l':
                 if SysMgr.isDrawMode():
-                    SysMgr.boundaryLine = value.split(',')
+                    SysMgr.boundaryLine = \
+                        SysMgr.clearList(value.split(','))
                     SysMgr.printInfo(
                         "set %s as a boundary line" % \
                         ', '.join(SysMgr.boundaryLine))
@@ -23875,9 +23874,8 @@ Copyright:
                         sys.exit(0)
 
             elif option == 'O':
-                SysMgr.perCoreList = value.split(',')
                 SysMgr.perCoreList = \
-                    SysMgr.clearList(SysMgr.perCoreList)
+                    SysMgr.clearList(value.split(','))
                 if len(SysMgr.perCoreList) == 0:
                     SysMgr.printErr(
                         "Input value for filter with -O option")
@@ -23900,9 +23898,8 @@ Copyright:
             elif option == 't' and \
                 not SysMgr.isRecordMode() and \
                 not SysMgr.isDrawMode():
-                SysMgr.syscallList = value.split(',')
                 SysMgr.syscallList = \
-                    SysMgr.clearList(SysMgr.syscallList)
+                    SysMgr.clearList(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -23939,7 +23936,7 @@ Copyright:
                         SysMgr.setTtyAuto()
                     else:
                         rows = cols = long(0)
-                        term = value.split(':')
+                        term = SysMgr.clearList(value.split(':'))
 
                         # get size #
                         if term[0].isdigit():
@@ -23995,8 +23992,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
-                networkList = value.split(',')
-                networkList = SysMgr.clearList(networkList)
+                networkList = SysMgr.clearList(value.split(','))
                 for item in networkList:
                     service, ip, port = NetworkMgr.parseAddr(item)
                     NetworkMgr.setRemoteNetwork(service, ip, port)
@@ -24094,7 +24090,7 @@ Copyright:
         for item in SysMgr.optionList:
             try:
                 option = item[0]
-                value = item[1:]
+                value = item[1:].strip()
             except:
                 continue
 
@@ -24129,7 +24125,8 @@ Copyright:
                 SysMgr.parsePriorityOption(value)
 
             elif option == 'z':
-                SysMgr.parseAffinityOption(value.split(','))
+                SysMgr.parseAffinityOption(
+                    SsyMgr.clearList(value.split(',')))
 
             elif option == 'f':
                 SysMgr.forceEnable = True
@@ -24301,9 +24298,8 @@ Copyright:
 
             elif option == 't':
                 SysMgr.sysEnable = True
-                SysMgr.syscallList = value.split(',')
                 SysMgr.syscallList = \
-                    SysMgr.clearList(SysMgr.syscallList)
+                    SysMgr.clearList(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -33164,8 +33160,7 @@ Copyright:
             SysMgr.sysInstance.disableAllEvents()
 
         # set comm cache size #
-        SysMgr.writeCmd(
-            '../saved_cmdlines_size', '%s' % SysMgr.maxPid)
+        SysMgr.writeCmd('../saved_cmdlines_size', '32767')
 
         # set log format #
         SysMgr.writeCmd('../trace_options', 'noirq-info')
@@ -50760,7 +50755,7 @@ class ThreadAnalyzer(object):
             # save timestamp #
             prevTime = time.time()
 
-            if self.prevCpuData != {}:
+            if self.prevCpuData:
                 # print system status #
                 self.printSystemStat(idIndex=True)
 
@@ -50787,7 +50782,7 @@ class ThreadAnalyzer(object):
             else:
                 waitTime = SysMgr.intervalEnable - delayTime
 
-            if SysMgr.stackEnable and self.stackTable != {}:
+            if SysMgr.stackEnable and self.stackTable:
                 # get stack of threads #
                 self.sampleStack(waitTime)
                 SysMgr.waitUserInput(0.000001)
@@ -54411,7 +54406,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread Signal Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^6} {1:^16} {2:>10}({3:>5}) {4:^10} {5:>16}({6:>5})".\
+                "{0:^6} {1:^16} {2:>10}({3:>6}) {4:^10} {5:>16}({6:>6})".\
                 format('TYPE', 'TIME', 'SENDER',
                 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SysMgr.printPipe(twoLine)
@@ -54450,16 +54445,16 @@ class ThreadAnalyzer(object):
                         stid = long(0)
 
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16}({3:>5}) "
-                        "{4:^10} {5:>16}({6:>5})").\
+                        "{0:^6} {1:>10.6f} {2:>16}({3:>6}) "
+                        "{4:^10} {5:>16}({6:>6})").\
                         format(stype, stime, scomm, stid,
                         signal, rcomm, rtid))
 
                     cnt += 1
                 elif val[0] == 'RECV':
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16} {3:>5}  "
-                        "{4:^10} {5:>16}({6:>5})").\
+                        "{0:^6} {1:>10.6f} {2:>16} {3:>6}  "
+                        "{4:^10} {5:>16}({6:>6})").\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
 
                     cnt += 1
@@ -54541,7 +54536,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} {5:>10}".\
+                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} {5:>10}".\
                 format('Event', 'Comm', 'Tid', 'Count',
                 'MaxPeriod', 'MinPeriod'))
             SysMgr.printPipe(twoLine)
@@ -54555,7 +54550,7 @@ class ThreadAnalyzer(object):
                     newLine = True
 
                 SysMgr.printPipe(
-                    "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                    "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'],
                     val['minPeriod']))
 
@@ -54570,7 +54565,7 @@ class ThreadAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        "{0:^32} {1:>16}({2:>5}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                        "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['count'], value[idx]['maxPeriod'],
                         value[idx]['minPeriod']))
@@ -54582,7 +54577,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event History]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:^10} {2:>16}({3:>5}) {4:<1}".\
+                "{0:^32} {1:^10} {2:>16}({3:>6}) {4:<1}".\
                 format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
             SysMgr.printPipe(twoLine)
 
@@ -54601,7 +54596,7 @@ class ThreadAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe(
-                    "{0:^32} {1:>10.6f} {2:>16}({3:>5}) {4:<1}".\
+                    "{0:^32} {1:>10.6f} {2:>16}({3:>6}) {4:<1}".\
                     format(val[0], val[3], val[1], val[2], val[4]))
             if cnt == 0:
                 SysMgr.printPipe("\tNone")
@@ -54613,7 +54608,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread User Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} "
+                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count',
                 'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
@@ -54628,7 +54623,7 @@ class ThreadAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'],
                     val['max'], val['min'], val['maxPeriod'], val['minPeriod']))
@@ -54644,7 +54639,7 @@ class ThreadAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
+                        ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} "
                         "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['usage'], value[idx]['count'],
@@ -54658,7 +54653,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread User Event History]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) {5:^16} {6:>10}".\
+                "{0:^32} {1:>6} {2:^10} {3:>16}({4:>6}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
             SysMgr.printPipe(twoLine)
 
@@ -54689,7 +54684,7 @@ class ThreadAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe((
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>6}) "
                     "{5:>16} {6:>10}").\
                     format(val[1], val[0], val[4], val[2],
                     val[3], val[5], elapsed))
@@ -54703,7 +54698,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread Kernel Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^32} {1:>16}({2:^5}) {3:>10} {4:>10} "
+                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'Comm', 'Tid', 'Usage', 'Count', 'ProcMax',
                 'ProcMin', 'InterMax', 'InterMin'))
@@ -54718,7 +54713,7 @@ class ThreadAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:^5}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'],
                     val['count'], val['max'], val['min'],
@@ -54735,7 +54730,7 @@ class ThreadAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>5}) {3:>10.6f} {4:>10} "
+                        ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} "
                         "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['usage'], value[idx]['count'],
@@ -54751,7 +54746,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Kernel Event History]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:^32} {1:^6} {2:^10} {3:>16}({4:>5}) "
+            "{0:^32} {1:>6} {2:^10} {3:>16}({4:>6}) "
             "{5:^22} {6:>10} {7:<1}").\
             format('EVENT', 'TYPE', 'TIME', 'COMM',
             'TID', 'CALLER', 'ELAPSED', 'ARG'))
@@ -54785,7 +54780,7 @@ class ThreadAnalyzer(object):
             cnt += 1
             args = (' '.join(val[7].split(' arg'))).replace('=','>')
             SysMgr.printPipe((
-                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>5}) "
+                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>6}) "
                 "{5:>22} {6:>10} {7:<1}").\
                 format(val[1], val[0], val[5], val[3],
                 val[4], val[6], elapsed, args))
@@ -62579,9 +62574,8 @@ class ThreadAnalyzer(object):
 
             self.nrProcess += 1
 
-            # make path of tid #
+            # set process path #
             procPath = "%s/%s" % (SysMgr.procPath, pid)
-            taskPath = "%s/task" % procPath
 
             # save info per process #
             if SysMgr.processEnable:
@@ -62599,9 +62593,14 @@ class ThreadAnalyzer(object):
 
                 continue
 
+            # set thread group path #
+            taskPath = "%s/task" % procPath
+
             # save info per thread #
             try:
                 tids = os.listdir(taskPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(taskPath)
                 continue
@@ -62616,6 +62615,7 @@ class ThreadAnalyzer(object):
 
                 self.nrThread += 1
 
+                # set thread path #
                 threadPath = "%s/%s" % (taskPath, tid)
 
                 # save stat of thread #
@@ -67584,7 +67584,7 @@ class ThreadAnalyzer(object):
 
                 SysMgr.printStat((
                     "saved results based monitoring into "
-                    "%s [%s] successfully") % \
+                    "'%s' [%s] successfully") % \
                     (filePath, fsize))
             except SystemExit:
                 sys.exit(0)
