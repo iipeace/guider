@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200927"
+__revision__ = "200928"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23224,7 +23224,6 @@ Copyright:
             if opt.startswith('-'):
                 parsedOpt.append(' '.join(optList[prevIdx:idx])[1:])
                 prevIdx = idx
-
         parsedOpt.append(' '.join(optList[prevIdx:])[1:])
 
         # save parsed option #
@@ -23280,7 +23279,7 @@ Copyright:
             if item == '':
                 pass
             elif item[0] == option and len(item[1:]) > 0:
-                return item[1:]
+                return item[1:].strip()
 
         return None
 
@@ -23494,7 +23493,7 @@ Copyright:
             optionList = None
 
         for item in SysMgr.optionList:
-            if item == '':
+            if not item:
                 continue
 
             option = item[0]
@@ -30051,7 +30050,7 @@ Copyright:
                     'usercall:leaktracer::MemoryTrace::init_full_from_once()')
 
         # check signal handler #
-        curCnt = 0
+        tryCnt = 0
         retryCnt = 5
         while 1:
             # set environment command #
@@ -39831,7 +39830,16 @@ struct cmsghdr {
                 mainState = self.remoteUsercall('PyEval_SaveThread')
                 gilState = self.remoteUsercall('PyGILState_Ensure')
 
-                string = "import sys, time, threading\ndef func():\n\twhile 1:\n\t\ttime.sleep(1)\ntobj = threading.Thread(target=func)\ntobj.daemon = True\ntobj.start();"
+                # create a new python thread #
+                string = (
+                    "import sys, time, threading\n"
+                    "def func():\n"
+                    "\twhile 1:\n"
+                    "\t\ttime.sleep(1)\n"
+                    "tobj = threading.Thread(target=func)\n"
+                    "tobj.daemon = True\n"
+                    "tobj.start();"
+                )
                 self.remotePyCall(string=string, wait=True)
 
                 # release thread objects #
@@ -41336,7 +41344,13 @@ struct cmsghdr {
     def initPyLib(self):
         if self.pyInit:
             return
+
+        # initialization #
         self.remoteUsercall("Py_Initialize")
+
+        # set argv #
+        self.remoteUsercall("PySys_SetArgv", [0, 0])
+
         self.pyInit = True
 
 
@@ -41549,17 +41563,24 @@ struct cmsghdr {
         if not wait:
             return None
 
-        # wait process #
-        rid, ostat = self.waitpid()
-        # handle clone event #
-        if SysMgr.cloneEnable and self.isCloned(ostat):
-            pid = self.handoverNewTarget()
-            if pid == 0:
-                return None
+        while 1:
+            # wait process #
+            rid, ostat = self.waitpid()
+
+            # handle clone event #
+            if SysMgr.cloneEnable and self.isCloned(ostat):
+                pid = self.handoverNewTarget()
+                if pid == 0:
+                    return None
+                continue
+
+            break
 
         # read regs to check results #
         if not self.updateRegs():
             return None
+
+        # get return #
         retVal = self.getRetVal()
 
         # restore regs #
