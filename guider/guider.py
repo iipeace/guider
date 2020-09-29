@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200928"
+__revision__ = "200929"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3612,11 +3612,14 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def parseInputString(string):
+    def splitString(string):
         string = string.replace('\,', '$%')
+
         clist = string.split(',')
+
         for idx, item in enumerate(list(clist)):
             clist[idx] = item.replace('$%', ',').strip()
+
         return clist
 
 
@@ -19129,7 +19132,7 @@ Copyright:
         if not arch or len(arch) == 0:
             return
 
-        arch = SysMgr.clearList(arch)
+        arch = SysMgr.cleanItem(arch)
 
         # set systemcall table #
         if arch == 'arm':
@@ -21718,13 +21721,13 @@ Copyright:
                 fsize = '?'
 
             SysMgr.printInfo(
-                'finish saving trace data into %s [%s] successfully' % \
+                "finish saving trace data into '%s' [%s] successfully" % \
                 (outputFile, fsize))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to write trace data to %s" % outputFile, True)
+                "fail to write trace data to '%s'" % outputFile, True)
 
 
 
@@ -22069,7 +22072,7 @@ Copyright:
 
 
     @staticmethod
-    def clearList(targetList, union=True):
+    def cleanItem(targetList, union=True):
         targetType = type(targetList)
 
         if targetType is str:
@@ -22267,7 +22270,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.filterGroup = filterList.split(',')
             SysMgr.filterGroup = \
-                SysMgr.clearList(SysMgr.filterGroup)
+                SysMgr.cleanItem(SysMgr.filterGroup)
             SysMgr.printInfo(
                 "only specific threads [ %s ] were recorded" % \
                 ', '.join(SysMgr.filterGroup))
@@ -22370,7 +22373,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.userCmd = str(filterList).split(',')
             SysMgr.userCmd = \
-                SysMgr.clearList(SysMgr.userCmd)
+                SysMgr.cleanItem(SysMgr.userCmd)
             SysMgr.printInfo("profiled user events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SysMgr.userCmd]))
             SysMgr.userEventList = \
@@ -22384,7 +22387,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.kernelCmd = str(filterList).split(',')
             SysMgr.kernelCmd = \
-                SysMgr.clearList(SysMgr.kernelCmd)
+                SysMgr.cleanItem(SysMgr.kernelCmd)
             SysMgr.printInfo("profiled kernel events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SysMgr.kernelCmd]))
             SysMgr.kernelEventList = \
@@ -23585,7 +23588,7 @@ Copyright:
                     sys.exit(0)
                 else:
                     SysMgr.preemptGroup = \
-                        SysMgr.clearList(value.split(','))
+                        SysMgr.cleanItem(value.split(','))
 
                     if len(SysMgr.preemptGroup) == 0:
                         SysMgr.printErr((
@@ -23599,7 +23602,7 @@ Copyright:
 
             elif option == 'z':
                 SysMgr.parseAffinityOption(
-                    SysMgr.clearList(value.split(',')))
+                    SysMgr.cleanItem(value.split(',')))
 
             elif option == 'J':
                 SysMgr.jsonEnable = True
@@ -23651,16 +23654,16 @@ Copyright:
                     SysMgr.taskEnable = False
 
             elif option == 'G':
-                itemList = UtilMgr.parseInputString(value)
+                itemList = UtilMgr.splitString(value)
 
-                SysMgr.ignoreItemList = SysMgr.clearList(itemList, union=True)
+                SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
 
                 SysMgr.printInfo(
                     "applied ignore keyword [ %s ]" % \
                         ', '.join(SysMgr.ignoreItemList))
 
             elif option == 'c':
-                itemList = UtilMgr.parseInputString(value)
+                itemList = UtilMgr.splitString(value)
 
                 # set union option #
                 if SysMgr.isTraceMode() or \
@@ -23669,11 +23672,11 @@ Copyright:
                 else:
                     union = True
 
-                SysMgr.customCmd = SysMgr.clearList(itemList, union=union)
+                SysMgr.customCmd = SysMgr.cleanItem(itemList, union=union)
 
             elif option == 'g':
-                itemList = UtilMgr.parseInputString(value)
-                SysMgr.filterGroup = SysMgr.clearList(itemList)
+                itemList = UtilMgr.splitString(value)
+                SysMgr.filterGroup = SysMgr.cleanItem(itemList)
 
             elif option == 'A':
                 SysMgr.archOption = value
@@ -23857,7 +23860,7 @@ Copyright:
             elif option == 'l':
                 if SysMgr.isDrawMode():
                     SysMgr.boundaryLine = \
-                        SysMgr.clearList(value.split(','))
+                        SysMgr.cleanItem(value.split(','))
                     SysMgr.printInfo(
                         "set %s as a boundary line" % \
                         ', '.join(SysMgr.boundaryLine))
@@ -23884,7 +23887,7 @@ Copyright:
 
             elif option == 'O':
                 SysMgr.perCoreList = \
-                    SysMgr.clearList(value.split(','))
+                    SysMgr.cleanItem(value.split(','))
                 if len(SysMgr.perCoreList) == 0:
                     SysMgr.printErr(
                         "Input value for filter with -O option")
@@ -23908,7 +23911,7 @@ Copyright:
                 not SysMgr.isRecordMode() and \
                 not SysMgr.isDrawMode():
                 SysMgr.syscallList = \
-                    SysMgr.clearList(value.split(','))
+                    SysMgr.cleanItem(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -23945,7 +23948,7 @@ Copyright:
                         SysMgr.setTtyAuto()
                     else:
                         rows = cols = long(0)
-                        term = SysMgr.clearList(value.split(':'))
+                        term = SysMgr.cleanItem(value.split(':'))
 
                         # get size #
                         if term[0].isdigit():
@@ -24001,7 +24004,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
-                networkList = SysMgr.clearList(value.split(','))
+                networkList = SysMgr.cleanItem(value.split(','))
                 for item in networkList:
                     service, ip, port = NetworkMgr.parseAddr(item)
                     NetworkMgr.setRemoteNetwork(service, ip, port)
@@ -24030,7 +24033,7 @@ Copyright:
                 SysMgr.runBackgroundMode()
 
             elif option == 'q':
-                itemList = UtilMgr.parseInputString(value)
+                itemList = UtilMgr.splitString(value)
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'Q':
@@ -24135,7 +24138,7 @@ Copyright:
 
             elif option == 'z':
                 SysMgr.parseAffinityOption(
-                    SsyMgr.clearList(value.split(',')))
+                    SsyMgr.cleanItem(value.split(',')))
 
             elif option == 'f':
                 SysMgr.forceEnable = True
@@ -24151,9 +24154,9 @@ Copyright:
                 SysMgr.setArch(value)
 
             elif option == 'G':
-                itemList = UtilMgr.parseInputString(value)
+                itemList = UtilMgr.splitString(value)
 
-                SysMgr.ignoreItemList = SysMgr.clearList(itemList, union=True)
+                SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
 
                 SysMgr.printInfo(
                     "applied ignore keyword [ %s ]" % \
@@ -24216,8 +24219,8 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'g':
-                itemList = UtilMgr.parseInputString(value)
-                SysMgr.filterGroup = SysMgr.clearList(itemList)
+                itemList = UtilMgr.splitString(value)
+                SysMgr.filterGroup = SysMgr.cleanItem(itemList)
                 if not SysMgr.filterGroup:
                     SysMgr.printErr(
                         "Input value for filter with -g option")
@@ -24234,7 +24237,7 @@ Copyright:
                 SysMgr.depEnable = True
 
             elif option == 'q':
-                itemList = UtilMgr.parseInputString(value)
+                itemList = UtilMgr.splitString(value)
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'Q':
@@ -24264,13 +24267,13 @@ Copyright:
 
             elif option == 'U':
                 SysMgr.ueventEnable = True
-                itemList = UtilMgr.parseInputString(value)
-                SysMgr.userCmd = SysMgr.clearList(itemList)
+                itemList = UtilMgr.splitString(value)
+                SysMgr.userCmd = SysMgr.cleanItem(itemList)
 
             elif option == 'K':
                 SysMgr.keventEnable = True
-                itemList = UtilMgr.parseInputString(value)
-                SysMgr.kernelCmd = SysMgr.clearList(itemList)
+                itemList = UtilMgr.splitString(value)
+                SysMgr.kernelCmd = SysMgr.cleanItem(itemList)
 
             elif option == 'M':
                 SysMgr.objdumpPath = value
@@ -24308,7 +24311,7 @@ Copyright:
             elif option == 't':
                 SysMgr.sysEnable = True
                 SysMgr.syscallList = \
-                    SysMgr.clearList(value.split(','))
+                    SysMgr.cleanItem(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -24345,8 +24348,8 @@ Copyright:
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'c':
-                itemList = UtilMgr.parseInputString(value)
-                SysMgr.customCmd = SysMgr.clearList(itemList)
+                itemList = UtilMgr.splitString(value)
+                SysMgr.customCmd = SysMgr.cleanItem(itemList)
                 if len(SysMgr.customCmd) == 0:
                     SysMgr.printErr(
                         "fail to recognize custom events")
@@ -26738,7 +26741,7 @@ Copyright:
                 SysMgr.filterGroup = (' '.join(ulist[1:])).split(',')
 
             SysMgr.filterGroup = \
-                SysMgr.clearList(SysMgr.filterGroup)
+                SysMgr.cleanItem(SysMgr.filterGroup)
 
             if SysMgr.isThreadMode():
                 mode = 'threads'
@@ -31955,7 +31958,7 @@ Copyright:
         SysMgr.checkRootPerm()
 
         schedGroup = value.split(',')
-        schedGroup = SysMgr.clearList(schedGroup)
+        schedGroup = SysMgr.cleanItem(schedGroup)
         for item in schedGroup:
             schedSet = item.split(':')
             try:
@@ -32730,7 +32733,7 @@ Copyright:
                         fd.writelines(rbuf)
 
                 SysMgr.printInfo(
-                    "wrote data to %s successfully" % \
+                    "wrote data to '%s' successfully" % \
                     SysMgr.outputFile)
 
                 return
@@ -37432,7 +37435,7 @@ class DbusAnalyzer(object):
             sys.exit(0)
         else:
             # remove redundant tasks #
-            taskList = SysMgr.clearList(taskList)
+            taskList = SysMgr.cleanItem(taskList)
             taskList.sort(key=int)
             SysMgr.printInfo((
                 "only specific processes that are involved "
@@ -46784,6 +46787,21 @@ class ElfAnalyzer(object):
         0x6fffffff:"GNU_versym",
     }
 
+    SHN_TYPE = {
+        0:"SHN_UNDEF", # Undefined section #
+        0xff00:"SHN_LORESERVE", # Start of reserved indices #
+        0xff00:"SHN_LOPROC", # Start of processor-specific #
+        0xff00:"SHN_BEFORE", # Order section before all others #
+        0xff01:"SHN_AFTER", # Order section after all others #
+        0xff1f:"SHN_HIPROC", # End of processor-specific #
+        0xff20:"SHN_LOOS", # Start of OS-specific #
+        0xff3f:"SHN_HIOS", # End of OS-specific #
+        0xfff1:"SHN_ABS", # Associated symbol is absolute #
+        0xfff2:"SHN_COMMON", # Associated symbol is common #
+        0xffff:"SHN_XINDEX", # Index is in extra table. #
+        0xffff:"SHN_HIRESERVE", # End of reserved indices #
+    }
+
     DT_TYPE = {
         0:"NULL",
         1:"NEEDED",
@@ -49190,10 +49208,17 @@ Section header string table index: %d
                 # register symbol to dynamic symbol list #
                 self.attr['dynsymList'].append(symbol)
 
+                # get index #
+                if st_shndx in ElfAnalyzer.SHN_TYPE:
+                    if ElfAnalyzer.SHN_TYPE[st_shndx] == "SHN_UNDEF":
+                        st_shndx = "UND"
+                    elif ElfAnalyzer.SHN_TYPE[st_shndx] == "SHN_ABS":
+                        st_shndx = "ABS"
+
                 # print .dynsym table #
                 if debug:
                     SysMgr.printPipe(
-                        "%04d %016x%10d%10s%10s%10s%10d %s" % \
+                        "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -49275,10 +49300,17 @@ Section header string table index: %d
                     ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                     'ndx': st_shndx}
 
+                # get index #
+                if st_shndx in ElfAnalyzer.SHN_TYPE:
+                    if ElfAnalyzer.SHN_TYPE[st_shndx] == "SHN_UNDEF":
+                        st_shndx = "UND"
+                    elif ElfAnalyzer.SHN_TYPE[st_shndx] == "SHN_ABS":
+                        st_shndx = "ABS"
+
                 # parse .sym table #
                 if debug:
                     SysMgr.printPipe(
-                        "%04d %016x%10d%10s%10s%10s%10d %s" % \
+                        "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
                         ElfAnalyzer.ST_TYPE[\
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
@@ -54263,12 +54295,12 @@ class ThreadAnalyzer(object):
                 os.rename(outputFile, oldPath)
 
                 SysMgr.printInfo(
-                    'renamed %s to %s for backup' % (outputFile, oldPath))
+                    "renamed '%s' to '%s' for backup" % (outputFile, oldPath))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to backup %s to %s" % (outputFile, oldPath), True)
+                "fail to backup '%s' to '%s'" % (outputFile, oldPath), True)
 
         # get pylab object #
         SysMgr.importPkgItems('pylab')
@@ -54288,12 +54320,13 @@ class ThreadAnalyzer(object):
                 fsize = '?'
 
             SysMgr.printStat(
-                "write resource %s into %s [%s]" % (itype, outputFile, fsize))
+                "write resource %s into '%s' [%s]" %
+                    (itype, outputFile, fsize))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to draw image to %s" % outputFile, True)
+                "fail to draw image to '%s'" % outputFile, True)
             return
 
 
