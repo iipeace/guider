@@ -3662,6 +3662,10 @@ class UtilMgr(object):
                 if cond == '*':
                     return True
                 elif cond.startswith('*') and \
+                    cond.endswith('*') and \
+                    cond.strip('*') in string:
+                    return True
+                elif cond.startswith('*') and \
                     string.endswith(cond[1:]):
                     return True
                 elif cond.endswith('*') and \
@@ -29542,25 +29546,25 @@ Copyright:
 
                     # apply for filter #
                     if SysMgr.filterGroup:
-                        if UtilMgr.isEffectiveStr(subPath, inc=False):
-                            # get size #
-                            try:
-                                size = os.stat(fullPath).st_size
-                                totalSize += size
-                                size = ' <%s>' % UtilMgr.convSize2Unit(size)
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                size = ''
-
-                            string = '%s%s' % (fullPath, size)
-                            SysMgr.printPipe(string)
-
-                            # apply for command #
-                            if SysMgr.customCmd:
-                                executeCmd(fullPath)
-                        else:
+                        if not UtilMgr.isEffectiveStr(subPath, inc=False):
                             continue
+
+                        # get size #
+                        try:
+                            size = os.stat(fullPath).st_size
+                            totalSize += size
+                            size = ' <%s>' % UtilMgr.convSize2Unit(size)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            size = ''
+
+                        string = '%s%s' % (fullPath, size)
+                        SysMgr.printPipe(string)
+
+                        # apply for command #
+                        if SysMgr.customCmd:
+                            executeCmd(fullPath)
 
                     totalFile += 1
 
