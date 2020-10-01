@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201001"
+__revision__ = "201002"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28919,7 +28919,7 @@ Copyright:
                         fpath = path
 
                     # convert path #
-		    fpath = os.path.realpath(os.path.expanduser(fpath))
+                    fpath = os.path.realpath(os.path.expanduser(fpath))
 
                     SysMgr.printPipe(
                         "[%.6f] %s@%s" % \
@@ -43491,7 +43491,6 @@ struct cmsghdr {
         # get 1st address from stack #
         targetAddr = self.sp
         value = self.readWord(targetAddr)
-
         btList.insert(0, value)
 
         while 1:
