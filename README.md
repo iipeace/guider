@@ -108,68 +108,68 @@ Output
 
 >>>
            
-    $ guider/guider.py threadtop
+    $ guider/guider.py ttop 
 
-	[Top Info] [Time: 194025.590] [Interval: 1.0] [Ctxt: 4995] [Life: +0/-0] [OOM: 0] [IRQ: 1879] [Core: 8] [Task: 333/1188] [Load: 3.1/1.9/0.9] [RAM: 62.8G]
-	==========================================================================================================================================================
-	  ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl(Diff/ User/Cache/Kern)|  Swap(Diff/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	Total  |  3 %( 1 / 0 /23 / 0 )|59874(  -3/ 3110/15153/ 355)|     0(   0/  0/  0)|   0/0   |  0/5  |   0   |   2   |  313   | 1607  | 939290 |    0/0     |
-	==========================================================================================================================================================
-			  Thread (  TID/  PID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  VSS(RSS/Txt/Shr/Swp)| Blk(  RD/  WR/NrFlt)| Yld | Prmt | FD | LifeTime|       Process       |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-			  guider ( 8160/ 8160/   1/C  0)|   3(  2/  0/  0)|   66( 33/  2/  6/  0)|   0(   -/   -/    0)|    1|     0|2048| 00:00:02|         guider(8160)|
-	 gnome-terminal- ( 4864/ 4864/   4/C  0)|   1(  0/  0/  -)|  627( 57/  0/ 40/  0)|   0(   -/   -/    0)|    -|     -| 128| 2d:05:52|gnome-terminal-(4864)|
-				Xorg ( 1525/ 1525/   2/C  0)|   1(  0/  0/  -)|  431( 84/  0/ 48/  0)|   0(   -/   -/    0)|    -|     -| 128| 2d:05:53|           Xorg(1525)|
-								   [ TOTAL ]|     5(   2/   0)|RSS: 174M / Swp:    0)| 0.0(   -/   -/    0)|      Yld: 1|       Prmt: 0|              Task: 3|
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	[D]kworker/u16:0 ( 7784/ 7784/   1/C  0)|   0(  0/  0/  -)|    0(  0/  0/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:07:07|                    -|
-			 [D]pool ( 8024/ 2450/  13/C  0)|   0(  0/  0/  -)| 1025( 82/  1/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:04:31|                    -|
-	  [D]usb-storage ( 7825/ 7825/   1/C  0)|   0(  0/  0/  -)|    0(  0/  0/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:06:38|                    -|
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-
->>>
-
-    # guider/guider.py usertop -g yes -H
-
-	[Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [yes(7202): 28%(Usr/27%+Sys/0%)] [SampleTime: 0.000100] 
-	==========================================================================================================================================================
-	 Usage  |                                                                 Function [Path]                                                                 
-	==========================================================================================================================================================
-	  35.6% | _IO_file_xsputn@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                  
-	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  17.8% | fputs_unlocked@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
-	           100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  16.1% | __libc_start_main@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                
-	  14.7% | memcpy@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
-	           100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	  12.3% | strlen@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
-	           100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	   3.0% | _IO_file_write@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
-	           100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
-	                     <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
+    [Top Info] [Time: 194025.590] [Interval: 1.0] [Ctxt: 4995] [Life: +0/-0] [OOM: 0] [IRQ: 1879] [Core: 8] [Task: 333/1188] [Load: 3.1/1.9/0.9] [RAM: 62.8G]
+    ==========================================================================================================================================================
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl(Diff/ User/Cache/Kern)|  Swap(Diff/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Total  |  3 %( 1 / 0 /23 / 0 )|59874(  -3/ 3110/15153/ 355)|     0(   0/  0/  0)|   0/0   |  0/5  |   0   |   2   |  313   | 1607  | 939290 |    0/0     |
+    ==========================================================================================================================================================
+              Thread (  TID/  PID/  Nr/ Pri)| CPU(Usr/Ker/Dly)|  VSS(RSS/Txt/Shr/Swp)| Blk(  RD/  WR/NrFlt)| Yld | Prmt | FD | LifeTime|       Process       |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+              guider ( 8160/ 8160/   1/C  0)|   3(  2/  0/  0)|   66( 33/  2/  6/  0)|   0(   -/   -/    0)|    1|     0|2048| 00:00:02|         guider(8160)|
+     gnome-terminal- ( 4864/ 4864/   4/C  0)|   1(  0/  0/  -)|  627( 57/  0/ 40/  0)|   0(   -/   -/    0)|    -|     -| 128| 2d:05:52|gnome-terminal-(4864)|
+                Xorg ( 1525/ 1525/   2/C  0)|   1(  0/  0/  -)|  431( 84/  0/ 48/  0)|   0(   -/   -/    0)|    -|     -| 128| 2d:05:53|           Xorg(1525)|
+                                   [ TOTAL ]|     5(   2/   0)|RSS: 174M / Swp:    0)| 0.0(   -/   -/    0)|      Yld: 1|       Prmt: 0|              Task: 3|
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    [D]kworker/u16:0 ( 7784/ 7784/   1/C  0)|   0(  0/  0/  -)|    0(  0/  0/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:07:07|                    -|
+             [D]pool ( 8024/ 2450/  13/C  0)|   0(  0/  0/  -)| 1025( 82/  1/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:04:31|                    -|
+      [D]usb-storage ( 7825/ 7825/   1/C  0)|   0(  0/  0/  -)|    0(  0/  0/  -/  -)|   0(   -/   -/    0)|    -|     -|   -| 00:06:38|                    -|
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
 
-	# guider/guider.py systop -g yes -H
+    # guider/guider.py utop -g yes -H
 
-	[Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [yes(7202): 5%(Usr/4%+Sys/0%)] 
-	==========================================================================================================================================================
-	 Usage  |                                                                 Function [Count]                                                                
-	==========================================================================================================================================================
-	 100.0% | write [Cnt: 634, Tot: 0.830203, Avg: 0.001309, Max: 0.005875, Err: 0]                                                                           
-	           100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_file_write@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/lib/libc-2.24.so]
-	                     <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
-	                     <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
-	                     <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
+    [Top Usercall Info] [Time: 82094.260000] [Interval: 1.001784] [NrSamples: 955] [yes(7202): 28%(Usr/27%+Sys/0%)] [SampleTime: 0.000100]
+    ==========================================================================================================================================================
+     Usage  |                                                                 Function [Path]                                                                 
+    ==========================================================================================================================================================
+      35.6% | _IO_file_xsputn@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                  
+               100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+      17.8% | fputs_unlocked@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
+               100.0% |  <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+      16.1% | __libc_start_main@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                
+      14.7% | memcpy@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
+               100.0% |  <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so] <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+                         <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+      12.3% | strlen@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                           
+               100.0% |  <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils] <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+       3.0% | _IO_file_write@GLIBC_2.17 [/lib/libc-2.24.so]                                                                                                   
+               100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
+                         <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+                         <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
 
-	# guider/guider.py brktop -g a.out -H
+    # guider/guider.py systop -g yes -H
+
+    [Top Syscall Info] [Time: 82043.230000] [Interval: 1.000940] [NrSamples: 634] [yes(7202): 5%(Usr/4%+Sys/0%)] 
+    ==========================================================================================================================================================
+     Usage  |                                                                 Function [Count]                                                                
+    ==========================================================================================================================================================
+     100.0% | write [Cnt: 634, Tot: 0.830203, Avg: 0.001309, Max: 0.005875, Err: 0]                                                                           
+               100.0% |  <- ??[/lib/libc-2.24.so] <- _IO_file_write@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/lib/libc-2.24.so]
+                         <- _IO_do_write@GLIBC_2.17[/lib/libc-2.24.so] <- _IO_file_xsputn@GLIBC_2.17[/lib/libc-2.24.so]
+                         <- fputs_unlocked@GLIBC_2.17[/lib/libc-2.24.so] <- ??[/usr/bin/yes.coreutils]
+                         <- __libc_start_main@GLIBC_2.17[/lib/libc-2.24.so]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+
+    # guider/guider.py btop -g a.out -H
 
     [Top Breakcall Info] [Time: 1146111.080] [Interval: 1.001] [NrSamples: 2,386] [a.out(214460): 4%(Usr/1%+Sys/2%)] [guider(214459): 92%]
     ==========================================================================================================================================================
@@ -198,11 +198,11 @@ Output
                          <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafda
                          <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
                          <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
            
-    # guider/guider.py filetop -g init
+    # guider/guider.py ftop -g init
 
     [Top File Info] [Time: 7176036.720] [Proc: 322] [FD: 1323] [File: 400] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -251,7 +251,7 @@ Output
 
 >>>
            
-    # guider/guider.py perftop -g yes
+    # guider/guider.py ptop -g yes
 
     [Top Info] [Time: 7181955.420] [Interval: 1.0] [Ctxt: 121] [Life: +0/-0] [IRQ: 1947] [Core: 24] [Task: 317/424] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
     ==========================================================================================================================================================
@@ -267,7 +267,7 @@ Output
 
 >>>
            
-    # guider/guider.py memtop
+    # guider/guider.py mtop
 
     [Top Info] [Time: 1144292.910] [Inter: 1.0] [Ctxt: 739] [Life: +0/-0] [IRQ: 10740] [Core: 40] [Task: 509/725] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
                [N0-DMA     > diff:       0 / free:  15.5M / high:  32.0K / low:  20.0K / managed:  15.5M / min:   8.0K / present:  15.6M / spanned:  16.0M ]
@@ -292,7 +292,7 @@ Output
 
 >>>
            
-    # guider/guider.py nettop
+    # guider/guider.py ntop
 
     [Top Info] [Time: 186473.960] [Interval: 1.0] [Ctxt: 7865] [Life: +0/-0] [OOM: 0] [IRQ: 4229] [Core: 8] [Task: 328/1171] [Load: 0.5/0.3/0.3] [RAM: 62.8G]
     ==========================================================================================================================================================
@@ -315,27 +315,35 @@ Output
 
 >>>
 
-	# guider/guider.py disktop
-
-	[Top Info] [Time: 186512.750] [Interval: 1.0] [Ctxt: 11963] [Life: +1/-0] [OOM: 0] [IRQ: 6263] [Core: 8] [Task: 329/1176] [Load: 0.4/0.3/0.3] [RAM: 62.8G]
-	==========================================================================================================================================================
-	  ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl(Diff/ User/Cache/Kern)|  Swap(Diff/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	Total  |  3 %( 1 / 0 / 0 / 0 )|59938(   0/ 3054/ 6469/ 351)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   |  1997  | 1607  |  2534  |  618K/9K   |
-	==========================================================================================================================================================
-			  DEV           |BUSY| AVQ | READ  | WRITE |   FREE(   DIFF)|USAGE| TOTAL |  AVF  |   FS   |                 MountPoint <Option>                 |
-	----------------------------------------------------------------------------------------------------------------------------------------------------------
-	/dev/sda1               |  0%| 12.0|      0|      0|  43.4G(  -1.0M)|  74%| 171.7G|  10.0M|  ext4  | /var/lib/docker/overlay2                            |
-	/dev/sdb                |  0%|    0|      0|      0| 291.1G(      0)|  68%| 916.8G|  51.0M|  ext4  | /media/iipeace/445219df-443d-42a9-bf2b-1c94bbdfcb6a |
-	/dev/loop3              |  0%|    0|      0|      0|      0(      0)| 100%|  88.0M|      0|squashfs| /snap/core/7270 <ro,nodev,relatime>                 |
-	/dev/loop1              |  0%|    0|      0|      0|      0(      0)| 100%|  88.0M|      0|squashfs| /snap/core/7169 <ro,nodev,relatime>                 |
-	/dev/loop2              |  0%|    0|      0|      0|      0(      0)| 100%| 144.0M|      0|squashfs| /snap/notepadqq/841 <ro,nodev,relatime>             |
-	/dev/loop0              |  0%|    0|      0|      0|      0(      0)| 100%| 145.0M|      0|squashfs| /snap/notepadqq/855 <ro,nodev,relatime>             |
-	==========================================================================================================================================================
+    # guider/guider.py disktop
+    
+    [Top Info] [Time: 262411.830] [Inter: 1.0] [Ctxt: 802] [Life: +0/-0] [IRQ: 10675] [Core: 40] [Task: 481/700] [Load: 38/38/38] [RAM: 125.7G] [Swap: 4.0G]
+    ==========================================================================================================================================================
+      ID   |  CPU(Usr/Ker/Blk/IRQ)|  Avl( Per/ User/Cache/Kern)|  Swap( Per/ In/Out)| PgRclm  | BlkRW | NrFlt | PrBlk | NrSIRQ | PgMlk | PgDrt  |  Network   |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    Total  | 98 %(97 / 0 / 0 / 0 )|124431(  96/  994/ 3531/1733)|     0(   0/  0/  0)|   0/0   |  0/0  |   0   |   0   | 11620  | 4613  |   70   |    1K/0    |
+    ==========================================================================================================================================================
+              DEV           |BUSY| AVQ | READ  | WRITE |   FREE(   DIFF)|USAGE| TOTAL |  AVF  |   FS   |                 MountPoint <Option>                 |
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    /dev/sda2               |  0%|    0|      0|      0| 670.6G(      0)|  28%| 937.4G|  57.6M|  ext4  | / <rw,relatime>                                     |
+    /dev/loop4              |  0%|    0|      0|      0|      0(      0)| 100%|  30.0M|      0|squashfs| /snap/snapd/9279 <ro,nodev,relatime>                |
+    /dev/loop5              |  0%|    0|      0|      0|      0(      0)| 100%|  70.0M|      0|squashfs| /snap/lxd/16922 <ro,nodev,relatime>                 |
+    /dev/sda1               |  0%|    0|      0|      0| 503.0M(      0)|   1%| 510.0M|      0|  vfat  | /boot/efi <rw,relatime>                             |
+    /dev/loop1              |  0%|    0|      0|      0|      0(      0)| 100%|  55.0M|      0|squashfs| /snap/core18/1885 <ro,nodev,relatime>               |
+    /dev/loop2              |  0%|    0|      0|      0|      0(      0)| 100%|  70.0M|      0|squashfs| /snap/lxd/16894 <ro,nodev,relatime>                 |
+    /dev/loop0              |  0%|    0|      0|      0|      0(      0)| 100%|  55.0M|      0|squashfs| /snap/core18/1880 <ro,nodev,relatime>               |
+    /dev/loop3              |  0%|    0|      0|      0|      0(      0)| 100%|  30.0M|      0|squashfs| /snap/snapd/8790 <ro,nodev,relatime>                |
+    /run/snapd/ns           |  0%|    0|      0|      0|  12.6G(      0)|   0%|  12.6G|  15.7M| tmpfs  | /run/snapd/ns                                       |
+    /run/user/1004          |  0%|    0|      0|      0|  12.6G(      0)|   0%|  12.6G|  15.7M| tmpfs  | /run/user/1004 <rw,nosuid,nodev,relatime>           |
+    /sys/fs/cgroup          |  0%|    0|      0|      0|  62.9G(      0)|   0%|  62.9G|  15.7M| tmpfs  | /sys/fs/cgroup <ro,nosuid,nodev,noexec>             |
+    /run                    |  0%|    0|      0|      0|  12.6G(      0)|   0%|  12.6G|  15.7M| tmpfs  | /run <rw,nosuid,nodev,noexec,relatime>              |
+    /run/lock               |  0%|    0|      0|      0|   5.0M(      0)|   0%|   5.0M|  15.7M| tmpfs  | /run/lock <rw,nosuid,nodev,noexec,relatime>         |
+    /dev/shm                |  0%|    0|      0|      0|  62.9G(      0)|   0%|  62.9G|  15.7M| tmpfs  | /dev/shm <rw,nosuid,nodev>                          |
+    ==========================================================================================================================================================
 
 >>>
 
-    # guider/guider.py wsstop -g yes
+    # guider/guider.py wtop -g yes
 
     [Top Info] [Time: 7176629.490] [Interval: 1.0] [Ctxt: 195] [Life: +0/-0] [IRQ: 2688] [Core: 24] [Task: 327/434] [RAM: 63876] [Swap: 65491] (Unit: %/MB/NR)
                [Cycle: 2G / Inst: 6G / IPC: 2.75 / CacheMiss: 202K(19%) / BranchMiss: 325K(0%) / Clock: 23G / MinFlt: 4 / MajFlt: 0]
@@ -390,7 +398,7 @@ Output
 
 >>>
            
-    $ guider/guider.py reptop &
+    $ guider/guider.py rtop &
     $ cat /tmp/guider.report
 
     {
@@ -1006,7 +1014,7 @@ Help
 
 ```
 Usage:
-    $ guider/guider.py COMMAND|FILE [OPTIONS] [--help]
+    $ ./guider.py COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
     [CONTROL]       client          <Client>
@@ -1107,7 +1115,8 @@ COMMAND:
 
 FILE:
     Profile file (e.g. guider.dat)
+    Report  file (e.g. guider.out)
 
 Options:
-    Check COMMAND with --help (e.g. guider/guider.py top --help)
+    Check COMMAND with --help (e.g. ./guider.py top --help)
 ```
