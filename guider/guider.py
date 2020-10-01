@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "200929"
+__revision__ = "201001"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -28918,7 +28918,8 @@ Copyright:
                     else:
                         fpath = path
 
-                    fpath = os.path.realpath(fpath)
+                    # convert path #
+		    fpath = os.path.realpath(os.path.expanduser(fpath))
 
                     SysMgr.printPipe(
                         "[%.6f] %s@%s" % \
@@ -39173,8 +39174,11 @@ struct cmsghdr {
         dobj.loadSymbols()
         dobj.attach()
 
+        # register my instance #
+        SysMgr.addExitFunc(Debugger.destroyDebugger, [dobj])
+
         SysMgr.printInfo(
-            "start gathering symbol info for %s" % procInfo)
+            "start gathering symbols for %s" % procInfo)
 
         # get symbol info #
         loadBin = {}
@@ -39184,19 +39188,17 @@ struct cmsghdr {
 
             # get symbols from string #
             oldSym = symbols[0]
+            fpath = os.path.realpath(os.path.expanduser(symbols[1]))
             if len(symbols) == 2:
-                fpath = None
-                newSym = symbols[1]
+                if fpath:
+                    newSym = oldSym
+                else:
+                    newSym = symbols[1]
             elif len(symbols) == 3:
-                fpath = symbols[1]
                 newSym = symbols[2]
             else:
                 SysMgr.printErr("fail to recognize %s" % item)
                 sys.exit(0)
-
-            # convert realpath #
-            if fpath:
-                fpath = os.path.realpath(fpath)
 
             # load the library #
             if not fpath in loadBin:
@@ -39285,10 +39287,7 @@ struct cmsghdr {
 
                 # read original address for target #
                 slotAddr = vstart + attr['value']
-                if slotAddr % ConfigMgr.wordSize == 0:
-                    origAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
-                else:
-                    origAddr = dobj.readMem(slotAddr, retWord=True)
+                origAddr = dobj.readWord(slotAddr)
 
                 mprotected = False
                 while 1:
@@ -39308,10 +39307,7 @@ struct cmsghdr {
                         break
 
                 # read updated address for verification #
-                if slotAddr % ConfigMgr.wordSize == 0:
-                    newAddr = dobj.accessMem(dobj.peekIdx, slotAddr)
-                else:
-                    newAddr = dobj.readMem(slotAddr, retWord=True)
+                newAddr = dobj.readWord(slotAddr)
 
                 # check update result #
                 if hookAddr == newAddr:
@@ -43477,20 +43473,25 @@ struct cmsghdr {
 
 
 
+    def readWord(self, targetAddr):
+        if targetAddr % ConfigMgr.wordSize == 0:
+            return self.accessMem(self.peekIdx, targetAddr)
+        else:
+            return self.readMem(targetAddr, retWord=True)
+
+
+
     def getBacktrace_X86(self, limit=32, cur=False):
         nextFp = self.fp
         btList = []
-        wordSize = ConfigMgr.wordSize
 
         if cur and self.pc:
             btList.insert(0, self.pc)
 
         # get 1st address from stack #
         targetAddr = self.sp
-        if targetAddr % wordSize == 0:
-            value = self.accessMem(self.peekIdx, targetAddr)
-        else:
-            value = self.readMem(targetAddr, retWord=True)
+        value = self.readWord(targetAddr)
+
         btList.insert(0, value)
 
         while 1:
@@ -43503,11 +43504,8 @@ struct cmsghdr {
 
             try:
                 # read return address #
-                targetAddr = nextFp + wordSize
-                if targetAddr % wordSize == 0:
-                    value = self.accessMem(self.peekIdx, targetAddr)
-                else:
-                    value = self.readMem(targetAddr, retWord=True)
+                targetAddr = nextFp + ConfigMgr.wordSize
+                value = self.readWord(targetAddr)
 
                 # add call address #
                 if value > 0:
@@ -43519,11 +43517,7 @@ struct cmsghdr {
                         pass
 
                 # read next FP #
-                if nextFp % wordSize == 0:
-                    nextFp = self.accessMem(self.peekIdx, nextFp)
-                else:
-                    nextFp = self.readMem(nextFp, retWord=True)
-
+                nextFp = self.readWord(nextFp)
                 if nextFp <= 0:
                     break
             except SystemExit:
@@ -43538,7 +43532,6 @@ struct cmsghdr {
     def getBacktrace_ARM(self, limit=32, cur=False):
         nextFp = self.fp
         nextLr = self.lr
-        wordSize = ConfigMgr.wordSize
 
         if nextLr:
             btList = [nextLr]
@@ -43560,18 +43553,10 @@ struct cmsghdr {
 
             # get FP and LR #
             try:
-                nextAddr = nextFp + wordSize
+                nextAddr = nextFp + ConfigMgr.wordSize
+                nextLr = self.readWord(nextAddr)
 
-                if nextAddr % wordSize == 0:
-                    nextLr = self.accessMem(self.peekIdx, nextAddr)
-                else:
-                    nextLr = self.readMem(nextAddr, retWord=True)
-
-                if nextFp % wordSize == 0:
-                    nextFp = self.accessMem(self.peekIdx, nextFp)
-                else:
-                    nextFp = self.readMem(nextFp, retWord=True)
-
+                nextFp = self.readWord(nextFp)
                 if nextFp <= 0:
                     break
             except SystemExit:
@@ -43592,7 +43577,6 @@ struct cmsghdr {
         nextFp = self.fp
         nextLr = self.lr
         btList = [nextLr]
-        wordSize = ConfigMgr.wordSize
 
         if cur:
             btList.insert(0, self.pc)
@@ -43609,18 +43593,10 @@ struct cmsghdr {
 
             # get FP and LR #
             try:
-                nextAddr = nextFp + wordSize
+                nextAddr = nextFp + ConfigMgr.wordSize
+                nextLr = self.readWord(nextAddr)
 
-                if nextAddr % wordSize == 0:
-                    nextLr = self.accessMem(self.peekIdx, nextAddr)
-                else:
-                    nextLr = self.readMem(nextAddr, retWord=True)
-
-                if nextFp % wordSize == 0:
-                    nextFp = self.accessMem(self.peekIdx, nextFp)
-                else:
-                    nextFp = self.readMem(nextFp, retWord=True)
-
+                nextFp = self.readWord(nextFp)
                 if nextFp <= 0:
                     break
             except SystemExit:
