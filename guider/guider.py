@@ -4057,6 +4057,7 @@ class UtilMgr(object):
                 SysMgr.printErr(
                     "fail to convert %s to number" % string, True)
             return None
+
         return string
 
 
@@ -14475,6 +14476,7 @@ class SysMgr(object):
 
         # system #
         elif SysMgr.isSystemTopMode():
+            SysMgr.memEnable = True
             SysMgr.irqEnable = True
             SysMgr.diskEnable = True
             SysMgr.networkEnable = True
@@ -39636,7 +39638,7 @@ struct cmsghdr {
 
                 # get return value #
                 ret = UtilMgr.convStr2Num(cmdset[1])
-                if not ret:
+                if ret is None:
                     SysMgr.printErr(
                         "wrong return value %s" % cmdset[1])
                     return False
@@ -39805,7 +39807,7 @@ struct cmsghdr {
 
                 # get address #
                 addr = UtilMgr.convStr2Num(addr)
-                if not addr: return repeat
+                if addr is None: return repeat
 
                 SysMgr.addPrint(
                     "\n[%s] %s: %s(%sbyte)" % \
@@ -39946,7 +39948,7 @@ struct cmsghdr {
 
                 # convert value #
                 val = UtilMgr.convStr2Num(val)
-                if not val: return repeat
+                if val is None: return repeat
 
                 # accumulate values #
                 self.accList.setdefault(name,
@@ -40002,13 +40004,13 @@ struct cmsghdr {
 
                 # get addr #
                 addr = UtilMgr.convStr2Num(memset[0])
-                if not addr: return False
+                if addr is None: return False
 
                 # get size #
                 if len(memset) == 2:
                     fixed = True
                     size = UtilMgr.convStr2Num(memset[1])
-                    if not size: return False
+                    if size is None: return False
                 else:
                     fixed = False
                     size = 32
@@ -40022,7 +40024,7 @@ struct cmsghdr {
                 # get address #
                 if UtilMgr.isNumber(addr):
                     addr = UtilMgr.convStr2Num(addr)
-                    if not addr: return False
+                    if addr is None: return False
                 else:
                     SysMgr.printErr("wrong addr %s" % addr)
                     return repeat
@@ -40216,7 +40218,7 @@ struct cmsghdr {
 
                 # get address #
                 addr = UtilMgr.convStr2Num(val, verb=False)
-                if not addr:
+                if addr is None:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
                         SysMgr.printErr("no found %s" % val)
@@ -40281,7 +40283,7 @@ struct cmsghdr {
 
                 # get address #
                 addr = UtilMgr.convStr2Num(val, verb=False)
-                if not addr:
+                if addr is None:
                     ret = self.getAddrBySymbol(val, one=True)
                     if not ret:
                         SysMgr.printErr("no found %s" % val)
@@ -44095,8 +44097,7 @@ struct cmsghdr {
             fend = '??'
 
         # get backtrace #
-        if self.isRealtime and \
-            SysMgr.funcDepth > 0:
+        if self.isRealtime and SysMgr.funcDepth > 0:
             backtrace = self.getBacktrace(SysMgr.funcDepth)
         else:
             backtrace = None
