@@ -2,9 +2,6 @@
 *.o
 *.so
 *.swp
-*.png
-*.jpg
-*.bmp
 *.out*
 *.dat*
 *.log
