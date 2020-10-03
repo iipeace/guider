@@ -2828,7 +2828,8 @@ class ConfigMgr(object):
         'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2', 'sys_pwritev2',
         'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free', 'sys_statx',
         'sys_io_pgetevents', 'sys_rseq', 'sys_kexec_file_load',
-        ] + ['sys_null' for idx in range(295, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON + \
+        ['close_range', 'openat2', 'pidfd_getfd', 'pidfd_getfd', 'faccessat2']
 
     # Define syscall for x86 #
     SYSCALL_X86 = [
@@ -3023,7 +3024,7 @@ class ConfigMgr(object):
         'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2',
         'sys_pwritev2', 'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free',
         'sys_statx', 'sys_io_pgetevents', 'sys_rseq',
-        ] + ['sys_null' for idx in range(335, 424, 1)] + SYSCALL_COMMON
+        ] + ['sys_null' for idx in range(335, 423, 1)] + SYSCALL_COMMON
 
     # Define default syscall list #
     sysList = []
@@ -17730,6 +17731,7 @@ Options:
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
+    -l                          print syscall list
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
@@ -25402,6 +25404,21 @@ Copyright:
 
         # STRACE MODE #
         elif SysMgr.isStraceMode():
+            if SysMgr.findOption('l'):
+                SysMgr.printStreamEnable = True
+                for idx, item in enumerate(ConfigMgr.sysList):
+                    if item == 'sys_null':
+                        continue
+                    elif idx > 0 and idx % 3 == 0:
+                        newline = True
+                    else:
+                        newline = False
+
+                    SysMgr.printPipe(
+                        "%3s) %s  " % (idx, item), newline=newline)
+                SysMgr.printPipe()
+                sys.exit(0)
+
             SysMgr.doTrace('syscall')
 
         # UTRACE MODE #
