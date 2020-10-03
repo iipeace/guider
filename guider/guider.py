@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201002"
+__revision__ = "201003"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16649,36 +16649,37 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    acc [NAME:ADDR|REG|VAL]
-    dist [NAME:ADDR|REG|VAL]
-    dump [NAME|ADDR:FILE]
-    exec [CMD]
+    acc      [NAME:ADDR|REG|VAL]
+    dist     [NAME:ADDR|REG|VAL]
+    dump     [NAME|ADDR:FILE]
+    exec     [CMD]
     exit
-    filter [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
-    getarg [REGS]
-    getenv [VAR]
+    filter   [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
+    check    [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
+    getarg   [REGS]
+    getenv   [VAR]
     getret
-    jump [FUNC#ARGS]
+    jump     [FUNC#ARGS]
     kill
-    load [PATH]
-    log [MESSAGE]
+    load     [PATH]
+    log      [MESSAGE]
     print
-    pyfile [PATH:SYNC]
-    pystr [CODE:SYNC]
-    rdmem [ADDR|REG:SIZE]
-    repeat [CNT]
-    ret [VAL]
-    save [NAME]
-    setarg [REG#VAL]
-    setenv [VAR:VAL]
-    setret [VAL]
-    sleep [SEC]
+    pyfile   [PATH:SYNC]
+    pystr    [CODE:SYNC]
+    rdmem    [ADDR|REG:SIZE]
+    repeat   [CNT]
+    ret      [VAL]
+    save     [NAME]
+    setarg   [REG#VAL]
+    setenv   [VAR:VAL]
+    setret   [VAL]
+    sleep    [SEC]
     start
     stop
-    syscall [FUNC#ARGS]
+    syscall  [FUNC#ARGS]
     thread
     usercall [FUNC#ARGS]
-    wrmem [ADDR|REG:VAL:SIZE]
+    wrmem    [ADDR|REG:VAL:SIZE]
 
 Examples:
     - Print all function calls for a specific thread
@@ -16776,6 +16777,13 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
+
+    - Print write function calls with specific conditions
+        # {0:1} {1:1} -g a.out -c write\\|check:2:EQ:4096
+        # {0:1} {1:1} -g a.out -c write\\|check:2:BT:0x1000
+        # {0:1} {1:1} -g a.out -c write\\|check:*1:EQ:HELLO
+        # {0:1} {1:1} -g a.out -c write\\|check:*1:INC:HE
+        # {0:1} {1:1} -g a.out -c write\\|check:RET1:EQ:RET2:EVENT_CONT
 
     - Handle write function calls as a print point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
@@ -39528,6 +39536,8 @@ struct cmsghdr {
                 cmdformat = "COMMAND"
             elif cmd == 'ret':
                 cmdformat = "VAL"
+            elif cmd == 'check':
+                cmdformat = "NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE"
             elif cmd == 'getret':
                 cmdformat = ""
             elif cmd == 'setret':
@@ -39749,6 +39759,8 @@ struct cmsghdr {
                 argList = self.convRetArgs(argList)
 
                 for item in argList:
+                    if not str(item): continue
+
                     try:
                         val = args[long(item)]
                     except SystemExit:
@@ -39757,7 +39769,6 @@ struct cmsghdr {
                         val = 'None'
 
                     # update return #
-                    self.retList[item] = str(val)
                     self.prevReturn = str(val)
 
                     argStr += '%s: %s(%s), ' % \
@@ -39824,8 +39835,7 @@ struct cmsghdr {
 
             elif cmd == 'thread':
                 ret = self.loadPyLib()
-                if not ret:
-                    return
+                if not ret: return
 
                 self.initPyLib()
 
@@ -39875,8 +39885,7 @@ struct cmsghdr {
                     sync = True
 
                 ret = self.loadPyLib()
-                if not ret:
-                    return
+                if not ret: return
 
                 self.initPyLib()
 
@@ -39912,6 +39921,19 @@ struct cmsghdr {
                     "\n[%s] %s(%s)->%s (%s)" % \
                         (cmdstr, meminfo,
                             UtilMgr.convSize2Unit(size), output, res))
+
+            elif cmd == 'check':
+                cmds = ':'.join(cmdset)
+                ret = self.checkFilterCond(cmds, args)
+
+                # broadcast event #
+                if ret:
+                    params = cmdset[1].split(':')
+                    if len(params) > 4:
+                        SysMgr.broadcastEvent(params[4])
+
+                SysMgr.addPrint(
+                    "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
 
             elif cmd == 'acc' or cmd == 'dist':
                 if len(cmdset) == 1:
@@ -40123,7 +40145,15 @@ struct cmsghdr {
 
                 self.retList[var] = data
 
-                output = "\n[%s] %s = %s" % (cmdstr, var, data)
+                # convert to hex format #
+                try:
+                    hexData = '(%s)' % hex(long(data)).rstrip('L')
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    hexData = ''
+
+                output = "\n[%s] %s = %s%s" % (cmdstr, var, data, hexData)
                 SysMgr.addPrint(output)
 
             elif cmd == 'load':
@@ -40234,8 +40264,8 @@ struct cmsghdr {
                 else:
                     skip = False
 
+                # remove all berakpoints #
                 if not skip:
-                    # remove all berakpoints #
                     self.removeAllBp(verb=False)
 
                 SysMgr.addPrint(output)
@@ -40514,12 +40544,10 @@ struct cmsghdr {
 
     def removeBpFileByAddr(self, addr):
         fname = self.getFileFromMap(addr)
-        if not fname:
-            return
+        if not fname: return
 
         fcache = ElfAnalyzer.getObject(fname)
-        if not fcache:
-            return
+        if not fcache: return
 
         for item in fcache.sortedAddrTable:
             self.removeBp(addr + item, lock=True)
@@ -40656,8 +40684,7 @@ struct cmsghdr {
             # add specific default symbols #
             for dsym in list(self.dftBpSymList.keys()):
                 ret = self.getAddrBySymbol(dsym, binary=[lib])
-                if not ret:
-                    continue
+                if not ret: continue
 
                 addr = ret[0][0]
                 ret = self.injectBp(
@@ -40741,8 +40768,7 @@ struct cmsghdr {
 
         # get address list for breakpoints #
         addrList, cmdList = self.getBpList(symlist, binlist, verb)
-        if not addrList:
-            return
+        if not addrList: return
 
         # get exceptional address list for breakpoints #
         exceptAddrList = []
@@ -40787,10 +40813,12 @@ struct cmsghdr {
         def printErr(cmd):
             SysMgr.printErr(
                 "wrong command '%s', input in the format {%s:%s}" % \
-                    (cmd, 'filter', 'ADDR|REG:OP:VAL:SIZE'))
+                    (cmd, 'filter|check', 'ADDR|REG:OP:VAL:SIZE'))
 
-        if not filterCmd:
-            return True
+        if not filterCmd: return True
+
+        if type(filterCmd) is not list:
+            filterCmd = [filterCmd]
 
         for cmd in filterCmd:
             cmdset = cmd.split(':', 1)
@@ -40800,43 +40828,64 @@ struct cmsghdr {
 
             # get argument info #
             memset = cmdset[1].split(':')
-            if len(memset) < 3 or len(memset) > 4:
+            if len(memset) < 3:
                 printErr(cmd)
                 return False
 
+            ref = False
             addr = memset[0]
-            if addr[0] == '*':
-                ref = True
-                addr = long(addr[1:])
-            else:
-                ref = False
-                addr = long(addr)
-
             op = memset[1]
             val = memset[2]
+            if val in self.retList:
+                val = self.retList[val]
+
+            # convert 1st data #
+            try:
+                if addr in self.retList:
+                    addr = self.retList[addr]
+                else:
+                    if addr[0] == '*':
+                        ref = True
+                        addr = long(addr[1:])
+                    else:
+                        addr = long(addr)
+
+                    # convert address from registers #
+                    try:
+                        addr = args[addr]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to convert %s to number in filter" % addr)
+                continue
+
             if len(memset) == 4:
                 size = long(memset[3])
             else:
                 size = 0
 
-            # convert address from registers #
-            try:
-                addr = args[addr]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-            # get address #
+            # convert 1st value to number #
             if UtilMgr.isNumber(addr):
                 try:
                     addr = long(addr, 16)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     addr = long(addr)
-            else:
-                SysMgr.printErr(
-                    "wrong addr %s" % addr)
-                return False
+
+            # convert 2nd value to number #
+            if UtilMgr.isNumber(val):
+                try:
+                    val = long(val, 16)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    val = long(val)
 
             # get value from memory #
             if ref:
@@ -40851,7 +40900,10 @@ struct cmsghdr {
 
             # set size as value length #
             if size == 0:
-                size = len(val)
+                try:
+                    size = len(val)
+                except:
+                    pass
 
             # check value #
             # == #
@@ -40860,7 +40912,10 @@ struct cmsghdr {
                     if ret.decode()[:size] != val:
                         return False
                 else:
-                    if ret != long(val):
+                    val = str(val)[:size]
+                    ret = str(ret)[:size]
+
+                    if ret != val:
                         return False
             # != #
             elif op.upper() == 'DF':
@@ -40868,7 +40923,10 @@ struct cmsghdr {
                     if ret.decode()[:size] == val:
                         return False
                 else:
-                    if ret == long(val):
+                    val = str(val)[:size]
+                    ret = str(ret)[:size]
+
+                    if ret == val:
                         return False
 
             # in #
@@ -40885,6 +40943,8 @@ struct cmsghdr {
 
                 try:
                     val = long(val)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     val = long(val, 16)
 
@@ -40892,6 +40952,11 @@ struct cmsghdr {
                     return False
                 elif op.upper() == 'LT' and ret > val:
                     return False
+
+            else:
+                SysMgr.printErr(
+                    "fail to recognize operator '%s' for filter" % op)
+                return False
 
         return True
 
@@ -41127,8 +41192,7 @@ struct cmsghdr {
         # get function address #
         symbol = 'free'
         func = self.getAddrBySymbol(symbol, one=True)
-        if not func:
-            return None
+        if not func: return None
 
         # set args #
         args = [addr]
@@ -41172,8 +41236,7 @@ struct cmsghdr {
         # get function address #
         symbol = 'calloc'
         func = self.getAddrBySymbol(symbol, one=True)
-        if not func:
-            return None
+        if not func: return None
 
         # check size #
         if not size:
@@ -41243,8 +41306,7 @@ struct cmsghdr {
 
     def getMapFilePath(self, fname):
         self.loadSymbols()
-        if not self.pmap:
-            return None
+        if not self.pmap: return None
 
         for path in list(self.pmap.keys()):
             if os.path.basename(path).startswith(fname):
@@ -41517,8 +41579,7 @@ struct cmsghdr {
         elif type(usercall) is str:
             # get function address #
             func = self.getAddrBySymbol(usercall, inc=inc, one=True)
-            if not func:
-                return None
+            if not func: return None
         else:
             SysMgr.printErr(
                 "fail to recognize %s as a function for %s" % \
@@ -41565,8 +41626,7 @@ struct cmsghdr {
 
         # call function #
         self.cont(check=True)
-        if not wait:
-            return None
+        if not wait: return None
 
         while 1:
             # wait process #
@@ -41602,8 +41662,7 @@ struct cmsghdr {
 
     def remoteSyscall(self, syscall, args=[], verb=True):
         # check syscall function #
-        if not self.syscallFound:
-            return -1
+        if not self.syscallFound: return -1
 
         # get original regset #
         if not self.updateRegs():
