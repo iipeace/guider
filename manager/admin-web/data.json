@@ -1,0 +1,274 @@
+{
+  "debug": {
+    "call_logs": [
+      {
+        "id": "1",
+        "call_start_time": 202008191500,
+        "voice_file_url": "https://naver.com",
+        "dialogues": [
+          {
+            "order_index": 1,
+            "branch_name": "본사",
+            "transcript": "안녕하세요.",
+            "fulfillment_except_privacy": "안녕하지 않습니다.",
+            "fulfillment_text": "안녕하지 않습니다.",
+            "voice_file_url": "https://naver.com/1"
+          },
+          {
+            "order_index": 2,
+            "branch_name": "본사",
+            "transcript": "미안합니다.",
+            "fulfillment_except_privacy": "미안하지 않습니다.",
+            "fulfillment_text": "미안하지 않습니다.",
+            "voice_file_url": "https://naver.com/2"
+          }
+        ]
+      },
+      {
+        "id": "2",
+        "call_start_time": 202008191503,
+        "voice_file_url": "https://daum.com",
+        "dialogues": [
+          {
+            "order_index": 1,
+            "branch_name": "본사",
+            "transcript": "반갑습니다.",
+            "fulfillment_except_privacy": "반갑지 않습니다.",
+            "fulfillment_text": "반갑지 않습니다.",
+            "voice_file_url": "https://daum.com/1"
+          },
+          {
+            "order_index": 2,
+            "branch_name": "본사",
+            "transcript": "고맙습니다.",
+            "fulfillment_except_privacy": "고맙지 않습니다.",
+            "fulfillment_text": "고맙지 않습니다.",
+            "voice_file_url": "https://daum.com/2"
+          }
+        ]
+      }
+    ],
+    "current_page": 0,
+    "count_per_page": 20,
+    "total_pages": 1
+  },
+  "agent_config": {
+    "list": [
+      {
+        "id": "11715470-a23f-11e9-9fe7-21aeab847ce5",
+        "type": "ai",
+        "branch_id": "728730ef-56a1-11e9-b176-0217ca23d448",
+        "serial_number": "TEST-BOARD-MASTER",
+        "partner_agent_id": "b398aaf0-9eca-11e9-b176-0217ca23d448",
+        "sip_agent_port": 53080,
+        "sip_has_password": true,
+        "status": {
+          "message": "outbound_on_call",
+          "call": "inbound",
+          "timestamp": 1593055935
+        },
+        "phone_number": "5000",
+        "connectivity": "active",
+        "sip_server_url": "pbx_1",
+        "mode": {
+          "inbound": true,
+          "outbound": true
+        }
+      },
+      {
+        "id": "b398aaf0-9eca-11e9-b176-0217ca23d448",
+        "type": "sip",
+        "branch_id": "728730ef-56a1-11e9-b176-0217ca23d448",
+        "serial_number": "TEST-BOARD-MASTER",
+        "partner_agent_id": "11715470-a23f-11e9-9fe7-21aeab847ce5",
+        "sip_listen_port": 53080,
+        "sip_has_password": false,
+        "status": {
+          "message": "inbound_on_call",
+          "call": "outbound",
+          "timestamp": 1593055935
+        },
+        "phone_number": "5000",
+        "sip_server_url": "pbx_2",
+        "mode": {
+          "inbound": true,
+          "outbound": false
+        }
+      },
+      {
+        "id": "b398aaf0-9eca-11e9-b176-0217ca23d448",
+        "type": "sip",
+        "branch_id": "728730ef-56a1-11e9-b176-0217ca23d448",
+        "serial_number": "TEST-BOARD-MASTER",
+        "partner_agent_id": "11715470-a23f-11e9-9fe7-21aeab847ce5",
+        "sip_listen_port": 53080,
+        "phone_number": "5000",
+        "connectivity": "active",
+        "sip_server_url": "pbx_3",
+        "mode": {
+          "inbound": false,
+          "outbound": true
+        }
+      },
+      {
+        "id": "ba8f05a0-a241-11e9-9fe7-21aeab847ce5",
+        "type": "sip",
+        "branch_id": "728730ef-56a1-11e9-b176-0217ca23d448",
+        "serial_number": "TEST-BOARD-MASTER",
+        "partner_agent_id": "f009ffd0-a23e-11e9-9fe7-21aeab847ce5",
+        "sip_listen_port": 53084,
+        "phone_number": "6000",
+
+        "status": {
+          "message": "off_call",
+          "call": "off",
+          "timestamp": 1593055935
+        },
+        "connectivity": "no_response",
+        "sip_server_url": "pbx_4"
+      }
+    ],
+    "counts": {
+      "list": 4,
+      "status": {
+        "inbound": 1,
+        "outbound": 2,
+        "off": 3
+      },
+      "connectivity": {
+        "active": 0,
+        "inactive": 3,
+        "no_response": 1
+      },
+      "mode": {
+        "inbound": 3,
+        "outbound": 4,
+        "in_outbound": 2,
+        "off": 5
+      }
+    }
+  },
+  "campaign_scenario": {
+    "scenarios": [
+      {
+        "id": "1",
+        "title": "실효예고 캠페인",
+        "memo": "Chubb 에이스 보험 실효예고 AI 상담원 마케팅 발신 통화입니다. 총 10명의 AI 상담원으로 구성되어 있습니다.",
+        "greetings": "안녕하세요. 처브 에이스 보험입니다. 실효예고 캠페인입니다.",
+        "client_campaign_id": "20200725",
+        "ai_system": {
+          "id": "1",
+          "project_name": "chubb-outbound-poc",
+          "project_id": "chubb-outbound-poc",
+          "project_version": "0.1.0",
+          "project_memo": "chubb-outbound-poc"
+        },
+        "created_at": 0,
+        "updated_at": 0
+      },
+      {
+        "id": "2",
+        "title": "실효예고 캠페인_글자수 제한",
+        "memo": "Chubb 에이스 보험 실효예고 AI 상담원 마케팅 발신 통화입니다. 총 10명의 AI 상담원으로 구성되어 있습니다. 모든 데이터는 통계 목록에서 확인하실 수 있습니다.",
+        "greetings": "안녕하세요. 처브 에이스 보험입니다. 실효예고 캠페인_글자수 제한입니다.",
+        "client_campaign_id": "202075",
+        "ai_system": {
+          "id": "2",
+          "project_name": "처브 project",
+          "project_id": "chubb-outbound-poc",
+          "project_version": "0.0.1",
+          "project_memo": "처브 project 입니다."
+        },
+        "created_at": 0,
+        "updated_at": 0
+      }
+    ],
+    "current_page": 0,
+    "count_per_page": 20,
+    "total_pages": 1
+  },
+  "campaign_ai_system": {
+    "ai_systems": [
+      {
+        "id": "1",
+        "project_name": "chubb-outbound-poc",
+        "project_id": "chubb-outbound-poc",
+        "project_version": "0.1.0",
+        "project_memo": "chubb-outbound-poc"
+      },
+      {
+        "id": "2",
+        "project_name": "처브 project",
+        "project_id": "chubb-outbound-poc",
+        "project_version": "0.0.1",
+        "project_memo": "처브 project 입니다."
+      },
+      {
+        "id": "3",
+        "project_name": "test",
+        "project_id": "test",
+        "project_version": "0.1.0",
+        "project_memo": "test"
+      }
+    ],
+    "current_page": 0,
+    "count_per_page": 20,
+    "total_pages": 1
+  },
+  "campaign_scenario_call": {
+    "campaign_calls": [
+      {
+        "id": "dba015c0-e76b-11ea-be42-b7e243346049",
+        "call_start_time": 1598426042000,
+        "customer_data": {
+          "korah_id": "53401",
+          "nts_customer_no": "2020072500002838"
+        },
+        "customer_result_code": "O1001"
+      },
+      {
+        "id": "f5c0ad20-e770-11ea-8951-7f46946f3983",
+        "call_start_time": 1598428243000,
+        "customer_data": {
+          "korah_id": "53401",
+          "nts_customer_no": "2020070600000015"
+        },
+        "customer_result_code": "O1012"
+      },
+      {
+        "id": "1a9e3cc0-e771-11ea-8951-7f46946f3983",
+        "call_start_time": 1598428301000,
+        "customer_data": {
+          "korah_id": "72579",
+          "nts_customer_no": "2020070600000014"
+        },
+        "customer_result_code": "O1020"
+      }
+    ],
+    "current_page": 0,
+    "count_per_page": 20,
+    "total_pages": 1
+  },
+  "statistics_total_for_duration": {
+    "count_calls": 120
+  },
+  "statistics_avg_per_hour": {
+    "average_calls": 1.5
+  },
+  "statistics_avg_per_agent_per_hour": {
+    "average_calls": 0.8
+  },
+  "statistics_total_over_customer_result": {
+    "customer_result_totals": [
+      { "result_code": "O1001", "total_calls": 35 },
+      { "result_code": "O1002", "total_calls": 19 },
+      { "result_code": "O1004", "total_calls": 10 },
+      { "result_code": "O1005", "total_calls": 1 },
+      { "result_code": "O1006", "total_calls": 5 },
+      { "result_code": "O1007", "total_calls": 1 },
+      { "result_code": "O1009", "total_calls": 5 },
+      { "result_code": "O1010", "total_calls": 70 },
+      { "result_code": "O1011", "total_calls": 5 }
+    ]
+  }
+}
