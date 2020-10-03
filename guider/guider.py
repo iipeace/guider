@@ -13679,6 +13679,7 @@ class SysMgr(object):
     commFdCache = {}
     fdCache = {}
     libCache = {}
+    netAddrCache = {}
     cmdFileCache = {}
     cmdAttachCache = {}
     thresholdData = {}
@@ -26272,9 +26273,13 @@ Copyright:
 
         # get socket inode address list of Guider processes #
         for pid in pids:
-            # get udp port list of Guider processes #
-            objs = SysMgr.getProcSocketObjs(pid)
-            addrs = SysMgr.getSocketAddrList(objs)
+            # get UDP port list of Guider processes #
+            if pid in SysMgr.netAddrCache:
+                addrs = SysMgr.netAddrCache[pid]
+            else:
+                objs = SysMgr.getProcSocketObjs(pid)
+                addrs = SysMgr.getSocketAddrList(objs)
+                SysMgr.netAddrCache[pid] = addrs
 
             for addr in addrs:
                 try:
