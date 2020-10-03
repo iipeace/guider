@@ -1,5 +1,5 @@
 {
-  "name": "guider-admin-web",
+  "name": "guider-admin",
   "description": "Web application that manages Guider, a system performance measurement and analyzer",
   "version": "0.1.0",
   "keywords:": [
@@ -17,17 +17,17 @@
   ],
   "homepage": "",
   "bugs": {
-    "url": "https://github.com/guiderOrg/legacy-web/issues",
+    "url": "https://github.com/iipeace/guider/issues",
     "email": "dev.yeombang87@gmail.com"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": {
-    "name": "yeombang",
+    "name": "Yeom Seungyeop",
     "email": "dev.yeombang87@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/guiderOrg/legacy-web.git"
+    "url": "https://github.com/iipeace/guider.git"
   },
   "private": true,
   "scripts": {
