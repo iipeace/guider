@@ -1,10 +1,10 @@
-# Guider Admin Web
+# Guider Admin
 
 Development in progress..., please wait a bit
 
 ## Web application that manages Guider
 
-[Guider](https://github.com/guiderOrg/guider) is an integrated performance analyzer. It provides most of the features needed for system performance measurement and analysis. And the project is a web application that manages these Guiders.
+[Guider](https://github.com/iipeace/guider) is an integrated performance analyzer. It provides most of the features needed for system performance measurement and analysis. And the project is a web application that manages these Guider.
 
 ### Features
 
