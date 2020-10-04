@@ -6,6 +6,7 @@ import routeUrls from "src/constants/routeUrls";
 import { makeStyles } from "@material-ui/core/styles";
 import { AppBar, Toolbar, Typography, Box, Hidden } from "@material-ui/core";
 import layoutProperties from "src/constants/layoutProperties";
+import ExploreIcon from "@material-ui/icons/Explore";
 import { StringsContext } from "src/App";
 
 const useStyles = makeStyles(theme => ({
@@ -16,7 +17,7 @@ const useStyles = makeStyles(theme => ({
   logoIcon: {
     width: "auto",
     height: 32,
-    marginRight: theme.spacing(2),
+    marginRight: theme.spacing(1.5),
   },
 }));
 
@@ -30,12 +31,13 @@ function TopBar({ className, ...rest }) {
       <Toolbar>
         <RouterLink to={routeUrls.ROOT}>
           <Box display="flex" alignItems="center" color="primary.contrastText">
-            <Hidden xsDown>
-              <img
+            <Hidden mdDown>
+              {/* <img
                 className={classes.logoIcon}
                 src="/images/logos/logo-guider.png"
                 alt="로고"
-              />
+              /> */}
+              <ExploreIcon className={classes.logoIcon} />
             </Hidden>
             <Typography variant="h5" component="h1" color="inherit">
               {strings.webName}
