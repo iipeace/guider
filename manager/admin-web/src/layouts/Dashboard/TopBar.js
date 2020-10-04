@@ -18,6 +18,7 @@ import ExitToAppIcon from "@material-ui/icons/ExitToApp";
 import routeUrls from "src/constants/routeUrls";
 import appConfig from "src/configs/appConfig";
 import layoutProperties from "src/constants/layoutProperties";
+import ExploreIcon from "@material-ui/icons/Explore";
 import { sessionActions } from "src/actions";
 import { StringsContext } from "src/App";
 
@@ -49,9 +50,9 @@ function TopBar({ className, onOpenNavBarMobile, ...rest }) {
 
   const strings = useContext(StringsContext);
 
-  // 로그아웃
+  // Logout function
   const handleLogout = () => {
-    // 계정 관리를 위한 모듈 필요
+    // TODO: Requires module for account management (ex : aws cognito)
     dispatch(sessionActions.logout());
 
     history.push(routeUrls.LOGIN);
@@ -61,22 +62,19 @@ function TopBar({ className, onOpenNavBarMobile, ...rest }) {
     <AppBar {...rest} className={clsx(classes.root, className)} color="primary">
       <Toolbar>
         <Hidden lgUp>
-          <IconButton
-            className={classes.navBarMenuButton}
-            color="inherit"
-            onClick={onOpenNavBarMobile}
-          >
+          <IconButton color="inherit" onClick={onOpenNavBarMobile}>
             <MenuIcon />
           </IconButton>
         </Hidden>
         <RouterLink to={routeUrls.ROOT}>
           <Box display="flex" alignItems="center" color="primary.contrastText">
-            <Hidden xsDown>
-              <img
+            <Hidden mdDown>
+              {/* <img
                 className={classes.logoIcon}
                 src="/images/logos/logo-guider.png"
                 alt="로고"
-              />
+              /> */}
+              <ExploreIcon className={classes.logoIcon} />
             </Hidden>
             <Typography variant="h5" component="h1" color="inherit">
               {strings.webName}
@@ -85,11 +83,7 @@ function TopBar({ className, onOpenNavBarMobile, ...rest }) {
         </RouterLink>
         <div className={classes.flexGrow} />
         {appConfig.isAuth && (
-          <IconButton
-            className={classes.logoutButton}
-            color="inherit"
-            onClick={handleLogout}
-          >
+          <IconButton color="inherit" onClick={handleLogout}>
             <ExitToAppIcon />
           </IconButton>
         )}
