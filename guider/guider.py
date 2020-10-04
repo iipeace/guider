@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201003"
+__revision__ = "201004"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16657,7 +16657,7 @@ Commands:
     exec     [CMD]
     exit
     filter   [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
-    check    [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
+    check    [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT]
     getarg   [REGS]
     getenv   [VAR]
     getret
@@ -39559,7 +39559,7 @@ struct cmsghdr {
             elif cmd == 'ret':
                 cmdformat = "VAL"
             elif cmd == 'check':
-                cmdformat = "NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE"
+                cmdformat = "NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT"
             elif cmd == 'getret':
                 cmdformat = ""
             elif cmd == 'setret':
