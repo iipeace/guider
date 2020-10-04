@@ -16651,13 +16651,13 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    acc      [NAME:ADDR|REG|VAL]
-    dist     [NAME:ADDR|REG|VAL]
+    acc      [NAME:VAR|REG|VAL]
+    dist     [NAME:VAR|REG|VAL]
     dump     [NAME|ADDR:FILE]
     exec     [CMD]
     exit
-    filter   [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE]
-    check    [ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT]
+    filter   [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
+    check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     getarg   [REGS]
     getenv   [VAR]
     getret
@@ -16668,12 +16668,12 @@ Commands:
     print
     pyfile   [PATH:SYNC]
     pystr    [CODE:SYNC]
-    rdmem    [ADDR|REG:SIZE]
+    rdmem    [VAR|ADDR|REG:SIZE]
     repeat   [CNT]
     ret      [VAL]
-    save     [NAME]
-    setarg   [REG#VAL]
-    setenv   [VAR:VAL]
+    save     [VAR]
+    setarg   [REG#VAR|VAL]
+    setenv   [VAR:VAR|VAL]
     setret   [VAL]
     sleep    [SEC]
     start
@@ -16681,7 +16681,7 @@ Commands:
     syscall  [FUNC#ARGS]
     thread
     usercall [FUNC#ARGS]
-    wrmem    [ADDR|REG:VAL:SIZE]
+    wrmem    [VAR|ADDR|REG:VAL:SIZE]
 
 Examples:
     - Print all function calls for a specific thread
@@ -16785,7 +16785,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|check:2:BT:0x1000
         # {0:1} {1:1} -g a.out -c write\\|check:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|check:*1:INC:HE
-        # {0:1} {1:1} -g a.out -c write\\|check:RET1:EQ:RET2:EVENT_CONT
+        # {0:1} {1:1} -g a.out -c write\\|check:@RET1:EQ:@RET2:EVENT_CONT
 
     - Handle write function calls as a print point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
@@ -32920,6 +32920,8 @@ Copyright:
         # release all resources #
         SysMgr.releaseResource()
 
+        os._exit(0)
+
 
 
     @staticmethod
@@ -39559,7 +39561,8 @@ struct cmsghdr {
             elif cmd == 'ret':
                 cmdformat = "VAL"
             elif cmd == 'check':
-                cmdformat = "NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT"
+                cmdformat = \
+                    "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT"
             elif cmd == 'getret':
                 cmdformat = ""
             elif cmd == 'setret':
@@ -39567,11 +39570,11 @@ struct cmsghdr {
             elif cmd == 'getarg':
                 cmdformat = "REG:REG"
             elif cmd == 'setarg':
-                cmdformat = "REG#VAL:REG#VAl"
+                cmdformat = "REG#VAL:REG#VAL"
             elif cmd == 'wrmem':
-                cmdformat = "ADDR|REG:VAL:SIZE"
+                cmdformat = "VAR|ADDR|REG:VAL:SIZE"
             elif cmd == 'rdmem':
-                cmdformat = "ADDR|REG:SIZE"
+                cmdformat = "VAR|ADDR|REG:SIZE"
             elif cmd == 'jump':
                 cmdformat = "SYMBOL|ADDR#ARG0#ARG1"
             elif cmd == 'usercall':
@@ -39581,11 +39584,11 @@ struct cmsghdr {
             elif cmd == 'load':
                 cmdformat = "PATH"
             elif cmd == 'save':
-                cmdformat = "NAME:VAL:TYPE"
+                cmdformat = "VAR:VAL:TYPE"
             elif cmd == 'acc':
-                cmdformat = "NAME:ADDR|REG|VAL"
+                cmdformat = "NAME:VAR|NAME|REG|VAL"
             elif cmd == 'dist':
-                cmdformat = "NAME:ADDR|REG|VAL"
+                cmdformat = "NAME:VAR|NAME|REG|VAL"
             elif cmd == 'dump':
                 cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
@@ -39593,7 +39596,7 @@ struct cmsghdr {
             elif cmd == 'stop':
                 cmdformat = ""
             elif cmd == 'setenv':
-                cmdformat = "VAR#VAL"
+                cmdformat = "VAR#VAR|VAL"
             elif cmd == 'getenv':
                 cmdformat = "VAR"
             elif cmd == 'repeat':
@@ -39818,6 +39821,7 @@ struct cmsghdr {
 
                 # get addr #
                 addr = UtilMgr.convStr2Num(memset[0])
+                if addr is None: return repeat
 
                 # get value #
                 val = memset[1].encode()
@@ -39849,10 +39853,10 @@ struct cmsghdr {
 
                 # set register values #
                 ret = self.writeMem(addr, val, size)
-                if ret == -1:
+                if ret is None or ret == -1:
                     SysMgr.printErr(
                         "fail to write '%s' to %s" % \
-                            (val, hex(addr).rstrip('L')))
+                            (val.decode(), hex(addr).rstrip('L')))
                     return repeat
 
             elif cmd == 'thread':
@@ -39963,35 +39967,25 @@ struct cmsghdr {
 
                 # get argument info #
                 memset = cmdset[1].split(':')
-                if len(memset) > 1:
-                    data = memset[1]
-                else:
-                    data = 1
 
+                # get name #
                 name = memset[0]
 
                 # convert args for previous return #
-                if type(data) is str:
-                    if data.startswith('@'):
-                        if data[1:] in self.retList:
-                            val = self.retList[data[1:]]
-                        else:
-                            SysMgr.printErr(
-                                "no %s in list" % data)
-                            return repeat
-                    else:
-                        val = UtilMgr.convStr2Num(data)
+                memset = self.convRetArgs(memset)
 
-                        # get address from registers #
-                        try:
-                            val = args[val]
-                        except:
-                            pass
+                # get value #
+                if len(memset) > 1:
+                    data = memset[1]
+
+                    # args #
+                    if data.isdigit() and long(data) < len(args):
+                        data = args[long(data)]
                 else:
-                    val = data
+                    data = '1'
 
                 # convert value #
-                val = UtilMgr.convStr2Num(val)
+                val = UtilMgr.convStr2Num(data)
                 if val is None: return repeat
 
                 # accumulate values #
@@ -40075,16 +40069,16 @@ struct cmsghdr {
 
                 # get memory value #
                 ret = self.readMem(addr, size)
-
-                # update return #
-                self.retList[addr] = str(ret)
-                self.prevReturn = str(ret)
-
-                if ret == -1:
+                if ret is None or ret == -1:
                     SysMgr.printErr(
                         "fail to read from %s" % \
                             hex(addr).rstrip('L'))
                     return repeat
+
+                # update return #
+                ret = ret.decode()
+                self.retList[addr] = str(ret)
+                self.prevReturn = str(ret)
 
                 # strip garbage #
                 if ret and not fixed:
@@ -40154,9 +40148,7 @@ struct cmsghdr {
                         data = self.prevReturn
 
                     # convert type #
-                    if len(cmdlist) == 2:
-                        data = long(data)
-                    elif len(cmdlist) == 3:
+                    if len(cmdlist) == 3:
                         dtype = cmdlist[2]
                         if dtype == 'arg':
                             data = args[long(data)]
@@ -40854,31 +40846,23 @@ struct cmsghdr {
                 printErr(cmd)
                 return False
 
+            # convert args for previous return #
+            memset = self.convRetArgs(memset)
+
             ref = False
             addr = memset[0]
             op = memset[1]
             val = memset[2]
-            if val in self.retList:
-                val = self.retList[val]
 
             # convert 1st data #
             try:
-                if addr in self.retList:
-                    addr = self.retList[addr]
-                else:
-                    if addr[0] == '*':
-                        ref = True
-                        addr = long(addr[1:])
-                    else:
-                        addr = long(addr)
-
-                    # convert address from registers #
-                    try:
+                if addr[0] == '*':
+                    ref = True
+                    addr = long(addr[1:])
+                elif addr.isdigit():
+                    addr = long(addr)
+                    if addr < len(args):
                         addr = args[addr]
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        pass
             except SystemExit:
                 sys.exit(0)
             except:
@@ -40889,7 +40873,7 @@ struct cmsghdr {
             if len(memset) == 4:
                 size = long(memset[3])
             else:
-                size = 0
+                size = -1
 
             # convert 1st value to number #
             if UtilMgr.isNumber(addr):
@@ -40912,26 +40896,21 @@ struct cmsghdr {
             # get value from memory #
             if ref:
                 ret = self.readMem(addr, size)
-                if ret == -1:
+                if ret is None or ret == -1:
                     SysMgr.printErr(
                         "fail to read from %s" % addr)
                     return False
+
+                ret = ret.decode()
             # get value from register #
             else:
                 ret = addr
-
-            # set size as value length #
-            if size == 0:
-                try:
-                    size = len(val)
-                except:
-                    pass
 
             # check value #
             # == #
             if op.upper() == 'EQ':
                 if ref:
-                    if ret.decode()[:size] != val:
+                    if ret[:size] != val:
                         return False
                 else:
                     val = str(val)[:size]
@@ -40942,7 +40921,7 @@ struct cmsghdr {
             # != #
             elif op.upper() == 'DF':
                 if ref:
-                    if ret.decode()[:size] == val:
+                    if ret[:size] == val:
                         return False
                 else:
                     val = str(val)[:size]
@@ -40954,7 +40933,7 @@ struct cmsghdr {
             # in #
             elif op.upper() == 'INC':
                 if ref:
-                    if not val in ret.decode()[:size]:
+                    if not val in ret[:size]:
                         return False
 
             # <= or >= #
@@ -40970,9 +40949,9 @@ struct cmsghdr {
                 except:
                     val = long(val, 16)
 
-                if op.upper() == 'BT' and ret < val:
+                if op.upper() == 'BT' and ret <= val:
                     return False
-                elif op.upper() == 'LT' and ret > val:
+                elif op.upper() == 'LT' and ret >= val:
                     return False
 
             else:
