@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201004"
+__revision__ = "201005"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -1043,6 +1043,10 @@ class ConfigMgr(object):
             ("old_uid_t *", "suid"),
         )),
         "getrlimit": ("long", (
+            ("unsigned int", "resource"),
+            ("struct rlimit *", "rlim"),
+        )),
+        "ugetrlimit": ("long", (
             ("unsigned int", "resource"),
             ("struct rlimit *", "rlim"),
         )),
@@ -4045,12 +4049,12 @@ class UtilMgr(object):
     @staticmethod
     def convStr2Num(string, verb=True):
         try:
-            try:
-                string = long(string, 16)
-            except SystemExit:
-                sys.exit(0)
-            except:
+            if type(string) is long:
+                return string
+            elif string.isdigit():
                 string = long(string)
+            else:
+                string = long(string, 16)
         except SystemExit:
             sys.exit(0)
         except:
@@ -16020,16 +16024,29 @@ class SysMgr(object):
 
         nlist = []
         for path in flist:
+            if path.startswith('^'):
+                path = path[1:]
+                exflag = True
+            else:
+                exflag = False
+
             try:
                 rpath = os.readlink(path)
                 if not rpath.startswith('/'):
                     dirname = os.path.dirname(path)
                     rpath = os.path.join(dirname, rpath)
+
+                if exflag:
+                    rpath = '^' + rpath
+
                 nlist.append(rpath)
             except SystemExit:
                 sys.exit(0)
             except:
                 if os.path.exists(path):
+                    if exflag:
+                        path = '^' + path
+
                     nlist.append(path)
                 else:
                     SysMgr.printWarn(
@@ -16660,7 +16677,7 @@ Commands:
     check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     getarg   [REGS]
     getenv   [VAR]
-    getret
+    getret   [CMD]
     jump     [FUNC#ARGS]
     kill
     load     [PATH]
@@ -16753,6 +16770,7 @@ Examples:
 
     - Handle write function calls as a print return point
         # {0:1} {1:1} -g a.out -c write\\|getret
+        # {0:1} {1:1} -g a.out -c write\\|getret:stop\\$print
 
     - Handle write function calls as a repeat point
         # {0:1} {1:1} -g a.out -c write\\|repeat
@@ -38978,6 +38996,7 @@ class Debugger(object):
         self.bpList = {}
         self.bpNewList = {}
         self.entryTime = {}
+        self.retCmdList = {}
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
@@ -39564,7 +39583,7 @@ struct cmsghdr {
                 cmdformat = \
                     "VAR|NAME|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAL:SIZE:EVENT"
             elif cmd == 'getret':
-                cmdformat = ""
+                cmdformat = "CMD"
             elif cmd == 'setret':
                 cmdformat = "VAL"
             elif cmd == 'getarg':
@@ -39676,7 +39695,7 @@ struct cmsghdr {
                 if ret is None:
                     SysMgr.printErr(
                         "wrong return value %s" % cmdset[1])
-                    return False
+                    return repeat
 
                 # get return address #
                 wordSize = ConfigMgr.wordSize
@@ -39700,7 +39719,12 @@ struct cmsghdr {
                 self.updateRegs()
 
             elif cmd == 'getret':
-                ret = self.setRetBp(sym, fname)
+                if len(cmdset) > 1:
+                    cmd = cmdset[1].split('$')
+                else:
+                    cmd = None
+
+                ret = self.setRetBp(sym, fname, cmd)
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
@@ -40042,13 +40066,13 @@ struct cmsghdr {
 
                 # get addr #
                 addr = UtilMgr.convStr2Num(memset[0])
-                if addr is None: return False
+                if addr is None: return repeat
 
                 # get size #
                 if len(memset) == 2:
                     fixed = True
                     size = UtilMgr.convStr2Num(memset[1])
-                    if size is None: return False
+                    if size is None: return repeat
                 else:
                     fixed = False
                     size = 32
@@ -40062,7 +40086,7 @@ struct cmsghdr {
                 # get address #
                 if UtilMgr.isNumber(addr):
                     addr = UtilMgr.convStr2Num(addr)
-                    if addr is None: return False
+                    if addr is None: return repeat
                 else:
                     SysMgr.printErr("wrong addr %s" % addr)
                     return repeat
@@ -40166,6 +40190,12 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     hexData = ''
+
+                # convert data format #
+                try:
+                    data = repr(data)
+                except:
+                    pass
 
                 output = "\n[%s] %s = %s%s" % (cmdstr, var, data, hexData)
                 SysMgr.addPrint(output)
@@ -43826,6 +43856,7 @@ struct cmsghdr {
         elapsed = ''
         etime = None
         isRetBp = False
+        cmds = None
         if sym.endswith(Debugger.RETSTR):
             # calculate elapsed time #
             try:
@@ -43862,6 +43893,10 @@ struct cmsghdr {
                         osym, hex(oaddr).rstrip('L'), ofname)
             else:
                 callString = ''
+
+            # check command #
+            if origSym in self.retCmdList:
+                cmds = self.retCmdList[origSym]
         else:
             isRetBp = False
 
@@ -43902,6 +43937,11 @@ struct cmsghdr {
                 self.bpList[addr]['cmd'] = \
                     self.executeCmd(
                         cmd, sym=sym, fname=fname, args=args)
+
+        # execute commands #
+        if cmds:
+            self.executeCmd(
+                cmds, origSym, fname, args)
 
         return isRetBp
 
@@ -45158,7 +45198,7 @@ struct cmsghdr {
 
 
 
-    def setRetBp(self, sym, fname):
+    def setRetBp(self, sym, fname, cmd=None):
         # get return position #
         try:
             pos = self.getBacktrace(1, cur=False)[0][0]
@@ -45178,6 +45218,10 @@ struct cmsghdr {
 
         # register function entry time #
         self.entryTime[sym] = self.current
+
+        # set command list #
+        if cmd:
+            self.retCmdList[sym] = cmd
 
         return True
 
