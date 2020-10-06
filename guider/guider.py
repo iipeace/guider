@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201005"
+__revision__ = "201006"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16691,7 +16691,7 @@ Commands:
     save     [VAR]
     setarg   [REG#VAR|VAL]
     setenv   [VAR:VAR|VAL]
-    setret   [VAL]
+    setret   [VAL:CMD]
     sleep    [SEC]
     start
     stop
@@ -16778,6 +16778,7 @@ Examples:
 
     - Handle write function calls as a return point for a specific value
         # {0:1} {1:1} -g a.out -c write\\|setret:3
+        # {0:1} {1:1} -g a.out -c write\\|setret:3:print
 
     - Handle write function calls as a argument modification point for 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c write\\|setarg:0#2:1#5
@@ -35226,6 +35227,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
+            SysMgr.printOpenWarn(path)
             return
 
         # add JSON stats #
@@ -35244,7 +35246,7 @@ Copyright:
         total = 0
         for item in gpuInfo:
             try:
-                comm, pid, size = item.split()[1:]
+                comm, pid, size = item.decode().split()[1:]
             except SystemExit:
                 sys.exit(0)
             except:
@@ -39585,7 +39587,7 @@ struct cmsghdr {
             elif cmd == 'getret':
                 cmdformat = "CMD"
             elif cmd == 'setret':
-                cmdformat = "VAL"
+                cmdformat = "VAL:CMD"
             elif cmd == 'getarg':
                 cmdformat = "REG:REG"
             elif cmd == 'setarg':
@@ -39735,8 +39737,14 @@ struct cmsghdr {
                 if len(cmdset) == 1:
                     printCmdErr(cmdval, cmd)
 
+                memset = cmdset[1].split(':', 1)
+                if len(memset) > 1:
+                    cmd = memset[1].split('$')
+                else:
+                    cmd = None
+
                 # inject the new breakpoint for return #
-                ret = self.setRetBp(sym, fname)
+                ret = self.setRetBp(sym, fname, cmd)
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
@@ -39745,7 +39753,7 @@ struct cmsghdr {
 
                 # register a return value #
                 newSym = '%s%s' % (sym, Debugger.RETSTR)
-                val = cmdset[1]
+                val = memset[0]
                 self.setRetList[newSym] = long(val)
 
                 SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
@@ -40003,7 +40011,9 @@ struct cmsghdr {
                     data = memset[1]
 
                     # args #
-                    if data.isdigit() and long(data) < len(args):
+                    if type(data) is long:
+                        pass
+                    elif data.isdigit() and long(data) < len(args):
                         data = args[long(data)]
                 else:
                     data = '1'
@@ -45175,16 +45185,16 @@ struct cmsghdr {
             # get return value #
             retval = self.getRetVal()
 
-            # save return vaue #
-            self.retList[sym] = long(retval)
-            self.prevReturn = str(retval)
-
             # check register set for repeat #
             origSym = sym.rstrip(Debugger.RETSTR)
             if origSym in self.regList:
                 newObj = self.regList.pop(origSym, None)
                 self.setRegs(newObj=newObj)
                 self.updateRegs()
+
+            # save return vaue #
+            self.retList[origSym] = long(retval)
+            self.prevReturn = str(retval)
 
             # remove breakpoint #
             ret = self.removeBp(addr, lock=True)
