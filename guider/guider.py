@@ -16623,10 +16623,12 @@ Examples:
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
     - Monitor status of {2:2} after setting hot commands in advance
-        # {0:1} {1:1} -c "guider utop -g PID"
+        # {0:1} {1:1} -c "{0:1} utop -g PID"
+        # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret"
 
     - Monitor status of {2:2} and execute specific commands for them
-        # {0:1} {1:1} -c "guider utop -g PID" -e E
+        # {0:1} {1:1} -c "{0:1} utop -g PID" -e E
+        # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
     - Monitor status of {2:2} after setting configuration from guider.conf
         # {0:1} {1:1} -C guider.conf
@@ -27155,6 +27157,58 @@ Copyright:
 
 
     @staticmethod
+    def executeCommandRes(cmd, stdout=1, stderr=True):
+        # create pipe #
+        rd, wr = os.pipe()
+
+        # set SIGPIPE handler #
+        SysMgr.setPipeHandler()
+
+        # create a new process #
+        pid = SysMgr.createProcess()
+
+        # parent #
+        if pid > 0:
+            os.close(wr)
+            rdFd = os.fdopen(rd)
+            output = []
+
+            while 1:
+                ret = rdFd.readline().rstrip('\n')
+                if not ret:
+                    break
+                output.append(ret)
+
+            return output
+
+        # child #
+        elif pid == 0:
+            # change standard I/O #
+            os.dup2(wr, stdout)
+            os.close(wr)
+            os.close(rd)
+
+            # close stderr #
+            if not stderr:
+                sys.stderr.close()
+
+            if type(cmd) is str:
+                cmd = cmd.split()
+
+            # execute #
+            SysMgr.executeProcess(cmd=cmd)
+
+            sys.exit(0)
+
+        # error #
+        else:
+            SysMgr.printErr(
+                "fail to execute %s because of fork failure" % cmd)
+            return -1
+
+
+
+    @staticmethod
     def waitChild(pid=None, hang=True):
         # wait for all childs #
         if not pid:
@@ -35252,11 +35306,14 @@ Copyright:
             except:
                 continue
 
-            # convert size #
+            # convert size to number #
             size = UtilMgr.convUnit2Size(size)
             if size == 0:
                 continue
-            total += size
+            else:
+                total += size
+
+            # reconvert size to unit #
             size = UtilMgr.convSize2Unit(size)
 
             proc = '%s(%s)' % (comm, pid)
