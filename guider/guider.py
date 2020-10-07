@@ -42582,6 +42582,12 @@ struct cmsghdr {
                 # toDo: handle double pointer values #
                 return value
 
+        if syscall == "ptrace" and argname == "request":
+            try:
+                return ConfigMgr.PTRACE_TYPE[value]
+            except:
+                return value
+
         if ref and argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
             addr = self.values[seq]
