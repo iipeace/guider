@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201006"
+__revision__ = "201007"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13044,19 +13044,7 @@ class LogMgr(object):
             self.error = False
         else:
             # backup #
-            try:
-                if os.path.isfile(target):
-                    backupFile = target + '.old'
-
-                    os.rename(target, backupFile)
-                    SysMgr.printInfo(
-                        'renamed %s to %s for backup' %
-                            (target, backupFile))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to backup %s to %s" % (target, backupFile), True)
+            SysMgr.backupFile(target)
 
             # open #
             try:
@@ -16018,6 +16006,28 @@ class SysMgr(object):
 
 
     @staticmethod
+    def backupFile(origFile):
+        if not os.path.isfile(origFile):
+            return
+
+        try:
+            newFile = '%s.old' % origFile
+
+            os.rename(origFile, newFile)
+
+            SysMgr.printInfo(
+                "renamed '%s' to '%s' for backup" % \
+                    (origFile, newFile))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to backup '%s' to '%s'" % \
+                    (origFile, newFile), True)
+
+
+
+    @staticmethod
     def convRealPath(flist):
         if UtilMgr.isString(flist):
             flist = [flist]
@@ -16800,6 +16810,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
+
+    - Print write function calls if the elapsed time exceed 0.0005 second
+        # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005
 
     - Print write function calls with specific conditions
         # {0:1} {1:1} -g a.out -c write\\|check:2:EQ:4096
@@ -21682,20 +21695,8 @@ Copyright:
         if not outputFile:
             outputFile = SysMgr.outputFile
 
-        # backup data file already exist #
-        try:
-            if os.path.isfile(outputFile):
-                backupFile = outputFile + '.old'
-
-                os.rename(outputFile, backupFile)
-                SysMgr.printInfo(
-                    'renamed %s to %s for backup' % (outputFile, backupFile))
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(
-                "fail to backup %s to %s" % \
-                    (outputFile, backupFile), True)
+        # backup file already exists #
+        SysMgr.backupFile(outputFile)
 
         # compress by gzip #
         if SysMgr.isRecordMode() and SysMgr.compressEnable:
@@ -21708,7 +21709,7 @@ Copyright:
             size += len(line)
 
         SysMgr.printInfo(
-            "wait for writing data to %s [%s] " % \
+            "wait for writing data to '%s' [%s]" % \
                 (outputFile, UtilMgr.convSize2Unit(size)))
 
         try:
@@ -22913,19 +22914,7 @@ Copyright:
                 os.path.normpath(SysMgr.inputFile)
 
             # backup an exist file #
-            if os.path.isfile(SysMgr.inputFile):
-                backupFile = '%s.old' % SysMgr.inputFile
-
-                try:
-                    os.rename(SysMgr.inputFile, backupFile)
-                    SysMgr.printInfo('renamed %s to %s for backup' % \
-                        (SysMgr.inputFile, backupFile))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "fail to backup %s to %s" % \
-                            (SysMgr.inputFile, backupFile), True)
+            SysMgr.backupFile(SysMgr.inputFile)
 
             # open file #
             try:
@@ -23129,7 +23118,13 @@ Copyright:
                 return
         else:
             sys.stdout.write(log)
-            sys.stdout.flush()
+            try:
+                sys.stdout.flush()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to flush stdout', reason=True)
 
 
 
@@ -24176,7 +24171,7 @@ Copyright:
 
             elif option == 'z':
                 SysMgr.parseAffinityOption(
-                    SsyMgr.cleanItem(value.split(',')))
+                    SysMgr.cleanItem(value.split(',')))
 
             elif option == 'f':
                 SysMgr.forceEnable = True
@@ -25940,18 +25935,7 @@ Copyright:
         reportPath = os.path.normpath(reportPath)
 
         # backup a exist output file #
-        if os.path.isfile(reportPath):
-            try:
-                backupFile = '%s.old' % reportPath
-                os.rename(reportPath, backupFile)
-                SysMgr.printInfo('renamed %s to %s for backup' % \
-                    (reportPath, backupFile))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to backup %s to %s" % \
-                        (reportPath, backupFile), True)
+        SysMgr.backupFile(reportPath)
 
         # open report file #
         try:
@@ -30093,17 +30077,7 @@ Copyright:
                 fname = os.path.join(pwd, fname)
 
         # backup previous output file already exists #
-        if os.path.exists(fname):
-            try:
-                oldpath = "%s.old" % fname
-                os.rename(fname, oldpath)
-                SysMgr.printInfo(
-                    "renamed %s to %s for backup" % (fname, oldpath))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to backup %s to %s" % (fname, oldpath), True)
+        SysMgr.backupFile(fname)
 
         # check signal on platform #
         try:
@@ -34702,7 +34676,8 @@ Copyright:
 
     def saveUserInfo(self):
         # check user data #
-        if len(self.userData) > 0:
+        if len(self.userData) > 0 or \
+            SysMgr.isAndroid:
             return
 
         try:
@@ -39056,6 +39031,7 @@ class Debugger(object):
         self.bpNewList = {}
         self.entryTime = {}
         self.retCmdList = {}
+        self.retFilterList = {}
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
@@ -39207,8 +39183,7 @@ struct cmsghdr {
                 self.comm = SysMgr.getComm(self.pid, cache=True)
 
             if attach:
-                ret = self.attach(verb=True)
-                if ret < 0:
+                if self.attach(verb=True) < 0:
                     sys.exit(0)
         # execute #
         elif self.execCmd:
@@ -39284,7 +39259,8 @@ struct cmsghdr {
 
         # load libraries in advance #
         dobj.loadSymbols()
-        dobj.attach()
+        if dobj.attach() < 0:
+            sys.exit(0)
 
         # register my instance #
         SysMgr.addExitFunc(Debugger.destroyDebugger, [dobj])
@@ -40039,7 +40015,7 @@ struct cmsghdr {
 
             elif cmd == 'check':
                 cmds = ':'.join(cmdset)
-                ret = self.checkFilterCond(cmds, args)
+                ret = self.checkFilterCond(cmds, args, sym, fname)
 
                 # broadcast event #
                 if ret:
@@ -40746,10 +40722,17 @@ struct cmsghdr {
             else:
                 try:
                     val = long(val, 16)
-                except:
-                    SysMgr.printErr(
-                        "fail to recognize %s as a number" % val, True)
+                except SystemExit:
                     sys.exit(0)
+                except:
+                    try:
+                        val = float(val)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "fail to recognize %s as a number" % val, True)
+                        sys.exit(0)
 
             cmds[3] = str(val)
             newCmds = ':'.join(cmds)
@@ -40920,7 +40903,7 @@ struct cmsghdr {
 
 
 
-    def checkFilterCond(self, filterCmd, args):
+    def checkFilterCond(self, filterCmd, args, sym=None, fname=None):
         def printErr(cmd):
             SysMgr.printErr(
                 "wrong command '%s', input in the format {%s:%s}" % \
@@ -40942,6 +40925,17 @@ struct cmsghdr {
             if len(memset) < 3:
                 printErr(cmd)
                 return False
+
+            # handle return filter #
+            if memset[0] == 'RET':
+                self.retFilterList[sym] = [memset, None]
+                ret = self.setRetBp(sym, fname, cmd)
+                if not ret:
+                    SysMgr.printErr((
+                        "fail to set breakpoint to "
+                        "return position for %s") % sym)
+                    return False
+                continue
 
             # convert args for previous return #
             memset = self.convRetArgs(memset)
@@ -43876,7 +43870,7 @@ struct cmsghdr {
 
         # check filter #
         filterCmd = self.bpList[addr]['filter']
-        if not self.checkFilterCond(filterCmd, args):
+        if not self.checkFilterCond(filterCmd, args, sym, fname):
             return
 
         # build arguments string #
@@ -43919,11 +43913,14 @@ struct cmsghdr {
             btstr = indent = ''
 
         # print return value #
+        origSym = sym
         retstr = ''
         elapsed = ''
+        callString = ''
         etime = None
-        isRetBp = False
         cmds = None
+        isRetBp = False
+        skip = False
         if sym.endswith(Debugger.RETSTR):
             # calculate elapsed time #
             try:
@@ -43933,11 +43930,53 @@ struct cmsghdr {
                         "no entry time of %s for %s(%s)" % \
                             (sym, self.comm, self.pid))
                     raise Exception('no entry time')
+
                 entry = self.entryTime[origSym]
                 etime = self.current - entry
                 elapsed = '/%.6f' % etime
+
                 self.entryTime.pop(origSym, None)
                 isRetBp = True
+
+                # check return filter #
+                if origSym in self.retFilterList:
+                    try:
+                        filters = self.retFilterList[origSym][0]
+                        op = filters[1]
+                        cond = float(filters[2])
+
+                        # compare values #
+                        if op.upper() == 'EQ':
+                            if etime != cond:
+                                skip = True
+                        elif op.upper() == 'DF':
+                            if etime == cond:
+                                skip = True
+                        elif op.upper() == 'BT':
+                            if etime <= cond:
+                                skip = True
+                        elif op.upper() == 'LT':
+                            if etime >= cond:
+                                skip = True
+                        else:
+                            SysMgr.printErr((
+                                "fail to recognize '%s' in return filter "
+                                "for %s for %s(%s)") % \
+                                    (op, origSym, self.comm, self.pid))
+                            sys.exit(0)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "fail to check return filter for %s for %s(%s)" % \
+                                (origSym, self.comm, self.pid))
+
+                    # append entry info #
+                    if not skip and self.retFilterList[origSym][1]:
+                        callString += self.retFilterList[origSym][1]
+
+                    # remove return filter #
+                    self.retFilterList.pop(origSym, None)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -43947,19 +43986,18 @@ struct cmsghdr {
             if elapsed:
                 retstr = self.handleRetBp(sym, fname, addr)
 
-                # update symbol #
-                syminfo = self.getSymbolInfo(addr)
-                if syminfo:
-                    osym = syminfo[0]
-                    ofname = syminfo[1]
-                    oaddr = syminfo[3]
+                if not skip:
+                    # update symbol #
+                    syminfo = self.getSymbolInfo(addr)
+                    if syminfo:
+                        osym = syminfo[0]
+                        ofname = syminfo[1]
+                        oaddr = syminfo[3]
 
-                # build context string #
-                callString = '\n%s %s%s%s%s%s -> %s/%s [%s]' % \
-                    (diffstr, tinfo, indent, sym, retstr, elapsed,
-                        osym, hex(oaddr).rstrip('L'), ofname)
-            else:
-                callString = ''
+                    # build context string #
+                    callString += '\n%s %s%s%s%s%s -> %s/%s [%s]' % \
+                        (diffstr, tinfo, indent, sym, retstr, elapsed,
+                            osym, hex(oaddr).rstrip('L'), ofname)
 
             # check command #
             if origSym in self.retCmdList:
@@ -43977,8 +44015,11 @@ struct cmsghdr {
             if btstr:
                 callString = '%s%s' % (btstr, callString)
 
+            # add entry log to return filter #
+            if sym in self.retFilterList:
+                self.retFilterList[sym][1] = callString
             # file output #
-            if SysMgr.outPath:
+            elif SysMgr.outPath:
                 self.addSample(
                     sym, fname, realtime=True, elapsed=etime)
 
@@ -43991,7 +44032,7 @@ struct cmsghdr {
                     sys.stdout.write(callString)
             # console output #
             else:
-                SysMgr.printPipe(callString, newline=False)
+                SysMgr.printPipe(callString, newline=False, flush=True)
 
             # handle repeat command #
             if isRetBp and origPC != self.pc:
@@ -44007,8 +44048,7 @@ struct cmsghdr {
 
         # execute commands #
         if cmds:
-            self.executeCmd(
-                cmds, origSym, fname, args)
+            self.executeCmd(cmds, origSym, fname, args)
 
         return isRetBp
 
@@ -44174,6 +44214,11 @@ struct cmsghdr {
                     self.handleBp(printStat=SysMgr.printEnable)
                     break
                 except SystemExit:
+                    sys.exit(0)
+                except IOError:
+                    SysMgr.printWarn(
+                        "fail to handle breakpoint for %s(%s)" % \
+                            (self.comm, self.pid), True, reason=True)
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
@@ -45634,7 +45679,8 @@ struct cmsghdr {
 
             # check attach status #
             if not self.attached:
-                self.attach(verb=True)
+                if self.attach(verb=True) < 0:
+                    sys.exit(0)
 
             ret = self.ptraceEvent(self.traceEventList)
 
@@ -45790,6 +45836,10 @@ struct cmsghdr {
         # terminate immediately to avoid memory increase due to COW by GC #
         if tgid != instance.pid:
             Debugger.printSummary(instance)
+
+            # release all resources #
+            SysMgr.releaseResource()
+
             os._exit(0)
 
 
@@ -45835,6 +45885,8 @@ struct cmsghdr {
         SysMgr.printInfo(
             "start analyzing calls...")
 
+        nrTotal = float(len(instance.callList))
+
         # iterate the list of call samples #
         for idx, item in enumerate(instance.callList):
             try:
@@ -45843,6 +45895,7 @@ struct cmsghdr {
                 # skip breakpoints for return #
                 if instance.mode == 'break' and \
                     symbol.endswith(Debugger.RETSTR):
+                    nrTotal -= 1
                     continue
 
                 # convert anonymous call to filename #
@@ -45896,7 +45949,6 @@ struct cmsghdr {
 
         # print call table #
         convert = UtilMgr.convNum
-        nrTotal = float(len(instance.callList))
         try:
             elapsed = instance.callList[-1][1] - instance.start
         except:
@@ -54446,12 +54498,14 @@ class ThreadAnalyzer(object):
                 os.rename(outputFile, oldPath)
 
                 SysMgr.printInfo(
-                    "renamed '%s' to '%s' for backup" % (outputFile, oldPath))
+                    "renamed '%s' to '%s' for backup" % \
+                        (outputFile, oldPath))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to backup '%s' to '%s'" % (outputFile, oldPath), True)
+                "fail to backup '%s' to '%s'" % \
+                    (outputFile, oldPath), True)
 
         # get pylab object #
         SysMgr.importPkgItems('pylab')
