@@ -16681,12 +16681,12 @@ Examples:
                 brkExamStr = '''
 Commands:
     acc      [NAME:VAR|REG|VAL]
+    check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     dist     [NAME:VAR|REG|VAL]
     dump     [NAME|ADDR:FILE]
     exec     [CMD]
     exit
     filter   [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
-    check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     getarg   [REGS]
     getenv   [VAR]
     getret   [CMD]
@@ -16694,6 +16694,7 @@ Commands:
     kill
     load     [PATH]
     log      [MESSAGE]
+    map
     print
     pyfile   [PATH:SYNC]
     pystr    [CODE:SYNC]
@@ -39647,6 +39648,8 @@ struct cmsghdr {
                 cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
                 cmdformat = ""
+            elif cmd == 'map':
+                cmdformat = ""
             elif cmd == 'stop':
                 cmdformat = ""
             elif cmd == 'setenv':
@@ -39699,6 +39702,10 @@ struct cmsghdr {
 
                     SysMgr.addPrint(
                         "\n[%s] %s = %s" % (cmdstr, var, data))
+
+            elif cmd == 'map':
+                PageAnalyzer.printMemoryArea(
+                    self.pid, comm=self.comm, lastLine=True)
 
             elif cmd == 'exec':
                 if len(cmdset) == 1:
