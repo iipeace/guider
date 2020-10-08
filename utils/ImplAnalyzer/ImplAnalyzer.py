@@ -105,10 +105,10 @@ class ImplAnalyzer(object):
         parser = argparse.ArgumentParser(description='made by Peace Lee')
         parser.add_argument('--headerpath', required=False, help='path for headers')
         parser.add_argument('--binpath', required=False, help='path for binaries')
-        parser.add_argument('--headerapi', required=False, help='api for headers')
-        parser.add_argument('--binapi', required=False, help='api for binaries')
+        parser.add_argument('--headerapi', required=False, help='API for headers')
+        parser.add_argument('--binapi', required=False, help='API for binaries')
         parser.add_argument('--exceptpath', required=False, help='path for exception')
-        parser.add_argument('--exceptapi', required=False, help='api for exception')
+        parser.add_argument('--exceptapi', required=False, help='API for exception')
         parser.add_argument('--out', required=False, help='path for output')
         parser.add_argument('--filter', required=False, help='filter')
         parser.add_argument('--verbose', required=False, help='verbose')
@@ -726,29 +726,32 @@ class ImplAnalyzer(object):
 
     @staticmethod
     def getHeaderList(args):
-        hfiles = list()
-
         headerlist = args['headerpath']
+        hfiles = list()
         if headerlist:
             if type(headerlist) is str:
                 headerlist = headerlist.split(',')
 
             for header in headerlist:
-                if os.path.isdir(header):
-                    tmplist = SysMgr.getFileList(header.strip())
-                    tmplist = ImplAnalyzer.filterFileList(tmplist)
-                    hfiles += tmplist
-                elif os.path.isfile(header):
-                    hfiles.append(header.strip())
+                items = UtilMgr.convPath(header)
+                for header in items:
+                    if os.path.isdir(header):
+                        tmplist = SysMgr.getFileList(header.strip())
+                        tmplist = ImplAnalyzer.filterFileList(tmplist)
+                        hfiles += tmplist
+                    elif os.path.isfile(header):
+                        hfiles.append(header.strip())
 
         exceptpath = args['exceptpath']
         exceptlist = list()
         for hfile in hfiles:
             hfilename = os.path.basename(hfile)
             for epath in exceptpath:
-                if hfile.startswith(epath) or \
-                    hfilename == epath:
-                    exceptlist.append(hfile)
+                items = UtilMgr.convPath(epath)
+                for epath in items:
+                    if hfile.startswith(epath) or \
+                        hfilename == epath:
+                        exceptlist.append(hfile)
 
         return list(set(hfiles) - set(exceptlist))
 
@@ -756,27 +759,30 @@ class ImplAnalyzer(object):
 
     @staticmethod
     def getBinList(args):
-        bfiles = list()
-
         binlist = args['binpath']
+        bfiles = list()
         if binlist:
             if type(binlist) is str:
                 binlist = binlist.split(',')
 
             for binary in binlist:
-                if os.path.isdir(binary):
-                    bfiles += SysMgr.getFileList(binary.strip())
-                elif os.path.isfile(binary):
-                    bfiles.append(binary.strip())
+                items = UtilMgr.convPath(binary)
+                for binary in items:
+                    if os.path.isdir(binary):
+                        bfiles += SysMgr.getFileList(binary.strip())
+                    elif os.path.isfile(binary):
+                        bfiles.append(binary.strip())
 
         exceptpath = args['exceptpath']
         exceptlist = list()
         for bfile in bfiles:
             bfilename = os.path.basename(bfile)
             for epath in exceptpath:
-                if bfile.startswith(epath) or \
-                    bfilename == epath:
-                    exceptlist.append(bfile)
+                items = UtilMgr.convPath(epath)
+                for epath in items:
+                    if bfile.startswith(epath) or \
+                        bfilename == epath:
+                        exceptlist.append(bfile)
 
         return list(set(bfiles) - set(exceptlist))
 
@@ -820,11 +826,12 @@ class ImplAnalyzer(object):
         hmethods = {}
         bmethods = {}
 
+        # get header files #
         hfiles = ImplAnalyzer.getHeaderList(args)
         if len(hfiles) == 0:
             SysMgr.printErr('No header file')
         for idx, filename in enumerate(hfiles):
-            SysMgr.printStat('start parsing %s...' % filename)
+            SysMgr.printStat("start parsing '%s'..." % filename)
             ret = ImplAnalyzer.getMethodsFromHeader(\
                 filename, ImplAnalyzer.targetNm, \
                 args['exceptapi'] + ImplAnalyzer.skipHeaderList, exType=exType)
@@ -847,6 +854,7 @@ class ImplAnalyzer(object):
                 'template': '??',
             }
 
+        # get binary files #
         bfiles = ImplAnalyzer.getBinList(args)
         for idx, filename in enumerate(bfiles):
             SysMgr.printStat('start analyzing %s...' % filename)
@@ -923,7 +931,7 @@ class ImplAnalyzer(object):
             return variable[name]
 
         if not configData:
-            return headerlist, binlist
+            return args
 
         args['headerpath'] = getData(configData, args, 'headerpath')
         args['binpath'] = getData(configData, args, 'binpath')

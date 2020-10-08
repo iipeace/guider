@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201007"
+__revision__ = "201008"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3722,7 +3722,7 @@ class UtilMgr(object):
                 break
 
             # apply regular expression for path #
-            ilist = UtilMgr.convPath(item, retStr=False)
+            ilist = UtilMgr.convPath(item)
             if UtilMgr.isString(ilist):
                 rlist.append(ilist)
             elif type(ilist) is list:
@@ -3954,10 +3954,10 @@ class UtilMgr(object):
         if verbose:
             if retfd:
                 SysMgr.printStat(
-                    r"start checking %s..." % fname)
+                    r"start checking '%s'..." % fname)
             else:
                 SysMgr.printStat(
-                    r"start loading %s..." % fname)
+                    r"start loading '%s'..." % fname)
 
         # open a file #
         try:
@@ -4008,7 +4008,20 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convPath(value, retStr=True, isExit=False, separator=' '):
+    def convPathList(value, isExit=False):
+        if type(value) is not list:
+            return value
+
+        flist = list()
+        for item in value:
+            flist += UtilMgr.convPath(item, isExit=isExit)
+
+        return flist
+
+
+
+    @staticmethod
+    def convPath(value, retStr=False, isExit=False, separator=' '):
         glob = SysMgr.getPkg('glob', False)
         if glob:
             res = glob.glob(value)
@@ -11665,7 +11678,7 @@ class LeakAnalyzer(object):
         # Open log file #
         try:
             SysMgr.printInfo(
-                "start loading %s [%s]" % (file, size))
+                "start loading '%s' [%s]" % (file, size))
 
             fd = open(file, 'r')
         except SystemExit:
@@ -14232,7 +14245,7 @@ class SysMgr(object):
         SysMgr.ignoreWarn()
 
         # apply regular expression for first path #
-        flist = UtilMgr.convPath(sys.argv[2], retStr=False)
+        flist = UtilMgr.convPath(sys.argv[2])
         if type(flist) is list and \
             len(flist) > 0:
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
@@ -30004,10 +30017,26 @@ Copyright:
         else:
             libPath = SysMgr.getOption('T')
             if libPath:
-                libPath = os.path.abspath(libPath)
+                # handle special characters in path #
+                newPath = UtilMgr.convPath(libPath)
+                if not newPath:
+                    SysMgr.printErr(
+                        "wrong path '%s'" % libPath)
+                    sys.exit(0)
+                elif len(newPath) > 1:
+                    SysMgr.printErr(
+                        "found multiple libraries [ %s ]" % \
+                            ', '.join(newPath))
+                    sys.exit(0)
+
+                # convert to absolute path #
+                libPath = os.path.abspath(newPath[0])
+
                 remoteCmd.append('load:%s' % libPath)
+
                 for item in hookList:
                     hookCmd.append('%s#%s#%s' % (item, libPath, item))
+
                 SysMgr.printStat(
                     "%s is going to be injected automatically" % libPath)
             elif not 'LD_PRELOAD' in envList or \
@@ -38527,7 +38556,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
-                ret = UtilMgr.convPath(item, retStr=False)
+                ret = UtilMgr.convPath(item)
                 flist += ret
             flist = list(set(flist))
 
@@ -49868,11 +49897,12 @@ class ThreadAnalyzer(object):
             else:
                 return '(%s' % ''.join(namelist[:-1])
 
+        flist = UtilMgr.convPathList(flist)
         flist = UtilMgr.getFileList(flist)
         if len(flist) < 2:
             SysMgr.printErr(
                 "fail to get file list to diff, "
-                "input at least two effective file paths")
+                "input at least more than one effective path")
             sys.exit(0)
 
         # define variable and table #
@@ -59555,7 +59585,7 @@ class ThreadAnalyzer(object):
                 if compressor and fd:
                     if verbose:
                         SysMgr.printStat(
-                            r"start checking %s..." % fname)
+                            r"start checking '%s'..." % fname)
                 else:
                     try:
                         fd = UtilMgr.getTextLines(fname, verbose, retfd=True)
