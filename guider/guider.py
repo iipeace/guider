@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201008"
+__revision__ = "201009"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3589,7 +3589,8 @@ class UtilMgr(object):
 
     @staticmethod
     def getSigList():
-        sigList = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
+        sigList = dict(
+            (k, v) for v, k in reversed(sorted(signal.__dict__.items()))
             if v.startswith('SIG') and not v.startswith('SIG_'))
         return sigList
 
@@ -3860,6 +3861,45 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return value
+
+
+
+    @staticmethod
+    def readStreamLEB128(obj):
+        cnt = 1
+        for b in obj:
+            if ord(b) < 0x80:
+                return obj[:cnt], cnt
+            cnt += 1
+
+        return obj, cnt
+
+
+
+    @staticmethod
+    def decodeSLEB128(obj):
+        value = 0
+        for b in reversed(obj):
+            value = (value << 7) + (ord(b) & 0x7F)
+        if ord(obj[-1]) & 0x40:
+            # negative -> sign extend
+            value |= - (1 << (7 * len(obj)))
+        return value
+
+
+
+    @staticmethod
+    def decodeULEB128(obj):
+	value = 0
+	for b in reversed(obj):
+	    value = (value << 7) + (ord(b) & 0x7F)
+	return value
+
+
+
+    @staticmethod
+    def conv2BitStr(content):
+        return bin(content)
 
 
 
@@ -48576,7 +48616,8 @@ class ElfAnalyzer(object):
     def __init__(
         self, path=None, debug=False, onlyHeader=False,
         fd=None, size=sys.maxsize, incArg=False):
-        # define struct Elf32_Ehdr #
+
+        # structures #
         '''
         #define EI_NIDENT 16
 
@@ -48859,7 +48900,98 @@ class ElfAnalyzer(object):
                                                    entry */
         } Elf64_Vernaux;
 
+	/* This holds instructions for unwinding frame at a particular PC location
+	   described by an FDE.  */
+	typedef struct
+	{
+	  /* This frame description covers PC values in [start, end).  */
+	  Dwarf_Addr start;
+	  Dwarf_Addr end;
 
+	  Dwarf_CFI *cache;
+
+	  /* Previous state saved by DW_CFA_remember_state, or .cie->initial_state,
+	     or NULL in an initial_state pseudo-frame.  */
+	  Dwarf_Frame *prev;
+
+	  /* The FDE that generated this frame state.  This points to its CIE,
+	     which has the return_address_register and signal_frame flag.  */
+	  struct dwarf_fde *fde;
+
+	  /* The CFA is unknown, is R+N, or is computed by a DWARF expression.
+	     A bogon in the CFI can indicate an invalid/incalculable rule.
+	     We store that as cfa_invalid rather than barfing when processing it,
+	     so callers can ignore the bogon unless they really need that CFA.  */
+	  enum { cfa_undefined, cfa_offset, cfa_expr, cfa_invalid } cfa_rule;
+	  union
+	  {
+	    Dwarf_Op offset;
+	    Dwarf_Block expr;
+	  } cfa_data;
+	  /* We store an offset rule as a DW_OP_bregx operation.  */
+	#define cfa_val_reg cfa_data.offset.number
+	#define cfa_val_offset  cfa_data.offset.number2
+
+	  size_t nregs;
+	  struct dwarf_frame_register regs[];
+	} Dwarf_Frame;
+
+	typedef GElf_Off Dwarf_Off;
+	typedef Elf64_Off GElf_Off;
+
+	typedef Elf64_Xword GElf_Xword;
+	typedef uint64_t Elf64_Xword;
+
+	typedef Elf64_Sxword GElf_Sxword;
+	typedef int64_t  Elf64_Sxword;
+
+        /* This describes one Common Information Entry read from a CFI section.
+           Pointers here point into the DATA->d_buf block passed to dwarf_next_cfi.  */
+        typedef struct
+        {
+          Dwarf_Off CIE_id;  /* Always DW_CIE_ID_64 in Dwarf_CIE structures.  */
+
+          /* Instruction stream describing initial state used by FDEs.  If
+             we did not understand the whole augmentation string and it did
+             not use 'z', then there might be more augmentation data here
+             (and in FDEs) before the actual instructions.  */
+          const uint8_t *initial_instructions;
+          const uint8_t *initial_instructions_end;
+
+          Dwarf_Word code_alignment_factor;
+          Dwarf_Sword data_alignment_factor;
+          Dwarf_Word return_address_register;
+
+          const char *augmentation; /* Augmentation string.  */
+
+          /* Augmentation data, might be NULL.  The size is correct only if
+             we understood the augmentation string sufficiently.  */
+          const uint8_t *augmentation_data;
+          size_t augmentation_data_size;
+          size_t fde_augmentation_data_size;
+        } Dwarf_CIE;
+
+        /* This describes one Frame Description Entry read from a CFI section.
+           Pointers here point into the DATA->d_buf block passed to dwarf_next_cfi.  */
+        typedef struct
+        {
+          /* Section offset of CIE this FDE refers to.  This will never be
+             DW_CIE_ID_64 in an FDE.  If this value is DW_CIE_ID_64, this is
+             actually a Dwarf_CIE structure.  */
+          Dwarf_Off CIE_pointer;
+
+          /* We can't really decode anything further without looking up the CIE
+             and checking its augmentation string.  Here follows the encoded
+             initial_location and address_range, then any augmentation data,
+             then the instruction stream.  This FDE describes PC locations in
+             the byte range [initial_location, initial_location+address_range).
+             When the CIE augmentation string uses 'z', the augmentation data is
+             a DW_FORM_block (self-sized).  Otherwise, when we understand the
+             augmentation string completely, fde_augmentation_data_size gives
+             the number of bytes of augmentation data before the instructions.  */
+          const uint8_t *start;
+          const uint8_t *end;
+        } Dwarf_FDE;
         '''
 
         # define attributes #
@@ -49234,6 +49366,10 @@ Section header string table index: %d
                 e_shdynstr = i
             elif symbol == '.dynamic':
                 e_shdynamic = i
+            elif symbol == '.eh_frame':
+                e_shehframe = i
+            elif symbol == '.eh_frame_hdr':
+                e_shehframehdr = i
             elif stype == 'GNU_versym':
                 e_shversym = i
             elif stype == 'GNU_verdef':
@@ -49709,6 +49845,44 @@ Section header string table index: %d
 
             if debug:
                 SysMgr.printPipe(oneLine)
+
+        # check .eh_frame section #
+        if False and e_shehframe >= 0:
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
+
+            fd.seek(sh_offset)
+
+            # length #
+            size = struct.unpack('I', fd.read(4))[0]
+
+            # data #
+            table = fd.read(size)
+
+            # CIE ID and version #
+            cid, ver = struct.unpack('IB', table[:5])
+            arg = self.getString(table, 5)
+            pos = 5 + len(arg) + 1
+
+            # Call Alignment Factor #
+            val, = struct.unpack('B', table[pos:pos+1])
+            caf = UtilMgr.decodeULEB128(table[pos:pos+1])
+            pos += 1
+
+            # Data Alignment Factor #
+            val, = struct.unpack('b', table[pos:pos+1])
+            daf = UtilMgr.decodeSLEB128(table[pos:pos+1])
+            pos += 1
+
+            # Return Address Register #
+            val, = struct.unpack('B', table[pos:pos+1])
+            rar = UtilMgr.decodeULEB128(table[pos:pos+1])
+            pos += 1
+
+        # check .eh_frame_hdr section #
+        if e_shehframehdr >= 0:
+            pass
 
         # check dynamic section #
         if e_shdynamic < 0:
