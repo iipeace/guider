@@ -1,0 +1,7 @@
+.venv
+venv
+
+.idea
+.idea/*
+
+__pychache__
