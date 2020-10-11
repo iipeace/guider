@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201009"
+__revision__ = "201011"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3890,10 +3890,10 @@ class UtilMgr(object):
 
     @staticmethod
     def decodeULEB128(obj):
-	value = 0
-	for b in reversed(obj):
-	    value = (value << 7) + (ord(b) & 0x7F)
-	return value
+        value = 0
+        for b in reversed(obj):
+            value = (value << 7) + (ord(b) & 0x7F)
+        return value
 
 
 
@@ -13703,6 +13703,7 @@ class SysMgr(object):
     boundaryLine = None
     demangleEnable = True
     compressEnable = True
+    generalInfoEnable = True
     nrTop = None
     pipeForPager = None
     printFd = None
@@ -14224,20 +14225,20 @@ class SysMgr(object):
     @staticmethod
     def setRecordAttr():
         # function #
-        if SysMgr.isFuncRecordMode():
+        if SysMgr.isFuncRecMode():
             SysMgr.functionEnable = True
 
         # file #
-        elif SysMgr.isFileRecordMode():
+        elif SysMgr.isFileRecMode():
             SysMgr.fileEnable = True
 
         # syscall #
-        elif SysMgr.isSyscallRecordMode():
+        elif SysMgr.isSysRecMode():
             SysMgr.sysEnable = True
             SysMgr.cpuEnable = False
 
         # general #
-        elif SysMgr.isGeneralRecordMode():
+        elif SysMgr.isGenRecMode():
             SysMgr.systemEnable = True
 
         # update record status #
@@ -16591,8 +16592,9 @@ Options:
             x:fixedList | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage | b:buffer
-            c:cpu | C:clone | e:encode | E:exec | G:gpu
-            L:log | p:print | t:truncate | T:task
+            c:cpu | C:clone | e:encode | E:exec
+            g:generalInfo | G:gpu | L:log | p:print
+            t:truncate | T:task
                                     '''
 
                 drawSubStr = '''
@@ -16964,7 +16966,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # function record #
-                if SysMgr.isFuncRecordMode():
+                if SysMgr.isFuncRecMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -16981,7 +16983,7 @@ Options:
           h:heap | L:lock | m:memory | p:pipe
     -d  <CHARACTER>             disable options
           a:all | c:cpu | C:compress | e:encode
-          l:latency | L:log | u:user
+          g:generalInfo | l:latency | L:log | u:user
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -17070,7 +17072,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # file record #
-                elif SysMgr.isFileRecordMode():
+                elif SysMgr.isFileRecMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -17084,7 +17086,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          e:encode | g:genearlInfo
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W                          wait for input
@@ -17109,7 +17111,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # syscall record #
-                elif SysMgr.isSyscallRecordMode():
+                elif SysMgr.isSysRecMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -17123,7 +17125,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          e:encode | g:genearlInfo
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -b  <SIZE:KB>               set buffer size
@@ -17162,7 +17164,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          e:encode | g:genearlInfo
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
@@ -17182,7 +17184,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # general record #
-                elif SysMgr.isGeneralRecordMode():
+                elif SysMgr.isGenRecMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -17196,7 +17198,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          e:encode
+          e:encode | g:genearlInfo
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W                          wait for input
@@ -17215,7 +17217,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # thread record #
-                elif SysMgr.isThreadRecordMode():
+                elif SysMgr.isThreadRecMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -17233,6 +17235,7 @@ Options:
             p:pipe | r:reset | P:power
     -d  <CHARACTER>             disable options
             a:all | c:cpu | C:compress | e:encode
+            g:generalInfo
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -17740,10 +17743,6 @@ Description:
 
                     helpStr += '''
 Options:
-    -e  <CHARACTER>             enable options
-          p:pipe | e:encode
-    -d  <CHARACTER>             disable options
-          e:encode
     -I  <FILE>                  set file path
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -17768,10 +17767,6 @@ Description:
 
                     helpStr += '''
 Options:
-    -e  <CHARACTER>             enable options
-          p:pipe | e:encode
-    -d  <CHARACTER>             disable options
-          e:encode
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID>              set filter
@@ -17812,7 +17807,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec
+          C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17865,7 +17860,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec
+          C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -17921,7 +17916,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec
+          C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set file
@@ -18009,7 +18004,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec
+          C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
     -g  <COMM|TID{:FILE}>       set filter
     -I  <COMMAND>               set command
@@ -18045,10 +18040,6 @@ Description:
 
                     helpStr += '''
 Options:
-    -e  <CHARACTER>             enable options
-          e:encode
-    -d  <CHARACTER>             disable options
-          e:encode
     -g  <COMM|TID{:FILE}>       set filter
     -o  <DIR|FILE>              save output data
     -I  <ADDR>                  set address area
@@ -23523,9 +23514,9 @@ Copyright:
             os.path.normpath(SysMgr.outputFile)
 
         # support no-report record mode #
-        if SysMgr.isFileRecordMode() or \
+        if SysMgr.isFileRecMode() or \
             SysMgr.findOption('F') or \
-            SysMgr.isGeneralRecordMode() or \
+            SysMgr.isGenRecMode() or \
             SysMgr.findOption('y'):
             if SysMgr.outputFile.endswith('.dat'):
                 SysMgr.outPath = '%s.out' % \
@@ -23739,6 +23730,9 @@ Copyright:
 
                 if 'T' in options:
                     SysMgr.taskEnable = False
+
+                if 'g' in options:
+                    SysMgr.generalInfoEnable = False
 
             elif option == 'G':
                 itemList = UtilMgr.splitString(value)
@@ -24476,6 +24470,9 @@ Copyright:
                 if 'C' in options:
                     SysMgr.compressEnable = False
 
+                if 'g' in options:
+                    SysMgr.generalInfoEnable = False
+
             # Ignore options #
             elif SysMgr.isEffectiveOption(option):
                 continue
@@ -24537,11 +24534,11 @@ Copyright:
 
     @staticmethod
     def isRecordMode():
-        if SysMgr.isThreadRecordMode() or \
-            SysMgr.isFuncRecordMode() or \
-            SysMgr.isFileRecordMode() or \
-            SysMgr.isSyscallRecordMode() or \
-            SysMgr.isGeneralRecordMode():
+        if SysMgr.isThreadRecMode() or \
+            SysMgr.isFuncRecMode() or \
+            SysMgr.isFileRecMode() or \
+            SysMgr.isSysRecMode() or \
+            SysMgr.isGenRecMode():
             return True
         else:
             return False
@@ -24549,7 +24546,7 @@ Copyright:
 
 
     @staticmethod
-    def isThreadRecordMode():
+    def isThreadRecMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'record' or sys.argv[1] == 'rec'):
             return True
@@ -24559,7 +24556,7 @@ Copyright:
 
 
     @staticmethod
-    def isFuncRecordMode():
+    def isFuncRecMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'funcrecord' or sys.argv[1] == 'funcrec'):
             return True
@@ -24569,7 +24566,7 @@ Copyright:
 
 
     @staticmethod
-    def isFileRecordMode():
+    def isFileRecMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'filerecord' or sys.argv[1] == 'filerec'):
             return True
@@ -24579,7 +24576,7 @@ Copyright:
 
 
     @staticmethod
-    def isSyscallRecordMode():
+    def isSysRecMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'sysrecord' or sys.argv[1] == 'sysrec'):
             return True
@@ -24589,7 +24586,7 @@ Copyright:
 
 
     @staticmethod
-    def isGeneralRecordMode():
+    def isGenRecMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'genrecord' or sys.argv[1] == 'genrec'):
             return True
@@ -33881,6 +33878,9 @@ Copyright:
 
 
     def printResourceInfo(self):
+        if not SysMgr.generalInfoEnable:
+            return
+
         self.printSystemInfo()
 
         self.printOSInfo()
