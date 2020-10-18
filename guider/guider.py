@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201013"
+__revision__ = "201018"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3628,6 +3628,12 @@ class UtilMgr(object):
         math = SysMgr.getPkg('math')
         std_dev = math.sqrt(var)
         return std_dev
+
+
+
+    @staticmethod
+    def getRealTime():
+        return time.asctime(time.gmtime(time.time()))
 
 
 
@@ -16316,6 +16322,7 @@ class SysMgr(object):
                 not SysMgr.isTopSumMode() and \
                 not SysMgr.isPrintDirMode() and \
                 not SysMgr.isReportMode() and \
+                not SysMgr.isExecMode() and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -16466,6 +16473,7 @@ class SysMgr(object):
             'util': {
                 'addr2sym': 'Symbol',
                 'dump': 'Memory',
+                'exec': 'Command',
                 'getafnt': 'Affinity',
                 'hook': 'Function',
                 'kill/tkill': 'Signal',
@@ -18529,6 +18537,30 @@ Examples:
 
     - Print system cgroup tree with the name of processes
         # {0:1} {1:1} -a
+                    '''.format(cmd, mode)
+
+                # exec #
+                elif SysMgr.isExecMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Execute a command with various condition
+
+Options:
+    -v                          verbose
+    -I  <COMMAND>               set commands
+    -c  <VARIABLE>              set variables
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Execute a command
+        # {0:1} {1:1} -I "ls -lha"
+
+    - Execute commands with range variables
+        # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
                     '''.format(cmd, mode)
 
                 # printdir #
@@ -24500,18 +24532,22 @@ Copyright:
 
     @staticmethod
     def makeKerSymTable(symbol):
-        restPath = '%s/sys/kernel/kptr_restrict' % SysMgr.procPath
         try:
+            restPath = '%s/sys/kernel/kptr_restrict' % SysMgr.procPath
             with open(restPath, 'w+') as fd:
                 fd.write('0')
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
-        symPath = '%s/kallsyms' % SysMgr.procPath
         try:
+            symPath = '%s/kallsyms' % SysMgr.procPath
             f = open(symPath, 'r')
         except IOError:
             SysMgr.printOpenWarn(symPath)
+        except SystemExit:
+            sys.exit(0)
 
         ret = None
         startPos = len(SysMgr.kerSymTable)
@@ -24755,6 +24791,15 @@ Copyright:
     @staticmethod
     def isUtraceMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'utrace':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isExecMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'exec':
             return True
         else:
             return False
@@ -25459,6 +25504,10 @@ Copyright:
             SysMgr.printStreamEnable = True
 
             SysMgr.doMemTest()
+
+        # EXEC MODE #
+        elif SysMgr.isExecMode():
+            SysMgr.doExec()
 
         # SETCPU MODE #
         elif SysMgr.isSetCpuMode():
@@ -30896,6 +30945,97 @@ Copyright:
                 cuda.cuCtxDetach(context)
 
         return gpuInfo
+
+
+
+    @staticmethod
+    def doExec():
+        def customRange(start, end, step):
+            r = start
+            while r < end:
+                yield r
+                r += step
+
+        def exeCmd(cmd):
+            # get subprocess object #
+            subprocess = SysMgr.getPkg('subprocess')
+
+            startTime = time.time()
+
+            SysMgr.printInfo("executed '%s'" % cmd)
+
+            # create process to communicate #
+            procObj = subprocess.Popen(
+                cmd, shell=True, bufsize=0)
+
+            # run mainloop #
+            try:
+                procObj.wait()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                duration = time.time() - startTime
+                SysMgr.printErr(
+                    "fail to wait termination for '%s'" % cmd, True)
+                sys.exit(0)
+
+            duration = time.time() - startTime
+            SysMgr.printInfo(
+                "terminated '%s' and elapsed %s" % (cmd, duration))
+
+        def iterExeCmd(cmd, var):
+            if not var:
+                exeCmd(cmd)
+                return
+
+            # pop a variable #
+            conv = var.pop(0)
+            item = conv.split(':')
+            if len(item) != 4:
+                SysMgr.printErr("wrong iterator '%s'" % conv)
+                sys.exit(0)
+
+            # split variables #
+            key, start, end, step = item
+
+            # convert type #
+            if '.' in step:
+                step = float(step)
+                start = float(start)
+                end = float(end)
+            else:
+                step = long(step)
+                start = long(start)
+                end = long(end)
+
+            # loop in range #
+            for num in customRange(start, end, step):
+                if type(num) is float:
+                    num = round(num, 6)
+
+                tcmd = cmd.replace(key, str(num))
+
+                try:
+                    iterExeCmd(tcmd, list(var))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to execute '%s'" % tcmd, True)
+                    sys.exit(0)
+
+        if SysMgr.inputParam is None:
+            SysMgr.printErr(
+                "no command with -I option")
+            sys.exit(0)
+        else:
+            cmd = SysMgr.inputParam
+
+        # convert variables #
+        if SysMgr.customCmd:
+            iterExeCmd(cmd, SysMgr.customCmd)
+        else:
+            exeCmd(cmd)
 
 
 
@@ -46973,188 +47113,6 @@ class MemoryFile(object):
 
 
 
-class DwarfAnalyzer(object):
-    '''
-    python elftools constants
-    refer to https://github.com/eliben/pyelftools
-    '''
-
-    # Inline codes #
-    DW_INL_not_inlined = 0
-    DW_INL_inlined = 1
-    DW_INL_declared_not_inlined = 2
-    DW_INL_declared_inlined = 3
-
-    # Source languages #
-    DW_LANG_C89 = 0x0001
-    DW_LANG_C = 0x0002
-    DW_LANG_Ada83 = 0x0003
-    DW_LANG_C_plus_plus = 0x0004
-    DW_LANG_Cobol74 = 0x0005
-    DW_LANG_Cobol85 = 0x0006
-    DW_LANG_Fortran77 = 0x0007
-    DW_LANG_Fortran90 = 0x0008
-    DW_LANG_Pascal83 = 0x0009
-    DW_LANG_Modula2 = 0x000a
-    DW_LANG_Java = 0x000b
-    DW_LANG_C99 = 0x000c
-    DW_LANG_Ada95 = 0x000d
-    DW_LANG_Fortran95 = 0x000e
-    DW_LANG_PLI = 0x000f
-    DW_LANG_ObjC = 0x0010
-    DW_LANG_ObjC_plus_plus = 0x0011
-    DW_LANG_UPC = 0x0012
-    DW_LANG_D = 0x0013
-    DW_LANG_Python = 0x0014
-    DW_LANG_OpenCL = 0x0015
-    DW_LANG_Go = 0x0016
-    DW_LANG_Modula3 = 0x0017
-    DW_LANG_Haskell = 0x0018
-    DW_LANG_C_plus_plus_03 = 0x0019
-    DW_LANG_C_plus_plus_11 = 0x001a
-    DW_LANG_OCaml = 0x001b
-    DW_LANG_Rust = 0x001c
-    DW_LANG_C11 = 0x001d
-    DW_LANG_Swift = 0x001e
-    DW_LANG_Julia = 0x001f
-    DW_LANG_Dylan = 0x0020
-    DW_LANG_C_plus_plus_14 = 0x0021
-    DW_LANG_Fortran03 = 0x0022
-    DW_LANG_Fortran08 = 0x0023
-    DW_LANG_RenderScript = 0x0024
-    DW_LANG_BLISS = 0x0025
-    DW_LANG_Mips_Assembler = 0x8001
-    DW_LANG_Upc = 0x8765
-    DW_LANG_HP_Bliss = 0x8003
-    DW_LANG_HP_Basic91 = 0x8004
-    DW_LANG_HP_Pascal91 = 0x8005
-    DW_LANG_HP_IMacro = 0x8006
-    DW_LANG_HP_Assembler = 0x8007
-    DW_LANG_GOOGLE_RenderScript = 0x8e57
-    DW_LANG_BORLAND_Delphi = 0xb000
-
-    # Encoding #
-    DW_ATE_void = 0x0
-    DW_ATE_address = 0x1
-    DW_ATE_boolean = 0x2
-    DW_ATE_complex_float = 0x3
-    DW_ATE_float = 0x4
-    DW_ATE_signed = 0x5
-    DW_ATE_signed_char = 0x6
-    DW_ATE_unsigned = 0x7
-    DW_ATE_unsigned_char = 0x8
-    DW_ATE_imaginary_float = 0x9
-    DW_ATE_packed_decimal = 0xa
-    DW_ATE_numeric_string = 0xb
-    DW_ATE_edited = 0xc
-    DW_ATE_signed_fixed = 0xd
-    DW_ATE_unsigned_fixed = 0xe
-    DW_ATE_decimal_float = 0xf
-    DW_ATE_UTF = 0x10
-    DW_ATE_UCS = 0x11
-    DW_ATE_ASCII = 0x12
-    DW_ATE_lo_user = 0x80
-    DW_ATE_hi_user = 0xff
-    DW_ATE_HP_float80 = 0x80
-    DW_ATE_HP_complex_float80 = 0x81
-    DW_ATE_HP_float128 = 0x82
-    DW_ATE_HP_complex_float128 = 0x83
-    DW_ATE_HP_floathpintel = 0x84
-    DW_ATE_HP_imaginary_float80 = 0x85
-    DW_ATE_HP_imaginary_float128 = 0x86
-
-    # Access #
-    DW_ACCESS_public = 1
-    DW_ACCESS_protected = 2
-    DW_ACCESS_private = 3
-
-    # Visibility #
-    DW_VIS_local = 1
-    DW_VIS_exported = 2
-    DW_VIS_qualified = 3
-
-    # Virtuality #
-    DW_VIRTUALITY_none = 0
-    DW_VIRTUALITY_virtual = 1
-    DW_VIRTUALITY_pure_virtual = 2
-
-    # ID case #
-    DW_ID_case_sensitive = 0
-    DW_ID_up_case = 1
-    DW_ID_down_case = 2
-    DW_ID_case_insensitive = 3
-
-    # Calling convention #
-    DW_CC_normal = 0x1
-    DW_CC_program = 0x2
-    DW_CC_nocall = 0x3
-
-    # Ordering #
-    DW_ORD_row_major = 0
-    DW_ORD_col_major = 1
-
-    # Line program opcodes #
-    DW_LNS_copy = 0x01
-    DW_LNS_advance_pc = 0x02
-    DW_LNS_advance_line = 0x03
-    DW_LNS_set_file = 0x04
-    DW_LNS_set_column = 0x05
-    DW_LNS_negate_stmt = 0x06
-    DW_LNS_set_basic_block = 0x07
-    DW_LNS_const_add_pc = 0x08
-    DW_LNS_fixed_advance_pc = 0x09
-    DW_LNS_set_prologue_end = 0x0a
-    DW_LNS_set_epilogue_begin = 0x0b
-    DW_LNS_set_isa = 0x0c
-    DW_LNE_end_sequence = 0x01
-    DW_LNE_set_address = 0x02
-    DW_LNE_define_file = 0x03
-    DW_LNE_set_discriminator = 0x04
-    DW_LNE_lo_user = 0x80
-    DW_LNE_hi_user = 0xff
-
-    # Call frame instructions #
-    '''
-    Note that the first 3 instructions have the so-called "primary opcode"
-    (as described in DWARFv3 7.23), so only their highest 2 bits take part
-    in the opcode decoding. They are kept as constants with the low bits masked
-    out, and the callframe module knows how to handle this.
-    The other instructions use an "extended opcode" encoded just in the low 6
-    bits, with the high 2 bits, so these constants are exactly as they would
-    appear in an actual file.
-    '''
-    DW_CFA_advance_loc = 0b01000000
-    DW_CFA_offset = 0b10000000
-    DW_CFA_restore = 0b11000000
-    DW_CFA_nop = 0x00
-    DW_CFA_set_loc = 0x01
-    DW_CFA_advance_loc1 = 0x02
-    DW_CFA_advance_loc2 = 0x03
-    DW_CFA_advance_loc4 = 0x04
-    DW_CFA_offset_extended = 0x05
-    DW_CFA_restore_extended = 0x06
-    DW_CFA_undefined = 0x07
-    DW_CFA_same_value = 0x08
-    DW_CFA_register = 0x09
-    DW_CFA_remember_state = 0x0a
-    DW_CFA_restore_state = 0x0b
-    DW_CFA_def_cfa = 0x0c
-    DW_CFA_def_cfa_register = 0x0d
-    DW_CFA_def_cfa_offset = 0x0e
-    DW_CFA_def_cfa_expression = 0x0f
-    DW_CFA_expression = 0x10
-    DW_CFA_offset_extended_sf = 0x11
-    DW_CFA_def_cfa_sf = 0x12
-    DW_CFA_def_cfa_offset_sf = 0x13
-    DW_CFA_val_offset = 0x14
-    DW_CFA_val_offset_sf = 0x15
-    DW_CFA_val_expression = 0x16
-    DW_CFA_GNU_args_size = 0x2e
-
-
-
-
-
 class ElfAnalyzer(object):
     """ Analyzer for ELF binaries """
 
@@ -47960,6 +47918,174 @@ class ElfAnalyzer(object):
         223:"Moxie processor family",
         224:"AMD GPU architecture",
         243:"RISC-V",
+    }
+
+    '''
+    python elftools constants
+    refer to https://github.com/eliben/pyelftools
+
+    Note that the first 3 instructions have the so-called "primary opcode"
+    (as described in DWARFv3 7.23), so only their highest 2 bits take part
+    in the opcode decoding. They are kept as constants with the low bits masked
+    out, and the callframe module knows how to handle this.
+    The other instructions use an "extended opcode" encoded just in the low 6
+    bits, with the high 2 bits, so these constants are exactly as they would
+    appear in an actual file.
+    '''
+    DW_CONSTANTS = {
+        "DW_INL_not_inlined":0,
+        "DW_INL_inlined":1,
+        "DW_INL_declared_not_inlined":2,
+        "DW_INL_declared_inlined":3,
+
+        "DW_LANG_C89":0x0001,
+        "DW_LANG_C":0x0002,
+        "DW_LANG_Ada83":0x0003,
+        "DW_LANG_C_plus_plus":0x0004,
+        "DW_LANG_Cobol74":0x0005,
+        "DW_LANG_Cobol85":0x0006,
+        "DW_LANG_Fortran77":0x0007,
+        "DW_LANG_Fortran90":0x0008,
+        "DW_LANG_Pascal83":0x0009,
+        "DW_LANG_Modula2":0x000a,
+        "DW_LANG_Java":0x000b,
+        "DW_LANG_C99":0x000c,
+        "DW_LANG_Ada95":0x000d,
+        "DW_LANG_Fortran95":0x000e,
+        "DW_LANG_PLI":0x000f,
+        "DW_LANG_ObjC":0x0010,
+        "DW_LANG_ObjC_plus_plus":0x0011,
+        "DW_LANG_UPC":0x0012,
+        "DW_LANG_D":0x0013,
+        "DW_LANG_Python":0x0014,
+        "DW_LANG_OpenCL":0x0015,
+        "DW_LANG_Go":0x0016,
+        "DW_LANG_Modula3":0x0017,
+        "DW_LANG_Haskell":0x0018,
+        "DW_LANG_C_plus_plus_03":0x0019,
+        "DW_LANG_C_plus_plus_11":0x001a,
+        "DW_LANG_OCaml":0x001b,
+        "DW_LANG_Rust":0x001c,
+        "DW_LANG_C11":0x001d,
+        "DW_LANG_Swift":0x001e,
+        "DW_LANG_Julia":0x001f,
+        "DW_LANG_Dylan":0x0020,
+        "DW_LANG_C_plus_plus_14":0x0021,
+        "DW_LANG_Fortran03":0x0022,
+        "DW_LANG_Fortran08":0x0023,
+        "DW_LANG_RenderScript":0x0024,
+        "DW_LANG_BLISS":0x0025,
+        "DW_LANG_Mips_Assembler":0x8001,
+        "DW_LANG_Upc":0x8765,
+        "DW_LANG_HP_Bliss":0x8003,
+        "DW_LANG_HP_Basic91":0x8004,
+        "DW_LANG_HP_Pascal91":0x8005,
+        "DW_LANG_HP_IMacro":0x8006,
+        "DW_LANG_HP_Assembler":0x8007,
+        "DW_LANG_GOOGLE_RenderScript":0x8e57,
+        "DW_LANG_BORLAND_Delphi":0xb000,
+
+        "DW_ATE_void":0x0,
+        "DW_ATE_address":0x1,
+        "DW_ATE_boolean":0x2,
+        "DW_ATE_complex_float":0x3,
+        "DW_ATE_float":0x4,
+        "DW_ATE_signed":0x5,
+        "DW_ATE_signed_char":0x6,
+        "DW_ATE_unsigned":0x7,
+        "DW_ATE_unsigned_char":0x8,
+        "DW_ATE_imaginary_float":0x9,
+        "DW_ATE_packed_decimal":0xa,
+        "DW_ATE_numeric_string":0xb,
+        "DW_ATE_edited":0xc,
+        "DW_ATE_signed_fixed":0xd,
+        "DW_ATE_unsigned_fixed":0xe,
+        "DW_ATE_decimal_float":0xf,
+        "DW_ATE_UTF":0x10,
+        "DW_ATE_UCS":0x11,
+        "DW_ATE_ASCII":0x12,
+        "DW_ATE_lo_user":0x80,
+        "DW_ATE_hi_user":0xff,
+        "DW_ATE_HP_float80":0x80,
+        "DW_ATE_HP_complex_float80":0x81,
+        "DW_ATE_HP_float128":0x82,
+        "DW_ATE_HP_complex_float128":0x83,
+        "DW_ATE_HP_floathpintel":0x84,
+        "DW_ATE_HP_imaginary_float80":0x85,
+        "DW_ATE_HP_imaginary_float128":0x86,
+
+        "DW_ACCESS_public":1,
+        "DW_ACCESS_protected":2,
+        "DW_ACCESS_private":3,
+
+        "DW_VIS_local":1,
+        "DW_VIS_exported":2,
+        "DW_VIS_qualified":3,
+
+        "DW_VIRTUALITY_none":0,
+        "DW_VIRTUALITY_virtual":1,
+        "DW_VIRTUALITY_pure_virtual":2,
+
+        "DW_ID_case_sensitive":0,
+        "DW_ID_up_case":1,
+        "DW_ID_down_case":2,
+        "DW_ID_case_insensitive":3,
+
+        "DW_CC_normal":0x1,
+        "DW_CC_program":0x2,
+        "DW_CC_nocall":0x3,
+
+        "DW_ORD_row_major":0,
+        "DW_ORD_col_major":1,
+
+        "DW_LNS_copy":0x01,
+        "DW_LNS_advance_pc":0x02,
+        "DW_LNS_advance_line":0x03,
+        "DW_LNS_set_file":0x04,
+        "DW_LNS_set_column":0x05,
+        "DW_LNS_negate_stmt":0x06,
+        "DW_LNS_set_basic_block":0x07,
+        "DW_LNS_const_add_pc":0x08,
+        "DW_LNS_fixed_advance_pc":0x09,
+        "DW_LNS_set_prologue_end":0x0a,
+        "DW_LNS_set_epilogue_begin":0x0b,
+        "DW_LNS_set_isa":0x0c,
+        "DW_LNE_end_sequence":0x01,
+        "DW_LNE_set_address":0x02,
+        "DW_LNE_define_file":0x03,
+        "DW_LNE_set_discriminator":0x04,
+        "DW_LNE_lo_user":0x80,
+        "DW_LNE_hi_user":0xff,
+
+        "DW_CFA_advance_loc":0b01000000,
+        "DW_CFA_offset":0b10000000,
+        "DW_CFA_restore":0b11000000,
+        "DW_CFA_nop":0x00,
+        "DW_CFA_set_loc":0x01,
+        "DW_CFA_advance_loc1":0x02,
+        "DW_CFA_advance_loc2":0x03,
+        "DW_CFA_advance_loc4":0x04,
+        "DW_CFA_offset_extended":0x05,
+        "DW_CFA_restore_extended":0x06,
+        "DW_CFA_undefined":0x07,
+        "DW_CFA_same_value":0x08,
+        "DW_CFA_register":0x09,
+        "DW_CFA_remember_state":0x0a,
+        "DW_CFA_restore_state":0x0b,
+        "DW_CFA_def_cfa":0x0c,
+        "DW_CFA_def_cfa_register":0x0d,
+        "DW_CFA_def_cfa_offset":0x0e,
+        "DW_CFA_def_cfa_expression":0x0f,
+        "DW_CFA_expression":0x10,
+        "DW_CFA_offset_extended_sf":0x11,
+        "DW_CFA_def_cfa_sf":0x12,
+        "DW_CFA_def_cfa_offset_sf":0x13,
+        "DW_CFA_val_offset":0x14,
+        "DW_CFA_val_offset_sf":0x15,
+        "DW_CFA_val_expression":0x16,
+        "DW_CFA_GNU_args_size":0x2e,
+        "DW_PRIMARY_MASK":0b11000000,
+        "DW_PRIMARY_ARG_MASK":0b00111111,
     }
 
     cachedFiles = {}
@@ -50048,6 +50174,9 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
 
+            # define shortcut variable for DWARF constants #
+            DW = ElfAnalyzer.DW_CONSTANTS
+
             fd.seek(sh_offset)
 
             # length #
@@ -50085,23 +50214,95 @@ Section header string table index: %d
             else:
                 ad = None
 
-            # test instructions #
-            while pos < size:
-                var, = struct.unpack('B', table[pos:pos+1])
-                print(var, hex(var))
-                pos += 1
-            sys.exit(0)
-
-            # Call Frame Instructions Size #
-            cfis = UtilMgr.decodeULEB128(table[pos:pos+1])
-            pos += 1
             # Call Frame Instructions #
-            if cfis > 0:
-                cfi = hex(UtilMgr.decodeULEB128(table[pos:pos+cfis]))
-                pos += cfis
-            else:
-                cfi = None
-            print(ass, ad, cfis, cfi)
+            cfi = []
+            while pos < size:
+                args = []
+
+                opcode, = struct.unpack('B', table[pos:pos+1])
+                pos += 1
+
+                primary = opcode & DW["DW_PRIMARY_MASK"]
+                primaryArg = opcode & DW["DW_PRIMARY_ARG_MASK"]
+
+                if primary == DW["DW_CFA_advance_loc"]:
+                    args = [primaryArg]
+                elif primary == DW["DW_CFA_offset"]:
+                    value = UtilMgr.decodeULEB128(table[pos:pos+1])
+                    pos += 1
+                    args = [primaryArg, value]
+                elif primary == DW["DW_CFA_restore"]:
+                    args = [primaryArg]
+                # primary == 0 and real opcode is extended
+                elif opcode in (\
+                    DW["DW_CFA_nop"],
+                    DW["DW_CFA_remember_state"],
+                    DW["DW_CFA_restore_state"]):
+                    args = []
+                elif opcode == DW["DW_CFA_set_loc"]:
+                    args = []
+                    #struct_parse(structs.Dwarf_target_addr(''), self.stream)]
+                elif opcode == DW["DW_CFA_advance_loc1"]:
+                    val, = struct.unpack('B', table[pos:pos+1])
+                    pos += 1
+                    args = [val]
+                elif opcode == DW["DW_CFA_advance_loc2"]:
+                    val, = struct.unpack('H', table[pos:pos+2])
+                    pos += 2
+                    args = [val]
+                elif opcode == DW["DW_CFA_advance_loc4"]:
+                    val, = struct.unpack('I', table[pos:pos+4])
+                    pos += 4
+                    args = [val]
+                elif opcode in (\
+                    DW["DW_CFA_offset_extended"],
+                    DW["DW_CFA_register"],
+                    DW["DW_CFA_def_cfa"],
+                    DW["DW_CFA_val_offset"]):
+                    arg1 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                    pos += 1
+                    arg2 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                    pos += 1
+                    args = [arg1, arg2]
+                elif opcode in (\
+                    DW["DW_CFA_restore_extended"],
+                    DW["DW_CFA_undefined"],
+                    DW["DW_CFA_same_value"],
+                    DW["DW_CFA_def_cfa_register"],
+                    DW["DW_CFA_def_cfa_offset"]):
+                    args = [UtilMgr.decodeULEB128(table[pos:pos+1])]
+                    pos += 1
+                elif opcode == DW["DW_CFA_def_cfa_offset_sf"]:
+                    args = [UtilMgr.decodeSLEB128(table[pos:pos+1])]
+                    pos += 1
+                elif opcode == DW["DW_CFA_def_cfa_expression"]:
+                    args = []
+                    #struct_parse(structs.Dwarf_dw_form['DW_FORM_block'])
+                elif opcode in (\
+                    DW["DW_CFA_expression"],
+                    DW["DW_CFA_val_expression"]):
+                    args = []
+                    #struct_parse(structs.Dwarf_uleb128(''), self.stream)
+                    #struct_parse(structs.Dwarf_dw_form['DW_FORM_block'])
+                elif opcode in (\
+                    DW["DW_CFA_offset_extended_sf"],
+                    DW["DW_CFA_def_cfa_sf"],
+                    DW["DW_CFA_val_offset_sf"]):
+                    arg1 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                    pos += 1
+                    arg2 = UtilMgr.decodeSLEB128(table[pos:pos+1])
+                    pos += 1
+                    args = [arg1, arg2]
+                elif opcode == DW["DW_CFA_GNU_args_size"]:
+                    args = [UtilMgr.decodeULEB128(table[pos:pos+1])]
+                    pos += 1
+                else:
+                    SysMgr.printWarn(
+                        'fail to recognize CFI opcode %s' % opcode)
+
+                cfi.append([opcode, args])
+
+            sys.exit(0)
 
         # check .eh_frame_hdr section #
         if e_shehframehdr >= 0:
