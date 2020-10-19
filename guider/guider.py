@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201018"
+__revision__ = "201019"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -48056,7 +48056,9 @@ class ElfAnalyzer(object):
         "DW_LNE_set_discriminator":0x04,
         "DW_LNE_lo_user":0x80,
         "DW_LNE_hi_user":0xff,
+    }
 
+    DW_INST = {
         "DW_CFA_advance_loc":0b01000000,
         "DW_CFA_offset":0b10000000,
         "DW_CFA_restore":0b11000000,
@@ -50174,11 +50176,15 @@ Section header string table index: %d
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
 
-            # define shortcut variable for DWARF constants #
-            DW = ElfAnalyzer.DW_CONSTANTS
+            self.attr['dwarf'] = dict()
 
+            # define shortcut variable for DWARF constants #
+            DW = ElfAnalyzer.DW_INST
+
+            # set position #
             fd.seek(sh_offset)
 
+            #-------------------- CIE --------------------#
             # length #
             size = struct.unpack('I', fd.read(4))[0]
 
@@ -50213,6 +50219,20 @@ Section header string table index: %d
                 pos += ass
             else:
                 ad = None
+
+            # save info #
+            self.attr['dwarf']['cie'] = {
+                'offset': 0,
+                'length': size,
+                'id': cid,
+                'version': ver,
+                'augstr': aug,
+                'caf': caf,
+                'daf': daf,
+                'rar': rar,
+                'augsize': ass,
+                'augdata': ad,
+            }
 
             # Call Frame Instructions #
             cfi = []
@@ -50301,6 +50321,15 @@ Section header string table index: %d
                         'fail to recognize CFI opcode %s' % opcode)
 
                 cfi.append([opcode, args])
+
+            self.attr['dwarf']['cie']['cfi'] = cfi
+
+            #-------------------- FDE --------------------#
+            # length #
+            size = struct.unpack('I', fd.read(4))[0]
+
+            # CIE pointer #
+            cieptr = struct.unpack('I', fd.read(4))[0]
 
             sys.exit(0)
 
