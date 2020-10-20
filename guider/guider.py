@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201019"
+__revision__ = "201020"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -44348,14 +44348,15 @@ struct cmsghdr {
         fname = self.bpList[addr]['filename']
         isRetBp = False
 
-        # update memory map and load new objects #
+        # update memory map and load new ELF objects #
         if self.needMapScan or \
-            (not self.libcLoaded and sym.startswith('__libc_')):
+            (not self.libcLoaded and \
+                (sym.startswith('__libc_') or sym.startswith('malloc'))):
             if self.loadSymbols():
                 self.updateBpList(verb=False)
             self.needMapScan = False
 
-        # check memory map calls #
+        # check calls for memory map update #
         if sym.startswith('mmap') and self.readArgs()[4] > 0:
             self.needMapScan = True
         elif sym.startswith('munmap'):
@@ -49343,7 +49344,8 @@ class ElfAnalyzer(object):
             # merge a debug file #
             if debugPath:
                 SysMgr.printInfo(
-                    "merge %s's debug symbols" % debugPath, suffix=False)
+                    "merge %s's debug symbols" % debugPath)
+
                 dobj = ElfAnalyzer(debugPath, debug=debug)
                 if dobj:
                     dobj.mergeSymTable()
@@ -50171,7 +50173,8 @@ Section header string table index: %d
                 SysMgr.printPipe(oneLine)
 
         # check .eh_frame section #
-        if False and e_shehframe >= 0:
+        if False and e_shehframe >= 0 and \
+            self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
@@ -50325,16 +50328,29 @@ Section header string table index: %d
             self.attr['dwarf']['cie']['cfi'] = cfi
 
             #-------------------- FDE --------------------#
-            # length #
-            size = struct.unpack('I', fd.read(4))[0]
+            while 1:
+                # length #
+                size = struct.unpack('I', fd.read(4))[0]
+                if size == 0:
+                    break
 
-            # CIE pointer #
-            cieptr = struct.unpack('I', fd.read(4))[0]
+                # CIE pointer #
+                ciePtr = struct.unpack('I', fd.read(4))[0]
 
-            sys.exit(0)
+                # initial location #
+                initLoc = struct.unpack('I', fd.read(4))[0]
+
+                # address range #
+                addrRange = struct.unpack('I', fd.read(4))[0]
+
+                # Augmentation Section Size #
+                augDataLen = UtilMgr.decodeULEB128(fd.read(1))
+
+                sys.exit(0)
 
         # check .eh_frame_hdr section #
-        if e_shehframehdr >= 0:
+        if e_shehframehdr >= 0 and \
+            self.attr['sectionHeader']['.eh_frame_hdr']['type'] != 'NOBITS':
             pass
 
         # check dynamic section #
