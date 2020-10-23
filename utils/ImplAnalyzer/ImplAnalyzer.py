@@ -651,7 +651,7 @@ class ImplAnalyzer(object):
 
         dlist = jsonDict['dynsymTable']
         for item, val in dlist.items():
-            if val['type'] != 'FUNC':
+            if val['type'] != 'FUNC' or val['ndx'] == 0:
                 continue
 
             if len(nmFilter) == 0:
@@ -890,12 +890,33 @@ class ImplAnalyzer(object):
         param = ''
         for item in method['parameters']:
             item = item['type'].strip()
-            if item.startswith('const ') and \
-                (item[-1] != '&' or item[-1] == '*'):
+
+            # remove const #
+            isConst = False
+            if item.startswith('const '):
                 item = item.split('const ', 1)[1]
+                if item.startswith('std::vector') and \
+                    not item.endswith(' &'):
+                    isConst = False
+                elif not item.startswith('std::shared_ptr'):
+                    isConst = True
+
+            # remove reference for shared_ptr #
+            if item.startswith('std::shared_ptr') and \
+                item.endswith(' &'):
+                item = item.rsplit(' &', 1)[0]
+
+            # remove namespace #
             item = ImplAnalyzer.removeNamespace(\
                 item, ImplAnalyzer.exceptNm)
+
+            # convert type #
             item = ImplAnalyzer.convert2RepType(item)
+
+            # recover const #
+            if isConst:
+                item = 'const %s' % item
+
             param += '%s, ' % item
         if param == '':
             param = '()'

@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201021"
+__revision__ = "201023"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30278,8 +30278,16 @@ Copyright:
                     rcmd, pipe=False, stderr=True, log=True, wait=True)
 
             try:
+                # check library #
+                ret = FileAnalyzer.getMapFilePath(pid, 'libleaktracer')
+                if not ret:
+                    SysMgr.printErr(
+                        'fail to find libleaktracer.so on memory map')
+                    continue
+
                 tobj.saveProcStatusData(path, pid)
 
+                # check start signal #
                 sigList = tobj.procData[pid]['status']['SigCgt']
                 if startSig and not UtilMgr.isBitEnabled(startSig, sigList):
                     SysMgr.printWarn(
@@ -30293,6 +30301,7 @@ Copyright:
                     time.sleep(1)
                     continue
 
+                # check stop signal #
                 if stopSig and not UtilMgr.isBitEnabled(stopSig, sigList):
                     SysMgr.printWarn(
                         "fail to find stop handler for %s(%s)" % \
@@ -47102,8 +47111,13 @@ class MemoryFile(object):
 
 
 
-    def write(self, size):
-        pass
+    def write(self, buf):
+        self.mem = self.mem[:self.pos] + buf + self.mem[self.pos+len(buf):]
+
+
+
+    def tell(self):
+        return self.pos
 
 
 
@@ -48427,6 +48441,8 @@ class ElfAnalyzer(object):
         "DW_PRIMARY_ARG_MASK":0b00111111,
     }
 
+    DW_INST_MAP = {v: k for k, v in DW_INST.items()}
+
     cachedFiles = {}
     cachedHeaderFiles = {}
     stripedFiles = {}
@@ -49242,58 +49258,90 @@ class ElfAnalyzer(object):
 
 
     def getCFI(self, table, pos, size):
+        def getBlockArgs(table, pos):
+            size = struct.unpack('b', table[pos:pos+1])[0]
+            pos += 1
+
+            args = []
+            for idx in range(0, size):
+                args.append(struct.unpack('B', table[pos:pos+1])[0])
+                pos += 1
+
+            return args, pos
+
         # define shortcut variable for DWARF constants #
         DW = ElfAnalyzer.DW_INST
+        DWM = ElfAnalyzer.DW_INST_MAP
 
         cfi = []
 
         while pos < size:
             args = []
 
-            opcode, = struct.unpack('B', table[pos:pos+1])
+            opcode = struct.unpack('B', table[pos:pos+1])[0]
             pos += 1
 
             primary = opcode & DW["DW_PRIMARY_MASK"]
             primaryArg = opcode & DW["DW_PRIMARY_ARG_MASK"]
 
             if primary == DW["DW_CFA_advance_loc"]:
+                inst = "DW_CFA_advance_loc"
                 args = [primaryArg]
             elif primary == DW["DW_CFA_offset"]:
-                value = UtilMgr.decodeULEB128(table[pos:pos+1])
+                value = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
                 pos += 1
+
+                inst = "DW_CFA_offset"
                 args = [primaryArg, value]
             elif primary == DW["DW_CFA_restore"]:
+                inst = "DW_CFA_restore"
                 args = [primaryArg]
             # primary == 0 and real opcode is extended
             elif opcode in (\
                 DW["DW_CFA_nop"],
                 DW["DW_CFA_remember_state"],
                 DW["DW_CFA_restore_state"]):
+                inst = DWM[opcode]
                 args = []
             elif opcode == DW["DW_CFA_set_loc"]:
-                args = []
-                #struct_parse(structs.Dwarf_target_addr(''), self.stream)]
+                if self.is32Bit:
+                    size = 4
+                    val = struct.unpack('I', table[pos:pos+size])[0]
+                else:
+                    size = 8
+                    val = struct.unpack('Q', table[pos:pos+size])[0]
+
+                inst = DWM[opcode]
+                args = [val]
             elif opcode == DW["DW_CFA_advance_loc1"]:
-                val, = struct.unpack('B', table[pos:pos+1])
+                val = struct.unpack('B', table[pos:pos+1])[0]
                 pos += 1
+
+                inst = DWM[opcode]
                 args = [val]
             elif opcode == DW["DW_CFA_advance_loc2"]:
-                val, = struct.unpack('H', table[pos:pos+2])
+                val = struct.unpack('H', table[pos:pos+2])[0]
                 pos += 2
+
+                inst = DWM[opcode]
                 args = [val]
             elif opcode == DW["DW_CFA_advance_loc4"]:
-                val, = struct.unpack('I', table[pos:pos+4])
+                val = struct.unpack('I', table[pos:pos+4])[0]
                 pos += 4
+
+                inst = DWM[opcode]
                 args = [val]
             elif opcode in (\
                 DW["DW_CFA_offset_extended"],
                 DW["DW_CFA_register"],
                 DW["DW_CFA_def_cfa"],
                 DW["DW_CFA_val_offset"]):
-                arg1 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                arg1 = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
                 pos += 1
-                arg2 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                arg2 = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
                 pos += 1
+
+                inst = DWM[opcode]
                 args = [arg1, arg2]
             elif opcode in (\
                 DW["DW_CFA_restore_extended"],
@@ -49301,43 +49349,50 @@ class ElfAnalyzer(object):
                 DW["DW_CFA_same_value"],
                 DW["DW_CFA_def_cfa_register"],
                 DW["DW_CFA_def_cfa_offset"]):
-                args = [UtilMgr.decodeULEB128(table[pos:pos+1])]
+                inst = DWM[opcode]
+                args = [UtilMgr.decodeULEB128(table[pos:pos+1].decode())]
                 pos += 1
             elif opcode == DW["DW_CFA_def_cfa_offset_sf"]:
-                args = [UtilMgr.decodeSLEB128(table[pos:pos+1])]
+                inst = DWM[opcode]
+                args = [UtilMgr.decodeSLEB128(table[pos:pos+1].decode())]
                 pos += 1
             elif opcode == DW["DW_CFA_def_cfa_expression"]:
-                args = []
-                #struct_parse(structs.Dwarf_dw_form['DW_FORM_block'])
+                inst = DWM[opcode]
+                args, pos = getBlockArgs(table, pos)
             elif opcode in (\
                 DW["DW_CFA_expression"],
                 DW["DW_CFA_val_expression"]):
-                args = []
-                #struct_parse(structs.Dwarf_uleb128(''), self.stream)
-                #struct_parse(structs.Dwarf_dw_form['DW_FORM_block'])
+                inst = DWM[opcode]
+                arg1 = [UtilMgr.decodeULEB128(table[pos:pos+1].decode())]
+                pos += 1
+                arg2, pos = getBlockArgs(table, pos)
+                args = arg1 + arg2
             elif opcode in (\
                 DW["DW_CFA_offset_extended_sf"],
                 DW["DW_CFA_def_cfa_sf"],
                 DW["DW_CFA_val_offset_sf"]):
-                arg1 = UtilMgr.decodeULEB128(table[pos:pos+1])
+                arg1 = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
                 pos += 1
-                arg2 = UtilMgr.decodeSLEB128(table[pos:pos+1])
+                arg2 = UtilMgr.decodeSLEB128(table[pos:pos+1].decode())
                 pos += 1
+
+                inst = DWM[opcode]
                 args = [arg1, arg2]
             elif opcode == DW["DW_CFA_GNU_args_size"]:
-                args = [UtilMgr.decodeULEB128(table[pos:pos+1])]
+                inst = DWM[opcode]
+                args = [UtilMgr.decodeULEB128(table[pos:pos+1]).decode()]
                 pos += 1
             else:
                 SysMgr.printErr(
                     'fail to recognize CFI opcode %s' % opcode)
 
-            cfi.append([opcode, args])
+            cfi.append([inst, opcode, args])
 
         return cfi
 
 
 
-    def getString(self, strtable, start):
+    def getString(self, strtable, start=0):
         idx = start
         end = self.fileSize - start
 
@@ -50612,77 +50667,20 @@ Section header string table index: %d
                 self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
 
             self.attr['dwarf'] = dict()
+            self.attr['dwarf']['cie'] = dict()
+            self.attr['dwarf']['fde'] = dict()
             ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
+
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
+
+            if debug:
+                SysMgr.printPipe(
+                    '\n[%s Section]\n%s\n' % (shname, twoLine))
 
             # set position #
             fd.seek(sh_offset)
 
-            #-------------------- CIE --------------------#
-            self.attr['dwarf']['cie'] = dict()
-
-            # offset #
-            offset = fd.tell() - sh_offset
-
-            # length #
-            size = struct.unpack('I', fd.read(4))[0]
-
-            # format #
-            dwarfFormat = 64 if size == 0xFFFFFFFF else 32
-
-            # data #
-            table = fd.read(size)
-
-            # CIE ID and version #
-            cid, ver = struct.unpack('IB', table[:5])
-
-            # Augmentation String #
-            aug = self.getString(table, 5)
-            pos = 5 + len(aug) + 1
-
-            # address size (uint8), segment size (uint8) added at DWARF v4 #
-
-            # Call Alignment Factor #
-            caf = UtilMgr.decodeULEB128(table[pos:pos+1])
-            pos += 1
-
-            # Data Alignment Factor #
-            daf = UtilMgr.decodeSLEB128(table[pos:pos+1])
-            pos += 1
-
-            # Return Address Register #
-            rar = UtilMgr.decodeULEB128(table[pos:pos+1])
-            pos += 1
-
-            # Augmentation Section Size #
-            ass = UtilMgr.decodeULEB128(table[pos:pos+1])
-            pos += 1
-
-            # Augmentation Data #
-            if ass > 0:
-                ad = UtilMgr.decodeULEB128(table[pos:pos+ass])
-                pos += ass
-            else:
-                ad = None
-
-            # save info #
-            self.attr['dwarf']['cie'][offset] = {
-                'offset': offset,
-                'length': size,
-                'id': cid,
-                'version': ver,
-                'augstr': aug,
-                'caf': caf,
-                'daf': daf,
-                'rar': rar,
-                'augsize': ass,
-                'augdata': ad,
-            }
-
-            # Call Frame Instructions #
-            cfi = self.getCFI(table, pos, size)
-            self.attr['dwarf']['cie']['cfi'] = cfi
-
-            #-------------------- FDE --------------------#
             while 1:
                 # offset #
                 offset = fd.tell() - sh_offset
@@ -50692,47 +50690,159 @@ Section header string table index: %d
                 if size == 0:
                     break
 
-                startPos = fd.tell()
-
                 # format #
                 dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
-                # CIE pointer #
-                ciePtr = struct.unpack('I', fd.read(4))[0]
+                # start position #
+                startPos = fd.tell()
 
-                # CIE #
-                cieOffset = offset + dwarfFormat // 8 - ciePtr
-                cie = self.attr['dwarf']['cie'][cieOffset]
+                # CIE ID #
+                cid = struct.unpack('I', fd.read(4))[0]
 
-                # encoding #
-                encoding = cie['augdata']
-                if encoding == ENC_FLAGS['DW_EH_PE_omit']:
-                    SysMgr.printErr(
-                        'fail to decode initial location for FDE')
-                basicEncoding = encoding & 0x0f
-                encodingModifier = encoding & 0xf0
+                #-------------------- CIE --------------------#
+                if cid == 0:
+                    # version #
+                    ver = struct.unpack('B', fd.read(1))[0]
 
-                # initial location #
-                initLocOffset = fd.tell() - sh_offset
-                initLoc = struct.unpack('i', fd.read(4))[0]
+                    # data #
+                    dataSize = size - 5
+                    table = fd.read(dataSize)
 
-                # function address #
-                if encodingModifier == 0:
-                    pass
-                elif encodingModifier == ENC_FLAGS['DW_EH_PE_pcrel']:
-                    initLoc += sh_offset + initLocOffset
+                    # Augmentation String #
+                    aug = self.getString(table)
+                    pos = len(aug) + 1
+
+                    # address size (uint8) is added in DWARF v4 #
+                    # segment size (uint8) is added in DWARF v4 #
+
+                    # Call Alignment Factor #
+                    caf = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
+                    pos += 1
+
+                    # Data Alignment Factor #
+                    daf = UtilMgr.decodeSLEB128(table[pos:pos+1].decode())
+                    pos += 1
+
+                    # Return Address Register #
+                    rar = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
+                    pos += 1
+
+                    # Augmentation Section Size #
+                    ass = UtilMgr.decodeULEB128(table[pos:pos+1].decode())
+                    pos += 1
+
+                    # Augmentation Data #
+                    if ass > 0:
+                        ad = UtilMgr.decodeULEB128(table[pos:pos+ass].decode())
+                        pos += ass
+                    else:
+                        ad = None
+
+                    # Call Frame Instructions #
+                    cfi = self.getCFI(table, pos, dataSize)
+
+                    # save info #
+                    self.attr['dwarf']['cie'][offset] = {
+                        'offset': offset,
+                        'length': size,
+                        'id': cid,
+                        'version': ver,
+                        'augstr': aug,
+                        'caf': caf,
+                        'daf': daf,
+                        'rar': rar,
+                        'augsize': ass,
+                        'augdata': ad,
+                        'cfi': cfi,
+                    }
+
+                    # print info #
+                    if debug:
+                        printStr = '\n%08x %016x %08x CIE\n' % \
+                            (offset, size, cid)
+                        printStr += ' %-22s %s\n' % ('Version:', ver)
+                        printStr += ' %-22s "%s"\n' % ('Augmentation:', aug)
+                        printStr += ' %-22s %x\n' % \
+                            ('Code alignment factor:', caf)
+                        printStr += ' %-22s %x\n' % \
+                            ('Data alignment factor:', daf)
+                        printStr += ' %-22s %x\n' % \
+                            ('Return address column:', rar)
+                        printStr += ' %-22s %x\n\n' % \
+                            ('Augmentation data: ', ad)
+                        SysMgr.printPipe(printStr)
+
+                #-------------------- FDE --------------------#
                 else:
-                    SysMgr.printErr(
-                        'fail to recognize encoding %x for FDE' % encoding)
+                    # CIE pointer #
+                    ciePtr = cid
 
-                # address range #
-                addrRange = struct.unpack('I', fd.read(4))[0]
+                    # CIE #
+                    cieOffset = offset + dwarfFormat // 8 - ciePtr
+                    cie = self.attr['dwarf']['cie'][cieOffset]
 
-                # Call Frame Instructions #
-                remain = fd.tell() - startPos
-                table = fd.read(size - remain)
-                cfi = self.getCFI(table, 0, len(table))
-                continue
+                    # encoding #
+                    encoding = cie['augdata']
+                    if encoding == ENC_FLAGS['DW_EH_PE_omit']:
+                        SysMgr.printErr(
+                            'fail to decode initial location for FDE')
+                    basicEncoding = encoding & 0x0f
+                    encodingModifier = encoding & 0xf0
+
+                    # Initial Location #
+                    initLocOffset = fd.tell() - sh_offset
+                    initLoc = struct.unpack('i', fd.read(4))[0]
+
+                    # function address #
+                    if encodingModifier == 0:
+                        pass
+                    elif encodingModifier == ENC_FLAGS['DW_EH_PE_pcrel']:
+                        initLoc += sh_addr + initLocOffset
+                    else:
+                        SysMgr.printErr(
+                            'fail to recognize encoding %x for FDE' % \
+                                encoding)
+
+                    # Range Length #
+                    addrRange = struct.unpack('I', fd.read(4))[0]
+
+                    # Augmentation Section Size #
+                    ass = struct.unpack('B', fd.read(1))[0]
+                    if ass > 0:
+                        pass
+
+                    # Call Frame Instructions #
+                    remain = fd.tell() - startPos
+                    table = fd.read(size - remain)
+                    cfi = self.getCFI(table, 0, len(table))
+
+                    # save info #
+                    self.attr['dwarf']['fde'][offset] = {
+                        'offset': offset,
+                        'length': size,
+                        'id': cid,
+                        'cie': cie,
+                        'initLoc': initLoc,
+                        'addrRange': addrRange,
+                        'cfi': cfi,
+                    }
+
+                    # print info #
+                    if debug:
+                        printStr = '\n%08x %016x %08x FDE cie=%08x ' % \
+                            (offset, size, cid, cieOffset)
+                        printStr += 'pc=%016x..%016x\n' % \
+                            (initLoc, initLoc+addrRange)
+                        SysMgr.printPipe(printStr)
+
+                # print CFI #
+                if debug:
+                    for item in cfi:
+                        SysMgr.printPipe(' %s %s' % \
+                            (item[0], ': %s' % item[2] if item[2] else ''))
+
+            if debug:
+                SysMgr.printPipe(oneLine)
 
         # check .eh_frame_hdr section #
         if e_shehframehdr >= 0 and \
