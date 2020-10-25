@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201023"
+__revision__ = "201025"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13869,7 +13869,7 @@ class SysMgr(object):
     syslogFd = None
 
     # flags #
-    fixedListEnable = False
+    fixedTargetEnable = False
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
@@ -16611,7 +16611,7 @@ Options:
             o:oomScore | p:pipe | P:perf | q:quit
             r:report | R:fileReport | s:stack | S:pss
             t:thread | u:uss | w:wss | W:wchan
-            x:fixedList | y:syslog | Y:delay
+            x:fixedTarget | y:syslog | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | e:encode | E:exec
@@ -16652,8 +16652,8 @@ Examples:
     - Report analysis results of {2:2} to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
-    - Report analysis results of {2:2} with the fixed task list for CPU resource
-        # {0:1} {1:1} -g a.out -e f
+    - Report analysis results of {2:2} with the fixed task list to save CPU resource for monitoring
+        # {0:1} {1:1} -g a.out -e x
 
     - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
@@ -20101,35 +20101,35 @@ Copyright:
         if not SysMgr.isRoot():
             SysMgr.perfEnable = False
             return
+
         # check configuration #
-        else:
-            try:
-                PMUs = '/sys/bus/event_source/devices'
-                attrPath = '%s/sys/kernel/perf_event_paranoid' % \
-                    SysMgr.procPath
-                with open(attrPath, 'w+') as fd:
-                    '''
-                    -1 - not paranoid at all
-                     0 - disallow raw tracepoint access for unpriv
-                     1 - disallow CPU events for unpriv
-                     2 - disallow kernel profiling for unpriv
-                     3 - disallow user profiling for unpriv
-                    '''
-                    paranoid = long(fd.readline()[:-1])
-                    if paranoid > -1:
-                        fd.seek(0)
-                        # write all privilege to read perf events #
-                        fd.write('-1')
-                        SysMgr.printWarn((
-                            'change value of %s from %s to -1 '
-                            'to read all perf events') % \
-                            (attrPath, paranoid))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printWarn(
-                    "enable CONFIG_PERF_EVENTS kernel option")
-                return
+        try:
+            PMUs = '/sys/bus/event_source/devices'
+            attrPath = '%s/sys/kernel/perf_event_paranoid' % \
+                SysMgr.procPath
+            with open(attrPath, 'w+') as fd:
+                '''
+                -1 - not paranoid at all
+                 0 - disallow raw tracepoint access for unpriv
+                 1 - disallow CPU events for unpriv
+                 2 - disallow kernel profiling for unpriv
+                 3 - disallow user profiling for unpriv
+                '''
+                paranoid = long(fd.readline()[:-1])
+                if paranoid > -1:
+                    fd.seek(0)
+                    # write all privilege to read perf events #
+                    fd.write('-1')
+                    SysMgr.printWarn((
+                        'change value of %s from %s to -1 '
+                        'to read all perf events') % \
+                        (attrPath, paranoid))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "enable CONFIG_PERF_EVENTS kernel option")
+            return
 
         hwTargetList = [
             'PERF_COUNT_HW_CPU_CYCLES',
@@ -23853,6 +23853,7 @@ Copyright:
                     SysMgr.syslogEnable = True
 
                 if 'Y' in options:
+                    SysMgr.checkRootPerm()
                     SysMgr.delayEnable = True
 
                 # no more options except for top mode #
@@ -23974,7 +23975,7 @@ Copyright:
                     SysMgr.exitFlag = True
 
                 if 'x' in options:
-                    SysMgr.fixedListEnable = True
+                    SysMgr.fixedTargetEnable = True
 
                 if not SysMgr.isEffectiveEnableOption(options):
                     SysMgr.printErr(
@@ -31734,7 +31735,6 @@ Copyright:
         SysMgr.memEnable = True
         SysMgr.cgroupEnable = True
         SysMgr.cmdlineEnable = True
-        SysMgr.delayEnable = True
         SysMgr.irqEnable = True
         SysMgr.perfEnable = True
         SysMgr.nsEnable = True
@@ -31744,10 +31744,11 @@ Copyright:
             SysMgr.diskEnable = True
             SysMgr.blockEnable = True
             SysMgr.networkEnable = True
+            SysMgr.delayEnable = True
         else:
             SysMgr.printWarn(
-                "fail to get disk and network stats "
-                "because no root permission")
+                "fail to get disk, network, delay stats "
+                "because no root permission", True)
 
         # initialize perf events #
         SysMgr.initSystemPerfEvents()
@@ -50838,11 +50839,11 @@ Section header string table index: %d
                 # print CFI #
                 if debug:
                     for item in cfi:
-                        SysMgr.printPipe(' %s %s' % \
+                        SysMgr.printPipe(' %s%s' % \
                             (item[0], ': %s' % item[2] if item[2] else ''))
 
             if debug:
-                SysMgr.printPipe(oneLine)
+                SysMgr.printPipe('\n%s' % oneLine)
 
         # check .eh_frame_hdr section #
         if e_shehframehdr >= 0 and \
@@ -64527,6 +64528,10 @@ class ThreadAnalyzer(object):
 
 
     def saveProcWchanData(self, path, tid):
+        if not SysMgr.isRoot():
+            self.procData[tid]['wchan'] = 'EPERM'
+            return
+
         wchanBuf = self.saveTaskData(path, tid, 'wchan')
 
         try:
@@ -67382,7 +67387,7 @@ class ThreadAnalyzer(object):
             if isExceptTask(idx):
                 continue
 
-            if SysMgr.fixedListEnable:
+            if SysMgr.fixedTargetEnable:
                 SysMgr.fixedProcList.setdefault(idx, None)
 
             # add task into JSON data #
@@ -67456,7 +67461,7 @@ class ThreadAnalyzer(object):
                 self.saveProcSchedData(value['taskPath'], idx)
 
             # save wait channel info  #
-            if SysMgr.wchanEnable and SysMgr.isRoot():
+            if SysMgr.wchanEnable:
                 self.saveProcWchanData(value['taskPath'], idx)
 
             # save memory map info to get memory details #
