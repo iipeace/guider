@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201025"
+__revision__ = "201026"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13869,7 +13869,7 @@ class SysMgr(object):
     syslogFd = None
 
     # flags #
-    fixedTargetEnable = False
+    fixTargetEnable = False
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
@@ -13942,6 +13942,7 @@ class SysMgr(object):
     groupProcEnable = False
     rankProcEnable = True
     inotifyEnable = False
+    dwarfEnable = False
 
     # Elastic Stack #
     elasticEnable = False
@@ -16578,19 +16579,21 @@ Usage:
          Prio/ContextSwitch
          oomscore{:VALUE}>
     -P                          group threads in a same process
-    -I  <DIR|FILE>              set input path
+    -I  <DIR|FILE>              set input file
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -i  <SEC>                   set interval
     -R  <INTERVAL:TIME:TERM>    set repeat count
-    -C  <PATH>                  set configuration path
+    -C  <PATH>                  set configuration file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
     -q                          set path for binaries
     -J                          print in JSON format
-    -L  <PATH>                  set log file path
-    -E  <DIR>                   set cache dir path
+    -L  <PATH>                  set log file
+    -l  <dlt/kmsg/journal       set log type
+         syslog>
+    -E  <DIR>                   set cache dir
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
     -k  <COMM|TID:SIG{:CONT}>   set signal list
@@ -16604,14 +16607,13 @@ Usage:
 Options:
     -e  <CHARACTER>             enable options
             a:affinity | b:block | c:cpu | C:cgroup
-            d:disk | D:DLT | e:encode | E:exec
+            d:disk | D:DWARF | e:encode | E:exec
             f:float | F:wfc | h:sigHandler | H:sched
-            i:irq | I:elastic | j:journal | k:kmsg
-            L:cmdline | m:memory | n:net | N:namespace
-            o:oomScore | p:pipe | P:perf | q:quit
-            r:report | R:fileReport | s:stack | S:pss
-            t:thread | u:uss | w:wss | W:wchan
-            x:fixedTarget | y:syslog | Y:delay
+            i:irq | I:elastic | L:cmdline | m:memory
+            n:net | N:namespace | o:oomScore | p:pipe
+            P:perf | q:quit | r:report | R:fileReport
+            s:stack | S:pss | t:thread | u:uss
+            w:wss | W:wchan | x:fixTarget | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | e:encode | E:exec
@@ -17471,7 +17473,7 @@ Examples:
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
-                    helpStr += topCommonStr + examStr
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # break top #
                 elif SysMgr.isBrkTopMode():
@@ -17489,7 +17491,7 @@ Description:
     See the top COMMAND help for more examples.
                     '''.format(brkExamStr)
 
-                    helpStr += topCommonStr + examStr
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # system top #
                 elif SysMgr.isSystemTopMode():
@@ -17880,7 +17882,7 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          p:pipe | D:DWARF | e:encode
     -d  <CHARACTER>             disable options
           C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
@@ -17936,7 +17938,7 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          p:pipe | D:DWARF | e:encode
     -d  <CHARACTER>             disable options
           C:clone | e:encode | E:exec | g:generalInfo
     -u                          run in the background
@@ -18308,6 +18310,8 @@ Description:
     Show information about ELF file
 
 Options:
+        -e  <CHARACTER>             enable options
+              p:pipe | D:DWARF | e:encode
         -I  <FILE>                  set input path
         -v                          verbose
                         '''.format(cmd, mode)
@@ -21286,6 +21290,11 @@ Copyright:
                 else:
                     disableStat += 'SYSLOG '
 
+                if SysMgr.dwarfEnable:
+                    enableStat += 'DWARF '
+                else:
+                    disableStat += 'DWARF '
+
                 if SysMgr.kmsgEnable:
                     enableStat += 'KMSG '
                 else:
@@ -23826,20 +23835,11 @@ Copyright:
                 if 'g' in options:
                     SysMgr.graphEnable = True
 
+                if 'D' in options:
+                    SysMgr.dwarfEnable = True
+
                 if 't' in options:
                     SysMgr.processEnable = False
-
-                if 'D' in options:
-                    SysMgr.loggingEnable = True
-                    SysMgr.dltEnable = True
-
-                if 'k' in options:
-                    SysMgr.loggingEnable = True
-                    SysMgr.kmsgEnable = True
-
-                if 'j' in options:
-                    SysMgr.loggingEnable = True
-                    SysMgr.journalEnable = True
 
                 if 'H' in options:
                     if not SysMgr.isThreadTopMode():
@@ -23847,10 +23847,6 @@ Copyright:
                             "sched option is supported only in thread mode")
                         sys.exit(0)
                     SysMgr.schedEnable = True
-
-                if 'y' in options:
-                    SysMgr.loggingEnable = True
-                    SysMgr.syslogEnable = True
 
                 if 'Y' in options:
                     SysMgr.checkRootPerm()
@@ -23975,7 +23971,7 @@ Copyright:
                     SysMgr.exitFlag = True
 
                 if 'x' in options:
-                    SysMgr.fixedTargetEnable = True
+                    SysMgr.fixTargetEnable = True
 
                 if not SysMgr.isEffectiveEnableOption(options):
                     SysMgr.printErr(
@@ -23992,6 +23988,24 @@ Copyright:
                     SysMgr.printInfo(
                         "set %s as a boundary line" % \
                         ', '.join(SysMgr.boundaryLine))
+                else:
+                    options = value
+
+                    if 'd' in options:
+                        SysMgr.loggingEnable = True
+                        SysMgr.dltEnable = True
+
+                    if 'k' in options:
+                        SysMgr.loggingEnable = True
+                        SysMgr.kmsgEnable = True
+
+                    if 'j' in options:
+                        SysMgr.loggingEnable = True
+                        SysMgr.journalEnable = True
+
+                    if 's' in options:
+                        SysMgr.loggingEnable = True
+                        SysMgr.syslogEnable = True
 
             elif option == 'r':
                 SysMgr.rootPath = value
@@ -49808,6 +49822,7 @@ class ElfAnalyzer(object):
         '''
 
         # define attributes #
+        addrTable = {}
         self.ret = True
         self.path = path
         self.attr = {}
@@ -50227,7 +50242,6 @@ Section header string table index: %d
         self.attr.setdefault('dynsymList', ['']) # STN_UNDEF == 0
         self.attr.setdefault('versionTable', dict())
 
-
         # parse .dynsym table #
         if e_shdynsym >= 0 and e_shdynstr >= 0 and \
             self.attr['sectionHeader']['.dynsym']['type'] != 'NOBITS' and \
@@ -50386,6 +50400,8 @@ Section header string table index: %d
                             (symbol, self.attr['versionTable'][vsIdx])
                     else:
                         symbol = ''
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -50399,6 +50415,10 @@ Section header string table index: %d
                     'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
                         ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                     'ndx': st_shndx}
+
+                # add address-symbol mapping info #
+                if SysMgr.dwarfEnable:
+                    addrTable[st_value] = symbol
 
                 # register symbol to dynamic symbol list #
                 self.attr['dynsymList'].append(symbol)
@@ -50494,6 +50514,10 @@ Section header string table index: %d
                     'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
                     ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                     'ndx': st_shndx}
+
+                # add address-symbol mapping info #
+                if SysMgr.dwarfEnable:
+                    addrTable[st_value] = symbol
 
                 # get index #
                 if st_shndx in ElfAnalyzer.SHN_TYPE:
@@ -50635,6 +50659,11 @@ Section header string table index: %d
                 except:
                     RTYPE = rtype
 
+                if RTYPE == 'R_X86_64_RELATIVE':
+                    val = ' ' * 16
+                else:
+                    val = '%016x' % 0
+
                 try:
                     symbol = self.attr['dynsymList'][rsym+1]
                 except:
@@ -50653,15 +50682,15 @@ Section header string table index: %d
                         symbol = '%s + ' % symbol
                 if debug:
                     SysMgr.printPipe(
-                        '%016x %016x %32s %016x %s' % \
-                            (sh_offset, sh_info, RTYPE, 0,
+                        '%016x %016x %32s %s %s' % \
+                            (sh_offset, sh_info, RTYPE, val,
                             '%s%x' % (symbol, sh_addend)))
 
             if debug:
                 SysMgr.printPipe(oneLine)
 
         # check .eh_frame section #
-        if False and e_shehframe >= 0 and \
+        if SysMgr.dwarfEnable and e_shehframe >= 0 and \
             self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -50832,8 +50861,11 @@ Section header string table index: %d
                     if debug:
                         printStr = '\n%08x %016x %08x FDE cie=%08x ' % \
                             (offset, size, cid, cieOffset)
-                        printStr += 'pc=%016x..%016x\n' % \
+                        printStr += 'pc=%016x..%016x' % \
                             (initLoc, initLoc+addrRange)
+                        if initLoc in addrTable and addrTable[initLoc]:
+                            printStr += ' sym=%s' % addrTable[initLoc]
+                        printStr += '\n'
                         SysMgr.printPipe(printStr)
 
                 # print CFI #
@@ -50846,7 +50878,7 @@ Section header string table index: %d
                 SysMgr.printPipe('\n%s' % oneLine)
 
         # check .eh_frame_hdr section #
-        if e_shehframehdr >= 0 and \
+        if SysMgr.dwarfEnable and e_shehframehdr >= 0 and \
             self.attr['sectionHeader']['.eh_frame_hdr']['type'] != 'NOBITS':
             pass
 
@@ -67387,7 +67419,7 @@ class ThreadAnalyzer(object):
             if isExceptTask(idx):
                 continue
 
-            if SysMgr.fixedTargetEnable:
+            if SysMgr.fixTargetEnable:
                 SysMgr.fixedProcList.setdefault(idx, None)
 
             # add task into JSON data #
