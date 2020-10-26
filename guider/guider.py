@@ -3732,9 +3732,24 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def getFiles(path, incFile=True, incDir=False):
+        flist = list()
+
+        for r, d, f in os.walk(path):
+            if incFile:
+                for sfile in f:
+                    flist.append(os.path.join(r, sfile))
+            if incDir:
+                for sdir in d:
+                    flist.append(os.path.join(r, sdir))
+
+        return flist
+
+
+
+    @staticmethod
     def getFileList(flist, sort=False):
-        if not flist or \
-            type(flist) is not list:
+        if not flist or type(flist) is not list:
             return []
 
         rlist = list()
@@ -4064,19 +4079,6 @@ class UtilMgr(object):
             pass
 
         return buf
-
-
-
-    @staticmethod
-    def convPathList(value, isExit=False):
-        if type(value) is not list:
-            return value
-
-        flist = list()
-        for item in value:
-            flist += UtilMgr.convPath(item, isExit=isExit)
-
-        return flist
 
 
 
@@ -18565,6 +18567,9 @@ Examples:
 
     - Execute commands with range variables
         # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
+
+    - Execute commands with file variables for a directory
+        # {0:1} {1:1} -I "ls -lha FILE" -c FILE:/data
                     '''.format(cmd, mode)
 
                 # printdir #
@@ -30731,12 +30736,10 @@ Copyright:
                             if not piece:
                                 return
                     except:
-                        SysMgr.printErr(SysMgr.getErrMsg())
+                        SysMgr.printErr('failed', True)
                         break
                 elif target == 'dir':
-                    targetList = os.walk(path)
-
-                    for r, d, f in targetList:
+                    for r, d, f in os.walk(path):
                         for item in f:
                             try:
                                 fpath = os.path.join(r, item)
@@ -30747,8 +30750,10 @@ Copyright:
                                 for piece in opFunc(fd):
                                     if not piece:
                                         break
+                            except SystemExit:
+                                sys.exit(0)
                             except:
-                                SysMgr.printWarn(SysMgr.getErrMsg())
+                                SysMgr.printWarn('failed', True, True)
 
         # get tasks #
         try:
@@ -31007,7 +31012,7 @@ Copyright:
             SysMgr.printInfo(
                 "terminated '%s' and elapsed %s" % (cmd, duration))
 
-        def iterExeCmd(cmd, var):
+        def iterVarCmd(cmd, var):
             if not var:
                 exeCmd(cmd)
                 return
@@ -31015,38 +31020,53 @@ Copyright:
             # pop a variable #
             conv = var.pop(0)
             item = conv.split(':')
-            if len(item) != 4:
-                SysMgr.printErr("wrong iterator '%s'" % conv)
-                sys.exit(0)
+            if len(item) == 4:
+                # split variables #
+                key, start, end, step = item
 
-            # split variables #
-            key, start, end, step = item
+                # convert type #
+                if '.' in step:
+                    step = float(step)
+                    start = float(start)
+                    end = float(end)
+                else:
+                    step = long(step)
+                    start = long(start)
+                    end = long(end)
 
-            # convert type #
-            if '.' in step:
-                step = float(step)
-                start = float(start)
-                end = float(end)
+                # loop in range #
+                for num in customRange(start, end, step):
+                    if type(num) is float:
+                        num = round(num, 6)
+
+                    tcmd = cmd.replace(key, str(num))
+
+                    try:
+                        iterVarCmd(tcmd, list(var))
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "fail to execute '%s'" % tcmd, True)
+                        sys.exit(0)
+            elif len(item) == 2 and os.path.isdir(item[1]):
+                key = item[0]
+                flist = UtilMgr.getFiles(item[1], incDir=True)
+                for item in flist:
+
+                    tcmd = cmd.replace(key, item)
+
+                    try:
+                        iterVarCmd(tcmd, list(var))
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "fail to execute '%s'" % tcmd, True)
+                        sys.exit(0)
             else:
-                step = long(step)
-                start = long(start)
-                end = long(end)
-
-            # loop in range #
-            for num in customRange(start, end, step):
-                if type(num) is float:
-                    num = round(num, 6)
-
-                tcmd = cmd.replace(key, str(num))
-
-                try:
-                    iterExeCmd(tcmd, list(var))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "fail to execute '%s'" % tcmd, True)
-                    sys.exit(0)
+                SysMgr.printErr("wrong variable '%s'" % conv)
+                sys.exit(0)
 
         if SysMgr.inputParam is None:
             SysMgr.printErr(
@@ -31057,7 +31077,7 @@ Copyright:
 
         # convert variables #
         if SysMgr.customCmd:
-            iterExeCmd(cmd, SysMgr.customCmd)
+            iterVarCmd(cmd, SysMgr.customCmd)
         else:
             exeCmd(cmd)
 
@@ -33213,21 +33233,6 @@ Copyright:
         SysMgr.releaseResource()
 
         os._exit(0)
-
-
-
-    @staticmethod
-    def getFileList(path, incFile=True, incDir=False):
-        flist = list()
-        for r, d, f in os.walk(path):
-            if incFile:
-                for sfile in f:
-                    flist.append(os.path.join(r, sfile))
-            if incDir:
-                for sdir in d:
-                    flist.append(os.path.join(r, sdir))
-
-        return flist
 
 
 
@@ -51069,7 +51074,6 @@ class ThreadAnalyzer(object):
             else:
                 return '(%s' % ''.join(namelist[:-1])
 
-        flist = UtilMgr.convPathList(flist)
         flist = UtilMgr.getFileList(flist)
         if len(flist) < 2:
             SysMgr.printErr(
@@ -65009,6 +65013,8 @@ class ThreadAnalyzer(object):
                         self.nsData[node][value] = {tid: 0}
                     else:
                         self.nsData[node][value][tid] = 0
+        except SystemExit:
+            sys.exit(0)
         except:
             comm = self.procData[tid]['stat'][self.commIdx][1:-1]
             SysMgr.printWarn(
