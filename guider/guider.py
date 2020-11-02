@@ -50919,6 +50919,77 @@ Section header string table index: %d
 
                 return augdict, adstr.strip(), augdata
 
+            def convCFI(entry, cfi, cie=None, pc=None):
+                def convRegName(arg):
+                    return arg
+
+                s = ''
+                for inst in cfi:
+                    name = inst[0]
+                    args = inst[2]
+
+                    if name in ('DW_CFA_offset',
+                                'DW_CFA_offset_extended',
+                                'DW_CFA_offset_extended_sf',
+                                'DW_CFA_val_offset',
+                                'DW_CFA_val_offset_sf'):
+                        s += ' %s: %s at cfa%+d\n' % (
+                            name, convRegName(args[0]),
+                            args[1] * cie['daf'])
+                    elif name in ('DW_CFA_restore',
+                                  'DW_CFA_restore_extended',
+                                  'DW_CFA_undefined', 'DW_CFA_same_value',
+                                  'DW_CFA_def_cfa_register'):
+                        s += ' %s: %s\n' % (name, convRegName(args[0]))
+                    elif name == 'DW_CFA_register':
+                        s += ' %s: %s in %s' % (
+                            name, convRegName(args[0]),
+                            convRegName(args[1]))
+                    elif name == 'DW_CFA_set_loc':
+                        pc = args[0]
+                        s += ' %s: %08x\n' % (name, pc)
+                    elif name in ('DW_CFA_advance_loc1',
+                                  'DW_CFA_advance_loc2',
+                                  'DW_CFA_advance_loc4',
+                                  'DW_CFA_advance_loc'):
+                        factoredOffset = args[0] * cie['caf']
+                        s += ' %s: %s to %08x\n' % (
+                            name, factoredOffset, factoredOffset + pc)
+                        pc += factoredOffset
+                    elif name in ('DW_CFA_remember_state',
+                                  'DW_CFA_restore_state',
+                                  'DW_CFA_nop'):
+                        s += ' %s\n' % name
+                    elif name == 'DW_CFA_def_cfa':
+                        s += ' %s: %s ofs %s\n' % (
+                            name, convRegName(args[0]), args[1])
+                    elif name == 'DW_CFA_def_cfa_sf':
+                        s += ' %s: %s ofs %s\n' % (
+                            name, convRegName(args[0]),
+                            args[1] * cie['daf'])
+                    elif name in ('DW_CFA_def_cfa_offset',
+                                  'DW_CFA_GNU_args_size'):
+                        s += ' %s: %s\n' % (name, args[0])
+                    elif name == 'DW_CFA_def_cfa_expression':
+                        '''
+                        expr_dumper = ExprDumper(entry.structs)
+                        s += ' %s (%s)\n' % \
+                            (name, expr_dumper.dump_expr(args[0]))
+                        '''
+                        s += ' %s: %s\n' % (name, args)
+                    elif name == 'DW_CFA_expression':
+                        '''
+                        expr_dumper = ExprDumper(entry.structs)
+                        s += ' %s: %s (%s)\n' % (
+                            name, convRegName(
+                                args[0]), expr_dumper.dump_expr(args[1]))
+                        '''
+                        s += ' %s: %s\n' % (name, args)
+                    else:
+                        s += ' %s: <??>\n' % name
+
+                return s
+
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
                 self.getSectionInfo(fd, e_shoff+e_shentsize*e_shehframe)
@@ -50960,7 +51031,9 @@ Section header string table index: %d
 
                 #-------------------- CIE --------------------#
                 if cid == 0:
+                    entry = 'CIE'
                     nrCIE += 1
+                    initLoc = 0
 
                     # version #
                     ver = struct.unpack('B', fd.read(1))[0]
@@ -51015,7 +51088,7 @@ Section header string table index: %d
                     cfi = self.getCFI(table, pos, dataSize)
 
                     # save info #
-                    self.attr['dwarf']['CIE'][offset] = {
+                    cie = self.attr['dwarf']['CIE'][offset] = {
                         'offset': offset,
                         'length': size,
                         'id': cid,
@@ -51049,6 +51122,7 @@ Section header string table index: %d
 
                 #-------------------- FDE --------------------#
                 else:
+                    entry = 'FDE'
                     nrFDE += 1
 
                     # CIE pointer #
@@ -51149,7 +51223,8 @@ Section header string table index: %d
                     if debug:
                         if initLoc in addrTable and addrTable[initLoc]:
                             symbol = addrTable[initLoc]
-                            self.attr['dwarf']['FDE'][offset]['symbol'] = symbol
+                            self.attr['dwarf']['FDE'][offset]['symbol'] = \
+                                symbol
                         else:
                             symbol = ''
 
@@ -51172,9 +51247,12 @@ Section header string table index: %d
 
                 # print CFI #
                 if debug:
+                    SysMgr.printPipe(convCFI(entry, cfi, cie, initLoc))
+                    '''
                     for item in cfi:
                         SysMgr.printPipe(' %s%s' % \
                             (item[0], ': %s' % item[2] if item[2] else ''))
+                    '''
 
             # add general info #
             self.attr['dwarf']['general']['nrCIE'] = nrCIE
