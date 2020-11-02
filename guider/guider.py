@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201101"
+__revision__ = "201102"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17883,6 +17883,12 @@ Examples:
 
     - Trace all systemcalls and pause when catching open systemcall
         # {0:1} {1:1} -I "ls -al" -c open
+
+    - Trace all systemcalls and sleep for 1.5 second when catching open systemcall
+        # {0:1} {1:1} -I "ls -al" -c open\\|sleep:1.5
+
+    - Trace all systemcalls and sleep for 1.5 second whenever catching systemcall
+        # {0:1} {1:1} -I "ls -al" -c \\|sleep:1.5
                     '''.format(cmd, mode)
 
                 # utrace #
@@ -18329,6 +18335,7 @@ Options:
         -e  <CHARACTER>             enable options
               p:pipe | D:DWARF | e:encode
         -I  <FILE>                  set input path
+        -g  <ADDR|SYMBOL>           set filter
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -31730,7 +31737,7 @@ Copyright:
         for item in SysMgr.filterGroup:
             pids += SysMgr.getPids(item)
         if not pids:
-            SysMgr.printErr("no target threads")
+            SysMgr.printErr("no target thread")
 
         tobj = ThreadAnalyzer(onlyInstance=True)
         for pid in pids:
@@ -32126,7 +32133,8 @@ Copyright:
                 pass
 
         # convert comm to pid #
-        targetList = SysMgr.convertPidList(argList, exceptMe=True)
+        targetList = SysMgr.convertPidList(
+            argList, isThread=isThread, exceptMe=True)
         if not targetList:
             targetList = argList
 
@@ -32149,8 +32157,10 @@ Copyright:
         exceptList = list(map(long, exceptList))
 
         if isThread:
+            idtype = 'TID'
             taskType = 'thread'
         else:
+            idtype = 'PID'
             taskType = 'process'
 
         nrProc = long(0)
@@ -32168,9 +32178,11 @@ Copyright:
                 # check pid type #
                 try:
                     pid = long(pid)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        "fail to recognize '%s' as a PID" % pid)
+                        "fail to recognize '%s' as a %s" % (pid, idtype))
                     return
 
                 # skip myself #
@@ -43789,10 +43801,19 @@ struct cmsghdr {
 
 
     def checkSymbol(self, sym, newline=False, bt=None):
-        if not SysMgr.customCmd or \
-            SysMgr.outPath or \
-            not sym in SysMgr.customCmd:
+        if not SysMgr.customCmd or SysMgr.outPath:
             return
+
+        for cmd in SysMgr.customCmd:
+            item = cmd.split('|', 1)
+            if item[0] and item[0] != sym:
+                return
+
+            if len(item) == 1:
+                break
+            elif len(item) > 1:
+                self.executeCmd([item[1]], sym, None, [])
+                return
 
         sys.stdout.write('\n')
 
@@ -46496,7 +46517,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                 if SysMgr.isNoChild():
                     break
 
-            SysMgr.printErr("no target threads")
+            SysMgr.printErr("no target thread")
         except SystemExit:
             return
         except:
@@ -50469,6 +50490,11 @@ Section header string table index: %d
 
                 # print .dynsym table #
                 if debug:
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                            continue
+
                     SysMgr.printPipe(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
@@ -50565,6 +50591,11 @@ Section header string table index: %d
 
                 # parse .sym table #
                 if debug:
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                            continue
+
                     SysMgr.printPipe(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
@@ -50646,6 +50677,11 @@ Section header string table index: %d
                     saddr = long(0)
 
                 if debug:
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                            continue
+
                     SysMgr.printPipe(
                         '%016x %016x %32s %016x %s' % \
                         (sh_offset, sh_info, RTYPE, saddr, symbol))
@@ -50718,6 +50754,11 @@ Section header string table index: %d
                     if symbol:
                         symbol = '%s + ' % symbol
                 if debug:
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                            continue
+
                     SysMgr.printPipe(
                         '%016x %016x %32s %s %s' % \
                             (sh_offset, sh_info, RTYPE, val,
@@ -51106,12 +51147,23 @@ Section header string table index: %d
 
                     # print info #
                     if debug:
+                        if initLoc in addrTable and addrTable[initLoc]:
+                            symbol = addrTable[initLoc]
+                            self.attr['dwarf']['FDE'][offset]['symbol'] = symbol
+                        else:
+                            symbol = ''
+
+                        # apply for filter #
+                        if SysMgr.filterGroup:
+                            if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                                continue
+
                         printStr = '\n%08x %016x %08x FDE cie=%08x ' % \
                             (offset, size, cid, cieOffset)
                         printStr += 'pc=%016x..%016x' % \
                             (initLoc, initLoc+addrRange)
-                        if initLoc in addrTable and addrTable[initLoc]:
-                            printStr += ' sym=%s' % addrTable[initLoc]
+                        if symbol:
+                            printStr += ' sym=%s' % symbol
                         printStr += '\n'
                         if augdatastr:
                             printStr += ' %-22s %s\n\n' % \
