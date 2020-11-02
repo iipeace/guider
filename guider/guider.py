@@ -3033,6 +3033,43 @@ class ConfigMgr(object):
     # Define default syscall list #
     sysList = []
 
+    # Define default register list #
+    regList = []
+
+    # Define registers by number sequence #
+    REGS_X86 = [
+        'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi',
+        'eip', 'eflags', '<none>', 'st0', 'st1', 'st2', 'st3', 'st4',
+        'st5', 'st6', 'st7', '<none>', '<none>', 'xmm0', 'xmm1', 'xmm2',
+        'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7', 'mm0', 'mm1', 'mm2',
+        'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'fcw', 'fsw', 'mxcsr',
+        'es', 'cs', 'ss', 'ds', 'fs', 'gs', '<none>', '<none>', 'tr', 'ldtr'
+    ]
+
+    REGS_X64 = [
+        'rax', 'rdx', 'rcx', 'rbx', 'rsi', 'rdi', 'rbp', 'rsp',
+        'r8',  'r9',  'r10', 'r11', 'r12', 'r13', 'r14', 'r15',
+        'rip', 'xmm0',  'xmm1',  'xmm2',  'xmm3', 'xmm4', 'xmm5', 'xmm6',
+        'xmm7', 'xmm8', 'xmm9', 'xmm10', 'xmm11', 'xmm12', 'xmm13', 'xmm14',
+        'xmm15', 'st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6',
+        'st7', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6',
+        'mm7', 'rflags', 'es', 'cs', 'ss', 'ds', 'fs', 'gs',
+        '<none>', '<none>', 'fs.base', 'gs.base', '<none>', '<none>',
+        'tr', 'ldtr', 'mxcsr', 'fcw', 'fsw'
+    ]
+
+    REGS_ARM = [
+        'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9',
+        'r10', 'r11', 'r12', 'r13', 'r14', 'r15'
+    ]
+
+    REGS_AARCH64 = [
+        'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9',
+        'x10', 'x11', 'x12', 'x13', 'x14', 'x15', 'x16', 'x17', 'x18', 'x19',
+        'x20', 'x21', 'x22', 'x23', 'x24', 'x25', 'x26', 'x27', 'x28', 'x29',
+        'x30', 'sp', 'pc'
+    ]
+
     # Define systemcall register #
     SYSREG_LIST = {
         "powerpc": "gpr0",
@@ -19309,15 +19346,19 @@ Copyright:
         # set systemcall table #
         if arch == 'arm':
             ConfigMgr.sysList = ConfigMgr.SYSCALL_ARM
+            ConfigMgr.regList = ConfigMgr.REGS_ARM
             ConfigMgr.wordSize = 4
         elif arch == 'aarch64':
             ConfigMgr.sysList = ConfigMgr.SYSCALL_AARCH64
+            ConfigMgr.regList = ConfigMgr.REGS_AARCH64
             ConfigMgr.wordSize = 8
         elif arch == 'x86':
             ConfigMgr.sysList = ConfigMgr.SYSCALL_X86
+            ConfigMgr.regList = ConfigMgr.REGS_X86
             ConfigMgr.wordSize = 4
         elif arch == 'x64':
             ConfigMgr.sysList = ConfigMgr.SYSCALL_X64
+            ConfigMgr.regList = ConfigMgr.REGS_X64
             ConfigMgr.wordSize = 8
         else:
             support = ' / '.join(ConfigMgr.supportArch)
@@ -50921,7 +50962,7 @@ Section header string table index: %d
 
             def convCFI(entry, cfi, cie=None, pc=None):
                 def convRegName(arg):
-                    return arg
+                    return ConfigMgr.regList[arg]
 
                 s = ''
                 for inst in cfi:
