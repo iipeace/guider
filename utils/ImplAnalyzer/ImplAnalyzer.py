@@ -17,6 +17,7 @@ class ImplAnalyzer(object):
     typeListRep = {}
     targetHeaderList = []
     skipHeaderList = []
+    noConstList = []
     summaryNmDepth = 0
 
     vectorStr = 'std::vector<'
@@ -215,8 +216,8 @@ class ImplAnalyzer(object):
 
 
     @staticmethod
-    def getMethodsFromHeader(\
-        filename, nmFilter=[], exFilter=[], prt=False, incParam=False, \
+    def getMethodsFromHeader(
+        filename, nmFilter=[], exFilter=[], prt=False, incParam=False,
         incInline=True, exType={}):
         methodList = {}
 
@@ -383,7 +384,7 @@ class ImplAnalyzer(object):
                 item = ImplAnalyzer.typeListOrig[item]
 
             # remove namespace #
-            item = ImplAnalyzer.removeNamespace(\
+            item = ImplAnalyzer.removeNamespace(
                 item, ImplAnalyzer.exceptNm)
 
             # add item to param list #
@@ -674,7 +675,7 @@ class ImplAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn(\
+                SysMgr.printWarn(
                     'Fail to analyze %s because %s' % \
                         (item, SysMgr.getErrMsg()))
                 continue
@@ -805,19 +806,20 @@ class ImplAnalyzer(object):
 
 
     @staticmethod
-    def applyEnvVars(\
+    def applyEnvVars(
         typeList={}, typeListOrig={}, exceptNm=[], targetNm=[], \
         skipBinList=[], targetHeaderList=[], skipHeaderList=[], \
-        typeListRep={}, summaryNmDepth=0):
+        typeListRep={}, noConstList=[], summaryNmDepth=0):
         ImplAnalyzer.typeList.update(typeList)
         ImplAnalyzer.typeListOrig.update(typeListOrig)
         ImplAnalyzer.typeListRep.update(typeListRep)
-        ImplAnalyzer.targetHeaderList = targetHeaderList
-        ImplAnalyzer.skipHeaderList = skipHeaderList
-        ImplAnalyzer.targetNm = targetNm
-        ImplAnalyzer.exceptNm = exceptNm
+        ImplAnalyzer.targetHeaderList += targetHeaderList
+        ImplAnalyzer.skipHeaderList += skipHeaderList
+        ImplAnalyzer.targetNm += targetNm
+        ImplAnalyzer.exceptNm += exceptNm
         ImplAnalyzer.summaryNmDepth = summaryNmDepth
         ImplAnalyzer.skipBinList += skipBinList
+        ImplAnalyzer.noConstList += noConstList
 
 
 
@@ -832,8 +834,8 @@ class ImplAnalyzer(object):
             SysMgr.printErr('No header file')
         for idx, filename in enumerate(hfiles):
             SysMgr.printStat("start parsing '%s'..." % filename)
-            ret = ImplAnalyzer.getMethodsFromHeader(\
-                filename, ImplAnalyzer.targetNm, \
+            ret = ImplAnalyzer.getMethodsFromHeader(
+                filename, ImplAnalyzer.targetNm,
                 args['exceptapi'] + ImplAnalyzer.skipHeaderList, exType=exType)
             if ret:
                 hmethods.update(ret)
@@ -867,7 +869,7 @@ class ImplAnalyzer(object):
             if found:
                 continue
 
-            ret = ImplAnalyzer.getMethodsFromBin(\
+            ret = ImplAnalyzer.getMethodsFromBin(
                 filename, ImplAnalyzer.targetNm)
             if ret:
                 bmethods.update(ret)
@@ -886,6 +888,16 @@ class ImplAnalyzer(object):
 
 
     @staticmethod
+    def isConstItem(item):
+        # find item in no const list #
+        for word in ImplAnalyzer.noConstList:
+            if item.startswith(word):
+                return False
+        return True
+
+
+
+    @staticmethod
     def getParams(method):
         param = ''
         for item in method['parameters']:
@@ -895,10 +907,10 @@ class ImplAnalyzer(object):
             isConst = False
             if item.startswith('const '):
                 item = item.split('const ', 1)[1]
-                if item.startswith('std::vector') and \
-                    not item.endswith(' &'):
-                    isConst = False
-                elif not item.startswith('std::shared_ptr'):
+                if item.startswith('std::vector') and not item.endswith(' &'):
+                    continue
+
+                if ImplAnalyzer.isConstItem(item):
                     isConst = True
 
             # remove reference for shared_ptr #
@@ -906,12 +918,14 @@ class ImplAnalyzer(object):
                 item.endswith(' &'):
                 item = item.rsplit(' &', 1)[0]
 
-            # remove namespace #
-            item = ImplAnalyzer.removeNamespace(\
-                item, ImplAnalyzer.exceptNm)
-
             # convert type #
             item = ImplAnalyzer.convert2RepType(item)
+
+            # remove namespace #
+            origItem = item
+            item = ImplAnalyzer.removeNamespace(\
+                item, ImplAnalyzer.exceptNm)
+            namespace = origItem[:len(item)+1]
 
             # recover const #
             if isConst:
@@ -1000,7 +1014,7 @@ class ImplAnalyzer(object):
 
 
     @staticmethod
-    def printResults(\
+    def printResults(
         hfiles=[], hmethods={}, bfiles=[], bmethods={}, args={}):
 
         filters = args['filters']
@@ -1118,12 +1132,12 @@ class ImplAnalyzer(object):
         nrWrongHFile = len(ImplAnalyzer.exceptHeaderList)
         exHList = ImplAnalyzer.exceptHeaderApis
         nrParseHFile = nrTotalHFile - nrWrongHFile
-        SysMgr.printPipe((\
+        SysMgr.printPipe((
             '[ Header Summary ] '
             '(TotalAPIs: %s / NormalFiles: %s / AbnormalFiles: %s)') % \
                 (cv(nrHMethods), cv(nrParseHFile), cv(nrWrongHFile)))
         SysMgr.printPipe(twoLine)
-        SysMgr.printPipe(\
+        SysMgr.printPipe(
             "%25s %s" % ("Impl /  Total (     %)", "Name"))
         SysMgr.printPipe(twoLine)
         val = '%6s / %6s (%5s%%)' % \
@@ -1133,7 +1147,7 @@ class ImplAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # Header Summary #
-        for method, cnt in sorted(\
+        for method, cnt in sorted(
             totalHeaderFunc.items(), key=lambda e:e[1], reverse=True):
             try:
                 impCnt = 0
@@ -1152,12 +1166,12 @@ class ImplAnalyzer(object):
         # Binary #
         nrWrongBFile = len(ImplAnalyzer.exceptBinList)
         nrParseBFile = nrTotalHFile - nrWrongBFile
-        SysMgr.printPipe((\
+        SysMgr.printPipe((
             '[ Binary Summary ] '
             '(TotalAPIs: %s / NotImplAPIs: %s / NormalFile: %s / AbnormalFile: %s)') % \
                 (cv(nrBMethods), cv(len(zmethods)), cv(nrParseBFile), cv(nrWrongBFile)))
         SysMgr.printPipe(twoLine)
-        SysMgr.printPipe(\
+        SysMgr.printPipe(
             "%25s %s" % ("Def /  Total (     %)", "Name"))
         SysMgr.printPipe(twoLine)
         val = '%6s / %6s (%5s%%)' % \
@@ -1167,7 +1181,7 @@ class ImplAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # Bin Summary #
-        for method, cnt in sorted(\
+        for method, cnt in sorted(
             totalBinFunc.items(), key=lambda e:e[1], reverse=True):
             try:
                 impCnt = commonFunc[method]
@@ -1181,7 +1195,7 @@ class ImplAnalyzer(object):
 
         # APIs #
         cnt = 0
-        SysMgr.printPipe((\
+        SysMgr.printPipe((
             '[ API List ] ([H]eaderOnly: %s / [I]nline: %s / '
             '[B]inOnly: %s / [Z]eroSize: %s / [C]ommon: %s / '
             '[E]xclude: %s)') % \
@@ -1192,7 +1206,7 @@ class ImplAnalyzer(object):
         # Header APIs #
         for method in sorted(onlyHList):
             mlist = hmethods[method]
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[H] %s [ Type: %s / Line: %s / File: %s ]' % \
                 (method, mlist['type'], cv(mlist['line']), cv(mlist['filename'])))
         if len(onlyHList) > 0:
@@ -1201,7 +1215,7 @@ class ImplAnalyzer(object):
 
         # Inline APIs #
         for method, mlist in sorted(imethods.items()):
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[I] %s [ Type: %s / Line: %s / File: %s ]' % \
                 (method, mlist['type'], cv(mlist['line']), cv(mlist['filename'])))
         if len(imethods) > 0:
@@ -1210,7 +1224,7 @@ class ImplAnalyzer(object):
 
         # Bin zero-size APIs #
         for method, mlist in sorted(zmethods.items()):
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[Z] %s [ Size: %s / Bind: %s / Addr: %s ]' % \
                     (method, cv(mlist['size']), mlist['bind'], hex(mlist['addr'])))
         if len(zmethods) > 0:
@@ -1220,7 +1234,7 @@ class ImplAnalyzer(object):
         # Bin APIs #
         for method in sorted(onlyBList):
             mlist = bmethods[method]
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[B] %s [ Size: %s / Bind: %s / Addr: %s ]' % \
                     (method, cv(mlist['size']), \
                     mlist['bind'], hex(mlist['addr'])))
@@ -1232,7 +1246,7 @@ class ImplAnalyzer(object):
         for method in sorted(commonList):
             mlist = bmethods[method]
             hdlist = hmethods[method]
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[C] %s [ Type: %s / Size: %s / Line: %s / Bind: %s / Addr: %s ]' % \
                     (method, hdlist['type'], cv(mlist['size']), cv(hdlist['line']), \
                     mlist['bind'], hex(mlist['addr'])))
@@ -1242,7 +1256,7 @@ class ImplAnalyzer(object):
 
         # Excluded APIs #
         for method, mlist in sorted(exHList.items()):
-            SysMgr.printPipe(\
+            SysMgr.printPipe(
                 '[E] %s [ Line: %s / File: %s ]' % \
                     (method, cv(mlist['line_number']), cv(mlist['filename'])))
         if len(exHList) > 0:
@@ -1255,7 +1269,7 @@ class ImplAnalyzer(object):
         SysMgr.printPipe('\n\n')
 
         # Files #
-        SysMgr.printPipe(\
+        SysMgr.printPipe(
             '[ File List ] ([H]eader: %s / [B]in: %s / [E]xcept)' % \
                 (cv(nrParseHFile), cv(nrParseBFile)))
         SysMgr.printPipe(twoLine)
