@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201102"
+__revision__ = "201103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3070,7 +3070,7 @@ class ConfigMgr(object):
         'x30', 'sp', 'pc'
     ]
 
-    # Define systemcall register #
+    # Define syscall register #
     SYSREG_LIST = {
         "powerpc": "gpr0",
         "arm": "r7",
@@ -13048,7 +13048,7 @@ class FileAnalyzer(object):
                     SysMgr.printWarn('fail to mmap %s' % fileName)
                 continue
 
-            # prepare variables for mincore systemcall #
+            # prepare variables for mincore syscall #
             fd = val['fd'].fileno()
             offset = val['offset']
             size = val['size']
@@ -13057,7 +13057,7 @@ class FileAnalyzer(object):
                 # map a file to ram with PROT_NONE(0), MAP_SHARED(0x10) flags #
                 mm = SysMgr.guiderObj.mmap(0, size, 0, 2, fd, offset) # pylint: disable=no-member
 
-                # call mincore systemcall by standard libc library #
+                # call mincore syscall by standard libc library #
                 pagemap = SysMgr.guiderObj.mincore(mm, size) # pylint: disable=no-member
 
                 # unmap #
@@ -13076,7 +13076,7 @@ class FileAnalyzer(object):
                 # make a pagemap table #
                 pagemap = (tsize * c_ubyte)()
 
-                # call mincore systemcall by standard libc library #
+                # call mincore syscall by standard libc library #
                 ret = SysMgr.libcObj.mincore(
                     mm, size, cast(pagemap, POINTER(c_ubyte)))
                 if ret < 0:
@@ -17129,7 +17129,7 @@ Examples:
     - record specific function events including memory, block, heap of all threads to ./guider.dat
         # {0:1} {1:1} -s . -e m, b, h
 
-    - record specific function events including all systemcalls of all threads to ./guider.dat
+    - record specific function events including all syscalls of all threads to ./guider.dat
         # {0:1} {1:1} -s . -t
 
     - record specific function events including softirq_entry event of all threads to ./guider.dat
@@ -17383,7 +17383,7 @@ Examples:
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
 
-    - record default events including specific systemcalls of all threads to ./guider.dat
+    - record default events including specific syscalls of all threads to ./guider.dat
         # {0:1} {1:1} -s . -t sys_read, write
 
     - record default events including lock of all threads to ./guider.dat
@@ -17485,7 +17485,7 @@ Examples:
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor systemcalls with breakpoint for read including register info for a specific thread
+    - Monitor syscalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
 
     See the top COMMAND help for more examples.
@@ -17876,7 +17876,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace systemcalls
+    Trace syscalls
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -17900,32 +17900,35 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Trace all read systemcalls for a specific thread
+    - Trace all read syscalls for a specific thread
         # {0:1} {1:1} -g a.out -t read
 
-    - Trace all read systemcalls for child tasks created by a specific thread
+    - Trace all read syscalls for child tasks created by a specific thread
         # {0:1} {1:1} -g 1234 -t read -W
 
-    - Trace all write systemcalls with specific command
+    - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
-    - Trace all read systemcalls for a specific thread and save summary tables, call history to ./guider.out
+    - Trace all read syscalls for a specific thread and save summary tables, call history to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o . -a
 
-    - Trace all systemcalls with breakpoint for read including register info for a specific thread
+    - Trace all syscalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g a.out -c read -a
 
-    - Trace all systemcalls for a specific thread only for 1 minute
+    - Trace all syscalls for a specific thread only for 1 minute
         # {0:1} {1:1} -g a.out -R 1m
 
-    - Trace all systemcalls and pause when catching open systemcall
+    - Trace all syscalls and pause when catching open syscall
         # {0:1} {1:1} -I "ls -al" -c open
 
-    - Trace all systemcalls and sleep for 1.5 second when catching open systemcall
+    - Trace all syscalls and sleep for 1.5 second when catching open syscall
         # {0:1} {1:1} -I "ls -al" -c open\\|sleep:1.5
 
-    - Trace all systemcalls and sleep for 1.5 second whenever catching systemcall
+    - Trace all syscalls and sleep for 1.5 second whenever catching syscall
         # {0:1} {1:1} -I "ls -al" -c \\|sleep:1.5
+
+    - Trace all syscalls and print memory that 2nd argument point to
+        # {0:1} {1:1} -I "ls -al" -c write\\|rdmem:1
                     '''.format(cmd, mode)
 
                 # utrace #
@@ -19343,7 +19346,7 @@ Copyright:
 
         arch = SysMgr.cleanItem(arch)
 
-        # set systemcall table #
+        # set syscall table #
         if arch == 'arm':
             ConfigMgr.sysList = ConfigMgr.SYSCALL_ARM
             ConfigMgr.regList = ConfigMgr.REGS_ARM
@@ -32492,7 +32495,7 @@ Copyright:
             ('sched_period', c_uint64),
         ]
 
-        # get the number of sched_setattr systemcall #
+        # get the number of sched_setattr syscall #
         nrSyscall = ConfigMgr.sysList.index('sys_sched_setattr')
 
         # define syscall parameters for sched_setattr() #
@@ -33750,7 +33753,7 @@ Copyright:
 
                     self.cmdList["raw_syscalls"] = True
 
-            # enable target systemcall events #
+            # enable target syscall events #
             SysMgr.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
             # enable block events #
@@ -33981,7 +33984,7 @@ Copyright:
             SysMgr.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SysMgr.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
-        # enable systemcall events #
+        # enable syscall events #
         SysMgr.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
         # enable memory events #
@@ -43845,16 +43848,21 @@ struct cmsghdr {
         if not SysMgr.customCmd or SysMgr.outPath:
             return
 
+        isPaused = False
         for cmd in SysMgr.customCmd:
             item = cmd.split('|', 1)
             if item[0] and item[0] != sym:
-                return
+                continue
 
             if len(item) == 1:
+                isPaused = True
                 break
             elif len(item) > 1:
-                self.executeCmd([item[1]], sym, None, [])
-                return
+                args = self.readArgs()
+                self.executeCmd([item[1]], sym, None, args)
+
+        if not isPaused:
+            return
 
         sys.stdout.write('\n')
 
@@ -48541,6 +48549,60 @@ class ElfAnalyzer(object):
 
     DW_INST_MAP = {v: k for k, v in DW_INST.items()}
 
+    DW_OPS_DEC_ARGS = set([
+        'DW_OP_const1u', 'DW_OP_const1s', 'DW_OP_const2u', 'DW_OP_const2s',
+        'DW_OP_const4u', 'DW_OP_const4s', 'DW_OP_const8u', 'DW_OP_const8s',
+        'DW_OP_constu', 'DW_OP_consts', 'DW_OP_pick', 'DW_OP_plus_uconst',
+        'DW_OP_bra', 'DW_OP_skip', 'DW_OP_fbreg', 'DW_OP_piece',
+        'DW_OP_deref_size', 'DW_OP_xderef_size', 'DW_OP_regx',] + \
+        ['DW_OP_breg%s' % idx for idx in range(0, 32)])
+
+    DW_OPS_2DEC_ARGS = set([
+        'DW_OP_bregx', 'DW_OP_bit_piece'])
+
+    DW_OPS_HEX_ARGS = set([
+        'DW_OP_addr', 'DW_OP_call2', 'DW_OP_call4', 'DW_OP_call_ref'])
+
+    class RegisterRule(object):
+        '''
+        refer to https://github.com/eliben/pyelftools
+
+        Register rules are used to find registers in call frames. Each rule
+        consists of a type (enumeration following DWARFv3 section 6.4.1)
+        and an optional argument to augment the type.
+        '''
+        UNDEFINED = 'UNDEFINED'
+        SAME_VALUE = 'SAME_VALUE'
+        OFFSET = 'OFFSET'
+        VAL_OFFSET = 'VAL_OFFSET'
+        REGISTER = 'REGISTER'
+        EXPRESSION = 'EXPRESSION'
+        VAL_EXPRESSION = 'VAL_EXPRESSION'
+        ARCHITECTURAL = 'ARCHITECTURAL'
+
+        def __init__(self, type, arg=None):
+            self.type = type
+            self.arg = arg
+
+        def __repr__(self):
+            return 'RegisterRule(%s, %s)' % (self.type, self.arg)
+
+    class CFARule(object):
+        '''
+        refer to https://github.com/eliben/pyelftools
+
+        A CFA rule is used to compute the CFA for each location. It either
+        consists of a register+offset, or a DWARF expression.
+        '''
+        def __init__(self, reg=None, offset=None, expr=None):
+            self.reg = reg
+            self.offset = offset
+            self.expr = expr
+
+        def __repr__(self):
+            return 'CFARule(reg=%s, offset=%s, expr=%s)' % (
+                self.reg, self.offset, self.expr)
+
     cachedFiles = {}
     cachedHeaderFiles = {}
     stripedFiles = {}
@@ -50960,7 +51022,138 @@ Section header string table index: %d
 
                 return augdict, adstr.strip(), augdata
 
-            def convCFI(entry, cfi, cie=None, pc=None):
+            def decodeCFI(self, entry, cfi, cie, offset):
+                CFARule = ElfAnalyzer.CFARule
+                RegisterRule = ElfAnalyzer.RegisterRule
+
+                copy = SysMgr.getPkg('copy', False)
+
+                # CIE #
+                if entry == 'CIE':
+                    myObj = cie
+                    curLine = dict(pc=0, cfa=CFARule(reg=None, offset=0))
+                    regOrder = []
+                # FDE #
+                else:
+                    myObj = self.attr['dwarf']['FDE'][offset]
+                    cieTable = cie['table']
+                    if cieTable:
+                        cieLastLine = copy.copy(cieTable[-1])
+                        curLine = copy.copy(cieLastLine)
+                    else:
+                        curLine = dict(cfa=CFARule(reg=None, offset=0))
+                    curLine['pc'] = myObj['initLoc']
+                    regOrder = copy.copy(cie['regOrder'])
+
+                table = []
+
+                # stack for DW_CFA_{remember|restore}_state instructions #
+                lineStack = []
+
+                def add2Order(regnum):
+                    '''
+                    DW_CFA_restore and others remove registers from curLine,
+                    but they stay in reg_order. Avoid duplicates.
+                    '''
+                    if regnum not in regOrder:
+                        regOrder.append(regnum)
+
+                for instr in cfi:
+                    '''
+                    Throughout this loop, curLine is the current line.
+                    Some instructions add it to the table,
+                    but most instructions just update it
+                    without adding it to the table.
+                    '''
+
+                    name = instr[0]
+                    args = instr[2]
+
+                    if name == 'DW_CFA_set_loc':
+                        table.append(copy.copy(curLine))
+                        curLine['pc'] = args[0]
+                    elif name in (
+                        'DW_CFA_advance_loc1', 'DW_CFA_advance_loc2',
+                        'DW_CFA_advance_loc4', 'DW_CFA_advance_loc'):
+                        table.append(copy.copy(curLine))
+                        curLine['pc'] += args[0] * cie['caf']
+                    elif name == 'DW_CFA_def_cfa':
+                        curLine['cfa'] = CFARule(reg=args[0], offset=args[1])
+                    elif name == 'DW_CFA_def_cfa_sf':
+                        curLine['cfa'] = CFARule(reg=args[0],
+                            offset=args[1] * cie['caf'])
+                    elif name == 'DW_CFA_def_cfa_register':
+                        curLine['cfa'] = CFARule(reg=args[0],
+                            offset=curLine['cfa'].offset)
+                    elif name == 'DW_CFA_def_cfa_offset':
+                        curLine['cfa'] = CFARule(
+                            reg=curLine['cfa'].reg, offset=args[0])
+                    elif name == 'DW_CFA_def_cfa_expression':
+                        curLine['cfa'] = CFARule(expr=args[0])
+                    elif name == 'DW_CFA_undefined':
+                        add2Order(args[0])
+                        curLine[args[0]] = \
+                            RegisterRule(RegisterRule.UNDEFINED)
+                    elif name == 'DW_CFA_same_value':
+                        add2Order(args[0])
+                        curLine[args[0]] = \
+                            RegisterRule(RegisterRule.SAME_VALUE)
+                    elif name in (
+                        'DW_CFA_offset', 'DW_CFA_offset_extended',
+                        'DW_CFA_offset_extended_sf'):
+                        add2Order(args[0])
+                        curLine[args[0]] = RegisterRule(
+                            RegisterRule.OFFSET,
+                            args[1] * cie['daf'])
+                    elif name in (
+                        'DW_CFA_val_offset', 'DW_CFA_val_offset_sf'):
+                        add2Order(args[0])
+                        curLine[args[0]] = RegisterRule(
+                            RegisterRule.VAL_OFFSET,
+                            args[1] * cie['daf'])
+                    elif name == 'DW_CFA_register':
+                        add2Order(args[0])
+                        curLine[args[0]] = RegisterRule(
+                            RegisterRule.REGISTER, args[1])
+                    elif name == 'DW_CFA_expression':
+                        add2Order(args[0])
+                        curLine[args[0]] = RegisterRule(
+                            RegisterRule.EXPRESSION, args[1])
+                    elif name == 'DW_CFA_val_expression':
+                        add2Order(args[0])
+                        curLine[args[0]] = RegisterRule(
+                            RegisterRule.VAL_EXPRESSION, args[1])
+                    elif name in (
+                        'DW_CFA_restore', 'DW_CFA_restore_extended'):
+                        add2Order(args[0])
+                        if entry != 'FDE':
+                            SysMgr.printErr(
+                                '%s instruction must be in a FDE' % name)
+                        if args[0] in cieLastLine:
+                            curLine[args[0]] = cieLastLine[args[0]]
+                        else:
+                            curLine.pop(args[0], None)
+                    elif name == 'DW_CFA_remember_state':
+                        lineStack.append(copy.deepcopy(curLine))
+                    elif name == 'DW_CFA_restore_state':
+                        pc = curLine['pc']
+                        curLine = lineStack.pop()
+                        curLine['pc'] = pc
+
+                '''
+                The current line is appended to the table after
+                all instructions have ended, if there were instructions.
+                '''
+                if curLine['cfa'].reg is not None or len(curLine) > 2:
+                    table.append(curLine)
+
+                # save result #
+                myObj['table'] = table
+                myObj['regOrder'] = regOrder
+
+                return table, regOrder
+
+            def convCFI(cfi, cie=None, pc=None):
                 def convRegName(arg):
                     return ConfigMgr.regList[arg]
 
@@ -51143,6 +51336,7 @@ Section header string table index: %d
                         'augdata': augdata,
                         'augdatastr': augdatastr,
                         'cfi': cfi,
+                        'table': list(),
                     }
 
                     # print info #
@@ -51258,6 +51452,7 @@ Section header string table index: %d
                         'initLoc': initLoc,
                         'addrRange': addrRange,
                         'cfi': cfi,
+                        'table': list(),
                     }
 
                     # print info #
@@ -51286,9 +51481,12 @@ Section header string table index: %d
                                 ('Augmentation data: ', augdatastr)
                         SysMgr.printPipe(printStr)
 
+                # decode instructions to make CFA table #
+                decodeCFI(self, entry, cfi, cie, offset)
+
                 # print CFI #
                 if debug:
-                    SysMgr.printPipe(convCFI(entry, cfi, cie, initLoc))
+                    SysMgr.printPipe(convCFI(cfi, cie, initLoc))
                     '''
                     for item in cfi:
                         SysMgr.printPipe(' %s%s' % \
@@ -56801,7 +56999,7 @@ class ThreadAnalyzer(object):
         self.printFutexInfo()
         self.printFlockInfo()
 
-        # print systemcall usage #
+        # print syscall usage #
         self.printSyscallInfo()
 
         # print kernel messages #
@@ -64980,14 +65178,13 @@ class ThreadAnalyzer(object):
                     mtype = 'FILE'
                     ftable[ptype] = long(0)
                 # anonymous memory #
-                elif ptype == '':
+                elif ptype == '' or \
+                    ptype.startswith('[heap]') or \
+                    ptype.startswith('[anon'):
                     mtype = 'ANON'
                 # stack memory #
                 elif ptype.startswith('[stack'):
                     mtype = 'STACK'
-                # anonymous memory #
-                elif ptype == '[heap]':
-                    mtype = 'ANON'
                 else:
                     mtype = 'ETC'
 
@@ -65018,6 +65215,8 @@ class ThreadAnalyzer(object):
                                 ptable[mtype]['NOPM'] += val
                             except:
                                 ptable[mtype]['NOPM'] = val
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -65041,6 +65240,8 @@ class ThreadAnalyzer(object):
                 self.procData[tid]['wchan'] = 'RUNNING'
             else:
                 self.procData[tid]['wchan'] = wchanBuf[0]
+        except SystemExit:
+            sys.exit(0)
         except:
             self.procData[tid]['wchan'] = ''
 
@@ -65071,8 +65272,12 @@ class ThreadAnalyzer(object):
                         try:
                             if 'devfreq' in os.listdir(path):
                                 candList[path] = dict()
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             pass
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -65133,6 +65338,8 @@ class ThreadAnalyzer(object):
                 fd.seek(0)
                 self.gpuData[target]['MAX_FREQ'] = \
                     long(fd.readline()[:-1]) / 1000000
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -65155,6 +65362,8 @@ class ThreadAnalyzer(object):
             self.procData[tid]['execTime'] = float(SCHED_POLICY[0])
             self.procData[tid]['waitTime'] = float(SCHED_POLICY[1])
             self.procData[tid]['nrSlice'] = float(SCHED_POLICY[2])
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
