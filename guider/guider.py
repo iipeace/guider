@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201103"
+__revision__ = "201104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3058,17 +3058,15 @@ class ConfigMgr(object):
         'tr', 'ldtr', 'mxcsr', 'fcw', 'fsw'
     ]
 
-    REGS_ARM = [
-        'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9',
-        'r10', 'r11', 'r12', 'r13', 'r14', 'r15'
-    ]
+    REGS_ARM = ['r%d' % idx for idx in range(0, 16, 1)]
 
-    REGS_AARCH64 = [
-        'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9',
-        'x10', 'x11', 'x12', 'x13', 'x14', 'x15', 'x16', 'x17', 'x18', 'x19',
-        'x20', 'x21', 'x22', 'x23', 'x24', 'x25', 'x26', 'x27', 'x28', 'x29',
-        'x30', 'sp', 'pc'
-    ]
+    REGS_AARCH64 = \
+        ['x%d' % idx for idx in range(0, 31, 1)] + \
+        ['sp', 'pc', 'ELP_mode', 'RA_SIGN_STATE', '<none>', '<none>'] + \
+        ['reserved' for idx in range(37, 46, 1)] + \
+        ['VG', 'FFR'] + ['p%d' % idx for idx in range(0, 16, 1)] + \
+        ['v%d' % idx for idx in range(0, 32, 1)] + \
+        ['z%d' % idx for idx in range(0, 32, 1)]
 
     # Define syscall register #
     SYSREG_LIST = {
@@ -25408,6 +25406,7 @@ Copyright:
                 debug = True
 
             # run ELF analyzer #
+            obj = ElfAnalyzer(path, debug, incArg=True)
             try:
                 if path == 'vdso':
                     obj = SysMgr.getVdso(debug=debug)
@@ -48563,6 +48562,17 @@ class ElfAnalyzer(object):
     DW_OPS_HEX_ARGS = set([
         'DW_OP_addr', 'DW_OP_call2', 'DW_OP_call4', 'DW_OP_call_ref'])
 
+    DW_CFI_REGISTER_RULE_TYPE = dict(
+        UNDEFINED='u',
+        SAME_VALUE='s',
+        OFFSET='c',
+        VAL_OFFSET='v',
+        REGISTER='',
+        EXPRESSION='exp',
+        VAL_EXPRESSION='vexp',
+        ARCHITECTURAL='a',
+    )
+
     class RegisterRule(object):
         '''
         refer to https://github.com/eliben/pyelftools
@@ -49992,7 +50002,7 @@ class ElfAnalyzer(object):
         self.sortedSymTable = []
         self.sortedAddrTable = []
         self.mergedSymTable = {}
-
+        self.cfaTableTitle = ''
         self.fileSize = size
 
         if fd is None:
@@ -50873,6 +50883,37 @@ Section header string table index: %d
         # check .eh_frame section #
         if SysMgr.dwarfEnable and e_shehframe >= 0 and \
             self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
+            def getEncType(encoding):
+                if encoding == ENC_FLAGS['DW_EH_PE_omit']:
+                    SysMgr.printErr(
+                        'fail to decode initial location for FDE')
+                    return None, None, None
+
+                basicEnc = encoding & 0x0f
+                encMod = encoding & 0xf0
+
+                # get format #
+                DW_EH_encoding_map = ElfAnalyzer.DW_EH_encoding_map
+                if basicEnc in DW_EH_encoding_map:
+                    encFormat = DW_EH_encoding_map[basicEnc]
+                else:
+                    encFormat = None
+
+                return basicEnc, encMod, encFormat
+
+            def decodeAddr(addr, shaddr, offset, encoding):
+                if encoding == ENC_FLAGS['DW_EH_PE_absptr']:
+                    pass
+                elif encoding == ENC_FLAGS['DW_EH_PE_pcrel']:
+                    addr += shaddr + offset
+                elif encoding == ENC_FLAGS['DW_EH_PE_datarel']:
+                    addr += shaddr
+                else:
+                    SysMgr.printErr(
+                        'fail to recognize modifier %x' % encoding)
+                    sys.exit(0)
+                return addr
+
             def decodeData(encFormat, fd):
                 if encFormat == "DW_EH_PE_sdata4":
                     val = struct.unpack('i', fd.read(4))[0]
@@ -51058,14 +51099,13 @@ Section header string table index: %d
                     if regnum not in regOrder:
                         regOrder.append(regnum)
 
+                '''
+                Throughout this loop, curLine is the current line.
+                Some instructions add it to the table,
+                but most instructions just update it
+                without adding it to the table.
+                '''
                 for instr in cfi:
-                    '''
-                    Throughout this loop, curLine is the current line.
-                    Some instructions add it to the table,
-                    but most instructions just update it
-                    without adding it to the table.
-                    '''
-
                     name = instr[0]
                     args = instr[2]
 
@@ -51153,7 +51193,80 @@ Section header string table index: %d
 
                 return table, regOrder
 
-            def convCFI(cfi, cie=None, pc=None):
+            def printCFAs(self, entry, offset):
+                def getCFARule(cfa):
+                    if cfa.expr:
+                        return 'exp'
+                    else:
+                        return '%s%+d' % (ConfigMgr.regList[cfa.reg], cfa.offset)
+
+                def getRegRule(reg):
+                    s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg.type] 
+                    if reg.type in ('OFFSET', 'VAL_OFFSET'):
+                        s += '%+d' % reg.arg
+                    elif reg.type == 'REGISTER':
+                        s += ConfigMgr.regList[reg.arg]
+                    return s
+
+                myObj = self.attr['dwarf'][entry][offset]
+                table = myObj['table']
+                regOrder = myObj['regOrder']
+
+                if 'rar' in myObj:
+                    rar = myObj['rar']
+                else:
+                    rar = myObj['CIE']['rar']
+
+                # remove return address register #
+                try:
+                    regOrder.remove(rar)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # define default title #
+                if not self.cfaTableTitle:
+                    self.cfaTableTitle = \
+                        '{0:^16} {1:<10}'.format('LOC', 'CFA')
+
+                # copy default title #
+                s = str(self.cfaTableTitle)
+
+                # add reg name #
+                for regnum in regOrder:
+                    s += '%-6s' % ConfigMgr.regList[regnum]
+                s += '%-6s\n' % 'ra'
+                regOrder.append(rar)
+
+                # mark line #
+                s = '.' * len(s) + '\n' + s
+
+                # add decoded CFA lines #
+                for line in table:
+                    # pc #
+                    s += '%016x' % line['pc']
+
+                    # cfa #
+                    if line['cfa']:
+                        cfa = line['cfa']
+                    else:
+                        cfa = 'u'
+                    s += ' %-10s' % getCFARule(cfa)
+
+                    # reg #
+                    for regnum in regOrder:
+                        if regnum in line:
+                            reginfo = getRegRule(line[regnum])
+                        else:
+                            reginfo = 'u'
+                        s += '%-6s' % reginfo
+
+                    s += '\n'
+
+                SysMgr.printPipe(s)
+
+            def printCFIs(cfi, cie=None, pc=None):
                 def convRegName(arg):
                     return ConfigMgr.regList[arg]
 
@@ -51222,7 +51335,7 @@ Section header string table index: %d
                     else:
                         s += ' %s: <??>\n' % name
 
-                return s
+                SysMgr.printPipe(s.rstrip('\n'))
 
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -51382,34 +51495,15 @@ Section header string table index: %d
 
                     # get encoding #
                     encoding = cie['augdict']['fdeEncoding']
-                    if encoding == ENC_FLAGS['DW_EH_PE_omit']:
-                        SysMgr.printErr(
-                            'fail to decode initial location for FDE')
-                    basicEnc = encoding & 0x0f
-                    encMod = encoding & 0xf0
-
-                    # get format #
-                    DW_EH_encoding_map = ElfAnalyzer.DW_EH_encoding_map
-                    if basicEnc in DW_EH_encoding_map:
-                        encFormat = DW_EH_encoding_map[basicEnc]
-                    else:
-                        encFormat = None
+                    basicEnc, encMod, encFormat = getEncType(encoding)
+                    if basicEnc is None:
+                        continue
 
                     # get function address #
                     initLoc = decodeData(encFormat, fd)
 
                     # convert function address #
-                    if encMod == ENC_FLAGS['DW_EH_PE_absptr']:
-                        pass
-                    elif encMod == ENC_FLAGS['DW_EH_PE_pcrel']:
-                        initLoc += sh_addr + curOffset
-                    elif encMod == ENC_FLAGS['DW_EH_PE_datarel']:
-                        initLoc += sh_addr
-                    else:
-                        SysMgr.printErr(
-                            'fail to recognize modifier %x for FDE' % \
-                                encMod)
-                        sys.exit(0)
+                    initLoc = decodeAddr(initLoc, sh_addr, curOffset, encMod)
 
                     # Range Length #
                     addrRange = struct.unpack('I', fd.read(4))[0]
@@ -51486,28 +51580,21 @@ Section header string table index: %d
 
                 # print CFI #
                 if debug:
-                    SysMgr.printPipe(convCFI(cfi, cie, initLoc))
-                    '''
-                    for item in cfi:
-                        SysMgr.printPipe(' %s%s' % \
-                            (item[0], ': %s' % item[2] if item[2] else ''))
-                    '''
+                    printCFIs(cfi, cie, initLoc)
+                    printCFAs(self, entry, offset)
 
             # add general info #
             self.attr['dwarf']['general']['nrCIE'] = nrCIE
             self.attr['dwarf']['general']['nrFDE'] = nrFDE
 
             if debug:
-                if nrCIE > 0:
-                    SysMgr.printPipe(
-                        '\n- Total CIE: %s' % UtilMgr.convNum(nrCIE))
-                if nrFDE > 0:
-                    SysMgr.printPipe(
-                        '- Total FDE: %s' % UtilMgr.convNum(nrFDE))
-                SysMgr.printPipe('\n%s' % oneLine)
+                SysMgr.printPipe(
+                    '\n< Total CIE: %s / FDE: %s >\n%s' % \
+                        (UtilMgr.convNum(nrCIE),
+                            UtilMgr.convNum(nrFDE), oneLine))
 
         # check .eh_frame_hdr section #
-        if False and SysMgr.dwarfEnable and e_shehframehdr >= 0 and \
+        if SysMgr.dwarfEnable and e_shehframehdr >= 0 and \
             self.attr['sectionHeader']['.eh_frame_hdr']['type'] != 'NOBITS':
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -51532,24 +51619,33 @@ Section header string table index: %d
 
             # eh_frame_ptr_enc #
             ehframePtrEnc = struct.unpack('B', fd.read(1))[0]
-            basicEnc = ehframePtrEnc & 0x0f
-            encMod = ehframePtrEnc & 0xf0
+            basicEnc, efpEncMod, efpEncFormat = getEncType(ehframePtrEnc)
 
             # fde_count_enc #
             fdeCntEnc = struct.unpack('B', fd.read(1))[0]
-            basicEnc = fdeCntEnc & 0x0f
-            encMod = fdeCntEnc & 0xf0
+            basicEnc, fcEncMod, fcEncFormat = getEncType(fdeCntEnc)
 
             # table_enc #
             tableEnc = struct.unpack('B', fd.read(1))[0]
-            basicEnc = tableEnc & 0x0f
-            encMod = tableEnc & 0xf0
+            basicEnc, tEncMod, tEncFormat = getEncType(tableEnc)
 
             # eh_frame_ptr #
-            ehframePtr = struct.unpack('B', fd.read(1))[0]
+            ehframePtr = decodeData(efpEncFormat, fd)
 
             # fde_count #
-            fdeCnt = struct.unpack('B', fd.read(1))[0]
+            fdeCnt = decodeData(fcEncFormat, fd)
+
+            # table #
+            for idx in range(0, fdeCnt):
+                curPos = fd.tell() - sh_offset
+
+                # address for the function #
+                initLoc = decodeData(tEncFormat, fd)
+                initLoc = decodeAddr(initLoc, sh_addr, curPos, tEncMod)
+
+                # address for the FDE #
+                address = decodeData(tEncFormat, fd)
+                address = decodeAddr(address, sh_addr, curPos, tEncMod)
 
         # check dynamic section #
         if e_shdynamic < 0:
