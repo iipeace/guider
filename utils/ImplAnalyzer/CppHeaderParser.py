@@ -1305,7 +1305,8 @@ class Resolver(object):
                 klass = self.classes[alias]; result['fundamental'] = False
                 result['class'] = klass
                 result['unresolved'] = False
-            else: result['unresolved'] = True
+            else:
+                result['unresolved'] = True
         else:
             result['fundamental'] = True
             result['unresolved'] = False
@@ -2099,6 +2100,7 @@ class CppHeader( _CppHeader ):
         self.global_enums = {}
         self.nameStack = []
         self.nameSpaces = []
+        self.usingAliases = {}
         self.curAccessSpecifier = 'private'    # private is default
         self.curTemplate = None
         self.accessSpecifierStack = []
@@ -2482,6 +2484,9 @@ class CppHeader( _CppHeader ):
         elif len(self.nameStack) == 2 and self.nameStack[0] == "friend":#friend class declaration
             pass
         elif len(self.nameStack) >= 2 and self.nameStack[0] == 'using' and self.nameStack[1] == 'namespace': pass    # TODO
+        elif len(self.nameStack) >= 2 and self.nameStack[0] == 'using':
+            origin = ' '.join(self.nameStack[1:]).split('=')
+            self.usingAliases[origin[0].strip()] = origin[1].strip()
 
         elif is_enum_namestack(self.nameStack):
             debug_print( "trace" )

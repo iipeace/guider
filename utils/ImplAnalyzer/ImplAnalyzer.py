@@ -17,7 +17,9 @@ class ImplAnalyzer(object):
     typeListRep = {}
     targetHeaderList = []
     skipHeaderList = []
-    noConstList = []
+    noConstList = [
+        'std::shared_ptr',
+    ]
     summaryNmDepth = 0
 
     vectorStr = 'std::vector<'
@@ -236,6 +238,9 @@ class ImplAnalyzer(object):
         header.show()
         '''
 
+        # define using alias list #
+        alias = header.usingAliases
+
         # functions outside class #
         for method in header.functions:
             #jsonObj = json.dumps(str(method), indent=1)
@@ -286,7 +291,7 @@ class ImplAnalyzer(object):
                 'override': method['override'],
                 'inline': method['inline'],
                 'template': method['template'],
-                }
+            }
 
             methodInfo = "%s%s%s" % (method['namespace'], method['name'], param)
             methodList[methodInfo] = infoDict
@@ -311,7 +316,7 @@ class ImplAnalyzer(object):
                     #print(method['debug'])
 
                     name = method['name']
-                    param = ImplAnalyzer.getParams(method)
+                    param = ImplAnalyzer.getParams(method, alias)
                     nm = ImplAnalyzer.getNamespace(method['path'])
 
                     if not ImplAnalyzer.checkCont(method, nmFilter, exFilter):
@@ -354,6 +359,7 @@ class ImplAnalyzer(object):
                         'override': method['override'],
                         'inline': method['inline'],
                         'template': method['template'],
+                        'alias': alias,
                         }
 
                     methodList[methodInfo] = infoDict
@@ -547,8 +553,12 @@ class ImplAnalyzer(object):
             else:
                 nm = ''
 
+            # operator() #
+            if param.startswith(')('):
+                name += '(' + param[0]
+                param = param[2:]
             # no args #
-            if param.startswith(')'):
+            elif param.startswith(')'):
                 return method
         else:
             return None
@@ -898,7 +908,7 @@ class ImplAnalyzer(object):
 
 
     @staticmethod
-    def getParams(method):
+    def getParams(method, alias=[]):
         param = ''
         for item in method['parameters']:
             item = item['type'].strip()
@@ -926,6 +936,10 @@ class ImplAnalyzer(object):
             item = ImplAnalyzer.removeNamespace(\
                 item, ImplAnalyzer.exceptNm)
             namespace = origItem[:len(item)+1]
+
+            # convert aliases by using #
+            for key, val in alias.items():
+                item = item.replace(key, val)
 
             # recover const #
             if isConst:
