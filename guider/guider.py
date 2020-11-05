@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201104"
+__revision__ = "201105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -39317,6 +39317,7 @@ class Debugger(object):
         self.comm = None
         self.mode = mode
         self.status = 'enter'
+        self.traceStatus = False
         self.runStatus = False
         self.attached = attach
         self.execCmd = execCmd
@@ -42263,15 +42264,16 @@ struct cmsghdr {
                     (self.comm, pid))
             return -1
 
+        errMsg = \
+            'fail to continue %s(%s) because it is terminated' % \
+                (self.comm, pid)
+
         # check target is running #
         try:
             os.kill(pid, 0)
         except SystemExit:
             sys.exit(0)
         except:
-            errMsg = \
-                'fail to continue %s(%s) because it is terminated' % \
-                    (self.comm, pid)
             if not self.isAlive():
                 SysMgr.printWarn(errMsg)
                 return -1
@@ -42286,14 +42288,12 @@ struct cmsghdr {
 
                 cnt -= 1
                 time.sleep(0.001)
-                if cnt > 0 and self.isAlive():
-                    continue
 
-                errMsg = \
-                    'fail to continue %s(%s) because it is terminated' % \
-                        (self.comm, pid)
-                SysMgr.printErr(errMsg)
-                return -1
+                if cnt < 0:
+                    break
+                elif not self.isAlive():
+                    SysMgr.printErr(errMsg)
+                    return -1
 
         # continue target thread #
         ret = self.ptrace(self.contCmd, 0, sig)
@@ -43125,9 +43125,11 @@ struct cmsghdr {
         SysMgr.waitUserInput(
             wait=0.000001, msg="press enter key...")
 
-        SysMgr.updateUptime()
+        # define stop flag #
+        needStop = False
 
         # set time #
+        SysMgr.updateUptime()
         current = time.time()
         diff = current - self.last
         self.last = current
@@ -43151,6 +43153,11 @@ struct cmsghdr {
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
             sampleStr = ' [SampleRate: %g]' % self.sampleTime
+
+            # continue target to prevent too long freezing #
+            if self.traceStatus:
+                self.cont(check=True)
+                needStop = True
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
@@ -43197,7 +43204,7 @@ struct cmsghdr {
             finishPrint()
 
         ret = SysMgr.addPrint(
-            '{0:^7} | {1:^144}\n{2:<1}\n'.format(
+            '{0:^7} | {1:<144}\n{2:<1}\n'.format(
                 'Usage', 'Function %s' % addInfo, twoLine), newline=2)
         if not ret:
             finishPrint()
@@ -43295,6 +43302,10 @@ struct cmsghdr {
         if SysMgr.repeatCount > 0:
             UtilMgr.printProgress(
                 SysMgr.progressCnt, SysMgr.repeatCount)
+
+        # stop target to return original status #
+        if needStop:
+            self.stop()
 
 
 
@@ -43949,6 +43960,8 @@ struct cmsghdr {
         if self.cont(check=True) < 0:
             sys.exit(0)
 
+        self.traceStatus = False
+
         # wait for sampling time #
         time.sleep(self.sampleTime)
 
@@ -43958,6 +43971,8 @@ struct cmsghdr {
         # stop target thread #
         if self.stop() < 0:
             sys.exit(0)
+
+        self.traceStatus = True
 
 
 
@@ -44629,7 +44644,10 @@ struct cmsghdr {
     def handleUsercall(self):
         # read registers for target #
         if not self.updateRegs():
-            sys.exit(0)
+            if not self.isAlive():
+                sys.exit(0)
+            else:
+                return
 
         # check previous function boundary #
         if not self.prevCallInfo:
@@ -46034,8 +46052,7 @@ struct cmsghdr {
             ret = self.ptraceEvent(self.traceEventList)
 
             # handle current user symbol #
-            if (self.mode == 'inst' or \
-                self.mode == 'sample') and \
+            if (self.mode == 'inst' or self.mode == 'sample') and \
                 not SysMgr.isTopMode():
                 try:
                     self.handleUsercall()
@@ -46228,6 +46245,29 @@ struct cmsghdr {
         callTable = dict()
         fileTable = dict()
 
+        # check mode and define type variables #
+        if instance.mode == 'syscall':
+            ctype = 'Syscall'
+            addInfo = '<Elapsed>'
+        elif instance.mode == 'break':
+            ctype = 'Breakcall'
+            addInfo = '[PATH] <Interval>'
+        else:
+            ctype = 'Usercall'
+            addInfo = '[Path]'
+
+            # continue target to prevent too long freezing #
+            if instance.traceStatus:
+                instance.cont(check=True)
+                needStop = True
+
+        if instance.isRealtime:
+            mtype = 'Top'
+            suffix = '\n'
+        else:
+            mtype = 'Trace'
+            suffix = ''
+
         # print System Info #
         printSystemStat()
 
@@ -46278,24 +46318,6 @@ struct cmsghdr {
 
         UtilMgr.deleteProgress()
 
-        # print summary table #
-        if instance.mode == 'syscall':
-            ctype = 'Syscall'
-            addInfo = '<Elapsed>'
-        elif instance.mode == 'break':
-            ctype = 'Breakcall'
-            addInfo = '[PATH] <Interval>'
-        else:
-            ctype = 'Usercall'
-            addInfo = '[Path]'
-
-        if instance.isRealtime:
-            mtype = 'Top'
-            suffix = '\n'
-        else:
-            mtype = 'Trace'
-            suffix = ''
-
         # print call table #
         convert = UtilMgr.convNum
         try:
@@ -46342,7 +46364,7 @@ struct cmsghdr {
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
         SysMgr.printPipe(
-            '{0:^7} | {1:^144}{2:1}'.format(
+            '{0:^7} | {1:<144}{2:1}'.format(
                 'Usage', 'Function %s' % addInfo, suffix))
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
 
@@ -46399,7 +46421,7 @@ struct cmsghdr {
                     convert(len(fileTable)), suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
             SysMgr.printPipe(
-                '{0:^7} | {1:^144}{2:1}'.format('Usage', 'Path', suffix))
+                '{0:^7} | {1:<144}{2:1}'.format('Usage', 'Path', suffix))
             SysMgr.printPipe('%s%s' % (twoLine, suffix))
 
             cnt = long(0)
@@ -51353,7 +51375,7 @@ Section header string table index: %d
 
             if debug:
                 SysMgr.printPipe(
-                    '\n[%s Section]\n%s\n' % (shname, twoLine))
+                    '\n[%s Section]\n%s' % (shname, twoLine))
 
             # set position #
             fd.seek(sh_offset)
@@ -51609,7 +51631,7 @@ Section header string table index: %d
 
             if debug:
                 SysMgr.printPipe(
-                    '\n[%s Section]\n%s\n' % (shname, twoLine))
+                    '\n[%s Section]\n%s' % (shname, twoLine))
 
             # set position #
             fd.seek(sh_offset)
@@ -51635,6 +51657,16 @@ Section header string table index: %d
             # fde_count #
             fdeCnt = decodeData(fcEncFormat, fd)
 
+            # print summary #
+            SysMgr.printPipe((\
+                'eh_frame pointer: %016x, FDE count: %s\n%s' %
+                    (ehframePtr, UtilMgr.convNum(fdeCnt), oneLine)))
+
+            # print menu #
+            SysMgr.printPipe(
+                '{0:^5} {1:^16} {2:^16}'.format(
+                        'IDX', 'FUNC ADDR', 'FDE ADDR'))
+
             # table #
             for idx in range(0, fdeCnt):
                 curPos = fd.tell() - sh_offset
@@ -51644,8 +51676,12 @@ Section header string table index: %d
                 initLoc = decodeAddr(initLoc, sh_addr, curPos, tEncMod)
 
                 # address for the FDE #
-                address = decodeData(tEncFormat, fd)
-                address = decodeAddr(address, sh_addr, curPos, tEncMod)
+                addr = decodeData(tEncFormat, fd)
+                addr = decodeAddr(addr, sh_addr, curPos, tEncMod)
+
+                SysMgr.printPipe('%05s %016x %016x' % (idx, initLoc, addr))
+
+            SysMgr.printPipe(oneLine)
 
         # check dynamic section #
         if e_shdynamic < 0:
