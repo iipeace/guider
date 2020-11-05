@@ -1787,6 +1787,18 @@ class _CppHeader( Resolver ):
         #    info['name'] = name
         #else: info['name'] = name
 
+        if len(stack) > 3:
+            if stack[-3:] == ['=', 'delete', ';']:
+                info['delete'] = True
+            elif stack[-3:] == ['=', 'default', ';']:
+                info['default'] = True
+            else:
+                info['delete'] = False
+                info['default'] = False
+        else:
+            info['delete'] = False
+            info['default'] = False
+
         if name.startswith('~'):
             info['destructor'] = True
             name = name[1:]

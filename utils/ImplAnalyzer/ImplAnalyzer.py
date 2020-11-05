@@ -78,8 +78,10 @@ class ImplAnalyzer(object):
 
     @staticmethod
     def checkCont(method, nmFilter, exFilter=[]):
-        # remove delete functions #
-        if 'debug' in method and method['debug'].endswith(' = delete ;'):
+        # remove default/delete methods #
+        if 'default' in method and method['default']:
+            return False
+        elif 'delete' in method and method['delete']:
             return False
 
         # check exclusion condition #
