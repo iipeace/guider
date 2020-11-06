@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201105"
+__revision__ = "201106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -21148,7 +21148,7 @@ Copyright:
 
 
     @staticmethod
-    def getVdso(elf=True, debug=False):
+    def getVDSO(elf=True, debug=False):
         # get address of vdso object #
         addr = SysMgr.getauxval("AT_SYSINFO_EHDR")
         if not addr:
@@ -25406,10 +25406,10 @@ Copyright:
                 debug = True
 
             # run ELF analyzer #
-            obj = ElfAnalyzer(path, debug, incArg=True)
             try:
+                obj = ElfAnalyzer(path, debug, incArg=True)
                 if path == 'vdso':
-                    obj = SysMgr.getVdso(debug=debug)
+                    obj = SysMgr.getVDSO(debug=debug)
                 else:
                     obj = ElfAnalyzer(path, debug, incArg=True)
 
@@ -41386,7 +41386,7 @@ struct cmsghdr {
     def loadInst(self, fname, offset):
         try:
             if fname == 'vdso':
-                fobj = SysMgr.getVdso(elf=False)
+                fobj = SysMgr.getVDSO(elf=False)
             else:
                 fobj = SysMgr.getFd(fname)
 
@@ -46844,9 +46844,14 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
                     'terminated %s(%s)' % (self.comm, self.pid))
                 sys.exit(0)
 
-            SysMgr.printErr(
-                "fail to read registers for %s(%s)" % \
-                    (self.comm, self.pid))
+            errMsg = "fail to read registers for %s(%s)" % \
+                (self.comm, self.pid)
+
+            if self.isStopped():
+                SysMgr.printErr(errMsg)
+            else:
+                SysMgr.printWarn(
+                    '%s because it is not stopped' % errMsg)
 
         # return result #
         if new:
@@ -48846,6 +48851,17 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def isLoadableFile(path):
+        if path == 'vsyscall' or \
+            path == 'vvar' or \
+            path == 'stack':
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
     def getObject(path, raiseExcept=False, fobj=None):
         # check black-list #
         if path in ElfAnalyzer.failedFiles:
@@ -48866,7 +48882,7 @@ class ElfAnalyzer(object):
             # check exceptional case #
             if not path.startswith('/'):
                 if path == 'vdso':
-                    fobj = SysMgr.getVdso()
+                    fobj = SysMgr.getVDSO()
                 elif not os.path.exists(path):
                     return None
 
@@ -49068,9 +49084,11 @@ class ElfAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn(
-                    'fail to get offset for %s from %s' % (symbol, binPath),
-                        reason=True)
+                if ElfAnalyzer.isLoadableFile(binPath):
+                    SysMgr.printWarn(
+                        'fail to get offset for %s from %s' % \
+                            (symbol, binPath), reason=True)
+                return None
 
             # check whether it is relocatable #
             isReloc = ElfAnalyzer.isRelocFile(binPath)
