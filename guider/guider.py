@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201106"
+__revision__ = "201108"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5309,7 +5309,7 @@ class NetworkMgr(object):
                 NetworkMgr.setRemoteServer('%s:%s' % (ip, port), tcp=True)
         elif SysMgr.isLinux and not SysMgr.remoteServObj:
             try:
-                addr = SysMgr.getProcAddrs(__module__)
+                addr = SysMgr.getProcNetAddrs(__module__)
             except:
                 addr = None
 
@@ -6657,7 +6657,7 @@ class PageAnalyzer(object):
 
         # print menu #
         menuStr = ''
-        menuList = ['AREA', 'PERM', 'INODE', 'DEV', '%12s' % 'OFFSET']
+        menuList = ['AREA', 'PERM', 'OFFSET', 'DEV', '%12s' % 'INODE']
         menuBuf = str(buf[-1]).split()
         for idx, value in enumerate(menuBuf):
             if idx < 5:
@@ -7899,7 +7899,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def getSymbolInfo(self, binPath, offsetList):
+    def getSymbolInfo(self, binPath, offsetList, onlyFunc=True):
         def updateSymbol(addr, symbol, src, relocated):
             if not addr:
                 return -1
@@ -7995,7 +7995,8 @@ class FunctionAnalyzer(object):
                     return None
 
                 for offset in offsetList:
-                    symbol = binObj.getSymbolByOffset(offset)
+                    symbol = binObj.getSymbolByOffset(
+                        offset, onlyFunc=onlyFunc)
 
                     symbolList.append('??')
 
@@ -11746,7 +11747,7 @@ class FunctionAnalyzer(object):
 
 
 class LeakAnalyzer(object):
-    """ Analyzer for leaktracer """
+    """ Analyzer for leaktracing """
 
     # use SIGRT1 and SIGRT2 as default signals #
     startSig = 35
@@ -12556,7 +12557,7 @@ class FileAnalyzer(object):
             savedSize = dataObj[fileName]['size']
             savedEnd = savedOffset + savedSize
 
-            # bigger start address than saved one #
+            # start address bigger than saved one #
             if savedOffset <= newOffset:
                 # merge bigger end address than saved one #
                 if savedEnd < newEnd:
@@ -12565,7 +12566,7 @@ class FileAnalyzer(object):
                 # ignore lesser end address than saved one #
                 else:
                     pass
-            # lesser start address than saved one #
+            # start address lesser than saved one #
             else:
                 if savedEnd >= newEnd:
                     dataObj[fileName]['size'] += (savedOffset - newOffset)
@@ -12626,8 +12627,9 @@ class FileAnalyzer(object):
             procMap[fileName]['vend'] != startAddr:
             cnt = 0
             while 1:
-                newFileName = '%s#%s' % (fileName, cnt)
-                if newFileName in procMap:
+                newFileName = '%s%s%s' % (fileName, SysMgr.magicString, cnt)
+                if newFileName in procMap and \
+                    procMap[newFileName]['vend'] != startAddr:
                     cnt += 1
                     continue
                 else:
@@ -12639,7 +12641,7 @@ class FileAnalyzer(object):
         FileAnalyzer.addMapLine(procMap, fileName, newOffset, newSize)
 
         # set mapped addr #
-        if newOffset == procMap[fileName]['vstart'] == 0:
+        if procMap[fileName]['vstart'] == 0:
             procMap[fileName]['vstart'] = startAddr
 
         # set executable flag #
@@ -14619,6 +14621,10 @@ class SysMgr(object):
         elif SysMgr.isUserTopMode():
             SysMgr.doTrace('usercall')
 
+        # pycall #
+        elif SysMgr.isPyTopMode():
+            SysMgr.doTrace('pycall')
+
         # breakcall #
         elif SysMgr.isBrkTopMode():
             SysMgr.doTrace('breakcall')
@@ -16490,6 +16496,7 @@ class SysMgr(object):
                 'top': 'Process',
                 'ttop': 'Thread',
                 'utop': 'Function',
+                'pytop': 'Python',
                 'wtop': 'WSS',
                 },
             'trace': {
@@ -17485,6 +17492,41 @@ Examples:
 
     - Monitor syscalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
+
+                # python top #
+                elif SysMgr.isPyTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Monitor python methods consuming CPU
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor python methods for a specific thread
+        # {0:1} {1:1} -g a.out
+
+    - Monitor python methods for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -W
+
+    - Monitor python methods with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -H
+
+    - Monitor python methods for a specific thread every 2 second for 1 minute with 1 ms sampling
+        # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
+
+    - Monitor CPU usage on whole system of python methods for a specific thread
+        # {0:1} {1:1} -g a.out -e c
+
+    - Monitor python methods with breakpoint for peace including register info for a specific thread
+        # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -25128,6 +25170,15 @@ Copyright:
 
 
     @staticmethod
+    def isPyTopMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'pytop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isBrkTopMode():
         if len(sys.argv) > 1 and \
             (sys.argv[1] == 'brktop' or sys.argv[1] == 'btop'):
@@ -25255,6 +25306,7 @@ Copyright:
             SysMgr.isSysTopMode() or \
             SysMgr.isDltTopMode() or \
             SysMgr.isDbusTopMode() or \
+            SysMgr.isPyTopMode() or \
             SysMgr.isDiskTopMode():
             return True
         else:
@@ -26372,7 +26424,7 @@ Copyright:
 
 
     @staticmethod
-    def getProcAddrs(name):
+    def getProcNetAddrs(name):
         if not SysMgr.isLinux or not name:
             return None
 
@@ -29431,7 +29483,7 @@ Copyright:
                     "multiple tasks [ %s ] are targeted" % \
                         SysMgr.getCommList(pids), True)
 
-            # load symbol caches #
+            # load symbol caches in advance #
             if needSymbol:
                 doCommonJobs(pids, procList)
 
@@ -29493,7 +29545,7 @@ Copyright:
 
                 sys.exit(0)
         else:
-            # load symbol caches #
+            # load symbol caches in advance #
             if needSymbol:
                 doCommonJobs(pids, procList)
 
@@ -29543,6 +29595,9 @@ Copyright:
                         targetBpFileList=targetBpFileList)
             elif mode == 'hook':
                 Debugger.hookFunc(pid, SysMgr.customCmd)
+            elif mode == 'pycall':
+                dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
+                dobj.trace(mode='pycall', wait=wait, multi=multi)
             else:
                 # syscall / signal / remote #
                 dobj = Debugger(
@@ -29561,8 +29616,6 @@ Copyright:
     @staticmethod
     def doAddr2sym():
         SysMgr.printLogo(big=True, onlyFile=True)
-
-        SysMgr.warnEnable = True
 
         # check input #
         if not SysMgr.inputParam:
@@ -29595,8 +29648,9 @@ Copyright:
         for tid in pids:
             taskList.append(SysMgr.getTgid(tid))
         pids = list(set(taskList))
+        procInfo = ''
 
-        # a file #
+        # single file #
         if len(pids) == 0:
             # check file #
             if os.path.isfile(inputArg):
@@ -29617,8 +29671,8 @@ Copyright:
 
                 for addr in addrList:
                     try:
-                        resInfo[addr] = \
-                            [binObj.getSymbolByOffset(addr), filePath]
+                        offset = binObj.getSymbolByOffset(addr, onlyFunc=False)
+                        resInfo[addr] = [offset, filePath]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -29648,7 +29702,7 @@ Copyright:
                 sys.exit(0)
 
             for addr in addrList:
-                ret = dobj.getSymbolInfo(addr)
+                ret = dobj.getSymbolInfo(addr, onlyFunc=False, onlyExec=False)
                 if not ret:
                     SysMgr.printErr("fail to analyze %s" % procInfo, True)
                     sys.exit(0)
@@ -29657,7 +29711,10 @@ Copyright:
                 else:
                     resInfo[addr] = ['??', '??']
 
-        SysMgr.printPipe("\n[Address Info]\n%s" % twoLine)
+        if procInfo:
+            procInfo = ' for %s' % procInfo
+
+        SysMgr.printPipe("\n[Address Info]%s\n%s" % (procInfo, twoLine))
         SysMgr.printPipe(
             "{0:<18} {1:<52} {2:<1}\n{3:1}".format(
                 'Address', 'Symbol', 'File', twoLine))
@@ -29945,10 +30002,71 @@ Copyright:
 
 
     @staticmethod
+    def getProcAddrBySymbol(pid, symbolList, fileFilter=None):
+        resInfo = {}
+
+        # get file list on memory map #
+        fileList = FileAnalyzer.getProcMapInfo(pid, onlyExec=False)
+        if not fileList:
+            comm = SysMgr.getComm(pid)
+            procInfo = '%s(%s)' % (comm, pid)
+            SysMgr.printErr("fail to get memory map for %s" % procInfo)
+            return resInfo
+
+        if fileFilter:
+            newFileList = {}
+            if type(fileFilter) is str:
+                fileFilter = [fileFilter]
+            for path, value in sorted(
+                fileList.items(), key=lambda e: e[1]['vstart']):
+                for item in fileFilter:
+                    if path.startswith(item):
+                        newFileList[path] = value
+            if not newFileList:
+                comm = SysMgr.getComm(pid)
+                procInfo = '%s(%s)' % (comm, pid)
+                SysMgr.printErr("fail to get [ %s ] from memory map for %s" % \
+                    (', '.join(fileFilter), procInfo))
+                sys.exit(0)
+            fileList = newFileList
+
+        for filePath, attr in sorted(
+            fileList.items(), key=lambda e: e[1]['vstart']):
+            for sym in symbolList:
+                # create ELF object #
+                try:
+                    res = ElfAnalyzer.getSymOffset(sym, filePath)
+                    if not res:
+                        continue
+
+                    for item in res:
+                        foffset = long(item[0])
+                        startAddr = attr['vstart']
+                        totalDiff = 0
+
+                        # get real offset for memory hole #
+                        if SysMgr.magicString in filePath and \
+                            attr['offset'] <= foffset:
+                            filePath, startAddr, totalDiff = \
+                                Debugger.getRealOffsetInfo(
+                                    fileList, filePath)
+
+                        addr = hex(startAddr + foffset - totalDiff)
+                        resInfo['%s|%s' % (item[1], filePath)] = \
+                            (hex(item[0]), filePath, addr, item[1])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "fail to save offset info", True, reason=True)
+
+        return resInfo
+
+
+
+    @staticmethod
     def doSym2addr():
         SysMgr.printLogo(big=True, onlyFile=True)
-
-        SysMgr.warnEnable = True
 
         # check input #
         if not SysMgr.inputParam:
@@ -29974,8 +30092,9 @@ Copyright:
         for tid in pids:
             taskList.append(SysMgr.getTgid(tid))
         pids = list(set(taskList))
+        procInfo = ''
 
-        # a file #
+        # single file #
         if len(pids) == 0:
             # check file #
             if os.path.isfile(inputArg):
@@ -30011,32 +30130,15 @@ Copyright:
             pid = pids[0]
             comm = SysMgr.getComm(pid)
             procInfo = '%s(%s)' % (comm, pid)
+            symbolList = SysMgr.filterGroup
 
-            # get file list on memory map #
-            fileList = FileAnalyzer.getProcMapInfo(pid, onlyExec=True)
-            if not fileList:
-                SysMgr.printErr("fail to analyze %s" % procInfo)
-                sys.exit(0)
+            # get symbol offset #
+            resInfo = SysMgr.getProcAddrBySymbol(pid, symbolList)
 
-            for filePath, attr in fileList.items():
-                for sym in SysMgr.filterGroup:
-                    # create ELF object #
-                    try:
-                        res = ElfAnalyzer.getSymOffset(sym, filePath)
-                        if not res:
-                            continue
+        if procInfo:
+            procInfo = ' for %s' % procInfo
 
-                        for item in res:
-                            addr = hex(attr['vstart'] + long(item[0]))
-                            resInfo['%s|%s' % (item[1], filePath)] = \
-                                (hex(item[0]), filePath, addr)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printWarn(
-                            "fail to save offset info", True, reason=True)
-
-        SysMgr.printPipe("\n[Symbol Info]\n%s" % twoLine)
+        SysMgr.printPipe("\n[Symbol Info]%s\n%s" % (procInfo, twoLine))
         SysMgr.printPipe(
             "{0:<48} {1:<52} {2:<18} {3:<18}\n{4:1}".format(
                 'Symbol', 'PATH', 'Offset', 'Address', twoLine))
@@ -30044,7 +30146,7 @@ Copyright:
         # print symbols from offset list #
         for sym, val in sorted(resInfo.items()):
             symbol = sym.split('|')[0]
-            offset, filePath, addr = val
+            offset, filePath, addr, origsym = val
 
             if offset is None:
                 offset = 'N/A'
@@ -39383,6 +39485,7 @@ class Debugger(object):
 
         self.lockObj = None
         self.tempPage = None
+        self.pyAddr = None
 
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
@@ -41725,7 +41828,7 @@ struct cmsghdr {
 
 
 
-    def getMapFilePath(self, fname):
+    def getMapFilePathFast(self, fname):
         self.loadSymbols()
         if not self.pmap: return None
 
@@ -41754,7 +41857,7 @@ struct cmsghdr {
             pass
 
         # check memory map #
-        self.pyLibPath = self.getMapFilePath('libpython')
+        self.pyLibPath = self.getMapFilePathFast('libpython')
         if self.pyLibPath:
             return True
         else:
@@ -43384,10 +43487,10 @@ struct cmsghdr {
 
 
 
-    def updateProcMap(self):
+    def updateProcMap(self, onlyExec=True):
         # get list of process mapped files #
         self.pmap = FileAnalyzer.getProcMapInfo(
-            self.pid, self.mapFd, onlyExec=True)
+            self.pid, self.mapFd, onlyExec=onlyExec)
         if not self.pmap or \
             self.prevPmap == self.pmap:
             return False
@@ -43398,8 +43501,8 @@ struct cmsghdr {
 
 
 
-    def loadSymbols(self):
-        ret = self.updateProcMap()
+    def loadSymbols(self, onlyFunc=True, onlyExec=True):
+        ret = self.updateProcMap(onlyExec=onlyExec)
         if not ret:
             return False
 
@@ -43422,7 +43525,7 @@ struct cmsghdr {
             try:
                 eobj = ElfAnalyzer.getObject(mfile)
                 if eobj:
-                    eobj.mergeSymTable()
+                    eobj.mergeSymTable(onlyFunc=onlyFunc)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -43438,7 +43541,53 @@ struct cmsghdr {
 
 
 
-    def getSymbolInfo(self, vaddr):
+    @staticmethod
+    def getRealOffsetInfo(fileList, filePath):
+        magicstr = SysMgr.magicString
+        totalDiff = 0
+
+        origPath, number = filePath.split(magicstr)
+        if not number:
+            return origPath, fileList[origPath]['startAddr'], 0
+
+        number = long(number)
+        prevPath = curPath = None
+
+        # walk to previous segments #
+        while 1:
+            if not prevPath:
+                if number > 0:
+                    prevPath = '%s%s%s' % \
+                        (origPath, magicstr, number-1)
+                else:
+                    prevPath = origPath
+            else:
+                prevPath = curPath
+
+            curPath = '%s%s%s' % \
+                (origPath, magicstr, number)
+
+            # add diff by hole #
+            curStart = \
+                long(fileList[curPath]['vstart'])
+            prevEnd = \
+                long(fileList[prevPath]['vend'])
+            totalDiff += (curStart - prevEnd)
+
+            if number == 0:
+                break
+
+            number -= 1
+
+        # set startAddr and filePath to 1st segment's one #
+        startAddr = fileList[origPath]['vstart']
+        filePath = origPath
+
+        return filePath, startAddr, totalDiff
+
+
+
+    def getSymbolInfo(self, vaddr, onlyFunc=True, onlyExec=True):
         # get symbol info from cache list #
         if vaddr in self.symbolCacheList:
             return self.symbolCacheList[vaddr]
@@ -43458,7 +43607,7 @@ struct cmsghdr {
 
         # scan process memory map #
         if self.needMapScan:
-            if self.loadSymbols():
+            if self.loadSymbols(onlyFunc=onlyFunc, onlyExec=onlyExec):
                 self.updateBpList(verb=False)
             self.needMapScan = False
 
@@ -43475,11 +43624,19 @@ struct cmsghdr {
                     (hex(vaddr).rstrip('L'), procInfo))
             return None
 
-        vstart = self.pmap[fname]['vstart']
+        # get real offset for memory hole #
+        totalDiff = 0
+        magicstr = SysMgr.magicString
+        if magicstr in fname:
+            fname, vstart, totalDiff = \
+                Debugger.getRealOffsetInfo(self.pmap, fname)
+        else:
+            vstart = self.pmap[fname]['vstart']
+
         vend = self.pmap[fname]['vend']
 
         # get offset in the file #
-        offset = vaddr - vstart
+        offset = vaddr - vstart + totalDiff
         if offset < 0:
             # set variable to rescan process map #
             self.needMapScan = True
@@ -43491,6 +43648,9 @@ struct cmsghdr {
                 'because of wrong memory map') % \
                     (fname, hex(vaddr).rstrip('L'), procInfo))
             return ['??', fname, '??', '??', '??']
+
+        # remove suffix in file name #
+        fname = fname.rsplit(SysMgr.magicString, 1)[0]
 
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
@@ -43505,7 +43665,7 @@ struct cmsghdr {
 
         # get symbol #
         try:
-            sym = fcache.getSymbolByOffset(offset)
+            sym = fcache.getSymbolByOffset(offset, onlyFunc=onlyFunc)
             ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend]
             self.symbolCacheList[vaddr] = ret
             return ret
@@ -44594,6 +44754,8 @@ struct cmsghdr {
 
             # unblock signal #
             SysMgr.blockSignal(act='unblock')
+        elif self.mode == 'pycall':
+            self.handlePycall()
 
         self.status = previous
 
@@ -44638,6 +44800,187 @@ struct cmsghdr {
                 sys.exit(0)
 
             self.printContext(regs=False, sig=False)
+
+
+
+    def handlePycall(self):
+        '''
+        typedef struct _ts {
+            /* See Python/ceval.c for comments explaining most fields */
+
+            struct _ts *next;
+            PyInterpreterState *interp;
+
+            struct _frame *frame;
+            int recursion_depth;
+            /* 'tracing' keeps track of the execution depth when tracing/profiling.
+               This is to prevent the actual trace/profile code from being recorded in
+               the trace/profile. */
+            int tracing;
+            int use_tracing;
+
+            Py_tracefunc c_profilefunc;
+            Py_tracefunc c_tracefunc;
+            PyObject *c_profileobj;
+            PyObject *c_traceobj;
+
+            PyObject *curexc_type;
+            PyObject *curexc_value;
+            PyObject *curexc_traceback;
+
+            PyObject *exc_type;
+            PyObject *exc_value;
+            PyObject *exc_traceback;
+
+            PyObject *dict;  /* Stores per-thread state */
+
+            /* tick_counter is incremented whenever the check_interval ticker
+             * reaches zero. The purpose is to give a useful measure of the number
+             * of interpreted bytecode instructions in a given thread.  This
+             * extremely lightweight statistic collector may be of interest to
+             * profilers (like psyco.jit()), although nothing in the core uses it.
+             */
+            int tick_counter;
+
+            int gilstate_counter;
+
+            PyObject *async_exc; /* Asynchronous exception to raise */
+            long thread_id; /* Thread id where this tstate was created */
+
+            /* XXX signal handlers should also be here */
+
+        } PyThreadState;
+
+        typedef struct _is {
+
+            struct _is *next;
+            struct _ts *tstate_head;
+
+            PyObject *modules;
+            PyObject *sysdict;
+            PyObject *builtins;
+            PyObject *modules_reloading;
+
+            PyObject *codec_search_path;
+            PyObject *codec_search_cache;
+            PyObject *codec_error_registry;
+
+        #ifdef HAVE_DLOPEN
+            int dlopenflags;
+        #endif
+        #ifdef WITH_TSC
+            int tscdump;
+        #endif
+
+        } PyInterpreterState;
+
+
+        typedef struct {
+            int b_type;			/* what kind of block this is */
+            int b_handler;		/* where to jump to find handler */
+            int b_level;		/* value stack level to pop to */
+        } PyTryBlock;
+
+	#define _PyObject_HEAD_EXTRA            \
+	    struct _object *_ob_next;           \
+	    struct _object *_ob_prev;
+
+	typedef int Py_ssize_t;
+
+	typedef struct _object {
+	    _PyObject_HEAD_EXTRA
+	    Py_ssize_t ob_refcnt;
+	    PyTypeObject *ob_type;
+	} PyObject;
+
+        typedef struct {
+            PyObject ob_base;
+            Py_ssize_t ob_size; /* Number of items in variable part */
+        } PyVarObject;
+
+        #define PyObject_VAR_HEAD      PyVarObject ob_base;
+
+        typedef struct _frame {
+            PyObject_VAR_HEAD
+            struct _frame *f_back;	/* previous frame, or NULL */
+            PyCodeObject *f_code;	/* code segment */
+            PyObject *f_builtins;	/* builtin symbol table (PyDictObject) */
+            PyObject *f_globals;	/* global symbol table (PyDictObject) */
+            PyObject *f_locals;		/* local symbol table (any mapping) */
+            PyObject **f_valuestack;	/* points after the last local */
+            /* Next free slot in f_valuestack.  Frame creation sets to f_valuestack.
+               Frame evaluation usually NULLs it, but a frame that yields sets it
+               to the current stack top. */
+            PyObject **f_stacktop;
+            PyObject *f_trace;		/* Trace function */
+
+            /* If an exception is raised in this frame, the next three are used to
+             * record the exception info (if any) originally in the thread state.  See
+             * comments before set_exc_info() -- it's not obvious.
+             * Invariant:  if _type is NULL, then so are _value and _traceback.
+             * Desired invariant:  all three are NULL, or all three are non-NULL.  That
+             * one isn't currently true, but "should be".
+             */
+            PyObject *f_exc_type, *f_exc_value, *f_exc_traceback;
+
+            PyThreadState *f_tstate;
+            int f_lasti;		/* Last instruction if called */
+            /* Call PyFrame_GetLineNumber() instead of reading this field
+               directly.  As of 2.3 f_lineno is only valid when tracing is
+               active (i.e. when f_trace is set).  At other times we use
+               PyCode_Addr2Line to calculate the line from the current
+               bytecode index. */
+            int f_lineno;		/* Current line number */
+            int f_iblock;		/* index in f_blockstack */
+            PyTryBlock f_blockstack[CO_MAXBLOCKS]; /* for try and loop blocks */
+            PyObject *f_localsplus[1];	/* locals+stack, dynamically sized */
+        } PyFrameObject;
+
+        typedef struct {
+            PyObject_HEAD
+            int co_argcount;		/* #arguments, except *args */
+            int co_nlocals;		/* #local variables */
+            int co_stacksize;		/* #entries needed for evaluation stack */
+            int co_flags;		/* CO_..., see below */
+            PyObject *co_code;		/* instruction opcodes */
+            PyObject *co_consts;	/* list (constants used) */
+            PyObject *co_names;		/* list of strings (names used) */
+            PyObject *co_varnames;	/* tuple of strings (local variable names) */
+            PyObject *co_freevars;	/* tuple of strings (free variable names) */
+            PyObject *co_cellvars;      /* tuple of strings (cell variable names) */
+            /* The rest doesn't count for hash/cmp */
+            PyObject *co_filename;	/* string (where it was loaded from) */
+            PyObject *co_name;		/* string (name, for reference) */
+            int co_firstlineno;		/* first source line number */
+            PyObject *co_lnotab;	/* string (encoding addr<->lineno mapping) See
+                                           Objects/lnotab_notes.txt for details. */
+            void *co_zombieframe;     /* for optimization only (see frameobject.c) */
+            PyObject *co_weakreflist;   /* to support weakrefs to code objects */
+        } PyCodeObject;
+        '''
+
+        SysMgr.printErr('Not implemented yet')
+        sys.exit(0)
+
+        PyThreadState = self.readMem(self.pyAddr, 24)
+        nextp, interp, framep = struct.unpack('QQQ', PyThreadState)
+
+        PyFrameObject = self.readMem(framep, 140)
+        var_head1, var_head2, var_head3, var_head4, \
+	    back, code, builtins, f_globals, f_locals, \
+            valuestack, stacktop, trace, exc_type, exc_value, \
+            exc_traceback, tstate, lasti, lineno, iblock = \
+            struct.unpack('QIQIQQQQQQQQQQQQIII', PyFrameObject)
+
+        PyCodeObject = self.readMem(code, 120)
+        obj_head, argcount, nlocals, stacksize, flags, code, consts, \
+            names, varnames, freevars, cellvars, filename, \
+            name, firstlineno, lnotab, zomebiframe, wearreflist = \
+            struct.unpack('QIIIIQQQQQQQQIQQQ', PyCodeObject)
+
+        sys.exit(0)
+
+        return
 
 
 
@@ -45760,10 +46103,9 @@ struct cmsghdr {
                 pass
             else:
                 # wait for sample calls #
-                if self.mode == 'sample':
+                if self.mode == 'sample' or self.mode == 'pycall':
                     self.checkInterval()
-                elif self.mode == 'break' or \
-                    self.mode == 'signal':
+                elif self.mode == 'break' or self.mode == 'signal':
                     pass
                 # skip instructions for performance #
                 elif self.mode == 'inst' and self.skipInst > 0:
@@ -45829,9 +46171,8 @@ struct cmsghdr {
                     elif self.mode == 'break' or self.mode == 'inst':
                         self.handleTrapEvent(ostat)
 
-                # breakpoint event for ARM #
-                elif stat == signal.SIGILL and \
-                    self.mode == 'break':
+                # breakpoint for ARM #
+                elif stat == signal.SIGILL and self.mode == 'break':
                     self.handleTrapEvent(ostat)
 
                 # syscall #
@@ -45840,9 +46181,9 @@ struct cmsghdr {
                     if self.mode == 'syscall':
                         self.handleSyscall()
 
-                # stop signal #
+                # STOP signal #
                 elif stat == signal.SIGSTOP:
-                    if self.mode == 'sample':
+                    if self.mode == 'sample' or self.mode == 'pycall':
                         self.handleTrapEvent(ostat)
                         continue
 
@@ -45860,7 +46201,7 @@ struct cmsghdr {
                         self.ptraceEvent(self.traceEventList)
                         self.ptrace(self.cmd)
 
-                # kill / segv signal #
+                # KILL / SEGV signal #
                 elif SysMgr.isTermSignal(stat):
                     # print context info #
                     self.printContext(newline=True)
@@ -45890,7 +46231,7 @@ struct cmsghdr {
 
                     sys.exit(0)
 
-                # handle signal #
+                # signal #
                 elif self.mode == 'signal':
                     self.handleSignal(stat)
 
@@ -46028,7 +46369,33 @@ struct cmsghdr {
                 sys.exit(0)
 
             # load user symbols #
-            if (mode != 'syscall' and mode != 'signal') or \
+            if mode == 'pycall':
+                procInfo = '%s(%s)' % (self.comm, self.pid)
+
+                # executable binary path #
+                pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
+                if not pyPath:
+                    pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
+                    if not pyPath:
+                        SysMgr.printErr(
+                            "fail to find python binary for %s" % procInfo)
+                        sys.exit(0)
+
+                pySym = ['_PyThreadState_Current']
+                symbolInfo = SysMgr.getProcAddrBySymbol(
+                    self.pid, pySym, fileFilter=[pyPath])
+                if not symbolInfo:
+                    SysMgr.printErr(
+                        "fail to find '%s' symbol for %s" % (pySym, procInfo))
+                    sys.exit(0)
+                elif len(symbolInfo) > 1:
+                    SysMgr.printErr(
+                        "found multiple symbols [ %s ] for %s" % \
+                         (', '.join(list(symbolInfo.keys())), procInfo))
+                    sys.exit(0)
+
+                self.pyAddr = long(list(symbolInfo.values())[0][2], 16)
+            elif (mode != 'syscall' and mode != 'signal') or \
                 SysMgr.funcDepth > 0:
                 try:
                     self.loadSymbols()
@@ -46075,7 +46442,7 @@ struct cmsghdr {
                 SysMgr.printErr(
                     "not supported on %s" % self.arch.upper())
                 sys.exit(0)
-        elif self.mode == 'sample':
+        elif self.mode == 'sample' or self.mode == 'pycall':
             self.cmd = None
         elif self.mode == 'break':
             if self.isRunning:
@@ -47093,7 +47460,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 class EventAnalyzer(object):
-    """ Analyzer for event profiling """
+    """ Analyzer for event """
 
     eventData = {}
 
@@ -47259,7 +47626,7 @@ class MemoryFile(object):
 
 
 class ElfAnalyzer(object):
-    """ Analyzer for ELF binaries """
+    """ Analyzer for ELF object """
 
     SHF_WRITE = 0x1
     SHF_ALLOC = 0x2
@@ -48874,8 +49241,8 @@ class ElfAnalyzer(object):
                 "fail to load %s because it is already deleted" % path)
             return None
 
-        # remove segment number part #
-        path = path.split('#')[0]
+        # remove segment number #
+        path = path.split(SysMgr.magicString)[0]
 
         # load files #
         if not path in ElfAnalyzer.cachedFiles:
@@ -48925,7 +49292,7 @@ class ElfAnalyzer(object):
                     "fail to load %s as an ELF object" % path, reason=True)
 
                 if raiseExcept:
-                    raise Exception(err)
+                    raise Exception('wrong binary')
                 else:
                     return None
 
@@ -49080,7 +49447,7 @@ class ElfAnalyzer(object):
                 symbol, inc, start, end = ElfAnalyzer.getFilterFlags(symbol)
 
                 offset = binObj.getOffsetBySymbol(
-                    symbol, inc=inc, start=start, end=end)
+                    symbol, inc=inc, start=start, end=end, onlyFunc=False)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -49368,7 +49735,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getSymbolByOffset(self, offset):
+    def getSymbolByOffset(self, offset, onlyFunc=True):
         def bisect_left(a, x, lo=0, hi=None):
             # copied from python standard library bisect.py #
             if lo < 0:
@@ -49383,7 +49750,7 @@ class ElfAnalyzer(object):
 
         # check symbol table #
         if len(self.sortedSymTable) == 0:
-            self.mergeSymTable()
+            self.mergeSymTable(onlyFunc=onlyFunc)
 
         try:
             if UtilMgr.isString(offset):
@@ -49422,10 +49789,12 @@ class ElfAnalyzer(object):
 
 
 
-    def getOffsetBySymbol(self, symbol, inc=False, start=False, end=False):
+    def getOffsetBySymbol(
+        self, symbol, inc=False, start=False, end=False, onlyFunc=True):
+
         # check symbol table #
         if len(self.sortedSymTable) == 0:
-            self.mergeSymTable()
+            self.mergeSymTable(onlyFunc=onlyFunc)
 
         clist = list()
 
@@ -49433,13 +49802,13 @@ class ElfAnalyzer(object):
         try:
             for idx, val in enumerate(self.sortedSymTable):
                 target = val[0].split('@')[0]
+                offset = hex(self.sortedAddrTable[idx]).rstrip('L')
                 if (start and target.startswith(symbol)) or \
                     (end and target.endswith(symbol)) or \
                     (inc and symbol in target):
-                    clist.append(
-                        [val[0], hex(self.sortedAddrTable[idx]).rstrip('L')])
+                    clist.append([val[0], offset])
                 elif (symbol == val[0] or symbol == target):
-                    return hex(self.sortedAddrTable[idx]).rstrip('L')
+                    return offset
         except SystemExit:
             sys.exit(0)
         except:
