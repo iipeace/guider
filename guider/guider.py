@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201108"
+__revision__ = "201109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -12541,7 +12541,7 @@ class FileAnalyzer(object):
         # remove non-executable files #
         if onlyExec:
             for fname in list(fileMap.keys()):
-                if not fileMap[fname]['exec']:
+                if fname != 'stack' and not fileMap[fname]['exec']:
                     fileMap.pop(fname, None)
 
         return fileMap
@@ -39487,6 +39487,11 @@ class Debugger(object):
         self.tempPage = None
         self.pyAddr = None
 
+        self.stack = None
+        self.startStack = None
+        self.endStack = None
+        self.stackSize = 0
+
         self.peekIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_PEEKTEXT')
         self.pokeIdx = ConfigMgr.PTRACE_TYPE.index('PTRACE_POKEDATA')
         self.tkillIdx = ConfigMgr.sysList.index('sys_tkill')
@@ -41682,7 +41687,7 @@ struct cmsghdr {
 
 
 
-    def stop(self, pid=None, thread=True):
+    def stop(self, pid=None, thread=True, check=False):
         if not pid:
             pid = self.pid
 
@@ -41695,7 +41700,12 @@ struct cmsghdr {
         # send signal to a thread #
         try:
             if thread:
-                return SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
+                ret = SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
+                if check:
+                    while 1:
+                        if self.isStopped():
+                            break
+                return ret
         except SystemExit:
             sys.exit(0)
         except:
@@ -43378,6 +43388,11 @@ struct cmsghdr {
                     nline = bt.count('\n') + 1
                     if SysMgr.checkCutCond(nline):
                         finishPrint()
+
+                        # stop target to return original status #
+                        if needStop:
+                            self.stop(check=True)
+
                         return
 
                     ret = SysMgr.addPrint(
@@ -43408,7 +43423,7 @@ struct cmsghdr {
 
         # stop target to return original status #
         if needStop:
-            self.stop()
+            self.stop(check=True)
 
 
 
@@ -44157,6 +44172,41 @@ struct cmsghdr {
 
 
 
+    def getWordFromStack(self, addr, update=False):
+        if update:
+            self.getStack()
+
+        # verify addresss #
+        if not self.startStack <= addr <= self.endStack+addr:
+            return None
+
+        offset = addr - self.startStack
+
+        word = self.stack[offset:offset+ConfigMgr.wordSize]
+        if ConfigMgr.wordSize == 8:
+            return struct.unpack('Q', word)[0]
+        else:
+            return struct.unpack('I', word)[0]
+
+
+
+    def getStack(self):
+        if not self.pmap:
+            return False
+
+        stack = self.pmap['stack']
+        self.startStack = stack['vstart']
+        self.endStack = stack['vend']+ConfigMgr.wordSize
+        self.stackSize = self.endStack - self.startStack
+        self.stack = self.readMem(self.startStack, self.stackSize)
+
+        if self.stack:
+            return True
+        else:
+            return False
+
+
+
     def getBacktrace_X86(self, limit=32, cur=False):
         nextFp = self.fp
         btList = []
@@ -44164,9 +44214,17 @@ struct cmsghdr {
         if cur and self.pc:
             btList.insert(0, self.pc)
 
+        # update stack for target #
+        readaheadStack = False
+        if readaheadStack:
+            self.getStack()
+
         # get 1st address from stack #
         targetAddr = self.sp
-        value = self.readWord(targetAddr)
+        if readaheadStack:
+            value = self.getWordFromStack(targetAddr)
+        else:
+            value = self.readWord(targetAddr)
         btList.insert(0, value)
 
         while 1:
@@ -44180,7 +44238,10 @@ struct cmsghdr {
             try:
                 # read return address #
                 targetAddr = nextFp + ConfigMgr.wordSize
-                value = self.readWord(targetAddr)
+                if readaheadStack:
+                    value = self.getWordFromStack(targetAddr)
+                else:
+                    value = self.readWord(targetAddr)
 
                 # add call address #
                 if value > 0:
@@ -44192,7 +44253,10 @@ struct cmsghdr {
                         pass
 
                 # read next FP #
-                nextFp = self.readWord(nextFp)
+                if readaheadStack:
+                    nextFP = self.getWordFromStack(targetAddr)
+                else:
+                    nextFp = self.readWord(nextFp)
                 if nextFp <= 0:
                     break
             except SystemExit:
@@ -44258,6 +44322,11 @@ struct cmsghdr {
 
         savedLr = nextLr
 
+        # update stack for target #
+        readaheadStack = False
+        if readaheadStack:
+            self.getStack()
+
         while 1:
             if not nextLr or not nextFp or nextLr & 0x1:
                 break
@@ -44269,9 +44338,15 @@ struct cmsghdr {
             # get FP and LR #
             try:
                 nextAddr = nextFp + ConfigMgr.wordSize
-                nextLr = self.readWord(nextAddr)
+                if readaheadStack:
+                    nextLr = self.getWordFromStack(nextAddr)
+                else:
+                    nextLr = self.readWord(nextAddr)
 
-                nextFp = self.readWord(nextFp)
+                if readaheadStack:
+                    nextFp = self.getWordFromStack(nextFp)
+                else:
+                    nextFp = self.readWord(nextFp)
                 if nextFp <= 0:
                     break
             except SystemExit:
@@ -44847,39 +44922,14 @@ struct cmsghdr {
             PyObject *async_exc; /* Asynchronous exception to raise */
             long thread_id; /* Thread id where this tstate was created */
 
+            int trash_delete_nesting;
+            PyObject *trash_delete_later;
+
             /* XXX signal handlers should also be here */
 
         } PyThreadState;
 
-        typedef struct _is {
 
-            struct _is *next;
-            struct _ts *tstate_head;
-
-            PyObject *modules;
-            PyObject *sysdict;
-            PyObject *builtins;
-            PyObject *modules_reloading;
-
-            PyObject *codec_search_path;
-            PyObject *codec_search_cache;
-            PyObject *codec_error_registry;
-
-        #ifdef HAVE_DLOPEN
-            int dlopenflags;
-        #endif
-        #ifdef WITH_TSC
-            int tscdump;
-        #endif
-
-        } PyInterpreterState;
-
-
-        typedef struct {
-            int b_type;			/* what kind of block this is */
-            int b_handler;		/* where to jump to find handler */
-            int b_level;		/* value stack level to pop to */
-        } PyTryBlock;
 
 	#define _PyObject_HEAD_EXTRA            \
 	    struct _object *_ob_next;           \
@@ -44887,11 +44937,11 @@ struct cmsghdr {
 
 	typedef int Py_ssize_t;
 
-	typedef struct _object {
-	    _PyObject_HEAD_EXTRA
-	    Py_ssize_t ob_refcnt;
-	    PyTypeObject *ob_type;
-	} PyObject;
+        typedef struct _object {
+            _PyObject_HEAD_EXTRA
+            Py_ssize_t ob_refcnt;
+            struct _typeobject *ob_type;
+        } PyObject;
 
         typedef struct {
             PyObject ob_base;
@@ -44899,6 +44949,8 @@ struct cmsghdr {
         } PyVarObject;
 
         #define PyObject_VAR_HEAD      PyVarObject ob_base;
+
+
 
         typedef struct _frame {
             PyObject_VAR_HEAD
@@ -44936,6 +44988,8 @@ struct cmsghdr {
             PyObject *f_localsplus[1];	/* locals+stack, dynamically sized */
         } PyFrameObject;
 
+
+
         typedef struct {
             PyObject_HEAD
             int co_argcount;		/* #arguments, except *args */
@@ -44962,23 +45016,25 @@ struct cmsghdr {
         SysMgr.printErr('Not implemented yet')
         sys.exit(0)
 
+        '''
         PyThreadState = self.readMem(self.pyAddr, 24)
-        nextp, interp, framep = struct.unpack('QQQ', PyThreadState)
+        nextp, interp, framep = \
+            struct.unpack('QQQ', PyThreadState)
 
-        PyFrameObject = self.readMem(framep, 140)
-        var_head1, var_head2, var_head3, var_head4, \
-	    back, code, builtins, f_globals, f_locals, \
-            valuestack, stacktop, trace, exc_type, exc_value, \
-            exc_traceback, tstate, lasti, lineno, iblock = \
-            struct.unpack('QIQIQQQQQQQQQQQQIII', PyFrameObject)
+        PyFrameObject = self.readMem(framep, 149)
+        _ob_next, _ob_prev, ob_refcnt, ob_type, \
+            ob_size, f_back, f_code, f_builtins, f_globals, \
+            f_locals, f_valuestack, f_stacktop, f_trace, \
+            f_exc_type, f_exc_value, f_exc_traceback, f_gen, \
+            f_lasti, f_lineno, f_iblock, f_executing = \
+            struct.unpack('QQIQIQQQQQQQQQQQQiiib', PyFrameObject)
 
-        PyCodeObject = self.readMem(code, 120)
+        PyCodeObject = self.readMem(f_code, 120)
         obj_head, argcount, nlocals, stacksize, flags, code, consts, \
             names, varnames, freevars, cellvars, filename, \
             name, firstlineno, lnotab, zomebiframe, wearreflist = \
             struct.unpack('QIIIIQQQQQQQQIQQQ', PyCodeObject)
-
-        sys.exit(0)
+        '''
 
         return
 
@@ -46612,6 +46668,9 @@ struct cmsghdr {
         callTable = dict()
         fileTable = dict()
 
+        # define stop flag #
+        needStop = False
+
         # check mode and define type variables #
         if instance.mode == 'syscall':
             ctype = 'Syscall'
@@ -46679,6 +46738,11 @@ struct cmsghdr {
                     fileTable[filename]['cnt'] = 1
             except SystemExit:
                 UtilMgr.deleteProgress()
+
+                # stop target to return original status #
+                if needStop:
+                    instance.stop(check=True)
+
                 return
             except:
                 pass
@@ -46811,6 +46875,10 @@ struct cmsghdr {
             SysMgr.printPipe('%s%s' % (oneLine, suffix))
 
         instance.printCallHistory(instance)
+
+        # stop target to return original status #
+        if needStop:
+            instance.stop(check=True)
 
         # check realtime mode #
         if SysMgr.procBuffer == []:
@@ -47205,6 +47273,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             cmd = self.getregsCmd
             ret = self.ptrace(cmd, 0, addr)
 
+        # handle error #
         if ret != 0:
             if not self.isAlive():
                 SysMgr.printErr(
@@ -47214,8 +47283,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             errMsg = "fail to read registers for %s(%s)" % \
                 (self.comm, self.pid)
 
+            # check state #
             if self.isStopped():
-                SysMgr.printErr(errMsg)
+                SysMgr.printWarn(errMsg)
+                return self.getRegs()
             else:
                 SysMgr.printWarn(
                     '%s because it is not stopped' % errMsg)
@@ -49230,6 +49301,9 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(path, raiseExcept=False, fobj=None):
+        # remove segment number #
+        path = path.split(SysMgr.magicString)[0]
+
         # check black-list #
         if path in ElfAnalyzer.failedFiles:
             return None
@@ -49240,9 +49314,6 @@ class ElfAnalyzer(object):
             SysMgr.printWarn(
                 "fail to load %s because it is already deleted" % path)
             return None
-
-        # remove segment number #
-        path = path.split(SysMgr.magicString)[0]
 
         # load files #
         if not path in ElfAnalyzer.cachedFiles:
