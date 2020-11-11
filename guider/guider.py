@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201109"
+__revision__ = "201111"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13963,6 +13963,9 @@ class SysMgr(object):
     bufferLossEnable = False
     jsonEnable = False
     powerEnable = False
+    binderEnable = False
+    wqEnable = False
+    i2cEnable = False
     pipeEnable = False
     depEnable = False
     sysEnable = False
@@ -14510,17 +14513,18 @@ class SysMgr(object):
             # get init time from buffer for verification #
             initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
 
-            # wait for user input #
-            while 1:
-                if SysMgr.recordStatus:
-                    SysMgr.condExit = True
+        # wait for user input #
+        while 1:
+            if SysMgr.recordStatus:
+                SysMgr.condExit = True
 
-                    SysMgr.waitEvent()
-                    if SysMgr.condExit:
-                        break
-                else:
+                SysMgr.waitEvent()
+                if SysMgr.condExit:
                     break
+            else:
+                break
 
+        if not SysMgr.graphEnable:
             # compare init time with now time for buffer verification #
             if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
                 SysMgr.printErr("buffer size %sKB is not enough" % \
@@ -14910,8 +14914,7 @@ class SysMgr(object):
                 "no file path with -I option")
             sys.exit(0)
 
-        SysMgr.ttyCols = 0
-        SysMgr.printStreamEnable = True
+        SysMgr.setStream()
 
         SysMgr.printStat('start reading %s...' % SysMgr.inputParam)
 
@@ -15128,6 +15131,14 @@ class SysMgr(object):
             SysMgr.printErr(
                 "fail to get CPU affinity of task", True)
             sys.exit(0)
+
+
+
+    @staticmethod
+    def setStream():
+        SysMgr.ttyCols = long(0)
+        SysMgr.printStreamEnable = True
+        SysMgr.encodeEnable = False
 
 
 
@@ -16040,7 +16051,7 @@ class SysMgr(object):
             'D' in options or 'k' in options or \
             'j' in options or 'x' in options or \
             'y' in options or 'Y' in options or \
-            'q' in options:
+            'q' in options or 'B' in options:
             return True
         else:
             return False
@@ -16667,7 +16678,7 @@ Options:
             a:affinity | b:block | c:cpu | C:cgroup
             d:disk | D:DWARF | e:encode | E:exec
             f:float | F:wfc | h:sigHandler | H:sched
-            i:irq | I:elastic | L:cmdline | m:memory
+            i:irq | I:elastic | L:cmdline | m:mem
             n:net | N:namespace | o:oomScore | p:pipe
             P:perf | q:quit | r:report | R:fileReport
             s:stack | S:pss | t:thread | u:uss
@@ -17062,7 +17073,7 @@ Options:
   [collect]
     -e  <CHARACTER>             enable options
           b:block | c:cgroup | e:encode | g:graph
-          h:heap | L:lock | m:memory | p:pipe
+          h:heap | L:lock | m:mem | p:pipe
     -d  <CHARACTER>             disable options
           a:all | c:cpu | C:compress | e:encode
           g:generalInfo | l:latency | L:log | u:user
@@ -17312,9 +17323,10 @@ Description:
 Options:
   [collect]
     -e  <CHARACTER>             enable options
-            b:block | c:cgroup | e:encode | g:graph
-            i:irq | L:lock | m:memory | n:net
-            p:pipe | r:reset | P:power
+            b:block | B:binder | c:cgroup | d:disk
+            e:encode | g:graph | i:irq | I:i2c
+            L:lock | m:mem | n:net | p:pipe
+            r:reset | P:power | w:workqueue
     -d  <CHARACTER>             disable options
             a:all | c:cpu | C:compress | e:encode
             g:generalInfo
@@ -17363,6 +17375,9 @@ Options:
 Examples:
     - record default events of all threads to ./guider.dat
         # {0:1} {1:1} -s .
+
+    - record default events of specific threads that having TID bigger than 1234 to ./guider.dat
+        # {0:1} {1:1} -s . -g ">1234"
 
     - report analysis result of all threads to ./guider.out
         # {0:1} guider.dat -o .
@@ -22057,6 +22072,7 @@ Copyright:
                 except:
                     SysMgr.printOpenErr(SysMgr.cmdEnable)
                     return -1
+
             if SysMgr.cmdFd:
                 try:
                     cmd = 'echo "%s" > %s%s 2>/dev/null\n' % \
@@ -22080,10 +22096,14 @@ Copyright:
                     fd = os.open(target, os.O_RDWR|os.O_CREAT|os.O_APPEND)
                     SysMgr.cmdAttachCache[target] = fd
             else:
-                if target in SysMgr.cmdFileCache:
+                try:
+                    fd = None
                     fd = SysMgr.cmdFileCache[target]
                     fd.seek(0, 0)
-                else:
+                except:
+                    pass
+
+                if not fd:
                     fd = open(target, perm)
                     SysMgr.cmdFileCache[target] = fd
         except SystemExit:
@@ -22104,18 +22124,24 @@ Copyright:
                 pass
 
             SysMgr.printWarn(
-                "fail to use %s event, please check kernel configuration" % \
+                "fail to use %s event, check kernel configuration" % \
                     epath, reason=True)
             return -1
 
         # apply command #
         try:
             if append:
-                os.write(fd, bytes(UtilMgr.encodeStr(val)))
-                #os.fsync(fd)
+                try:
+                    os.write(fd, bytes(UtilMgr.encodeStr(val)))
+                    os.fsync(fd)
+                except:
+                    pass
             else:
-                fd.write(val)
-                fd.flush()
+                try:
+                    fd.write(val)
+                    fd.flush()
+                except:
+                    pass
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -22571,6 +22597,10 @@ Copyright:
                 SysMgr.blockEnable = True
             if 'P' in filterList:
                 SysMgr.powerEnable = True
+            if 'B' in filterList:
+                SysMgr.binderEnable = True
+            if 'I' in filterList:
+                SysMgr.i2cEnable = True
             if 'h' in filterList:
                 SysMgr.heapEnable = True
             if 'L' in filterList:
@@ -22667,6 +22697,8 @@ Copyright:
             try:
                 SysMgr.eventLogFd = \
                     open(SysMgr.eventLogPath, 'w')
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(
                     "fail to open %s" % SysMgr.eventLogPath)
@@ -22678,8 +22710,15 @@ Copyright:
                 event = message[message.find('_')+1:]
                 if show:
                     SysMgr.printInfo('wrote %s event' % event)
-                SysMgr.eventLogFd.flush()
+
+                try:
+                    SysMgr.eventLogFd.flush()
+                except:
+                    pass
+
                 return True
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "fail to write %s event" % (message), reason=True)
@@ -23327,8 +23366,8 @@ Copyright:
             except:
                 return
         else:
-            sys.stdout.write(log)
             try:
+                sys.stdout.write(log)
                 sys.stdout.flush()
             except SystemExit:
                 sys.exit(0)
@@ -23767,7 +23806,7 @@ Copyright:
                         "input number in integer format")
                     sys.exit(0)
 
-            elif option == 'o':
+            elif option == 'o' or option == 's':
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
@@ -23935,9 +23974,6 @@ Copyright:
                 SysMgr.cacheDirPath = value
                 SysMgr.printInfo(
                     "use %s as cache directory" % value)
-
-            elif option == 's':
-                SysMgr.applySaveOption(value)
 
             elif option == 'e':
                 options = value
@@ -24289,7 +24325,7 @@ Copyright:
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'Q':
-                SysMgr.printStreamEnable = True
+                SysMgr.setStream()
 
             elif option == 'H':
                 try:
@@ -24338,6 +24374,8 @@ Copyright:
                 sys.exit(0)
 
             SysMgr.outPath = os.path.normpath(value)
+        elif option == 's':
+            SysMgr.applySaveOption(value)
 
 
 
@@ -24434,34 +24472,28 @@ Copyright:
                 options = value
                 if 'i' in options:
                     SysMgr.irqEnable = True
-
                 if 'm' in options:
                     SysMgr.memEnable = True
-
                 if 'n' in options:
                     SysMgr.networkEnable = True
-
                 if 'h' in options:
                     SysMgr.heapEnable = True
-
                 if 'b' in options:
                     SysMgr.blockEnable = True
-
                 if 'p' in options:
                     SysMgr.pipeEnable = True
-
                 if 'P' in options:
                     SysMgr.powerEnable = True
-
+                if 'B' in options:
+                    SysMgr.binderEnable = True
+                if 'I' in options:
+                    SysMgr.i2cEnable = True
                 if 'r' in options:
                     SysMgr.resetEnable = True
-
                 if 'g' in options:
                     SysMgr.graphEnable = True
-
                 if 'L' in options:
                     SysMgr.lockEnable = True
-
                 if 'c' in options:
                     SysMgr.cgroupEnable = True
 
@@ -24482,9 +24514,6 @@ Copyright:
                     "only specific threads [ %s ] are recorded" % \
                     ', '.join(SysMgr.filterGroup))
 
-            elif option == 's':
-                SysMgr.applySaveOption(value)
-
             elif option == 'D':
                 SysMgr.depEnable = True
 
@@ -24493,7 +24522,7 @@ Copyright:
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'Q':
-                SysMgr.printStreamEnable = True
+                SysMgr.setStream()
 
             elif option == 'H':
                 try:
@@ -24596,7 +24625,7 @@ Copyright:
             elif option == 'R':
                 SysMgr.parseRuntimeOption(value)
 
-            elif option == 'o':
+            elif option == 'o' or option == 's':
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'c':
@@ -24722,8 +24751,9 @@ Copyright:
 
     @staticmethod
     def isThreadRecMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'record' or sys.argv[1] == 'rec'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'record' or sys.argv[1] == 'rec':
             return True
         else:
             return False
@@ -24732,8 +24762,9 @@ Copyright:
 
     @staticmethod
     def isFuncRecMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'funcrecord' or sys.argv[1] == 'funcrec'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'funcrecord' or sys.argv[1] == 'funcrec':
             return True
         else:
             return False
@@ -24742,8 +24773,9 @@ Copyright:
 
     @staticmethod
     def isFileRecMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'filerecord' or sys.argv[1] == 'filerec'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'filerecord' or sys.argv[1] == 'filerec':
             return True
         else:
             return False
@@ -24752,8 +24784,9 @@ Copyright:
 
     @staticmethod
     def isSysRecMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'sysrecord' or sys.argv[1] == 'sysrec'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'sysrecord' or sys.argv[1] == 'sysrec':
             return True
         else:
             return False
@@ -24762,8 +24795,9 @@ Copyright:
 
     @staticmethod
     def isGenRecMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'genrecord' or sys.argv[1] == 'genrec'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'genrecord' or sys.argv[1] == 'genrec':
             return True
         else:
             return False
@@ -24778,10 +24812,12 @@ Copyright:
             return False
 
 
+
     @staticmethod
     def isServerMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'server' or sys.argv[1] == 'serv'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'server' or sys.argv[1] == 'serv':
             return True
         else:
             return False
@@ -24790,10 +24826,11 @@ Copyright:
 
     @staticmethod
     def isHelpMode():
-        if '-help' in sys.argv or \
+        if len(sys.argv) > 1 and sys.argv[1] == 'help':
+            return True
+        elif '-help' in sys.argv or \
             '--help' in sys.argv or \
-            '-h' in sys.argv or \
-            (len(sys.argv) > 1 and sys.argv[1] == 'help'):
+            '-h' in sys.argv:
             return True
         else:
             return False
@@ -24802,8 +24839,9 @@ Copyright:
 
     @staticmethod
     def isClientMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'client' or sys.argv[1] == 'cli'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'client' or sys.argv[1] == 'cli':
             return True
         else:
             return False
@@ -25086,8 +25124,9 @@ Copyright:
 
     @staticmethod
     def isPerfTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'perftop' or sys.argv[1] == 'ptop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'perftop' or sys.argv[1] == 'ptop':
             return True
         else:
             return False
@@ -25096,8 +25135,9 @@ Copyright:
 
     @staticmethod
     def isMemTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'memtop' or sys.argv[1] == 'mtop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'memtop' or sys.argv[1] == 'mtop':
             return True
         else:
             return False
@@ -25106,8 +25146,9 @@ Copyright:
 
     @staticmethod
     def isWssTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'wsstop' or sys.argv[1] == 'wtop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'wsstop' or sys.argv[1] == 'wtop':
             return True
         else:
             return False
@@ -25161,8 +25202,9 @@ Copyright:
 
     @staticmethod
     def isUserTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'usertop' or sys.argv[1] == 'utop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'usertop' or sys.argv[1] == 'utop':
             return True
         else:
             return False
@@ -25180,8 +25222,9 @@ Copyright:
 
     @staticmethod
     def isBrkTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'brktop' or sys.argv[1] == 'btop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'brktop' or sys.argv[1] == 'btop':
             return True
         else:
             return False
@@ -25199,8 +25242,9 @@ Copyright:
 
     @staticmethod
     def isNetTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'nettop' or sys.argv[1] == 'ntop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'nettop' or sys.argv[1] == 'ntop':
             return True
         else:
             return False
@@ -25218,8 +25262,9 @@ Copyright:
 
     @staticmethod
     def isFileTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'filetop' or sys.argv[1] == 'ftop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'filetop' or sys.argv[1] == 'ftop':
             return True
         else:
             return False
@@ -25228,8 +25273,9 @@ Copyright:
 
     @staticmethod
     def isRepTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'rtop' or sys.argv[1] == 'reptop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'rtop' or sys.argv[1] == 'reptop':
             return True
         else:
             return False
@@ -25247,9 +25293,9 @@ Copyright:
 
     @staticmethod
     def isThreadTopMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'threadtop' or \
-            sys.argv[1] == 'ttop'):
+        if len(sys.argv) == 1:
+            return False
+        elif sys.argv[1] == 'threadtop' or sys.argv[1] == 'ttop':
             return True
         else:
             return False
@@ -25527,8 +25573,7 @@ Copyright:
         # PRINTDLT MODE #
         elif SysMgr.isPrintDltMode():
             # set console info #
-            SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -25540,8 +25585,7 @@ Copyright:
         # PRINTDBUS MODE #
         elif SysMgr.isPrintDbusMode():
             # set console info #
-            SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -25556,8 +25600,7 @@ Copyright:
         # PRINTSYSLOG MODE #
         elif SysMgr.isPrintSyslogMode():
             # set console info #
-            SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -25566,8 +25609,7 @@ Copyright:
         # PRINTKMSG MODE #
         elif SysMgr.isPrintKmsgMode():
             # set console info #
-            SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -25576,8 +25618,7 @@ Copyright:
         # PRINTJRL MODE #
         elif SysMgr.isPrintJournalMode():
             # set console info #
-            SysMgr.ttyCols = long(0)
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -25619,7 +25660,7 @@ Copyright:
 
         # CPUTEST MODE #
         elif SysMgr.isCpuTestMode():
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.doCpuTest()
 
@@ -25636,8 +25677,7 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            SysMgr.ttyCols = 0
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
             SysMgr.doMemTest()
 
@@ -25671,7 +25711,7 @@ Copyright:
         # STRACE MODE #
         elif SysMgr.isStraceMode():
             if SysMgr.findOption('l'):
-                SysMgr.printStreamEnable = True
+                SysMgr.setStream()
                 for idx, item in enumerate(ConfigMgr.sysList):
                     if item == 'sys_null':
                         continue
@@ -27320,7 +27360,7 @@ Copyright:
 
             # disable pager, print output both to file and to stdout #
             if stream:
-                SysMgr.printStreamEnable = True
+                SysMgr.setStream()
             SysMgr.inputFile = None
             SysMgr.outPath = None
             SysMgr.printFd = None
@@ -29187,7 +29227,7 @@ Copyright:
     def doWatch():
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        SysMgr.printStreamEnable = True
+        SysMgr.setStream()
 
         # check target path #
         if not SysMgr.filterGroup:
@@ -29385,9 +29425,8 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # no use pager #
-        if not SysMgr.isTopMode() and \
-            not SysMgr.outPath:
-            SysMgr.printStreamEnable = True
+        if not SysMgr.isTopMode() and not SysMgr.outPath:
+            SysMgr.setStream()
 
         # define wait syscall #
         wait = None
@@ -29477,7 +29516,7 @@ Copyright:
             if len(pids) > 1:
                 multi = True
                 if not SysMgr.outPath:
-                    SysMgr.printStreamEnable = True
+                    SysMgr.setStream()
 
                 SysMgr.printWarn(
                     "multiple tasks [ %s ] are targeted" % \
@@ -29962,7 +30001,7 @@ Copyright:
 
         # check filter option #
         if SysMgr.findOption('g'):
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
             if not SysMgr.filterGroup:
                 SysMgr.filterGroup = ['*']
 
@@ -33448,30 +33487,35 @@ Copyright:
             finally:
                 SysMgr.pipeForPager = None
 
-        if SysMgr.printFd:
-            try:
-                SysMgr.printFd.flush()
+        if not SysMgr.printFd:
+            return
 
-                fsize = UtilMgr.convSize2Unit(
-                    long(os.fstat(SysMgr.printFd.fileno()).st_size))
+        try:
+            SysMgr.printFd.flush()
 
-                SysMgr.printInfo(
-                    "finish saving all results into '%s' [%s] successfully" % \
-                    (SysMgr.printFd.name, fsize))
+            fsize = UtilMgr.convSize2Unit(
+                long(os.fstat(SysMgr.printFd.fileno()).st_size))
 
-                SysMgr.printFd.close()
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-            finally:
-                SysMgr.printFd = None
+            SysMgr.printInfo(
+                "finish saving all results into '%s' [%s] successfully" % \
+                (SysMgr.printFd.name, fsize))
+
+            SysMgr.printFd.close()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        finally:
+            SysMgr.printFd = None
 
 
 
     @staticmethod
     def clearTraceBuffer():
+        SysMgr.printInfo(
+            r'clear trace buffer... ', suffix=False, prefix=False)
         SysMgr.writeCmd("../trace", '')
+        SysMgr.printInfo("[done]", prefix=False, notitle=True)
 
 
 
@@ -33503,25 +33547,34 @@ Copyright:
         self.cmdList["module/module_get"] = True
 
         # sched #
-        self.cmdList["sched/sched_switch"] = \
-            self.cmdList["sched/sched_migrate_task"] = sm.cpuEnable
-        self.cmdList["sched/sched_wakeup"] = \
-            self.cmdList["sched/sched_wakeup_new"] = \
-            (sm.cpuEnable and sm.latEnable) or sm.depEnable
+        schedFlag = sm.cpuEnable
+        self.cmdList["sched/sched_switch"] = schedFlag
+        self.cmdList["sched/sched_migrate_task"] = schedFlag
+        wakeupFlag = (sm.cpuEnable and sm.latEnable) or sm.depEnable
+        self.cmdList["sched/sched_wakeup"] = wakeupFlag
+        self.cmdList["sched/sched_wakeup_new"] = wakeupFlag
 
-        self.cmdList["irq"] = sm.irqEnable
+        # irq #
+        irqFlag = sm.irqEnable
+        self.cmdList["irq/irq_handler_entry"] = irqFlag
+        self.cmdList["irq/irq_handler_exit"] = irqFlag
+        self.cmdList["irq/softirq_entry"] = irqFlag
+        self.cmdList["irq/softirq_exit"] = irqFlag
+        self.cmdList["irq/softirq_raise"] = False
 
-        self.cmdList["raw_syscalls"] = \
-            sm.sysEnable | sm.depEnable | sm.lockEnable
+        # syscall #
+        syscallFlag = sm.sysEnable | sm.depEnable | sm.lockEnable
+        self.cmdList["raw_syscalls"] = syscallFlag
 
         # mem #
-        self.cmdList["kmem/mm_page_alloc"] = \
-            self.cmdList["kmem/mm_page_free"] = \
-            self.cmdList["kmem/kmalloc"] = \
-            self.cmdList["kmem/kfree"] = \
-            self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = \
-            self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = \
-            self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = sm.memEnable
+        memFlag = sm.memEnable
+        self.cmdList["kmem/mm_page_alloc"] = memFlag
+        self.cmdList["kmem/mm_page_free"] = memFlag
+        self.cmdList["kmem/kmalloc"] = memFlag
+        self.cmdList["kmem/kfree"] = memFlag
+        self.cmdList["filemap/mm_filemap_delete_from_page_cache"] = memFlag
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = memFlag
+        self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = memFlag
         self.cmdList["kmem/mm_page_free_direct"] = False
         self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
         self.cmdList["timer/hrtimer_start"] = False
@@ -33529,23 +33582,55 @@ Copyright:
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
 
         # bio #
-        self.cmdList["block/block_bio_queue"] = \
-            self.cmdList["block/block_rq_complete"] = \
-            self.cmdList["writeback/writeback_dirty_page"] = \
-            self.cmdList["writeback/wbc_writepage"] = sm.blockEnable
+        bioFlag = sm.blockEnable
+        self.cmdList["block/block_bio_queue"] = bioFlag
+        self.cmdList["block/block_rq_complete"] = bioFlag
+        self.cmdList["writeback/writeback_dirty_page"] = bioFlag
+        self.cmdList["writeback/wbc_writepage"] = bioFlag
+
+        # disk #
+        diskFlag = sm.diskEnable
+        self.cmdList["f2fs/f2fs_sync_file_enter"] = diskFlag
+        self.cmdList["f2fs/f2fs_sync_file_exit"] = diskFlag
+        self.cmdList["f2fs/f2fs_write_begin"] = diskFlag
+        self.cmdList["f2fs/f2fs_write_end"] = diskFlag
+        self.cmdList["ext4/ext4_da_write_begin"] = diskFlag
+        self.cmdList["ext4/ext4_da_write_end"] = diskFlag
+        self.cmdList["ext4/ext4_sync_file_enter"] = diskFlag
+        self.cmdList["ext4/ext4_sync_file_exit"] = diskFlag
 
         # network #
-        self.cmdList["net/net_dev_xmit"] = \
-            self.cmdList["net/netif_receive_skb"] = sm.networkEnable
+        netFlag = sm.networkEnable
+        self.cmdList["net/net_dev_xmit"] = netFlag
+        self.cmdList["net/netif_receive_skb"] = netFlag
 
+        # probes #
         self.cmdList["uprobes"] = sm.ueventEnable
         self.cmdList["kprobes"] = sm.keventEnable
+
+        # lock #
         self.cmdList["filelock/locks_get_lock_context"] = sm.lockEnable
 
         # power #
-        self.cmdList["power/cpu_idle"] = \
-            self.cmdList["power/cpu_frequency"] = \
-            self.cmdList["power/suspend_resume"] = sm.powerEnable
+        powerFlag = sm.powerEnable
+        self.cmdList["power/cpu_idle"] = powerFlag
+        self.cmdList["power/cpu_frequency"] = powerFlag
+        self.cmdList["power/suspend_resume"] = powerFlag
+
+        # binder #
+        binderFlag = sm.binderEnable
+        self.cmdList["binder/binder_lock"] = binderFlag
+        self.cmdList["binder/binder_locked"] = binderFlag
+        self.cmdList["binder/binder_unlock"] = binderFlag
+        self.cmdList["binder/binder_transaction"] = binderFlag
+        self.cmdList["binder/binder_transaction_received"] = binderFlag
+        self.cmdList["binder/binder_set_priority"] = binderFlag
+
+        # workqueue #
+        self.cmdList["workqueue"] = sm.wqEnable
+
+        # i2c #
+        self.cmdList["i2c"] = sm.i2cEnable
 
 
 
@@ -33562,7 +33647,7 @@ Copyright:
 
 
 
-    def startTracing(self):
+    def prepareForTracing(self):
         stat = SysMgr.readCmdVal('../tracing_on')
         if stat == '0':
             pass
@@ -33595,15 +33680,32 @@ Copyright:
         # clear trace filter #
         SysMgr.clearTraceFilter()
 
+
+
+    def startTracing(self):
         # write command to start tracing #
         SysMgr.writeCmd('../tracing_on', '1')
 
         # write start event #
-        #SysMgr.writeEvent("EVENT_START", False)
+        SysMgr.writeEvent("EVENT_START", False)
+
+
+
+    def enableEvents(self):
+        for cmd, value in self.cmdList.items():
+            if value:
+                SysMgr.writeCmd('%s/enable' % cmd, '1')
 
 
 
     def startRecording(self):
+        def printStartLog():
+            # write user command #
+            SysMgr.writeTraceCmd('AFTER')
+
+            SysMgr.printStat(
+                r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
         def writeCommonCmd():
             # enable dynamic events #
             SysMgr.writeCustomCmd()
@@ -33632,6 +33734,62 @@ Copyright:
                         'signal/signal_generate/filter', genFilter)
                 SysMgr.writeCmd('signal/enable', '1')
 
+        def startFuncGraph(self):
+            # check save option #
+            if not SysMgr.outputFile:
+                SysMgr.printErr(
+                    "use also -s option to save data")
+                sys.exit(0)
+
+            # reset events #
+            SysMgr.stopRecording()
+
+            # set function_graph tracer #
+            if SysMgr.writeCmd(
+                '../current_tracer', 'function_graph') < 0:
+                SysMgr.printErr(
+                    "enable CONFIG_FUNCTION_GRAPH_TRACER kernel option")
+                sys.exit(0)
+
+            # apply filter #
+            for pid in SysMgr.filterGroup:
+                try:
+                    pid = str(long(pid))
+                    SysMgr.writeCmd('../set_ftrace_pid', pid, True)
+                except:
+                    SysMgr.printErr((
+                        "fail to add %s to PID filter "
+                        "for function graph tracing") % pid)
+                    sys.exit(0)
+
+            optPath = '../trace_options'
+            SysMgr.writeCmd(optPath, 'nofuncgraph-proc')
+            SysMgr.writeCmd(optPath, 'funcgraph-abstime')
+            SysMgr.writeCmd(optPath, 'funcgraph-overhead')
+            SysMgr.writeCmd(optPath, 'funcgraph-duration')
+            SysMgr.writeCmd(
+                '../max_graph_depth', str(SysMgr.funcDepth))
+
+            if not SysMgr.customCmd:
+                SysMgr.writeCmd('../set_ftrace_filter', '')
+            else:
+                params = ' '.join(SysMgr.customCmd)
+                SysMgr.printStat(
+                    "wait for setting function filter [ %s ]" % params)
+                if SysMgr.writeCmd(
+                    '../set_ftrace_filter', params) < 0:
+                    SysMgr.printErr(
+                        "fail to set function filter")
+                    sys.exit(0)
+                else:
+                    SysMgr.printStat(
+                        "finished function filter [ %s ]" % params)
+
+            # start tracing #
+            self.startTracing()
+
+
+
         # mount debugfs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
@@ -33642,7 +33800,7 @@ Copyright:
             if SysMgr.isRoot():
                 cmd = '/boot/config-$(uname -r)'
                 SysMgr.printErr((
-                    "Check whether ftrace options are enabled in kernel "
+                    "check whether ftrace options are enabled in kernel "
                     "through %s") % cmd)
             else:
                 SysMgr.printErr(
@@ -33669,8 +33827,8 @@ Copyright:
         # check system buffer size #
         if long(SysMgr.bufferSize) != setBufferSize:
             SysMgr.printWarn(
-                "fail to set buffer size to %s KB, buffer size is %s KB now" % \
-                (SysMgr.bufferSize, setBufferSize), True)
+                "fail to set buffer size to %s KB, now is %s KB" % \
+                    (SysMgr.bufferSize, setBufferSize), True)
 
         # initialize event list to enable #
         self.initCmdList()
@@ -33689,65 +33847,19 @@ Copyright:
         SysMgr.writeCmd('../current_tracer', 'nop')
 
         SysMgr.printStat(
-            r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+            r'prepare for recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
 
-        # start tracing #
-        self.startTracing()
+        # prepare for tracing #
+        self.prepareForTracing()
 
         #-------------------- FUNCTION MODE --------------------#
         if SysMgr.isFunctionMode():
             # check conditions for kernel function_graph #
             if SysMgr.graphEnable:
-                # reset events #
-                SysMgr.stopRecording()
-                SysMgr.clearTraceBuffer()
+                # start function graph #
+                startFuncGraph(self)
 
-                # set function_graph tracer #
-                if SysMgr.writeCmd(
-                    '../current_tracer', 'function_graph') < 0:
-                    SysMgr.printErr(
-                        "enable CONFIG_FUNCTION_GRAPH_TRACER kernel option")
-                    sys.exit(0)
-
-                # apply filter #
-                for pid in SysMgr.filterGroup:
-                    try:
-                        pid = str(long(pid))
-                        SysMgr.writeCmd('../set_ftrace_pid', pid, True)
-                    except:
-                        SysMgr.printErr((
-                            "fail to add %s to PID filter "
-                            "for function graph tracing") % pid)
-                        sys.exit(0)
-
-                optPath = '../trace_options'
-                SysMgr.writeCmd(optPath, 'nofuncgraph-proc')
-                SysMgr.writeCmd(optPath, 'funcgraph-abstime')
-                SysMgr.writeCmd(optPath, 'funcgraph-overhead')
-                SysMgr.writeCmd(optPath, 'funcgraph-duration')
-                SysMgr.writeCmd(
-                    '../max_graph_depth', str(SysMgr.funcDepth))
-
-                if not SysMgr.customCmd:
-                    SysMgr.writeCmd('../set_ftrace_filter', '')
-                else:
-                    params = ' '.join(SysMgr.customCmd)
-                    SysMgr.printStat(
-                        "wait for setting function filter [ %s ]" % params)
-                    if SysMgr.writeCmd(
-                        '../set_ftrace_filter', params) < 0:
-                        SysMgr.printErr(
-                            "fail to set function filter")
-                        sys.exit(0)
-                    else:
-                        SysMgr.printStat(
-                            "finished function filter [ %s ]" % params)
-
-                SysMgr.writeCmd('../tracing_on', '1')
-
-                # write user command #
-                SysMgr.writeTraceCmd('AFTER')
-
+                printStartLog()
                 return
 
             # define initialized command variable #
@@ -33779,19 +33891,20 @@ Copyright:
             SysMgr.writeCmd('../options/stacktrace', '1')
 
             if SysMgr.disableAll:
-                # write user command #
-                SysMgr.writeTraceCmd('AFTER')
-
+                printStartLog()
                 return
 
-            # enable segmentation fault events #
-            customCmd = SysMgr.customCmd
-            if not customCmd or \
-                not any([True for evt in customCmd if evt.startswith('signal')]):
+            # segmentation fault events #
+            elist = SysMgr.customCmd
+            if elist:
+                pass
+            elif any([True for evt in elist if evt.startswith('signal')]):
+                pass
+            else:
                 sigCmd = "sig == %d" % signal.SIGSEGV
                 SysMgr.writeCmd('signal/filter', sigCmd)
 
-            # enable CPU events #
+            # CPU events #
             if SysMgr.cpuEnable:
                 addr = SysMgr.getKerAddr('tick_sched_timer')
                 if addr:
@@ -33802,7 +33915,7 @@ Copyright:
             else:
                 SysMgr.writeCmd('timer/hrtimer_start/enable', '0')
 
-            # enable page events #
+            # page events #
             if SysMgr.memEnable:
                 SysMgr.writeCmd('kmem/mm_page_alloc/filter', cmd)
 
@@ -33822,17 +33935,16 @@ Copyright:
                     SysMgr.writeCmd(
                         'kmem/mm_page_free_direct/enable', '0')
 
-            # enable all syscall events #
+            # all syscall events #
             if SysMgr.sysEnable:
-                if SysMgr.heapEnable or \
-                    SysMgr.lockEnable:
+                if SysMgr.heapEnable or SysMgr.lockEnable:
                     SysMgr.printErr(
                         "fail to enable syscall events with other events")
                     sys.exit(0)
                 elif len(SysMgr.syscallList) == 0:
                     pass
             else:
-                # enable heap events #
+                # heap events #
                 if SysMgr.heapEnable:
                     if SysMgr.arch == 'arm':
                         mmapId = ConfigMgr.sysList.index('sys_mmap2')
@@ -33846,7 +33958,7 @@ Copyright:
 
                     self.cmdList["raw_syscalls"] = True
 
-                # enable lock events #
+                # lock events #
                 if SysMgr.lockEnable:
                     futexId = ConfigMgr.sysList.index('sys_futex')
 
@@ -33854,13 +33966,13 @@ Copyright:
 
                     self.cmdList["raw_syscalls"] = True
 
-            # enable target syscall events #
+            # target syscall events #
             SysMgr.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
-            # enable block events #
+            # block events #
             if SysMgr.blockEnable:
                 blkCmd = cmd + \
-                    " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
+                    " && (rwbs == 'R' || rwbs == 'RA' || rwbs == 'RM' || rwbs == 'WS')"
                 SysMgr.writeCmd('block/block_bio_queue/filter', blkCmd)
                 SysMgr.writeCmd('block/block_bio_queue/enable', '1')
                 SysMgr.writeCmd(
@@ -33875,55 +33987,67 @@ Copyright:
                     'writeback/writeback_dirty_page/enable', '0')
                 SysMgr.writeCmd('writeback/wbc_writepage/enable', '0')
 
-            # enable special events #
+            # special events #
             writeCommonCmd()
 
             # write user command #
             SysMgr.writeTraceCmd('AFTER')
 
+            # start tracing #
+            self.startTracing()
+
+            printStartLog()
             return
 
         #-------------------- THREAD MODE --------------------#
-        # enable sched events #
+        def applySchedFilter():
+            cmd = "prev_pid == 0 || next_pid == 0 || "
+
+            # apply filter #
+            for comm in list(SysMgr.filterGroup):
+                # comm #
+                cmd += \
+                    "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % \
+                    (comm, comm)
+
+                # tid #
+                try:
+                    pid = long(comm)
+                    cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % \
+                        (pid, pid)
+                except:
+                    try:
+                        ldir = comm.find('>')
+                        if ldir == 0:
+                            cmd += "prev_pid >= %s || " % long(comm[1:])
+                            cmd += "next_pid >= %s || " % long(comm[1:])
+                        elif ldir == len(comm) - 1:
+                            cmd += "prev_pid <= %s || " % long(comm[:-1])
+                            cmd += "next_pid <= %s || " % long(comm[:-1])
+
+                        rdir = comm.find('<')
+                        if rdir == 0:
+                            cmd += "prev_pid <= %s || " % long(comm[1:])
+                            cmd += "next_pid <= %s || " % long(comm[1:])
+                        elif rdir == len(comm) - 1:
+                            cmd += "prev_pid >= %s || " % long(comm[:-1])
+                            cmd += "next_pid >= %s || " % long(comm[:-1])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+            cmd = cmd[0:cmd.rfind("||")]
+            if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
+                SysMgr.printErr(
+                    "fail to set filter [ %s ]" % \
+                    ' '.join(SysMgr.filterGroup))
+                sys.exit(0)
+
+        # sched events #
         if self.cmdList["sched/sched_switch"]:
             if SysMgr.filterGroup:
-                cmd = "prev_pid == 0 || next_pid == 0 || "
-
-                # apply filter #
-                for comm in list(SysMgr.filterGroup):
-                    cmd += \
-                        "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % \
-                        (comm, comm)
-                    try:
-                        pid = long(comm)
-                        cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % \
-                            (pid, pid)
-                    except:
-                        try:
-                            ldir = comm.find('>')
-                            if ldir == 0:
-                                cmd += "prev_pid >= %s || " % long(comm[1:])
-                                cmd += "next_pid >= %s || " % long(comm[1:])
-                            elif ldir == len(comm) - 1:
-                                cmd += "prev_pid <= %s || " % long(comm[:-1])
-                                cmd += "next_pid <= %s || " % long(comm[:-1])
-
-                            rdir = comm.find('<')
-                            if rdir == 0:
-                                cmd += "prev_pid <= %s || " % long(comm[1:])
-                                cmd += "next_pid <= %s || " % long(comm[1:])
-                            elif rdir == len(comm) - 1:
-                                cmd += "prev_pid >= %s || " % long(comm[:-1])
-                                cmd += "next_pid >= %s || " % long(comm[:-1])
-                        except:
-                            pass
-
-                cmd = cmd[0:cmd.rfind("||")]
-                if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
-                    SysMgr.printErr(
-                        "fail to set filter [ %s ]" % \
-                        ' '.join(SysMgr.filterGroup))
-                    sys.exit(0)
+                applySchedFilter()
             else:
                 SysMgr.writeCmd('sched/sched_switch/filter', '0')
 
@@ -33968,16 +34092,12 @@ Copyright:
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
-            SysMgr.writeCmd('sched/sched_wakeup/enable', '1')
-
         if self.cmdList["sched/sched_wakeup_new"]:
             if SysMgr.writeCmd('sched/sched_wakeup_new/filter', cmd) < 0:
                 SysMgr.printErr(
                     "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
-
-            SysMgr.writeCmd('sched/sched_wakeup_new/enable', '1')
 
         if self.cmdList["sched/sched_migrate_task"]:
             if SysMgr.writeCmd(
@@ -33987,8 +34107,6 @@ Copyright:
                     ' '.join(SysMgr.filterGroup))
                 sys.exit(0)
 
-            SysMgr.writeCmd('sched/sched_migrate_task/enable', '1')
-
         if self.cmdList["sched/sched_process_wait"]:
             if SysMgr.writeCmd(
                 'sched/sched_process_wait/filter', cmd) < 0:
@@ -33996,17 +34114,7 @@ Copyright:
                     "fail to set filter [ %s ]" % \
                     ' '.join(SysMgr.filterGroup))
 
-            SysMgr.writeCmd('sched/sched_process_wait/enable', '1')
-
-        # enable irq events #
-        if self.cmdList["irq"]:
-            SysMgr.writeCmd('irq/irq_handler_entry/enable', '1')
-            SysMgr.writeCmd('irq/irq_handler_exit/enable', '1')
-            SysMgr.writeCmd('irq/softirq_entry/enable', '1')
-            SysMgr.writeCmd('irq/softirq_exit/enable', '1')
-            #SysMgr.writeCmd('irq/softirq_raise/enable', '1')
-
-        # enable events for dependency tracing #
+        # events for dependency tracing #
         if SysMgr.depEnable:
             ecmd = \
                 "(id == %s || id == %s" % \
@@ -34066,17 +34174,8 @@ Copyright:
                     ConfigMgr.sysList.index("sys_recvmmsg"),
                     ConfigMgr.sysList.index("sys_recvmsg"))
 
-            if self.cmdList["sched/sched_switch"]:
-                SysMgr.writeCmd('sched/sched_switch/enable', '1')
-            if self.cmdList["sched/sched_wakeup"]:
-                SysMgr.writeCmd('sched/sched_wakeup/enable', '1')
-            if self.cmdList["sched/sched_wakeup_new"]:
-                SysMgr.writeCmd('sched/sched_wakeup_new/enable', '1')
-
             SysMgr.writeCmd('raw_syscalls/sys_enter/filter', ecmd)
-            SysMgr.writeCmd('raw_syscalls/sys_enter/enable', '1')
             SysMgr.writeCmd('raw_syscalls/sys_exit/filter', rcmd)
-            SysMgr.writeCmd('raw_syscalls/sys_exit/enable', '1')
         elif SysMgr.lockEnable:
             nrFutex = ConfigMgr.sysList.index("sys_futex")
             if nrFutex not in SysMgr.syscallList:
@@ -34085,90 +34184,31 @@ Copyright:
             SysMgr.writeCmd('raw_syscalls/sys_enter/filter', '0')
             SysMgr.writeCmd('raw_syscalls/sys_enter/enable', '0')
 
-        # enable syscall events #
+        # syscall events #
         SysMgr.writeSyscallCmd(self.cmdList["raw_syscalls"])
 
-        # enable memory events #
-        if self.cmdList["kmem/mm_page_alloc"]:
-            SysMgr.writeCmd('kmem/mm_page_alloc/enable', '1')
+        # memory events #
         if self.cmdList["kmem/mm_page_free"]:
             if SysMgr.writeCmd('kmem/mm_page_free/enable', '1') < 0:
                 SysMgr.writeCmd('kmem/mm_page_free_direct/enable', '1')
-        if self.cmdList["kmem/kmalloc"]:
-            SysMgr.writeCmd('kmem/kmalloc/enable', '1')
-        if self.cmdList["kmem/kfree"]:
-            SysMgr.writeCmd('kmem/kfree/enable', '1')
-        if self.cmdList["filemap/mm_filemap_add_to_page_cache"]:
-            SysMgr.writeCmd(
-                'filemap/mm_filemap_add_to_page_cache/enable', '1')
-        if self.cmdList["filemap/mm_filemap_delete_from_page_cache"]:
-            SysMgr.writeCmd(
-                'filemap/mm_filemap_delete_from_page_cache/enable', '1')
 
-        # enable block events #
+        # block events #
+        cmd = "rwbs == 'R' || rwbs == 'RA' || rwbs == 'RM' || rwbs == 'WS'"
         if self.cmdList["block/block_bio_queue"]:
-            cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
             SysMgr.writeCmd('block/block_bio_queue/filter', cmd)
-            SysMgr.writeCmd('block/block_bio_queue/enable', '1')
         if self.cmdList["block/block_rq_complete"]:
-            cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
             SysMgr.writeCmd('block/block_rq_complete/filter', cmd)
-            SysMgr.writeCmd('block/block_rq_complete/enable', '1')
 
-        # enable writeback events #
-        if self.cmdList["writeback/writeback_dirty_page"]:
-            SysMgr.writeCmd('writeback/writeback_dirty_page/enable', '1')
-        if self.cmdList["writeback/wbc_writepage"]:
-            SysMgr.writeCmd('writeback/wbc_writepage/enable', '1')
+        # enable events #
+        self.enableEvents()
 
-        # enable network events #
-        if self.cmdList["net/net_dev_xmit"]:
-            SysMgr.writeCmd('net/net_dev_xmit/enable', '1')
-        if self.cmdList["net/netif_receive_skb"]:
-            SysMgr.writeCmd('net/netif_receive_skb/enable', '1')
-
-        # enable module events #
-        if self.cmdList["module/module_load"]:
-            SysMgr.writeCmd('module/module_load/enable', '1')
-        if self.cmdList["module/module_free"]:
-            SysMgr.writeCmd('module/module_free/enable', '1')
-        if self.cmdList["module/module_put"]:
-            SysMgr.writeCmd('module/module_put/enable', '1')
-        if self.cmdList["module/module_get"]:
-            SysMgr.writeCmd('module/module_get/enable', '1')
-
-        # enable power events #
-        if SysMgr.powerEnable:
-            if self.cmdList["power/cpu_idle"]:
-                SysMgr.writeCmd('power/cpu_idle/enable', '1')
-            if self.cmdList["power/cpu_frequency"]:
-                SysMgr.writeCmd('power/cpu_frequency/enable', '1')
-            if self.cmdList["power/suspend_resume"]:
-                SysMgr.writeCmd('power/suspend_resume/enable', '1')
-
-        # enable reclaim events #
-        if self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"]:
-            SysMgr.writeCmd('vmscan/mm_vmscan_wakeup_kswapd/enable', '1')
-        if self.cmdList["vmscan/mm_vmscan_kswapd_sleep"]:
-            SysMgr.writeCmd('vmscan/mm_vmscan_kswapd_sleep/enable', '1')
-
-        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"]:
-            SysMgr.writeCmd(
-                'vmscan/mm_vmscan_direct_reclaim_begin/enable', '1')
-        if self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"]:
-            SysMgr.writeCmd(
-                'vmscan/mm_vmscan_direct_reclaim_end/enable', '1')
-
-        # enable printk events #
-        if self.cmdList["printk"]:
-            SysMgr.writeCmd('printk/enable', '1')
-
-        # enable special events #
+        # special events #
         writeCommonCmd()
 
-        # write user command #
-        SysMgr.writeTraceCmd('AFTER')
+        # start tracing #
+        self.startTracing()
 
+        printStartLog()
         return
 
 
@@ -40580,18 +40620,37 @@ struct cmsghdr {
                     return repeat
 
                 # update return #
-                ret = ret.decode()
-                self.retList[addr] = str(ret)
-                self.prevReturn = str(ret)
+                try:
+                    ret = ret.decode()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                self.retList[addr] = ret
+                self.prevReturn = ret
 
                 # strip garbage #
                 if ret and not fixed:
                     ret = ret.split("\x00")[0]
                     size = len(ret)
 
+                # convert to binary #
+                try:
+                    binary = struct.unpack('%sB' % len(ret), ret)
+                    binstr = ' [0x'
+                    for item in binary:
+                        binstr += '%x' % item
+                    binstr += ']'
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    binstr = ''
+
                 SysMgr.addPrint(
-                    "\n[%s] %s: %s(%sbyte)" % \
-                        (cmdstr, hex(addr).rstrip('L'), repr(ret), size))
+                    "\n[%s] %s: %s(%sbyte)%s" % \
+                        (cmdstr, hex(addr).rstrip('L'), \
+                            repr(ret), size, binstr))
 
             elif cmd == 'start':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
@@ -43598,6 +43657,9 @@ struct cmsghdr {
         startAddr = fileList[origPath]['vstart']
         filePath = origPath
 
+        # disable diff by hole #
+        totalDiff = 0
+
         return filePath, startAddr, totalDiff
 
 
@@ -44931,11 +44993,11 @@ struct cmsghdr {
 
 
 
-	#define _PyObject_HEAD_EXTRA            \
-	    struct _object *_ob_next;           \
-	    struct _object *_ob_prev;
+        #define _PyObject_HEAD_EXTRA            \
+            struct _object *_ob_next;           \
+            struct _object *_ob_prev;
 
-	typedef int Py_ssize_t;
+        typedef int Py_ssize_t;
 
         typedef struct _object {
             _PyObject_HEAD_EXTRA
@@ -44954,17 +45016,17 @@ struct cmsghdr {
 
         typedef struct _frame {
             PyObject_VAR_HEAD
-            struct _frame *f_back;	/* previous frame, or NULL */
-            PyCodeObject *f_code;	/* code segment */
-            PyObject *f_builtins;	/* builtin symbol table (PyDictObject) */
-            PyObject *f_globals;	/* global symbol table (PyDictObject) */
-            PyObject *f_locals;		/* local symbol table (any mapping) */
-            PyObject **f_valuestack;	/* points after the last local */
+            struct _frame *f_back;      /* previous frame, or NULL */
+            PyCodeObject *f_code;       /* code segment */
+            PyObject *f_builtins;       /* builtin symbol table (PyDictObject) */
+            PyObject *f_globals;        /* global symbol table (PyDictObject) */
+            PyObject *f_locals;         /* local symbol table (any mapping) */
+            PyObject **f_valuestack;    /* points after the last local */
             /* Next free slot in f_valuestack.  Frame creation sets to f_valuestack.
                Frame evaluation usually NULLs it, but a frame that yields sets it
                to the current stack top. */
             PyObject **f_stacktop;
-            PyObject *f_trace;		/* Trace function */
+            PyObject *f_trace;          /* Trace function */
 
             /* If an exception is raised in this frame, the next three are used to
              * record the exception info (if any) originally in the thread state.  See
@@ -44976,37 +45038,37 @@ struct cmsghdr {
             PyObject *f_exc_type, *f_exc_value, *f_exc_traceback;
 
             PyThreadState *f_tstate;
-            int f_lasti;		/* Last instruction if called */
+            int f_lasti;                /* Last instruction if called */
             /* Call PyFrame_GetLineNumber() instead of reading this field
                directly.  As of 2.3 f_lineno is only valid when tracing is
                active (i.e. when f_trace is set).  At other times we use
                PyCode_Addr2Line to calculate the line from the current
                bytecode index. */
-            int f_lineno;		/* Current line number */
-            int f_iblock;		/* index in f_blockstack */
+            int f_lineno;               /* Current line number */
+            int f_iblock;               /* index in f_blockstack */
             PyTryBlock f_blockstack[CO_MAXBLOCKS]; /* for try and loop blocks */
-            PyObject *f_localsplus[1];	/* locals+stack, dynamically sized */
+            PyObject *f_localsplus[1];  /* locals+stack, dynamically sized */
         } PyFrameObject;
 
 
 
         typedef struct {
             PyObject_HEAD
-            int co_argcount;		/* #arguments, except *args */
-            int co_nlocals;		/* #local variables */
-            int co_stacksize;		/* #entries needed for evaluation stack */
-            int co_flags;		/* CO_..., see below */
-            PyObject *co_code;		/* instruction opcodes */
-            PyObject *co_consts;	/* list (constants used) */
-            PyObject *co_names;		/* list of strings (names used) */
-            PyObject *co_varnames;	/* tuple of strings (local variable names) */
-            PyObject *co_freevars;	/* tuple of strings (free variable names) */
+            int co_argcount;            /* #arguments, except *args */
+            int co_nlocals;             /* #local variables */
+            int co_stacksize;           /* #entries needed for evaluation stack */
+            int co_flags;               /* CO_..., see below */
+            PyObject *co_code;          /* instruction opcodes */
+            PyObject *co_consts;        /* list (constants used) */
+            PyObject *co_names;         /* list of strings (names used) */
+            PyObject *co_varnames;      /* tuple of strings (local variable names) */
+            PyObject *co_freevars;      /* tuple of strings (free variable names) */
             PyObject *co_cellvars;      /* tuple of strings (cell variable names) */
             /* The rest doesn't count for hash/cmp */
-            PyObject *co_filename;	/* string (where it was loaded from) */
-            PyObject *co_name;		/* string (name, for reference) */
-            int co_firstlineno;		/* first source line number */
-            PyObject *co_lnotab;	/* string (encoding addr<->lineno mapping) See
+            PyObject *co_filename;      /* string (where it was loaded from) */
+            PyObject *co_name;          /* string (name, for reference) */
+            int co_firstlineno;         /* first source line number */
+            PyObject *co_lnotab;        /* string (encoding addr<->lineno mapping) See
                                            Objects/lnotab_notes.txt for details. */
             void *co_zombieframe;     /* for optimization only (see frameobject.c) */
             PyObject *co_weakreflist;   /* to support weakrefs to code objects */
@@ -45016,10 +45078,18 @@ struct cmsghdr {
         SysMgr.printErr('Not implemented yet')
         sys.exit(0)
 
-        '''
-        PyThreadState = self.readMem(self.pyAddr, 24)
-        nextp, interp, framep = \
-            struct.unpack('QQQ', PyThreadState)
+        PyThreadStatep = struct.unpack('Q', self.readMem(self.pyAddr))[0]
+        if not PyThreadStatep:
+            return
+
+        PyThreadState = self.readMem(PyThreadStatep, 168)
+        nextp, interp, framep, recursion_depth, tracing, use_tracing, \
+            c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
+            curexc_type, curexc_value, curexc_traceback, \
+            exc_type, exc_value, exc_traceback, dictp, \
+            tick_counter, gilstate_counter, async_exc, \
+            thread_id, trash_delete_nesting, trash_delete_later = \
+            struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
 
         PyFrameObject = self.readMem(framep, 149)
         _ob_next, _ob_prev, ob_refcnt, ob_type, \
@@ -45034,7 +45104,6 @@ struct cmsghdr {
             names, varnames, freevars, cellvars, filename, \
             name, firstlineno, lnotab, zomebiframe, wearreflist = \
             struct.unpack('QIIIIQQQQQQQQIQQQ', PyCodeObject)
-        '''
 
         return
 
@@ -45909,7 +45978,7 @@ struct cmsghdr {
         # set attributes for multiprocess #
         self.multi = True
         if not SysMgr.outPath:
-            SysMgr.printStreamEnable = True
+            SysMgr.setStream()
 
         # continue tasks #
         self.cont()
@@ -50378,50 +50447,50 @@ class ElfAnalyzer(object):
                                                    entry */
         } Elf64_Vernaux;
 
-	/* This holds instructions for unwinding frame at a particular PC location
-	   described by an FDE.  */
-	typedef struct
-	{
-	  /* This frame description covers PC values in [start, end).  */
-	  Dwarf_Addr start;
-	  Dwarf_Addr end;
+        /* This holds instructions for unwinding frame at a particular PC location
+           described by an FDE.  */
+        typedef struct
+        {
+          /* This frame description covers PC values in [start, end).  */
+          Dwarf_Addr start;
+          Dwarf_Addr end;
 
-	  Dwarf_CFI *cache;
+          Dwarf_CFI *cache;
 
-	  /* Previous state saved by DW_CFA_remember_state, or .cie->initial_state,
-	     or NULL in an initial_state pseudo-frame.  */
-	  Dwarf_Frame *prev;
+          /* Previous state saved by DW_CFA_remember_state, or .cie->initial_state,
+             or NULL in an initial_state pseudo-frame.  */
+          Dwarf_Frame *prev;
 
-	  /* The FDE that generated this frame state.  This points to its CIE,
-	     which has the return_address_register and signal_frame flag.  */
-	  struct dwarf_fde *fde;
+          /* The FDE that generated this frame state.  This points to its CIE,
+             which has the return_address_register and signal_frame flag.  */
+          struct dwarf_fde *fde;
 
-	  /* The CFA is unknown, is R+N, or is computed by a DWARF expression.
-	     A bogon in the CFI can indicate an invalid/incalculable rule.
-	     We store that as cfa_invalid rather than barfing when processing it,
-	     so callers can ignore the bogon unless they really need that CFA.  */
-	  enum { cfa_undefined, cfa_offset, cfa_expr, cfa_invalid } cfa_rule;
-	  union
-	  {
-	    Dwarf_Op offset;
-	    Dwarf_Block expr;
-	  } cfa_data;
-	  /* We store an offset rule as a DW_OP_bregx operation.  */
-	#define cfa_val_reg cfa_data.offset.number
-	#define cfa_val_offset  cfa_data.offset.number2
+          /* The CFA is unknown, is R+N, or is computed by a DWARF expression.
+             A bogon in the CFI can indicate an invalid/incalculable rule.
+             We store that as cfa_invalid rather than barfing when processing it,
+             so callers can ignore the bogon unless they really need that CFA.  */
+          enum { cfa_undefined, cfa_offset, cfa_expr, cfa_invalid } cfa_rule;
+          union
+          {
+            Dwarf_Op offset;
+            Dwarf_Block expr;
+          } cfa_data;
+          /* We store an offset rule as a DW_OP_bregx operation.  */
+        #define cfa_val_reg cfa_data.offset.number
+        #define cfa_val_offset  cfa_data.offset.number2
 
-	  size_t nregs;
-	  struct dwarf_frame_register regs[];
-	} Dwarf_Frame;
+          size_t nregs;
+          struct dwarf_frame_register regs[];
+        } Dwarf_Frame;
 
-	typedef GElf_Off Dwarf_Off;
-	typedef Elf64_Off GElf_Off;
+        typedef GElf_Off Dwarf_Off;
+        typedef Elf64_Off GElf_Off;
 
-	typedef Elf64_Xword GElf_Xword;
-	typedef uint64_t Elf64_Xword;
+        typedef Elf64_Xword GElf_Xword;
+        typedef uint64_t Elf64_Xword;
 
-	typedef Elf64_Sxword GElf_Sxword;
-	typedef int64_t  Elf64_Sxword;
+        typedef Elf64_Sxword GElf_Sxword;
+        typedef int64_t  Elf64_Sxword;
 
         /* This describes one Common Information Entry read from a CFI section.
            Pointers here point into the DATA->d_buf block passed to dwarf_next_cfi.  */
@@ -50521,6 +50590,12 @@ class ElfAnalyzer(object):
             # get file size #
             self.fileSize = os.stat(path).st_size
 
+        # update absolute path #
+        try:
+            self.path = path = os.path.abspath(fd.name)
+        except:
+            pass
+
         # define default file type #
         e_type = e_class = 'dummpy'
         EI_NIDENT = 16
@@ -50556,9 +50631,11 @@ class ElfAnalyzer(object):
         if ei_class == 1:
             self.is32Bit = True
             e_class = '32-bit objects'
+            wordSize = 4
         elif ei_class == 2:
             self.is32Bit = False
             e_class = '64-bit objects'
+            wordSize = 8
         else:
             SysMgr.printWarn(
                 errStr % (path, 'it is invaild class'), debug)
@@ -50603,8 +50680,10 @@ class ElfAnalyzer(object):
                     0x70000003:"ATTRIBUTES"})
 
                 ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_ARM
+                regList = ConfigMgr.REGS_ARM
             else:
                 ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_AARCH64
+                regList = ConfigMgr.REGS_AARCH64
         elif e_machine.startswith('AMD x86-64') or \
             e_machine.startswith('Intel IA-64'):
             ElfAnalyzer.PT_TYPE.update(
@@ -50619,8 +50698,10 @@ class ElfAnalyzer(object):
                 0x70000001:"UNWIND"})
 
             ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_x64
+            regList = ConfigMgr.REGS_X64
         elif e_machine.startswith('Intel '):
             ElfAnalyzer.RELOC_TYPE = ElfAnalyzer.RELOC_TYPE_x86
+            regList = ConfigMgr.REGS_X86
 
         # check version #
         ei_version = struct.unpack('I', fd.read(4))[0]
@@ -50689,7 +50770,7 @@ Size of section headers: %d (bytes)
 Number of section headers: %d
 Section header string table index: %d
 %s
-            ''' % (twoLine, fd.name, self.attr['elfHeader']['magic'],
+            ''' % (twoLine, self.path, self.attr['elfHeader']['magic'],
                 e_class, e_data, e_type, e_machine, e_version,
                 e_entry, e_phoff, e_shoff, e_flags, e_ehsize,
                 e_phentsize, e_shnum, e_shentsize, e_shnum,
@@ -50784,6 +50865,8 @@ Section header string table index: %d
         e_shverdef = -1
         e_shrellist = []
         e_shrelalist = []
+        e_shehframe = -1
+        e_shehframehdr = -1
 
         # define section info #
         self.attr.setdefault('sectionHeader', dict())
@@ -50792,7 +50875,7 @@ Section header string table index: %d
         if debug:
             SysMgr.printPipe(
                 ("\n[Section Headers]\n%s\n"
-                "[NR] %50s%15s%10s%10s%8s%8s%5s%5s%5s%6s\n%s") % \
+                "[NR] %50s%15s%12s%12s%10s%8s%5s%5s%5s%6s\n%s") % \
                 (twoLine, "Name", "Type", "Address", "Offset", "Size",
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
@@ -50828,11 +50911,11 @@ Section header string table index: %d
             # print section header #
             if debug:
                 SysMgr.printPipe(
-                    "[%02d] %50s%15s%10s%10x%8d%8d%5s%5s%5s%6s" % \
+                    "[%02d] %50s%15s%12s%12s%10d%8d%5s%5s%5s%6s" % \
                     (i, symbol,
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type),
-                    '0x%x' % sh_addr, sh_offset, sh_size, sh_entsize,
+                    '0x%x' % sh_addr, '0x%x' % sh_offset, sh_size, sh_entsize,
                     f, sh_link, sh_info, sh_addralign))
 
             # get header index #
@@ -51673,7 +51756,7 @@ Section header string table index: %d
 
                 return table, regOrder
 
-            def printCFAs(self, entry, offset):
+            def printCFAs(self, entry, offset, regList):
                 def getCFARule(cfa):
                     if cfa.expr:
                         return 'exp'
@@ -51681,7 +51764,7 @@ Section header string table index: %d
                         return '%s%+d' % (ConfigMgr.regList[cfa.reg], cfa.offset)
 
                 def getRegRule(reg):
-                    s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg.type] 
+                    s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg.type]
                     if reg.type in ('OFFSET', 'VAL_OFFSET'):
                         s += '%+d' % reg.arg
                     elif reg.type == 'REGISTER':
@@ -51715,7 +51798,7 @@ Section header string table index: %d
 
                 # add reg name #
                 for regnum in regOrder:
-                    s += '%-6s' % ConfigMgr.regList[regnum]
+                    s += '%-6s' % regList[regnum]
                 s += '%-6s\n' % 'ra'
                 regOrder.append(rar)
 
@@ -51746,9 +51829,9 @@ Section header string table index: %d
 
                 SysMgr.printPipe(s)
 
-            def printCFIs(cfi, cie=None, pc=None):
-                def convRegName(arg):
-                    return ConfigMgr.regList[arg]
+            def printCFIs(cfi, cie=None, pc=None, regList=None):
+                def convRegName(arg, regList):
+                    return regList[arg]
 
                 s = ''
                 for inst in cfi:
@@ -51761,17 +51844,17 @@ Section header string table index: %d
                                 'DW_CFA_val_offset',
                                 'DW_CFA_val_offset_sf'):
                         s += ' %s: %s at cfa%+d\n' % (
-                            name, convRegName(args[0]),
+                            name, convRegName(args[0], regList),
                             args[1] * cie['daf'])
                     elif name in ('DW_CFA_restore',
                                   'DW_CFA_restore_extended',
                                   'DW_CFA_undefined', 'DW_CFA_same_value',
                                   'DW_CFA_def_cfa_register'):
-                        s += ' %s: %s\n' % (name, convRegName(args[0]))
+                        s += ' %s: %s\n' % (name, convRegName(args[0], regList))
                     elif name == 'DW_CFA_register':
                         s += ' %s: %s in %s' % (
-                            name, convRegName(args[0]),
-                            convRegName(args[1]))
+                            name, convRegName(args[0], regList),
+                            convRegName(args[1], regList))
                     elif name == 'DW_CFA_set_loc':
                         pc = args[0]
                         s += ' %s: %08x\n' % (name, pc)
@@ -51789,10 +51872,10 @@ Section header string table index: %d
                         s += ' %s\n' % name
                     elif name == 'DW_CFA_def_cfa':
                         s += ' %s: %s ofs %s\n' % (
-                            name, convRegName(args[0]), args[1])
+                            name, convRegName(args[0], regList), args[1])
                     elif name == 'DW_CFA_def_cfa_sf':
                         s += ' %s: %s ofs %s\n' % (
-                            name, convRegName(args[0]),
+                            name, convRegName(args[0], regList),
                             args[1] * cie['daf'])
                     elif name in ('DW_CFA_def_cfa_offset',
                                   'DW_CFA_GNU_args_size'):
@@ -51808,8 +51891,8 @@ Section header string table index: %d
                         '''
                         expr_dumper = ExprDumper(entry.structs)
                         s += ' %s: %s (%s)\n' % (
-                            name, convRegName(
-                                args[0]), expr_dumper.dump_expr(args[1]))
+                            name, convRegName(args[0], regList),
+                                 expr_dumper.dump_expr(args[1]))
                         '''
                         s += ' %s: %s\n' % (name, args)
                     else:
@@ -51841,11 +51924,17 @@ Section header string table index: %d
             while 1:
                 # offset #
                 offset = fd.tell() - sh_offset
+                if offset >= sh_size:
+                    break
 
                 # length #
                 size = struct.unpack('I', fd.read(4))[0]
+                # terminator #
                 if size == 0:
                     break
+                # extended length 8 bytes are needed #
+                elif size == 0xffffffff:
+                    size = struct.unpack('Q', fd.read(8))[0]
 
                 # format #
                 dwarfFormat = 64 if size == 0xFFFFFFFF else 32
@@ -52060,8 +52149,8 @@ Section header string table index: %d
 
                 # print CFI #
                 if debug:
-                    printCFIs(cfi, cie, initLoc)
-                    printCFAs(self, entry, offset)
+                    printCFIs(cfi, cie, initLoc, regList)
+                    printCFAs(self, entry, offset, regList)
 
             # add general info #
             self.attr['dwarf']['general']['nrCIE'] = nrCIE
@@ -52110,7 +52199,7 @@ Section header string table index: %d
             basicEnc, tEncMod, tEncFormat = getEncType(tableEnc)
 
             # eh_frame_ptr #
-            ehframePtr = decodeData(efpEncFormat, fd)
+            ehframePtr = decodeData(efpEncFormat, fd) + sh_offset + 4
 
             # fde_count #
             fdeCnt = decodeData(fcEncFormat, fd)
@@ -53027,6 +53116,7 @@ class ThreadAnalyzer(object):
             self.nrProcess = long(0)
             self.nrPrevProcess = long(0)
             self.nrFd = long(0)
+            self.maxPid = SysMgr.pid
             self.procData = {}
             self.prevProcData = {}
             self.nsData = {}
@@ -57631,14 +57721,14 @@ class ThreadAnalyzer(object):
         lastBField = "%3s|%3s|%4s(%2s)" % ('Rcl', 'Wst', 'DRcl', 'Nr')
 
         SysMgr.printPipe(
-            "{0:_^32}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".format(
+            "{0:_^34}|{1:_^35}|{2:_^22}|{3:_^26}|{4:_^34}|".format(
                 title, "CPU Info", "SCHED Info", "BLOCK Info", lastAField))
 
         SysMgr.printPipe(
-            "{0:^32}|{0:^35}|{0:^22}|{0:^26}|{0:^34}|".format(""))
+            "{0:^34}|{0:^35}|{0:^22}|{0:^26}|{0:^34}|".format(""))
 
         SysMgr.printPipe((
-            "%16s(%5s/%5s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+            "%16s(%6s/%6s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri',
             'IRQ', 'Yld', ' Lose', 'Steal', 'Mig',
@@ -57782,7 +57872,7 @@ class ThreadAnalyzer(object):
                 (reclaimedMem, wastedMem, dreclaimedTime, dreclaimedCnt)
 
             SysMgr.addPrint(
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                 "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                 "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], '-'*5, '-'*5, '-', '-',
@@ -58021,7 +58111,7 @@ class ThreadAnalyzer(object):
             if value['new'] != ' ':
                 newCnt += 1
                 newThreadString += (
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                     "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                     "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'],
@@ -58032,7 +58122,7 @@ class ThreadAnalyzer(object):
             if value['die'] != ' ':
                 dieCnt += 1
                 dieThreadString += (
-                    ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                     "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                     "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], key, value['ptid'], value['new'], value['die'],
@@ -58043,7 +58133,7 @@ class ThreadAnalyzer(object):
 
             normCnt += 1
             normThreadString += (
-                ("%16s(%5s/%5s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                 "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                 "%4s(%3s/%3s/%3s)|%s|\n") % \
                 (value['comm'], key, value['tgid'], value['new'], value['die'],
@@ -58098,7 +58188,7 @@ class ThreadAnalyzer(object):
 
         # print TOTAL information #
         SysMgr.printPipe(
-            ("%29s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+            ("%31s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
             ('{0:>29}'.format('[ TOTAL ]'), ' ', ' ',
             totalCpuTime, totalCpuPer, totalPrtTime, totalSchedLatency, '-',
@@ -58147,7 +58237,7 @@ class ThreadAnalyzer(object):
                 count += 1
                 if float(self.preemptData[index][4]) == 0:
                     break
-                SysMgr.addPrint("%16s(%5s/%5s)|%s%s|%5.2f(%5s)\n"
+                SysMgr.addPrint("%16s(%6s/%6s)|%s%s|%5.2f(%5s)\n"
                     % (self.threadData[key]['comm'], key, '0',
                     self.threadData[key]['new'],
                     self.threadData[key]['die'], value['usage'],
@@ -58160,8 +58250,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # prepare to draw graph #
-        if not SysMgr.isRecordMode() and \
-            SysMgr.graphEnable:
+        if not SysMgr.isRecordMode() and SysMgr.graphEnable:
             # check interval value #
             if SysMgr.intervalEnable == 0:
                 SysMgr.printErr(
@@ -58210,7 +58299,7 @@ class ThreadAnalyzer(object):
         SysMgr.addPrint('\n[Thread Module History]\n')
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint(
-            "{3:>16} ({4:^5})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
+            "{3:>16} ({4:^6})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
                 format("Type", "Time", "Module", "Comm", "Tid",
                     "Elapsed", "RefCnt"))
         SysMgr.addPrint('%s\n' % twoLine)
@@ -58331,7 +58420,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Dependency Info]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "\t%5s/%4s \t%16s(%4s) -> %16s(%4s) \t%5s" % \
+            "\t%5s/%4s \t%16s(%6s) -> %16s(%6s) \t%5s" % \
             ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -58359,7 +58448,7 @@ class ThreadAnalyzer(object):
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            '{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} {6:>8} {7:>10} '
+            '{0:>16}({1:>6}/{2:>6}) {3:>10} {4:>9} {5:>10} {6:>8} {7:>10} '
             '{8:>10} {9:>10} {10:>8} {11:>8} {12:>10} {13:>8} {14:>10}').\
             format('Name', 'Tid', 'Pid', 'Elapsed', 'Process', 'Block',
             'NrBlock', 'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait',
@@ -58428,7 +58517,7 @@ class ThreadAnalyzer(object):
                 ftxLSwitch = totalInfo['ftxLSwitch'] = '-'
 
             futexInfo = \
-                ('{0:>16}({1:>5}/{2:>5}) {3:>10} {4:>10} {5:>10} ' + \
+                ('{0:>16}({1:>6}/{2:>6}) {3:>10} {4:>9} {5:>10} ' + \
                 '{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} ' + \
                 '{11:>8} {12:>10} {13:>8} {14:>10}').\
                 format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock,
@@ -58461,7 +58550,7 @@ class ThreadAnalyzer(object):
                 totalInfo['ftxLSwitch'] = convertNum(totalInfo['ftxLSwitch'])
 
             totalFutexInfo = \
-                ('{0:>29} {1:>10} {2:>10} {3:>10} ' \
+                ('{0:>31} {1:>10} {2:>9} {3:>10} ' \
                 '{4:>8} {5:>10} {6:>10} {7:>10} {8:>8} ' \
                 '{9:>8} {10:>10} {11:>8} {12:>10}').\
                 format('[ TOTAL ]',
@@ -58485,7 +58574,7 @@ class ThreadAnalyzer(object):
             '\n[Thread Futex Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:>12} {1:>16}{2:>13} {3:>4} {4:^24} " + \
+            "{0:>12} {1:>16}{2:>15} {3:>4} {4:^24} " + \
             "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
             format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",
              "Type", "Elapsed", "Target", "Value", "Timer"))
@@ -58503,7 +58592,7 @@ class ThreadAnalyzer(object):
                 time = '%.6f' % (atime - float(SysMgr.startTime))
 
                 comm = self.threadData[value[0]]['comm']
-                tid = '(%5s/%5s)' % \
+                tid = '(%6s/%6s)' % \
                     (value[0], self.threadData[value[0]]['tgid'])
                 core = value[2]
 
@@ -58539,7 +58628,7 @@ class ThreadAnalyzer(object):
                         pass
 
                 SysMgr.printPipe((
-                    "{0:>12} {1:>16}{2:>13} {3:>4} {4:<24} " + \
+                    "{0:>12} {1:>16}{2:>15} {3:>4} {4:<24} " + \
                     "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
                     format(time, comm, tid, core, value[3],
                     otype, elapsed, value[6], ret, value[8]))
@@ -58563,7 +58652,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread File Lock Info] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(
+            '{0:>16}({1:>6})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(
             'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLocked'))
         SysMgr.printPipe(twoLine)
 
@@ -58577,7 +58666,7 @@ class ThreadAnalyzer(object):
                 continue
 
             lockInfo = \
-                '{0:>16}({1:>5})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.\
+                '{0:>16}({1:>6})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.\
                 format(value['comm'], key, '%.3f' % float(value['lockWait']),
                 '%.3f' % float(value['lockTime']),
                 value['tryLockCnt'], value['lockCnt'])
@@ -58594,7 +58683,7 @@ class ThreadAnalyzer(object):
             '\n[Thread File Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:>16}({1:>5}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
+            "{0:>16}({1:>6}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
             .format("Name", "Tid", "Time", "Core",
             "Type", "Device", "Inode", "Context"))
         SysMgr.printPipe(twoLine)
@@ -58613,10 +58702,10 @@ class ThreadAnalyzer(object):
                     tid = comm = ''
                 else:
                     comm = self.threadData[self.flockData[icount][0]]['comm']
-                    tid = '(%5s)' % self.flockData[icount][0]
+                    tid = '(%6s)' % self.flockData[icount][0]
 
                 SysMgr.printPipe(
-                    "{0:>16}{1:>7} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
+                    "{0:>16}{1:>8} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
                     format(comm, tid, time,
                     self.flockData[icount][2], self.flockData[icount][3],
                     dev, inode, self.flockData[icount][5]))
@@ -58641,7 +58730,7 @@ class ThreadAnalyzer(object):
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            '{0:>16}({1:>5}) {2:>30}({3:>3}) {4:>12} {5:>12} '
+            '{0:>16}({1:>6}) {2:>30}({3:>3}) {4:>12} {5:>12} '
             '{6:>12} {7:>12} {8:>12} {9:>12}').format(
             "Name", "Tid", "Syscall", "ID", "Elapsed", "Count",
             "Error", "Min", "Max", "Avg"))
@@ -58661,7 +58750,7 @@ class ThreadAnalyzer(object):
 
             try:
                 if len(value['syscallInfo']) > 0:
-                    threadInfo = "%16s(%5s)" % (value['comm'], key)
+                    threadInfo = "%16s(%6s)" % (value['comm'], key)
                 else:
                     continue
             except:
@@ -58729,7 +58818,7 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
         else:
-            totalStrInfo = "{0:>23}".format('[ TOTAL ]')
+            totalStrInfo = "{0:>24}".format('[ TOTAL ]')
             SysMgr.printPipe(totalStrInfo)
 
             # print total info #
@@ -58762,7 +58851,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Syscall History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:>10} {1:>16}({2:>5}) {3:>4} {4:>18} {5:>3} "
+            "{0:>10} {1:>16}({2:>6}) {3:>4} {4:>18} {5:>3} "
             "{6:>5} {7:>10} {8:>16} {9:<1}").format(
             "Time", "Name", "Tid", "Core", "Syscall",
             "Sid", "Type", "Elapsed", "Return", "Arguments"))
@@ -58892,7 +58981,7 @@ class ThreadAnalyzer(object):
                     tid = comm = ''
                 else:
                     comm = self.threadData[nowData[2]]['comm']
-                    tid = '(%5s)' % nowData[2]
+                    tid = '(%6s)' % nowData[2]
 
                 if icount > 0 and prevData[3] == nowData[3]:
                     core = ''
@@ -58900,7 +58989,7 @@ class ThreadAnalyzer(object):
                     core = nowData[3]
 
                 SysMgr.printPipe(
-                    ("{0:>10} {1:>16}{2:>7} {3:>4} {4:>18} {5:>3} "
+                    ("{0:>10} {1:>16}{2:>8} {3:>4} {4:>18} {5:>3} "
                     "{6:>5} {7:>10} {8:>16} {9:<1}").\
                     format('%.6f' % eventTime, comm, tid,
                     core, syscall[4:], nowData[4],
@@ -58926,7 +59015,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Message Info]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "%16s %5s %4s %10s %30s" % \
+            "%16s %6s %4s %10s %30s" % \
             ('Name', 'Tid', 'Core', 'Time', 'Console message'))
         SysMgr.printPipe(twoLine)
 
@@ -58935,7 +59024,7 @@ class ThreadAnalyzer(object):
         cnt = long(0)
         for msg in self.consoleData:
             try:
-                SysMgr.printPipe("%16s %5s %4s %10.3f %s" % \
+                SysMgr.printPipe("%16s %6s %4s %10.3f %s" % \
                     (self.threadData[msg[0]]['comm'], msg[0], msg[1],
                     round(float(msg[2]) - startTime, 7), msg[3]))
                 cnt += 1
@@ -59032,7 +59121,7 @@ class ThreadAnalyzer(object):
                     SysMgr.printPipe()
 
                 SysMgr.printPipe(
-                    "{0:>23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:<20}".\
+                    "{0:>25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:<20}".\
                     format(cid, opt, num, size, seqString, filesystem, dev))
 
                 opt = ''
@@ -59042,7 +59131,7 @@ class ThreadAnalyzer(object):
                     start = UtilMgr.convSize2Unit(optSize)
                     end = UtilMgr.convSize2Unit(optSize << 1)
                     SysMgr.printPipe(
-                        "{0:^23} {0:^8} {0:^5} {1:>20} {2:>23} {0:^12} {0:<20}".\
+                        "{0:^25} {0:^8} {0:^5} {1:>20} {2:>25} {0:^12} {0:<20}".\
                         format('', '[%7s - %7s]' % (start, end), cnt))
 
                 tcnt += 1
@@ -59057,16 +59146,16 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Block Info] (Unit: KB/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+            "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:^20}".\
             format('ID', 'OPT', 'NrDev', 'TOTAL',
             'SEQUENTIAL(    %)', 'FS', 'PATH'))
         SysMgr.printPipe(
-            "{0:^23} {1:>5} {2:>8} {3:>20} {4:>23} {5:^12} {6:^20}".\
+            "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:^20}".\
             format('', '', '', '[ACCESS]', 'COUNT', '', ''))
         SysMgr.printPipe(twoLine)
 
         tcnt = long(0)
-        totalStr = '{0:^23}'.format('TOTAL')
+        totalStr = '{0:^25}'.format('TOTAL')
 
         # total read #
         if len(self.blockTable[0]) > 0:
@@ -59346,7 +59435,7 @@ class ThreadAnalyzer(object):
 
         # timeline #
         timeLine = ''
-        titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
+        titleLine = "%16s(%6s/%6s):" % ('Name', 'Tid', 'Pid')
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
@@ -59421,8 +59510,8 @@ class ThreadAnalyzer(object):
                 else:
                     timeLineLen += 4
 
-            SysMgr.addPrint("%16s(%5s/%5s): " % \
-                (value['comm'], '0', value['tgid']) + timeLine + '\n')
+            SysMgr.addPrint("%16s(%6s/%6s): " % \
+                (value['comm'], '-', '-') + timeLine + '\n')
 
             # make CPU usage list for graph #
             if SysMgr.graphEnable and SysMgr.cpuEnable:
@@ -59452,7 +59541,8 @@ class ThreadAnalyzer(object):
 
         if SysMgr.memEnable:
             SysMgr.addPrint(
-                "\n%16s(%5s/%5s): " % ('MEM', '0', '-----') + timeLine + '\n')
+                "\n%16s(%6s/%6s): " % \
+                    ('MEM', '-', '-') + timeLine + '\n')
             if SysMgr.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
                 ioUsageList.append(timeLineData)
@@ -59482,8 +59572,8 @@ class ThreadAnalyzer(object):
 
             if brtotal > 0:
                 SysMgr.addPrint(
-                    "\n%16s(%5s/%5s): " % ('BLK_RD', '0', '-----') + \
-                    timeLine + '\n')
+                    "\n%16s(%6s/%6s): " % \
+                        ('BLK_RD', '-', '-') + timeLine + '\n')
                 if SysMgr.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
                     ioUsageList.append(timeLineData)
@@ -59513,8 +59603,8 @@ class ThreadAnalyzer(object):
                 if brtotal == 0:
                     SysMgr.addPrint('\n')
                 SysMgr.addPrint(
-                    "%16s(%5s/%5s): " % ('BLK_WR', '0', '-----') + \
-                    timeLine + '\n')
+                    "%16s(%6s/%6s): " % \
+                        ('BLK_WR', '0', '-----') + timeLine + '\n')
                 if SysMgr.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
                     ioUsageList.append(timeLineData)
@@ -59546,8 +59636,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%5s/%5s): " % \
-                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
+                "%16s(%6s/%6s): " % \
+                    (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # total user event usage on timeline #
         newLine = True
@@ -59581,8 +59671,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%5s/%5s): " % \
-                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
+                "%16s(%6s/%6s): " % \
+                    (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # total kernel event usage on timeline #
         newLine = True
@@ -59615,8 +59705,8 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%5s/%5s): " % \
-                    (evt[:SysMgr.commLen], '0', '-----') + timeLine + '\n')
+                "%16s(%6s/%6s): " % \
+                    (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # print buffered info #
         SysMgr.printPipe("%s# %s\n" % ('', 'Total(%/MB/Cnt)'))
@@ -59758,7 +59848,7 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
 
-            SysMgr.addPrint("%16s(%5s/%5s): " % \
+            SysMgr.addPrint("%16s(%6s/%6s): " % \
                 (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if SysMgr.graphEnable and SysMgr.cpuEnable:
@@ -59907,7 +59997,7 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + prtPer + dieFlag)
 
-            SysMgr.addPrint("%16s(%5s/%5s): " % \
+            SysMgr.addPrint("%16s(%6s/%6s): " % \
                 (value['comm'], key, value['tgid']) + timeLine + '\n')
 
         if len(SysMgr.bufferString) > 0:
@@ -59973,7 +60063,7 @@ class ThreadAnalyzer(object):
                     kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
                     timeLine += '%4s' % \
                         (newFlag + str(memUsage + kmemUsage) + dieFlag)
-                SysMgr.addPrint("%16s(%5s/%5s): " % \
+                SysMgr.addPrint("%16s(%6s/%6s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -60037,7 +60127,7 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['brUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
-                SysMgr.addPrint("%16s(%5s/%5s): " % \
+                SysMgr.addPrint("%16s(%6s/%6s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -60103,7 +60193,7 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['bwUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
-                SysMgr.addPrint("%16s(%5s/%5s): " % \
+                SysMgr.addPrint("%16s(%6s/%6s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -60821,7 +60911,7 @@ class ThreadAnalyzer(object):
     def printCpuInterval():
         # set comm and pid size #
         pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        cl = 26 - (pd * 2)
 
         SysMgr.printPipe('\n[Top CPU Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -60999,7 +61089,7 @@ class ThreadAnalyzer(object):
     def printRssInterval():
         # set comm and pid size #
         pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        cl = 26 - (pd * 2)
 
         # check memory type #
         if SysMgr.pssEnable:
@@ -61144,7 +61234,7 @@ class ThreadAnalyzer(object):
     def printVssInterval():
         # set comm and pid size #
         pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        cl = 26 - (pd * 2)
 
         SysMgr.printPipe('\n[Top VSS Info] (Unit: MB)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -61280,7 +61370,7 @@ class ThreadAnalyzer(object):
     def printBlkInterval():
         # set comm and pid size #
         pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        cl = 26 - (pd * 2)
 
         SysMgr.printPipe('\n[Top Block Info] (Unit: %)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -61787,7 +61877,7 @@ class ThreadAnalyzer(object):
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        cl = 26 - (pd * 2)
 
         SysMgr.printPipe('\n[Top Memory Details] (Unit: MB/KB/NR)\n')
         SysMgr.printPipe("%s\n" % twoLine)
@@ -62037,6 +62127,8 @@ class ThreadAnalyzer(object):
                 # decode line #
                 try:
                     line = line.decode('utf-8')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -63630,7 +63722,7 @@ class ThreadAnalyzer(object):
                 ntime = round(float(time) - \
                     float(SysMgr.startTime), 7)
                 self.depData.append(
-                    "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s" % \
+                    "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s" % \
                     (ntime, round(ntime - float(self.wakeupData['time']), 7),
                     kicker, kicker_pid, target_comm, pid, "kick"))
 
@@ -63883,7 +63975,7 @@ class ThreadAnalyzer(object):
                         ttime = float(time) - float(SysMgr.startTime)
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
-                            "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                            "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "wakeup"))
 
@@ -63899,7 +63991,7 @@ class ThreadAnalyzer(object):
                         ttime = float(time) - float(SysMgr.startTime)
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
-                            "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s" % \
+                            "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "recv"))
 
@@ -63968,7 +64060,7 @@ class ThreadAnalyzer(object):
             ttime = float(time) - float(SysMgr.startTime)
 
             self.depData.append(
-                "\t%.3f/%.3f \t%16s(%4s) -> %16s(%4s) \t%s(%s)" % \
+                "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s(%s)" % \
                 (round(ttime, 7),
                 round(ttime - float(self.wakeupData['time']), 7),
                 threadData['comm'], thread,
@@ -64010,7 +64102,7 @@ class ThreadAnalyzer(object):
             ttime = float(time) - float(SysMgr.startTime)
             itime = ttime - float(self.wakeupData['time'])
             self.depData.append(
-                "\t%.3f/%.3f \t%16s %4s     %16s(%4s) \t%s(%s)" % \
+                "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s(%s)" % \
                 (round(ttime, 7), round(itime, 7), "", "",
                 threadData['comm'], thread, "sigrecv", sig))
 
@@ -65314,8 +65406,15 @@ class ThreadAnalyzer(object):
 
         # get thread list #
         for pid in pids:
-            if not pid.isdigit():
+            try:
+                nrPid = long(pid)
+            except SystemExit:
+                sys.exit(0)
+            except:
                 continue
+
+            if self.maxPid < nrPid:
+                self.maxPid = nrPid
 
             self.nrProcess += 1
 
@@ -65351,8 +65450,15 @@ class ThreadAnalyzer(object):
                 continue
 
             for tid in tids:
-                if not tid.isdigit():
+                try:
+                    nrTid = long(tid)
+                except SystemExit:
+                    sys.exit(0)
+                except:
                     continue
+
+                if self.maxPid < nrTid:
+                    self.maxPid = nrTid
 
                 if SysMgr.exceptCommFilter and \
                     not tid in SysMgr.filterGroup:
@@ -65403,16 +65509,16 @@ class ThreadAnalyzer(object):
         psutil.cpu_freq(percpu=False)
         psutil.getloadavg()
 
-        # MEMORY #
+        # Memory #
         psutil.virtual_memory()
         psutil.swap_memory()
 
-        # DISK #
+        # Disk #
         psutil.disk_partitions(all=False)
         #psutil.disk_usage(path=None)
         psutil.disk_io_counters(perdisk=False, nowrap=True)
 
-        # NETWORK #
+        # Network #
         psutil.net_io_counters(pernic=False, nowrap=True)
         psutil.net_connections(kind='inet')
         psutil.net_if_addrs()
@@ -65424,7 +65530,7 @@ class ThreadAnalyzer(object):
         psutil.sensors_battery()
         psutil.users()
 
-        # PROCESS #
+        # Process #
         psutil.process_iter(attrs=None, ad_value=None)
         psutil.pid_exists(pid=os.getpid())
         proc = psutil.Process(pid=None)
@@ -68629,8 +68735,8 @@ class ThreadAnalyzer(object):
             return
 
         # set comm and pid size #
-        pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        pd = len(str(self.maxPid))
+        cl = 26 - (pd * 2)
 
         # calculate resource usage of processes #
         self.setProcUsage()
@@ -69192,8 +69298,8 @@ class ThreadAnalyzer(object):
 
     def printSpecialTask(self, taskType):
         # set comm and pid size #
-        pd = SysMgr.pidDigit
-        cl = 26-(SysMgr.pidDigit*2)
+        pd = len(str(self.maxPid))
+        cl = 26 - (pd * 2)
 
         if SysMgr.reportEnable:
             self.reportData.setdefault('task', dict())
@@ -70725,11 +70831,11 @@ def main(args=None):
     if SysMgr.isTopMode():
         SysMgr.execTopCmd()
         sys.exit(0)
-    # THREAD & FUNCTION MODE #
+    # FUNCTION_GRAPH MODE #
     elif SysMgr.isRecordMode() and \
         SysMgr.isFunctionMode() and \
         SysMgr.graphEnable:
-        ThreadAnalyzer(SysMgr.inputFile)
+        FunctionAnalyzer(SysMgr.inputFile)
 
     # set handler for exit #
     signal.signal(signal.SIGINT, SysMgr.exitHandler)
