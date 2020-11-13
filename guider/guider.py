@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201111"
+__revision__ = "201114"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11970,8 +11970,7 @@ class LeakAnalyzer(object):
             if val['callList']:
                 for time in list(val['callList'].keys()):
                     callinfo = self.callData[time]
-                    substack = dobj.getBacktraceString(
-                        callinfo['symstack'][1:], default=20)
+                    substack = dobj.getBacktraceStr(callinfo['symstack'][1:])
                     dobj.btStr = None
 
                     try:
@@ -12622,12 +12621,15 @@ class FileAnalyzer(object):
         newSize = endAddr - startAddr
         newEnd = newOffset + newSize
 
-        # handle discontiguous segment #
+        # handle discontiguous segments #
         if fileName in procMap and \
             procMap[fileName]['vend'] != startAddr:
             cnt = 0
             while 1:
-                newFileName = '%s%s%s' % (fileName, SysMgr.magicString, cnt)
+                newFileName = \
+                    '%s%s%s' % (fileName, SysMgr.magicStr, cnt)
+
+                # check next segment is contiguous with this line #
                 if newFileName in procMap and \
                     procMap[newFileName]['vend'] != startAddr:
                     cnt += 1
@@ -13710,7 +13712,7 @@ class SysMgr(object):
     encodeEnable = True
     encodeB64Enable = False
     remoteRun = False
-    magicString = '@@@@@'
+    magicStr = '@@@@@'
     launchBuffer = ''
     lineLength = 154
     pid = long(0)
@@ -14543,7 +14545,7 @@ class SysMgr(object):
 
         # set tty setting automatically #
         if not SysMgr.ttyEnable:
-            SysMgr.setTtyAuto(True, False)
+            SysMgr.setTTYAuto(True, False)
 
         # write user command #
         SysMgr.writeTraceCmd('BEFORE')
@@ -15135,8 +15137,10 @@ class SysMgr(object):
 
 
     @staticmethod
-    def setStream():
-        SysMgr.ttyCols = long(0)
+    def setStream(cut=True):
+        if not cut:
+            SysMgr.ttyCols = long(0)
+
         SysMgr.printStreamEnable = True
         SysMgr.encodeEnable = False
 
@@ -21948,9 +21952,9 @@ Copyright:
                 # write system info #
                 if SysMgr.systemInfoBuffer != '':
                     totalStr = '%s\n%s\n%s\n' % \
-                        (SysMgr.magicString,
+                        (SysMgr.magicStr,
                         SysMgr.systemInfoBuffer,
-                        SysMgr.magicString)
+                        SysMgr.magicStr)
                     f.write(totalStr.encode())
 
                 # convert data #
@@ -21968,7 +21972,7 @@ Copyright:
 
                 # write system info #
                 if SysMgr.systemInfoBuffer != '':
-                    magicStr = '%s\n' % SysMgr.magicString
+                    magicStr = '%s\n' % SysMgr.magicStr
                     f.writelines(magicStr)
                     f.writelines(SysMgr.systemInfoBuffer)
                     f.writelines(magicStr)
@@ -24233,7 +24237,7 @@ Copyright:
                     SysMgr.ttyEnable = True
 
                     if len(value) == 0:
-                        SysMgr.setTtyAuto()
+                        SysMgr.setTTYAuto()
                     else:
                         rows = cols = long(0)
                         term = SysMgr.cleanItem(value.split(':'))
@@ -24246,7 +24250,7 @@ Copyright:
 
                         # update system terminal #
                         if len(term) > 2 and term[2].upper() == 'SYSTEM':
-                            SysMgr.setTty(rows, cols)
+                            SysMgr.setTTY(rows, cols)
                         # update local terminal #
                         else:
                             if rows > 0:
@@ -25677,7 +25681,7 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            SysMgr.setStream()
+            SysMgr.setStream(cut=False)
 
             SysMgr.doMemTest()
 
@@ -25702,6 +25706,8 @@ Copyright:
 
         # STRINGS MODE #
         elif SysMgr.isStringsMode():
+            SysMgr.setStream(cut=False)
+
             SysMgr.doStrings()
 
         # DUMP MODE #
@@ -27213,11 +27219,13 @@ Copyright:
 
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False, closeAll=True):
+    def executeProcess(cmd=None, mute=False, closeFd=True):
         try:
-            SysMgr.resetFileTable(mute, closeAll)
+            SysMgr.resetFileTable(mute, closeFd)
 
             os.execvp(cmd[0], cmd)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "fail to execute '%s'" % ' '.join(cmd), True)
@@ -27274,6 +27282,9 @@ Copyright:
 
         # set default signal #
         SysMgr.setSimpleSignal()
+
+        # reset terminal #
+        SysMgr.resetTTY()
 
         # shrink heap #
         SysMgr.shrinkHeap()
@@ -27564,7 +27575,7 @@ Copyright:
                 SysMgr.fileSuffix = SysMgr.pid = os.getpid()
 
                 if mute:
-                    SysMgr.closeStdFds(stderr=False)
+                    SysMgr.closeStdFd(stderr=False)
 
                 return 0
 
@@ -27589,7 +27600,7 @@ Copyright:
 
 
     @staticmethod
-    def closeStdFds(stdin=True, stdout=True, stderr=True):
+    def closeStdFd(stdin=False, stdout=True, stderr=True):
         if not SysMgr.nullFd:
             SysMgr.nullFd = open('/dev/null', 'w')
 
@@ -27607,23 +27618,26 @@ Copyright:
 
 
     @staticmethod
-    def resetFileTable(mute=True, closeAll=True):
+    def resetFileTable(mute=True, closeFd=True):
         # redirect stdout and stderr to null #
         if mute:
             try:
-                SysMgr.closeStdFds(stderr=False)
+                SysMgr.closeStdFd(stderr=False)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
         # close all fds without standard #
-        if closeAll:
+        if closeFd:
             try:
                 path = '%s/self/fd' % SysMgr.procPath
                 fdList = os.listdir(path)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "fail to read %s for file descriptors" % path,
-                        reason=True)
+                    "fail to read file descriptors in %s" % path, reason=True)
                 return
 
             for fd in fdList:
@@ -28342,7 +28356,7 @@ Copyright:
             selectObj = SysMgr.getPkg('select')
 
             if not SysMgr.ttyEnable:
-                SysMgr.setTtyAuto(True)
+                SysMgr.setTTYAuto(True)
 
             # print window size for commands #
             windowSize = long(SysMgr.ttyRows / len(SysMgr.customCmd))
@@ -29690,7 +29704,7 @@ Copyright:
         procInfo = ''
 
         # single file #
-        if len(pids) == 0:
+        if not pids:
             # check file #
             if os.path.isfile(inputArg):
                 filePath = inputArg
@@ -30069,12 +30083,18 @@ Copyright:
                 sys.exit(0)
             fileList = newFileList
 
+        magicStr = SysMgr.magicStr
         for filePath, attr in sorted(
             fileList.items(), key=lambda e: e[1]['vstart']):
             for sym in symbolList:
                 # create ELF object #
                 try:
-                    res = ElfAnalyzer.getSymOffset(sym, filePath)
+                    if magicStr in filePath:
+                        origFilePath = filePath[:filePath.rfind(magicStr)]
+                    else:
+                        origFilePath = filePath
+
+                    res = ElfAnalyzer.getSymOffset(sym, origFilePath)
                     if not res:
                         continue
 
@@ -30084,7 +30104,7 @@ Copyright:
                         totalDiff = 0
 
                         # get real offset for memory hole #
-                        if SysMgr.magicString in filePath and \
+                        if origFilePath != filePath and \
                             attr['offset'] <= foffset:
                             filePath, startAddr, totalDiff = \
                                 Debugger.getRealOffsetInfo(
@@ -30134,7 +30154,7 @@ Copyright:
         procInfo = ''
 
         # single file #
-        if len(pids) == 0:
+        if not pids:
             # check file #
             if os.path.isfile(inputArg):
                 filePath = inputArg
@@ -30147,7 +30167,7 @@ Copyright:
 
                         for item in offset:
                             resInfo['%s|%s' % (item[1], filePath)] = \
-                                (hex(item[0]), filePath, None)
+                                (hex(item[0]), filePath, None, item[1])
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -32798,7 +32818,7 @@ Copyright:
 
 
     @staticmethod
-    def setTtyAuto(setRows=True, setCols=True):
+    def setTTYAuto(setRows=True, setCols=True):
         if not SysMgr.isLinux:
             return
 
@@ -32812,7 +32832,7 @@ Copyright:
             SysMgr.ttyCols = len(oneLine) + 1
 
         # set terminal size #
-        SysMgr.setTty(SysMgr.ttyRows, SysMgr.ttyCols)
+        SysMgr.setTTY(SysMgr.ttyRows, SysMgr.ttyCols)
 
         # update current terminal size #
         SysMgr.getTty()
@@ -32841,10 +32861,23 @@ Copyright:
 
 
     @staticmethod
-    def setTty(rows, cols):
+    def resetTTY():
+        # reset terminal for recovery #
+        try:
+            os.system('stty sane')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+
+
+    @staticmethod
+    def setTTY(rows, cols):
         if not SysMgr.isLinux:
             return
 
+        # set terminal size by ioctl #
         try:
             if not SysMgr.termSetId:
                 termios = SysMgr.getPkg('termios', False)
@@ -32869,6 +32902,7 @@ Copyright:
         except:
             pass
 
+        # set terminal size by command #
         try:
             if not UtilMgr.which('stty'):
                 return
@@ -33286,9 +33320,9 @@ Copyright:
 
                 with open(SysMgr.outputFile, 'w') as fd:
                     if SysMgr.systemInfoBuffer != '':
-                        fd.writelines(SysMgr.magicString + '\n')
+                        fd.writelines(SysMgr.magicStr + '\n')
                         fd.writelines(SysMgr.systemInfoBuffer)
-                        fd.writelines(SysMgr.magicString + '\n')
+                        fd.writelines(SysMgr.magicStr + '\n')
                         fd.writelines(rbuf)
 
                 SysMgr.printInfo(
@@ -39526,6 +39560,7 @@ class Debugger(object):
         self.lockObj = None
         self.tempPage = None
         self.pyAddr = None
+        self.pyFrameCache = {}
 
         self.stack = None
         self.startStack = None
@@ -43112,6 +43147,16 @@ struct cmsghdr {
             if argname == 'cmd':
                 return ConfigMgr.FCNTL_TYPE[value]
 
+        if syscall.startswith('futex'):
+            if argname == 'op':
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value]
+
+                # check _PRIVATE FLAG #
+                value = value & 0x16
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
+
         if syscall == 'open':
             if argname == 'flags':
                 return UtilMgr.getFlagString(
@@ -43617,7 +43662,7 @@ struct cmsghdr {
 
     @staticmethod
     def getRealOffsetInfo(fileList, filePath):
-        magicstr = SysMgr.magicString
+        magicstr = SysMgr.magicStr
         totalDiff = 0
 
         origPath, number = filePath.split(magicstr)
@@ -43676,7 +43721,7 @@ struct cmsghdr {
             SysMgr.printErr("fail to get PID to get symbol")
             return None
 
-        # check of maps fd #
+        # open memory map file #
         if not self.mapFd:
             self.mapFd = FileAnalyzer.getMapFd(self.pid)
             if not self.mapFd:
@@ -43703,7 +43748,7 @@ struct cmsghdr {
 
         # get real offset for memory hole #
         totalDiff = 0
-        magicstr = SysMgr.magicString
+        magicstr = SysMgr.magicStr
         if magicstr in fname:
             fname, vstart, totalDiff = \
                 Debugger.getRealOffsetInfo(self.pmap, fname)
@@ -43727,7 +43772,7 @@ struct cmsghdr {
             return ['??', fname, '??', '??', '??']
 
         # remove suffix in file name #
-        fname = fname.rsplit(SysMgr.magicString, 1)[0]
+        fname = fname.rsplit(SysMgr.magicStr, 1)[0]
 
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
@@ -43938,10 +43983,7 @@ struct cmsghdr {
             else:
                 ret = getattr(self.regs, self.retreg)
 
-            if c_int(ret).value == -1:
-                return -1
-            else:
-                return ret
+            return c_long(ret).value
         except SystemExit:
             sys.exit(0)
         except:
@@ -44004,88 +44046,93 @@ struct cmsghdr {
 
             return
 
-        if realtime:
-            self.totalCall += 1
+        if not realtime:
+            self.callList.append([sym, self.current, filename])
+            return
 
-            if not SysMgr.showAll and bt:
-                # remove anonymous symbol #
-                while 1:
-                    if sym != '??':
-                        break
-                    elif len(bt) == 0:
-                        break
-                    elif bt[0][1] == '??':
-                        bt.pop(0)
-                        continue
-                    else:
-                        sym = bt[0][1]
-                        filename = bt[0][2]
-                        bt.pop(0)
-                        break
+        self.totalCall += 1
 
-                # remove contiguous symbol #
-                while 1:
-                    if len(bt) == 0:
-                        break
-                    elif sym == bt[0][1] and filename == bt[0][2]:
-                        bt.pop(0)
-                        continue
+        if not SysMgr.showAll and bt:
+            # remove anonymous symbol #
+            while 1:
+                if sym != '??':
+                    break
+                elif len(bt) == 0:
+                    break
+                elif bt[0][1] == '??':
+                    bt.pop(0)
+                    continue
+                else:
+                    sym = bt[0][1]
+                    filename = bt[0][2]
+                    bt.pop(0)
                     break
 
-            # check wait status #
-            if self.mode == 'sample' and \
-                not self.runStatus:
-                sym = 'WAIT(%s)' % sym
+            # remove contiguous symbol #
+            while 1:
+                if len(bt) == 0:
+                    break
+                elif sym == bt[0][1] and filename == bt[0][2]:
+                    bt.pop(0)
+                    continue
+                break
 
-            # add backtrace #
-            if bt:
-                btString = self.getBacktraceString(bt, default=20)
+        # check wait status #
+        if self.mode == 'sample' and not self.runStatus:
+            sym = 'WAIT(%s)' % sym
+
+        # add backtrace #
+        if bt:
+            if self.mode == 'pycall':
+                btString = self.getPyBacktraceStr(bt)
             else:
-                btString = None
+                btString = self.getBacktraceStr(bt)
+        else:
+            btString = None
 
-            # add symbol table #
-            if sym in self.callTable:
-                self.callTable[sym]['cnt'] += 1
-            else:
-                self.callTable[sym] = {
-                    'cnt': 1,
-                    'path': filename,
-                    'err': long(0),
-                    'backtrace': dict(),
-                    'elapsed': float(0),
-                    'min': float(0),
-                    'max': float(0),
-                }
+        # add symbol table #
+        if sym in self.callTable:
+            self.callTable[sym]['cnt'] += 1
+        else:
+            self.callTable[sym] = {
+                'cnt': 1,
+                'path': filename,
+                'err': long(0),
+                'backtrace': dict(),
+                'elapsed': float(0),
+                'min': float(0),
+                'max': float(0),
+            }
 
-            # increase count of callstack #
-            if btString:
-                try:
-                    self.callTable[sym]['backtrace'][btString] += 1
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    if sym in self.callTable:
-                        self.callTable[sym]['backtrace'][btString] = 1
-
-            # calculate elapesd time #
-            if elapsed:
-                self.callTable[sym]['elapsed'] += elapsed
-                if self.callTable[sym]['min'] == 0 or \
-                    self.callTable[sym]['min'] > elapsed:
-                    self.callTable[sym]['min'] = elapsed
-                if self.callTable[sym]['max'] == 0 or \
-                    self.callTable[sym]['max'] < elapsed:
-                    self.callTable[sym]['max'] = elapsed
-
-            # add file table #
+        # increase count of callstack #
+        if btString:
             try:
-                self.fileTable[filename]['cnt'] += 1
+                self.callTable[sym]['backtrace'][btString] += 1
+            except SystemExit:
+                sys.exit(0)
             except:
-                self.fileTable[filename] = dict()
-                self.fileTable[filename]['cnt'] = 1
+                if sym in self.callTable:
+                    self.callTable[sym]['backtrace'][btString] = 1
 
-            if not SysMgr.outPath:
-                return
+        # calculate elapesd time #
+        if elapsed:
+            self.callTable[sym]['elapsed'] += elapsed
+            if self.callTable[sym]['min'] == 0 or \
+                self.callTable[sym]['min'] > elapsed:
+                self.callTable[sym]['min'] = elapsed
+            if self.callTable[sym]['max'] == 0 or \
+                self.callTable[sym]['max'] < elapsed:
+                self.callTable[sym]['max'] = elapsed
+
+        # add file table #
+        try:
+            self.fileTable[filename]['cnt'] += 1
+        except:
+            self.fileTable[filename] = dict()
+            self.fileTable[filename]['cnt'] = 1
+
+        if not SysMgr.outPath:
+            return
 
         self.callList.append([sym, self.current, filename])
 
@@ -44137,8 +44184,42 @@ struct cmsghdr {
 
 
 
-    def getBacktraceString(self, bt, default=0, maximum=0, force=False):
+    def getPyBacktraceStr(self, bt, default=20, maximum=0):
+        if not bt:
+            return ''
+
+        btString = ''
+        pos = default
+
+        if maximum == 0:
+            maximum = len(oneLine)
+
+        if default == 0:
+            indentString = ''
+        else:
+            indentString = ' ' * default
+
+        for item in bt:
+            # build a new string #
+            newString = ' <- %s[%s]' % (item[0], item[1])
+            if len(newString) + pos > maximum:
+                newString = '\n%s%s' % (indentString, newString)
+                pos = default + len(newString)
+            else:
+                pos += len(newString)
+
+            # add a symbol to backtrace #
+            btString = '%s%s' % (btString, newString)
+
+        return btString
+
+
+
+    def getBacktraceStr(self, bt, default=20, maximum=0, force=False):
         if not force and self.btStr:
+            return self.btStr
+        elif not bt:
+            self.btStr = ''
             return self.btStr
 
         btString = ''
@@ -44940,6 +45021,16 @@ struct cmsghdr {
 
 
 
+    def readPyStr(self, addr):
+        PyStringObject = self.readMem(addr, 32)
+
+        ob_refcnt, ob_type, ob_size, ob_shash, ob_sstate = \
+            struct.unpack('IQQIi', PyStringObject)
+
+        return self.readMem(addr+36, ob_size)
+
+
+
     def handlePycall(self):
         '''
         typedef struct _ts {
@@ -45073,15 +45164,22 @@ struct cmsghdr {
             void *co_zombieframe;     /* for optimization only (see frameobject.c) */
             PyObject *co_weakreflist;   /* to support weakrefs to code objects */
         } PyCodeObject;
+
+        typedef struct {
+            PyObject_VAR_HEAD
+            long ob_shash;
+            int ob_sstate;
+            char ob_sval[1];
+        } PyStringObject;
         '''
 
-        SysMgr.printErr('Not implemented yet')
-        sys.exit(0)
-
+         # read address for PyThreadState #
         PyThreadStatep = struct.unpack('Q', self.readMem(self.pyAddr))[0]
         if not PyThreadStatep:
+            self.addSample('WAIT', 'N/A', realtime=True)
             return
 
+        # read PyThreadState #
         PyThreadState = self.readMem(PyThreadStatep, 168)
         nextp, interp, framep, recursion_depth, tracing, use_tracing, \
             c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
@@ -45091,20 +45189,53 @@ struct cmsghdr {
             thread_id, trash_delete_nesting, trash_delete_later = \
             struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
 
-        PyFrameObject = self.readMem(framep, 149)
-        _ob_next, _ob_prev, ob_refcnt, ob_type, \
-            ob_size, f_back, f_code, f_builtins, f_globals, \
-            f_locals, f_valuestack, f_stacktop, f_trace, \
-            f_exc_type, f_exc_value, f_exc_traceback, f_gen, \
-            f_lasti, f_lineno, f_iblock, f_executing = \
-            struct.unpack('QQIQIQQQQQQQQQQQQiiib', PyFrameObject)
+        # read frames #
+        lastName = None
+        lastFile = None
+        bt = []
+        while 1:
+            PyFrameObject = self.readMem(framep, 128)
+            ob_refcnt, ob_type, ob_size, \
+                f_back, f_code, f_builtins, f_globals, \
+                f_locals, f_valuestack, f_stacktop, f_trace, \
+                f_exc_type, f_exc_value, f_exc_traceback, f_tstate, \
+                f_lasti, f_lineno = \
+                struct.unpack('IQQQQQQQQQQQQQQii', PyFrameObject)
 
-        PyCodeObject = self.readMem(f_code, 120)
-        obj_head, argcount, nlocals, stacksize, flags, code, consts, \
-            names, varnames, freevars, cellvars, filename, \
-            name, firstlineno, lnotab, zomebiframe, wearreflist = \
-            struct.unpack('QIIIIQQQQQQQQIQQQ', PyCodeObject)
+            # read PyCodeObject #
+            PyCodeObject = self.readMem(f_code, 128)
+            ob_refcnt, ob_type, argcount, nlocals, stacksize, flags, \
+                co_code, co_consts, co_names, co_varnames, co_freevars, \
+                co_cellvars, co_filename, co_name, co_firstlineno, \
+                co_lnotab, co_zomebiframe, co_wearreflist = \
+                struct.unpack('QQIIIIQQQQQQQQIQQQ', PyCodeObject)
 
+            # read context #
+            if f_code in self.pyFrameCache:
+                name, filename = self.pyFrameCache[f_code]
+            else:
+                # read name #
+                name = self.readPyStr(co_name)
+
+                # read filename #
+                filename = self.readPyStr(co_filename)
+
+            # cache frame #
+            self.pyFrameCache[f_code] = [name, filename]
+
+            if not lastName:
+                lastName = name
+                lastFile = filename
+            else:
+                bt.append([name, filename])
+
+            # check last frame #
+            if SysMgr.funcDepth == 0 or f_back == 0:
+                break
+
+            framep = f_back
+
+        self.addSample(lastName, lastFile, realtime=True, bt=bt)
         return
 
 
@@ -45342,8 +45473,9 @@ struct cmsghdr {
         # get backtrace #
         if SysMgr.funcDepth > 0:
             backtrace = self.getBacktrace(SysMgr.funcDepth, cur=True)
-            bts = '\n%s%s ' % \
-                (' ' * 20, self.getBacktraceString(backtrace, default=20))
+            bts = self.getBacktraceStr(backtrace)
+            if bts:
+                bts = '\n%s%s ' % (' ' * 20, bts)
         else:
             backtrace = None
             bts = ''
@@ -45382,7 +45514,9 @@ struct cmsghdr {
         if not self.isRealtime or SysMgr.showAll:
             # convert args to string ##
             if len(args) > 0:
-                argText = ', '.join(str(arg) for arg in args)
+                argText = ', '.join(\
+                    hex(arg).rstrip('L') if type(arg) is long else str(arg) \
+                        for arg in args)
             else:
                 argText = ', '.join(str(arg[2]) for arg in self.args)
 
@@ -45625,12 +45759,15 @@ struct cmsghdr {
 
                 return
 
+            # convert return format #
+            if type(retval) is long:
+                retval = hex(retval).rstrip('L')
+
             # build call string #
             callString = '= %s %s' % (retval, err)
 
             if SysMgr.outPath:
-                if SysMgr.showAll and \
-                    len(self.callPrint) > 0:
+                if SysMgr.showAll and len(self.callPrint) > 0:
                     self.callPrint[-1] = '%s%s' % \
                         (self.callPrint[-1], callString)
             elif self.isRealtime:
@@ -46091,6 +46228,10 @@ struct cmsghdr {
         self.symbolCacheList = dict()
         self.prevReturn = -1
 
+        # python variables #
+        self.pyAddr = None
+        self.pyFrameCache = {}
+
         # index variables #
         self.sigExecFlag = signal.SIGTRAP | \
             ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
@@ -46498,17 +46639,17 @@ struct cmsghdr {
                 procInfo = '%s(%s)' % (self.comm, self.pid)
 
                 # executable binary path #
-                pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
+                pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
                 if not pyPath:
-                    pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
+                    pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
                     if not pyPath:
                         SysMgr.printErr(
                             "fail to find python binary for %s" % procInfo)
                         sys.exit(0)
 
-                pySym = ['_PyThreadState_Current']
+                pySym = '_PyThreadState_Current'
                 symbolInfo = SysMgr.getProcAddrBySymbol(
-                    self.pid, pySym, fileFilter=[pyPath])
+                    self.pid, [pySym], fileFilter=[pyPath])
                 if not symbolInfo:
                     SysMgr.printErr(
                         "fail to find '%s' symbol for %s" % (pySym, procInfo))
@@ -46714,10 +46855,11 @@ struct cmsghdr {
 
         nrLine = UtilMgr.convNum(len(instance.callPrint))
         callStr = '\n'.join(instance.callPrint)
+        procInfo = '%s(%s)' % (instance.comm, instance.pid)
 
         SysMgr.printPipe(
-            '\n[Trace History] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
-                (elapsed, nrLine, twoLine, callStr, oneLine))
+            '\n[Trace History] [%s] [Time: %f] [Line: %s]\n%s\n%s\n%s' %
+                (procInfo, elapsed, nrLine, twoLine, callStr, oneLine))
 
 
 
@@ -46839,6 +46981,9 @@ struct cmsghdr {
             samplingStr = ''
             sampleRateStr = ''
 
+        # set task info #
+        procInfo = '%s(%s)' % (instance.comm, instance.pid)
+
         nrCpuUsageSample = len(instance.cpuUsageList)
         if nrCpuUsageSample > 0:
             # calculate average CPU usage #
@@ -46851,9 +46996,9 @@ struct cmsghdr {
             utime /= float(nrCpuUsageSample)
             stime /= float(nrCpuUsageSample)
             cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
-            cpuStr = '[%s(%s): %s]' % (instance.comm, instance.pid, cpuStr)
+            cpuStr = '[%s: %s]' % (procInfo, cpuStr)
         else:
-            cpuStr = ''
+            cpuStr = ' [%s]' % procInfo
 
         SysMgr.printPipe((
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s '
@@ -49369,9 +49514,9 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getObject(path, raiseExcept=False, fobj=None):
+    def getObject(path, raiseExcept=False, fobj=None, cache=True):
         # remove segment number #
-        path = path.split(SysMgr.magicString)[0]
+        path = path.split(SysMgr.magicStr)[0]
 
         # check black-list #
         if path in ElfAnalyzer.failedFiles:
@@ -49385,7 +49530,7 @@ class ElfAnalyzer(object):
             return None
 
         # load files #
-        if not path in ElfAnalyzer.cachedFiles:
+        if not cache or not path in ElfAnalyzer.cachedFiles:
             # check exceptional case #
             if not path.startswith('/'):
                 if path == 'vdso':
@@ -49583,6 +49728,8 @@ class ElfAnalyzer(object):
                 binObj = ElfAnalyzer.getObject(binPath)
                 if not binObj:
                     raise Exception('no binary')
+                elif binObj.onlyFunc:
+                    binObj = ElfAnalyzer.getObject(binPath, cache=False)
 
                 symbol, inc, start, end = ElfAnalyzer.getFilterFlags(symbol)
 
@@ -49725,6 +49872,9 @@ class ElfAnalyzer(object):
         # check already merged #
         if not force and self.mergedSymTable:
             return
+
+        # save func flag #
+        self.onlyFunc = onlyFunc
 
         # merge symbol tables #
         tempSymTable = deepcopy(self.attr['symTable'])
@@ -50553,6 +50703,7 @@ class ElfAnalyzer(object):
         self.mergedSymTable = {}
         self.cfaTableTitle = ''
         self.fileSize = size
+        self.onlyFunc = False
 
         if fd is None:
             # check debug file #
@@ -62136,7 +62287,7 @@ class ThreadAnalyzer(object):
                 if end == -1:
                     buf.append(line)
                 if not SysMgr.recordStatus:
-                    if line.startswith(SysMgr.magicString):
+                    if line.startswith(SysMgr.magicStr):
                         if start == -1:
                             start = idx
                         elif end == -1:
