@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201114"
+__revision__ = "201115"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -39490,6 +39490,7 @@ class Debugger(object):
 
 
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
+        self.pthreadID = 0
         self.comm = None
         self.mode = mode
         self.status = 'enter'
@@ -44084,11 +44085,11 @@ struct cmsghdr {
         # add backtrace #
         if bt:
             if self.mode == 'pycall':
-                btString = self.getPyBacktraceStr(bt)
+                btStr = self.getPyBacktraceStr(bt)
             else:
-                btString = self.getBacktraceStr(bt)
+                btStr = self.getBacktraceStr(bt)
         else:
-            btString = None
+            btStr = None
 
         # add symbol table #
         if sym in self.callTable:
@@ -44105,14 +44106,14 @@ struct cmsghdr {
             }
 
         # increase count of callstack #
-        if btString:
+        if btStr:
             try:
-                self.callTable[sym]['backtrace'][btString] += 1
+                self.callTable[sym]['backtrace'][btStr] += 1
             except SystemExit:
                 sys.exit(0)
             except:
                 if sym in self.callTable:
-                    self.callTable[sym]['backtrace'][btString] = 1
+                    self.callTable[sym]['backtrace'][btStr] = 1
 
         # calculate elapesd time #
         if elapsed:
@@ -44188,30 +44189,30 @@ struct cmsghdr {
         if not bt:
             return ''
 
-        btString = ''
+        btStr = ''
         pos = default
 
         if maximum == 0:
-            maximum = len(oneLine)
+            maximum = SysMgr.ttyCols
 
         if default == 0:
-            indentString = ''
+            indentStr = ''
         else:
-            indentString = ' ' * default
+            indentStr = ' ' * default
 
         for item in bt:
             # build a new string #
-            newString = ' <- %s[%s]' % (item[0], item[1])
-            if len(newString) + pos > maximum:
-                newString = '\n%s%s' % (indentString, newString)
-                pos = default + len(newString)
+            newStr = ' <- %s[%s]' % (item[0], item[1])
+            if pos + len(newStr) > maximum:
+                newStr = '\n%s%s' % (indentStr, newStr)
+                pos = len(newStr) - 1
             else:
-                pos += len(newString)
+                pos += len(newStr)
 
             # add a symbol to backtrace #
-            btString = '%s%s' % (btString, newString)
+            btStr = '%s%s' % (btStr, newStr)
 
-        return btString
+        return btStr
 
 
 
@@ -44222,7 +44223,7 @@ struct cmsghdr {
             self.btStr = ''
             return self.btStr
 
-        btString = ''
+        btStr = ''
         prevSym = None
         prevFile = None
 
@@ -44230,12 +44231,12 @@ struct cmsghdr {
         pos = default
 
         if maximum == 0:
-            maximum = len(oneLine)
+            maximum = SysMgr.ttyCols
 
         if default == 0:
-            indentString = ''
+            indentStr = ''
         else:
-            indentString = ' ' * default
+            indentStr = ' ' * default
 
         for item in bt:
             # remove redundant symbols #
@@ -44254,20 +44255,20 @@ struct cmsghdr {
                 cntStr = ''
 
             # build a new string #
-            newString = ' <- %s[%s]%s' % (item[1], item[2], cntStr)
-            if len(newString) + pos > maximum:
-                newString = '\n%s%s' % (indentString, newString)
-                pos = default + len(newString)
+            newStr = ' <- %s[%s]%s' % (item[1], item[2], cntStr)
+            if len(newStr) + pos > maximum:
+                newStr = '\n%s%s' % (indentStr, newStr)
+                pos = len(newStr) - 1
             else:
-                pos += len(newString)
+                pos += len(newStr)
 
             # add a symbol to backtrace #
-            btString = '%s%s' % (btString, newString)
+            btStr = '%s%s' % (btStr, newStr)
 
-        if btString == '':
+        if btStr == '':
             self.btStr = '??'
         else:
-            self.btStr = btString
+            self.btStr = btStr
 
         return self.btStr
 
@@ -44573,13 +44574,13 @@ struct cmsghdr {
 
         self.prevStack = backtrace
 
-        btString = ''
+        btStr = ''
         for sidx, item in enumerate(reversed(stack)):
-            btString += '\n%s %s%s%s/%s [%s]' % \
+            btStr += '\n%s %s%s%s/%s [%s]' % \
                 (diffindent, tinfoindent,
                     (sidx-(commonPos)) * '  ',
                     item[1], hex(item[0]).rstrip('L'), item[2])
-        return btString, depth
+        return btStr, depth
 
 
 
@@ -45173,8 +45174,8 @@ struct cmsghdr {
         } PyStringObject;
         '''
 
-         # read address for PyThreadState #
-        PyThreadStatep = struct.unpack('Q', self.readMem(self.pyAddr))[0]
+        # read address for PyThreadState #
+        PyThreadStatep = self.readWord(self.pyAddr)
         if not PyThreadStatep:
             self.addSample('WAIT', 'N/A', realtime=True)
             return
@@ -45188,6 +45189,8 @@ struct cmsghdr {
             tick_counter, gilstate_counter, async_exc, \
             thread_id, trash_delete_nesting, trash_delete_later = \
             struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
+
+        # toDo: get GIL usage by comparing thread_id with pthread_self() #
 
         # read frames #
         lastName = None
@@ -45236,7 +45239,6 @@ struct cmsghdr {
             framep = f_back
 
         self.addSample(lastName, lastFile, realtime=True, bt=bt)
-        return
 
 
 
@@ -46180,6 +46182,7 @@ struct cmsghdr {
         ]
 
         # stat variables #
+        self.pthreadID = 0
         self.comm = SysMgr.getComm(self.pid, cache=True)
         self.start = self.last = time.time()
         self.statFd = None
@@ -46582,7 +46585,7 @@ struct cmsghdr {
             # set alarm handler #
             signal.signal(signal.SIGALRM, Debugger.onAlarm)
 
-            if self.mode == 'sample':
+            if self.mode == 'sample' or self.mode == 'pycall':
                 # set sampling rate to 100 us #
                 sampleTime = SysMgr.getOption('T')
                 if sampleTime:
@@ -46594,7 +46597,10 @@ struct cmsghdr {
                             "fail to set sampling time", True)
                         sys.exit(0)
                 else:
-                    self.sampleTime = 0.0001
+                    if self.mode == 'sample':
+                        self.sampleTime = 0.0001
+                    else:
+                        self.sampleTime = 0.001
 
                 if not self.multi:
                     SysMgr.printInfo(
