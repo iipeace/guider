@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201115"
+__revision__ = "201116"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -44079,7 +44079,8 @@ struct cmsghdr {
                 break
 
         # check wait status #
-        if self.mode == 'sample' and not self.runStatus:
+        if not self.runStatus and \
+            (self.mode == 'sample' or self.mode == 'pycall'):
             sym = 'WAIT(%s)' % sym
 
         # add backtrace #
@@ -45177,7 +45178,7 @@ struct cmsghdr {
         # read address for PyThreadState #
         PyThreadStatep = self.readWord(self.pyAddr)
         if not PyThreadStatep:
-            self.addSample('WAIT', 'N/A', realtime=True)
+            self.handleUsercall()
             return
 
         # read PyThreadState #
@@ -46597,10 +46598,7 @@ struct cmsghdr {
                             "fail to set sampling time", True)
                         sys.exit(0)
                 else:
-                    if self.mode == 'sample':
-                        self.sampleTime = 0.0001
-                    else:
-                        self.sampleTime = 0.001
+                    self.sampleTime = 0.001
 
                 if not self.multi:
                     SysMgr.printInfo(
