@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201116"
+__revision__ = "201117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -32864,7 +32864,7 @@ Copyright:
     def resetTTY():
         # reset terminal for recovery #
         try:
-            os.system('stty sane')
+            os.system('stty sane 2> /dev/null')
         except SystemExit:
             sys.exit(0)
         except:
@@ -39557,11 +39557,16 @@ class Debugger(object):
         self.btStr = None
         self.prevBtList = None
         self.prevBtStr = None
+        self.startAddr = None
 
         self.lockObj = None
         self.tempPage = None
+
         self.pyAddr = None
         self.pyFrameCache = {}
+        self.readPyStr = None
+        self.readPyFrame = None
+        self.readPyState = None
 
         self.stack = None
         self.startStack = None
@@ -43628,11 +43633,17 @@ struct cmsghdr {
 
         # register default libraries #
         for fpath in list(self.pmap.keys()):
+            # set minimum address on memory map #
+            startAddr = self.pmap[fpath]['vstart']
+            if self.startAddr is None:
+                self.startAddr = startAddr
+            elif self.startAddr > startAddr:
+                self.startAddr = startAddr
+
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
                 self.dftBpFileList[fpath] = 0
-            elif fname.startswith('libc-') or \
-                fname == 'libc.so':
+            elif fname.startswith('libc-') or fname == 'libc.so':
                 self.libcLoaded = True
                 self.dftBpFileList[fpath] = 0
             elif fname.startswith('libpthread'):
@@ -44194,7 +44205,10 @@ struct cmsghdr {
         pos = default
 
         if maximum == 0:
-            maximum = SysMgr.ttyCols
+            if len(oneLine) < SysMgr.ttyCols:
+                maximum = len(oneLine)
+            else:
+                maximum = SysMgr.ttyCols
 
         if default == 0:
             indentStr = ''
@@ -44204,7 +44218,7 @@ struct cmsghdr {
         for item in bt:
             # build a new string #
             newStr = ' <- %s[%s]' % (item[0], item[1])
-            if pos + len(newStr) > maximum:
+            if btStr and len(newStr) + pos > maximum:
                 newStr = '\n%s%s' % (indentStr, newStr)
                 pos = len(newStr) - 1
             else:
@@ -44232,7 +44246,10 @@ struct cmsghdr {
         pos = default
 
         if maximum == 0:
-            maximum = SysMgr.ttyCols
+            if len(oneLine) < SysMgr.ttyCols:
+                maximum = len(oneLine)
+            else:
+                maximum = SysMgr.ttyCols
 
         if default == 0:
             indentStr = ''
@@ -44257,7 +44274,7 @@ struct cmsghdr {
 
             # build a new string #
             newStr = ' <- %s[%s]%s' % (item[1], item[2], cntStr)
-            if len(newStr) + pos > maximum:
+            if btStr and len(newStr) + pos > maximum:
                 newStr = '\n%s%s' % (indentStr, newStr)
                 pos = len(newStr) - 1
             else:
@@ -44370,7 +44387,9 @@ struct cmsghdr {
             value = self.getWordFromStack(targetAddr)
         else:
             value = self.readWord(targetAddr)
-        btList.insert(0, value)
+
+        if value > self.startAddr:
+            btList.insert(0, value)
 
         while 1:
             if not nextFp or nextFp < self.sp:
@@ -44381,9 +44400,11 @@ struct cmsghdr {
                 break
 
             try:
-                # read return address #
+                # get LR #
                 targetAddr = nextFp + ConfigMgr.wordSize
-                if readaheadStack:
+                if targetAddr < self.startAddr:
+                    break
+                elif readaheadStack:
                     value = self.getWordFromStack(targetAddr)
                 else:
                     value = self.readWord(targetAddr)
@@ -44397,12 +44418,13 @@ struct cmsghdr {
                     except:
                         pass
 
-                # read next FP #
+                # get FP #
                 if readaheadStack:
                     nextFP = self.getWordFromStack(targetAddr)
                 else:
                     nextFp = self.readWord(nextFp)
-                if nextFp <= 0:
+
+                if nextFp < self.startAddr:
                     break
             except SystemExit:
                 sys.exit(0)
@@ -44435,13 +44457,17 @@ struct cmsghdr {
             if len(btList) >= limit:
                 break
 
-            # get FP and LR #
             try:
+                # get LR #
                 nextAddr = nextFp + ConfigMgr.wordSize
-                nextLr = self.readWord(nextAddr)
+                if nextAddr < self.startAddr:
+                    break
+                else:
+                    nextLr = self.readWord(nextAddr)
 
+                # get FP #
                 nextFp = self.readWord(nextFp)
-                if nextFp <= 0:
+                if nextFp < self.startAddr:
                     break
             except SystemExit:
                 sys.exit(0)
@@ -44480,18 +44506,24 @@ struct cmsghdr {
             if len(btList) >= limit:
                 break
 
-            # get FP and LR #
             try:
+                # get LR #
                 nextAddr = nextFp + ConfigMgr.wordSize
-                if readaheadStack:
+                if nextAddr < self.startAddr:
+                    break
+                elif readaheadStack:
                     nextLr = self.getWordFromStack(nextAddr)
                 else:
                     nextLr = self.readWord(nextAddr)
 
-                if readaheadStack:
+                # get FP #
+                if nextFp < self.startAddr:
+                    break
+                elif readaheadStack:
                     nextFp = self.getWordFromStack(nextFp)
                 else:
                     nextFp = self.readWord(nextFp)
+
                 if nextFp <= 0:
                     break
             except SystemExit:
@@ -45023,158 +45055,93 @@ struct cmsghdr {
 
 
 
-    def readPyStr(self, addr):
-        PyStringObject = self.readMem(addr, 32)
+    def readPyState32(self, addr):
+        return None
 
-        ob_refcnt, ob_type, ob_size, ob_shash, ob_sstate = \
-            struct.unpack('IQQIi', PyStringObject)
 
-        return self.readMem(addr+36, ob_size)
+
+    def readPyState64(self, addr):
+        if sys.version_info >= (3, 0):
+            PyThreadState = self.readMem(addr, 192)
+            prevp, nextp, interp, framep, recursion_depth, \
+                overflowed, recursion_critical, tracing, use_tracing, \
+                c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
+                curexc_type, curexc_value, curexc_traceback, \
+                exc_type, exc_value, exc_traceback, dictp, \
+                gilstate_counter, async_exc, thread_id, \
+                trash_delete_nesting, trash_delete_later, \
+                on_delete, on_delete_data  = \
+                struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
+        else:
+            PyThreadState = self.readMem(addr, 168)
+            nextp, interp, framep, recursion_depth, tracing, use_tracing, \
+                c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
+                curexc_type, curexc_value, curexc_traceback, \
+                exc_type, exc_value, exc_traceback, dictp, \
+                tick_counter, gilstate_counter, async_exc, \
+                thread_id, trash_delete_nesting, trash_delete_later = \
+                struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
+
+        return framep
+
+
+
+    def readPyFrame32(self, addr):
+        return None
+
+
+
+    def readPyFrame64(self, addr):
+        # read PyFrameObject #
+        PyFrameObject = self.readMem(addr, 128)
+        ob_refcnt, ob_type, ob_size, \
+            f_back, f_code, f_builtins, f_globals, \
+            f_locals, f_valuestack, f_stacktop, f_trace, \
+            f_exc_type, f_exc_value, f_exc_traceback, f_tstate, \
+            f_lasti, f_lineno = \
+            struct.unpack('IQQQQQQQQQQQQQQii', PyFrameObject)
+
+        # read PyCodeObject #
+        if sys.version_info >= (3, 0):
+            PyCodeObject = self.readMem(f_code, 144)
+            ob_refcnt, ob_type, co_argcount, co_kwonlyargcount, \
+                co_nlocals, co_stacksize, co_flags, \
+                co_code, co_consts, co_names, co_varnames, co_freevars, \
+                co_cellvars, co_cell2args, co_filename, co_name, \
+                co_firstlineno, co_lnotab, co_zomebiframe, co_wearreflist = \
+                struct.unpack('IQIIIIIQQQQQQQQQIQQQ', PyCodeObject)
+        else:
+            PyCodeObject = self.readMem(f_code, 128)
+            ob_refcnt, ob_type, co_argcount, co_nlocals, \
+                co_stacksize, co_flags, co_code, co_consts, \
+                co_names, co_varnames, co_freevars, co_cellvars, \
+                co_filename, co_name, co_firstlineno, \
+                co_lnotab, co_zomebiframe, co_wearreflist = \
+                struct.unpack('IQIIIIQQQQQQQQIQQQ', PyCodeObject)
+
+        return f_back, f_lineno, f_code, co_name, co_filename
+
+
+
+    def readPyStr32(self, addr):
+        return None
+
+
+
+    def readPyStr64(self, addr):
+        PyStringObject = self.readMem(addr, 24)
+
+        ob_refcnt, ob_type, ob_size = \
+            struct.unpack('IQQ', PyStringObject)
+
+        if sys.version_info >= (3, 0):
+            return self.readMem(addr+48, ob_size).decode()
+        else:
+            return self.readMem(addr+36, ob_size)
 
 
 
     def handlePycall(self):
-        '''
-        typedef struct _ts {
-            /* See Python/ceval.c for comments explaining most fields */
-
-            struct _ts *next;
-            PyInterpreterState *interp;
-
-            struct _frame *frame;
-            int recursion_depth;
-            /* 'tracing' keeps track of the execution depth when tracing/profiling.
-               This is to prevent the actual trace/profile code from being recorded in
-               the trace/profile. */
-            int tracing;
-            int use_tracing;
-
-            Py_tracefunc c_profilefunc;
-            Py_tracefunc c_tracefunc;
-            PyObject *c_profileobj;
-            PyObject *c_traceobj;
-
-            PyObject *curexc_type;
-            PyObject *curexc_value;
-            PyObject *curexc_traceback;
-
-            PyObject *exc_type;
-            PyObject *exc_value;
-            PyObject *exc_traceback;
-
-            PyObject *dict;  /* Stores per-thread state */
-
-            /* tick_counter is incremented whenever the check_interval ticker
-             * reaches zero. The purpose is to give a useful measure of the number
-             * of interpreted bytecode instructions in a given thread.  This
-             * extremely lightweight statistic collector may be of interest to
-             * profilers (like psyco.jit()), although nothing in the core uses it.
-             */
-            int tick_counter;
-
-            int gilstate_counter;
-
-            PyObject *async_exc; /* Asynchronous exception to raise */
-            long thread_id; /* Thread id where this tstate was created */
-
-            int trash_delete_nesting;
-            PyObject *trash_delete_later;
-
-            /* XXX signal handlers should also be here */
-
-        } PyThreadState;
-
-
-
-        #define _PyObject_HEAD_EXTRA            \
-            struct _object *_ob_next;           \
-            struct _object *_ob_prev;
-
-        typedef int Py_ssize_t;
-
-        typedef struct _object {
-            _PyObject_HEAD_EXTRA
-            Py_ssize_t ob_refcnt;
-            struct _typeobject *ob_type;
-        } PyObject;
-
-        typedef struct {
-            PyObject ob_base;
-            Py_ssize_t ob_size; /* Number of items in variable part */
-        } PyVarObject;
-
-        #define PyObject_VAR_HEAD      PyVarObject ob_base;
-
-
-
-        typedef struct _frame {
-            PyObject_VAR_HEAD
-            struct _frame *f_back;      /* previous frame, or NULL */
-            PyCodeObject *f_code;       /* code segment */
-            PyObject *f_builtins;       /* builtin symbol table (PyDictObject) */
-            PyObject *f_globals;        /* global symbol table (PyDictObject) */
-            PyObject *f_locals;         /* local symbol table (any mapping) */
-            PyObject **f_valuestack;    /* points after the last local */
-            /* Next free slot in f_valuestack.  Frame creation sets to f_valuestack.
-               Frame evaluation usually NULLs it, but a frame that yields sets it
-               to the current stack top. */
-            PyObject **f_stacktop;
-            PyObject *f_trace;          /* Trace function */
-
-            /* If an exception is raised in this frame, the next three are used to
-             * record the exception info (if any) originally in the thread state.  See
-             * comments before set_exc_info() -- it's not obvious.
-             * Invariant:  if _type is NULL, then so are _value and _traceback.
-             * Desired invariant:  all three are NULL, or all three are non-NULL.  That
-             * one isn't currently true, but "should be".
-             */
-            PyObject *f_exc_type, *f_exc_value, *f_exc_traceback;
-
-            PyThreadState *f_tstate;
-            int f_lasti;                /* Last instruction if called */
-            /* Call PyFrame_GetLineNumber() instead of reading this field
-               directly.  As of 2.3 f_lineno is only valid when tracing is
-               active (i.e. when f_trace is set).  At other times we use
-               PyCode_Addr2Line to calculate the line from the current
-               bytecode index. */
-            int f_lineno;               /* Current line number */
-            int f_iblock;               /* index in f_blockstack */
-            PyTryBlock f_blockstack[CO_MAXBLOCKS]; /* for try and loop blocks */
-            PyObject *f_localsplus[1];  /* locals+stack, dynamically sized */
-        } PyFrameObject;
-
-
-
-        typedef struct {
-            PyObject_HEAD
-            int co_argcount;            /* #arguments, except *args */
-            int co_nlocals;             /* #local variables */
-            int co_stacksize;           /* #entries needed for evaluation stack */
-            int co_flags;               /* CO_..., see below */
-            PyObject *co_code;          /* instruction opcodes */
-            PyObject *co_consts;        /* list (constants used) */
-            PyObject *co_names;         /* list of strings (names used) */
-            PyObject *co_varnames;      /* tuple of strings (local variable names) */
-            PyObject *co_freevars;      /* tuple of strings (free variable names) */
-            PyObject *co_cellvars;      /* tuple of strings (cell variable names) */
-            /* The rest doesn't count for hash/cmp */
-            PyObject *co_filename;      /* string (where it was loaded from) */
-            PyObject *co_name;          /* string (name, for reference) */
-            int co_firstlineno;         /* first source line number */
-            PyObject *co_lnotab;        /* string (encoding addr<->lineno mapping) See
-                                           Objects/lnotab_notes.txt for details. */
-            void *co_zombieframe;     /* for optimization only (see frameobject.c) */
-            PyObject *co_weakreflist;   /* to support weakrefs to code objects */
-        } PyCodeObject;
-
-        typedef struct {
-            PyObject_VAR_HEAD
-            long ob_shash;
-            int ob_sstate;
-            char ob_sval[1];
-        } PyStringObject;
-        '''
-
         # read address for PyThreadState #
         PyThreadStatep = self.readWord(self.pyAddr)
         if not PyThreadStatep:
@@ -45182,14 +45149,7 @@ struct cmsghdr {
             return
 
         # read PyThreadState #
-        PyThreadState = self.readMem(PyThreadStatep, 168)
-        nextp, interp, framep, recursion_depth, tracing, use_tracing, \
-            c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
-            curexc_type, curexc_value, curexc_traceback, \
-            exc_type, exc_value, exc_traceback, dictp, \
-            tick_counter, gilstate_counter, async_exc, \
-            thread_id, trash_delete_nesting, trash_delete_later = \
-            struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
+        framep = self.readPyState(PyThreadStatep)
 
         # toDo: get GIL usage by comparing thread_id with pthread_self() #
 
@@ -45198,21 +45158,9 @@ struct cmsghdr {
         lastFile = None
         bt = []
         while 1:
-            PyFrameObject = self.readMem(framep, 128)
-            ob_refcnt, ob_type, ob_size, \
-                f_back, f_code, f_builtins, f_globals, \
-                f_locals, f_valuestack, f_stacktop, f_trace, \
-                f_exc_type, f_exc_value, f_exc_traceback, f_tstate, \
-                f_lasti, f_lineno = \
-                struct.unpack('IQQQQQQQQQQQQQQii', PyFrameObject)
-
-            # read PyCodeObject #
-            PyCodeObject = self.readMem(f_code, 128)
-            ob_refcnt, ob_type, argcount, nlocals, stacksize, flags, \
-                co_code, co_consts, co_names, co_varnames, co_freevars, \
-                co_cellvars, co_filename, co_name, co_firstlineno, \
-                co_lnotab, co_zomebiframe, co_wearreflist = \
-                struct.unpack('QQIIIIQQQQQQQQIQQQ', PyCodeObject)
+            # read PyFrameObject #
+            f_back, f_lineno, f_code, co_name, co_filename = \
+                self.readPyFrame(framep)
 
             # read context #
             if f_code in self.pyFrameCache:
@@ -46231,10 +46179,21 @@ struct cmsghdr {
         self.repeatCntList = dict()
         self.symbolCacheList = dict()
         self.prevReturn = -1
+        self.startAddr = None
 
         # python variables #
         self.pyAddr = None
         self.pyFrameCache = {}
+
+        # python functinos #
+        if ConfigMgr.wordSize == 4:
+            self.readPyStr = self.readPyStr32
+            self.readPyFrame = self.readPyFrame32
+            self.readPyState = self.readPyState32
+        else:
+            self.readPyStr = self.readPyStr64
+            self.readPyFrame = self.readPyFrame64
+            self.readPyState = self.readPyState64
 
         # index variables #
         self.sigExecFlag = signal.SIGTRAP | \
@@ -46642,7 +46601,7 @@ struct cmsghdr {
             if mode == 'pycall':
                 procInfo = '%s(%s)' % (self.comm, self.pid)
 
-                # executable binary path #
+                # get memory map by binary type #
                 pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
                 if not pyPath:
                     pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
@@ -46651,9 +46610,10 @@ struct cmsghdr {
                             "fail to find python binary for %s" % procInfo)
                         sys.exit(0)
 
-                pySym = '_PyThreadState_Current'
+                # get symbol for interpreter #
+                pySym = ['_PyThreadState_Current', '_PyRuntime']
                 symbolInfo = SysMgr.getProcAddrBySymbol(
-                    self.pid, [pySym], fileFilter=[pyPath])
+                    self.pid, pySym, fileFilter=[pyPath])
                 if not symbolInfo:
                     SysMgr.printErr(
                         "fail to find '%s' symbol for %s" % (pySym, procInfo))
@@ -46664,7 +46624,26 @@ struct cmsghdr {
                          (', '.join(list(symbolInfo.keys())), procInfo))
                     sys.exit(0)
 
-                self.pyAddr = long(list(symbolInfo.values())[0][2], 16)
+                # get address for interpreter #
+                pySymbol = list(symbolInfo.values())[0]
+                self.pyAddr = long(pySymbol[2], 16)
+
+                # version >= 3.7 #
+                if pySymbol[3] == '_PyRuntime':
+                    PyFrameObject = self.readMem(self.pyAddr, 128)
+                    sys.exit(0)
+
+                # compare python binary #
+                myExe = SysMgr.getExeName(SysMgr.pid)
+                targetExe = SysMgr.getExeName(self.pid)
+                if myExe != targetExe:
+                    SysMgr.printErr((
+                        "different python executable '%s' for %s(%s) "
+                        "and '%s' for %s(%s)") % \
+                            (myExe, SysMgr.comm, SysMgr.pid, \
+                                targetExe, self.comm, self.pid))
+                    sys.exit(0)
+
             elif (mode != 'syscall' and mode != 'signal') or \
                 SysMgr.funcDepth > 0:
                 try:
@@ -50905,6 +50884,7 @@ class ElfAnalyzer(object):
         # print header info #
         if debug:
             SysMgr.printPipe('''\
+
 [ELF Header]
 %s
 Path: %s
