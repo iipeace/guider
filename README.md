@@ -239,6 +239,40 @@ Output
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
+
+    # guider/guider.py pytop -g iotop -H
+
+    [Top Pycall Info] [Time: 3289684.040] [Interval: 1.015] [NrSamples: 567] [iotop(653954): 35%(Usr/18%+Sys/16%)] [guider(653982): 38%] [SampleRate: 0.001] 
+    ==========================================================================================================================================================
+     Usage  | Function [PATH] <Sample>
+    ==========================================================================================================================================================
+      55.6% | WAIT(poll@GLIBC_2.2.5) [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 315>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       9.7% | read@GLIBC_2.26 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       4.9% | ?? [/usr/bin/python3.8] <Cnt: 28>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       4.2% | open@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 24>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       3.9% | parse_proc_pid_status [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 22>
+               100.0% |  <- get_cmdline[/usr/lib/python3/dist-packages/iotop/data.py] <- format[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py] <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <module>[/usr/sbin/iotop]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       2.5% | close@GLIBC_2.4 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 14>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       2.3% | get_cmdline [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 13>
+               100.0% |  <- format[/usr/lib/python3/dist-packages/iotop/ui.py] <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py] <- run[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py] <- wrapper[/usr/lib/python3.8/curses/__init__.py]
+                         <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py] <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- main[/usr/lib/python3/dist-packages/iotop/ui.py] <- <module>[/usr/sbin/iotop]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
            
     # guider/guider.py ftop -g nginx
 
@@ -1084,6 +1118,7 @@ COMMAND:
                     mtop            <Memory>
                     ntop            <Network>
                     ptop            <PMU>
+                    pytop           <Python>
                     rtop            <JSON>
                     smtop           <System>
                     stacktop        <Stack>
@@ -1113,6 +1148,7 @@ COMMAND:
 
     [UTIL]          addr2sym        <Symbol>
                     dump            <Memory>
+                    exec            <Command>
                     getafnt         <Affinity>
                     hook            <Function>
                     kill/tkill      <Signal>

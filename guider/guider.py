@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201117"
+__revision__ = "201118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4509,6 +4509,649 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return
+
+
+
+    @staticmethod
+    def writeFlamegraph(path):
+        # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
+        fgCode = '''
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="230" onload="init(evt)" viewBox="0 0 1200 230"
+	xmlns="http://www.w3.org/2000/svg"
+	xmlns:xlink="http://www.w3.org/1999/xlink">
+	<!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
+	<!--NOTES: -->
+	<defs>
+		<linearGradient id="background" y1="0" y2="1" x1="0" x2="0">
+			<stop stop-color="#eeeeee" offset="5%"/>
+			<stop stop-color="#eeeeb0" offset="95%"/>
+		</linearGradient>
+	</defs>
+	<style type="text/css">
+text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
+#title { text-anchor:middle; font-size:17px; }
+#search { opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style>
+	<script type="text/ecmascript">
+		<![CDATA[var nametype = 'Function:';
+var fontsize = 12;
+var fontwidth = 0.59;
+var xpad = 10;
+var inverted = true;
+var searchcolor = 'rgb(230,0,230)';
+var fluiddrawing = true;
+var truncate_text_right = false;]]>
+		<![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+          svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            var el = frames.children;
+            for(var i = 0; i < el.length; i++) {
+                update_text(el[i]);
+            }
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad - 100;
+            matchedtxt.attributes.x.value = svgWidth - xpad - 100;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+            var params = get_params()
+            params.x = el.attributes._orig_x.value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["_orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("_orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["_orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+    e.removeAttribute("_orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (/^ *\$/.test(txt) || t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.attributes != undefined) {
+        orig_load(e, "x");
+        orig_load(e, "width");
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, ratio) {
+    if (e.attributes != undefined) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = format_percent((parseFloat(e.attributes.x.value) - x) * ratio);
+            if (e.tagName == "text") {
+                e.attributes.x.value = format_percent(parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value) + (100 * 3 / frames.attributes.width.value));
+            }
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = format_percent(parseFloat(e.attributes.width.value) * ratio);
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, ratio);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseFloat(attr.width.value);
+    var xmin = parseFloat(attr.x.value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    var ratio = 100 / width;
+    // XXX: Workaround for JavaScript float issues (fix me)
+    var fudge = 0.001;
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseFloat(a.x.value);
+        var ew = parseFloat(a.width.value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                update_text(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex + fudge >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, ratio);
+                update_text(e);
+            }
+        }
+    }
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+        update_text(el[i]);
+    }
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseFloat(rect.attributes.width.value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseFloat(rect.attributes.x.value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    var fudge = 0.0001;    // JavaScript floating point
+    for (var k in keys) {
+        var x = parseFloat(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw - fudge) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]>
+	</script>
+	<rect x="0" y="0" width="100%" height="230" fill="url(#background)"/>
+	<text id="title" x="50.0000%" y="24.00">Guider Flamegraph</text>
+	<text id="details" x="10" y="213.00"></text>
+	<text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
+	<text id="search" x="1090" y="24.00">Search</text>
+	<text id="matched" x="1090" y="213.00"></text>
+	<svg id="frames" x="10" width="1180">
+		<g>
+			<title>printSystemUsage (./guider.py:67307) (3 samples, 1.00%)</title>
+			<rect x="0.3344%" y="148" width="1.0033%" height="15" fill="rgb(227,0,7)"/>
+			<text x="0.5844%" y="158.50"></text>
+		</g>
+		<g>
+			<title>printSystemStat (./guider.py:70940) (10 samples, 3.34%)</title>
+			<rect x="0.3344%" y="132" width="3.3445%" height="15" fill="rgb(217,0,24)"/>
+			<text x="0.5844%" y="142.50">pri..</text>
+		</g>
+		<g>
+			<title>saveTaskData (./guider.py:66310) (5 samples, 1.67%)</title>
+			<rect x="4.3478%" y="180" width="1.6722%" height="15" fill="rgb(221,193,54)"/>
+			<text x="4.5978%" y="190.50"></text>
+		</g>
+		<g>
+			<title>saveProcStatusData (./guider.py:66357) (8 samples, 2.68%)</title>
+			<rect x="4.3478%" y="164" width="2.6756%" height="15" fill="rgb(248,212,6)"/>
+			<text x="4.5978%" y="174.50">sa..</text>
+		</g>
+		<g>
+			<title>saveTaskData (./guider.py:66329) (3 samples, 1.00%)</title>
+			<rect x="6.0201%" y="180" width="1.0033%" height="15" fill="rgb(208,68,35)"/>
+			<text x="6.2701%" y="190.50"></text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69057) (11 samples, 3.68%)</title>
+			<rect x="4.3478%" y="148" width="3.6789%" height="15" fill="rgb(232,128,0)"/>
+			<text x="4.5978%" y="158.50">prin..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66029) (5 samples, 1.67%)</title>
+			<rect x="9.0301%" y="164" width="1.6722%" height="15" fill="rgb(207,160,47)"/>
+			<text x="9.2801%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66030) (50 samples, 16.72%)</title>
+			<rect x="10.7023%" y="164" width="16.7224%" height="15" fill="rgb(228,23,34)"/>
+			<text x="10.9523%" y="174.50">saveProcSmapsData (./guide..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66040) (6 samples, 2.01%)</title>
+			<rect x="27.4247%" y="164" width="2.0067%" height="15" fill="rgb(218,30,26)"/>
+			<text x="27.6747%" y="174.50">s..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66041) (5 samples, 1.67%)</title>
+			<rect x="29.4314%" y="164" width="1.6722%" height="15" fill="rgb(220,122,19)"/>
+			<text x="29.6814%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66042) (28 samples, 9.36%)</title>
+			<rect x="31.1037%" y="164" width="9.3645%" height="15" fill="rgb(250,228,42)"/>
+			<text x="31.3537%" y="174.50">saveProcSmaps..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66045) (15 samples, 5.02%)</title>
+			<rect x="40.4682%" y="164" width="5.0167%" height="15" fill="rgb(240,193,28)"/>
+			<text x="40.7182%" y="174.50">savePr..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66064) (3 samples, 1.00%)</title>
+			<rect x="46.1538%" y="164" width="1.0033%" height="15" fill="rgb(216,20,37)"/>
+			<text x="46.4038%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66079) (3 samples, 1.00%)</title>
+			<rect x="47.8261%" y="164" width="1.0033%" height="15" fill="rgb(206,188,39)"/>
+			<text x="48.0761%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66087) (4 samples, 1.34%)</title>
+			<rect x="49.1639%" y="164" width="1.3378%" height="15" fill="rgb(217,207,13)"/>
+			<text x="49.4139%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66088) (4 samples, 1.34%)</title>
+			<rect x="50.5017%" y="164" width="1.3378%" height="15" fill="rgb(231,73,38)"/>
+			<text x="50.7517%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66091) (5 samples, 1.67%)</title>
+			<rect x="52.1739%" y="164" width="1.6722%" height="15" fill="rgb(225,20,46)"/>
+			<text x="52.4239%" y="174.50"></text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66094) (6 samples, 2.01%)</title>
+			<rect x="54.5151%" y="164" width="2.0067%" height="15" fill="rgb(210,31,41)"/>
+			<text x="54.7651%" y="174.50">s..</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66096) (19 samples, 6.35%)</title>
+			<rect x="56.5217%" y="164" width="6.3545%" height="15" fill="rgb(221,200,47)"/>
+			<text x="56.7717%" y="174.50">saveProc..</text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69075) (173 samples, 57.86%)</title>
+			<rect x="8.0268%" y="148" width="57.8595%" height="15" fill="rgb(226,26,5)"/>
+			<text x="8.2768%" y="158.50">printProcUsage (./guider.py:69075)</text>
+		</g>
+		<g>
+			<title>saveProcSmapsData (./guider.py:66108) (3 samples, 1.00%)</title>
+			<rect x="64.8829%" y="164" width="1.0033%" height="15" fill="rgb(249,33,26)"/>
+			<text x="65.1329%" y="174.50"></text>
+		</g>
+		<g>
+			<title>getMemDetails (./guider.py:67970) (3 samples, 1.00%)</title>
+			<rect x="68.5619%" y="164" width="1.0033%" height="15" fill="rgb(235,183,28)"/>
+			<text x="68.8119%" y="174.50"></text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69204) (8 samples, 2.68%)</title>
+			<rect x="67.5585%" y="148" width="2.6756%" height="15" fill="rgb(221,5,38)"/>
+			<text x="67.8085%" y="158.50">pr..</text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69235) (18 samples, 6.02%)</title>
+			<rect x="70.2341%" y="148" width="6.0201%" height="15" fill="rgb(247,18,42)"/>
+			<text x="70.4841%" y="158.50">printPro..</text>
+		</g>
+		<g>
+			<title>addPrint (./guider.py:22200) (18 samples, 6.02%)</title>
+			<rect x="70.2341%" y="164" width="6.0201%" height="15" fill="rgb(241,131,45)"/>
+			<text x="70.4841%" y="174.50">addPrint..</text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69320) (43 samples, 14.38%)</title>
+			<rect x="76.5886%" y="148" width="14.3813%" height="15" fill="rgb(249,31,29)"/>
+			<text x="76.8386%" y="158.50">printProcUsage (./guid..</text>
+		</g>
+		<g>
+			<title>addPrint (./guider.py:22200) (40 samples, 13.38%)</title>
+			<rect x="77.5920%" y="164" width="13.3779%" height="15" fill="rgb(225,111,53)"/>
+			<text x="77.8420%" y="174.50">addPrint (./guider.p..</text>
+		</g>
+		<g>
+			<title>addPrint (./guider.py:22200) (11 samples, 3.68%)</title>
+			<rect x="91.9732%" y="164" width="3.6789%" height="15" fill="rgb(238,160,17)"/>
+			<text x="92.2232%" y="174.50">addP..</text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69379) (12 samples, 4.01%)</title>
+			<rect x="91.9732%" y="148" width="4.0134%" height="15" fill="rgb(214,148,48)"/>
+			<text x="92.2232%" y="158.50">prin..</text>
+		</g>
+		<g>
+			<title>all (299 samples, 100%)</title>
+			<rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(232,36,49)"/>
+			<text x="0.2500%" y="46.50"></text>
+		</g>
+		<g>
+			<title>&lt;module&gt; (./guider.py:71084) (299 samples, 100.00%)</title>
+			<rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(209,103,24)"/>
+			<text x="0.2500%" y="62.50">&lt;module&gt; (./guider.py:71084)</text>
+		</g>
+		<g>
+			<title>main (./guider.py:71034) (299 samples, 100.00%)</title>
+			<rect x="0.0000%" y="68" width="100.0000%" height="15" fill="rgb(229,88,8)"/>
+			<text x="0.2500%" y="78.50">main (./guider.py:71034)</text>
+		</g>
+		<g>
+			<title>execTopCmd (./guider.py:14684) (299 samples, 100.00%)</title>
+			<rect x="0.0000%" y="84" width="100.0000%" height="15" fill="rgb(213,181,19)"/>
+			<text x="0.2500%" y="94.50">execTopCmd (./guider.py:14684)</text>
+		</g>
+		<g>
+			<title>__init__ (./guider.py:53453) (299 samples, 100.00%)</title>
+			<rect x="0.0000%" y="100" width="100.0000%" height="15" fill="rgb(254,191,54)"/>
+			<text x="0.2500%" y="110.50">__init__ (./guider.py:53453)</text>
+		</g>
+		<g>
+			<title>runTaskTop (./guider.py:53770) (298 samples, 99.67%)</title>
+			<rect x="0.3344%" y="116" width="99.6656%" height="15" fill="rgb(241,83,37)"/>
+			<text x="0.5844%" y="126.50">runTaskTop (./guider.py:53770)</text>
+		</g>
+		<g>
+			<title>printSystemStat (./guider.py:70949) (288 samples, 96.32%)</title>
+			<rect x="3.6789%" y="132" width="96.3211%" height="15" fill="rgb(233,36,39)"/>
+			<text x="3.9289%" y="142.50">printSystemStat (./guider.py:70949)</text>
+		</g>
+		<g>
+			<title>printProcUsage (./guider.py:69450) (12 samples, 4.01%)</title>
+			<rect x="95.9866%" y="148" width="4.0134%" height="15" fill="rgb(226,3,54)"/>
+			<text x="96.2366%" y="158.50">prin..</text>
+		</g>
+		<g>
+			<title>addPrint (./guider.py:22200) (12 samples, 4.01%)</title>
+			<rect x="95.9866%" y="164" width="4.0134%" height="15" fill="rgb(245,192,40)"/>
+			<text x="96.2366%" y="174.50">addP..</text>
+		</g>
+	</svg>
+</svg>
+        '''
 
 
 
@@ -20524,9 +21167,6 @@ Copyright:
         SysMgr.printInfo("enabled kernel events [ %s ]" % \
             ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
 
-        # clear kprobe event filter #
-        SysMgr.writeCmd("../kprobe_events", '')
-
         # apply kprobe events #
         for cmd in effectiveCmd:
             # check redundant event name #
@@ -20703,7 +21343,7 @@ Copyright:
                 if not 'OBJDUMP' in SysMgr.binPathList:
                     # get address of symbol in binary #
                     addr = ElfAnalyzer.getSymOffset(
-                        cmdFormat[1], cmdFormat[2])
+                        cmdFormat[1], cmdFormat[2], loadAddr=True)
 
                     # use external objdump #
                     if not addr:
@@ -20732,7 +21372,7 @@ Copyright:
 
                 # get address of symbol in binary #
                 addr = ElfAnalyzer.getSymOffset(
-                    cmdFormat[1], cmdFormat[2], objdumpPath)
+                    cmdFormat[1], cmdFormat[2], objdumpPath, loadAddr=True)
                 if not addr:
                     SysMgr.printErr("fail to find '%s' in %s" % \
                         (cmdFormat[1], cmdFormat[2]))
@@ -20762,9 +21402,6 @@ Copyright:
         SysMgr.printInfo(
             "enabled user events [ %s ]" % \
                 ', '.join([ ':'.join(cmd) for cmd in effectiveCmd ]))
-
-        # clear uprobe event filter #
-        SysMgr.writeCmd("../uprobe_events", '')
 
         # apply uprobe events #
         for cmd in effectiveCmd:
@@ -20936,8 +21573,7 @@ Copyright:
 
             # check and enable effective filter #
             if len(cmdFormat) > 1 and \
-                SysMgr.writeCmd(
-                cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
+                SysMgr.writeCmd(cmdFormat[0] + '/filter', cmdFormat[1]) < 0:
                 SysMgr.printErr("wrong filter '%s' for '%s' event" % \
                     (origFilter, cmdFormat[0]))
                 sys.exit(0)
@@ -22090,6 +22726,7 @@ Copyright:
 
         # open for applying command #
         try:
+            fd = None
             target = '%s%s' % (SysMgr.mountPath, path)
 
             if append:
@@ -22101,7 +22738,6 @@ Copyright:
                     SysMgr.cmdAttachCache[target] = fd
             else:
                 try:
-                    fd = None
                     fd = SysMgr.cmdFileCache[target]
                     fd.seek(0, 0)
                 except:
@@ -22128,8 +22764,7 @@ Copyright:
                 pass
 
             SysMgr.printWarn(
-                "fail to use %s event, check kernel configuration" % \
-                    epath, reason=True)
+                "fail to use %s event" % epath, reason=True)
             return -1
 
         # apply command #
@@ -30099,18 +30734,26 @@ Copyright:
                         continue
 
                     for item in res:
+                        fname = item[2]
+                        fobj = ElfAnalyzer.cachedFiles[fname]
                         foffset = long(item[0])
                         startAddr = attr['vstart']
+                        voffset = attr['offset']
+                        vsize = attr['size']
                         totalDiff = 0
 
                         # get real offset for memory hole #
                         if origFilePath != filePath and \
                             attr['offset'] <= foffset:
                             filePath, startAddr, totalDiff = \
-                                Debugger.getRealOffsetInfo(
-                                    fileList, filePath)
+                                Debugger.getRealOffsetInfo(fileList, filePath)
 
-                        addr = hex(startAddr + foffset - totalDiff)
+                        # check relocatable type #
+                        if fobj.loadAddr == 0:
+                            addr = hex(startAddr + foffset - totalDiff)
+                        else:
+                            addr = hex(foffset)
+
                         resInfo['%s|%s' % (item[1], filePath)] = \
                             (hex(item[0]), filePath, addr, item[1])
                 except SystemExit:
@@ -33562,6 +34205,8 @@ Copyright:
         SysMgr.writeCmd("../set_event_pid", '')
         SysMgr.writeCmd("../set_graph_function", '')
         SysMgr.writeCmd("../set_graph_notrace", '')
+        SysMgr.writeCmd("../uprobe_events", '')
+        SysMgr.writeCmd("../kprobe_events", '')
 
 
 
@@ -33746,18 +34391,7 @@ Copyright:
             SysMgr.writeKernelCmd()
             SysMgr.writeUserCmd()
 
-            # enable flock events #
-            if self.cmdList["filelock/locks_get_lock_context"]:
-                SysMgr.writeCmd(
-                    "filelock/locks_get_lock_context/enable", '1')
-
-            # enable common events #
-            if self.cmdList["task"]:
-                SysMgr.writeCmd('task/enable', '1')
-            if self.cmdList["sched/sched_process_fork"]:
-                SysMgr.writeCmd('sched/sched_process_fork/enable', '1')
-            if self.cmdList["sched/sched_process_exit"]:
-                SysMgr.writeCmd('sched/sched_process_exit/enable', '1')
+            # enable signal filter #
             if self.cmdList["signal"]:
                 if SysMgr.filterGroup:
                     commonFilter = SysMgr.getPidFilter()
@@ -33766,7 +34400,6 @@ Copyright:
                         'signal/signal_deliver/filter', commonFilter)
                     SysMgr.writeCmd(
                         'signal/signal_generate/filter', genFilter)
-                SysMgr.writeCmd('signal/enable', '1')
 
         def startFuncGraph(self):
             # check save option #
@@ -34233,11 +34866,11 @@ Copyright:
         if self.cmdList["block/block_rq_complete"]:
             SysMgr.writeCmd('block/block_rq_complete/filter', cmd)
 
-        # enable events #
-        self.enableEvents()
-
         # special events #
         writeCommonCmd()
+
+        # enable events #
+        self.enableEvents()
 
         # start tracing #
         self.startTracing()
@@ -40266,7 +40899,7 @@ struct cmsghdr {
                 SysMgr.addPrint("\n[%s] 0x%x" % (cmdstr, ret))
 
                 # set register values #
-                self.setRetVal(ret)
+                self.setRet(ret)
                 self.setPC(targetAddr)
                 self.setRegs()
                 self.updateRegs()
@@ -42280,7 +42913,7 @@ struct cmsghdr {
             return None
 
         # get return #
-        retVal = self.getRetVal()
+        retVal = self.getRet()
 
         # restore regs #
         self.setRegs(temp=True)
@@ -42363,7 +42996,7 @@ struct cmsghdr {
         # read regs to check results #
         if not self.updateRegs():
             return -1
-        ret = self.getRetVal()
+        ret = self.getRet()
 
         # restore regs #
         self.setRegs(temp=True)
@@ -43070,6 +43703,9 @@ struct cmsghdr {
 
         # toDo: convert a integer or mask values #
 
+        # handle process_vm_readv #
+        pass
+
         # handle sendmsg / recvmsg #
         if syscall == "sendmsg" or syscall == "recvmsg":
             if ref and argname == "msg":
@@ -43373,7 +44009,10 @@ struct cmsghdr {
             addInfo = '[PATH] <Interval>'
             sampleStr = ''
         else:
-            ctype = 'Usercall'
+            if self.mode == 'pycall':
+                ctype = 'Pycall'
+            else:
+                ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
             sampleStr = ' [SampleRate: %g]' % self.sampleTime
 
@@ -43969,7 +44608,7 @@ struct cmsghdr {
 
 
 
-    def setRetVal(self, val, temp=False, update=False):
+    def setRet(self, val, temp=False, update=False):
         try:
             if temp:
                 ret = setattr(self.tempRegs, self.retreg, val)
@@ -43988,7 +44627,7 @@ struct cmsghdr {
 
 
 
-    def getRetVal(self, temp=False):
+    def getRet(self, temp=False):
         try:
             if temp:
                 ret = getattr(self.tempRegs, self.retreg)
@@ -45055,13 +45694,78 @@ struct cmsghdr {
 
 
 
+    def initPyEnv(self):
+        procInfo = '%s(%s)' % (self.comm, self.pid)
+
+        # get memory map by binary type #
+        pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
+        if not pyPath:
+            pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
+            if not pyPath:
+                SysMgr.printErr(
+                    "fail to find python binary for %s" % procInfo)
+                sys.exit(0)
+
+        # get symbol for interpreter #
+        pySym = ['_PyThreadState_Current', '_PyRuntime']
+        symbolInfo = SysMgr.getProcAddrBySymbol(
+            self.pid, pySym, fileFilter=[pyPath])
+        if not symbolInfo:
+            SysMgr.printErr(
+                "fail to find '%s' symbol for %s" % (pySym, procInfo))
+            sys.exit(0)
+        elif len(symbolInfo) > 1:
+            SysMgr.printErr(
+                "found multiple symbols [ %s ] for %s" % \
+                 (', '.join(list(symbolInfo.keys())), procInfo))
+            sys.exit(0)
+
+        # get address for interpreter #
+        pySymbol = list(symbolInfo.values())[0]
+        self.pyAddr = long(pySymbol[2], 16)
+
+        # version >= 3.7 #
+        if pySymbol[3] == '_PyRuntime':
+            # get offset for PyInterpreterState head #
+            if ConfigMgr.wordSize == 4:
+                SysMgr.printErr(
+                    'not supported yet for PyThreadState on 32-bit')
+                sys.exit(0)
+            else:
+                self.pyAddr += 32
+
+        # compare python binary #
+        myExe = SysMgr.getExeName(SysMgr.pid)
+        if myExe != self.exe:
+            SysMgr.printErr((
+                "different python executable '%s' for %s(%s) "
+                "and '%s' for %s(%s)") % \
+                    (myExe, SysMgr.comm, SysMgr.pid, \
+                        self.exe, self.comm, self.pid))
+            sys.exit(0)
+
+
+
     def readPyState32(self, addr):
         return None
 
 
 
     def readPyState64(self, addr):
-        if sys.version_info >= (3, 0):
+        if sys.version_info >= (3, 7):
+            tstate_head = self.readMem(addr+8)
+            PyThreadState = struct.unpack('Q', tstate_head)[0]
+            PyThreadState = self.readMem(PyThreadState, 216)
+            prevp, nextp, interp, framep, recursion_depth, \
+                overflowed, recursion_critical, stackcheck_counter, \
+                tracing, use_tracing, c_profilefunc, c_tracefunc, \
+                c_profileobj, c_traceobj, curexc_type, curexc_value, \
+                curexc_traceback, exc_type, exc_value, exc_traceback, \
+                previous_item, exec_info, dictp, gilstate_counter, \
+                async_exc, thread_id, trash_delete_nesting, \
+                trash_delete_later, on_delete, on_delete_data = \
+                struct.unpack('QQQQibbiiiQQQQQQQQQQQQQiQLiQQQ', PyThreadState)
+        elif sys.version_info >= (3, 0):
             PyThreadState = self.readMem(addr, 192)
             prevp, nextp, interp, framep, recursion_depth, \
                 overflowed, recursion_critical, tracing, use_tracing, \
@@ -45093,23 +45797,40 @@ struct cmsghdr {
 
     def readPyFrame64(self, addr):
         # read PyFrameObject #
-        PyFrameObject = self.readMem(addr, 128)
-        ob_refcnt, ob_type, ob_size, \
-            f_back, f_code, f_builtins, f_globals, \
-            f_locals, f_valuestack, f_stacktop, f_trace, \
-            f_exc_type, f_exc_value, f_exc_traceback, f_tstate, \
-            f_lasti, f_lineno = \
-            struct.unpack('IQQQQQQQQQQQQQQii', PyFrameObject)
+        if sys.version_info >= (3, 7):
+            PyFrameObject = self.readMem(addr, 112)
+            ob_refcnt, ob_type, ob_size, \
+                f_back, f_code, f_builtins, f_globals, \
+                f_locals, f_valuestack, f_stacktop, f_trace, \
+                f_trace_lines, f_trace_opcodes, f_gen, \
+                f_lasti, f_lineno = \
+                struct.unpack('IQQQQQQQQQQbbQii', PyFrameObject)
+        else:
+            PyFrameObject = self.readMem(addr, 128)
+            ob_refcnt, ob_type, ob_size, \
+                f_back, f_code, f_builtins, f_globals, \
+                f_locals, f_valuestack, f_stacktop, f_trace, \
+                f_exc_type, f_exc_value, f_exc_traceback, f_tstate, \
+                f_lasti, f_lineno = \
+                struct.unpack('IQQQQQQQQQQQQQQii', PyFrameObject)
 
         # read PyCodeObject #
-        if sys.version_info >= (3, 0):
+        if sys.version_info >= (3, 7):
             PyCodeObject = self.readMem(f_code, 144)
+            ob_refcnt, ob_type, co_argcount, co_posonlyargcount, \
+                co_kwonlyargcount, co_nlocals, co_stacksize, co_flags, \
+                co_firstlineno, co_code, co_consts, co_names, co_varnames, \
+                co_freevars, co_cellvars, co_cell2args, co_filename, \
+                co_name, co_lnotab, co_zomebiframe, co_wearreflist = \
+                struct.unpack('IQIIIIIIIQQQQQQQQQQQQ', PyCodeObject)
+        elif sys.version_info >= (3, 0):
+            PyCodeObject = self.readMem(f_code, 136)
             ob_refcnt, ob_type, co_argcount, co_kwonlyargcount, \
-                co_nlocals, co_stacksize, co_flags, \
+                co_nlocals, co_stacksize, co_flags, co_firstlineno, \
                 co_code, co_consts, co_names, co_varnames, co_freevars, \
                 co_cellvars, co_cell2args, co_filename, co_name, \
-                co_firstlineno, co_lnotab, co_zomebiframe, co_wearreflist = \
-                struct.unpack('IQIIIIIQQQQQQQQQIQQQ', PyCodeObject)
+                co_lnotab, co_zomebiframe, co_wearreflist = \
+                struct.unpack('IQIIIIIIQQQQQQQQQQQQ', PyCodeObject)
         else:
             PyCodeObject = self.readMem(f_code, 128)
             ob_refcnt, ob_type, co_argcount, co_nlocals, \
@@ -45142,11 +45863,24 @@ struct cmsghdr {
 
 
     def handlePycall(self):
+        if not self.pyAddr:
+            self.initPyEnv()
+
         # read address for PyThreadState #
-        PyThreadStatep = self.readWord(self.pyAddr)
-        if not PyThreadStatep:
-            self.handleUsercall()
-            return
+        PyThreadStatep = self.readMem(self.pyAddr)
+        PyThreadStatep = struct.unpack('Q', PyThreadStatep)[0]
+
+        # read native call info #
+        if sys.version_info >= (3, 7):
+            self.updateRegs()
+            curSym = self.getSymbolInfo(self.pc)[0]
+            if not curSym.startswith('_Py') and not curSym.startswith('Py'):
+                self.handleUsercall(update=False)
+                return
+        else:
+            if not PyThreadStatep:
+                self.handleUsercall()
+                return
 
         # read PyThreadState #
         framep = self.readPyState(PyThreadStatep)
@@ -45191,9 +45925,9 @@ struct cmsghdr {
 
 
 
-    def handleUsercall(self):
+    def handleUsercall(self, update=True):
         # read registers for target #
-        if not self.updateRegs():
+        if update and not self.updateRegs():
             if not self.isAlive():
                 sys.exit(0)
             else:
@@ -45523,7 +46257,7 @@ struct cmsghdr {
 
         # set return value from register #
         args = []
-        retval = self.getRetVal(temp=True)
+        retval = self.getRet(temp=True)
         if retval < 0:
             # get arguments from previous register set #
             self.getArgs(ref=False)
@@ -45654,7 +46388,7 @@ struct cmsghdr {
                     self.syscallTimeStat[name] = [diff, diff]
 
             # set return value from register #
-            retval = self.getRetVal()
+            retval = self.getRet()
 
             # check wait condition #
             if self.wait:
@@ -46043,8 +46777,10 @@ struct cmsghdr {
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
 
-            # skip clone syscall #
-            if self.status == 'deferrable':
+            # change status to leave clone context #
+            if self.mode == 'syscall':
+                self.status = 'enter'
+            else:
                 self.status = 'skip'
 
             # notify to tracer of parent task #
@@ -46133,6 +46869,7 @@ struct cmsghdr {
         # stat variables #
         self.pthreadID = 0
         self.comm = SysMgr.getComm(self.pid, cache=True)
+        self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
         self.statFd = None
         self.prevStat = None
@@ -46219,12 +46956,12 @@ struct cmsghdr {
             if sym in self.setRetList:
                 newval = self.setRetList[sym]
                 self.setRetList.pop(sym, None)
-                self.setRetVal(newval)
+                self.setRet(newval)
                 self.setRegs()
                 self.updateRegs()
 
             # get return value #
-            retval = self.getRetVal()
+            retval = self.getRet()
 
             # check register set for repeat #
             origSym = sym.rstrip(Debugger.RETSTR)
@@ -46599,51 +47336,7 @@ struct cmsghdr {
 
             # load user symbols #
             if mode == 'pycall':
-                procInfo = '%s(%s)' % (self.comm, self.pid)
-
-                # get memory map by binary type #
-                pyPath = FileAnalyzer.getMapFilePath(self.pid, 'libpython')
-                if not pyPath:
-                    pyPath = FileAnalyzer.getMapFilePath(self.pid, 'python')
-                    if not pyPath:
-                        SysMgr.printErr(
-                            "fail to find python binary for %s" % procInfo)
-                        sys.exit(0)
-
-                # get symbol for interpreter #
-                pySym = ['_PyThreadState_Current', '_PyRuntime']
-                symbolInfo = SysMgr.getProcAddrBySymbol(
-                    self.pid, pySym, fileFilter=[pyPath])
-                if not symbolInfo:
-                    SysMgr.printErr(
-                        "fail to find '%s' symbol for %s" % (pySym, procInfo))
-                    sys.exit(0)
-                elif len(symbolInfo) > 1:
-                    SysMgr.printErr(
-                        "found multiple symbols [ %s ] for %s" % \
-                         (', '.join(list(symbolInfo.keys())), procInfo))
-                    sys.exit(0)
-
-                # get address for interpreter #
-                pySymbol = list(symbolInfo.values())[0]
-                self.pyAddr = long(pySymbol[2], 16)
-
-                # version >= 3.7 #
-                if pySymbol[3] == '_PyRuntime':
-                    PyFrameObject = self.readMem(self.pyAddr, 128)
-                    sys.exit(0)
-
-                # compare python binary #
-                myExe = SysMgr.getExeName(SysMgr.pid)
-                targetExe = SysMgr.getExeName(self.pid)
-                if myExe != targetExe:
-                    SysMgr.printErr((
-                        "different python executable '%s' for %s(%s) "
-                        "and '%s' for %s(%s)") % \
-                            (myExe, SysMgr.comm, SysMgr.pid, \
-                                targetExe, self.comm, self.pid))
-                    sys.exit(0)
-
+                self.initPyEnv()
             elif (mode != 'syscall' and mode != 'signal') or \
                 SysMgr.funcDepth > 0:
                 try:
@@ -46873,7 +47566,10 @@ struct cmsghdr {
             ctype = 'Breakcall'
             addInfo = '[PATH] <Interval>'
         else:
-            ctype = 'Usercall'
+            if instance.mode == 'pycall':
+                ctype = 'Pycall'
+            else:
+                ctype = 'Usercall'
             addInfo = '[Path]'
 
             # continue target to prevent too long freezing #
@@ -49700,11 +50396,11 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getSymOffset(symbol, binPath, objdumpPath=None):
+    def getSymOffset(symbol, binPath, objdumpPath=None, loadAddr=False):
         syms = []
 
         if not objdumpPath:
-            offset = None
+            offsets = None
 
             # get offset #
             try:
@@ -49716,7 +50412,7 @@ class ElfAnalyzer(object):
 
                 symbol, inc, start, end = ElfAnalyzer.getFilterFlags(symbol)
 
-                offset = binObj.getOffsetBySymbol(
+                offsets = binObj.getOffsetBySymbol(
                     symbol, inc=inc, start=start, end=end, onlyFunc=False)
             except SystemExit:
                 sys.exit(0)
@@ -49727,25 +50423,17 @@ class ElfAnalyzer(object):
                             (symbol, binPath), reason=True)
                 return None
 
-            # check whether it is relocatable #
-            isReloc = ElfAnalyzer.isRelocFile(binPath)
+            if type(offsets) is str:
+                offsets = [[symbol, offsets]]
 
-            if type(offset) is str:
-                offset = long(offset, 16)
-
-                # handle executable #
-                if not isReloc:
-                    offset -= 0x400000
-
-                syms.append([offset, symbol, binPath])
-            elif type(offset) is list:
-                for item in offset:
+            if type(offsets) is list:
+                for item in offsets:
                     sym = item[0]
                     offset = long(item[1], 16)
 
                     # handle executable #
-                    if not isReloc:
-                        offset -= 0x400000
+                    if loadAddr:
+                        offset -= binObj.loadAddr
 
                     syms.append([offset, sym, binPath])
 
@@ -50687,6 +51375,7 @@ class ElfAnalyzer(object):
         self.cfaTableTitle = ''
         self.fileSize = size
         self.onlyFunc = False
+        self.loadAddr = 0
 
         if fd is None:
             # check debug file #
@@ -50726,7 +51415,9 @@ class ElfAnalyzer(object):
 
         # update absolute path #
         try:
-            self.path = path = os.path.abspath(fd.name)
+            abspath = os.path.abspath(fd.name)
+            if os.path.exists(abspath):
+                self.path = abspath
         except:
             pass
 
@@ -50958,16 +51649,22 @@ Section header string table index: %d
                 p_offset, p_vaddr, p_paddr, p_filesz,\
                 p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
 
+            p_type = ElfAnalyzer.PT_TYPE[p_type] \
+                if p_type in ElfAnalyzer.PT_TYPE else hex(p_type)
+
+            # save load address #
+            if p_type == 'LOAD' and \
+                ElfAnalyzer.PT_FLAGS[p_flags] == 'RE':
+                self.loadAddr = p_vaddr
+
             # print program header #
             if not debug:
                 continue
 
             SysMgr.printPipe(
                 "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
-                (ElfAnalyzer.PT_TYPE[p_type] \
-                    if p_type in ElfAnalyzer.PT_TYPE else hex(p_type),
-                p_offset, p_vaddr, p_paddr, p_filesz,
-                p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+                (p_type, p_offset, p_vaddr, p_paddr, p_filesz,
+                    p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
 
         if debug:
             SysMgr.printPipe(oneLine)
@@ -62085,6 +62782,11 @@ class ThreadAnalyzer(object):
             procInfo = ' '
             procDetails = ''
 
+            if SysMgr.processEnable:
+                ppid = value['stat'][ppidIdx]
+            else:
+                ppid = value['mainID']
+
             for idx, item in sorted(value['maps'].items(), reverse=True):
                 if len(item) == 0:
                     continue
@@ -62157,11 +62859,6 @@ class ThreadAnalyzer(object):
                     "{9:>12} | {10:>12} | {11:>12} |\n").\
                     format(procInfo, idx, item['count'],
                     vmem, rss, pss, swap, huge, lock, pdirty, sdirty, none))
-
-            if SysMgr.processEnable:
-                ppid = value['stat'][ppidIdx]
-            else:
-                ppid = value['mainID']
 
             procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}})".\
                 format(value['stat'][commIdx][1:-1][:cl],
@@ -65963,6 +66660,16 @@ class ThreadAnalyzer(object):
             'Shared_Dirty:', 'Private_Dirty:', 'Referenced:',
             'AnonHugePages:', 'Swap:', 'Locked:']
 
+        # share the map table for main thread #
+        try:
+            ppid = SysMgr.procInstance[tid]['mainID']
+            if SysMgr.procInstance[ppid]['maps']:
+                SysMgr.procInstance[tid]['maps'] = \
+                    SysMgr.procInstance[ppid]['maps']
+                return
+        except:
+            pass
+
         try:
             SysMgr.procInstance[tid]['maps'] = ptable
         except:
@@ -66055,7 +66762,13 @@ class ThreadAnalyzer(object):
         ptable['FILE']['count'] = len(ftable)
         ptable['SHM']['count'] = len(stable)
 
-        del buf, ptable, ftable, stable
+        # share the map table for main thread #
+        try:
+            ppid = SysMgr.procInstance[tid]['mainID']
+            SysMgr.procInstance[ppid]['maps'] = \
+                SysMgr.procInstance[tid]['maps']
+        except:
+            pass
 
 
 
@@ -70945,7 +71658,12 @@ def main(args=None):
         SysMgr.sysInstance.startRecording()
 
         # THREAD & FUNCTION MODE #
-        SysMgr.execRecordLoop()
+        try:
+            SysMgr.execRecordLoop()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("terminated", reason=True)
 
     #==================== ANALYSIS PART ====================#
 
