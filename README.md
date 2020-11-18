@@ -21,7 +21,8 @@ Table of contents
 Guider
 =======
 Guider is an integrated performance analyzer.   
-It provides most of the features needed for system performance measurement and analysis.   
+It provides most of the functions required for measuring, analyzing, testing and verifying system performance.
+Even now, its functions and usability are expanding.
 
 The features of Guider are as follows.
 * Monitoring
@@ -30,6 +31,7 @@ The features of Guider are as follows.
 * Control
 * Logging
 * Test
+* Util
 
 Guider pursues characteristics as below.
 1. Easy to use: just run without any setting and package installation
@@ -37,12 +39,14 @@ Guider pursues characteristics as below.
 3. Provide all features: enough functions for experiment and analysis
 4. Submit the report in detail: show as much information as possible
 
-It usually supports all platforms based on the Linux kernel as shown below.
+It supports almost all platforms based on the Linux kernel as shown below.
 * Android
 * distro (Ubuntu, CentOS, RHEL, Linux Mint, Arch Linux, ...)
+* ccOS (Connected Car Operating System)
 * webOS
-* ccOS
 * Tizen
+* GENIVI Development Platform (GDP)
+* Automotive Grade Linux (AGL) Platform
 * Windows (Limited)
 * macOS (Limited)
 
@@ -232,8 +236,7 @@ Output
                          <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
        5.3% | usleep@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 126, Avg: 0.007899, Min: 0.007766, Max: 0.009188]
-               100.0% |
-                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafda
+               100.0% |  <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafda
                          <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
                          <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
