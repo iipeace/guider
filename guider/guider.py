@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201118"
+__revision__ = "201122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3068,11 +3068,18 @@ class ConfigMgr(object):
         ['v%d' % idx for idx in range(0, 32, 1)] + \
         ['z%d' % idx for idx in range(0, 32, 1)]
 
+    pcRegIndex = {
+        'arm': REGS_ARM.index('r15'),
+        'aarch64': REGS_AARCH64.index('pc'),
+        'x86': REGS_X86.index('eip'),
+        'x64': REGS_X64.index('rip'),
+    }
+
     # Define syscall register #
     SYSREG_LIST = {
         "powerpc": "gpr0",
         "arm": "r7",
-        "aarch64": "r8",
+        "aarch64": "x8",
         "x64": "orig_rax",
         "x86": "orig_eax"
         }
@@ -3081,7 +3088,7 @@ class ConfigMgr(object):
     RET_LIST = {
         "powerpc": "result",
         "arm": "r0",
-        "aarch64": "r0",
+        "aarch64": "x0",
         "x64": "rax",
         "x86": "eax"
         }
@@ -3862,6 +3869,21 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def bisect_left(a, x, lo=0, hi=None):
+        # copied from python standard library bisect.py #
+        if lo < 0:
+            raise ValueError('lo must be non-negative')
+        if not hi:
+            hi = len(a)
+        while lo < hi:
+            mid = (lo+hi)//2
+            if a[mid] <= x: lo = mid+1
+            else: hi = mid
+        return lo
+
+
+
+    @staticmethod
     def getFlagBit(vlist, flist):
         num = 0
 
@@ -3970,11 +3992,17 @@ class UtilMgr(object):
     def decodeULEB128(obj):
         size = 1
         value = 0
+
+        # get size #
         for b in obj:
-            value = (value << 7) + (ord(b) & 0x7F)
             if (ord(b) & 0x80) == 0:
                 break
             size += 1
+
+        # decode data #
+        for b in reversed(obj[:size]):
+            value = (value << 7) + (ord(b) & 0x7F)
+
         return value, size
 
 
@@ -24875,13 +24903,17 @@ Copyright:
                         SysMgr.setTTYAuto()
                     else:
                         rows = cols = long(0)
-                        term = SysMgr.cleanItem(value.split(':'))
+                        term = value.split(':')
 
                         # get size #
+                        term[0] = term[0].strip()
                         if term[0].isdigit():
                             rows = long(term[0])
-                        if term[1].isdigit():
-                            cols = long(term[1])
+
+                        if len(term) > 1:
+                            term[1] = term[1].strip()
+                            if term[1].isdigit():
+                                cols = long(term[1])
 
                         # update system terminal #
                         if len(term) > 2 and term[2].upper() == 'SYSTEM':
@@ -24895,7 +24927,7 @@ Copyright:
                 except:
                     SysMgr.printErr(
                         "wrong value with -m option, "
-                        "input number in COLS:ROWS format")
+                        "input number in COLS:ROWS format", reason=True)
                     sys.exit(0)
 
             elif option == 'b' and \
@@ -30329,6 +30361,9 @@ Copyright:
 
         resInfo = {}
         inputArg = str(SysMgr.inputParam)
+        menu1st = 'Offset'
+        menu2nd = 'Address'
+        maxSymLen = 5
 
         # get pid list #
         pids = SysMgr.getPids(inputArg)
@@ -30340,6 +30375,9 @@ Copyright:
 
         # single file #
         if not pids:
+            menu1st = 'Address'
+            menu2nd = 'Offset'
+
             # check file #
             if os.path.isfile(inputArg):
                 filePath = inputArg
@@ -30359,12 +30397,14 @@ Copyright:
 
                 for addr in addrList:
                     try:
-                        offset = binObj.getSymbolByOffset(addr, onlyFunc=False)
-                        resInfo[addr] = [offset, filePath]
+                        sym = binObj.getSymbolByOffset(addr, onlyFunc=False)
+                        resInfo[addr] = [sym, filePath, 'N/A']
+                        if len(sym) > maxSymLen:
+                            maxSymLen = len(sym)
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        resInfo[addr] = ['??', filePath]
+                        resInfo[addr] = ['??', filePath, 'N/A']
             else:
                 SysMgr.printErr(
                     "fail to recognize %s as a file or a process" % inputArg)
@@ -30395,23 +30435,30 @@ Copyright:
                     SysMgr.printErr("fail to analyze %s" % procInfo, True)
                     sys.exit(0)
                 elif type(ret) is list:
-                    resInfo[addr] = [ret[0], ret[1]]
+                    resInfo[addr] = [ret[0], ret[1], ret[2]]
+                    if len(ret[0]) > maxSymLen:
+                        maxSymLen = len(ret[0])
                 else:
-                    resInfo[addr] = ['??', '??']
+                    resInfo[addr] = ['??', '??', 'N/A']
 
         if procInfo:
             procInfo = ' for %s' % procInfo
 
+        # make space between symbol and path #
+        maxSymLen += 4
+
         SysMgr.printPipe("\n[Address Info]%s\n%s" % (procInfo, twoLine))
         SysMgr.printPipe(
-            "{0:<18} {1:<52} {2:<1}\n{3:1}".format(
-                'Address', 'Symbol', 'File', twoLine))
+            "{0:<18} {1:<18} {2:<{maxSymLen}} {3:<1}\n{4:1}".format(
+                menu1st, menu2nd, 'Symbol', 'File', twoLine,
+                maxSymLen=maxSymLen))
 
         # print symbols from offset list #
         for addr, val in resInfo.items():
             SysMgr.printPipe(
-                "{0:<18} {1:<52} {2:<1}".format(
-                    hex(addr).rstrip('L'), val[0], val[1]))
+                "{0:<18} {1:18} {2:<{maxSymLen}} {3:<1}".format(
+                    hex(addr).rstrip('L'), val[2], val[0], val[1],
+                    maxSymLen=maxSymLen))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -30733,6 +30780,8 @@ Copyright:
                     if not res:
                         continue
 
+                    origStartAddr = fileList[origFilePath]['vstart']
+
                     for item in res:
                         fname = item[2]
                         fobj = ElfAnalyzer.cachedFiles[fname]
@@ -30750,6 +30799,8 @@ Copyright:
 
                         # check relocatable type #
                         if fobj.loadAddr == 0:
+                            addr = hex(startAddr + foffset - totalDiff)
+                        elif origStartAddr > fobj.loadAddr:
                             addr = hex(startAddr + foffset - totalDiff)
                         else:
                             addr = hex(foffset)
@@ -30787,6 +30838,7 @@ Copyright:
 
         resInfo = {}
         inputArg = str(SysMgr.inputParam)
+        maxSymLen = 5
 
         # get pid list #
         pids = SysMgr.getPids(inputArg)
@@ -30811,6 +30863,9 @@ Copyright:
                         for item in offset:
                             resInfo['%s|%s' % (item[1], filePath)] = \
                                 (hex(item[0]), filePath, None, item[1])
+
+                            if len(item[1]) > maxSymLen:
+                                maxSymLen = len(item[1])
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -30836,14 +30891,21 @@ Copyright:
 
             # get symbol offset #
             resInfo = SysMgr.getProcAddrBySymbol(pid, symbolList)
+            for key, item in resInfo.items():
+                if len(item[3]) > maxSymLen:
+                    maxSymLen = len(item[3])
 
         if procInfo:
             procInfo = ' for %s' % procInfo
 
+        # make space between symbol and path #
+        maxSymLen += 4
+
         SysMgr.printPipe("\n[Symbol Info]%s\n%s" % (procInfo, twoLine))
         SysMgr.printPipe(
-            "{0:<48} {1:<52} {2:<18} {3:<18}\n{4:1}".format(
-                'Symbol', 'PATH', 'Offset', 'Address', twoLine))
+            "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}\n{4:1}".format(
+                'Symbol', 'Offset', 'Address', 'PATH', twoLine,
+                maxSymLen=maxSymLen))
 
         # print symbols from offset list #
         for sym, val in sorted(resInfo.items()):
@@ -30857,8 +30919,9 @@ Copyright:
                 addr = 'N/A'
 
             SysMgr.printPipe(
-                "{0:<48} {1:<52} {2:<18} {3:<18}".format(
-                    symbol, filePath, offset.rstrip('L'), addr.rstrip('L')))
+                "{0:<{maxSymLen}} {1:<18} {2:<18} {3:1}".format(
+                    symbol, offset.rstrip('L'), addr.rstrip('L'), filePath,
+                    maxSymLen=maxSymLen))
 
         if len(resInfo) == 0:
             SysMgr.printPipe('\tNone')
@@ -39975,7 +40038,7 @@ class Debugger(object):
                     for field, _ in struct._fields_)
 
             if self.arch == 'aarch64':
-                _fields_ = tuple(("r%i" % reg, c_ulong) for reg in range(35))
+                _fields_ = tuple(("x%i" % reg, c_ulong) for reg in range(35))
             elif self.arch == 'x64':
                 _fields_ = (
                     ("r15", c_ulong),
@@ -40601,8 +40664,8 @@ struct cmsghdr {
         regs = self.regs
 
         if arch == 'aarch64':
-            ret = (regs.r0, regs.r1, regs.r2,
-                    regs.r3, regs.r4, regs.r5, regs.r6, regs.r7)
+            ret = (regs.x0, regs.x1, regs.x2,
+                    regs.x3, regs.x4, regs.x5, regs.x6, regs.x7)
         elif arch == 'arm':
             ret = (regs.r0, regs.r1, regs.r2,
                     regs.r3, regs.r4, regs.r5, regs.r6)
@@ -40636,21 +40699,21 @@ struct cmsghdr {
 
             if arch == 'aarch64':
                 if idx == 0:
-                    self.regs.r0 = val
+                    self.regs.x0 = val
                 elif idx == 1:
-                    self.regs.r1 = val
+                    self.regs.x1 = val
                 elif idx == 2:
-                    self.regs.r2 = val
+                    self.regs.x2 = val
                 elif idx == 3:
-                    self.regs.r3 = val
+                    self.regs.x3 = val
                 elif idx == 4:
-                    self.regs.r4 = val
+                    self.regs.x4 = val
                 elif idx == 5:
-                    self.regs.r5 = val
+                    self.regs.x5 = val
                 elif idx == 6:
-                    self.regs.r6 = val
+                    self.regs.x6 = val
                 elif idx == 7:
-                    self.regs.r7 = val
+                    self.regs.x7 = val
             elif arch == 'x64':
                 if idx == 0:
                     self.regs.rdi = val
@@ -40835,7 +40898,9 @@ struct cmsghdr {
             cmdstr = '%8s' % cmd
 
             if cmd == 'print':
-                if len(cmdset) == 1:
+                if SysMgr.showAll:
+                    pass
+                elif len(cmdset) == 1:
                     self.printContext(newline=True)
                 else:
                     var = cmdset[1]
@@ -41514,8 +41579,7 @@ struct cmsghdr {
 
                 output = "\n[%s] %s[0x%x]%s" % (cmdstr, val, addr, argStr)
 
-                if sym == val or \
-                    self.pc == addr:
+                if sym == val or self.pc == addr:
                     skip = True
                     output = "%s (SKIP)" % output
                 else:
@@ -41586,8 +41650,7 @@ struct cmsghdr {
                 output = "\n[%s] %s[0x%x] -> %s[0x%x]%s" % \
                     (cmdstr, symbol, self.pc, val, addr, args)
 
-                if sym == val or \
-                    self.pc == addr:
+                if sym == val or self.pc == addr:
                     skip = True
                     output = "%s (SKIP)" % output
                 else:
@@ -42864,9 +42927,15 @@ struct cmsghdr {
             # set CPSR for ARM #
             if func & 0x1:
                 func &= ~1
-                self.regs.r16 |= (1<<5) # pylint: disable=no-member
+                if self.arch == 'arm':
+                    self.regs.r16 |= (1<<5) # pylint: disable=no-member
+                else:
+                    self.regs.x16 |= (1<<5) # pylint: disable=no-member
             else:
-                self.regs.r16 &= ~(1<<5) # pylint: disable=no-member
+                if self.arch == 'arm':
+                    self.regs.r16 &= ~(1<<5) # pylint: disable=no-member
+                else:
+                    self.regs.x16 &= ~(1<<5) # pylint: disable=no-member
         elif self.arch == 'x64':
             # align sp - wordSize to a multiple of 16
             wordSize = ConfigMgr.wordSize
@@ -44487,20 +44556,8 @@ struct cmsghdr {
 
 
     def getFileFastFromMap(self, vaddr):
-        def bisect_left(a, x, lo=0, hi=None):
-            # copied from python standard library bisect.py #
-            if lo < 0:
-                raise ValueError('lo must be non-negative')
-            if not hi:
-                hi = len(a)
-            while lo < hi:
-                mid = (lo+hi)//2
-                if a[mid] <= x: lo = mid+1
-                else: hi = mid
-            return lo
-
         try:
-            idx = bisect_left(self.addrList, vaddr)
+            idx = UtilMgr.bisect_left(self.addrList, vaddr)
             return self.fileList[idx]
         except SystemExit:
             sys.exit(0)
@@ -44564,7 +44621,7 @@ struct cmsghdr {
                     rvalue = ''
 
                 SysMgr.addPrint(
-                    '%s: 0x%x%s\n' % (reg, val, rvalue))
+                    '%10s: 0x%x%s\n' % (reg, val, rvalue))
 
             SysMgr.addPrint('%s\n' % twoLine)
 
@@ -44954,7 +45011,32 @@ struct cmsghdr {
 
     def getBacktrace(self, limit=32, cur=False, force=False):
         try:
-            if force or not self.btList:
+            # use backtrace cache #
+            if not force and self.btList:
+                self.btList
+
+            # unwinding by DWARF #
+            if SysMgr.dwarfEnable:
+                origSP = self.sp
+                ip = self.pc
+
+                if cur:
+                    btList = [ip]
+                else:
+                    btList = []
+
+                while 1:
+                    raddr = self.getRetAddr(ip)
+                    if raddr:
+                        btList.append(raddr)
+                        ip = raddr
+                    else:
+                        break
+                self.btList = self.convertAddrList(btList)
+
+                self.setSP(origSP)
+            # unwinding by FP/SP #
+            else:
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
             return self.btList
@@ -45005,6 +45087,98 @@ struct cmsghdr {
             return True
         else:
             return False
+
+
+
+    def getRetAddr(self, vaddr):
+        # get file name #
+        fname = self.getFileFastFromMap(vaddr)
+        if not fname:
+            return None
+
+        # get ELF object #
+        fobj = ElfAnalyzer.cachedFiles[fname]
+
+        # get file offset #
+        vstart = self.pmap[fname]['vstart']
+        if fobj.loadAddr == vstart:
+            foffset = vaddr
+        else:
+            foffset = vaddr - vstart
+
+        # check DWARF info #
+        if 'dwarf' not in fobj.attr:
+            SysMgr.printWarn(
+                'fail to find DWARF info in %s' % fname)
+            return None
+
+        # get function address from CFA index table #
+        idx = UtilMgr.bisect_left(\
+            fobj.attr['dwarf']['CFAIndex'], foffset) - 1
+        faddr = fobj.attr['dwarf']['CFAIndex'][idx]
+        if not faddr in fobj.attr['dwarf']['CFATable']:
+            SysMgr.printWarn(
+                'fail to find CFA table info for %s in %s' % \
+                    (hex(faddr), fname))
+            return None
+
+        # get effective CFA rule #
+        rule = None
+        for line in fobj.attr['dwarf']['CFATable'][faddr]:
+            if foffset < line['pc']:
+                break
+            rule = line
+        if not rule:
+            SysMgr.printWarn(
+                'fail to find CFA rule info for %s in %s' % \
+                    (hex(foffset), fname))
+            return None
+
+        # get CFA #
+        cfaInfo = rule['cfa']
+        if cfaInfo.expr:
+            return None
+        reg = ConfigMgr.regList[cfaInfo.reg]
+        regval = getattr(self.regs, reg)
+        offset = cfaInfo.offset
+        cfa = regval + offset
+
+        if ConfigMgr.wordSize == 4:
+            decodeStr = 'I'
+        else:
+            decodeStr = 'Q'
+
+        # recover registers #
+        for num, value in rule.items():
+            try:
+                long(num)
+                reg = ConfigMgr.regList[num]
+                offset = value.arg
+                if offset is None:
+                    continue
+                rval = self.readMem(cfa+offset)
+                rval = struct.unpack(decodeStr, rval)[0]
+                setattr(self.regs, reg, rval)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+        # get return address #
+        roffset = rule[ConfigMgr.pcRegIndex[SysMgr.arch]].arg
+        if roffset is None:
+            return None
+        raddr = cfa + roffset
+
+        # update stack pointer for previous context #
+        self.setSP(cfa)
+
+        # get return address #
+        raddr = self.readMem(raddr)
+        if raddr:
+            return struct.unpack(decodeStr, raddr)[0]
+        else:
+            return None
 
 
 
@@ -47996,7 +48170,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if self.arch == 'arm':
             self.regs.r15 = val
         elif self.arch == 'aarch64':
-            self.regs.r32 = val
+            self.regs.x32 = val
         elif self.arch == 'x86':
             self.regs.eip = val
         elif self.arch == 'x64':
@@ -48008,7 +48182,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if self.arch == 'arm':
             self.regs.r13 = val
         elif self.arch == 'aarch64':
-            self.regs.r31 = val
+            self.regs.x31 = val
         elif self.arch == 'x86':
             self.regs.esp = val
         elif self.arch == 'x64':
@@ -48020,7 +48194,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         if self.arch == 'arm':
             self.regs.r14 = val
         elif self.arch == 'aarch64':
-            self.regs.r30 = val
+            self.regs.x30 = val
 
 
 
@@ -48199,10 +48373,10 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
             self.lr = self.regs.r14
             self.pc = self.regs.r15
         elif self.arch == 'aarch64':
-            self.fp = self.regs.r29
-            self.lr = self.regs.r30
-            self.sp = self.regs.r31
-            self.pc = self.regs.r32
+            self.fp = self.regs.x29
+            self.lr = self.regs.x30
+            self.sp = self.regs.x31
+            self.pc = self.regs.x32
         elif self.arch == 'x86':
             self.fp = self.regs.ebp
             self.sp = self.regs.esp
@@ -50646,18 +50820,6 @@ class ElfAnalyzer(object):
 
 
     def getAnonRangeByOffset(self, offset):
-        def bisect_left(a, x, lo=0, hi=None):
-            # copied from python standard library bisect.py #
-            if lo < 0:
-                raise ValueError('lo must be non-negative')
-            if not hi:
-                hi = len(a)
-            while lo < hi:
-                mid = (lo+hi)//2
-                if a[mid] <= x: lo = mid+1
-                else: hi = mid
-            return lo
-
         # check symbol table #
         if len(self.sortedSymTable) == 0:
             self.mergeSymTable()
@@ -50673,7 +50835,7 @@ class ElfAnalyzer(object):
             symTable = self.sortedSymTable
 
             # get target index from address table #
-            idx = bisect_left(self.sortedAddrTable, offset) - 1
+            idx = UtilMgr.bisect_left(self.sortedAddrTable, offset) - 1
             if idx < 0:
                 idx = long(0)
 
@@ -50697,18 +50859,6 @@ class ElfAnalyzer(object):
 
 
     def getSymbolByOffset(self, offset, onlyFunc=True):
-        def bisect_left(a, x, lo=0, hi=None):
-            # copied from python standard library bisect.py #
-            if lo < 0:
-                raise ValueError('lo must be non-negative')
-            if not hi:
-                hi = len(a)
-            while lo < hi:
-                mid = (lo+hi)//2
-                if a[mid] <= x: lo = mid+1
-                else: hi = mid
-            return lo
-
         # check symbol table #
         if len(self.sortedSymTable) == 0:
             self.mergeSymTable(onlyFunc=onlyFunc)
@@ -50724,7 +50874,7 @@ class ElfAnalyzer(object):
             symTable = self.sortedSymTable
 
             # get target index from address table #
-            idx = bisect_left(self.sortedAddrTable, offset) - 1
+            idx = UtilMgr.bisect_left(self.sortedAddrTable, offset) - 1
             if idx < 0:
                 idx = long(0)
 
@@ -50797,7 +50947,7 @@ class ElfAnalyzer(object):
 
 
 
-    def getCFI(self, table, pos, size):
+    def getCFI(self, table, pos, size, prt=False):
         def getBlockArgs(table, pos):
             size = struct.unpack('b', table[pos:pos+1])[0]
             pos += 1
@@ -51937,6 +52087,8 @@ Section header string table index: %d
             if nrItems == 0:
                 SysMgr.printPipe('\tNone')
 
+            printCnt = 0
+
             for i in range(0, nrItems):
                 target = dynsym_section[i*sh_entsize:(i+1)*sh_entsize]
                 # 32-bit #
@@ -52013,7 +52165,12 @@ Section header string table index: %d
                         ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                         st_shndx, symbol,))
+
+                    printCnt += 1
+
             if debug:
+                if printCnt == 0:
+                    SysMgr.printPipe('\tNone')
                 SysMgr.printPipe(oneLine)
 
         # define .sym info #
@@ -52055,6 +52212,8 @@ Section header string table index: %d
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 SysMgr.printPipe('\tNone')
+
+            printCnt = 0
 
             for i in range(0, nrItems):
                 if self.is32Bit:
@@ -52114,7 +52273,11 @@ Section header string table index: %d
                         ElfAnalyzer.ST_VISIBILITY_TYPE[\
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                         st_shndx, symbol,))
+
+                    printCnt += 1
             if debug:
+                if printCnt == 0:
+                    SysMgr.printPipe('\tNone')
                 SysMgr.printPipe(oneLine)
         else:
             ElfAnalyzer.stripedFiles[path] = True
@@ -52143,6 +52306,7 @@ Section header string table index: %d
             if nrItems == 0:
                 SysMgr.printPipe('\tNone')
 
+            printCnt = 0
             for i in range(0, nrItems):
                 # 32-bit #
                 if self.is32Bit:
@@ -52194,7 +52358,11 @@ Section header string table index: %d
                         '%016x %016x %32s %016x %s' % \
                         (sh_offset, sh_info, RTYPE, saddr, symbol))
 
+                    printCnt += 1
+
             if debug:
+                if printCnt == 0:
+                    SysMgr.printPipe('\tNone')
                 SysMgr.printPipe(oneLine)
 
         # parse RELA table #
@@ -52218,6 +52386,8 @@ Section header string table index: %d
             nrItems = long(sh_size / sh_entsize)
             if nrItems == 0:
                 SysMgr.printPipe('\tNone')
+
+            printCnt = 0
 
             for i in range(0, nrItems):
                 # 32-bit #
@@ -52272,7 +52442,11 @@ Section header string table index: %d
                             (sh_offset, sh_info, RTYPE, val,
                             '%s%x' % (symbol, sh_addend)))
 
+                    printCnt += 1
+
             if debug:
+                if printCnt == 0:
+                    SysMgr.printPipe('\tNone')
                 SysMgr.printPipe(oneLine)
 
         # check .eh_frame section #
@@ -52538,14 +52712,12 @@ Section header string table index: %d
                         'DW_CFA_offset_extended_sf'):
                         add2Order(args[0])
                         curLine[args[0]] = RegisterRule(
-                            RegisterRule.OFFSET,
-                            args[1] * cie['daf'])
+                            RegisterRule.OFFSET, args[1] * cie['daf'])
                     elif name in (
                         'DW_CFA_val_offset', 'DW_CFA_val_offset_sf'):
                         add2Order(args[0])
                         curLine[args[0]] = RegisterRule(
-                            RegisterRule.VAL_OFFSET,
-                            args[1] * cie['daf'])
+                            RegisterRule.VAL_OFFSET, args[1] * cie['daf'])
                     elif name == 'DW_CFA_register':
                         add2Order(args[0])
                         curLine[args[0]] = RegisterRule(
@@ -52588,59 +52760,76 @@ Section header string table index: %d
 
                 return table, regOrder
 
-            def printCFAs(self, entry, offset, regList):
+            def makeCFATable(self, entry, offset, regList, prt=False):
                 def getCFARule(cfa):
                     if cfa.expr:
                         return 'exp'
                     else:
-                        return '%s%+d' % (ConfigMgr.regList[cfa.reg], cfa.offset)
+                        return '%s%+d' % (regList[cfa.reg], cfa.offset)
 
                 def getRegRule(reg):
                     s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg.type]
                     if reg.type in ('OFFSET', 'VAL_OFFSET'):
                         s += '%+d' % reg.arg
                     elif reg.type == 'REGISTER':
-                        s += ConfigMgr.regList[reg.arg]
+                        s += regList[reg.arg]
                     return s
 
                 myObj = self.attr['dwarf'][entry][offset]
                 table = myObj['table']
                 regOrder = myObj['regOrder']
 
+                if 'initLoc' in myObj:
+                    initLoc = myObj['initLoc']
+                else:
+                    initLoc = 0
+
+                # get return address register #
                 if 'rar' in myObj:
                     rar = myObj['rar']
                 else:
                     rar = myObj['CIE']['rar']
 
-                # remove return address register #
-                try:
-                    regOrder.remove(rar)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                # register to CFA table #
+                if initLoc > 0:
+                    self.attr['dwarf']['CFAIndex'].append(initLoc)
+                    self.attr['dwarf']['CFATable'][initLoc] = table
 
-                # define default title #
-                if not self.cfaTableTitle:
-                    self.cfaTableTitle = \
-                        '{0:^16} {1:<10}'.format('LOC', 'CFA')
+                if prt:
+                    # remove return address register #
+                    try:
+                        regOrder.remove(rar)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
-                # copy default title #
-                s = str(self.cfaTableTitle)
+                    # define default title #
+                    if not self.cfaTableTitle:
+                        self.cfaTableTitle = \
+                            '{0:^16} {1:<10}'.format('LOC', 'CFA')
 
-                # add reg name #
-                for regnum in regOrder:
-                    s += '%-6s' % regList[regnum]
-                s += '%-6s\n' % 'ra'
-                regOrder.append(rar)
+                    # copy default title #
+                    s = str(self.cfaTableTitle)
 
-                # mark line #
-                s = '.' * len(s) + '\n' + s
+                    # add reg name #
+                    for regnum in regOrder:
+                        s += '%-6s' % regList[regnum]
+                    s += '%-6s\n' % 'ra'
+                    regOrder.append(rar)
+
+                    # mark line #
+                    s = '.' * len(s) + '\n' + s
 
                 # add decoded CFA lines #
                 for line in table:
+                    pc = line['pc']
+
+                    if not prt:
+                        continue
+
                     # pc #
-                    s += '%016x' % line['pc']
+                    s += '%016x' % pc
 
                     # cfa #
                     if line['cfa']:
@@ -52659,7 +52848,8 @@ Section header string table index: %d
 
                     s += '\n'
 
-                SysMgr.printPipe(s)
+                if prt:
+                    SysMgr.printPipe(s)
 
             def printCFIs(cfi, cie=None, pc=None, regList=None):
                 def convRegName(arg, regList):
@@ -52740,6 +52930,8 @@ Section header string table index: %d
             self.attr['dwarf']['CIE'] = dict()
             self.attr['dwarf']['FDE'] = dict()
             self.attr['dwarf']['general'] = dict()
+            self.attr['dwarf']['CFAIndex'] = list()
+            self.attr['dwarf']['CFATable'] = dict()
             ENC_FLAGS = ElfAnalyzer.DW_EH_encoding_flags
             nrCIE = nrFDE = 0
 
@@ -52982,7 +53174,12 @@ Section header string table index: %d
                 # print CFI #
                 if debug:
                     printCFIs(cfi, cie, initLoc, regList)
-                    printCFAs(self, entry, offset, regList)
+
+                # make CFA table #
+                makeCFATable(self, entry, offset, regList, prt=debug)
+
+            # sort address list for CFA #
+            self.attr['dwarf']['CFAIndex'].sort()
 
             # add general info #
             self.attr['dwarf']['general']['nrCIE'] = nrCIE
@@ -53037,14 +53234,15 @@ Section header string table index: %d
             fdeCnt = decodeData(fcEncFormat, fd)
 
             # print summary #
-            SysMgr.printPipe((\
-                'eh_frame pointer: %016x, FDE count: %s\n%s' %
-                    (ehframePtr, UtilMgr.convNum(fdeCnt), oneLine)))
+            if debug:
+                SysMgr.printPipe((\
+                    'eh_frame pointer: %016x, FDE count: %s\n%s' %
+                        (ehframePtr, UtilMgr.convNum(fdeCnt), oneLine)))
 
-            # print menu #
-            SysMgr.printPipe(
-                '{0:^5} {1:^16} {2:^16}'.format(
-                        'IDX', 'FUNC ADDR', 'FDE ADDR'))
+                # print menu #
+                SysMgr.printPipe(
+                    '{0:^5} {1:^16} {2:^16}'.format(
+                            'IDX', 'FUNC ADDR', 'FDE ADDR'))
 
             # table #
             for idx in range(0, fdeCnt):
@@ -53058,9 +53256,11 @@ Section header string table index: %d
                 addr = decodeData(tEncFormat, fd)
                 addr = decodeAddr(addr, sh_addr, curPos, tEncMod)
 
-                SysMgr.printPipe('%05s %016x %016x' % (idx, initLoc, addr))
+                if debug:
+                    SysMgr.printPipe('%05s %016x %016x' % (idx, initLoc, addr))
 
-            SysMgr.printPipe(oneLine)
+            if debug:
+                SysMgr.printPipe(oneLine)
 
         # check dynamic section #
         if e_shdynamic < 0:
