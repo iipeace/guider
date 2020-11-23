@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201122"
+__revision__ = "201123"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4431,9 +4431,12 @@ class UtilMgr(object):
 
     @staticmethod
     def saveObjectToFile(obj, path):
+        if not obj:
+            return False
+
         pickle = SysMgr.getPicklePkg(False)
         if not pickle:
-            return
+            return False
 
         # disable compression for performance #
         SysMgr.compressEnable = False
@@ -4457,7 +4460,8 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                "fail to save ELF cache to %s" % path, reason=True)
+                "fail to save %s object to %s" % \
+                    (obj.__class__.__name__, path), reason=True)
             return False
 
 
@@ -8529,7 +8533,7 @@ class FunctionAnalyzer(object):
             if binPath != value['binary']:
                 if binPath != '':
                     # Get symbols #
-                    if self.getSymbolInfo(binPath, offsetList) == -1:
+                    if self.getFileSymbolInfo(binPath, offsetList) == -1:
                         nrNoFile += 1
                     offsetList = []
 
@@ -8558,7 +8562,7 @@ class FunctionAnalyzer(object):
 
         # Get symbols and source path from last binary #
         if binPath != '':
-            if self.getSymbolInfo(binPath, offsetList) == -1:
+            if self.getFileSymbolInfo(binPath, offsetList) == -1:
                 nrNoFile += 1
 
         UtilMgr.deleteProgress()
@@ -8570,7 +8574,7 @@ class FunctionAnalyzer(object):
 
 
 
-    def getSymbolInfo(self, binPath, offsetList, onlyFunc=True):
+    def getFileSymbolInfo(self, binPath, offsetList, onlyFunc=True):
         def updateSymbol(addr, symbol, src, relocated):
             if not addr:
                 return -1
@@ -13197,7 +13201,11 @@ class FileAnalyzer(object):
         if not fd:
             fd = FileAnalyzer.getMapFd(pid)
             if not fd:
-                return None
+                comm = SysMgr.getComm(pid)
+                SysMgr.printErr(
+                    'fail to get memory map for %s(%s)' % \
+                        (comm, pid), reason=True)
+                sys.exit(0)
 
         # read maps #
         fd.seek(0, 0)
@@ -16283,7 +16291,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getBacktrace():
+    def getSelfBacktrace():
         # get ctypes object #
         SysMgr.importPkgItems('ctypes')
 
@@ -23934,6 +23942,9 @@ Copyright:
 
     @staticmethod
     def printWarn(line, always=False, reason=False):
+        # print backtrace #
+        #SysMgr.printBacktrace()
+
         if not SysMgr.logEnable or \
             (not SysMgr.warnEnable and not always):
             return
@@ -40254,6 +40265,7 @@ class Debugger(object):
         self.prevBtList = None
         self.prevBtStr = None
         self.startAddr = None
+        self.prevSym = None
 
         self.lockObj = None
         self.tempPage = None
@@ -44194,7 +44206,7 @@ struct cmsghdr {
             cnt += 1
 
             # backtrace #
-            if len(value['backtrace']) > 0:
+            if value['backtrace']:
                 for bt, cnt in sorted(value['backtrace'].items(),
                     key=lambda x:x[1], reverse=True):
 
@@ -44641,7 +44653,7 @@ struct cmsghdr {
         # print backtrace #
         if bt:
             backtrace = self.getBacktrace(cur=True, force=True)
-            if len(backtrace) > 0:
+            if backtrace:
                 if not isPrinted:
                     SysMgr.addPrint('%s%s\n' % (prefix, twoLine))
                     isPrinted = True
@@ -44792,10 +44804,7 @@ struct cmsghdr {
 
         # add backtrace #
         if bt:
-            if self.mode == 'pycall':
-                btStr = self.getPyBacktraceStr(bt)
-            else:
-                btStr = self.getBacktraceStr(bt)
+            btStr = self.getBacktraceStr(bt)
         else:
             btStr = None
 
@@ -44893,40 +44902,6 @@ struct cmsghdr {
 
 
 
-    def getPyBacktraceStr(self, bt, default=20, maximum=0):
-        if not bt:
-            return ''
-
-        btStr = ''
-        pos = default
-
-        if maximum == 0:
-            if len(oneLine) < SysMgr.ttyCols:
-                maximum = len(oneLine)
-            else:
-                maximum = SysMgr.ttyCols
-
-        if default == 0:
-            indentStr = ''
-        else:
-            indentStr = ' ' * default
-
-        for item in bt:
-            # build a new string #
-            newStr = ' <- %s[%s]' % (item[0], item[1])
-            if btStr and len(newStr) + pos > maximum:
-                newStr = '\n%s%s' % (indentStr, newStr)
-                pos = len(newStr) - 1
-            else:
-                pos += len(newStr)
-
-            # add a symbol to backtrace #
-            btStr = '%s%s' % (btStr, newStr)
-
-        return btStr
-
-
-
     def getBacktraceStr(self, bt, default=20, maximum=0, force=False):
         if not force and self.btStr:
             return self.btStr
@@ -45015,9 +44990,11 @@ struct cmsghdr {
             if not force and self.btList:
                 self.btList
 
-            # unwinding by DWARF #
+            # unwind stack using DWARF #
             if SysMgr.dwarfEnable:
-                origSP = self.sp
+                # backup registers #
+                self.backupRegs()
+
                 ip = self.pc
 
                 if cur:
@@ -45026,16 +45003,23 @@ struct cmsghdr {
                     btList = []
 
                 while 1:
+                    # get return address #
                     raddr = self.getRetAddr(ip)
-                    if raddr:
-                        btList.append(raddr)
-                        ip = raddr
-                    else:
+                    if not raddr:
                         break
+                    # check max length #
+                    elif len(btList) >= limit:
+                        break
+
+                    btList.append(raddr)
+                    ip = raddr
+
+                # convert addresses to symbols #
                 self.btList = self.convertAddrList(btList)
 
-                self.setSP(origSP)
-            # unwinding by FP/SP #
+                # restore registers #
+                self.restoreRegs()
+            # unwind stack using FP/SP #
             else:
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
 
@@ -45043,7 +45027,7 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            return None
+            return []
 
 
 
@@ -45096,15 +45080,14 @@ struct cmsghdr {
         if not fname:
             return None
 
+        # get file offset #
+        ret = self.getSymbolInfo(vaddr)
+        if not ret:
+            return
+        foffset = long(ret[2], 16)
+
         # get ELF object #
         fobj = ElfAnalyzer.cachedFiles[fname]
-
-        # get file offset #
-        vstart = self.pmap[fname]['vstart']
-        if fobj.loadAddr == vstart:
-            foffset = vaddr
-        else:
-            foffset = vaddr - vstart
 
         # check DWARF info #
         if 'dwarf' not in fobj.attr:
@@ -45134,13 +45117,18 @@ struct cmsghdr {
                     (hex(foffset), fname))
             return None
 
+        # define index for CFA member variables #
+        regIdx = ElfAnalyzer.CFARule.REG
+        offsetIdx = ElfAnalyzer.CFARule.OFFSET
+        exprIdx = ElfAnalyzer.CFARule.EXPR
+
         # get CFA #
         cfaInfo = rule['cfa']
-        if cfaInfo.expr:
+        if cfaInfo[exprIdx]:
             return None
-        reg = ConfigMgr.regList[cfaInfo.reg]
+        reg = ConfigMgr.regList[cfaInfo[regIdx]]
         regval = getattr(self.regs, reg)
-        offset = cfaInfo.offset
+        offset = cfaInfo[offsetIdx]
         cfa = regval + offset
 
         if ConfigMgr.wordSize == 4:
@@ -45149,11 +45137,12 @@ struct cmsghdr {
             decodeStr = 'Q'
 
         # recover registers #
+        argIdx = ElfAnalyzer.RegisterRule.ARG
         for num, value in rule.items():
             try:
                 long(num)
                 reg = ConfigMgr.regList[num]
-                offset = value.arg
+                offset = value[argIdx]
                 if offset is None:
                     continue
                 rval = self.readMem(cfa+offset)
@@ -45165,7 +45154,7 @@ struct cmsghdr {
                 pass
 
         # get return address #
-        roffset = rule[ConfigMgr.pcRegIndex[SysMgr.arch]].arg
+        roffset = rule[ConfigMgr.pcRegIndex[SysMgr.arch]][argIdx]
         if roffset is None:
             return None
         raddr = cfa + roffset
@@ -45393,25 +45382,31 @@ struct cmsghdr {
 
 
     def getBacktraceTree(self, diffstr, tinfo, cont=True):
-        backtrace = self.getBacktrace()
-        depth = len(backtrace)
-        diffindent = ' ' * len(diffstr)
-        tinfoindent = ' ' * len(tinfo)
+        def getCommonPos(backtrace):
+            # check contiguous tree presentation #
+            try:
+                commonPos = -1
+                if not cont or self.targetBpList:
+                    raise Exception()
 
-        # check contiguous tree presentation #
-        try:
-            commonPos = -1
-            if cont and not self.targetBpList:
                 for item in reversed(self.prevStack):
                     if item == backtrace[commonPos]:
                         commonPos -= 1
                         continue
                     break
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
+            return commonPos
+
+        backtrace = self.getBacktrace()
+        depth = len(backtrace)
+        diffindent = ' ' * len(diffstr)
+        tinfoindent = ' ' * len(tinfo)
+
+        commonPos = getCommonPos(backtrace)
         if commonPos == -1:
             commonPos = 0
             stack = backtrace
@@ -45494,8 +45489,10 @@ struct cmsghdr {
                 cont = False
             else:
                 cont = True
+
             btstr, depth = \
                 self.getBacktraceTree(diffstr, tinfo, cont)
+
             indent = '  ' * depth
         else:
             btstr = indent = ''
@@ -45723,7 +45720,7 @@ struct cmsghdr {
                 self.comm = comm
                 Debugger.updateCommFlag(False)
 
-        # check comm change calls #
+        # check changing-comm calls #
         if sym == 'pthread_setname_np':
             Debugger.updateCommFlag()
         elif sym == 'prctl':
@@ -45742,6 +45739,9 @@ struct cmsghdr {
         if self.pc == origPC:
             self.setPC(addr)
             self.setRegs()
+
+        # save symbol #
+        self.prevSym = sym
 
         # lock between processes #
         if addr in self.bpList:
@@ -46087,7 +46087,7 @@ struct cmsghdr {
                 lastName = name
                 lastFile = filename
             else:
-                bt.append([name, filename])
+                bt.append([f_lineno, name, filename])
 
             # check last frame #
             if SysMgr.funcDepth == 0 or f_back == 0:
@@ -47050,6 +47050,7 @@ struct cmsghdr {
         self.prevCpuStat = None
         self.pyLibPath = None
         self.pyInit = False
+        self.prevSym = None
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
@@ -50088,8 +50089,7 @@ class ElfAnalyzer(object):
         'DW_OP_deref_size', 'DW_OP_xderef_size', 'DW_OP_regx',] + \
         ['DW_OP_breg%s' % idx for idx in range(0, 32)])
 
-    DW_OPS_2DEC_ARGS = set([
-        'DW_OP_bregx', 'DW_OP_bit_piece'])
+    DW_OPS_2DEC_ARGS = set(['DW_OP_bregx', 'DW_OP_bit_piece'])
 
     DW_OPS_HEX_ARGS = set([
         'DW_OP_addr', 'DW_OP_call2', 'DW_OP_call4', 'DW_OP_call_ref'])
@@ -50108,11 +50108,11 @@ class ElfAnalyzer(object):
     class RegisterRule(object):
         '''
         refer to https://github.com/eliben/pyelftools
-
         Register rules are used to find registers in call frames. Each rule
         consists of a type (enumeration following DWARFv3 section 6.4.1)
         and an optional argument to augment the type.
         '''
+
         UNDEFINED = 'UNDEFINED'
         SAME_VALUE = 'SAME_VALUE'
         OFFSET = 'OFFSET'
@@ -50122,28 +50122,31 @@ class ElfAnalyzer(object):
         VAL_EXPRESSION = 'VAL_EXPRESSION'
         ARCHITECTURAL = 'ARCHITECTURAL'
 
-        def __init__(self, type, arg=None):
-            self.type = type
-            self.arg = arg
+        TYPE = 0
+        ARG = 1
 
-        def __repr__(self):
-            return 'RegisterRule(%s, %s)' % (self.type, self.arg)
+        def __init__(self, type, arg=None):
+            pass
+
+        def __new__(self, type, arg=None):
+            return (type, arg)
 
     class CFARule(object):
         '''
         refer to https://github.com/eliben/pyelftools
-
         A CFA rule is used to compute the CFA for each location. It either
         consists of a register+offset, or a DWARF expression.
         '''
-        def __init__(self, reg=None, offset=None, expr=None):
-            self.reg = reg
-            self.offset = offset
-            self.expr = expr
 
-        def __repr__(self):
-            return 'CFARule(reg=%s, offset=%s, expr=%s)' % (
-                self.reg, self.offset, self.expr)
+        REG = 0
+        OFFSET = 1
+        EXPR = 2
+
+        def __init__(self, reg=None, offset=None, expr=None):
+            pass
+
+        def __new__(self, reg=None, offset=None, expr=None):
+            return (reg, offset, expr)
 
     cachedFiles = {}
     cachedHeaderFiles = {}
@@ -50402,10 +50405,13 @@ class ElfAnalyzer(object):
             # try to load a object from cache #
             fobj = ElfAnalyzer.loadObject(path)
             if fobj:
-                ElfAnalyzer.cachedFiles[path] = fobj
-                ElfAnalyzer.cachedFiles[path].saved = True
-                SysMgr.printInfo("[cached]", prefix=False, notitle=True)
-                return fobj
+                if SysMgr.dwarfEnable and not 'dwarf' in fobj.attr:
+                    pass
+                else:
+                    ElfAnalyzer.cachedFiles[path] = fobj
+                    ElfAnalyzer.cachedFiles[path].saved = True
+                    SysMgr.printInfo("[cached]", prefix=False, notitle=True)
+                    return fobj
 
             # create a new object #
             try:
@@ -52635,6 +52641,9 @@ Section header string table index: %d
             def decodeCFI(self, entry, cfi, cie, offset):
                 CFARule = ElfAnalyzer.CFARule
                 RegisterRule = ElfAnalyzer.RegisterRule
+                regIdx = ElfAnalyzer.CFARule.REG
+                offsetIdx = ElfAnalyzer.CFARule.OFFSET
+                exprIdx = ElfAnalyzer.CFARule.EXPR
 
                 copy = SysMgr.getPkg('copy', False)
 
@@ -52693,10 +52702,10 @@ Section header string table index: %d
                             offset=args[1] * cie['caf'])
                     elif name == 'DW_CFA_def_cfa_register':
                         curLine['cfa'] = CFARule(reg=args[0],
-                            offset=curLine['cfa'].offset)
+                            offset=curLine['cfa'][offsetIdx])
                     elif name == 'DW_CFA_def_cfa_offset':
                         curLine['cfa'] = CFARule(
-                            reg=curLine['cfa'].reg, offset=args[0])
+                            reg=curLine['cfa'][regIdx], offset=args[0])
                     elif name == 'DW_CFA_def_cfa_expression':
                         curLine['cfa'] = CFARule(expr=args[0])
                     elif name == 'DW_CFA_undefined':
@@ -52751,7 +52760,7 @@ Section header string table index: %d
                 The current line is appended to the table after
                 all instructions have ended, if there were instructions.
                 '''
-                if curLine['cfa'].reg is not None or len(curLine) > 2:
+                if curLine['cfa'][regIdx] is not None or len(curLine) > 2:
                     table.append(curLine)
 
                 # save result #
@@ -52762,17 +52771,26 @@ Section header string table index: %d
 
             def makeCFATable(self, entry, offset, regList, prt=False):
                 def getCFARule(cfa):
-                    if cfa.expr:
+                    regIdx = ElfAnalyzer.CFARule.REG
+                    offsetIdx = ElfAnalyzer.CFARule.OFFSET
+                    exprIdx = ElfAnalyzer.CFARule.EXPR
+
+                    if cfa[exprIdx]:
                         return 'exp'
                     else:
-                        return '%s%+d' % (regList[cfa.reg], cfa.offset)
+                        return '%s%+d' % (regList[cfa[regIdx]], cfa[offsetIdx])
 
                 def getRegRule(reg):
-                    s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg.type]
-                    if reg.type in ('OFFSET', 'VAL_OFFSET'):
-                        s += '%+d' % reg.arg
-                    elif reg.type == 'REGISTER':
-                        s += regList[reg.arg]
+                    typeIdx = ElfAnalyzer.RegisterRule.TYPE
+                    argIdx = ElfAnalyzer.RegisterRule.ARG
+
+                    s = ElfAnalyzer.DW_CFI_REGISTER_RULE_TYPE[reg[typeIdx]]
+
+                    if reg[typeIdx] in ('OFFSET', 'VAL_OFFSET'):
+                        s += '%+d' % reg[argIdx]
+                    elif reg[typeIdx] == 'REGISTER':
+                        s += regList[reg[argIdx]]
+
                     return s
 
                 myObj = self.attr['dwarf'][entry][offset]
@@ -53184,6 +53202,11 @@ Section header string table index: %d
             # add general info #
             self.attr['dwarf']['general']['nrCIE'] = nrCIE
             self.attr['dwarf']['general']['nrFDE'] = nrFDE
+
+            # remove useless data #
+            for name in list(self.attr['dwarf'].keys()):
+                if not name in ('CFAIndex', 'CFATable'):
+                    del self.attr['dwarf'][name]
 
             if debug:
                 SysMgr.printPipe(
