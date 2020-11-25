@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201123"
+__revision__ = "201125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3564,6 +3564,7 @@ class ConfigMgr(object):
 class UtilMgr(object):
     """ Manager for utilities """
 
+    curTime = 0
     progressCnt = 0
     progressChar = {
         0: '|',
@@ -3571,6 +3572,19 @@ class UtilMgr(object):
         2: '-',
         3: '\\',
     }
+
+
+
+    @staticmethod
+    def setTime():
+        UtilMgr.curTime = time.time()
+
+
+
+    @staticmethod
+    def printTime():
+        diff = time.time() - UtilMgr.curTime
+        print('\n[Elapsed: %f]' % diff)
 
 
 
@@ -4134,7 +4148,7 @@ class UtilMgr(object):
             try:
                 data = fd.readline()
                 curSize = fd.tell()
-                if len(data) == 0:
+                if not data:
                     break
                 buf.append(data)
             except SystemExit:
@@ -4162,7 +4176,7 @@ class UtilMgr(object):
         glob = SysMgr.getPkg('glob', False)
         if glob:
             res = glob.glob(value)
-            if len(res) == 0 and isExit:
+            if not res and isExit:
                 SysMgr.printErr(
                     "fail to find a file matching '%s'" % value)
                 sys.exit(0)
@@ -5224,7 +5238,7 @@ function format_percent(n) {
         for path in os.environ["PATH"].split(os.pathsep):
             if os.path.exists(os.path.join(path, file)):
                 pathList.append(os.path.join(path, file))
-        if len(pathList) == 0:
+        if not pathList:
             return None
         else:
             return pathList
@@ -5810,7 +5824,7 @@ class NetworkMgr(object):
                 # composite packets #
                 data = data + output
 
-                if len(output) == 0:
+                if not output:
                     break
 
                 # decode data #
@@ -5882,7 +5896,7 @@ class NetworkMgr(object):
 
     @staticmethod
     def getDataType(data):
-        if not data or len(data) == 0:
+        if not data:
             return 'None'
 
         data = data.lstrip()
@@ -6099,7 +6113,7 @@ class NetworkMgr(object):
     @staticmethod
     def setRemoteServer(value, tcp=False):
         # receive mode #
-        if value and len(value) == 0:
+        if not value:
             SysMgr.remoteServObj = 'NONE'
             return
 
@@ -6379,7 +6393,7 @@ class NetworkMgr(object):
         except:
             pass
 
-        if not ipList or len(ipList) == 0:
+        if not ipList or not ipList:
             return None
         elif '127.0.0.1' in ipList:
             return '127.0.0.1'
@@ -7180,7 +7194,7 @@ class PageAnalyzer(object):
                 raise Exception('wrong pid')
 
             pid = SysMgr.getPids(pid[0], isThread=False)
-            if len(pid) == 0:
+            if not pid:
                 raise Exception('no task')
             elif len(pid) > 1:
                 err = "found multiple pids [ %s ]" % ', '.join(pid)
@@ -7686,8 +7700,8 @@ class FunctionAnalyzer(object):
         self.parseLogs(lines, SysMgr.filterGroup)
 
         # Check whether data of target thread is collected or nothing #
-        if len(self.userCallData) == 0 and \
-            len(self.kernelCallData) == 0 and \
+        if not self.userCallData and \
+            not self.kernelCallData and \
             len(self.target) > 0:
             if self.target == []:
                 SysMgr.printErr("no collected stack data")
@@ -8301,7 +8315,7 @@ class FunctionAnalyzer(object):
                 targetStack = self.userSymData[sym]['stack']
 
             # First user stack related to this symbol #
-            if len(targetStack) == 0:
+            if not targetStack:
                 tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
                 tempList[eventIndex] = eventCnt
                 tempList[subStackIndex] = stack
@@ -8318,8 +8332,8 @@ class FunctionAnalyzer(object):
                     subStackSet = set(stackInfo[subStackIndex])
 
                     # Found same stack #
-                    if len(list(stackSet - subStackSet)) == 0 and \
-                        len(list(subStackSet - stackSet)) == 0:
+                    if not list(stackSet - subStackSet) and \
+                        not list(subStackSet - stackSet):
                         found = True
 
                         stackInfo[eventIndex] += eventCnt
@@ -8341,7 +8355,7 @@ class FunctionAnalyzer(object):
             kernelTargetStack = self.kerSymData[ksym]['stack']
 
             # First stack related to this symbol #
-            if len(kernelTargetStack) == 0:
+            if not kernelTargetStack:
                 tempList = [0] * len(FunctionAnalyzer.symStackIdxTable)
                 tempList[eventIndex] = eventCnt
                 tempList[subStackIndex] = kernelStack
@@ -8356,8 +8370,8 @@ class FunctionAnalyzer(object):
                     kerSubStackSet = set(stackInfo[subStackIndex])
 
                     # Found same stack  in stack list #
-                    if len(list(kerStackSet - kerSubStackSet)) == 0 and \
-                        len(list(kerSubStackSet - kerStackSet)) == 0:
+                    if not list(kerStackSet - kerSubStackSet) and \
+                        not list(kerSubStackSet - kerStackSet):
                         found = True
                         stackInfo[eventIndex] += eventCnt
                         kstackAddr = id(stackInfo[subStackIndex])
@@ -8956,12 +8970,12 @@ class FunctionAnalyzer(object):
         # stack of kernel thread #
         if not SysMgr.userRecordEnable or \
             nowCtx['prevMode'] != nowCtx['curMode'] == 'kernel':
-            if len(nowCtx['userStack']) == 0 and \
+            if not nowCtx['userStack'] and \
                 len(nowCtx['kerStack']) > 0:
                     # Set userLastPos to None #
                 self.nowCtx['userLastPos'] = '0'
                 self.nowCtx['userStack'].append('0')
-            if len(nowCtx['kerStack']) == 0 and \
+            if not nowCtx['kerStack'] and \
                 len(nowCtx['userStack']) > 0:
                 # Set kerLastPos to None #
                 self.nowCtx['kerLastPos'] = '0'
@@ -9099,7 +9113,7 @@ class FunctionAnalyzer(object):
                         self.posData[pos]['offset'] = offset
 
             # Save pos #
-            if len(self.nowCtx['userStack']) == 0:
+            if not self.nowCtx['userStack']:
                 self.nowCtx['userLastPos'] = pos
 
                 if targetEvent == 'CPU_TICK':
@@ -9113,7 +9127,7 @@ class FunctionAnalyzer(object):
         # kernel mode #
         elif self.nowCtx['curMode'] == 'kernel':
             # Save pos #
-            if len(self.nowCtx['kerStack']) == 0:
+            if not self.nowCtx['kerStack']:
                 self.nowCtx['kerLastPos'] = pos
 
                 if targetEvent == 'CPU_TICK':
@@ -9573,7 +9587,7 @@ class FunctionAnalyzer(object):
                     nrSyscall = long(b['nr'])
                     syscallList = SysMgr.syscallList
 
-                    if len(syscallList) == 0 or nrSyscall in syscallList:
+                    if not syscallList or nrSyscall in syscallList:
                         args = b['args'][1:-1]
 
                         self.threadData[tid]['nrSyscall'] += 1
@@ -10434,7 +10448,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe("%s\n\n\n" % oneLine)
 
         # Exit because of no target #
-        if len(self.target) == 0:
+        if not self.target:
             SysMgr.printWarn(
                 "no specific thread targeted, input TID with -g option")
 
@@ -10458,7 +10472,7 @@ class FunctionAnalyzer(object):
         stackIdx = long(0)
         appliedIndentLen = indentLen
 
-        if len(subStack) == 0:
+        if not subStack:
             return ' None'
 
         try:
@@ -10527,7 +10541,7 @@ class FunctionAnalyzer(object):
                         (symbolStack, self.posData[pos]['symbol'],
                         self.posData[pos]['origBin'])
 
-        if len(symbolStack) == 0:
+        if not symbolStack:
             return '\tNone'
         else:
             return symbolStack
@@ -10581,7 +10595,7 @@ class FunctionAnalyzer(object):
                 if eventCnt == 0:
                     break
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 else:
                     indentLen = len("\t" * 4 * 4) + 3
@@ -10623,7 +10637,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe()
 
         # Print syscall history #
-        if not SysMgr.showAll or len(self.sysCallData) == 0:
+        if not SysMgr.showAll or not self.sysCallData:
             SysMgr.printPipe('\n\n')
             return
 
@@ -10742,7 +10756,7 @@ class FunctionAnalyzer(object):
                     if eventCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         indentLen = len("\t" * 4 * 4) + 3
@@ -10820,7 +10834,7 @@ class FunctionAnalyzer(object):
                 if eventCnt == 0:
                     break
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 elif len(subStack) == 1 and not SysMgr.showAll and \
                     (not self.posData[subStack[0]]['symbol'] or \
@@ -10840,7 +10854,7 @@ class FunctionAnalyzer(object):
             SysMgr.printPipe()
 
         # Print custom call history #
-        if not SysMgr.showAll or len(self.customCallData) == 0:
+        if not SysMgr.showAll or not self.customCallData:
             SysMgr.printPipe('\n\n')
             return
 
@@ -10998,7 +11012,7 @@ class FunctionAnalyzer(object):
                     if cpuCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         # Increase total tick count of symbols in stack #
@@ -11164,7 +11178,7 @@ class FunctionAnalyzer(object):
                         else:
                             subStack = subStack[maxIdx:]
 
-                if len(subStack) == 0:
+                if not subStack:
                     symbolStack = ' <- USER'
                 elif len(subStack) == 1 and not SysMgr.showAll and \
                     (not self.posData[subStack[0]]['symbol'] or \
@@ -11244,7 +11258,7 @@ class FunctionAnalyzer(object):
                     if pageFreeCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         indentLen = len("\t" * 4 * 4)
@@ -11293,7 +11307,7 @@ class FunctionAnalyzer(object):
                 if pageFreeCnt == 0:
                     continue
 
-                if len(subStack) == 0:
+                if not subStack:
                     symbolStack = '\tNone'
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -11636,7 +11650,7 @@ class FunctionAnalyzer(object):
                     if pageCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         indentLen = len("\t" * 4 * 9)
@@ -11710,7 +11724,7 @@ class FunctionAnalyzer(object):
                 if pageCnt == 0:
                     continue
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 else:
                     indentLen = len("\t" * 4 * 9)
@@ -11791,7 +11805,7 @@ class FunctionAnalyzer(object):
                 if heapSize == 0:
                     break
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -11802,13 +11816,13 @@ class FunctionAnalyzer(object):
 
             SysMgr.printPipe(oneLine)
 
-        if len(self.heapTable) == 0:
+        if not self.heapTable:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
         SysMgr.printPipe('\n')
 
         # Print remaining heap history #
-        if not SysMgr.showAll or len(self.heapTable) == 0:
+        if not SysMgr.showAll or not self.heapTable:
             SysMgr.printPipe('\n\n')
             return
 
@@ -11971,7 +11985,7 @@ class FunctionAnalyzer(object):
                 if lockTryCnt == 0:
                     break
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -12045,7 +12059,7 @@ class FunctionAnalyzer(object):
                 if unlockCnt == 0:
                     break
 
-                if len(subStack) == 0:
+                if not subStack:
                     continue
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -12088,7 +12102,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe('\n')
 
         # Print lock history #
-        if not SysMgr.showAll or len(self.lockCallData) == 0:
+        if not SysMgr.showAll or not self.lockCallData:
             SysMgr.printPipe('\n\n')
             return
 
@@ -12203,7 +12217,7 @@ class FunctionAnalyzer(object):
                     if blockWrCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         indentLen = len("\t" * 4 * 4)
@@ -12255,7 +12269,7 @@ class FunctionAnalyzer(object):
                 if blockWrCnt == 0:
                     continue
 
-                if len(subStack) == 0:
+                if not subStack:
                     symbolStack = '\tNone'
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -12355,7 +12369,7 @@ class FunctionAnalyzer(object):
                     if blockRdCnt == 0:
                         break
 
-                    if len(subStack) == 0:
+                    if not subStack:
                         continue
                     else:
                         indentLen = len("\t" * 4 * 4)
@@ -12404,7 +12418,7 @@ class FunctionAnalyzer(object):
                 if blockRdCnt == 0:
                     continue
 
-                if len(subStack) == 0:
+                if not subStack:
                     symbolStack = '\tNone'
                 else:
                     indentLen = len("\t" * 4 * 4)
@@ -12584,7 +12598,7 @@ class LeakAnalyzer(object):
             SysMgr.printPipe('\tNone')
         SysMgr.printPipe(oneLine)
 
-        if not SysMgr.showAll or len(self.callData) == 0:
+        if not SysMgr.showAll or not self.callData:
             return
 
         # leakage history #
@@ -12920,7 +12934,7 @@ class FileAnalyzer(object):
                             dict(self.init_threadData)
                         self.procList[pid]['tids'][tid]['comm'] = val['comm']
 
-        if len(self.procList) == 0:
+        if not self.procList:
             SysMgr.printErr('no process profiled')
             sys.exit(0)
 
@@ -12936,7 +12950,7 @@ class FileAnalyzer(object):
                     self.fileList[fileName]['pageCnt'] = fileStat['pageCnt']
                     self.fileList[fileName]['totalSize'] = fileStat['totalSize']
 
-        if len(self.fileList) == 0:
+        if not self.fileList:
             SysMgr.printErr('no file profiled')
             sys.exit(0)
 
@@ -13335,10 +13349,10 @@ class FileAnalyzer(object):
 
 
     def printUsage(self):
-        if len(self.procData) == 0:
+        if not self.procData:
             SysMgr.printErr('no process profiled')
             sys.exit(0)
-        if len(self.fileData) == 0:
+        if not self.fileData:
             SysMgr.printErr('no file profiled')
             sys.exit(0)
 
@@ -15394,7 +15408,7 @@ class SysMgr(object):
 
     @staticmethod
     def findLib(lib, inc=False):
-        if len(SysMgr.libCache) == 0:
+        if not SysMgr.libCache:
             SysMgr.loadLibCache()
 
         for key, val in SysMgr.libCache.items():
@@ -15456,7 +15470,7 @@ class SysMgr(object):
 
     @staticmethod
     def parseKillOption(value):
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr("wrong value %s with -k option")
             sys.exit(0)
 
@@ -15500,7 +15514,7 @@ class SysMgr(object):
 
     @staticmethod
     def parseAffinityOption(jobs, launch=False):
-        if len(jobs) == 0:
+        if not jobs:
             SysMgr.printErr("wrong option value")
             sys.exit(0)
 
@@ -15622,7 +15636,7 @@ class SysMgr(object):
 
         # parse options #
         value = SysMgr.filterGroup
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr(
                 "fail to set CPU affinity of task because of no target")
             sys.exit(0)
@@ -15774,7 +15788,7 @@ class SysMgr(object):
 
         # parse options #
         value = SysMgr.filterGroup
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr(
                 "fail to get CPU affinity of task because of no target")
             sys.exit(0)
@@ -17551,6 +17565,9 @@ Examples:
     - Print all function calls for a specific binary execution
         # {0:1} {1:1} -I "ls"
 
+    - Print all function calls for a specific binary execution with DWARF info
+        # {0:1} {1:1} -I "ls" -eD
+
     - Print all function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
@@ -18245,6 +18262,9 @@ Description:
 Examples:
     - Monitor function calls for a specific thread
         # {0:1} {1:1} -g a.out
+
+    - Monitor function calls for a specific thread with DWARF info
+        # {0:1} {1:1} -g a.out -eD
 
     - Monitor function calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
@@ -20079,7 +20099,7 @@ Copyright:
 
     @staticmethod
     def setArch(arch):
-        if not arch or len(arch) == 0:
+        if not arch or not arch:
             return
 
         arch = SysMgr.cleanItem(arch)
@@ -21000,7 +21020,7 @@ Copyright:
                 else:
                     successCnt += 1
 
-            if len(SysMgr.perfTargetEvent) == 0 and \
+            if not SysMgr.perfTargetEvent and \
                 len(SysMgr.perfEventChannel[coreId]) > 0:
                 SysMgr.perfTargetEvent = \
                     list(SysMgr.perfEventChannel[coreId].keys())
@@ -21030,7 +21050,7 @@ Copyright:
 
         # check perf event option #
         if SysMgr.perfGroupEnable and \
-            len(SysMgr.perfEventChannel) == 0:
+            not SysMgr.perfEventChannel:
             return
 
         # check perf event channel #
@@ -21083,7 +21103,7 @@ Copyright:
     def getPerfString(value):
         perfbuf = ''
 
-        if len(value) == 0:
+        if not value:
             return perfbuf
 
         inst = buscycle = refcpucycle = cpucycle = -1
@@ -21170,7 +21190,7 @@ Copyright:
 
         if not SysMgr.keventEnable:
             return
-        elif len(SysMgr.kernelCmd) == 0:
+        elif not SysMgr.kernelCmd:
             SysMgr.printErr(
                 "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
             sys.exit(0)
@@ -21223,7 +21243,7 @@ Copyright:
                     rCmd = rCmd.replace(';', ':')
 
                     # check absolute argument #
-                    if len(rCmd) == 0:
+                    if not rCmd:
                         pass
                     elif rCmd[0] == '#':
                         sCmd = '%s %s' % (sCmd, rCmd[1:])
@@ -21335,7 +21355,7 @@ Copyright:
 
         if not SysMgr.ueventEnable:
             return
-        elif len(SysMgr.userCmd) == 0:
+        elif not SysMgr.userCmd:
             SysMgr.printErr(
                 "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
             sys.exit(0)
@@ -21550,7 +21570,7 @@ Copyright:
         et, err, to = sys.exc_info()
 
         try:
-            if len(err.args) == 0 or err.args[0] == 0:
+            if not err.args or err.args[0] == 0:
                 return '%s at %s' % \
                     (sys.exc_info()[0].__name__, to.tb_lineno)
         except:
@@ -21869,7 +21889,7 @@ Copyright:
     @staticmethod
     def printProfileCmd():
         for idx, val in SysMgr.rcmdList.items():
-            if len(val) == 0:
+            if not val:
                 continue
 
             cmds = []
@@ -22370,14 +22390,15 @@ Copyright:
                 # submit summarized report and details #
                 ThreadAnalyzer.printIntervalUsage()
 
-                fsize = \
-                    UtilMgr.convSize2Unit(
-                        long(os.path.getsize(SysMgr.inputFile)))
+                if os.path.exists(SysMgr.inputFile):
+                    fsize = \
+                        UtilMgr.convSize2Unit(
+                            long(os.path.getsize(SysMgr.inputFile)))
 
-                SysMgr.printInfo(
-                    "saved results based monitoring into "
-                    "'%s' [%s] successfully" % \
-                    (SysMgr.inputFile, fsize))
+                    SysMgr.printInfo(
+                        "saved results based monitoring into "
+                        "'%s' [%s] successfully" % \
+                        (SysMgr.inputFile, fsize))
 
             SysMgr.releaseResource()
 
@@ -22840,7 +22861,7 @@ Copyright:
 
     @staticmethod
     def doPrint(newline=True, clear=False, flush=True, addLine=False):
-        if len(SysMgr.bufferString) == 0:
+        if not SysMgr.bufferString:
             return
 
         if addLine:
@@ -23612,7 +23633,7 @@ Copyright:
 
     @staticmethod
     def updateSession():
-        if len(SysMgr.addrListForPrint) == 0:
+        if not SysMgr.addrListForPrint:
             return
 
         addrListForPrint = dict(SysMgr.addrListForPrint)
@@ -24464,7 +24485,7 @@ Copyright:
 
             if option == 'i':
                 # set default interval #
-                if len(value) == 0:
+                if not value:
                     SysMgr.intervalEnable = 1
                     continue
 
@@ -24550,7 +24571,7 @@ Copyright:
                     SysMgr.preemptGroup = \
                         SysMgr.cleanItem(value.split(','))
 
-                    if len(SysMgr.preemptGroup) == 0:
+                    if not SysMgr.preemptGroup:
                         SysMgr.printErr((
                             "no specific thread targeted, "
                             "input TID with -p option"))
@@ -24854,7 +24875,7 @@ Copyright:
             elif option == 'O':
                 SysMgr.perCoreList = \
                     SysMgr.cleanItem(value.split(','))
-                if len(SysMgr.perCoreList) == 0:
+                if not SysMgr.perCoreList:
                     SysMgr.printErr(
                         "Input value for filter with -O option")
                     sys.exit(0)
@@ -24899,7 +24920,7 @@ Copyright:
                             (val, SysMgr.arch))
                         sys.exit(0)
 
-                if len(enabledSyscall) == 0:
+                if not enabledSyscall:
                     SysMgr.printInfo("enabled syscall list [ ALL ]")
                 else:
                     SysMgr.printInfo(
@@ -24910,7 +24931,7 @@ Copyright:
                 try:
                     SysMgr.ttyEnable = True
 
-                    if len(value) == 0:
+                    if not value:
                         SysMgr.setTTYAuto()
                     else:
                         rows = cols = long(0)
@@ -25249,7 +25270,7 @@ Copyright:
 
             elif option == 'B':
                 # get output path #
-                if len(value) == 0:
+                if not value:
                     value = SysMgr.cmdFileName
 
                 # change output path #
@@ -25297,7 +25318,7 @@ Copyright:
                             (val, SysMgr.arch))
                         sys.exit(0)
 
-                if len(enabledSyscall) == 0:
+                if not enabledSyscall:
                     SysMgr.printInfo("enabled syscall list [ ALL ]")
                 else:
                     SysMgr.printInfo(
@@ -25313,7 +25334,7 @@ Copyright:
             elif option == 'c':
                 itemList = UtilMgr.splitString(value)
                 SysMgr.customCmd = SysMgr.cleanItem(itemList)
-                if len(SysMgr.customCmd) == 0:
+                if not SysMgr.customCmd:
                     SysMgr.printErr(
                         "fail to recognize custom events")
                     sys.exit(0)
@@ -26187,7 +26208,6 @@ Copyright:
 
             # run ELF analyzer #
             try:
-                obj = ElfAnalyzer(path, debug, incArg=True)
                 if path == 'vdso':
                     obj = SysMgr.getVDSO(debug=debug)
                 else:
@@ -26888,7 +26908,7 @@ Copyright:
             reportPath = val
 
         # check report path #
-        if not reportPath or len(reportPath) == 0:
+        if not reportPath or not reportPath:
             tmpPath = '/tmp'
             reportPath = tmpPath
 
@@ -27054,7 +27074,7 @@ Copyright:
                 except:
                     continue
 
-                if len(event.strip()) == 0:
+                if not event.strip():
                     SysMgr.writeEvent("EVENT_USER")
                     pids = SysMgr.broadcastEvent('EVENT', pids)
                 else:
@@ -27160,7 +27180,7 @@ Copyright:
 
             # get bind address #
             addrs = SysMgr.getSocketAddrList(objs)
-            if len(addrs) == 0:
+            if not addrs:
                 SysMgr.printWarn(
                     "fail to get socket attribute of server", True)
                 return None
@@ -27335,7 +27355,7 @@ Copyright:
                 bgList = SysMgr.bgProcList.split('\n')
                 tempBgList = list(bgList)
                 for idx, line in enumerate(tempBgList):
-                    if len(line) == 0:
+                    if not line:
                         continue
                     pid = long(line.split()[0])
                     if pid == ppid:
@@ -27359,7 +27379,7 @@ Copyright:
     @staticmethod
     def getBgProcString():
         if not SysMgr.bgProcList or \
-            len(SysMgr.bgProcList) == 0:
+            not SysMgr.bgProcList:
             return ''
 
         procList = SysMgr.bgProcList
@@ -27700,7 +27720,7 @@ Copyright:
             sys.stdin.readline()
 
         ulist = uinput.split()
-        if len(ulist) == 0:
+        if not ulist:
             return
 
         # hotkey #
@@ -27805,7 +27825,7 @@ Copyright:
 
     @staticmethod
     def getLimitCpuInfo(limitInfo):
-        if len(limitInfo) == 0:
+        if not limitInfo:
             SysMgr.printErr(
                 "fail to get task info to limit cpu, "
                 "input {tid:percentage} with -g option")
@@ -29097,7 +29117,8 @@ Copyright:
                 for robj in read:
                     while 1:
                         # clear screen #
-                        SysMgr.clearScreen()
+                        if len(cmdPipeList) > 1:
+                            SysMgr.clearScreen()
 
                         # read output #
                         output = cmdPipeList[robj][1].getData(noTimeout=False)
@@ -29241,7 +29262,7 @@ Copyright:
 
         # parse options #
         value = ' '.join(sys.argv[2:])
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr(
                 ("no PATH to convert file, "
                 "input the path of a text file"))
@@ -29449,7 +29470,7 @@ Copyright:
 
         # parse options #
         value = ','.join(SysMgr.filterGroup)
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr(
                 ("wrong value to set priority, "
                 "input in the format POLICY:PRIORITY|TIME:TID|COMM"))
@@ -30471,7 +30492,7 @@ Copyright:
                     hex(addr).rstrip('L'), val[2], val[0], val[1],
                     maxSymLen=maxSymLen))
 
-        if len(resInfo) == 0:
+        if not resInfo:
             SysMgr.printPipe('\tNone')
 
         SysMgr.printPipe(oneLine + '\n')
@@ -30484,7 +30505,7 @@ Copyright:
             fileList = os.listdir(parentPath)
             parentAbsPath = "%s" % (os.path.abspath(parentPath))
 
-            if len(fileList) == 0 or \
+            if not fileList or \
                     (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
@@ -30934,7 +30955,7 @@ Copyright:
                     symbol, offset.rstrip('L'), addr.rstrip('L'), filePath,
                     maxSymLen=maxSymLen))
 
-        if len(resInfo) == 0:
+        if not resInfo:
             SysMgr.printPipe('\tNone')
 
         SysMgr.printPipe(oneLine + '\n')
@@ -31011,7 +31032,7 @@ Copyright:
 
         # check target id #
         targetList = SysMgr.filterGroup
-        if len(targetList) == 0:
+        if not targetList:
             SysMgr.printErr(
                 "no PID or COMM with -g option")
             sys.exit(0)
@@ -31021,7 +31042,7 @@ Copyright:
         isMulti = False
         startTime = endTime = 0
         pids = SysMgr.convertPidList(targetList, exceptMe=True)
-        if len(pids) == 0:
+        if not pids:
             SysMgr.printErr("no %s process" % \
                 ', '.join(targetList))
             sys.exit(0)
@@ -31508,7 +31529,7 @@ Copyright:
 
         # wait for childs #
         while 1:
-            if len(ioTasks) == 0:
+            if not ioTasks:
                 break
             SysMgr.waitEvent(ignChldSig=False, exit=True)
             SysMgr.updateChildList()
@@ -31789,7 +31810,7 @@ Copyright:
 
         # wait for childs #
         while 1:
-            if len(ioTasks) == 0:
+            if not ioTasks:
                 break
             SysMgr.waitEvent(ignChldSig=False, exit=True)
             SysMgr.updateChildList()
@@ -32873,7 +32894,7 @@ Copyright:
                     else:
                         val['comm'], val['nowTick'] = stat
 
-                if len(taskList) == 0:
+                if not taskList:
                     SysMgr.printErr(
                         "fail to find task to limit CPU usage")
                     return
@@ -33245,7 +33266,7 @@ Copyright:
 
     @staticmethod
     def parsePriorityOption(value):
-        if len(value) == 0:
+        if not value:
             SysMgr.printErr((
                 "wrong value '%s' to apply for new priority, "
                 "input POLICY:PRIORITY|TIME:TID|COMM in the format") % value)
@@ -33859,7 +33880,7 @@ Copyright:
                 except:
                     pass
 
-                if len(self.cpuCacheInfo[core]) == 0:
+                if not self.cpuCacheInfo[core]:
                     del self.cpuCacheInfo[core]
         except:
             pass
@@ -34089,7 +34110,7 @@ Copyright:
 
     @staticmethod
     def isNoChild():
-        if len(SysMgr.childList) == 0:
+        if not SysMgr.childList:
             return True
         else:
             return False
@@ -34610,7 +34631,7 @@ Copyright:
             if SysMgr.filterGroup:
                 try:
                     cmd = "%s%s" % (cmd, SysMgr.getPidFilter())
-                    if len(cmd) == 0:
+                    if not cmd:
                         raise Exception('no command')
                 except:
                     SysMgr.printErr(
@@ -34682,7 +34703,7 @@ Copyright:
                     SysMgr.printErr(
                         "fail to enable syscall events with other events")
                     sys.exit(0)
-                elif len(SysMgr.syscallList) == 0:
+                elif not SysMgr.syscallList:
                     pass
             else:
                 # heap events #
@@ -36324,7 +36345,7 @@ Copyright:
 
             # print total stat #
             try:
-                if len(owner) == 0:
+                if not owner:
                     raise Exception('no owner')
 
                 try:
@@ -36467,7 +36488,8 @@ Copyright:
         # add JSON stats #
         if SysMgr.jsonEnable:
             SysMgr.jsonData.setdefault('general', dict())
-            SysMgr.jsonData['general']['gpu'] = dict()
+            SysMgr.jsonData['general'].setdefault('gpu', dict())
+            SysMgr.jsonData['general'].setdefault('gpumem', dict())
             jsonData = SysMgr.jsonData['general']['gpumem']
 
         # print GPU Memory info #
@@ -37961,7 +37983,7 @@ class DbusAnalyzer(object):
                             "{0:>23} {1:<23} {2:<10} ({3:<1})".format(
                                 ' ', ' ', ' ', key))
             SysMgr.printPipe(oneLine)
-        if len(nrPerProcSignals) == 0:
+        if not nrPerProcSignals:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
         # create a table for perSignal processes #
@@ -38030,7 +38052,7 @@ class DbusAnalyzer(object):
                             "{0:>23} {1:<12} {2:<12} {3:<1}".format(
                                 ' ', ' ', ' ', cproc))
             SysMgr.printPipe(oneLine)
-        if len(nrPerSigProcs) == 0:
+        if not nrPerSigProcs:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
 
 
@@ -38229,7 +38251,7 @@ class DbusAnalyzer(object):
                 SysMgr.updateTimer()
 
             while 1:
-                if len(rdPipeList) == 0:
+                if not rdPipeList:
                     return
 
                 # multi-threaded loop #
@@ -40042,6 +40064,43 @@ class Debugger(object):
     selfInstance = None
     RETSTR = '[RET]'
 
+    def getSigStruct(self):
+        class _sifields_sigfault_t(Union):
+            _fields_ = (
+                ("_addr", c_void_p),
+            )
+
+        class _sifields_sigchld_t(Structure):
+            _fields_ = (
+                ("pid", c_int),
+                ("uid", c_ushort),
+                ("status", c_int),
+                ("utime", c_uint),
+                ("stime", c_uint),
+            )
+
+        class _sifields_t(Union):
+            _fields_ = (
+                ("pad", c_char * (128 - 3 * sizeof(c_int))),
+                ("_sigchld", _sifields_sigchld_t),
+                ("_sigfault", _sifields_sigfault_t),
+                #        ("_kill", _sifields_kill_t),
+                #        ("_timer", _sifields_timer_t),
+                #        ("_rt", _sifields_rt_t),
+                #        ("_sigpoll", _sifields_sigpoll_t),
+            )
+
+        class siginfo(Structure):
+            _fields_ = (
+                ("si_signo", c_int),
+                ("si_errno", c_int),
+                ("si_code", c_int),
+                ("_sifields", _sifields_t)
+            )
+            _anonymous_ = ("_sifields",)
+
+        return siginfo()
+
     def getRegStruct(self):
         class user_regs_struct(Structure):
             def getdict(struct): # pylint: disable=no-self-argument
@@ -40049,7 +40108,14 @@ class Debugger(object):
                     for field, _ in struct._fields_)
 
             if self.arch == 'aarch64':
-                _fields_ = tuple(("x%i" % reg, c_ulong) for reg in range(35))
+                regs = tuple(("x%i" % reg, c_ulong) for reg in range(31))
+                _fields_ = regs + (
+                    ("sp", c_ulong),
+                    ("pc", c_ulong),
+                    ("ELP_mode", c_ulong),
+                    ("RA_SIGN_STATE", c_ulong)
+                )
+
             elif self.arch == 'x64':
                 _fields_ = (
                     ("r15", c_ulong),
@@ -40418,9 +40484,12 @@ struct cmsghdr {
         self.regs = self.getRegStruct()
         self.iovecObj = self.getIovec(self.regs)
         self.fpregs = self.getFpRegStruct()
+        self.tempFpRegs = self.getFpRegStruct()
         self.tempRegs = self.getRegStruct()
         self.tempIovecObj = self.getIovec(self.tempRegs)
-        self.tempFpRegs = self.getFpRegStruct()
+        self.btRegs = self.getRegStruct()
+        self.btIovecObj = self.getIovec(self.btRegs)
+        self.sigObj = self.getSigStruct()
         self.regsDict = None
         self.fpRegsDict = None
 
@@ -40701,7 +40770,7 @@ struct cmsghdr {
         arch = self.arch
         nrArg = len(argList)
 
-        if len(argList) == 0:
+        if not argList:
             return
 
         for idx, val in enumerate(argList):
@@ -41045,7 +41114,7 @@ struct cmsghdr {
                             origArgs[idx], hex(val).rstrip('L'), val)
 
                 # complete output string #
-                if len(argStr) == 0:
+                if not argStr:
                     res = ''
                 else:
                     res = argStr[:argStr.rfind(',')]
@@ -41093,7 +41162,7 @@ struct cmsghdr {
                         (item, hex(val).rstrip('L'), val)
 
                 # complete output string #
-                if len(argStr) == 0:
+                if not argStr:
                     res = ''
                 else:
                     res = argStr[:argStr.rfind(',')]
@@ -41366,8 +41435,7 @@ struct cmsghdr {
                 ret = self.readMem(addr, size)
                 if ret is None or ret == -1:
                     SysMgr.printErr(
-                        "fail to read from %s" % \
-                            hex(addr).rstrip('L'))
+                        "fail to read from %s" % hex(addr).rstrip('L'))
                     return repeat
 
                 # update return #
@@ -42052,73 +42120,74 @@ struct cmsghdr {
                 ret = self.getSymbolInfo(addr)
                 addrList.append([addr, ret[0], ret[1]])
                 cmdList.append(cmdSet)
+                continue
+
             # symbol #
-            else:
-                symbol, inc, start, end = ElfAnalyzer.getFilterFlags(value)
+            symbol, inc, start, end = ElfAnalyzer.getFilterFlags(value)
 
-                ret = self.getAddrBySymbol(
-                    symbol, binary=binlist, inc=inc, start=start, end=end)
-                if not ret:
-                    # execution mode #
-                    if self.execCmd or value == '' or \
-                        value in self.dftBpSymList:
-                        continue
+            ret = self.getAddrBySymbol(
+                symbol, binary=binlist, inc=inc, start=start, end=end)
+            if ret:
+                addrList += ret
+                for cnt in range(0, len(ret)):
+                    cmdList.append(cmdSet)
+                continue
 
-                    # no binary on map #
-                    if binlist:
-                        found = False
-                        for binary in binlist:
-                            if binary in self.pmap:
-                                found = True
-                                break
-                        if not found:
-                            SysMgr.printErr(
-                                "fail to find '%s' on memory map" % \
-                                    ', '.join(binlist))
+            # execution mode #
+            if self.execCmd or value == '' or value in self.dftBpSymList:
+                continue
 
-                            PageAnalyzer.printMemoryArea(
-                                self.pid, comm=self.comm, lastLine=True)
-
-                            sys.exit(0)
-
-                    # no symbol #
+            # no binary on map #
+            if binlist:
+                found = False
+                for binary in binlist:
+                    if binary in self.pmap:
+                        found = True
+                        break
+                if not found:
                     SysMgr.printErr(
-                        "fail to find address for symbol '%s'" % value)
+                        "fail to find '%s' on memory map" % \
+                            ', '.join(binlist))
+
+                    PageAnalyzer.printMemoryArea(
+                        self.pid, comm=self.comm, lastLine=True)
+
                     sys.exit(0)
-                else:
-                    addrList += ret
-                    for cnt in range(0, len(ret)):
-                        cmdList.append(cmdSet)
+
+            # no symbol #
+            SysMgr.printErr(
+                "fail to find address for symbol '%s'" % value)
+            sys.exit(0)
 
         return addrList, cmdList
 
 
 
-    def injectBpList(self, symlist, binlist=None, verb=True):
+    def injectBpList(self, symList, binList=None, verb=True):
         exceptList = list()
-        if symlist:
+        if symList:
             newList = list()
-            for symbol in symlist:
+            for symbol in symList:
                 if not symbol.startswith('^'):
                     newList.append(symbol)
                     continue
                 exceptList.append(symbol[1:])
-            symlist = newList
+            symList = newList
 
         # get address list for breakpoints #
-        addrList, cmdList = self.getBpList(symlist, binlist, verb)
+        addrList, cmdList = self.getBpList(symList, binList, verb)
         if not addrList: return
 
         # get exceptional address list for breakpoints #
         exceptAddrList = []
         if exceptList:
-            exceptList = self.getBpList(exceptList, binlist, verb)[0]
+            exceptList = self.getBpList(exceptList, binList, verb)[0]
             for item in exceptList:
                 exceptAddrList.append(item[0])
 
         # print target process name #
-        tgid = SysMgr.getTgid(self.pid)
         if verb:
+            tgid = SysMgr.getTgid(self.pid)
             SysMgr.printStat(
                 r"start injecting %s breakpoints for %s(%s)..." % \
                     (UtilMgr.convNum(len(addrList)),
@@ -43484,7 +43553,7 @@ struct cmsghdr {
 
         # add per-process breakpoints #
         return self.injectBpList(
-            symlist=funcFilter, binlist=fileList, verb=verb)
+            symList=funcFilter, binList=fileList, verb=verb)
 
 
 
@@ -44029,8 +44098,8 @@ struct cmsghdr {
     def printIntervalSummary(self):
         def resetStats():
             # initialize syscall timetable #
-            self.syscallTimeStat = dict()
-            self.breakcallTimeStat = dict()
+            self.syscallStat = dict()
+            self.brkcallStat = dict()
 
             # reset data #
             self.totalCall = long(0)
@@ -44054,7 +44123,7 @@ struct cmsghdr {
 
             resetStats()
 
-        if self.multi and len(self.callTable) == 0:
+        if self.multi and not self.callTable:
             SysMgr.printWarn(
                 "no call data for %s(%s)" % \
                     (self.comm, self.pid))
@@ -44135,6 +44204,7 @@ struct cmsghdr {
         else:
             comm = '??'
 
+        # print top stat #
         ret = SysMgr.addPrint((
             '[Top %s Info] [Time: %.3f] [Interval: %.3f] [NrSamples: %s] '
             '[%s(%s): %s] [%s(%s): %s]%s \n%s\n') % \
@@ -44146,6 +44216,7 @@ struct cmsghdr {
         if not ret:
             finishPrint()
 
+        # print menu #
         ret = SysMgr.addPrint(
             '{0:^7} | {1:<144}\n{2:<1}\n'.format(
                 'Usage', 'Function %s' % addInfo, twoLine), newline=2)
@@ -44159,19 +44230,18 @@ struct cmsghdr {
             if sym[0] == '/':
                 sym = '??'
 
+            # check per #
             try:
                 per = value['cnt'] / nrTotal * 100 * floatTotalUsage
+                if per < 1 and not SysMgr.showAll:
+                    break
             except:
-                break
-
-            if per < 1 and \
-                not SysMgr.showAll:
                 break
 
             # stat #
             if self.mode == 'syscall':
                 try:
-                    total, tmax = self.syscallTimeStat[sym]
+                    total, tmax = self.syscallStat[sym]
                     average = total / value['cnt']
                 except:
                     total = average = tmax = long(0)
@@ -44182,7 +44252,7 @@ struct cmsghdr {
                             total, average, tmax, convert(value['err']))
             elif self.mode == 'break':
                 try:
-                    prev, total, tmin, tmax = self.breakcallTimeStat[sym]
+                    prev, total, tmin, tmax = self.brkcallStat[sym]
                     avg = total / value['cnt']
                 except:
                     prev = total = tmin = tmax = avg = long(0)
@@ -44194,6 +44264,7 @@ struct cmsghdr {
                 addVal = '[%s] <Cnt: %s>' % \
                     (value['path'], convert(value['cnt']))
 
+            # check cut condition #
             if SysMgr.checkCutCond():
                 break
 
@@ -44384,7 +44455,7 @@ struct cmsghdr {
 
         # update file and addr lists from memory map #
         self.fileList, self.addrList = self.getAddrLists()
-        if len(self.fileList) == 0:
+        if not self.fileList:
             SysMgr.printWarn(
                 'fail to get file list on memory map')
 
@@ -44633,7 +44704,7 @@ struct cmsghdr {
                     rvalue = ''
 
                 SysMgr.addPrint(
-                    '%10s: 0x%x%s\n' % (reg, val, rvalue))
+                    '%13s: 0x%x%s\n' % (reg, val, rvalue))
 
             SysMgr.addPrint('%s\n' % twoLine)
 
@@ -44744,7 +44815,7 @@ struct cmsghdr {
 
     def updateCallstack(self, sym):
         while 1:
-            if len(self.callstack) == 0:
+            if not self.callstack:
                 return
             elif self.callstack[-1][0] > self.sp or \
                 self.callstack[-1][0] >= self.prevSp or \
@@ -44777,7 +44848,7 @@ struct cmsghdr {
             while 1:
                 if sym != '??':
                     break
-                elif len(bt) == 0:
+                elif not bt:
                     break
                 elif bt[0][1] == '??':
                     bt.pop(0)
@@ -44790,7 +44861,7 @@ struct cmsghdr {
 
             # remove contiguous symbol #
             while 1:
-                if len(bt) == 0:
+                if not bt:
                     break
                 elif sym == bt[0][1] and filename == bt[0][2]:
                     bt.pop(0)
@@ -44993,9 +45064,12 @@ struct cmsghdr {
             # unwind stack using DWARF #
             if SysMgr.dwarfEnable:
                 # backup registers #
-                self.backupRegs()
+                self.backupRegs(bt=True)
 
+                # set start address #
                 ip = self.pc
+                if self.mode == 'break':
+                    ip -= self.prevInstOffset
 
                 if cur:
                     btList = [ip]
@@ -45017,8 +45091,15 @@ struct cmsghdr {
                 # convert addresses to symbols #
                 self.btList = self.convertAddrList(btList)
 
+                # print backtrace for debugging #
+                if False:
+                    print('\n' + oneLine)
+                    for item in self.btList:
+                        print(item)
+                    print(oneLine + '\n')
+
                 # restore registers #
-                self.restoreRegs()
+                self.restoreRegs(bt=True)
             # unwind stack using FP/SP #
             else:
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
@@ -45027,6 +45108,8 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
+            SysMgr.printWarn(
+                'fail to get backtrace from %x' % self.pc, reason=True)
             return []
 
 
@@ -45082,8 +45165,9 @@ struct cmsghdr {
 
         # get file offset #
         ret = self.getSymbolInfo(vaddr)
-        if not ret:
+        if not ret or ret[2] == '??':
             return
+        sym = ret[0]
         foffset = long(ret[2], 16)
 
         # get ELF object #
@@ -45092,7 +45176,8 @@ struct cmsghdr {
         # check DWARF info #
         if 'dwarf' not in fobj.attr:
             SysMgr.printWarn(
-                'fail to find DWARF info in %s' % fname)
+                'fail to find DWARF info for %s(%s) in %s' % \
+                    (sym, hex(foffset), fname))
             return None
 
         # get function address from CFA index table #
@@ -45101,8 +45186,8 @@ struct cmsghdr {
         faddr = fobj.attr['dwarf']['CFAIndex'][idx]
         if not faddr in fobj.attr['dwarf']['CFATable']:
             SysMgr.printWarn(
-                'fail to find CFA table info for %s in %s' % \
-                    (hex(faddr), fname))
+                'fail to find CFA table info for %s(%s) in %s' % \
+                    (sym, hex(faddr), fname))
             return None
 
         # get effective CFA rule #
@@ -45113,8 +45198,8 @@ struct cmsghdr {
             rule = line
         if not rule:
             SysMgr.printWarn(
-                'fail to find CFA rule info for %s in %s' % \
-                    (hex(foffset), fname))
+                'fail to find CFA rule info for %s(%s) in %s' % \
+                    (sym, hex(foffset), fname))
             return None
 
         # define index for CFA member variables #
@@ -45153,11 +45238,21 @@ struct cmsghdr {
             except:
                 pass
 
-        # get return address #
-        roffset = rule[ConfigMgr.pcRegIndex[SysMgr.arch]][argIdx]
-        if roffset is None:
-            return None
-        raddr = cfa + roffset
+        # get CFA offset for return address #
+        pcIdx = ConfigMgr.pcRegIndex[SysMgr.arch]
+        # use specific register #
+        if pcIdx in rule:
+            roffset = rule[pcIdx][argIdx]
+
+            # calculate adderss for return address #
+            if roffset is None:
+                return None
+            else:
+                raddr = cfa + roffset
+        # just use FP #
+        else:
+            self.updateNamedRegs()
+            raddr = self.fp + ConfigMgr.wordSize
 
         # update stack pointer for previous context #
         self.setSP(cfa)
@@ -45359,7 +45454,7 @@ struct cmsghdr {
     def addStat(self, sym):
         # apply stat #
         try:
-            prev, ttotal, tmin, tmax = self.breakcallTimeStat[sym]
+            prev, ttotal, tmin, tmax = self.brkcallStat[sym]
 
             tdiff = self.current - prev
 
@@ -45372,12 +45467,12 @@ struct cmsghdr {
                 tmin > tdiff:
                 tmin = tdiff
 
-            self.breakcallTimeStat[sym] = \
+            self.brkcallStat[sym] = \
                 [self.current, ttotal, tmin, tmax]
         except SystemExit:
             sys.exit(0)
         except:
-            self.breakcallTimeStat[sym] = [self.current, 0, 0, 0]
+            self.brkcallStat[sym] = [self.current, 0, 0, 0]
 
 
 
@@ -45426,12 +45521,18 @@ struct cmsghdr {
 
 
     def runExecMode(self):
+        # stop target #
+        if not self.isStopped():
+            self.stop()
+            self.waitpid()
+
         # read registers for target #
         if not self.updateRegs():
             sys.exit(0)
 
         # print context #
-        self.printContext(regs=SysMgr.showAll, newline=True)
+        if not 'print' in SysMgr.customCmd:
+            self.printContext(regs=SysMgr.showAll, newline=True)
 
         # read args #
         args = self.readArgs()
@@ -45481,7 +45582,7 @@ struct cmsghdr {
             tinfo = ''
 
         # get diff time #
-        diffstr = '%3.6f' % (self.current - self.start)
+        diffstr = '%3.6f' % (self.current - self.dstart)
 
         # build backtrace #
         if SysMgr.funcDepth > 0:
@@ -45841,7 +45942,7 @@ struct cmsghdr {
                 return
 
         # get diff time #
-        diff = self.current - self.start
+        diff = self.current - self.dstart
 
         if self.multi:
             tinfo = '%s(%s) ' % (self.comm, self.pid)
@@ -46199,7 +46300,7 @@ struct cmsghdr {
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             # get time diff #
-            diff = self.current - self.start
+            diff = self.current - self.dstart
 
             # build call string #
             callString = '%3.6f %s %s [%s + %s] [%s]' % \
@@ -46327,7 +46428,7 @@ struct cmsghdr {
 
     def handleSyscallOutput(self, args, deferrable=False):
         # get diff time #
-        diff = self.current - self.start
+        diff = self.current - self.dstart
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
@@ -46483,7 +46584,7 @@ struct cmsghdr {
             return
 
         # get diff time #
-        diff = self.current - self.start
+        diff = self.current - self.dstart
 
         # enter #
         if self.status == 'enter':
@@ -46549,17 +46650,17 @@ struct cmsghdr {
 
                 # apply diff #
                 try:
-                    ttotal, tmax = self.syscallTimeStat[name]
+                    ttotal, tmax = self.syscallStat[name]
                     ttotal += diff
 
                     if tmax < diff:
                         tmax = diff
 
-                    self.syscallTimeStat[name] = [ttotal, tmax]
+                    self.syscallStat[name] = [ttotal, tmax]
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    self.syscallTimeStat[name] = [diff, diff]
+                    self.syscallStat[name] = [diff, diff]
 
             # set return value from register #
             retval = self.getRet()
@@ -46785,6 +46886,7 @@ struct cmsghdr {
             if not fcache:
                 continue
 
+            # get offset #
             offset = fcache.getOffsetBySymbol(
                 symbol, inc=inc, start=start, end=end)
             if type(offset) is str:
@@ -47044,7 +47146,7 @@ struct cmsghdr {
         self.pthreadID = 0
         self.comm = SysMgr.getComm(self.pid, cache=True)
         self.exe = SysMgr.getExeName(self.pid)
-        self.start = self.last = time.time()
+        self.dstart = self.start = self.last = time.time()
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
@@ -47082,8 +47184,8 @@ struct cmsghdr {
         self.callPrint = list()
         self.cpuUsageList = list()
         self.syscallTime = dict()
-        self.syscallTimeStat = dict()
-        self.breakcallTimeStat = dict()
+        self.syscallStat = dict()
+        self.brkcallStat = dict()
         self.retList = dict()
         self.accList = dict()
         self.setRetList = dict()
@@ -47164,7 +47266,13 @@ struct cmsghdr {
     def setRetBp(self, sym, fname, cmd=None):
         # get return position #
         try:
-            pos = self.getBacktrace(1, cur=False)[0][0]
+            bt = self.getBacktrace(1, cur=False)
+            if not bt:
+                SysMgr.printWarn(
+                    'no backtrace for %s(%s)' % (sym, fname))
+                return True
+
+            pos = bt[0][0]
         except SystemExit:
             sys.exit(0)
         except:
@@ -47257,6 +47365,9 @@ struct cmsghdr {
                     self.ptrace(self.cmd)
 
             try:
+                # apply for tracing overhead time #
+                self.dstart += (time.time() - self.current + self.timeDelay)
+
                 # wait process #
                 rid, ostat = self.waitpid()
 
@@ -47430,8 +47541,12 @@ struct cmsghdr {
         self.mode = mode
         self.multi = multi
         self.lockObj = lock
-        self.current = time.time()
         self.pbufsize = SysMgr.ttyCols >> 1
+
+        # timestamp variables #
+        self.current = time.time()
+        time.time()
+        self.timeDelay = time.time() - self.current
 
         # sampling variables #
         self.sampleTime = long(0)
@@ -47696,7 +47811,7 @@ struct cmsghdr {
 
     @staticmethod
     def printCallHistory(instance):
-        if len(instance.callPrint) == 0:
+        if not instance.callPrint:
             return
 
         try:
@@ -47739,7 +47854,7 @@ struct cmsghdr {
             addInfo = '<Elapsed>'
         elif instance.mode == 'break':
             ctype = 'Breakcall'
-            addInfo = '[PATH] <Interval>'
+            addInfo = '[PATH] <Elapsed>'
         else:
             if instance.mode == 'pycall':
                 ctype = 'Pycall'
@@ -47854,6 +47969,7 @@ struct cmsghdr {
         else:
             cpuStr = ' [%s]' % procInfo
 
+        # print top stat #
         SysMgr.printPipe((
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
@@ -48101,13 +48217,17 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
     def getSigInfo(self):
         PTRACE_GETSIGINFO = 0x4202
-        # toDo: implement signal peek #
+        ret = self.ptrace(
+            PTRACE_GETSIGINFO, data=addressof(self.sigObj))
+        return ret
 
 
 
     def setSigInfo(self):
         PTRACE_SETSIGINFO = 0x4203
-        # toDo: implement signal poke #
+        ret = self.ptrace(
+            PTRACE_SETSIGINFO, data=addressof(self.sigObj))
+        return ret
 
 
 
@@ -48168,34 +48288,34 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
     def setPC(self, val):
-        if self.arch == 'arm':
-            self.regs.r15 = val
-        elif self.arch == 'aarch64':
-            self.regs.x32 = val
-        elif self.arch == 'x86':
-            self.regs.eip = val
+        if self.arch == 'aarch64':
+            self.regs.pc = val
         elif self.arch == 'x64':
             self.regs.rip = val
+        elif self.arch == 'arm':
+            self.regs.r15 = val
+        elif self.arch == 'x86':
+            self.regs.eip = val
 
 
 
     def setSP(self, val):
-        if self.arch == 'arm':
-            self.regs.r13 = val
-        elif self.arch == 'aarch64':
-            self.regs.x31 = val
-        elif self.arch == 'x86':
-            self.regs.esp = val
+        if self.arch == 'aarch64':
+            self.regs.sp = val
         elif self.arch == 'x64':
             self.regs.rsp = val
+        elif self.arch == 'arm':
+            self.regs.r13 = val
+        elif self.arch == 'x86':
+            self.regs.esp = val
 
 
 
     def setLR(self, val):
-        if self.arch == 'arm':
-            self.regs.r14 = val
-        elif self.arch == 'aarch64':
+        if self.arch == 'aarch64':
             self.regs.x30 = val
+        elif self.arch == 'arm':
+            self.regs.r14 = val
 
 
 
@@ -48255,21 +48375,27 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
 
 
-    def restoreRegs(self):
+    def restoreRegs(self, bt=False):
+        if bt:
+            target = self.btRegs
+        else:
+            target = self.tempRegs
+
         memmove(
-            addressof(self.regs),
-            addressof(self.tempRegs),
-            sizeof(self.regs))
+            addressof(self.regs), addressof(target), sizeof(self.regs))
 
         self.updateNamedRegs()
 
 
 
-    def backupRegs(self):
+    def backupRegs(self, bt=False):
+        if bt:
+            target = self.btRegs
+        else:
+            target = self.tempRegs
+
         memmove(
-            addressof(self.tempRegs),
-            addressof(self.regs),
-            sizeof(self.regs))
+            addressof(target), addressof(self.regs), sizeof(self.regs))
 
 
 
@@ -48376,8 +48502,8 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         elif self.arch == 'aarch64':
             self.fp = self.regs.x29
             self.lr = self.regs.x30
-            self.sp = self.regs.x31
-            self.pc = self.regs.x32
+            self.sp = self.regs.sp
+            self.pc = self.regs.pc
         elif self.arch == 'x86':
             self.fp = self.regs.ebp
             self.sp = self.regs.esp
@@ -50150,7 +50276,7 @@ class ElfAnalyzer(object):
 
     cachedFiles = {}
     cachedHeaderFiles = {}
-    stripedFiles = {}
+    strippedFiles = {}
     failedFiles = {}
     relocTypes = {}
     cachedDemangleTable = {}
@@ -50676,7 +50802,7 @@ class ElfAnalyzer(object):
                 syms.append([d['symbol'], d['offset']])
 
         # check similar list #
-        if len(syms) == 0:
+        if not syms:
             return None
         else:
             return syms
@@ -50730,6 +50856,7 @@ class ElfAnalyzer(object):
         # merge symbol tables #
         tempSymTable = deepcopy(self.attr['symTable'])
         tempSymTable.update(self.attr['dynsymTable'])
+        tempSymTable.update(self.attr['dwarfTable'])
         self.mergedSymTable = tempSymTable
 
         # add PLT symbol #
@@ -50792,9 +50919,11 @@ class ElfAnalyzer(object):
 
         # register last symbol #
         try:
-            if prevAddr:
-                self.sortedAddrTable.append(prevAddr)
-                self.sortedSymTable.append([mainSym, prevSize])
+            if not prevAddr:
+                raise Exception()
+
+            self.sortedAddrTable.append(prevAddr)
+            self.sortedSymTable.append([mainSym, prevSize])
         except:
             pass
 
@@ -50802,6 +50931,8 @@ class ElfAnalyzer(object):
         if removeOrig:
             self.attr['symTable'].clear()
             self.attr['dynsymTable'].clear()
+            self.attr['dwarfTable'].clear()
+            self.addrTable.clear()
 
 
 
@@ -50827,7 +50958,7 @@ class ElfAnalyzer(object):
 
     def getAnonRangeByOffset(self, offset):
         # check symbol table #
-        if len(self.sortedSymTable) == 0:
+        if not self.sortedSymTable:
             self.mergeSymTable()
 
         try:
@@ -50866,7 +50997,7 @@ class ElfAnalyzer(object):
 
     def getSymbolByOffset(self, offset, onlyFunc=True):
         # check symbol table #
-        if len(self.sortedSymTable) == 0:
+        if not self.sortedSymTable:
             self.mergeSymTable(onlyFunc=onlyFunc)
 
         try:
@@ -50910,7 +51041,7 @@ class ElfAnalyzer(object):
         self, symbol, inc=False, start=False, end=False, onlyFunc=True):
 
         # check symbol table #
-        if len(self.sortedSymTable) == 0:
+        if not self.sortedSymTable:
             self.mergeSymTable(onlyFunc=onlyFunc)
 
         clist = list()
@@ -51519,7 +51650,7 @@ class ElfAnalyzer(object):
         '''
 
         # define attributes #
-        addrTable = {}
+        self.addrTable = {}
         self.ret = True
         self.path = path
         self.attr = {}
@@ -51551,6 +51682,8 @@ class ElfAnalyzer(object):
                 dobj = ElfAnalyzer(debugPath, debug=debug)
                 if dobj:
                     dobj.mergeSymTable()
+                    self.addrTable.update(dobj.addrTable)
+                    dobj.addrTable.clear()
                 self.attr['symTable'] = deepcopy(dobj.attr['symTable'])
                 self.attr['dynsymTable'] = deepcopy(dobj.attr['dynsymTable'])
 
@@ -52142,7 +52275,7 @@ Section header string table index: %d
 
                 # add address-symbol mapping info #
                 if SysMgr.dwarfEnable:
-                    addrTable[st_value] = symbol
+                    self.addrTable[st_value] = symbol
 
                 # register symbol to dynamic symbol list #
                 self.attr['dynsymList'].append(symbol)
@@ -52253,7 +52386,7 @@ Section header string table index: %d
 
                 # add address-symbol mapping info #
                 if SysMgr.dwarfEnable:
-                    addrTable[st_value] = symbol
+                    self.addrTable[st_value] = symbol
 
                 # get index #
                 if st_shndx in ElfAnalyzer.SHN_TYPE:
@@ -52286,7 +52419,7 @@ Section header string table index: %d
                     SysMgr.printPipe('\tNone')
                 SysMgr.printPipe(oneLine)
         else:
-            ElfAnalyzer.stripedFiles[path] = True
+            ElfAnalyzer.strippedFiles[path] = True
             SysMgr.printWarn(
                 "fail to get static symbol of %s (stripped)" % path)
 
@@ -52456,6 +52589,7 @@ Section header string table index: %d
                 SysMgr.printPipe(oneLine)
 
         # check .eh_frame section #
+        self.attr['dwarfTable'] = dict()
         if SysMgr.dwarfEnable and e_shehframe >= 0 and \
             self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
             def getEncType(encoding):
@@ -53117,7 +53251,7 @@ Section header string table index: %d
                     initLoc = decodeAddr(initLoc, sh_addr, curOffset, encMod)
 
                     # Range Length #
-                    addrRange = struct.unpack('I', fd.read(4))[0]
+                    lenSize = struct.unpack('I', fd.read(4))[0]
 
                     # Augmentation Size #
                     if 'z' in augstr:
@@ -53148,42 +53282,58 @@ Section header string table index: %d
                     # Call Frame Instructions #
                     cfi = self.getCFI(table, pos, len(table))
 
-                    # save info #
+                    # save FDE info #
                     self.attr['dwarf']['FDE'][offset] = {
                         'offset': offset,
                         'length': size,
                         'id': cid,
                         'CIE': cie,
                         'initLoc': initLoc,
-                        'addrRange': addrRange,
+                        'lenSize': lenSize,
                         'cfi': cfi,
                         'table': list(),
                     }
 
+                    if initLoc in self.addrTable and self.addrTable[initLoc]:
+                        symbol = self.addrTable[initLoc]
+                        self.attr['dwarf']['FDE'][offset]['symbol'] = symbol
+                    else:
+                        symbol = ''
+
+                        # register stripped function info #
+                        self.attr['dwarfTable'][hex(initLoc)] = {
+                            'value': initLoc,
+                            'size': lenSize,
+                            'type': 'FUNC',
+                        }
+
                     # print info #
                     if debug:
-                        if initLoc in addrTable and addrTable[initLoc]:
-                            symbol = addrTable[initLoc]
-                            self.attr['dwarf']['FDE'][offset]['symbol'] = \
-                                symbol
-                        else:
-                            symbol = ''
-
                         # apply for filter #
                         if SysMgr.filterGroup:
                             if not UtilMgr.isEffectiveStr(symbol, inc=True):
                                 continue
 
+                        # type info #
                         printStr = '\n%08x %016x %08x FDE cie=%08x ' % \
                             (offset, size, cid, cieOffset)
+
+                        # address info #
                         printStr += 'pc=%016x..%016x' % \
-                            (initLoc, initLoc+addrRange)
+                            (initLoc, initLoc+lenSize)
+
+                        # symbol info #
                         if symbol:
                             printStr += ' sym=%s' % symbol
+
                         printStr += '\n'
+
+                        # augmentation info #
                         if augdatastr:
                             printStr += ' %-22s %s\n\n' % \
                                 ('Augmentation data: ', augdatastr)
+
+                        # print line #
                         SysMgr.printPipe(printStr)
 
                 # decode instructions to make CFA table #
@@ -53593,7 +53743,7 @@ class ThreadAnalyzer(object):
                             targetList.setdefault(pname, pval)
 
                     # get diff by average #
-                    if len(targetList) == 0:
+                    if not targetList:
                         value['diff'] = value['average']
                     elif len(targetList) == 1:
                         target = targetList.popitem()[1]
@@ -53691,7 +53841,7 @@ class ThreadAnalyzer(object):
                             targetList.setdefault(proc, pval)
 
                     # get diff by average #
-                    if len(targetList) == 0:
+                    if not targetList:
                         value['diff'] = value['average']
                     elif len(targetList) == 1:
                         target = targetList.popitem()[1]
@@ -53781,7 +53931,7 @@ class ThreadAnalyzer(object):
 
                     # get diff by average #
                     try:
-                        if len(targetList) == 0:
+                        if not targetList:
                             if stat in value:
                                 value['diff'] = value[stat]
                         elif len(targetList) == 1:
@@ -53959,7 +54109,7 @@ class ThreadAnalyzer(object):
 
         SysMgr.doPrint(newline=False, clear=True)
 
-        if len(unionGpuList) == 0:
+        if not unionGpuList:
             SysMgr.printPipe('\tNone')
 
         SysMgr.printPipe(oneLine)
@@ -54246,7 +54396,7 @@ class ThreadAnalyzer(object):
             # remove wrong filter #
             if SysMgr.filterGroup:
                 for idx, val in enumerate(SysMgr.filterGroup):
-                    if len(val) == 0:
+                    if not val:
                         SysMgr.filterGroup.pop(idx)
 
                 taskList = ', '.join(SysMgr.filterGroup)
@@ -54475,7 +54625,7 @@ class ThreadAnalyzer(object):
         # calculate usage of threads in last interval #
         self.processIntervalData(self.finishTime)
 
-        if len(self.threadData) == 0:
+        if not self.threadData:
             SysMgr.printErr(
                 "no recognized data in %s" % SysMgr.inputFile)
             sys.exit(0)
@@ -54762,7 +54912,7 @@ class ThreadAnalyzer(object):
             UtilMgr.printProgress(curSize, totalSize)
 
             # get system info #
-            if len(SysMgr.systemInfoBuffer) == 0 and \
+            if not SysMgr.systemInfoBuffer and \
                 line.startswith('[System General Info]'):
                 infoBuf = ''
             elif infoBuf is not None:
@@ -55001,7 +55151,7 @@ class ThreadAnalyzer(object):
                         cpuProcUsage["[ TOTAL ]"]['maximum'] = \
                             max(filterTotal)
 
-                    if len(cpuList) == 0:
+                    if not cpuList:
                         cpuProcUsage[pname]['minimum'] = long(0)
                         cpuProcUsage[pname]['average'] = long(0)
                         cpuProcUsage[pname]['maximum'] = long(0)
@@ -55030,7 +55180,7 @@ class ThreadAnalyzer(object):
                     gpuUsage[gname]['usage'] = intervalList
                     gpuList = list(map(long, intervalList.split()))
 
-                    if len(gpuList) == 0:
+                    if not gpuList:
                         gpuUsage[gname]['minimum'] = long(0)
                         gpuUsage[gname]['average'] = long(0)
                         gpuUsage[gname]['maximum'] = long(0)
@@ -55539,7 +55689,7 @@ class ThreadAnalyzer(object):
     def drawChart(self, data, logFile, outFile=None):
         # pylint: disable=undefined-variable
 
-        if len(data) == 0:
+        if not data:
             return
 
         def make_autopct(values):
@@ -55746,7 +55896,7 @@ class ThreadAnalyzer(object):
                 eventList = graphStats['%seventList' % fname]
 
                 for tm, evts in enumerate(eventList):
-                    if len(evts) == 0:
+                    if not evts:
                         continue
 
                     evtbox = '%s%s' % (prefix, '\n'.join(evts))
@@ -56344,7 +56494,7 @@ class ThreadAnalyzer(object):
                     wrUsage = item['tran'][:lent]
 
                     # no network usage #
-                    if len(rdUsage) == len(wrUsage) == 0:
+                    if not rdUsage and not wrUsage:
                         continue
 
                     margin = self.getMargin()
@@ -58626,7 +58776,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # print kernel event history #
-        if not SysMgr.showAll or len(self.kernelEventData) == 0:
+        if not SysMgr.showAll or not self.kernelEventData:
             return
 
         SysMgr.clearPrint()
@@ -59492,7 +59642,7 @@ class ThreadAnalyzer(object):
     def printFutexInfo(self):
         SysMgr.clearPrint()
 
-        if len(self.futexData) == 0:
+        if not self.futexData:
             return
 
         convertNum = UtilMgr.convNum
@@ -59700,7 +59850,7 @@ class ThreadAnalyzer(object):
     def printFlockInfo(self):
         SysMgr.clearPrint()
 
-        if len(self.flockData) == 0:
+        if not self.flockData:
             return
 
         outputCnt = long(0)
@@ -59774,7 +59924,7 @@ class ThreadAnalyzer(object):
 
 
     def printSyscallInfo(self):
-        if len(self.syscallData) == 0:
+        if not self.syscallData:
             return
 
         convertNum = UtilMgr.convNum
@@ -60064,7 +60214,7 @@ class ThreadAnalyzer(object):
 
 
     def printConsoleInfo(self):
-        if len(self.consoleData) == 0 or not SysMgr.showAll:
+        if not self.consoleData or not SysMgr.showAll:
             return
 
         SysMgr.printPipe('\n[Thread Message Info]')
@@ -61332,7 +61482,7 @@ class ThreadAnalyzer(object):
                 lines = list()
                 tlines = fd.read().decode().split('\n')
                 for item in tlines:
-                    if len(item) == 0:
+                    if not item:
                         continue
                     lines.append('%s\n' % item)
 
@@ -61852,7 +62002,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(
                 "{0:>5} | {1:<144} |\n".format(value, filename))
 
-        if len(SysMgr.fileInstance) == 0:
+        if not SysMgr.fileInstance:
             SysMgr.printPipe('\tN/A\n')
 
         SysMgr.printPipe("%s\n" % oneLine)
@@ -61906,7 +62056,7 @@ class ThreadAnalyzer(object):
                 val['nrCore'], val['total']['netIO']))
             pCnt += 1
 
-        if len(ThreadAnalyzer.procIntData) == 0 or pCnt == 0:
+        if not ThreadAnalyzer.procIntData or pCnt == 0:
             SysMgr.printPipe('\tNone\n')
 
         SysMgr.printPipe("%s\n" % oneLine)
@@ -61915,7 +62065,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printEventInterval():
-        if len(ThreadAnalyzer.procEventData) == 0:
+        if not ThreadAnalyzer.procEventData:
             return
 
         # remove invalid events #
@@ -61932,7 +62082,7 @@ class ThreadAnalyzer(object):
         except:
             return
 
-        if len(ThreadAnalyzer.procEventData) == 0:
+        if not ThreadAnalyzer.procEventData:
             return
 
         SysMgr.printPipe('\n[Top Event Info] (Unit: %)\n')
@@ -62666,7 +62816,8 @@ class ThreadAnalyzer(object):
         if SysMgr.fileTopEnable:
             ThreadAnalyzer.printFileTable()
         elif SysMgr.jsonEnable or \
-            SysMgr.dltTopEnable:
+            SysMgr.dltTopEnable or \
+            SysMgr.dbusTopEnable:
             pass
         else:
             # build summary interval table #
@@ -62800,7 +62951,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printProcLifecycle():
-        if len(ThreadAnalyzer.lifecycleData) == 0:
+        if not ThreadAnalyzer.lifecycleData:
             SysMgr.printPipe("\n\tNone")
             return
 
@@ -63011,7 +63162,7 @@ class ThreadAnalyzer(object):
                 ppid = value['mainID']
 
             for idx, item in sorted(value['maps'].items(), reverse=True):
-                if len(item) == 0:
+                if not item:
                     continue
 
                 totalCnt += item['count']
@@ -66908,7 +67059,7 @@ class ThreadAnalyzer(object):
             return
 
         # check kernel thread #
-        if len(buf) == 0:
+        if not buf:
             return
 
         for line in buf:
@@ -67121,7 +67272,7 @@ class ThreadAnalyzer(object):
 
         try:
             schedBuf = self.saveTaskData(path, tid, 'schedstat')
-            if len(schedBuf) == 0:
+            if not schedBuf:
                 SysMgr.schedstatEnable = False
                 return
 
@@ -68812,7 +68963,7 @@ class ThreadAnalyzer(object):
         for key, item in sorted(maps.items(), reverse=True):
             tmpstr = ''
 
-            if len(item) == 0 or item['count'] == 0:
+            if not item or item['count'] == 0:
                 continue
 
             try:
@@ -69037,7 +69188,7 @@ class ThreadAnalyzer(object):
 
 
     def printZoneUsage(self, nrIndent):
-        if len(self.zoneData) == 0:
+        if not self.zoneData:
             return
 
         nrZone = long(0)
@@ -69103,7 +69254,7 @@ class ThreadAnalyzer(object):
 
 
     def printIrqUsage(self, nrIndent):
-        if len(self.irqData) == 0:
+        if not self.irqData:
             return
 
         nrIrq = long(0)
@@ -69146,7 +69297,7 @@ class ThreadAnalyzer(object):
 
 
     def printPerfUsage(self, nrIndent):
-        if len(SysMgr.perfEventData) == 0:
+        if not SysMgr.perfEventData:
             return
 
         perfString = SysMgr.getPerfString(SysMgr.perfEventData)
@@ -69801,7 +69952,7 @@ class ThreadAnalyzer(object):
         if SysMgr.uptimeDiff == 0 or \
             SysMgr.checkCutCond():
             return
-        elif len(self.procData) == 0:
+        elif not self.procData:
             SysMgr.addPrint(twoLine)
             return
 

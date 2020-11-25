@@ -317,16 +317,23 @@ class ImplAnalyzer(object):
                     #jsonObj = json.dumps(str(method), indent=1)
                     #print(method['debug'])
 
+                    # get fields #
                     name = method['name']
                     param = ImplAnalyzer.getParams(method, alias)
                     nm = ImplAnalyzer.getNamespace(method['path'])
+                    if 'doxygen' in method:
+                        doxygen = method['doxygen']
+                    else:
+                        doxygen = ''
 
+                    # apply for filter #
                     if not ImplAnalyzer.checkCont(method, nmFilter, exFilter):
                         methodInfo = '%s::%s%s' % (method['path'], name, param)
                         method['filename'] = filename
                         ImplAnalyzer.exceptHeaderApis[methodInfo] = method
                         continue
 
+                    # get flags #
                     isConstructor = method['constructor']
                     isDestructor = method['destructor']
                     isConst = method['const']
@@ -362,6 +369,7 @@ class ImplAnalyzer(object):
                         'inline': method['inline'],
                         'template': method['template'],
                         'alias': alias,
+                        'doxygen': doxygen,
                         }
 
                     methodList[methodInfo] = infoDict
