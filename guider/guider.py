@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201125"
+__revision__ = "201130"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import signal
     import atexit
     import struct
-    #from ctypes import *
+    from ctypes import *
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
@@ -4244,7 +4244,9 @@ class UtilMgr(object):
 
     @staticmethod
     def convColor(string, color='LIGHT'):
-        if 'REMOTERUN' in os.environ:
+        if not SysMgr.colorEnable or \
+            not color in ConfigMgr.COLOR_LIST or \
+            'REMOTERUN' in os.environ:
             return string
 
         return '%s%s%s' % \
@@ -14554,6 +14556,7 @@ class SysMgr(object):
     journalEnable = False
     terminalOver = False
     logoEnable = True
+    colorEnable = True
 
     cpuAvgEnable = True
     reportEnable = False
@@ -16874,6 +16877,8 @@ class SysMgr(object):
 
         nlist = []
         for path in flist:
+            path = path.strip()
+
             if path.startswith('^'):
                 path = path[1:]
                 exflag = True
@@ -17057,6 +17062,7 @@ class SysMgr(object):
                 if "REMOTERUN" in os.environ:
                     SysMgr.encodeEnable = False
                     SysMgr.remoteRun = True
+                    SysMgr.colorEnable = False
 
                 # check encode condition #
                 if not "LANG" in os.environ or \
@@ -17375,8 +17381,8 @@ Options:
             a:affinity | b:block | c:cpu | C:cgroup
             d:disk | D:DWARF | e:encode | E:exec
             f:float | F:wfc | h:sigHandler | H:sched
-            i:irq | I:elastic | L:cmdline | m:mem
-            n:net | N:namespace | o:oomScore | p:pipe
+            i:irq | I:elastic | L:cmdline | m:mem | n:net
+            N:namespace | o:oomScore | O:color | p:pipe
             P:perf | q:quit | r:report | R:fileReport
             s:stack | S:pss | t:thread | u:uss
             w:wss | W:wchan | x:fixTarget | Y:delay
@@ -17593,6 +17599,9 @@ Examples:
 
     - Print all function calls in specific files
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
+
+    - Print all function calls except for specific files
+        # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
     - Handle specific function calls including specific word as a stop point
         # {0:1} {1:1} -g a.out -c \\*printPeace|stop
@@ -18642,7 +18651,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec | g:generalInfo
+          C:clone | e:encode | E:exec | g:generalInfo | O:color
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -22513,6 +22522,9 @@ Copyright:
         signal.alarm(0)
         SysMgr.condExit = True
 
+        # reset terminal #
+        SysMgr.resetTTY()
+
         SysMgr.printWarn('terminated by user\n')
 
         sys.exit(0)
@@ -23975,11 +23987,17 @@ Copyright:
         else:
             rstring = ''
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.WARNING
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
 
         log = ('\n%s%s%s%s%s%s\n' % \
-            (ConfigMgr.WARNING, '[WARN] ', proc,
-                line, rstring, ConfigMgr.ENDC))
+            (color, '[WARN] ', proc, line, rstring, colorl))
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24011,11 +24029,17 @@ Copyright:
         except:
             pass
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.FAIL
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
 
         log = ('\n%s%s%s%s%s%s\n' % \
-            (ConfigMgr.FAIL, '[ERROR] ', proc,
-                line, rstring, ConfigMgr.ENDC))
+            (color, '[ERROR] ', proc, line, rstring, colorl))
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24051,10 +24075,16 @@ Copyright:
         else:
             prefix = ''
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.BOLD
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
-        BOLD = ConfigMgr.BOLD
         log = '%s%s%s%s%s%s' % \
-            (prefix, BOLD, title, proc, line, ConfigMgr.ENDC)
+            (prefix, color, title, proc, line, colorl)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24081,9 +24111,17 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.OKGREEN
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
+
         log = '\n%s%s%s%s%s' % \
-            (ConfigMgr.OKGREEN, '[INFO] ', proc, line, ConfigMgr.ENDC)
+            (color, '[INFO] ', proc, line, colorl)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24097,9 +24135,17 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.UNDERLINE
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
+
         log = '\n%s%s%s%s' % \
-            (ConfigMgr.UNDERLINE, proc, line, ConfigMgr.ENDC)
+            (color, proc, line, colorl)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24113,9 +24159,17 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
+        # apply for color #
+        if SysMgr.colorEnable:
+            color = ConfigMgr.SPECIAL
+            colorl = ConfigMgr.ENDC
+        else:
+            color = colorl = ''
+
         proc = SysMgr.getProcInfo()
+
         log = '\n%s%s%s%s%s' % \
-            (ConfigMgr.SPECIAL, '[STEP] ', proc, line, ConfigMgr.ENDC)
+            (color, '[STEP] ', proc, line, colorl)
 
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
@@ -24610,11 +24664,17 @@ Copyright:
                 if 'C' in options:
                     SysMgr.cloneEnable = False
 
+                if 'O' in options:
+                    SysMgr.colorEnable = False
+
                 if 'E' in options:
                     SysMgr.execEnable = False
 
                 if 't' in options:
                     SysMgr.truncEnable = False
+
+                if 'T' in options:
+                    SysMgr.taskEnable = False
 
                 if 'e' in options:
                     SysMgr.encodeEnable = False
@@ -24630,9 +24690,6 @@ Copyright:
 
                 if 'L' in options:
                     SysMgr.logEnable = False
-
-                if 'T' in options:
-                    SysMgr.taskEnable = False
 
                 if 'g' in options:
                     SysMgr.generalInfoEnable = False
@@ -30097,6 +30154,7 @@ Copyright:
                 exceptBpList.setdefault(pid, dict())
                 targetBpList.setdefault(pid, dict())
                 targetBpFileList.setdefault(pid, dict())
+                exceptBpFileList.setdefault(pid, dict())
 
                 # create object #
                 procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
@@ -30121,6 +30179,8 @@ Copyright:
                     deepcopy(procObj.targetBpList)
                 targetBpFileList[pid] = \
                     deepcopy(procObj.targetBpFileList)
+                exceptBpFileList[pid] = \
+                    deepcopy(procObj.exceptBpFileList)
 
                 # create a lock for a target multi-threaded process #
                 if SysMgr.getPids(pid, sibling=True):
@@ -30152,6 +30212,7 @@ Copyright:
         exceptBpList = {}
         targetBpList = {}
         targetBpFileList = {}
+        exceptBpFileList = {}
 
         # check input #
         if not SysMgr.filterGroup and \
@@ -30335,6 +30396,8 @@ Copyright:
                         targetBpList = targetBpList[ppid]
                     if ppid in targetBpFileList:
                         targetBpFileList = targetBpFileList[ppid]
+                    if ppid in exceptBpFileList:
+                        exceptBpFileList = exceptBpFileList[ppid]
                     if ppid in lockList:
                         lockObj = lockList[ppid]
                 else:
@@ -30344,7 +30407,8 @@ Copyright:
                     trace(mode='break', wait=wait, multi=multi,
                         bpList=bpList, exceptBpList = exceptBpList,
                         lock=lockObj, targetBpList=targetBpList,
-                        targetBpFileList=targetBpFileList)
+                        targetBpFileList=targetBpFileList,
+                        exceptBpFileList=exceptBpFileList)
             elif mode == 'hook':
                 Debugger.hookFunc(pid, SysMgr.customCmd)
             elif mode == 'pycall':
@@ -40062,7 +40126,7 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
     selfInstance = None
-    RETSTR = '[RET]'
+    RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -40263,7 +40327,7 @@ class Debugger(object):
 
 
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
-        self.pthreadID = 0
+        self.pthreadid = 0
         self.comm = None
         self.mode = mode
         self.status = 'enter'
@@ -40308,6 +40372,7 @@ class Debugger(object):
         self.exceptBpList = {}
         self.targetBpList = {}
         self.targetBpFileList = {}
+        self.exceptBpFileList = {}
         self.symbolCacheList = dict()
         self.ldInjected = False
         self.libcLoaded = False
@@ -41501,6 +41566,7 @@ struct cmsghdr {
                 except:
                     rstr = ''
 
+                # set breakpoint again #
                 if again:
                     # save register set #
                     self.regList[sym] = self.getRegs(new=True)
@@ -43532,7 +43598,12 @@ struct cmsghdr {
         if fileList:
             fileList = list(set(fileList.split(',')))
             fileList = SysMgr.convRealPath(fileList)
-            self.targetBpFileList.update(dict.fromkeys(fileList, 0))
+
+            for path in fileList:
+                if path.startswith('^'):
+                    self.exceptBpFileList[path[1:]] = 0
+                else:
+                    self.targetBpFileList[path] = 0
         return list(self.targetBpFileList.keys())
 
 
@@ -43848,7 +43919,9 @@ struct cmsghdr {
 
 
 
-    def convertValue(self, argtype, argname, value, seq=0, ref=True, argset={}):
+    def convSyscallParam(
+        self, argtype, argname, value, seq=0, ref=True, argset={}, buf=False):
+
         syscall = self.syscall
 
         # toDo: convert a integer or mask values #
@@ -43885,16 +43958,15 @@ struct cmsghdr {
                             syscall, True, reason=True)
 
         # convert fd to name #
-        if ref:
-            if argname == "fd":
-                try:
-                    path = os.readlink('%s/%s/fd/%s' % \
-                        (SysMgr.procPath, self.pid, value))
-                    return "%s>%s" % (value, path)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    return value
+        if argname == "fd" and ref:
+            try:
+                path = os.readlink('%s/%s/fd/%s' % \
+                    (SysMgr.procPath, self.pid, value))
+                return "%s>%s" % (value, path)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                return value
 
         # handle special syscalls #
         if syscall == "execve":
@@ -43981,7 +44053,7 @@ struct cmsghdr {
             except:
                 return value
 
-        if ref and argname == "buf" and \
+        if buf and argname == "buf" and \
             (syscall == "write" or syscall == "read"):
             if self.values[2] > self.pbufsize:
                 length = self.pbufsize
@@ -44927,7 +44999,7 @@ struct cmsghdr {
 
 
 
-    def checkSymbol(self, sym, newline=False, bt=None):
+    def checkSymbol(self, sym, newline=False):
         if not SysMgr.customCmd or SysMgr.outPath:
             return
 
@@ -44952,15 +45024,6 @@ struct cmsghdr {
         if SysMgr.showAll:
             # print register set #
             self.printContext(newline=newline)
-
-            # print backtrace #
-            try:
-                if not bt:
-                    bt = self.getBacktrace()
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
 
         # disable timer #
         signal.alarm(0)
@@ -44987,12 +45050,14 @@ struct cmsghdr {
         cnt = 0
         pos = default
 
+        # set maximum depth #
         if maximum == 0:
             if len(oneLine) < SysMgr.ttyCols:
                 maximum = len(oneLine)
             else:
                 maximum = SysMgr.ttyCols
 
+        # set default indentation #
         if default == 0:
             indentStr = ''
         else:
@@ -45071,6 +45136,7 @@ struct cmsghdr {
                 if self.mode == 'break':
                     ip -= self.prevInstOffset
 
+                # add current symbol #
                 if cur:
                     btList = [ip]
                 else:
@@ -45476,12 +45542,14 @@ struct cmsghdr {
 
 
 
-    def getBacktraceTree(self, diffstr, tinfo, cont=True):
-        def getCommonPos(backtrace):
+    def getBacktraceTree(
+        self, diffstr, tinfo, cont=True, cur=False, addBt=[]):
+
+        def getCommonPos(backtrace, cur):
             # check contiguous tree presentation #
             try:
                 commonPos = -1
-                if not cont or self.targetBpList:
+                if not cont:
                     raise Exception()
 
                 for item in reversed(self.prevStack):
@@ -45496,12 +45564,27 @@ struct cmsghdr {
 
             return commonPos
 
-        backtrace = self.getBacktrace()
+        # get backtrace #
+        backtrace = self.getBacktrace(cur=cur)
+        if addBt:
+            commonIdx = 0
+            for idx, item in enumerate(addBt):
+                if len(backtrace) > idx and item == backtrace[idx][0]:
+                    commonIdx = idx+1
+                    continue
+                else:
+                    break
+            if commonIdx < len(addBt):
+                addBtList = self.convertAddrList(addBt[commonIdx:])
+                backtrace = addBtList + backtrace
+
+        # get indent info #
         depth = len(backtrace)
         diffindent = ' ' * len(diffstr)
         tinfoindent = ' ' * len(tinfo)
 
-        commonPos = getCommonPos(backtrace)
+        # calculate common depth for previous stack #
+        commonPos = getCommonPos(backtrace, cur)
         if commonPos == -1:
             commonPos = 0
             stack = backtrace
@@ -45584,15 +45667,28 @@ struct cmsghdr {
         # get diff time #
         diffstr = '%3.6f' % (self.current - self.dstart)
 
+        # check return type #
+        if sym.endswith(Debugger.RETSTR):
+            isRetBp = True
+        else:
+            isRetBp = False
+
         # build backtrace #
         if SysMgr.funcDepth > 0:
-            if SysMgr.showAll:
+            if SysMgr.showAll and not SysMgr.outPath:
                 cont = False
             else:
                 cont = True
 
+            # add return address to backtrace #
+            if isRetBp:
+                addBt = [addr]
+            else:
+                addBt = []
+
+            # get backtrace tree #
             btstr, depth = \
-                self.getBacktraceTree(diffstr, tinfo, cont)
+                self.getBacktraceTree(diffstr, tinfo, cont, addBt=addBt)
 
             indent = '  ' * depth
         else:
@@ -45601,102 +45697,58 @@ struct cmsghdr {
         # print return value #
         origSym = sym
         retstr = ''
+        hasRetFilter = False
         elapsed = ''
         callString = ''
         etime = None
         cmds = None
-        isRetBp = False
         skip = False
-        if sym.endswith(Debugger.RETSTR):
-            # calculate elapsed time #
+
+        # handle breakpoint for return #
+        if isRetBp:
             try:
-                origSym = sym.rstrip(Debugger.RETSTR)
-                if origSym not in self.entryTime:
-                    SysMgr.printWarn(
-                        "no entry time of %s for %s(%s)" % \
-                            (sym, self.comm, self.pid))
-                    raise Exception('no entry time')
+                elapsed, hasRetFilter, skip = self.handleRetBpFilter(sym)
+                if not elapsed:
+                    raise Exception()
 
-                entry = self.entryTime[origSym]
-                etime = self.current - entry
-                elapsed = '/%.6f' % etime
+                retstr = self.handleRetBp(sym, fname, addr)
 
-                self.entryTime.pop(origSym, None)
-                isRetBp = True
+                # add previous symbol info #
+                if not skip:
+                    # get previous symbol info #
+                    prevSymInfo = self.getSymbolInfo(addr)
+                    if prevSymInfo:
+                        prevSym = prevSymInfo[0]
+                        prevFname = prevSymInfo[1]
+                        prevAddr = prevSymInfo[3]
+                        addStr = ' -> %s/%s [%s]' % \
+                            (prevSym, hex(prevAddr).rstrip('L'), prevFname)
+                    else:
+                        addStr = ''
 
-                # check return filter #
-                if origSym in self.retFilterList:
-                    try:
-                        filters = self.retFilterList[origSym][0]
-                        op = filters[1]
-                        cond = float(filters[2])
-
-                        # compare values #
-                        if op.upper() == 'EQ':
-                            if etime != cond:
-                                skip = True
-                        elif op.upper() == 'DF':
-                            if etime == cond:
-                                skip = True
-                        elif op.upper() == 'BT':
-                            if etime <= cond:
-                                skip = True
-                        elif op.upper() == 'LT':
-                            if etime >= cond:
-                                skip = True
-                        else:
-                            SysMgr.printErr((
-                                "fail to recognize '%s' in return filter "
-                                "for %s for %s(%s)") % \
-                                    (op, origSym, self.comm, self.pid))
-                            sys.exit(0)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "fail to check return filter for %s for %s(%s)" % \
-                                (origSym, self.comm, self.pid))
-
-                    # append entry info #
-                    if not skip and self.retFilterList[origSym][1]:
-                        callString += self.retFilterList[origSym][1]
-
-                    # remove return filter #
-                    self.retFilterList.pop(origSym, None)
+                    # build context string #
+                    callString = '\n%s %s%s%s%s%s%s' % \
+                        (diffstr, tinfo, indent, sym, retstr, elapsed, addStr)
             except SystemExit:
                 sys.exit(0)
             except:
                 elapsed = ''
                 isRetBp = False
 
-            if elapsed:
-                retstr = self.handleRetBp(sym, fname, addr)
-
-                if not skip:
-                    # update symbol #
-                    syminfo = self.getSymbolInfo(addr)
-                    if syminfo:
-                        osym = syminfo[0]
-                        ofname = syminfo[1]
-                        oaddr = syminfo[3]
-
-                    # build context string #
-                    callString += '\n%s %s%s%s%s%s -> %s/%s [%s]' % \
-                        (diffstr, tinfo, indent, sym, retstr, elapsed,
-                            osym, hex(oaddr).rstrip('L'), ofname)
-
             # check command #
             if origSym in self.retCmdList:
                 cmds = self.retCmdList[origSym]
         else:
-            isRetBp = False
-
             # build current symbol string #
             callString = '\n%s %s%s%s%s/%s%s [%s]' % \
                 (diffstr, tinfo, indent, sym, elapsed,
                     hex(addr).rstrip('L'), argstr, fname)
 
         if callString:
+            # emphasize string #
+            if hasRetFilter and not skip:
+                callString = UtilMgr.convColor(callString, 'CYAN')
+
             # add backtrace #
             if btstr:
                 callString = '%s%s' % (btstr, callString)
@@ -45704,8 +45756,9 @@ struct cmsghdr {
             # add entry log to return filter #
             if sym in self.retFilterList:
                 self.retFilterList[sym][1] = callString
+
             # file output #
-            elif SysMgr.outPath:
+            if SysMgr.outPath:
                 self.addSample(
                     sym, fname, realtime=True, elapsed=etime)
 
@@ -45832,6 +45885,7 @@ struct cmsghdr {
 
         # print context info #
         if printStat and not addr in self.exceptBpList and \
+            not fname in self.exceptBpFileList and \
             (not self.targetBpFileList or fname in self.targetBpFileList):
             isRetBp = self.printBpContext(
                 sym, addr, fname, checkArg, origPC)
@@ -46022,51 +46076,64 @@ struct cmsghdr {
 
 
     def readPyState32(self, addr):
-        return None
+        SysMgr.printErr("not implemented yet")
+        sys.exit(0)
 
 
 
     def readPyState64(self, addr):
-        if sys.version_info >= (3, 7):
-            tstate_head = self.readMem(addr+8)
-            PyThreadState = struct.unpack('Q', tstate_head)[0]
-            PyThreadState = self.readMem(PyThreadState, 216)
-            prevp, nextp, interp, framep, recursion_depth, \
-                overflowed, recursion_critical, stackcheck_counter, \
-                tracing, use_tracing, c_profilefunc, c_tracefunc, \
-                c_profileobj, c_traceobj, curexc_type, curexc_value, \
-                curexc_traceback, exc_type, exc_value, exc_traceback, \
-                previous_item, exec_info, dictp, gilstate_counter, \
-                async_exc, thread_id, trash_delete_nesting, \
-                trash_delete_later, on_delete, on_delete_data = \
-                struct.unpack('QQQQibbiiiQQQQQQQQQQQQQiQLiQQQ', PyThreadState)
-        elif sys.version_info >= (3, 0):
-            PyThreadState = self.readMem(addr, 192)
-            prevp, nextp, interp, framep, recursion_depth, \
-                overflowed, recursion_critical, tracing, use_tracing, \
-                c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
-                curexc_type, curexc_value, curexc_traceback, \
-                exc_type, exc_value, exc_traceback, dictp, \
-                gilstate_counter, async_exc, thread_id, \
-                trash_delete_nesting, trash_delete_later, \
-                on_delete, on_delete_data  = \
-                struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
-        else:
-            PyThreadState = self.readMem(addr, 168)
-            nextp, interp, framep, recursion_depth, tracing, use_tracing, \
-                c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
-                curexc_type, curexc_value, curexc_traceback, \
-                exc_type, exc_value, exc_traceback, dictp, \
-                tick_counter, gilstate_counter, async_exc, \
-                thread_id, trash_delete_nesting, trash_delete_later = \
-                struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
+        frameList = {}
 
-        return framep
+        while 1:
+            if sys.version_info >= (3, 7):
+                tstate_head = self.readMem(addr+8)
+                PyThreadState = struct.unpack('Q', tstate_head)[0]
+                PyThreadState = self.readMem(PyThreadState, 216)
+                prevp, nextp, interp, framep, recursion_depth, \
+                    overflowed, recursion_critical, stackcheck_counter, \
+                    tracing, use_tracing, c_profilefunc, c_tracefunc, \
+                    c_profileobj, c_traceobj, curexc_type, curexc_value, \
+                    curexc_traceback, exc_type, exc_value, exc_traceback, \
+                    previous_item, exec_info, dictp, gilstate_counter, \
+                    async_exc, thread_id, trash_delete_nesting, \
+                    trash_delete_later, on_delete, on_delete_data = \
+                    struct.unpack('QQQQibbiiiQQQQQQQQQQQQQiQLiQQQ', PyThreadState)
+            elif sys.version_info >= (3, 0):
+                PyThreadState = self.readMem(addr, 192)
+                prevp, nextp, interp, framep, recursion_depth, \
+                    overflowed, recursion_critical, tracing, use_tracing, \
+                    c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
+                    curexc_type, curexc_value, curexc_traceback, \
+                    exc_type, exc_value, exc_traceback, dictp, \
+                    gilstate_counter, async_exc, thread_id, \
+                    trash_delete_nesting, trash_delete_later, \
+                    on_delete, on_delete_data  = \
+                    struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
+            else:
+                PyThreadState = self.readMem(addr, 168)
+                nextp, interp, framep, recursion_depth, tracing, use_tracing, \
+                    c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
+                    curexc_type, curexc_value, curexc_traceback, \
+                    exc_type, exc_value, exc_traceback, dictp, \
+                    tick_counter, gilstate_counter, async_exc, \
+                    thread_id, trash_delete_nesting, trash_delete_later = \
+                    struct.unpack('QQQiiiQQQQQQQQQQQiiQliQ', PyThreadState)
+
+            # add frame address #
+            frameList[thread_id] = framep
+
+            if nextp == 0:
+                break
+            else:
+                addr = nextp
+
+        return frameList
 
 
 
     def readPyFrame32(self, addr):
-        return None
+        SysMgr.printErr("not implemented yet")
+        sys.exit(0)
 
 
 
@@ -46120,7 +46187,8 @@ struct cmsghdr {
 
 
     def readPyStr32(self, addr):
-        return None
+        SysMgr.printErr("not implemented yet")
+        sys.exit(0)
 
 
 
@@ -46152,20 +46220,30 @@ struct cmsghdr {
             if not curSym.startswith('_Py') and not curSym.startswith('Py'):
                 self.handleUsercall(update=False)
                 return
-        else:
-            if not PyThreadStatep:
-                self.handleUsercall()
-                return
+        elif not PyThreadStatep:
+            self.handleUsercall()
+            return
 
         # read PyThreadState #
-        framep = self.readPyState(PyThreadStatep)
+        frameList = self.readPyState(PyThreadStatep)
 
         # toDo: get GIL usage by comparing thread_id with pthread_self() #
+        nrThread = len(frameList)
+
+        # get pthread ID for target task #
+        if self.pthreadid == 0:
+            self.pthreadid = self.remoteUsercall('pthread_self')
+
+        # get top-level frame for target task #
+        if not self.pthreadid in frameList:
+            return
+        else:
+            framep = frameList[self.pthreadid]
 
         # read frames #
+        bt = []
         lastName = None
         lastFile = None
-        bt = []
         while 1:
             # read PyFrameObject #
             f_back, f_lineno, f_code, co_name, co_filename = \
@@ -46329,7 +46407,7 @@ struct cmsghdr {
 
 
 
-    def getArgs(self, ref=True):
+    def updateSyscallArgs(self, ref=True):
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get argument values from register #
@@ -46350,8 +46428,8 @@ struct cmsghdr {
             argset[argname] = value
 
             # convert argument value #
-            value = self.convertValue(
-                argtype, argname, value, seq, ref, argset)
+            value = self.convSyscallParam(
+                argtype, argname, value, seq, ref, argset, SysMgr.showAll)
             if value is not None:
                 self.addArg(argtype, argname, value)
 
@@ -46359,7 +46437,7 @@ struct cmsghdr {
 
 
 
-    def convArgs(self):
+    def convSyscallArgs(self):
         args = []
 
         if self.isRealtime and not SysMgr.showAll:
@@ -46368,7 +46446,7 @@ struct cmsghdr {
             ref = True
 
         # converting arguments #
-        self.getArgs(ref)
+        self.updateSyscallArgs(ref)
 
         # pick values from argument list #
         for idx, arg in enumerate(self.args):
@@ -46432,7 +46510,7 @@ struct cmsghdr {
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
-            backtrace = self.getBacktrace(SysMgr.funcDepth, cur=True)
+            backtrace = self.getBacktrace(limit=SysMgr.funcDepth, cur=True)
             bts = self.getBacktraceStr(backtrace)
             if bts:
                 bts = '\n%s%s ' % (' ' * 20, bts)
@@ -46520,7 +46598,7 @@ struct cmsghdr {
 
         # check symbol #
         if SysMgr.customCmd:
-            self.checkSymbol(self.syscall, newline=True, bt=backtrace)
+            self.checkSymbol(self.syscall, newline=True)
 
 
 
@@ -46535,10 +46613,10 @@ struct cmsghdr {
         retval = self.getRet(temp=True)
         if retval < 0:
             # get arguments from previous register set #
-            self.getArgs(ref=False)
+            self.updateSyscallArgs(ref=False)
         else:
             self.clearArgs()
-            args = self.convArgs()
+            args = self.convSyscallArgs()
 
         self.handleSyscallOutput(args, deferrable=True)
 
@@ -46625,7 +46703,7 @@ struct cmsghdr {
 
                     return
 
-                args = self.convArgs()
+                args = self.convSyscallArgs()
 
             self.handleSyscallOutput(args)
 
@@ -46722,6 +46800,10 @@ struct cmsghdr {
             # convert return format #
             if type(retval) is long:
                 retval = hex(retval).rstrip('L')
+
+            # convert error color #
+            if err:
+                err = UtilMgr.convColor(err, 'RED')
 
             # build call string #
             callString = '= %s %s' % (retval, err)
@@ -46854,8 +46936,7 @@ struct cmsghdr {
 
 
     def printSymbolList(self, slist):
-        if not slist or \
-            not SysMgr.warnEnable:
+        if not slist or not SysMgr.warnEnable:
             return
 
         string = ['%s(%s@%s)' % \
@@ -47115,6 +47196,7 @@ struct cmsghdr {
             dobj.execCmd = cmdline.split()
             dobj.targetBpList = self.targetBpList
             dobj.targetBpFileList = self.targetBpFileList
+            dobj.exceptBpFileList = self.exceptBpFileList
 
         # load symbols and inject breakpoints #
         if (dobj.mode != 'syscall' and dobj.mode != 'signal') or \
@@ -47143,10 +47225,10 @@ struct cmsghdr {
         ]
 
         # stat variables #
-        self.pthreadID = 0
+        self.pthreadid = 0
         self.comm = SysMgr.getComm(self.pid, cache=True)
         self.exe = SysMgr.getExeName(self.pid)
-        self.dstart = self.start = self.last = time.time()
+        self.start = self.last = time.time()
         self.statFd = None
         self.prevStat = None
         self.prevCpuStat = None
@@ -47227,6 +47309,73 @@ struct cmsghdr {
 
 
 
+    def handleRetBpFilter(self, sym):
+        # get original symbol #
+        try:
+            origSym = sym[:-len(Debugger.RETSTR)]
+        except:
+            origSym = sym
+
+        if origSym not in self.entryTime:
+            SysMgr.printWarn(
+                "no entry time of %s(%s) for %s(%s)" % \
+                    (origSym, sym, self.comm, self.pid))
+            raise Exception('no entry time')
+
+        # calculate elapsed time #
+        skip = False
+        hasRetFilter = False
+        entry = self.entryTime[origSym]
+        etime = self.current - entry
+        elapsed = '/%.6f' % etime
+
+        # remove entry timestamp from list #
+        self.entryTime.pop(origSym, None)
+
+        # check return filter #
+        if not origSym in self.retFilterList:
+            return elapsed, hasRetFilter, skip
+
+        try:
+            filters = self.retFilterList[origSym][0]
+            op = filters[1]
+            cond = float(filters[2])
+
+            # compare values #
+            if op.upper() == 'EQ':
+                if etime != cond:
+                    skip = True
+            elif op.upper() == 'DF':
+                if etime == cond:
+                    skip = True
+            elif op.upper() == 'BT':
+                if etime <= cond:
+                    skip = True
+            elif op.upper() == 'LT':
+                if etime >= cond:
+                    skip = True
+            else:
+                SysMgr.printErr((
+                    "fail to recognize '%s' in return filter "
+                    "for %s for %s(%s)") % \
+                        (op, origSym, self.comm, self.pid))
+                sys.exit(0)
+
+            hasRetFilter = True
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to check return filter for %s for %s(%s)" % \
+                    (origSym, self.comm, self.pid))
+
+        # remove return filter #
+        self.retFilterList.pop(origSym, None)
+
+        return elapsed, hasRetFilter, skip
+
+
+
     def handleRetBp(self, sym, fname, addr):
         try:
             # change return value #
@@ -47241,7 +47390,10 @@ struct cmsghdr {
             retval = self.getRet()
 
             # check register set for repeat #
-            origSym = sym.rstrip(Debugger.RETSTR)
+            try:
+                origSym = sym[:-len(Debugger.RETSTR)]
+            except:
+                origSym = sym
             if origSym in self.regList:
                 newObj = self.regList.pop(origSym, None)
                 self.setRegs(newObj=newObj)
@@ -47266,7 +47418,7 @@ struct cmsghdr {
     def setRetBp(self, sym, fname, cmd=None):
         # get return position #
         try:
-            bt = self.getBacktrace(1, cur=False)
+            bt = self.getBacktrace(limit=1, cur=False)
             if not bt:
                 SysMgr.printWarn(
                     'no backtrace for %s(%s)' % (sym, fname))
@@ -47282,6 +47434,9 @@ struct cmsghdr {
         newSym = '%s%s' % (sym, Debugger.RETSTR)
         ret = self.injectBp(
             pos, newSym, fname, reins=True, cmd=None)
+        if not ret:
+            # ignore error message #
+            pass
 
         # register the new breakpoint to per-thread list #
         if not pos in self.bpNewList and pos in self.bpList:
@@ -47338,6 +47493,9 @@ struct cmsghdr {
 
 
     def runEventLoop(self):
+        # initialize dynamic time for tracing #
+        self.dstart = time.time()
+
         # enter trace loop #
         while 1:
             # save backtrace info #
@@ -47366,7 +47524,10 @@ struct cmsghdr {
 
             try:
                 # apply for tracing overhead time #
-                self.dstart += (time.time() - self.current + self.timeDelay)
+                overhead = time.time() - self.current + self.timeDelay
+                self.dstart += overhead
+                for item in self.entryTime.keys():
+                    self.entryTime[item] += overhead
 
                 # wait process #
                 rid, ostat = self.waitpid()
@@ -47525,7 +47686,8 @@ struct cmsghdr {
 
     def trace(
         self, mode, wait=None, multi=False, lock=None, bpList={},
-            exceptBpList={}, targetBpList={}, targetBpFileList={}):
+            exceptBpList={}, targetBpList={}, targetBpFileList={},
+            exceptBpFileList={}):
         # initialize variables #
         self.initValues()
 
@@ -47534,6 +47696,8 @@ struct cmsghdr {
             self.targetBpList = targetBpList
         if not self.targetBpFileList:
             self.targetBpFileList = targetBpFileList
+        if not self.exceptBpFileList:
+            self.exceptBpFileList = exceptBpFileList
 
         # context variables #
         self.cmd = None
@@ -51988,6 +52152,7 @@ Section header string table index: %d
         e_shrelalist = []
         e_shehframe = -1
         e_shehframehdr = -1
+        e_sharmidx = -1
 
         # define section info #
         self.attr.setdefault('sectionHeader', dict())
@@ -52064,6 +52229,8 @@ Section header string table index: %d
                 e_shrellist.append(i)
             elif stype == 'RELA':
                 e_shrelalist.append(i)
+            elif stype== 'EXIDX':
+                e_sharmidx = i
             elif stype == 'PLTREL':
                 pass
             elif stype == 'JMPREL':
@@ -53434,6 +53601,118 @@ Section header string table index: %d
 
             if debug:
                 SysMgr.printPipe(oneLine)
+
+        # check .ARM.IDX section #
+        if e_sharmidx >= 0:
+            # parse section header #
+            sh_name, sh_type, sh_flags, sh_addr, sh_offset,\
+                sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_sharmidx)
+
+            # refer to https://github.com/eliben/pyelftools #
+            def expandPrel31(address, place):
+                location = address & 0x7fffffff
+                if location & 0x04000000:
+                    location |= 0xffffffff80000000
+                return location + place & 0xffffffffffffffff
+
+            # define entry size #
+            EHABI_INDEX_ENTRY_SIZE = 8
+
+            # get the number of item #
+            nrItems = sh_size / EHABI_INDEX_ENTRY_SIZE
+
+            for i in range(0, nrItems):
+                # read value #
+                fd.seek(sh_offset + i * EHABI_INDEX_ENTRY_SIZE)
+                data = fd.read(EHABI_INDEX_ENTRY_SIZE)
+                word0, word1 = struct.unpack('II', data)
+
+                # check corruption #
+                if word0 & 0x80000000 != 0:
+                    SysMgr.printWarn(
+                        'corrupted ARM exception handler table entry: %x' % i)
+                    continue
+
+                foffset = expandPrel31(
+                    word0, sh_offset + (i * EHABI_INDEX_ENTRY_SIZE))
+
+                if word1 == 1:
+                    # 0x1 means cannot unwind #
+                    SysMgr.printWarn(
+                        'cannot unwind for %x' % i)
+                    continue
+
+                elif word1 & 0x80000000 == 0:
+                    # highest bit is zero, point to .ARM.extab data
+                    eh_table_offset = expandPrel31(
+                        word1, sh_offset + i * EHABI_INDEX_ENTRY_SIZE + 4)
+
+                    # read value #
+                    fd.seek(eh_table_offset)
+                    data = fd.read(EHABI_INDEX_ENTRY_SIZE/2)
+                    word0 = struct.unpack('I', data)[0]
+
+                    if word0 & 0x80000000 == 0:
+                        # highest bit is one, generic model #
+                        #return GenericEHABIEntry(foffset, arm_expand_prel31(word0, eh_table_offset))
+                        continue
+
+                    # highest bit is one, arm compact model #
+                    # highest half must be 0b1000 for compact model #
+                    if word0 & 0x70000000 != 0:
+                        SysMgr.printWarn(
+                            'corrupted ARM exception handler table entry: %x' % i)
+                        continue
+
+                    per_index = (word0 >> 24) & 0x7f
+                    if per_index == 0:
+                        # arm compact model 0 #
+                        opcode = [
+                            (word0 & 0xFF0000) >> 16,
+                            (word0 & 0xFF00) >> 8,
+                            word0 & 0xFF
+                        ]
+                        #return EHABIEntry(foffset, per_index, opcode)
+                        continue
+                    elif per_index == 1 or per_index == 2:
+                        # arm compact model 1/2 #
+                        more_word = (word0 >> 16) & 0xff
+                        opcode = [
+                            (word0 >> 8) & 0xff,
+                            (word0 >> 0) & 0xff
+                        ]
+                        fd.seek(eh_table_offset + 4)
+                        for i in range(more_word):
+                            # read value #
+                            data = fd.read(EHABI_INDEX_ENTRY_SIZE/2)
+                            r = struct.unpack('I', data)[0]
+                            opcode.append((r >> 24) & 0xFF)
+                            opcode.append((r >> 16) & 0xFF)
+                            opcode.append((r >> 8) & 0xFF)
+                            opcode.append((r >> 0) & 0xFF)
+                        #return EHABIEntry(foffset, per_index, opcode, eh_table_offset=eh_table_offset)
+                        continue
+                    else:
+                        SysMgr.printWarn(
+                            'unknown ARM compact model %d at table entry: %x' % \
+                                (per_index, i))
+                        continue
+                else:
+                    # highest bit is one, compact model must be 0 #
+                    if word1 & 0x7f000000 != 0:
+                        SysMgr.printWarn(
+                            'corrupted ARM compact model table entry: %x' % i)
+                        continue
+
+                    opcode = [
+                        (word1 & 0xFF0000) >> 16,
+                        (word1 & 0xFF00) >> 8,
+                        word1 & 0xFF
+                    ]
+
+                    #return EHABIEntry(foffset, 0, opcode)
+                    continue
 
         # check dynamic section #
         if e_shdynamic < 0:
