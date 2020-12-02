@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201130"
+__revision__ = "201202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,7 +27,7 @@ try:
     import signal
     import atexit
     import struct
-    from ctypes import *
+    #from ctypes import *
     from copy import deepcopy
 except ImportError:
     err = sys.exc_info()[1]
@@ -102,6 +102,7 @@ class ConfigMgr(object):
         'ITALIC': '\033[3m',
         'UNDERLINE': '\033[4m',
         'LIGHT': '\033[5m',
+        'BLINK': '\033[6m',
         'REVERSE': '\033[7m',
         'SCRATCH': '\033[9m',
         'BLACK': '\033[30m',
@@ -4246,10 +4247,11 @@ class UtilMgr(object):
     def convColor(string, color='LIGHT'):
         if not SysMgr.colorEnable or \
             not color in ConfigMgr.COLOR_LIST or \
+            SysMgr.outPath or \
             'REMOTERUN' in os.environ:
             return string
 
-        return '%s%s%s' % \
+        return r'%s%s%s' % \
             (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
 
 
@@ -5420,9 +5422,11 @@ class NetworkMgr(object):
             else:
                 feedback = ''
 
-            SysMgr.printErr(
-                "fail to create socket with %s:%s as server because %s%s" % \
-                    (self.ip, self.port, err, feedback))
+            # check mode to print error message #
+            if SysMgr.warnEnable or SysMgr.isServerMode() or SysMgr.isClientMode():
+                SysMgr.printErr(
+                    "fail to create socket with %s:%s as server because %s%s" % \
+                        (self.ip, self.port, err, feedback))
 
             '''
             if error "99 Cannot assign requested address" occurs:
@@ -6247,8 +6251,7 @@ class NetworkMgr(object):
         networkObject = NetworkMgr(
             'server', ip, port, blocking, tcp, anyPort)
         if not networkObject.ip:
-            SysMgr.printWarn(
-                "fail to set server IP", True)
+            SysMgr.printWarn("fail to set server IP")
             return
 
         if tcp:
@@ -8686,7 +8689,7 @@ class FunctionAnalyzer(object):
                     return None
 
                 for offset in offsetList:
-                    symbol = binObj.getSymbolByOffset(
+                    symbol, size = binObj.getSymbolByOffset(
                         offset, onlyFunc=onlyFunc)
 
                     symbolList.append('??')
@@ -14432,6 +14435,14 @@ class SysMgr(object):
     wordSize = 4
     maxInterval = 0
 
+    # threshold #
+    cpuPerHighThreshold = 80
+    cpuPerLowThreshold = 10
+    memAvailPerThreshold = 10
+    memHighThreshold = 1024
+    memLowThreshold = 100
+    swapPerThreshold = 90
+
     # path #
     procPath = '/proc'
     imagePath = None
@@ -17080,6 +17091,7 @@ class SysMgr(object):
                 SysMgr.libcppPath = 'libstdc++'
                 SysMgr.libdemanglePath = 'libgccdemangle'
                 SysMgr.cacheDirPath = '/data/log/guider'
+                SysMgr.colorEnable = False
         elif sys.platform.startswith('win') or \
             sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
@@ -19849,10 +19861,10 @@ Examples:
     - Allocate physical memory 200MB using a new process every 3 seconds
         # {0:1} {1:1} 200M:3
 
-    - Allocate physical memory 100MB twoice using 2 processes
+    - Allocate physical memory 100MB twice using 2 processes
         # {0:1} {1:1} 100M:0:2
 
-    - Allocate physical memory 100MB twoice using 2 processes and terminate them after 3 seconds
+    - Allocate physical memory 100MB twice using 2 processes and terminate them after 3 seconds
         # {0:1} {1:1} 100M:0:2 -R 3
                     '''.format(cmd, mode)
 
@@ -23912,6 +23924,12 @@ Copyright:
             try:
                 if ttyCols == 0 or SysMgr.jsonEnable:
                     line = '\n'.join([nline for nline in line.split('\n')])
+                elif SysMgr.colorEnable and ConfigMgr.ENDC in line:
+                    ENDC = ConfigMgr.ENDC
+                    lenFactor = len(ConfigMgr.COLOR_LIST['RED']) + len(ENDC)
+                    line = '\n'.join(
+                        [nline[:ttyCols+nline[:ttyCols].count(ENDC)*lenFactor] + ENDC \
+                            for nline in line.split('\n')])
                 else:
                     line = '\n'.join(
                         [nline[:ttyCols-1] for nline in line.split('\n')])
@@ -30493,7 +30511,7 @@ Copyright:
 
                 for addr in addrList:
                     try:
-                        sym = binObj.getSymbolByOffset(addr, onlyFunc=False)
+                        sym, size = binObj.getSymbolByOffset(addr, onlyFunc=False)
                         resInfo[addr] = [sym, filePath, 'N/A']
                         if len(sym) > maxSymLen:
                             maxSymLen = len(sym)
@@ -33666,7 +33684,10 @@ Copyright:
     def resetTTY():
         # reset terminal for recovery #
         try:
-            os.system('stty sane 2> /dev/null')
+            SysMgr.getPkg('subprocess').Popen(
+                ['stty', 'sane'],
+                stdout=open(os.devnull, 'wb'),
+                stderr=open(os.devnull, 'wb'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -40326,6 +40347,13 @@ class Debugger(object):
 
 
 
+    def updateCurrent(self):
+        self.current = time.time()
+        time.time()
+        self.timeDelay = time.time() - self.current
+
+
+
     def __init__(self, pid=None, execCmd=None, attach=True, mode=None):
         self.pthreadid = 0
         self.comm = None
@@ -40353,6 +40381,9 @@ class Debugger(object):
         self.supportProcessVmWr = False
         self.lastSig = None
         self.forked = False
+
+        # timestamp variables #
+        self.updateCurrent()
 
         self.args = []
         self.values = []
@@ -44644,7 +44675,7 @@ struct cmsghdr {
                 'fail to get offset in %s via %s for %s '
                 'because of wrong memory map') % \
                     (fname, hex(vaddr).rstrip('L'), procInfo))
-            return ['??', fname, '??', '??', '??']
+            return ['??', fname, '??', '??', '??', '??']
 
         # remove suffix in file name #
         fname = fname.rsplit(SysMgr.magicStr, 1)[0]
@@ -44652,7 +44683,7 @@ struct cmsghdr {
         # get ELF object #
         fcache = ElfAnalyzer.getObject(fname)
         if not fcache:
-            ret = ['??', fname, '??', '??', '??']
+            ret = ['??', fname, '??', '??', '??', '??']
             self.symbolCacheList[vaddr] = ret
             return ret
 
@@ -44662,8 +44693,8 @@ struct cmsghdr {
 
         # get symbol #
         try:
-            sym = fcache.getSymbolByOffset(offset, onlyFunc=onlyFunc)
-            ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend]
+            sym, size = fcache.getSymbolByOffset(offset, onlyFunc=onlyFunc)
+            ret = [sym, fname, hex(offset).rstrip('L'), vstart, vend, size]
             self.symbolCacheList[vaddr] = ret
             return ret
         except SystemExit:
@@ -44673,7 +44704,7 @@ struct cmsghdr {
                 'fail to get symbol from %x for %s(%s)' % \
                     (hex(offset).rstrip('L'), self.comm, self.pid),
                         reason=True)
-            return ['??', fname, '??', '??', '??']
+            return ['??', fname, '??', '??', '??', '??']
 
 
 
@@ -45126,10 +45157,13 @@ struct cmsghdr {
             if not force and self.btList:
                 self.btList
 
+            restored = True
+
             # unwind stack using DWARF #
             if SysMgr.dwarfEnable:
                 # backup registers #
                 self.backupRegs(bt=True)
+                restored = False
 
                 # set start address #
                 ip = self.pc
@@ -45155,7 +45189,7 @@ struct cmsghdr {
                     ip = raddr
 
                 # convert addresses to symbols #
-                self.btList = self.convertAddrList(btList)
+                self.btList = self.convAddrList(btList)
 
                 # print backtrace for debugging #
                 if False:
@@ -45166,6 +45200,7 @@ struct cmsghdr {
 
                 # restore registers #
                 self.restoreRegs(bt=True)
+                restored = True
             # unwind stack using FP/SP #
             else:
                 self.btList = self.backtrace[SysMgr.arch](limit, cur)
@@ -45176,6 +45211,11 @@ struct cmsghdr {
         except:
             SysMgr.printWarn(
                 'fail to get backtrace from %x' % self.pc, reason=True)
+
+            if SysMgr.dwarfEnable and not restored:
+                # restore registers #
+                self.restoreRegs(bt=True)
+
             return []
 
 
@@ -45237,7 +45277,7 @@ struct cmsghdr {
         foffset = long(ret[2], 16)
 
         # get ELF object #
-        fobj = ElfAnalyzer.cachedFiles[fname]
+        fobj = ElfAnalyzer.getObject(fname)
 
         # check DWARF info #
         if 'dwarf' not in fobj.attr:
@@ -45250,6 +45290,7 @@ struct cmsghdr {
         idx = UtilMgr.bisect_left(\
             fobj.attr['dwarf']['CFAIndex'], foffset) - 1
         faddr = fobj.attr['dwarf']['CFAIndex'][idx]
+        # toDo: check function scope from faddr #
         if not faddr in fobj.attr['dwarf']['CFATable']:
             SysMgr.printWarn(
                 'fail to find CFA table info for %s(%s) in %s' % \
@@ -45306,6 +45347,7 @@ struct cmsghdr {
 
         # get CFA offset for return address #
         pcIdx = ConfigMgr.pcRegIndex[SysMgr.arch]
+
         # use specific register #
         if pcIdx in rule:
             roffset = rule[pcIdx][argIdx]
@@ -45394,7 +45436,7 @@ struct cmsghdr {
             except:
                 break
 
-        return self.convertAddrList(btList)
+        return self.convAddrList(btList)
 
 
 
@@ -45442,7 +45484,7 @@ struct cmsghdr {
                 btList.append(nextLr)
                 savedLr = nextLr
 
-        return self.convertAddrList(btList)
+        return self.convAddrList(btList)
 
 
 
@@ -45499,11 +45541,11 @@ struct cmsghdr {
                 btList.append(nextLr)
                 savedLr = nextLr
 
-        return self.convertAddrList(btList)
+        return self.convAddrList(btList)
 
 
 
-    def convertAddrList(self, btList):
+    def convAddrList(self, btList):
         # get symbol and file from address #
         clist = []
         for addr in btList:
@@ -45575,7 +45617,7 @@ struct cmsghdr {
                 else:
                     break
             if commonIdx < len(addBt):
-                addBtList = self.convertAddrList(addBt[commonIdx:])
+                addBtList = self.convAddrList(addBt[commonIdx:])
                 backtrace = addBtList + backtrace
 
         # get indent info #
@@ -47277,6 +47319,9 @@ struct cmsghdr {
         self.prevReturn = -1
         self.startAddr = None
 
+        # timestamp variables #
+        self.updateCurrent()
+
         # python variables #
         self.pyAddr = None
         self.pyFrameCache = {}
@@ -47418,17 +47463,16 @@ struct cmsghdr {
     def setRetBp(self, sym, fname, cmd=None):
         # get return position #
         try:
-            bt = self.getBacktrace(limit=1, cur=False)
-            if not bt:
-                SysMgr.printWarn(
-                    'no backtrace for %s(%s)' % (sym, fname))
-                return True
-
-            pos = bt[0][0]
+            if self.arch == 'aarch64' or self.arch == 'arm':
+                pos = self.lr
+            else:
+                pos = self.getBacktrace(limit=1, cur=False)[0][0]
         except SystemExit:
             sys.exit(0)
         except:
-            return False
+            SysMgr.printWarn(
+                'no backtrace for %s(%s)' % (sym, fname), reason=True)
+            return True
 
         # add the new breakpoint for return #
         newSym = '%s%s' % (sym, Debugger.RETSTR)
@@ -47493,6 +47537,9 @@ struct cmsghdr {
 
 
     def runEventLoop(self):
+        # timestamp variables #
+        self.updateCurrent()
+
         # initialize dynamic time for tracing #
         self.dstart = time.time()
 
@@ -47706,11 +47753,6 @@ struct cmsghdr {
         self.multi = multi
         self.lockObj = lock
         self.pbufsize = SysMgr.ttyCols >> 1
-
-        # timestamp variables #
-        self.current = time.time()
-        time.time()
-        self.timeDelay = time.time() - self.current
 
         # sampling variables #
         self.sampleTime = long(0)
@@ -50395,6 +50437,270 @@ class ElfAnalyzer(object):
         ARCHITECTURAL='a',
     )
 
+    class EHABIBytecodeDecoder(object):
+        '''
+        refer to https://github.com/eliben/pyelftools
+        Decoder of a sequence of ARM exception handler abi bytecode.
+
+        Reference:
+        https://github.com/llvm/llvm-project/blob/master/llvm/tools/llvm-readobj/ARMEHABIPrinter.h
+        https://developer.arm.com/documentation/ihi0038/b/
+
+        Accessible attributes:
+            mnemonic_array:
+                MnemonicItem array.
+
+        Parameters:
+            bytecode_array:
+                Integer array, raw data of bytecode.
+        '''
+
+        def __init__(self, bytecode_array):
+            self._bytecode_array = bytecode_array
+            self._index = None
+            self.mnemonic_array = None
+            self._decode()
+
+        def getMnemonicItem(self, bytecode, mnemonic):
+            return '%s ; %s' % \
+                (' '.join(['0x%02x' % x for x in bytecode]), mnemonic)
+
+        def _decode(self):
+            """ Decode bytecode array, put result into mnemonic_array.
+            """
+            self._index = 0
+            self.mnemonic_array = []
+            while self._index < len(self._bytecode_array):
+                for mask, value, handler in self.ring:
+                    if (self._bytecode_array[self._index] & mask) == value:
+                        start_idx = self._index
+                        mnemonic = handler(self)
+                        end_idx = self._index
+                        self.mnemonic_array.append(
+                            self.getMnemonicItem(
+                                self._bytecode_array[start_idx: end_idx], mnemonic))
+                        break
+
+        def _decode_00xxxxxx(self):
+            #   SW.startLine() << format("0x%02X      ; vsp = vsp + %u\n", Opcode,
+            #                            ((Opcode & 0x3f) << 2) + 4);
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'vsp = vsp + %u' % (((opcode & 0x3f) << 2) + 4)
+
+        def _decode_01xxxxxx(self):
+            # SW.startLine() << format("0x%02X      ; vsp = vsp - %u\n", Opcode,
+            #                          ((Opcode & 0x3f) << 2) + 4);
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'vsp = vsp - %u' % (((opcode & 0x3f) << 2) + 4)
+
+        gpr_register_names = ("r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+                              "r8", "r9", "r10", "fp", "ip", "sp", "lr", "pc")
+
+        def _calculate_range(self, start, count):
+            return ((1 << (count + 1)) - 1) << start
+
+        def _printGPR(self, gpr_mask):
+            hits = [self.gpr_register_names[i] for i in range(32) if gpr_mask & (1 << i) != 0]
+            return '{%s}' % ', '.join(hits)
+
+        def _print_registers(self, vfp_mask, prefix):
+            hits = [prefix + str(i) for i in range(32) if vfp_mask & (1 << i) != 0]
+            return '{%s}' % ', '.join(hits)
+
+        def _decode_1000iiii_iiiiiiii(self):
+            op0 = self._bytecode_array[self._index]
+            self._index += 1
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            #   uint16_t GPRMask = (Opcode1 << 4) | ((Opcode0 & 0x0f) << 12);
+            #   SW.startLine()
+            #     << format("0x%02X 0x%02X ; %s",
+            #               Opcode0, Opcode1, GPRMask ? "pop " : "refuse to unwind");
+            #   if (GPRMask)
+            #     PrintGPR(GPRMask);
+            gpr_mask = (op1 << 4) | ((op0 & 0x0f) << 12)
+            if gpr_mask == 0:
+                return 'refuse to unwind'
+            else:
+                return 'pop %s' % self._printGPR(gpr_mask)
+
+        def _decode_10011101(self):
+            self._index += 1
+            return 'reserved (ARM MOVrr)'
+
+        def _decode_10011111(self):
+            self._index += 1
+            return 'reserved (WiMMX MOVrr)'
+
+        def _decode_1001nnnn(self):
+            # SW.startLine() << format("0x%02X      ; vsp = r%u\n", Opcode, (Opcode & 0x0f));
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'vsp = r%u' % (opcode & 0x0f)
+
+        def _decode_10100nnn(self):
+            # SW.startLine() << format("0x%02X      ; pop ", Opcode);
+            # PrintGPR((((1 << ((Opcode & 0x7) + 1)) - 1) << 4));
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'pop %s' % self._printGPR(self._calculate_range(4, opcode & 0x07))
+
+        def _decode_10101nnn(self):
+            # SW.startLine() << format("0x%02X      ; pop ", Opcode);
+            # PrintGPR((((1 << ((Opcode & 0x7) + 1)) - 1) << 4) | (1 << 14));
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'pop %s' % self._printGPR(self._calculate_range(4, opcode & 0x07) | (1 << 14))
+
+        def _decode_10110000(self):
+            # SW.startLine() << format("0x%02X      ; finish\n", Opcode);
+            self._index += 1
+            return 'finish'
+
+        def _decode_10110001_0000iiii(self):
+            # SW.startLine()
+            #   << format("0x%02X 0x%02X ; %s", Opcode0, Opcode1,
+            #             ((Opcode1 & 0xf0) || Opcode1 == 0x00) ? "spare" : "pop ");
+            # if (((Opcode1 & 0xf0) == 0x00) && Opcode1)
+            #   PrintGPR((Opcode1 & 0x0f));
+            self._index += 1  # skip constant byte
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            if (op1 & 0xf0) != 0 or op1 == 0x00:
+                return 'spare'
+            else:
+                return 'pop %s' % self._printGPR((op1 & 0x0f))
+
+        def _decode_10110010_uleb128(self):
+            #  SmallVector<uint8_t, 4> ULEB;
+            #  do { ULEB.push_back(Opcodes[OI ^ 3]); } while (Opcodes[OI++ ^ 3] & 0x80);
+            #  uint64_t Value = 0;
+            #  for (unsigned BI = 0, BE = ULEB.size(); BI != BE; ++BI)
+            #    Value = Value | ((ULEB[BI] & 0x7f) << (7 * BI));
+            #  OS << format("; vsp = vsp + %" PRIu64 "\n", 0x204 + (Value << 2));
+            self._index += 1   # skip constant byte
+            uleb_buffer = [self._bytecode_array[self._index]]
+            self._index += 1
+            while self._bytecode_array[self._index] & 0x80 == 0:
+                uleb_buffer.append(self._bytecode_array[self._index])
+                self._index += 1
+            value = 0
+            for b in reversed(uleb_buffer):
+                value = (value << 7) + (b & 0x7F)
+            return 'vsp = vsp + %u' % (0x204 + (value << 2))
+
+        def _decode_10110011_sssscccc(self):
+            # these two decoders are equal
+            return self._decode_11001001_sssscccc()
+
+        def _decode_101101nn(self):
+            return self._spare()
+
+        def _decode_10111nnn(self):
+            #  SW.startLine() << format("0x%02X      ; pop ", Opcode);
+            #  PrintRegisters((((1 << ((Opcode & 0x07) + 1)) - 1) << 8), "d");
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'pop %s' % self._print_registers(self._calculate_range(8, opcode & 0x07), "d")
+
+        def _decode_11000110_sssscccc(self):
+            #  SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
+            #  uint8_t Start = ((Opcode1 & 0xf0) >> 4);
+            #  uint8_t Count = ((Opcode1 & 0x0f) >> 0);
+            #  PrintRegisters((((1 << (Count + 1)) - 1) << Start), "wR");
+            self._index += 1  # skip constant byte
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            start = ((op1 & 0xf0) >> 4)
+            count = ((op1 & 0x0f) >> 0)
+            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "wR")
+
+        def _decode_11000111_0000iiii(self):
+            #   SW.startLine()
+            #     << format("0x%02X 0x%02X ; %s", Opcode0, Opcode1,
+            #               ((Opcode1 & 0xf0) || Opcode1 == 0x00) ? "spare" : "pop ");
+            #   if ((Opcode1 & 0xf0) == 0x00 && Opcode1)
+            #       PrintRegisters(Opcode1 & 0x0f, "wCGR");
+            self._index += 1  # skip constant byte
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            if (op1 & 0xf0) != 0 or op1 == 0x00:
+                return 'spare'
+            else:
+                return 'pop %s' % self._print_registers(op1 & 0x0f, "wCGR")
+
+        def _decode_11001000_sssscccc(self):
+            #   SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
+            #   uint8_t Start = 16 + ((Opcode1 & 0xf0) >> 4);
+            #   uint8_t Count = ((Opcode1 & 0x0f) >> 0);
+            #   PrintRegisters((((1 << (Count + 1)) - 1) << Start), "d");
+            self._index += 1  # skip constant byte
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            start = 16 + ((op1 & 0xf0) >> 4)
+            count = ((op1 & 0x0f) >> 0)
+            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "d")
+
+        def _decode_11001001_sssscccc(self):
+            #   SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
+            #   uint8_t Start = ((Opcode1 & 0xf0) >> 4);
+            #   uint8_t Count = ((Opcode1 & 0x0f) >> 0);
+            #   PrintRegisters((((1 << (Count + 1)) - 1) << Start), "d");
+            self._index += 1  # skip constant byte
+            op1 = self._bytecode_array[self._index]
+            self._index += 1
+            start = ((op1 & 0xf0) >> 4)
+            count = ((op1 & 0x0f) >> 0)
+            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "d")
+
+        def _decode_11001yyy(self):
+            return self._spare()
+
+        def _decode_11000nnn(self):
+            #   SW.startLine() << format("0x%02X      ; pop ", Opcode);
+            #   PrintRegisters((((1 << ((Opcode & 0x07) + 1)) - 1) << 10), "wR");
+            opcode = self._bytecode_array[self._index]
+            self._index += 1
+            return 'pop %s' % self._print_registers(self._calculate_range(10, opcode & 0x07), "wR")
+
+        def _decode_11010nnn(self):
+            # these two decoders are equal
+            return self._decode_10111nnn()
+
+        def _decode_11xxxyyy(self):
+            return self._spare()
+
+        def _spare(self):
+            self._index += 1
+            return 'spare'
+
+        ring = (
+            (0xc0, 0x00, _decode_00xxxxxx),
+            (0xc0, 0x40, _decode_01xxxxxx),
+            (0xf0, 0x80, _decode_1000iiii_iiiiiiii),
+            (0xff, 0x9d, _decode_10011101),
+            (0xff, 0x9f, _decode_10011111),
+            (0xf0, 0x90, _decode_1001nnnn),
+            (0xf8, 0xa0, _decode_10100nnn),
+            (0xf8, 0xa8, _decode_10101nnn),
+            (0xff, 0xb0, _decode_10110000),
+            (0xff, 0xb1, _decode_10110001_0000iiii),
+            (0xff, 0xb2, _decode_10110010_uleb128),
+            (0xff, 0xb3, _decode_10110011_sssscccc),
+            (0xfc, 0xb4, _decode_101101nn),
+            (0xf8, 0xb8, _decode_10111nnn),
+            (0xff, 0xc6, _decode_11000110_sssscccc),
+            (0xff, 0xc7, _decode_11000111_0000iiii),
+            (0xff, 0xc8, _decode_11001000_sssscccc),
+            (0xff, 0xc9, _decode_11001001_sssscccc),
+            (0xc8, 0xc8, _decode_11001yyy),
+            (0xf8, 0xc0, _decode_11000nnn),
+            (0xf8, 0xd0, _decode_11010nnn),
+            (0xc0, 0xc0, _decode_11xxxyyy),
+        )
+
     class RegisterRule(object):
         '''
         refer to https://github.com/eliben/pyelftools
@@ -50661,6 +50967,10 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(path, raiseExcept=False, fobj=None, cache=True):
+        # immediate return for cached object #
+        if cache and path in ElfAnalyzer.cachedFiles:
+            return ElfAnalyzer.cachedFiles[path]
+
         # remove segment number #
         path = path.split(SysMgr.magicStr)[0]
 
@@ -51181,23 +51491,25 @@ class ElfAnalyzer(object):
 
             while 1:
                 if addrTable[idx] > offset:
-                    return '??'
+                    return '??', '??'
 
                 # set symbol scope to it's size #
                 if True:
-                    maxAddr = addrTable[idx] + symTable[idx][1]
+                    size = symTable[idx][1]
+                    maxAddr = addrTable[idx] + size
                 # set symbol scope to next one's start offset #
                 else:
+                    size = '??'
                     maxAddr = addrTable[idx+1]
 
                 if offset >= addrTable[idx] and offset <= maxAddr:
-                    return symTable[idx][0]
+                    return symTable[idx][0], size
 
                 idx += 1
         except SystemExit:
             sys.exit(0)
         except:
-            return '??'
+            return '??', '??'
 
 
 
@@ -53585,6 +53897,7 @@ Section header string table index: %d
                             'IDX', 'FUNC ADDR', 'FDE ADDR'))
 
             # table #
+            printCnt = 0
             for idx in range(0, fdeCnt):
                 curPos = fd.tell() - sh_offset
 
@@ -53597,13 +53910,24 @@ Section header string table index: %d
                 addr = decodeAddr(addr, sh_addr, curPos, tEncMod)
 
                 if debug:
-                    SysMgr.printPipe('%05s %016x %016x' % (idx, initLoc, addr))
+                    output = '%05s %016x %016x' % (idx, initLoc, addr)
+
+                    # apply for filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isEffectiveStr(output, inc=True):
+                            continue
+
+                    SysMgr.printPipe(output)
+
+                    printCnt += 1
 
             if debug:
+                if printCnt == 0:
+                    SysMgr.printPipe('%s\n\tNone' % oneLine)
                 SysMgr.printPipe(oneLine)
 
         # check .ARM.IDX section #
-        if e_sharmidx >= 0:
+        if SysMgr.dwarfEnable and e_sharmidx >= 0:
             # parse section header #
             sh_name, sh_type, sh_flags, sh_addr, sh_offset,\
                 sh_size, sh_link, sh_info, sh_addralign, sh_entsize = \
@@ -53616,37 +53940,82 @@ Section header string table index: %d
                     location |= 0xffffffff80000000
                 return location + place & 0xffffffffffffffff
 
+            def decodeEntry(
+                idx, foffset, personality=None, bytecode=None,
+                tableoffset=None, debug=False):
+
+                if bytecode:
+                    dobj = ElfAnalyzer.EHABIBytecodeDecoder(bytecode)
+                else:
+                    dobj = []
+
+                if debug:
+                    SysMgr.printPipe('Entry %s:' % idx)
+
+                    if personality == -1:
+                        toffset = '[cantunwind]'
+                    elif foffset in self.addrTable:
+                        toffset = self.addrTable[foffset]
+                    elif tableoffset:
+                        toffset = '@%s' % hex(tableoffset).rstrip('L')
+                    else:
+                        toffset = 'N/A'
+
+                    SysMgr.printPipe(
+                        ' Function offset %s: %s' % (\
+                            hex(foffset).rstrip('L'), toffset))
+
+                    if personality == -1:
+                        SysMgr.printPipe('\n')
+                        return
+
+                    SysMgr.printPipe(
+                        ' Compact model index: %s' % personality)
+
+                    for line in dobj.mnemonic_array:
+                        SysMgr.printPipe(' %s' % line)
+
+                    SysMgr.printPipe('\n')
+
             # define entry size #
             EHABI_INDEX_ENTRY_SIZE = 8
 
             # get the number of item #
             nrItems = sh_size / EHABI_INDEX_ENTRY_SIZE
 
-            for i in range(0, nrItems):
+            # get symbol string #
+            shname = self.getString(str_section, sh_name)
+
+            if debug:
+                SysMgr.printPipe(
+                    '\n[%s Section]\n%s\n' % (shname, twoLine))
+
+            for idx in range(0, nrItems):
                 # read value #
-                fd.seek(sh_offset + i * EHABI_INDEX_ENTRY_SIZE)
+                fd.seek(sh_offset + idx * EHABI_INDEX_ENTRY_SIZE)
                 data = fd.read(EHABI_INDEX_ENTRY_SIZE)
                 word0, word1 = struct.unpack('II', data)
 
                 # check corruption #
                 if word0 & 0x80000000 != 0:
                     SysMgr.printWarn(
-                        'corrupted ARM exception handler table entry: %x' % i)
+                        'corrupted ARM exception handler table entry: %x' % idx)
                     continue
 
                 foffset = expandPrel31(
-                    word0, sh_offset + (i * EHABI_INDEX_ENTRY_SIZE))
+                    word0, sh_offset + (idx * EHABI_INDEX_ENTRY_SIZE))
 
                 if word1 == 1:
                     # 0x1 means cannot unwind #
                     SysMgr.printWarn(
-                        'cannot unwind for %x' % i)
+                        'cannot unwind for %s' % idx)
+                    decodeEntry(idx, foffset, -1, debug=debug)
                     continue
 
                 elif word1 & 0x80000000 == 0:
                     # highest bit is zero, point to .ARM.extab data
                     eh_table_offset = expandPrel31(
-                        word1, sh_offset + i * EHABI_INDEX_ENTRY_SIZE + 4)
+                        word1, sh_offset + idx * EHABI_INDEX_ENTRY_SIZE + 4)
 
                     # read value #
                     fd.seek(eh_table_offset)
@@ -53655,14 +54024,15 @@ Section header string table index: %d
 
                     if word0 & 0x80000000 == 0:
                         # highest bit is one, generic model #
-                        #return GenericEHABIEntry(foffset, arm_expand_prel31(word0, eh_table_offset))
-                        continue
+                        personality = expandPrel31(word0, eh_table_offset)
+                        decodeEntry(idx, foffset, personality, debug=debug)
 
                     # highest bit is one, arm compact model #
                     # highest half must be 0b1000 for compact model #
                     if word0 & 0x70000000 != 0:
                         SysMgr.printWarn(
-                            'corrupted ARM exception handler table entry: %x' % i)
+                            'corrupted ARM exception handler table entry: %x' % idx)
+                        decodeEntry(idx, 1)
                         continue
 
                     per_index = (word0 >> 24) & 0x7f
@@ -53673,8 +54043,7 @@ Section header string table index: %d
                             (word0 & 0xFF00) >> 8,
                             word0 & 0xFF
                         ]
-                        #return EHABIEntry(foffset, per_index, opcode)
-                        continue
+                        decodeEntry(idx, foffset, per_index, opcode, debug=debug)
                     elif per_index == 1 or per_index == 2:
                         # arm compact model 1/2 #
                         more_word = (word0 >> 16) & 0xff
@@ -53691,18 +54060,18 @@ Section header string table index: %d
                             opcode.append((r >> 16) & 0xFF)
                             opcode.append((r >> 8) & 0xFF)
                             opcode.append((r >> 0) & 0xFF)
-                        #return EHABIEntry(foffset, per_index, opcode, eh_table_offset=eh_table_offset)
-                        continue
+                        decodeEntry(
+                            idx, foffset, per_index, opcode, eh_table_offset, debug=debug)
                     else:
                         SysMgr.printWarn(
                             'unknown ARM compact model %d at table entry: %x' % \
-                                (per_index, i))
-                        continue
+                                (per_index, idx))
+                        decodeEntry(idx, 1)
                 else:
                     # highest bit is one, compact model must be 0 #
                     if word1 & 0x7f000000 != 0:
                         SysMgr.printWarn(
-                            'corrupted ARM compact model table entry: %x' % i)
+                            'corrupted ARM compact model table entry: %x' % idx)
                         continue
 
                     opcode = [
@@ -53711,8 +54080,10 @@ Section header string table index: %d
                         word1 & 0xFF
                     ]
 
-                    #return EHABIEntry(foffset, 0, opcode)
-                    continue
+                    decodeEntry(idx, foffset, 0, opcode, debug=debug)
+
+            if debug:
+                SysMgr.printPipe(oneLine)
 
         # check dynamic section #
         if e_shdynamic < 0:
@@ -55923,7 +56294,8 @@ class ThreadAnalyzer(object):
 
                 # merge stats #
                 for key, val in gstats.items():
-                    graphStats['%s:%s' % (lfile, key)] = val
+                    fname = os.path.basename(lfile)
+                    graphStats['%s:%s' % (fname, key)] = val
 
         # initialize environment for drawing #
         self.initDrawEnv()
@@ -55931,8 +56303,10 @@ class ThreadAnalyzer(object):
         # draw avreage graphs #
         if SysMgr.avgEnable:
             try:
-                graphStats = self.getAvgStats(flist, graphStats)
-                graphStats['fileList'] = flist
+                # convert pull path to file name #
+                fnameList = [ os.path.basename(fname) for fname in flist ]
+                graphStats = self.getAvgStats(fnameList, graphStats)
+                graphStats['fileList'] = fnameList
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
             except SystemExit:
                 return
@@ -57785,6 +58159,15 @@ class ThreadAnalyzer(object):
             else:
                 return 'center'
 
+        def convNameLabel(fileList):
+            newList = []
+            for idx, name in enumerate(fileList):
+                if idx % 2 == 1:
+                    name = '\n%s' % name
+                newList.append(name)
+            return newList
+
+
         def drawBottom(xtype, ax):
             if xtype == 1:
                 # convert tick type to integer #
@@ -58120,7 +58503,7 @@ class ThreadAnalyzer(object):
                 ymax = SysMgr.funcDepth
 
             # set xticks attributes #
-            ax.set_xticklabels(graphStats['fileList'])
+            ax.set_xticklabels(convNameLabel(graphStats['fileList']))
 
             # set yticks attributes #
             xticks(fontsize=4)
@@ -58402,7 +58785,7 @@ class ThreadAnalyzer(object):
                 pass
 
             # set xticks attributes #
-            ax.set_xticklabels(graphStats['fileList'])
+            ax.set_xticklabels(convNameLabel(graphStats['fileList']))
             xticks(fontsize=4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
@@ -68406,17 +68789,60 @@ class ThreadAnalyzer(object):
         # add memory interval #
         self.addSysInterval('available', availMem)
 
+        # convert color for CPU usage #
+        totalUsageStr = r'%3s %%' % totalUsage
+        if totalUsage == 0:
+            pass
+        elif totalUsage >= SysMgr.cpuPerHighThreshold:
+            totalUsageStr = UtilMgr.convColor(totalUsageStr, 'RED')
+        else:
+            totalUsageStr = UtilMgr.convColor(totalUsageStr, 'YELLOW')
+
+        # convert color for mem available #
+        availMemStr = r'%5s' % availMem
+        if availMemPer == 0:
+            pass
+        elif availMemPer <= SysMgr.memAvailPerThreshold:
+            availMemStr = UtilMgr.convColor(availMemStr, 'RED')
+        else:
+            availMemStr = UtilMgr.convColor(availMemStr, 'YELLOW')
+
+        # convert color for swap usage #
+        swapUsageStr = r'%6s' % swapUsage
+        if swapUsagePer == 0:
+            pass
+        elif swapUsagePer >= SysMgr.swapPerThreshold:
+            swapUsageStr = UtilMgr.convColor(swapUsageStr, 'RED')
+        else:
+            swapUsageStr = UtilMgr.convColor(swapUsageStr, 'YELLOW')
+
+        # convert color for reclaim stats #
+        pgRclmStr = r'%s/%s' % (pgRclmBg, pgRclmFg)
+        pgRclmStr = r'{0:^9}'.format(pgRclmStr)
+        if pgRclmBg > 0 or pgRclmFg > 0:
+            pgRclmStr = UtilMgr.convColor(pgRclmStr, 'RED')
+
+        # convert color for io stats #
+        pgIOMemDiffStr = r'%s/%s' % (pgInMemDiff, pgOutMemDiff)
+        pgIOMemDiffStr = r'{0:^7}'.format(pgIOMemDiffStr)
+        if pgInMemDiff > 0 or pgOutMemDiff > 0:
+            pgIOMemDiffStr = UtilMgr.convColor(pgIOMemDiffStr, 'RED')
+
+        # convert color for network stats #
+        if not (netIO == '-/-' or netIO == '0/0'):
+            netIO = r'{0:^12}'.format(netIO)
+            netIO = UtilMgr.convColor(netIO, 'YELLOW')
+
         # make total stat string #
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
             "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"
             "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|"
             "{17:^7}|{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
-            format("Total", '%d %%' % totalUsage, userUsage, kerUsage,
-            ioUsage, irqUsage, availMem, availMemPer, totalAnonMem,
-            totalCacheMem, totalKernelMem, swapUsage, swapUsagePer,
-            swapInMem, swapOutMem, '%s/%s' % (pgRclmBg, pgRclmFg),
-            '%s/%s' % (pgInMemDiff, pgOutMemDiff),
+            format("Total", totalUsageStr, userUsage, kerUsage,
+            ioUsage, irqUsage, availMemStr, availMemPer, totalAnonMem,
+            totalCacheMem, totalKernelMem, swapUsageStr, swapUsagePer,
+            swapInMem, swapOutMem, pgRclmStr, pgIOMemDiffStr,
             nrMajFault, nrBlocked, nrSoftIrq, pgMlock, pgDirty, netIO)
 
         SysMgr.addPrint(totalCoreStat)
@@ -68771,6 +69197,11 @@ class ThreadAnalyzer(object):
                     if totalCoreUsage > 0:
                         coreGraph = '#' * long(lenLine * totalCoreUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
+
+                        if totalCoreUsage >= SysMgr.cpuPerHighThreshold:
+                            coreGraph = UtilMgr.convColor(coreGraph, 'RED')
+                        else:
+                            coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -68794,8 +69225,20 @@ class ThreadAnalyzer(object):
                         return
 
                     totalGpuUsage = long(value['CUR_LOAD'])
+
+                    # convert color for GPU usage #
+                    totalGpuUsageStr = '%s %%' % totalGpuUsage
+                    if totalGpuUsage > 0:
+                        totalGpuUsageStr = r'{0:>5}'.format(totalGpuUsageStr)
+                        if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
+                            totalGpuUsageStr = UtilMgr.convColor(
+                                totalGpuUsageStr, 'RED')
+                        else:
+                            totalGpuUsageStr = UtilMgr.convColor(
+                                totalGpuUsageStr, 'YELLOW')
+
                     coreStat = "{0:<23}({1:>5})|".format(
-                        idx[:23], '%s %%' % totalGpuUsage)
+                        idx[:23], totalGpuUsageStr)
 
                     gpuStats[idx] = totalGpuUsage
 
@@ -68824,10 +69267,16 @@ class ThreadAnalyzer(object):
                     lenFreq = len(coreFreq)
                     lenLine = SysMgr.lineLength - lenCore - lenFreq - 2
 
-                    # print graph of per-core usage #
+                    # print bar graph for GPU usage #
                     if totalGpuUsage > 0:
                         coreGraph = '#' * long(lenLine * totalGpuUsage / 100)
-                        coreGraph += (' ' * (lenLine - len(coreGraph)))
+                        glen = lenLine + len(ConfigMgr.COLOR_LIST['RED']) + len(ConfigMgr.ENDC)
+                        coreGraph = '{0:<{glen}}'.format(coreGraph, glen=glen)
+
+                        if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
+                            coreGraph = UtilMgr.convColor(coreGraph, 'RED')
+                        else:
+                            coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
                     else:
                         coreGraph = ' ' * lenLine
 
@@ -70349,10 +70798,11 @@ class ThreadAnalyzer(object):
 
             # get sched #
             SCHED_POLICY = ConfigMgr.SCHED_POLICY
-            if SCHED_POLICY[int(stat[self.policyIdx])] == 'C':
-                schedValue = "%3d" % (long(stat[self.prioIdx]) - 20)
+            nrPrio = long(stat[self.prioIdx])
+            if SCHED_POLICY[long(stat[self.policyIdx])] == 'C':
+                schedValue = "%3d" % (nrPrio - 20)
             else:
-                schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
+                schedValue = "%3d" % (abs(nrPrio + 1))
 
             # get lifetime #
             lifeTime = UtilMgr.convTime(value['runtime'])
@@ -70420,7 +70870,7 @@ class ThreadAnalyzer(object):
             # scheduling info #
             if SysMgr.processEnable:
                 # sid #
-                yld = stat[self.sidIdx]
+                yld = stat[self.sidIdx][-5:]
                 if yld == '0':
                     yld = '-'
 
@@ -70535,6 +70985,47 @@ class ThreadAnalyzer(object):
                 ttime = value['ttime']
                 btime = value['btime']
 
+            # convert color for CPU usage #
+            if value['ttime'] < SysMgr.cpuPerLowThreshold:
+                pass
+            else:
+                ttime = r'%4s' % ttime
+                if value['ttime'] >= SysMgr.cpuPerHighThreshold:
+                    ttime = UtilMgr.convColor(ttime, 'RED')
+                else:
+                    ttime = UtilMgr.convColor(ttime, 'YELLOW')
+
+            # convert color for RSS #
+            if mems < SysMgr.memLowThreshold:
+                memstr = mems
+            else:
+                memstr = r'%4s' % mems
+                if mems >= SysMgr.memHighThreshold:
+                    memstr = UtilMgr.convColor(memstr, 'RED')
+                else:
+                    memstr = UtilMgr.convColor(memstr, 'YELLOW')
+
+            # convert color for BTIME #
+            if btime == 0:
+                btimestr = btime
+            else:
+                btimestr = r'%4s' % btime
+                btimestr = UtilMgr.convColor(btimestr, 'RED')
+
+            try:
+                if nrPrio >= 20:
+                    pass
+                else:
+                    sched = r'%4s' % sched
+                    if nrPrio >= 0:
+                        sched = UtilMgr.convColor(sched, 'YELLOW')
+                    else:
+                        sched = UtilMgr.convColor(sched, 'RED')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
             # print stats of a process #
             ret = SysMgr.addPrint(
                 ("{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
@@ -70544,8 +71035,8 @@ class ThreadAnalyzer(object):
                 "{18:>5}|{19:>6}|{20:>4}|{21:>9}|{22:>21}|\n").\
                 format(comm[:cl], idx, pid, stat[self.nrthreadIdx],
                 sched, ttime, value['utime'], value['stime'],
-                dtime, vss, mems, codeSize, shr, swapSize,
-                btime, readSize, writeSize, value['majflt'],
+                dtime, vss, memstr, codeSize, shr, swapSize,
+                btimestr, readSize, writeSize, value['majflt'],
                 yld, prtd, value['fdsize'], lifeTime[:9], etc[:21],
                 cl=cl, pd=pd))
             if not ret:
