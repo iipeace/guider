@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201202"
+__revision__ = "201203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -122,10 +122,10 @@ class ConfigMgr(object):
         'BGPINK': '\033[45m',
         'BGCYAN': '\033[46m',
         'BGWHITE': '\033[47m',
-        'WARNING': '\033[95m',
-        'OKBLUE': '\033[94m',
         'OKGREEN': '\033[92m',
         'SPECIAL': '\033[93m',
+        'OKBLUE': '\033[94m',
+        'WARNING': '\033[95m',
     }
 
     # Define cgroup entity #
@@ -14799,7 +14799,11 @@ class SysMgr(object):
         try:
             with open(path, 'r') as fd:
                 maxPid = fd.readline()[:-1]
-                SysMgr.pidDigit = len(maxPid)
+
+                # update pid length #
+                if len(maxPid) > SysMgr.pidDigit:
+                    SysMgr.pidDigit = len(maxPid)
+
                 SysMgr.maxPid = long(maxPid)
         except SystemExit:
             sys.exit(0)
@@ -16743,51 +16747,23 @@ class SysMgr(object):
         if not options:
             return False
 
-        if 'i' in options or 'm' in options or \
-            'n' in options or 'h' in options or \
-            'b' in options or 'p' in options or \
-            'P' in options or 'r' in options or \
-            'g' in options or 'L' in options or \
-            'N' in options or 't' in options or \
-            'v' in options or 'H' in options or \
-            'l' in options or 'G' in options or \
-            'c' in options or 's' in options or \
-            'S' in options or 'u' in options or \
-            'a' in options or 'I' in options or \
-            'f' in options or 'F' in options or \
-            'w' in options or 'W' in options or \
-            'r' in options or 'R' in options or \
-            'd' in options or 'o' in options or \
-            'C' in options or 'E' in options or \
-            'D' in options or 'k' in options or \
-            'j' in options or 'x' in options or \
-            'y' in options or 'Y' in options or \
-            'q' in options or 'B' in options:
-            return True
-        else:
-            return False
+        optionList = 'imnhbpPrgLNtvHlGcsSuaIfFwWrRdoCEDkjxyYqB'
+
+        for opt in options:
+            if not opt in optionList:
+                return False
+
+        return True
 
 
 
     @staticmethod
     def isEffectiveOption(option):
-        if option == 'a' or option == 'A' or option == 'b' or \
-            option == 'c' or option == 'C' or option == 'd' or \
-            option == 'D' or option == 'e' or option == 'E' or \
-            option == 'f' or option == 'F' or option == 'g' or \
-            option == 'H' or option == 'i' or option == 'I' or \
-            option == 'j' or option == 'k' or option == 'K' or \
-            option == 'l' or option == 'L' or option == 'm' or \
-            option == 'M' or option == 'n' or option == 'N' or \
-            option == 'o' or option == 'O' or option == 'P' or \
-            option == 'p' or option == 'Q' or option == 'r' or \
-            option == 'R' or option == 'S' or option == 's' or \
-            option == 'T' or option == 't' or option == 'u' or \
-            option == 'U' or option == 'v' or option == 'w' or \
-            option == 'W' or option == 'x' or option == 'X' or \
-            option == 'Y' or option == 'y' or option == 'Z' or \
-            option == 'B' or option == 'G' or option == 'J' or \
-            option == 'q' or option.isdigit():
+        optionList = 'aAbcCdDeEfFgHiIjkKlLmMnNoOPpQrRSsTtuUvwWxXYyZBGJq'
+
+        if option in optionList:
+            return True
+        elif option.isdigit():
             return True
         else:
             return False
@@ -17400,10 +17376,10 @@ Options:
             w:wss | W:wchan | x:fixTarget | Y:delay
     -d  <CHARACTER>             disable options
             a:memAvailable | A:cpuAverage | b:buffer
-            c:cpu | C:clone | e:encode | E:exec
-            g:generalInfo | G:gpu | L:log | p:print
-            t:truncate | T:task
-                                    '''
+            c:cpu | C:clone | D:DWARF | e:encode
+            E:exec | g:generalInfo | G:gpu | L:log
+            p:print | t:truncate | T:task
+                '''
 
                 drawSubStr = '''
 Options:
@@ -18725,7 +18701,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | D:DWARF | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec | g:generalInfo
+          C:clone | e:encode | D:DWARF | E:exec | g:generalInfo
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -18781,7 +18757,7 @@ Options:
     -e  <CHARACTER>             enable options
           p:pipe | D:DWARF | e:encode
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec | g:generalInfo
+          C:clone | D:DWARF | e:encode | E:exec | g:generalInfo
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set file
@@ -23918,21 +23894,25 @@ Copyright:
                     "fail to write to %s" % SysMgr.printFd.name, True)
         # console output #
         else:
-            ttyCols = SysMgr.ttyCols
+            cols = SysMgr.ttyCols
 
-            # cut output by terminal size #
+            # rstrip by terminal size #
             try:
-                if ttyCols == 0 or SysMgr.jsonEnable:
+                # no limit #
+                if cols == 0 or SysMgr.jsonEnable:
                     line = '\n'.join([nline for nline in line.split('\n')])
+                # rstrip for colorful lines #
                 elif SysMgr.colorEnable and ConfigMgr.ENDC in line:
+                    esc = '\033[33m'
                     ENDC = ConfigMgr.ENDC
-                    lenFactor = len(ConfigMgr.COLOR_LIST['RED']) + len(ENDC)
+                    chars = len(ConfigMgr.COLOR_LIST['RED']) + len(ENDC)
                     line = '\n'.join(
-                        [nline[:ttyCols+nline[:ttyCols].count(ENDC)*lenFactor] + ENDC \
-                            for nline in line.split('\n')])
+                        [n[:cols+len(n)-len(n.replace(esc, ''))+chars]+ENDC \
+                            for n in line.split('\n')])
+                # rstrip for normal lines #
                 else:
                     line = '\n'.join(
-                        [nline[:ttyCols-1] for nline in line.split('\n')])
+                        [nline[:cols-1] for nline in line.split('\n')])
             except SystemExit:
                 sys.exit(0)
             except:
@@ -24577,7 +24557,7 @@ Copyright:
                         "input number in integer format")
                     sys.exit(0)
 
-            elif option == 'o' or option == 's':
+            elif SysMgr.isCommonOption(option):
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
@@ -24653,10 +24633,6 @@ Copyright:
                 if not SysMgr.prio:
                     SysMgr.parsePriorityOption(value)
 
-            elif option == 'z':
-                SysMgr.parseAffinityOption(
-                    SysMgr.cleanItem(value.split(',')))
-
             elif option == 'J':
                 SysMgr.jsonEnable = True
 
@@ -24712,6 +24688,9 @@ Copyright:
                 if 'g' in options:
                     SysMgr.generalInfoEnable = False
 
+                if 'D' in options:
+                    SysMgr.dwarfEnable = False
+
             elif option == 'G':
                 itemList = UtilMgr.splitString(value)
 
@@ -24737,17 +24716,8 @@ Copyright:
                 itemList = UtilMgr.splitString(value)
                 SysMgr.filterGroup = SysMgr.cleanItem(itemList)
 
-            elif option == 'A':
-                SysMgr.archOption = value
-                SysMgr.setArch(value)
-
             elif option == 'W':
                 SysMgr.waitEnable = True
-
-            elif option == 'E':
-                SysMgr.cacheDirPath = value
-                SysMgr.printInfo(
-                    "use %s as cache directory" % value)
 
             elif option == 'e':
                 options = value
@@ -25095,33 +25065,9 @@ Copyright:
                 if not SysMgr.setSortValue(value):
                     sys.exit(0)
 
-            elif option == 'u':
-                SysMgr.runBackgroundMode()
-
             elif option == 'q':
                 itemList = UtilMgr.splitString(value)
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
-
-            elif option == 'Q':
-                SysMgr.setStream()
-
-            elif option == 'H':
-                try:
-                    if not value:
-                        SysMgr.funcDepth = 32
-                    else:
-                        SysMgr.funcDepth = long(value)
-
-                    if SysMgr.funcDepth < 0:
-                        raise Exception('wrong depth')
-                except:
-                    SysMgr.printErr(
-                        "wrong value with -H option, "
-                        "input an unsigned integer value")
-                    sys.exit(0)
-
-            elif option == 'R':
-                SysMgr.parseRuntimeOption(value)
 
             # Ignore options #
             elif SysMgr.isEffectiveOption(option):
@@ -25152,8 +25098,60 @@ Copyright:
                 sys.exit(0)
 
             SysMgr.outPath = os.path.normpath(value)
+
         elif option == 's':
             SysMgr.applySaveOption(value)
+
+        elif option == 'H':
+            try:
+                if not value:
+                    SysMgr.funcDepth = 32
+                else:
+                    SysMgr.funcDepth = long(value)
+
+                if SysMgr.funcDepth < 0:
+                    raise Exception('wrong depth')
+            except:
+                SysMgr.printErr(
+                    "wrong value with -H option, "
+                    "input an unsigned integer value")
+                sys.exit(0)
+
+        elif option == 'Q':
+            SysMgr.setStream()
+
+        elif option == 'R':
+            SysMgr.parseRuntimeOption(value)
+
+        elif option == 'u':
+            SysMgr.runBackgroundMode()
+
+        elif option == 'z':
+            SysMgr.parseAffinityOption(
+                SysMgr.cleanItem(value.split(',')))
+
+        elif option == 'A':
+            SysMgr.archOption = value
+            SysMgr.setArch(value)
+
+        elif option == 'W':
+            SysMgr.waitEnable = True
+
+        elif option == 'E':
+            SysMgr.cacheDirPath = value
+            SysMgr.printInfo(
+                "use %s as cache directory" % value)
+
+
+
+    @staticmethod
+    def isCommonOption(option):
+        optionList = 'osHQRuzAWE'
+
+        if option in optionList:
+            return True
+        else:
+            return False
 
 
 
@@ -25204,22 +25202,11 @@ Copyright:
             elif option == 'Y':
                 SysMgr.parsePriorityOption(value)
 
-            elif option == 'z':
-                SysMgr.parseAffinityOption(
-                    SysMgr.cleanItem(value.split(',')))
-
             elif option == 'f':
                 SysMgr.forceEnable = True
 
-            elif option == 'u':
-                SysMgr.runBackgroundMode()
-
             elif option == 'y':
                 SysMgr.systemEnable = True
-
-            elif option == 'A':
-                SysMgr.archOption = value
-                SysMgr.setArch(value)
 
             elif option == 'G':
                 itemList = UtilMgr.splitString(value)
@@ -25240,11 +25227,6 @@ Copyright:
                 ret = SysMgr.loadConfig(SysMgr.confFileName)
                 if not ret:
                     sys.exit(0)
-
-            elif option == 'E':
-                SysMgr.cacheDirPath = value
-                SysMgr.printInfo(
-                    "use %s as cache directory" % value)
 
             elif option == 'e':
                 options = value
@@ -25298,27 +25280,6 @@ Copyright:
             elif option == 'q':
                 itemList = UtilMgr.splitString(value)
                 SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
-
-            elif option == 'Q':
-                SysMgr.setStream()
-
-            elif option == 'H':
-                try:
-                    if not value:
-                        SysMgr.funcDepth = 32
-                    else:
-                        SysMgr.funcDepth = long(value)
-
-                    if SysMgr.funcDepth < 0:
-                        raise Exception('wrong depth')
-                except:
-                    SysMgr.printErr(
-                        "wrong value with -H option, "
-                        "input an unsigned integer value")
-                    sys.exit(0)
-
-            elif option == 'W':
-                SysMgr.waitEnable = True
 
             elif option == 'w':
                 SysMgr.rcmdList = \
@@ -25400,10 +25361,7 @@ Copyright:
                         "enabled syscall list [ %s ]" % \
                         ', '.join(enabledSyscall))
 
-            elif option == 'R':
-                SysMgr.parseRuntimeOption(value)
-
-            elif option == 'o' or option == 's':
+            elif SysMgr.isCommonOption(option):
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'c':
@@ -30255,10 +30213,17 @@ Copyright:
         # create event memory #
         Debugger.globalEvent = SysMgr.createShm()
 
+        # check symbol requirement #
         needSymbol = (
             mode == 'usercall' or mode == 'sample' or \
             mode == 'breakcall' or mode == 'hook' or \
             SysMgr.funcDepth > 0)
+
+        # check DWARF requirement #
+        if not SysMgr.dwarfEnable and SysMgr.arch != 'AARCH64':
+            disableList = SysMgr.getOption('d')
+            if not disableList or not 'D' in disableList:
+                SysMgr.dwarfEnable = True
 
         # get pids #
         if not SysMgr.inputParam:
@@ -45749,7 +45714,8 @@ struct cmsghdr {
         # handle breakpoint for return #
         if isRetBp:
             try:
-                elapsed, hasRetFilter, skip = self.handleRetBpFilter(sym)
+                etime, elapsed, hasRetFilter, skip = \
+                    self.handleRetBpFilter(sym)
                 if not elapsed:
                     raise Exception()
 
@@ -45767,6 +45733,12 @@ struct cmsghdr {
                             (prevSym, hex(prevAddr).rstrip('L'), prevFname)
                     else:
                         addStr = ''
+
+                    # convert elapsed color #
+                    if etime > 0.1:
+                        elapsed = UtilMgr.convColor(elapsed, 'RED')
+                    else:
+                        elapsed = UtilMgr.convColor(elapsed, 'CYAN')
 
                     # build context string #
                     callString = '\n%s %s%s%s%s%s%s' % \
@@ -46346,13 +46318,14 @@ struct cmsghdr {
         # get symbol info #
         ret = self.getSymbolInfo(self.pc)
         if type(ret) is list:
-            sym, fname, offset, fstart, fend = ret
+            sym, fname, offset, fstart, fend, size = ret
         else:
             sym = ret
             fname = '??'
             offset = '??'
             fstart = '??'
             fend = '??'
+            size = '??'
 
         # get backtrace #
         if self.isRealtime and SysMgr.funcDepth > 0:
@@ -47379,7 +47352,7 @@ struct cmsghdr {
 
         # check return filter #
         if not origSym in self.retFilterList:
-            return elapsed, hasRetFilter, skip
+            return etime, elapsed, hasRetFilter, skip
 
         try:
             filters = self.retFilterList[origSym][0]
@@ -47417,7 +47390,7 @@ struct cmsghdr {
         # remove return filter #
         self.retFilterList.pop(origSym, None)
 
-        return elapsed, hasRetFilter, skip
+        return etime, elapsed, hasRetFilter, skip
 
 
 
@@ -47439,6 +47412,7 @@ struct cmsghdr {
                 origSym = sym[:-len(Debugger.RETSTR)]
             except:
                 origSym = sym
+
             if origSym in self.regList:
                 newObj = self.regList.pop(origSym, None)
                 self.setRegs(newObj=newObj)
@@ -47830,9 +47804,10 @@ struct cmsghdr {
                             (self.comm, self.pid, ereason))
                 sys.exit(0)
 
-            # load user symbols #
+            # initialize environment for python #
             if mode == 'pycall':
                 self.initPyEnv()
+            # load user symbols #
             elif (mode != 'syscall' and mode != 'signal') or \
                 SysMgr.funcDepth > 0:
                 try:
@@ -53940,10 +53915,12 @@ Section header string table index: %d
                     location |= 0xffffffff80000000
                 return location + place & 0xffffffffffffffff
 
+            # refer to https://github.com/eliben/pyelftools #
             def decodeEntry(
                 idx, foffset, personality=None, bytecode=None,
                 tableoffset=None, debug=False):
 
+                # decode #
                 if bytecode:
                     dobj = ElfAnalyzer.EHABIBytecodeDecoder(bytecode)
                 else:
@@ -53972,6 +53949,7 @@ Section header string table index: %d
                     SysMgr.printPipe(
                         ' Compact model index: %s' % personality)
 
+                    # print op code #
                     for line in dobj.mnemonic_array:
                         SysMgr.printPipe(' %s' % line)
 
@@ -53999,7 +53977,7 @@ Section header string table index: %d
                 # check corruption #
                 if word0 & 0x80000000 != 0:
                     SysMgr.printWarn(
-                        'corrupted ARM exception handler table entry: %x' % idx)
+                        'corrupted ARM exception handler entry: %x' % idx)
                     continue
 
                 foffset = expandPrel31(
@@ -54031,7 +54009,7 @@ Section header string table index: %d
                     # highest half must be 0b1000 for compact model #
                     if word0 & 0x70000000 != 0:
                         SysMgr.printWarn(
-                            'corrupted ARM exception handler table entry: %x' % idx)
+                            'corrupted ARM exception handler entry: %x' % idx)
                         decodeEntry(idx, 1)
                         continue
 
@@ -54043,7 +54021,9 @@ Section header string table index: %d
                             (word0 & 0xFF00) >> 8,
                             word0 & 0xFF
                         ]
-                        decodeEntry(idx, foffset, per_index, opcode, debug=debug)
+
+                        decodeEntry(
+                            idx, foffset, per_index, opcode, debug=debug)
                     elif per_index == 1 or per_index == 2:
                         # arm compact model 1/2 #
                         more_word = (word0 >> 16) & 0xff
@@ -54051,7 +54031,9 @@ Section header string table index: %d
                             (word0 >> 8) & 0xff,
                             (word0 >> 0) & 0xff
                         ]
+
                         fd.seek(eh_table_offset + 4)
+
                         for i in range(more_word):
                             # read value #
                             data = fd.read(EHABI_INDEX_ENTRY_SIZE/2)
@@ -54060,18 +54042,20 @@ Section header string table index: %d
                             opcode.append((r >> 16) & 0xFF)
                             opcode.append((r >> 8) & 0xFF)
                             opcode.append((r >> 0) & 0xFF)
+
                         decodeEntry(
-                            idx, foffset, per_index, opcode, eh_table_offset, debug=debug)
+                            idx, foffset, per_index, opcode,
+                            eh_table_offset, debug=debug)
                     else:
                         SysMgr.printWarn(
-                            'unknown ARM compact model %d at table entry: %x' % \
+                            'unknown ARM compact model %d at entry: %x' % \
                                 (per_index, idx))
                         decodeEntry(idx, 1)
                 else:
                     # highest bit is one, compact model must be 0 #
                     if word1 & 0x7f000000 != 0:
                         SysMgr.printWarn(
-                            'corrupted ARM compact model table entry: %x' % idx)
+                            'corrupted ARM compact model entry: %x' % idx)
                         continue
 
                     opcode = [

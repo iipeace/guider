@@ -213,66 +213,91 @@ Output
 
     # guider/guider.py btop -g a.out -H
 
-    [Top Breakcall Info] [Time: 1146111.080] [Interval: 1.001] [NrSamples: 2,386] [a.out(214460): 4%(Usr/1%+Sys/2%)] [guider(214459): 92%]
+    [Top Breakcall Info] [Time: 4542869.660] [Interval: 1.001] [NrSamples: 994] [a.out(1219772): 7%(Usr/0%+Sys/6%)] [guider(1219775): 97%]
     ==========================================================================================================================================================
-     Usage  |                                                            Function [PATH] <Interval>
+     Usage  | Function [PATH] <Interval>
     ==========================================================================================================================================================
-      15.8% | __mempcpy_sse2_unaligned_erms [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 378, Avg: 0.002639, Min: 0.001029, Max: 0.006689]
-               100.0% |  <- _IO_new_file_xsputn[/lib/x86_64-linux-gnu/libc-2.31.so]
+      16.7% | __mempcpy_sse2_unaligned_erms [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 166, Avg: 0.005994, Min: 0.002999, Max: 0.012299]
+               100.0% |  <- _IO_new_file_xsputn[/lib/x86_64-linux-gnu/libc-2.31.so] <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-      15.8% | _IO_new_file_xsputn [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 378, Avg: 0.002639, Min: 0.001026, Max: 0.006699]
+      16.7% | _IO_new_file_xsputn [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 166, Avg: 0.005997, Min: 0.002988, Max: 0.012302]
                100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
-                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
-                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-      10.6% | __strchrnul_sse2 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 252, Avg: 0.003959, Min: 0.002209, Max: 0.006634]
+      11.2% | __strchrnul_sse2 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 111, Avg: 0.008974, Min: 0.006034, Max: 0.012381]
                100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
-                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
-                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       5.3% | _itoa_word [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 126, Avg: 0.007900, Min: 0.007699, Max: 0.009268]
-               100.0% |  <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so] <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
-                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
-                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+       5.5% | close@GLIBC_2.4 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55, Avg: 0.017763, Min: 0.017895, Max: 0.018863]
+               100.0% |  <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       5.3% | usleep@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 126, Avg: 0.007899, Min: 0.007766, Max: 0.009188]
-               100.0% |  <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafda
-                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out]
-                         <- main[/home/peacelee/test/a.out] <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so]
+       5.5% | __vfprintf_internal [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55, Avg: 0.017764, Min: 0.017838, Max: 0.018741]
+               100.0% |  <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       5.5% | _IO_file_overflow@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55, Avg: 0.017764, Min: 0.017924, Max: 0.018732]
+               100.0% |  <- _IO_new_file_xsputn[/lib/x86_64-linux-gnu/libc-2.31.so] <- __vfprintf_internal[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- printf[/lib/x86_64-linux-gnu/libc-2.31.so]
+                         <- asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasd
+                         <- printPeace2[/home/peacelee/test/a.out] <- printPeace[/home/peacelee/test/a.out] <- main[/home/peacelee/test/a.out]
+                         <- __libc_start_main[/lib/x86_64-linux-gnu/libc-2.31.so] <- _start[/home/peacelee/test/a.out]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
 
     # guider/guider.py pytop -g iotop -H
 
-    [Top Pycall Info] [Time: 3289684.040] [Interval: 1.015] [NrSamples: 567] [iotop(653954): 35%(Usr/18%+Sys/16%)] [guider(653982): 38%] [SampleRate: 0.001] 
+    [Top Pycall Info] [Time: 4544070.210] [Interval: 1.001] [NrSamples: 215] [iotop(12198): 26%(Usr/14%+Sys/11%)] [guider(1219): 77%] [SampleRate: 0.001]
     ==========================================================================================================================================================
      Usage  | Function [PATH] <Sample>
     ==========================================================================================================================================================
-      55.6% | WAIT(poll@GLIBC_2.2.5) [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 315>
+      25.6% | read@GLIBC_2.26 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55>
+                94.5% |  <- _Py_read[/usr/bin/python3.8] <- 0x649360[/usr/bin/python3.8] <- 0x503d30[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8]
+                         <- PyObject_CallMethodObjArgs[/usr/bin/python3.8] <- 0x64db00[/usr/bin/python3.8] <- 0x64e430[/usr/bin/python3.8]
+                         <- 0x504630[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8] <- PyObject_CallMethodObjArgs[/usr/bin/python3.8]
+                         <- 0x6206e0[/usr/bin/python3.8] <- 0x51ce00[/usr/bin/python3.8] <- 0x51d990[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- 0x4f4d80[/usr/bin/python3.8] <- 0x5ee220[/usr/bin/python3.8]
+                         <- _PyObject_MakeTpCall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                         <- _PyEval_EvalCodeWithName[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                 5.5% |  <- _Py_read[/usr/bin/python3.8] <- 0x649360[/usr/bin/python3.8] <- 0x503d30[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8]
+                         <- PyObject_CallMethodObjArgs[/usr/bin/python3.8] <- 0x64db00[/usr/bin/python3.8] <- 0x64e430[/usr/bin/python3.8]
+                         <- 0x504630[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8] <- PyObject_CallMethodObjArgs[/usr/bin/python3.8]
+                         <- 0x6206e0[/usr/bin/python3.8] <- 0x61ed80[/usr/bin/python3.8] <- 0x504630[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- 0x4f4d80[/usr/bin/python3.8] <- 0x5ee220[/usr/bin/python3.8]
+                         <- _PyObject_MakeTpCall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                         <- _PyEval_EvalCodeWithName[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
+                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
+                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- PyObject_Call[/usr/bin/python3.8]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       9.7% | read@GLIBC_2.26 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55>
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       4.9% | ?? [/usr/bin/python3.8] <Cnt: 28>
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       4.2% | open@GLIBC_2.2.5 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 24>
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       3.9% | parse_proc_pid_status [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 22>
+       6.5% | parse_proc_pid_status [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 14>
                100.0% |  <- get_cmdline[/usr/lib/python3/dist-packages/iotop/data.py] <- format[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py] <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- <module>[/usr/sbin/iotop]
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       2.5% | close@GLIBC_2.4 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 14>
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       2.3% | get_cmdline [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 13>
-               100.0% |  <- format[/usr/lib/python3/dist-packages/iotop/ui.py] <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py]
-                         <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py] <- run[/usr/lib/python3/dist-packages/iotop/ui.py]
-                         <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py] <- wrapper[/usr/lib/python3.8/curses/__init__.py]
-                         <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py] <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py]
-                         <- main[/usr/lib/python3/dist-packages/iotop/ui.py] <- <module>[/usr/sbin/iotop]
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -472,6 +497,29 @@ Output
     0.511659           close@GLIBC_2.4/0x7f94ed7478c0(0xffffffffL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
     0.512201           malloc@GLIBC_2.2.5/0x7f94ed6ce070(0xaL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
              malloc@GLIBC_2.2.5/0x7f94ed6ce0fc [/lib/x86_64-linux-gnu/libc-2.27.so]
+
+>>>
+
+    # guider/guider.py  btrace -g yes -H -c \|getret
+
+    0.532473       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532488         0x4c40/0x560d7fd2ac40(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532501           write@GLIBC_2.2.5/0x7faab22f1040(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.532516           write@GLIBC_2.2.5[RET]=0x2000(8192)/0.000015 -> 0x4c40/0x560d7fd26000 [/usr/bin/yes]
+    0.532557         0x4c40[RET]=0x2000(8192)/0.000069 -> 0x2cf0/0x560d7fd26000 [/usr/bin/yes]
+    0.532618       0x2cf0[RET]=0x2000(8192)/0.000145 -> 0x2580/0x560d7fd26000 [/usr/bin/yes]
+    0.532678       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532691         0x4c40/0x560d7fd2ac40(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532706           write@GLIBC_2.2.5/0x7faab22f1040(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.532721           write@GLIBC_2.2.5[RET]=0x2000(8192)/0.000015 -> 0x4c40/0x560d7fd26000 [/usr/bin/yes]
+    0.532798         0x4c40[RET]=0x2000(8192)/0.000107 -> 0x2cf0/0x560d7fd26000 [/usr/bin/yes]
+    0.532881       0x2cf0[RET]=0x2000(8192)/0.000204 -> 0x2580/0x560d7fd26000 [/usr/bin/yes]
+    0.532946       0x2cf0/0x560d7fd28cf0(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532961         0x4c40/0x560d7fd2ac40(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/usr/bin/yes]
+    0.532975           write@GLIBC_2.2.5/0x7faab22f1040(0x1,0x560d81815440,0x2000,0x7faab23c8640,0x560d81815440,0x7c) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.532990           write@GLIBC_2.2.5[RET]=0x2000(8192)/0.000015 -> 0x4c40/0x560d7fd26000 [/usr/bin/yes]
+    0.533067         0x4c40[RET]=0x2000(8192)/0.000106 -> 0x2cf0/0x560d7fd26000 [/usr/bin/yes]
+    0.533194       0x2cf0[RET]=0x2000(8192)/0.000248 -> 0x2580/0x560d7fd26000 [/usr/bin/yes]
 
 >>>
            
