@@ -70669,7 +70669,7 @@ class ThreadAnalyzer(object):
             return
 
         # set comm and pid size #
-        pd = len(str(self.maxPid))
+        pd = self.getPidLen()
         cl = 26 - (pd * 2)
 
         # calculate resource usage of processes #
@@ -71272,9 +71272,18 @@ class ThreadAnalyzer(object):
 
 
 
+    def getPidLen(self):
+        pidlen = len(str(self.maxPid))
+        if pidlen < 4:
+            return 4
+        else:
+            return pidlen
+
+
+
     def printSpecialTask(self, taskType):
         # set comm and pid size #
-        pd = len(str(self.maxPid))
+        pd = self.getPidLen()
         cl = 26 - (pd * 2)
 
         if SysMgr.reportEnable:
