@@ -23903,11 +23903,11 @@ Copyright:
                     line = '\n'.join([nline for nline in line.split('\n')])
                 # rstrip for colorful lines #
                 elif SysMgr.colorEnable and ConfigMgr.ENDC in line:
-                    esc = '\033[33m'
-                    ENDC = ConfigMgr.ENDC
-                    chars = len(ConfigMgr.COLOR_LIST['RED']) + len(ENDC)
+                    ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
+                    ansiObj = re.compile(ansi)
                     line = '\n'.join(
-                        [n[:cols+len(n)-len(n.replace(esc, ''))+chars]+ENDC \
+                        [ansiObj.sub('', n)[:cols] \
+                            if len(ansiObj.sub('', n)) > cols else n \
                             for n in line.split('\n')])
                 # rstrip for normal lines #
                 else:
@@ -68611,9 +68611,9 @@ class ThreadAnalyzer(object):
 
         # check available memory type #
         if SysMgr.freeMemEnable:
-            memTitle = 'Free'
+            memTitle = 'MemFre'
         else:
-            memTitle = 'Avl'
+            memTitle = 'MemAvl'
 
         # get iowait time #
         #iowait = SysMgr.getIowaitTime()
@@ -68622,13 +68622,13 @@ class ThreadAnalyzer(object):
         SysMgr.addPrint(
             ("%s\n%s%s\n" % (twoLine,
             (("{0:^7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"\
-            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"\
-            "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|{17:^7}|"\
-            "{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
+            "{6:>6}({7:>3}/{8:>6}/{9:>6}/{10:>5})|"\
+            "{11:>5}({12:>4}/{13:>3}/{14:>3})|{15:^11}|{16:^7}|{17:^7}|"\
+            "{18:^3}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("ID", "CPU", "Usr", "Ker", "Blk", "IRQ",
             memTitle, "Per", "User", "Cache", "Kern",
             "Swap", "Per", "In", "Out", "PgRclm", "BlkRW", "NrFlt",
-            "PrBlk", "NrSIRQ", "PgMlk", "PgDrt", "Network")), oneLine)),
+            "Blk", "NrSIRQ", "PgMlk", "PgDirt", "Network")), oneLine)),
             newline = 3)
 
         interval = SysMgr.uptimeDiff
@@ -68783,7 +68783,7 @@ class ThreadAnalyzer(object):
             totalUsageStr = UtilMgr.convColor(totalUsageStr, 'YELLOW')
 
         # convert color for mem available #
-        availMemStr = r'%5s' % availMem
+        availMemStr = r'%6s' % availMem
         if availMemPer == 0:
             pass
         elif availMemPer <= SysMgr.memAvailPerThreshold:
@@ -68792,7 +68792,7 @@ class ThreadAnalyzer(object):
             availMemStr = UtilMgr.convColor(availMemStr, 'YELLOW')
 
         # convert color for swap usage #
-        swapUsageStr = r'%6s' % swapUsage
+        swapUsageStr = r'%5s' % swapUsage
         if swapUsagePer == 0:
             pass
         elif swapUsagePer >= SysMgr.swapPerThreshold:
@@ -68802,7 +68802,7 @@ class ThreadAnalyzer(object):
 
         # convert color for reclaim stats #
         pgRclmStr = r'%s/%s' % (pgRclmBg, pgRclmFg)
-        pgRclmStr = r'{0:^9}'.format(pgRclmStr)
+        pgRclmStr = r'{0:^11}'.format(pgRclmStr)
         if pgRclmBg > 0 or pgRclmFg > 0:
             pgRclmStr = UtilMgr.convColor(pgRclmStr, 'RED')
 
@@ -68820,14 +68820,15 @@ class ThreadAnalyzer(object):
         # make total stat string #
         totalCoreStat = \
             ("{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|"
-            "{6:>5}({7:>4}/{8:>5}/{9:>5}/{10:>4})|"
-            "{11:>6}({12:>4}/{13:>3}/{14:>3})|{15:^9}|{16:^7}|"
-            "{17:^7}|{18:^7}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
+            "{6:>6}({7:>3}/{8:>6}/{9:>6}/{10:>5})|"
+            "{11:>5}({12:>4}/{13:>3}/{14:>3})|{15:^11}|{16:^7}|"
+            "{17:^7}|{18:^3}|{19:^8}|{20:^7}|{21:^8}|{22:^12}|\n").\
             format("Total", totalUsageStr, userUsage, kerUsage,
             ioUsage, irqUsage, availMemStr, availMemPer, totalAnonMem,
             totalCacheMem, totalKernelMem, swapUsageStr, swapUsagePer,
             swapInMem, swapOutMem, pgRclmStr, pgIOMemDiffStr,
-            nrMajFault, nrBlocked, nrSoftIrq, pgMlock, pgDirty, netIO)
+            '%5s' % nrMajFault, nrBlocked, '%6s' % nrSoftIrq,
+            '%5s' % pgMlock, '%6s' % pgDirty, netIO)
 
         SysMgr.addPrint(totalCoreStat)
 
