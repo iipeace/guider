@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201203"
+__revision__ = "201206"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -44666,7 +44666,7 @@ struct cmsghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                'fail to get symbol from %x for %s(%s)' % \
+                'fail to get symbol from %s for %s(%s)' % \
                     (hex(offset).rstrip('L'), self.comm, self.pid),
                         reason=True)
             return ['??', fname, '??', '??', '??', '??']
@@ -50434,6 +50434,7 @@ class ElfAnalyzer(object):
             self._bytecode_array = bytecode_array
             self._index = None
             self.mnemonic_array = None
+            self.cfa_table = dict()
             self._decode()
 
         def getMnemonicItem(self, bytecode, mnemonic):
@@ -50443,29 +50444,87 @@ class ElfAnalyzer(object):
         def _decode(self):
             """ Decode bytecode array, put result into mnemonic_array.
             """
+            sp_opsstr = 'vsp = vsp '
+            sp_defstr = 'vsp = r'
+            pop_str = 'pop {'
+
+            fpIdx = 11
+            ipIdx = 11
+            spIdx = 13
+            lrIdx = 14
+
             self._index = 0
+            self.offset = 0
             self.mnemonic_array = []
+
             while self._index < len(self._bytecode_array):
                 for mask, value, handler in self.ring:
-                    if (self._bytecode_array[self._index] & mask) == value:
-                        start_idx = self._index
-                        mnemonic = handler(self)
-                        end_idx = self._index
-                        self.mnemonic_array.append(
-                            self.getMnemonicItem(
-                                self._bytecode_array[start_idx: end_idx], mnemonic))
+                    if (self._bytecode_array[self._index] & mask) != value:
+                        continue
+
+                    # decode code #
+                    start_idx = self._index
+                    mnemonic = handler(self)
+                    end_idx = self._index
+
+                    # convert code to string #
+                    dstr = self.getMnemonicItem(
+                        self._bytecode_array[start_idx: end_idx], mnemonic)
+                    self.mnemonic_array.append(dstr)
+
+                    # convert to offset #
+                    if mnemonic == 'finish':
                         break
 
+                    # apply for CFA offset #
+                    if mnemonic.startswith(sp_opsstr):
+                        ops = mnemonic[len(sp_opsstr):]
+                        if ops[0] == '+':
+                            offset = long(ops[1:])
+                        else:
+                            offset = -long(ops[1:])
+
+                        # change offset #
+                        self.cfa_table[spIdx] = ('OFFSET', offset)
+                        if 'cfa' in self.cfa_table:
+                            cfaList = list(self.cfa_table['cfa'])
+                            cfaList[1] += offset
+                            self.cfa_table['cfa'] = tuple(cfaList)
+                        else:
+                            self.cfa_table['cfa'] = (spIdx, offset, None)
+                    # define CFA #
+                    elif mnemonic.startswith(sp_defstr):
+                        reg = long(mnemonic[len(sp_defstr):])
+                        self.cfa_table['cfa'] = (reg, 0, None)
+                    # set regs #
+                    elif mnemonic.startswith(pop_str):
+                        regs = mnemonic[len(pop_str):-1].split(', ')
+                        for reg in regs:
+                            if reg == 'lr':
+                                self.cfa_table[lrIdx] = ('OFFSET', self.offset)
+                            elif reg == 'fp':
+                                self.cfa_table[fpIdx] = ('OFFSET', self.offset)
+                            elif reg == 'sp':
+                                self.cfa_table[spIdx] = ('OFFSET', self.offset)
+                            elif reg == 'ip':
+                                self.cfa_table[ipIdx] = ('OFFSET', self.offset)
+                            else:
+                                reg = long(reg[1:])
+                                self.cfa_table[reg] = ('OFFSET', self.offset)
+
+                        # only ARM 32bit supported #
+                        self.offset -= 4
+                    else:
+                        pass
+
+                    break
+
         def _decode_00xxxxxx(self):
-            #   SW.startLine() << format("0x%02X      ; vsp = vsp + %u\n", Opcode,
-            #                            ((Opcode & 0x3f) << 2) + 4);
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return 'vsp = vsp + %u' % (((opcode & 0x3f) << 2) + 4)
 
         def _decode_01xxxxxx(self):
-            # SW.startLine() << format("0x%02X      ; vsp = vsp - %u\n", Opcode,
-            #                          ((Opcode & 0x3f) << 2) + 4);
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return 'vsp = vsp - %u' % (((opcode & 0x3f) << 2) + 4)
@@ -50477,11 +50536,13 @@ class ElfAnalyzer(object):
             return ((1 << (count + 1)) - 1) << start
 
         def _printGPR(self, gpr_mask):
-            hits = [self.gpr_register_names[i] for i in range(32) if gpr_mask & (1 << i) != 0]
+            hits = [self.gpr_register_names[i] for i in range(32) \
+                if gpr_mask & (1 << i) != 0]
             return '{%s}' % ', '.join(hits)
 
         def _print_registers(self, vfp_mask, prefix):
-            hits = [prefix + str(i) for i in range(32) if vfp_mask & (1 << i) != 0]
+            hits = [prefix + str(i) for i in range(32) \
+                if vfp_mask & (1 << i) != 0]
             return '{%s}' % ', '.join(hits)
 
         def _decode_1000iiii_iiiiiiii(self):
@@ -50489,12 +50550,6 @@ class ElfAnalyzer(object):
             self._index += 1
             op1 = self._bytecode_array[self._index]
             self._index += 1
-            #   uint16_t GPRMask = (Opcode1 << 4) | ((Opcode0 & 0x0f) << 12);
-            #   SW.startLine()
-            #     << format("0x%02X 0x%02X ; %s",
-            #               Opcode0, Opcode1, GPRMask ? "pop " : "refuse to unwind");
-            #   if (GPRMask)
-            #     PrintGPR(GPRMask);
             gpr_mask = (op1 << 4) | ((op0 & 0x0f) << 12)
             if gpr_mask == 0:
                 return 'refuse to unwind'
@@ -50510,36 +50565,27 @@ class ElfAnalyzer(object):
             return 'reserved (WiMMX MOVrr)'
 
         def _decode_1001nnnn(self):
-            # SW.startLine() << format("0x%02X      ; vsp = r%u\n", Opcode, (Opcode & 0x0f));
             opcode = self._bytecode_array[self._index]
             self._index += 1
             return 'vsp = r%u' % (opcode & 0x0f)
 
         def _decode_10100nnn(self):
-            # SW.startLine() << format("0x%02X      ; pop ", Opcode);
-            # PrintGPR((((1 << ((Opcode & 0x7) + 1)) - 1) << 4));
             opcode = self._bytecode_array[self._index]
             self._index += 1
-            return 'pop %s' % self._printGPR(self._calculate_range(4, opcode & 0x07))
+            return 'pop %s' % self._printGPR(
+                self._calculate_range(4, opcode & 0x07))
 
         def _decode_10101nnn(self):
-            # SW.startLine() << format("0x%02X      ; pop ", Opcode);
-            # PrintGPR((((1 << ((Opcode & 0x7) + 1)) - 1) << 4) | (1 << 14));
             opcode = self._bytecode_array[self._index]
             self._index += 1
-            return 'pop %s' % self._printGPR(self._calculate_range(4, opcode & 0x07) | (1 << 14))
+            return 'pop %s' % self._printGPR(
+                self._calculate_range(4, opcode & 0x07) | (1 << 14))
 
         def _decode_10110000(self):
-            # SW.startLine() << format("0x%02X      ; finish\n", Opcode);
             self._index += 1
             return 'finish'
 
         def _decode_10110001_0000iiii(self):
-            # SW.startLine()
-            #   << format("0x%02X 0x%02X ; %s", Opcode0, Opcode1,
-            #             ((Opcode1 & 0xf0) || Opcode1 == 0x00) ? "spare" : "pop ");
-            # if (((Opcode1 & 0xf0) == 0x00) && Opcode1)
-            #   PrintGPR((Opcode1 & 0x0f));
             self._index += 1  # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
@@ -50549,12 +50595,6 @@ class ElfAnalyzer(object):
                 return 'pop %s' % self._printGPR((op1 & 0x0f))
 
         def _decode_10110010_uleb128(self):
-            #  SmallVector<uint8_t, 4> ULEB;
-            #  do { ULEB.push_back(Opcodes[OI ^ 3]); } while (Opcodes[OI++ ^ 3] & 0x80);
-            #  uint64_t Value = 0;
-            #  for (unsigned BI = 0, BE = ULEB.size(); BI != BE; ++BI)
-            #    Value = Value | ((ULEB[BI] & 0x7f) << (7 * BI));
-            #  OS << format("; vsp = vsp + %" PRIu64 "\n", 0x204 + (Value << 2));
             self._index += 1   # skip constant byte
             uleb_buffer = [self._bytecode_array[self._index]]
             self._index += 1
@@ -50574,30 +50614,21 @@ class ElfAnalyzer(object):
             return self._spare()
 
         def _decode_10111nnn(self):
-            #  SW.startLine() << format("0x%02X      ; pop ", Opcode);
-            #  PrintRegisters((((1 << ((Opcode & 0x07) + 1)) - 1) << 8), "d");
             opcode = self._bytecode_array[self._index]
             self._index += 1
-            return 'pop %s' % self._print_registers(self._calculate_range(8, opcode & 0x07), "d")
+            return 'pop %s' % self._print_registers(
+                self._calculate_range(8, opcode & 0x07), "d")
 
         def _decode_11000110_sssscccc(self):
-            #  SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
-            #  uint8_t Start = ((Opcode1 & 0xf0) >> 4);
-            #  uint8_t Count = ((Opcode1 & 0x0f) >> 0);
-            #  PrintRegisters((((1 << (Count + 1)) - 1) << Start), "wR");
             self._index += 1  # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = ((op1 & 0xf0) >> 4)
             count = ((op1 & 0x0f) >> 0)
-            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "wR")
+            return 'pop %s' % self._print_registers(
+                self._calculate_range(start, count), "wR")
 
         def _decode_11000111_0000iiii(self):
-            #   SW.startLine()
-            #     << format("0x%02X 0x%02X ; %s", Opcode0, Opcode1,
-            #               ((Opcode1 & 0xf0) || Opcode1 == 0x00) ? "spare" : "pop ");
-            #   if ((Opcode1 & 0xf0) == 0x00 && Opcode1)
-            #       PrintRegisters(Opcode1 & 0x0f, "wCGR");
             self._index += 1  # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
@@ -50607,38 +50638,31 @@ class ElfAnalyzer(object):
                 return 'pop %s' % self._print_registers(op1 & 0x0f, "wCGR")
 
         def _decode_11001000_sssscccc(self):
-            #   SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
-            #   uint8_t Start = 16 + ((Opcode1 & 0xf0) >> 4);
-            #   uint8_t Count = ((Opcode1 & 0x0f) >> 0);
-            #   PrintRegisters((((1 << (Count + 1)) - 1) << Start), "d");
             self._index += 1  # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = 16 + ((op1 & 0xf0) >> 4)
             count = ((op1 & 0x0f) >> 0)
-            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "d")
+            return 'pop %s' % self._print_registers(
+                self._calculate_range(start, count), "d")
 
         def _decode_11001001_sssscccc(self):
-            #   SW.startLine() << format("0x%02X 0x%02X ; pop ", Opcode0, Opcode1);
-            #   uint8_t Start = ((Opcode1 & 0xf0) >> 4);
-            #   uint8_t Count = ((Opcode1 & 0x0f) >> 0);
-            #   PrintRegisters((((1 << (Count + 1)) - 1) << Start), "d");
             self._index += 1  # skip constant byte
             op1 = self._bytecode_array[self._index]
             self._index += 1
             start = ((op1 & 0xf0) >> 4)
             count = ((op1 & 0x0f) >> 0)
-            return 'pop %s' % self._print_registers(self._calculate_range(start, count), "d")
+            return 'pop %s' % self._print_registers(
+                self._calculate_range(start, count), "d")
 
         def _decode_11001yyy(self):
             return self._spare()
 
         def _decode_11000nnn(self):
-            #   SW.startLine() << format("0x%02X      ; pop ", Opcode);
-            #   PrintRegisters((((1 << ((Opcode & 0x07) + 1)) - 1) << 10), "wR");
             opcode = self._bytecode_array[self._index]
             self._index += 1
-            return 'pop %s' % self._print_registers(self._calculate_range(10, opcode & 0x07), "wR")
+            return 'pop %s' % self._print_registers(
+                self._calculate_range(10, opcode & 0x07), "wR")
 
         def _decode_11010nnn(self):
             # these two decoders are equal
@@ -53959,7 +53983,7 @@ Section header string table index: %d
             EHABI_INDEX_ENTRY_SIZE = 8
 
             # get the number of item #
-            nrItems = sh_size / EHABI_INDEX_ENTRY_SIZE
+            nrItems = long(sh_size / EHABI_INDEX_ENTRY_SIZE)
 
             # get symbol string #
             shname = self.getString(str_section, sh_name)
@@ -53985,8 +54009,6 @@ Section header string table index: %d
 
                 if word1 == 1:
                     # 0x1 means cannot unwind #
-                    SysMgr.printWarn(
-                        'cannot unwind for %s' % idx)
                     decodeEntry(idx, foffset, -1, debug=debug)
                     continue
 
@@ -53997,7 +54019,7 @@ Section header string table index: %d
 
                     # read value #
                     fd.seek(eh_table_offset)
-                    data = fd.read(EHABI_INDEX_ENTRY_SIZE/2)
+                    data = fd.read(long(EHABI_INDEX_ENTRY_SIZE/2))
                     word0 = struct.unpack('I', data)[0]
 
                     if word0 & 0x80000000 == 0:
@@ -54036,7 +54058,7 @@ Section header string table index: %d
 
                         for i in range(more_word):
                             # read value #
-                            data = fd.read(EHABI_INDEX_ENTRY_SIZE/2)
+                            data = fd.read(long(EHABI_INDEX_ENTRY_SIZE/2))
                             r = struct.unpack('I', data)[0]
                             opcode.append((r >> 24) & 0xFF)
                             opcode.append((r >> 16) & 0xFF)
@@ -67997,7 +68019,7 @@ class ThreadAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(newPath)
 
-        buf = list(map(lambda x: x.decode(), buf))
+        #buf = list(map(lambda x: x.decode(), buf))
         return buf
 
 
@@ -69213,7 +69235,7 @@ class ThreadAnalyzer(object):
 
                     # convert color for GPU usage #
                     totalGpuUsageStr = '%s %%' % totalGpuUsage
-                    if totalGpuUsage > 0:
+                    if SysMgr.colorEnable and totalGpuUsage > 0:
                         totalGpuUsageStr = r'{0:>5}'.format(totalGpuUsageStr)
                         if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
                             totalGpuUsageStr = UtilMgr.convColor(
@@ -69255,7 +69277,11 @@ class ThreadAnalyzer(object):
                     # print bar graph for GPU usage #
                     if totalGpuUsage > 0:
                         coreGraph = '#' * long(lenLine * totalGpuUsage / 100)
-                        glen = lenLine + len(ConfigMgr.COLOR_LIST['RED']) + len(ConfigMgr.ENDC)
+
+                        glen = lenLine
+                        if SysMgr.colorEnable:
+                            glen += len(ConfigMgr.COLOR_LIST['RED']) + len(ConfigMgr.ENDC)
+
                         coreGraph = '{0:<{glen}}'.format(coreGraph, glen=glen)
 
                         if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
