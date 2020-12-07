@@ -455,32 +455,29 @@ Output
            
     # guider/guider.py btrace -g a.out -H
 
-    0.505835   _int_malloc/0x7f94ed6cb2d0(0x7f94eda22c40L,0xaL,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-             __libc_start_main/0x7f94ed658b97 [/lib/x86_64-linux-gnu/libc-2.27.so]
-               main/0x55f94081eb46 [/home/peacelee/test/a.out]
-                 printPeace/0x55f94081eb23 [/home/peacelee/test/a.out]
-                   printPeace2/0x55f94081ea6c [/home/peacelee/test/a.out]
-                     asdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafdasfdasdfasf
-    0.506208           usleep@GLIBC_2.2.5/0x7f94ed74e820(0x64L,0x0L,0x55f941e71170L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.506687           nanosleep@GLIBC_2.2.5/0x7f94ed71b990(0x7fff655f8910L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.507276           open64@GLIBC_2.2.5/0x7f94ed746c40(0x55f94081ebd4L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.507732           read@GLIBC_2.26/0x7f94ed747070(0xffffffffL,0x0L,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.508231           close@GLIBC_2.4/0x7f94ed7478c0(0xffffffffL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.508699           malloc@GLIBC_2.2.5/0x7f94ed6ce070(0xaL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-             malloc@GLIBC_2.2.5/0x7f94ed6ce0fc [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.509156   _int_malloc/0x7f94ed6cb2d0(0x7f94eda22c40L,0xaL,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-             __libc_start_main/0x7f94ed658b97 [/lib/x86_64-linux-gnu/libc-2.27.so]
-               main/0x55f94081eb46 [/home/peacelee/test/a.out]
-                 printPeace/0x55f94081eb23 [/home/peacelee/test/a.out]
-                   printPeace2/0x55f94081ea6c [/home/peacelee/test/a.out]
-                     asdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfafdasfdasdfasf
-    0.509532           usleep@GLIBC_2.2.5/0x7f94ed74e820(0x64L,0x0L,0x55f941e71190L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.510032           nanosleep@GLIBC_2.2.5/0x7f94ed71b990(0x7fff655f8910L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.510648           open64@GLIBC_2.2.5/0x7f94ed746c40(0x55f94081ebd4L,0x0L,0x0L,0x55f941cb4010L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.511155           read@GLIBC_2.26/0x7f94ed747070(0xffffffffL,0x0L,0x0L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.511659           close@GLIBC_2.4/0x7f94ed7478c0(0xffffffffL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-    0.512201           malloc@GLIBC_2.2.5/0x7f94ed6ce070(0xaL,0x0L,0xffffffffffffff80L,0x0L,0xffffffffL,0x0L) [/lib/x86_64-linux-gnu/libc-2.27.so]
-             malloc@GLIBC_2.2.5/0x7f94ed6ce0fc [/lib/x86_64-linux-gnu/libc-2.27.so]
+             _start/0x55e321d151ee [/home/peacelee/test/a.out]
+               __libc_start_main/0x7ffb520af0b3 [/lib/x86_64-linux-gnu/libc-2.31.so]
+                 main/0x55e321d15478 [/home/peacelee/test/a.out]
+                   printPeace/0x55e321d15451 [/home/peacelee/test/a.out]
+                     printPeace2/0x55e321d15392 [/home/peacelee/test/a.out]
+                       asdfasdfasdfasdfasdfasdfasfdasdfasdfasdfasdfasdfasdfas/0x55e321d152e2 [/home/peacelee/test/a.out]
+    0.000384             read@GLIBC_2.26/0x7ffb52199130(-0x1,0x0,0x0,0x0,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000391             close@GLIBC_2.4/0x7ffb52199970(-0x1,0x0,0xffffffffffffff80,0x0,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000398             printf/0x7ffb520ece10(0x55e321d1600a,0x9,0xffffffffffffff80,0x0,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000405               __vfprintf_internal/0x7ffb521019e0(0x7ffb522746a0,0x55e321d1600a,0x7fff41688b40,0x55e321d1600a,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000412                 __strchrnul_sse2/0x7ffb5213c820(0x55e321d1600a,0x25,0x7fff41688b40,0x55e321d1600a,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000420                 _IO_new_file_xsputn/0x7ffb5211a750(0x7ffb522746a0,0x55e321d1600a,0x3,0x55e321d1600a,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000426                   __mempcpy_sse2_unaligned_erms/0x7ffb52146d00(0x55e322290330,0x55e321d1600a,0x3,0x55e321d1600a,0x0,0x5) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000432                 _itoa_word/0x7ffb520e6760(0x9,0x7fff41688af8,0xa,0x55e321d1600e,-0x1,0x3) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000439                 _IO_new_file_xsputn/0x7ffb5211a750(0x7ffb522746a0,0x7fff41688af7,0x1,0x55e321d1600e,0x0,0x3) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000446                   __mempcpy_sse2_unaligned_erms/0x7ffb52146d00(0x55e322290333,0x7fff41688af7,0x1,0x55e321d1600e,0x0,0x3) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000452                 __strchrnul_sse2/0x7ffb5213c820(0x55e321d1600f,0x25,0x1,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000458                 _IO_new_file_xsputn/0x7ffb5211a750(0x7ffb522746a0,0x55e321d1600f,0x1,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000464                   __mempcpy_sse2_unaligned_erms/0x7ffb52146d00(0x55e322290334,0x55e321d1600f,0x1,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000471                   _IO_file_overflow@GLIBC_2.2.5/0x7ffb5211bf00(0x7ffb522746a0,-0x1,0xc00,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000480                   _IO_do_write@GLIBC_2.2.5/0x7ffb5211ba20(0x7ffb522746a0,0x55e322290330,0x5,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000486                     _IO_file_write@GLIBC_2.2.5/0x7ffb52119fe0(0x7ffb522746a0,0x55e322290330,0x5,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
+    0.000493                       write@GLIBC_2.2.5/0x7ffb521991d0(0x1,0x55e322290330,0x5,0x55e321d1600f,0x0,0x4) [/lib/x86_64-linux-gnu/libc-2.31.so]
 
 >>>
 
@@ -506,7 +503,7 @@ Output
     0.533194       0x2cf0[RET]=0x2000(8192)/0.000248 -> 0x2580/0x560d7fd26000 [/usr/bin/yes]
 
 >>>
-           
+
     $ guider/guider.py rtop &
     $ cat /tmp/guider.report
 
