@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201207"
+__revision__ = "201209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -30220,7 +30220,8 @@ Copyright:
             SysMgr.funcDepth > 0)
 
         # check DWARF requirement #
-        if not SysMgr.dwarfEnable and SysMgr.arch != 'AARCH64':
+        if not SysMgr.dwarfEnable and \
+            (SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM'):
             disableList = SysMgr.getOption('d')
             if not disableList or not 'D' in disableList:
                 SysMgr.dwarfEnable = True
@@ -40345,6 +40346,12 @@ class Debugger(object):
         self.lastSig = None
         self.forked = False
 
+        # set character for word decoding #
+        if ConfigMgr.wordSize == 4:
+            self.decodeChar = 'I'
+        else:
+            self.decodeChar = 'Q'
+
         # timestamp variables #
         self.updateCurrent()
 
@@ -40622,9 +40629,14 @@ struct cmsghdr {
         for item in hookList:
             symbols = item.split('#')
 
+            # check parameter #
+            if len(symbols) == 1:
+                SysMgr.printErr("fail to recognize '%s'" % item)
+                sys.exit(0)
+
             # get symbols from string #
             oldSym = symbols[0]
-            fpath = os.path.realpath(os.path.expanduser(symbols[1]))
+            fpath = os.path.realpath(os.path.expanduser(symbols[1].strip()))
             if len(symbols) == 2:
                 if fpath:
                     newSym = oldSym
@@ -40633,18 +40645,25 @@ struct cmsghdr {
             elif len(symbols) == 3:
                 newSym = symbols[2]
             else:
-                SysMgr.printErr("fail to recognize %s" % item)
+                SysMgr.printErr("fail to recognize '%s'" % item)
                 sys.exit(0)
 
             # load the library #
             if not fpath in loadBin:
                 loadBin.setdefault(fpath, None)
-                dobj.dlopen(fpath)
+
+                # remote load #
+                ret = dobj.dlopen(fpath)
+                if ret == 0:
+                    errMsg = ' because remote dlopen failed'
+                else:
+                    errmsg = ''
+
                 dobj.loadSymbols()
                 if not fpath in dobj.pmap:
                     SysMgr.printErr(
-                        "fail to find '%s' on memory map in %s" % \
-                            (fpath, procInfo))
+                        "fail to find '%s' on memory map for %s%s" % \
+                            (fpath, procInfo, errMsg))
 
                     PageAnalyzer.printMemoryArea(
                         pid, comm=comm, lastLine=True)
@@ -45270,7 +45289,10 @@ struct cmsghdr {
             SysMgr.printWarn(
                 'fail to find CFA rule info for %s(%s) in %s' % \
                     (sym, hex(foffset), fname))
-            return None
+            if vaddr != self.lr:
+                return self.lr
+            else:
+                return None
 
         # define index for CFA member variables #
         regIdx = ElfAnalyzer.CFARule.REG
@@ -45286,11 +45308,6 @@ struct cmsghdr {
         offset = cfaInfo[offsetIdx]
         cfa = regval + offset
 
-        if ConfigMgr.wordSize == 4:
-            decodeStr = 'I'
-        else:
-            decodeStr = 'Q'
-
         # recover registers #
         argIdx = ElfAnalyzer.RegisterRule.ARG
         for num, value in rule.items():
@@ -45301,7 +45318,7 @@ struct cmsghdr {
                 if offset is None:
                     continue
                 rval = self.readMem(cfa+offset)
-                rval = struct.unpack(decodeStr, rval)[0]
+                rval = struct.unpack(self.decodeChar, rval)[0]
                 setattr(self.regs, reg, rval)
             except SystemExit:
                 sys.exit(0)
@@ -45311,6 +45328,10 @@ struct cmsghdr {
         # get CFA offset for return address #
         pcIdx = ConfigMgr.pcRegIndex[SysMgr.arch]
 
+        # update stack pointer for previous context #
+        self.updateNamedRegs()
+        self.setSP(cfa)
+
         # use specific register #
         if pcIdx in rule:
             roffset = rule[pcIdx][argIdx]
@@ -45319,20 +45340,19 @@ struct cmsghdr {
 
             # calculate address for return address #
             raddr = cfa + roffset
+        # just use LR #
+        elif self.arch == 'aarch64' or self.arch == 'arm':
+            return self.lr
         # just use FP #
         else:
-            self.updateNamedRegs()
             raddr = self.fp + ConfigMgr.wordSize
-
-        # update stack pointer for previous context #
-        self.setSP(cfa)
 
         # get return address #
         raddr = self.readMem(raddr)
-        if raddr:
-            return struct.unpack(decodeStr, raddr)[0]
-        else:
+        if not raddr:
             return None
+
+        return struct.unpack(self.decodeChar, raddr)[0]
 
 
 
@@ -45417,11 +45437,11 @@ struct cmsghdr {
         savedLr = nextLr
 
         while 1:
-            if not nextLr or not nextFp or nextLr & 0x1:
-                break
-
             # check max length #
             if len(btList) >= limit:
+                break
+
+            if not nextLr or not nextFp or nextLr & 0x1 or nextFp & 0x1:
                 break
 
             try:
@@ -45466,11 +45486,11 @@ struct cmsghdr {
             self.getStack()
 
         while 1:
-            if not nextLr or not nextFp or nextLr & 0x1:
-                break
-
             # check max length #
             if len(btList) >= limit:
+                break
+
+            if not nextLr or not nextFp or nextLr & 0x1 or nextFp & 0x1:
                 break
 
             try:
@@ -50427,7 +50447,8 @@ class ElfAnalyzer(object):
                 Integer array, raw data of bytecode.
         '''
 
-        def __init__(self, bytecode_array):
+        def __init__(self, bytecode_array, path=None):
+            self.path = path
             self._bytecode_array = bytecode_array
             self._index = None
             self.mnemonic_array = []
@@ -50483,7 +50504,6 @@ class ElfAnalyzer(object):
                             offset = -long(ops[1:])
 
                         # change offset #
-                        self.cfa_table[spIdx] = ('OFFSET', offset)
                         if 'cfa' in self.cfa_table:
                             cfaList = list(self.cfa_table['cfa'])
                             cfaList[1] += offset
@@ -50506,6 +50526,8 @@ class ElfAnalyzer(object):
                                 self.cfa_table[spIdx] = ('OFFSET', self.offset)
                             elif reg == 'ip':
                                 self.cfa_table[ipIdx] = ('OFFSET', self.offset)
+                            elif reg == 'pc':
+                                self.cfa_table[pcIdx] = ('OFFSET', self.offset)
                             else:
                                 reg = long(reg[1:])
                                 self.cfa_table[reg] = ('OFFSET', self.offset)
@@ -50513,17 +50535,14 @@ class ElfAnalyzer(object):
                             # only ARM 32bit supported #
                             self.offset += 4
                     else:
-                        pass
+                        SysMgr.printWarn(
+                            "unknown operation '%s' in %s" % (mnemonic, self.path))
 
                     break
 
             # set default CFA #
             if not 'cfa' in self.cfa_table:
                 self.cfa_table['cfa'] = (spIdx, 0, None)
-
-            # set default return offset #
-            if not pcIdx in self.cfa_table:
-                self.cfa_table[pcIdx] = ('OFFSET', -4)
 
         def _decode_00xxxxxx(self):
             opcode = self._bytecode_array[self._index]
@@ -53959,7 +53978,7 @@ Section header string table index: %d
                 tableoffset=None, debug=False):
 
                 # decode code #
-                dobj = ElfAnalyzer.EHABIBytecodeDecoder(bytecode)
+                dobj = ElfAnalyzer.EHABIBytecodeDecoder(bytecode, self.path)
 
                 if debug:
                     SysMgr.printPipe('Entry %s:' % idx)
@@ -53982,10 +54001,19 @@ Section header string table index: %d
                     toffset = 'N/A'
 
                 # register to CFA table #
-                if foffset:
+                if foffset != 1:
                     self.attr['dwarf']['CFAIndex'].append(foffset)
                     self.attr['dwarf']['CFATable'][foffset] = [dobj.cfa_table]
                     self.attr['dwarf']['CFATable'][foffset][0]['pc'] = foffset
+
+                    # register stripped function info #
+                    if not foffset in self.addrTable or \
+                        not self.addrTable[foffset]:
+                        self.attr['dwarfTable'][hex(foffset)] = {
+                            'value': foffset,
+                            'size': 1,
+                            'type': 'FUNC',
+                        }
 
                 if debug:
                     SysMgr.printPipe(
@@ -53993,7 +54021,8 @@ Section header string table index: %d
                             hex(foffset).rstrip('L'), toffset))
 
                 if personality == -1:
-                    SysMgr.printPipe('\n')
+                    if debug:
+                        SysMgr.printPipe('\n')
                     return
 
                 if debug:
@@ -54057,7 +54086,8 @@ Section header string table index: %d
                     if word0 & 0x80000000 == 0:
                         # highest bit is one, generic model #
                         personality = expandPrel31(word0, eh_table_offset)
-                        decodeEntry(self, idx, foffset, personality, debug=debug)
+                        decodeEntry(
+                            self, idx, foffset, personality, debug=debug)
 
                     # highest bit is one, arm compact model #
                     # highest half must be 0b1000 for compact model #
@@ -54076,8 +54106,8 @@ Section header string table index: %d
                             word0 & 0xFF
                         ]
 
-                        decodeEntry(self,
-                            idx, foffset, per_index, opcode, debug=debug)
+                        decodeEntry(
+                            self, idx, foffset, per_index, opcode, debug=debug)
                     elif per_index == 1 or per_index == 2:
                         # arm compact model 1/2 #
                         more_word = (word0 >> 16) & 0xff
@@ -54097,8 +54127,8 @@ Section header string table index: %d
                             opcode.append((r >> 8) & 0xFF)
                             opcode.append((r >> 0) & 0xFF)
 
-                        decodeEntry(self,
-                            idx, foffset, per_index, opcode,
+                        decodeEntry(
+                            self, idx, foffset, per_index, opcode,
                             eh_table_offset, debug=debug)
                     else:
                         SysMgr.printWarn(
