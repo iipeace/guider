@@ -49,7 +49,7 @@ except:
 
 
 class ConfigMgr(object):
-    """ Manager for configuration """
+    """ Manager for config """
 
     # Define logo #
     # made by http://www.figlet.org, consider also jp2a #
@@ -84,7 +84,7 @@ class ConfigMgr(object):
         BOLD = ''
         UNDERLINE = ''
 
-    # Define configuration info #
+    # Define config info #
     confData = {}
 
     # Define support architecture #
@@ -15313,12 +15313,27 @@ class SysMgr(object):
             else:
                 sys.exit(0)
 
-        # system #
-        elif SysMgr.isSystemTopMode():
+        # all #
+        elif SysMgr.isAllTopMode():
             SysMgr.memEnable = True
             SysMgr.irqEnable = True
             SysMgr.diskEnable = True
             SysMgr.networkEnable = True
+            SysMgr.perfEnable = True
+
+        # condition #
+        elif SysMgr.isCondTopMode():
+            # check path for config file #
+            if not SysMgr.getOption('C'):
+                if not SysMgr.loadConfig(SysMgr.confFileName):
+                    SysMgr.printErr(
+                        'input effective file path for config')
+                    sys.exit(0)
+
+            # ignore output #
+            if not SysMgr.outPath:
+                SysMgr.outPath = '/dev/null'
+                SysMgr.bufferSize = -1
 
         # DLT #
         elif SysMgr.isDltTopMode():
@@ -15377,7 +15392,7 @@ class SysMgr(object):
                         SysMgr.networkEnable = False
             else:
                 SysMgr.printWarn(
-                    "fail to get disk and network start "
+                    "fail to get disk and network stats "
                     "because no root permission")
 
             if not SysMgr.checkRepTopCond():
@@ -16094,7 +16109,7 @@ class SysMgr(object):
         except:
             if verb:
                 SysMgr.printErr(
-                    "fail to load configuration from %s" % fname, reason=True)
+                    "fail to load config from '%s'" % fname, reason=True)
             return None
         finally:
             if fd:
@@ -16317,7 +16332,7 @@ class SysMgr(object):
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                "fail to get python configuration", True, True)
+                "fail to get python config", True, True)
             return None
 
 
@@ -17182,8 +17197,10 @@ class SysMgr(object):
     def getCmdList():
         return {
             'monitor': {
+                'atop': 'System',
                 'bgtop': 'Background',
                 'btop': 'Function',
+                'ctop': 'Condition',
                 'dbustop': 'D-Bus',
                 'disktop': 'Storage',
                 'dlttop': 'DLT',
@@ -17192,7 +17209,6 @@ class SysMgr(object):
                 'ntop': 'Network',
                 'ptop': 'PMU',
                 'rtop': 'JSON',
-                'smtop': 'System',
                 'stacktop': 'Stack',
                 'systop': 'Syscall',
                 'top': 'Process',
@@ -17345,7 +17361,7 @@ Usage:
     -g  <COMM|TID{:FILE}>       set filter
     -i  <SEC>                   set interval
     -R  <INTERVAL:TIME:TERM>    set repeat count
-    -C  <PATH>                  set configuration file
+    -C  <PATH>                  set config file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
     -q                          set path for binaries
@@ -17479,7 +17495,7 @@ Examples:
         # {0:1} {1:1} -c "{0:1} utop -g PID" -e E
         # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
-    - Monitor status of {2:2} after setting configuration from guider.conf
+    - Monitor status of {2:2} after setting config from guider.conf
         # {0:1} {1:1} -C guider.conf
                 '''.format(cmd, mode, target)
 
@@ -17797,7 +17813,7 @@ Options:
 
   [common]
     -a                          show all stats and events
-    -C  <PATH>                  set configuration path
+    -C  <PATH>                  set config path
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
@@ -18057,7 +18073,7 @@ Options:
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
-    -C  <PATH>                  set configuration path
+    -C  <PATH>                  set config path
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -18301,20 +18317,41 @@ Description:
 
                     helpStr += topSubStr + topCommonStr + examStr
 
-                # system top #
-                elif SysMgr.isSystemTopMode():
+                # all top #
+                elif SysMgr.isAllTopMode():
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor system resource
+    Monitor all system resources
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
     - Monitor system resource
         # {0:1} {1:1}
+
+    See the top COMMAND help for more examples.
+                    '''.format(cmd, mode)
+
+                    helpStr += topCommonStr + examStr
+
+                # condition top #
+                elif SysMgr.isCondTopMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor resources by condition
+                        '''.format(cmd, mode)
+
+                    examStr = '''
+Examples:
+    - Monitor resources by condition
+        # {0:1} {1:1}
+        # {0:1} {1:1} -C /tmp/guider.conf
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -19462,7 +19499,7 @@ Options:
     -T  <FILE>                  set hook path for injection
     -g  <PID|COMM>              set target process
     -k  <{{START,}}STOP>          set signal
-    -C  <PATH>                  set configuration path
+    -C  <PATH>                  set config path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -19956,7 +19993,7 @@ Description:
 Options:
     -x  <IP:PORT>               set local address
     -u                          run in the background
-    -C  <PATH>                  set configuration path
+    -C  <PATH>                  set config path
     -E  <DIR>                   set cache dir path
     -v                          verbose
                         '''.format(cmd, mode)
@@ -20931,7 +20968,7 @@ Copyright:
             SysMgr.perfEnable = False
             return
 
-        # check configuration #
+        # check config #
         try:
             PMUs = '/sys/bus/event_source/devices'
             attrPath = '%s/sys/kernel/perf_event_paranoid' % \
@@ -24353,9 +24390,11 @@ Copyright:
                 else:
                     SysMgr.repeatCount = \
                         long(convTime(repeatParams[1]) / interval)
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr((
-                    "wrong value with -R option because %s, "
+                    "wrong value for runtime option because %s, "
                     "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         elif len(repeatParams) == 1:
@@ -24380,14 +24419,16 @@ Copyright:
                     SysMgr.repeatCount = 1
                     SysMgr.repeatInterval = interval
                     SysMgr.intervalEnable = interval
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printErr((
-                    "wrong value with -R option because %s, "
+                    "wrong value for runtime option because %s, "
                     "input integer values") % SysMgr.getErrMsg())
                 sys.exit(0)
         else:
             SysMgr.printErr((
-                "wrong value with -R option because %s, "
+                "wrong value for runtime option because %s, "
                 "input in the format INTERVAL:REPEAT") % \
                     SysMgr.getErrMsg())
             sys.exit(0)
@@ -24397,7 +24438,7 @@ Copyright:
             SysMgr.intervalEnable < 1 or \
             SysMgr.repeatCount < 1:
             SysMgr.printErr(
-                "wrong value with -R option, input values bigger than 0")
+                "wrong value for runtime option, input values bigger than 0")
             sys.exit(0)
 
         # get termination flag #
@@ -24545,16 +24586,16 @@ Copyright:
                     SysMgr.intervalEnable = long(value)
 
                     if SysMgr.intervalEnable <= 0:
-                        SysMgr.printErr(
-                            "wrong value with -i option, "
-                            "input number bigger than 0")
+                        SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input number bigger than 0") % option)
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr(
-                        "wrong value with -i option, "
-                        "input number in integer format")
+                    SysMgr.printErr((
+                        "wrong value with -%s option, "
+                        "input number in integer format") % option)
                     sys.exit(0)
 
             elif SysMgr.isCommonOption(option):
@@ -24566,21 +24607,10 @@ Copyright:
             elif option == 'f':
                 SysMgr.forceEnable = True
 
-            elif option == 'C':
-                if not ConfigMgr.confData:
-                    if value:
-                        SysMgr.confFileName = os.path.abspath(value)
-                    else:
-                        SysMgr.confFileName = \
-                            os.path.abspath(SysMgr.confFileName)
-
-                    ret = SysMgr.loadConfig(SysMgr.confFileName)
-                    if not ret:
-                        sys.exit(0)
-
             elif option == 'L':
                 if not value:
-                    SysMgr.printErr("no option value with -L option")
+                    SysMgr.printErr(
+                        "no option value with -%s option" % option)
                     sys.exit(0)
                 elif SysMgr.isDrawMode():
                     SysMgr.layout = value
@@ -24613,11 +24643,11 @@ Copyright:
             elif option == 'p':
                 if SysMgr.findOption('i'):
                     SysMgr.printErr(
-                        "wrong -p option, -i option is already used")
+                        "wrong -%s option, -i option is already used" % option)
                     sys.exit(0)
                 elif SysMgr.findOption('g'):
                     SysMgr.printErr(
-                        "wrong -p option, -g option is already used")
+                        "wrong -%s option, -g option is already used" % option)
                     sys.exit(0)
                 else:
                     SysMgr.preemptGroup = \
@@ -24626,7 +24656,7 @@ Copyright:
                     if not SysMgr.preemptGroup:
                         SysMgr.printErr((
                             "no specific thread targeted, "
-                            "input TID with -p option"))
+                            "input TID with -%s option") % option)
                         sys.exit(0)
 
             elif option == 'Y':
@@ -24903,18 +24933,18 @@ Copyright:
             elif option == 'T':
                 if SysMgr.isConvertMode():
                     if not value:
-                        SysMgr.printErr(
-                            "wrong value with -T option, "
-                            "input path for font")
+                        SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input path for font") % option)
                         sys.exit(0)
                     SysMgr.fontPath = value
                 elif SysMgr.isDrawMode():
                     try:
                         SysMgr.nrTop = long(value)
                     except:
-                        SysMgr.printErr(
-                            "wrong value with -T option, "
-                            "input number in integer format")
+                        SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input number in integer format") % option)
                         sys.exit(0)
 
             elif option == 'O':
@@ -24922,14 +24952,14 @@ Copyright:
                     SysMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
                     SysMgr.printErr(
-                        "Input value for filter with -O option")
+                        "Input value for filter with -%s option" % option)
                     sys.exit(0)
 
                 for item in SysMgr.perCoreList:
                     if not item.isdigit():
-                        SysMgr.printErr(
-                            "wrong value with -O option, "
-                            "input number in integer format")
+                        SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input number in integer format") % option)
                         sys.exit(0)
 
                 SysMgr.printInfo(
@@ -25002,9 +25032,10 @@ Copyright:
                             if cols > 0:
                                 SysMgr.ttyCols = cols
                 except:
-                    SysMgr.printErr(
-                        "wrong value with -m option, "
-                        "input number in COLS:ROWS format", reason=True)
+                    SysMgr.printErr((
+                        "wrong value with -%s option, "
+                        "input number in COLS:ROWS format") % option,
+                        reason=True)
                     sys.exit(0)
 
             elif option == 'b' and \
@@ -25027,16 +25058,16 @@ Copyright:
                                 "set buffer size to %s" %
                                     UtilMgr.convSize2Unit(osize))
                     else:
-                        SysMgr.printErr(
-                            "wrong value with -b option, "
-                            "input number bigger than 0")
+                        SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input number bigger than 0") % option)
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr(
-                            "wrong value with -b option, "
-                            "input number in integer format")
+                    SysMgr.printErr((
+                            "wrong value with -%s option, "
+                            "input number in integer format") % option)
                     sys.exit(0)
 
             elif option == 'N':
@@ -25137,6 +25168,17 @@ Copyright:
         elif option == 'W':
             SysMgr.waitEnable = True
 
+        elif option == 'C':
+            if not ConfigMgr.confData:
+                if value:
+                    SysMgr.confFileName = os.path.abspath(value)
+                else:
+                    SysMgr.confFileName = \
+                        os.path.abspath(SysMgr.confFileName)
+
+                if not SysMgr.loadConfig(SysMgr.confFileName):
+                    sys.exit(0)
+
         elif option == 'E':
             SysMgr.cacheDirPath = value
             SysMgr.printInfo(
@@ -25146,7 +25188,7 @@ Copyright:
 
     @staticmethod
     def isCommonOption(option):
-        optionList = 'osHQRuzAWE'
+        optionList = 'osHQRuzAWEC'
 
         if option in optionList:
             return True
@@ -25216,17 +25258,6 @@ Copyright:
                 SysMgr.printInfo(
                     "applied ignore keyword [ %s ]" % \
                         ', '.join(SysMgr.ignoreItemList))
-
-            elif option == 'C':
-                if value:
-                    SysMgr.confFileName = os.path.abspath(value)
-                else:
-                    SysMgr.confFileName = \
-                        os.path.abspath(SysMgr.confFileName)
-
-                ret = SysMgr.loadConfig(SysMgr.confFileName)
-                if not ret:
-                    sys.exit(0)
 
             elif option == 'e':
                 options = value
@@ -25901,8 +25932,17 @@ Copyright:
 
 
     @staticmethod
-    def isSystemTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'smtop':
+    def isAllTopMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'atop':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isCondTopMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'ctop':
             return True
         else:
             return False
@@ -26073,22 +26113,23 @@ Copyright:
     @staticmethod
     def isTopMode():
         if SysMgr.isProcTopMode() or \
-            SysMgr.isFileTopMode() or \
             SysMgr.isThreadTopMode() or \
+            SysMgr.isUserTopMode() or \
+            SysMgr.isBrkTopMode() or \
+            SysMgr.isSysTopMode() or \
+            SysMgr.isPyTopMode() or \
+            SysMgr.isFileTopMode() or \
             SysMgr.isStackTopMode() or \
             SysMgr.isPerfTopMode() or \
             SysMgr.isMemTopMode() or \
             SysMgr.isWssTopMode() or \
             SysMgr.isRepTopMode() or \
             SysMgr.isBgTopMode() or \
-            SysMgr.isSystemTopMode() or \
+            SysMgr.isAllTopMode() or \
+            SysMgr.isCondTopMode() or \
             SysMgr.isNetTopMode() or \
-            SysMgr.isUserTopMode() or \
-            SysMgr.isBrkTopMode() or \
-            SysMgr.isSysTopMode() or \
             SysMgr.isDltTopMode() or \
             SysMgr.isDbusTopMode() or \
-            SysMgr.isPyTopMode() or \
             SysMgr.isDiskTopMode():
             return True
         else:
@@ -26885,7 +26926,7 @@ Copyright:
         elif not os.path.isfile('%s/sys/kernel/perf_event_paranoid' % \
             SysMgr.procPath):
             SysMgr.printErr(
-                "fail to use PMU, please check kernel configuration")
+                "fail to use PMU, please check kernel config")
             return False
         else:
             return True
@@ -27012,7 +27053,7 @@ Copyright:
             return False
         elif not os.path.isfile('%s/self/io' % procPath):
             SysMgr.printErr(
-                "fail to use bio event, please check kernel configuration")
+                "fail to use bio event, please check kernel config")
             return False
         else:
             return True
@@ -27032,7 +27073,7 @@ Copyright:
             return False
         elif not os.path.isfile('%s/self/stack' % SysMgr.procPath):
             SysMgr.printErr(
-                "fail to sample stack, please check kernel configuration")
+                "fail to sample stack, please check kernel config")
             return False
         else:
             return True
@@ -31515,7 +31556,7 @@ Copyright:
 
             sys.exit(0)
 
-        # set network configuration #
+        # set network config #
         value = SysMgr.getOption('x')
         if not value:
             NetworkMgr.setServerNetwork(None, None)
@@ -38904,7 +38945,7 @@ class DbusAnalyzer(object):
                     sys.exit(0)
                 except:
                     SysMgr.printWarn(
-                        "fail to get D-Bus configuration", reason=True)
+                        "fail to get D-Bus config", reason=True)
             busList.append(bus)
 
             # get servce list #
@@ -55144,11 +55185,11 @@ class ThreadAnalyzer(object):
                         "only specific threads [ %s ] are shown" % \
                             taskList)
 
-            # set network configuration #
+            # set network config #
             if not SysMgr.findOption('x'):
                 NetworkMgr.setServerNetwork(None, None)
 
-            # set threshold configuration #
+            # set threshold config #
             SysMgr.applyThreshold()
 
             # set log buffer size #
@@ -67694,9 +67735,8 @@ class ThreadAnalyzer(object):
         # save gpu stat #
         self.saveGpuData()
 
-        # check systemtop mode #
-        if SysMgr.isSystemTopMode() or \
-            not SysMgr.taskEnable:
+        # check atop mode #
+        if not SysMgr.taskEnable:
             return
 
         # save proc stats #

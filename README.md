@@ -1141,8 +1141,10 @@ COMMAND:
                     printkmsg       <Kernel>
                     printsys        <Syslog>
 
-    [MONITOR]       bgtop           <Background>
+    [MONITOR]       atop            <System>
+                    bgtop           <Background>
                     btop            <Function>
+                    ctop            <Condition>
                     dbustop         <D-Bus>
                     disktop         <Storage>
                     dlttop          <DLT>
@@ -1152,7 +1154,6 @@ COMMAND:
                     ptop            <PMU>
                     pytop           <Python>
                     rtop            <JSON>
-                    smtop           <System>
                     stacktop        <Stack>
                     systop          <Syscall>
                     top             <Process>
