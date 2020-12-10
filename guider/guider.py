@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201209"
+__revision__ = "201210"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4240,6 +4240,14 @@ class UtilMgr(object):
             sys.exit(0)
         except:
             return number
+
+
+
+    @staticmethod
+    def getRealLen(string):
+        ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
+        ansiObj = re.compile(ansi)
+        return len(ansiObj.sub('', string))
 
 
 
@@ -15315,6 +15323,7 @@ class SysMgr(object):
 
         # all #
         elif SysMgr.isAllTopMode():
+            SysMgr.cpuEnable = True
             SysMgr.memEnable = True
             SysMgr.irqEnable = True
             SysMgr.diskEnable = True
@@ -16762,8 +16771,7 @@ class SysMgr(object):
         if not options:
             return False
 
-        optionList = 'imnhbpPrgLNtvHlGcsSuaIfFwWrRdoCEDkjxyYqB'
-
+        optionList = 'BCDEFGHILNPRSWYabcdfghijklmnopqrrstuvwxy'
         for opt in options:
             if not opt in optionList:
                 return False
@@ -16774,8 +16782,7 @@ class SysMgr(object):
 
     @staticmethod
     def isEffectiveOption(option):
-        optionList = 'aAbcCdDeEfFgHiIjkKlLmMnNoOPpQrRSsTtuUvwWxXYyZBGJq'
-
+        optionList = 'ABCDEFGHIJKLMNOPQRSTUWXYZabcdefgijklmnopqrstuvwxy'
         if option in optionList:
             return True
         elif option.isdigit():
@@ -69035,7 +69042,7 @@ class ThreadAnalyzer(object):
                         pass
 
                 for idx, val in sorted(
-                    tempData.items(), key=lambda x:int(x[0])):
+                    tempData.items(), key=lambda x:long(x[0])):
                     coreTempData['%s-%s' % (phyId, idx)] = val
 
             # /sys/class/thermal #
@@ -69063,9 +69070,11 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        # print CPU stat #
+        # print CPU stats #
         if SysMgr.cpuEnable or SysMgr.reportEnable or SysMgr.jsonEnable:
+            shortCoreStats = ''
             percoreStats = {}
+            lenCoreStat = 0
 
             if len(self.cpuData) > 0:
                 SysMgr.addPrint('%s\n' % oneLine)
@@ -69073,10 +69082,11 @@ class ThreadAnalyzer(object):
             freqPath = '/sys/devices/system/cpu/cpu'
 
             for idx, value in sorted(self.cpuData.items(),
-                key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0,
+                key=lambda x:long(x[0]) if str(x[0]).isdigit() else 0,
                 reverse=False):
                 try:
-                    percoreStats[int(idx)] = dict()
+                    curCore = long(idx)
+                    percoreStats[curCore] = dict()
 
                     if SysMgr.checkCutCond():
                         return
@@ -69108,8 +69118,18 @@ class ThreadAnalyzer(object):
                     percoreStats[idx]['idle'] = idleCoreUsage
                     percoreStats[idx]['total'] = totalCoreUsage
 
+                    totalCoreUsageStr = r'%3s' % totalCoreUsage
+                    if totalCoreUsage == 0:
+                        pass
+                    elif totalCoreUsage >= SysMgr.cpuPerHighThreshold:
+                        totalCoreUsageStr = UtilMgr.convColor(
+                            totalCoreUsageStr, 'RED')
+                    else:
+                        totalCoreUsageStr = UtilMgr.convColor(
+                            totalCoreUsageStr, 'YELLOW')
+
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
-                        format("Core/%s" % idx, '%s %%' % totalCoreUsage,
+                        format("Core/%s" % idx, '%s %%' % totalCoreUsageStr,
                         userCoreUsage, kerCoreUsage, ioCoreUsage, irqCoreUsage)
                 except SystemExit:
                     sys.exit(0)
@@ -69125,6 +69145,7 @@ class ThreadAnalyzer(object):
                     curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
                     self.cpuData[idx]['curFd'] = \
                         self.prevCpuData[idx]['curFd']
+                    percoreStats[idx]['curFreq'] = curFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -69141,6 +69162,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['curFd'] = open(curPath, 'r')
                         curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
+                        percoreStats[idx]['curFreq'] = curFreq
                     except:
                         curFreq = None
 
@@ -69150,6 +69172,7 @@ class ThreadAnalyzer(object):
                     minFreq = self.prevCpuData[idx]['minFd'].readline()[:-1]
                     self.cpuData[idx]['minFd'] = \
                         self.prevCpuData[idx]['minFd']
+                    percoreStats[idx]['minFreq'] = minFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -69166,6 +69189,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['minFd'] = open(minPath, 'r')
                         minFreq = self.cpuData[idx]['minFd'].readline()[:-1]
+                        percoreStats[idx]['minFreq'] = minFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -69177,6 +69201,7 @@ class ThreadAnalyzer(object):
                     maxFreq = self.prevCpuData[idx]['maxFd'].readline()[:-1]
                     self.cpuData[idx]['maxFd'] = \
                         self.prevCpuData[idx]['maxFd']
+                    percoreStats[idx]['maxFreq'] = maxFreq
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -69193,6 +69218,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['maxFd'] = open(maxPath, 'r')
                         maxFreq = self.cpuData[idx]['maxFd'].readline()[:-1]
+                        percoreStats[idx]['maxFreq'] = maxFreq
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -69204,6 +69230,7 @@ class ThreadAnalyzer(object):
                     gov = self.prevCpuData[idx]['govFd'].readline()[:-1]
                     self.cpuData[idx]['govFd'] = \
                         self.prevCpuData[idx]['govFd']
+                    percoreStats[idx]['governor'] = gov
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -69212,6 +69239,7 @@ class ThreadAnalyzer(object):
                     try:
                         self.cpuData[idx]['govFd'] = open(govPath, 'r')
                         gov = self.cpuData[idx]['govFd'].readline()[:-1]
+                        percoreStats[idx]['governor'] = gov
                     except:
                         gov = None
 
@@ -69254,13 +69282,15 @@ class ThreadAnalyzer(object):
                         phyId = '?'
 
                     cid = '%s-%s' % (phyId, coreId)
+                    percoreStats[idx]['id'] = cid
                 except SystemExit:
                     sys.exit(0)
                 except:
                     cid = None
+                    percoreStats[idx]['id'] = None
 
+                # set frequency info #
                 try:
-                    # set frequency info #
                     coreFreq = ''
                     if curFreq:
                         coreFreq = '%d Mhz' % (long(curFreq) >> 10)
@@ -69298,12 +69328,26 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
+                # print final output for a core #
                 try:
+                    # get real length without ansi for core stat #
+                    if lenCoreStat == 0:
+                        lenCoreStat = UtilMgr.getRealLen(coreStat)
+
+                    # use short core stats for many-core system #
+                    if SysMgr.nrCore > 8:
+                        shortCoreStats += coreStat
+                        coreFactor = long(SysMgr.ttyCols / lenCoreStat)
+                        if (curCore+1) % coreFactor == 0:
+                            SysMgr.addPrint(shortCoreStats[:-1]+'\n')
+                            shortCoreStats = ''
+
+                        raise Exception()
+
                     # get length of string #
                     lenTotal = len(totalCoreStat)
-                    lenCore = len(coreStat)
                     lenFreq = len(coreFreq)
-                    lenLine = SysMgr.lineLength - lenCore - lenFreq - 2
+                    lenLine = SysMgr.lineLength - lenCoreStat - lenFreq - 2
 
                     # print graph of per-core usage #
                     if totalCoreUsage > 0:
@@ -69324,7 +69368,7 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        # print GPU STAT #
+        # print GPU stats #
         if SysMgr.gpuEnable:
             gpuStats = {}
 
@@ -69385,7 +69429,8 @@ class ThreadAnalyzer(object):
 
                         glen = lenLine
                         if SysMgr.colorEnable:
-                            glen += len(ConfigMgr.COLOR_LIST['RED']) + len(ConfigMgr.ENDC)
+                            lenColor = len(ConfigMgr.COLOR_LIST['RED'])
+                            glen += lenColor + len(ConfigMgr.ENDC)
 
                         coreGraph = '{0:<{glen}}'.format(coreGraph, glen=glen)
 
