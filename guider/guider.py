@@ -14456,6 +14456,7 @@ class SysMgr(object):
     imagePath = None
     mountPath = None
     mountCmd = None
+    drawFormat = 'svg'
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
     outFilePath = 'guider.out'
@@ -17356,11 +17357,10 @@ Usage:
     -x  <IP:PORT>               set local address
     -X  <REQ@IP:PORT>           set request address
     -N  <REQ@IP:PORT>           set report address
-    -S  <cpu/mem/pid/Name       sort by key
-         block/wfc/new/file
-         runtime/exectime
-         Prio/ContextSwitch
-         oomscore{:VALUE}>
+    -S  <CHARACTER{:VALUE}>     sort by key
+          [ c:cpu / m:mem / p:pid / N:name / b:block
+            w:wfc / n:new / f:file / r:runtime / e:exectime
+            P:prio / C:contextswitch / o:oomscore ]
     -P                          group threads in a same process
     -I  <DIR|FILE>              set input file
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -17374,8 +17374,8 @@ Usage:
     -q                          set path for binaries
     -J                          print in JSON format
     -L  <PATH>                  set log file
-    -l  <dlt/kmsg/journal       set log type
-         syslog>
+    -l  <TYPE>                  set log type
+          [ dlt / kmsg / journal / syslog ]
     -E  <DIR>                   set cache dir
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
@@ -17389,19 +17389,19 @@ Usage:
                 topSubStr = '''
 Options:
     -e  <CHARACTER>             enable options
-            a:affinity | b:block | c:cpu | C:cgroup
+          [ a:affinity | b:block | c:cpu | C:cgroup
             d:disk | D:DWARF | e:encode | E:exec
             f:float | F:wfc | h:sigHandler | H:sched
             i:irq | I:elastic | L:cmdline | m:mem | n:net
             N:namespace | o:oomScore | O:color | p:pipe
             P:perf | q:quit | r:report | R:fileReport
             s:stack | S:pss | t:thread | u:uss
-            w:wss | W:wchan | x:fixTarget | Y:delay
+            w:wss | W:wchan | x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
-            a:memAvailable | A:cpuAverage | b:buffer
+          [ a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
             E:exec | g:generalInfo | G:gpu | L:log
-            p:print | t:truncate | T:task
+            p:print | t:truncate | T:task ]
                 '''
 
                 drawSubStr = '''
@@ -17413,6 +17413,7 @@ Options:
     -t  <START:END>             set y axis range
     -L  <RES:PER>               set graph layout (sum of PER: 6)
     -l  <BOUNDARY>              set boundary lines
+    -F  [svg/png/pdf/ps/eps]    set image format
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -17510,6 +17511,11 @@ Examples:
 Examples:
     - Draw graphs of resource usage and memory chart
         # {0:1} {1:1} guider.out
+
+    - Draw graphs of resource usage and memory chart to specific image format
+        # {0:1} {1:1} guider.out -F png
+        # {0:1} {1:1} guider.out -F pdf
+        # {0:1} {1:1} guider.out -F svg
 
     - Draw graphs of resource usage excluding chrome process and memory chart
         # {0:1} {1:1} guider.out -g ^chrome
@@ -17792,11 +17798,11 @@ Description:
 Options:
   [collect]
     -e  <CHARACTER>             enable options
-          b:block | c:cgroup | e:encode | g:graph
-          h:heap | L:lock | m:mem | p:pipe
+          [ b:block | c:cgroup | e:encode | g:graph
+            h:heap | L:lock | m:mem | p:pipe ]
     -d  <CHARACTER>             disable options
-          a:all | c:cpu | C:compress | e:encode
-          g:generalInfo | l:latency | L:log | u:user
+          [ a:all | c:cpu | C:compress | e:encode
+            g:generalInfo | l:latency | L:log | u:user ]
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -17810,9 +17816,9 @@ Options:
 
   [report]
     -o  <DIR|FILE>              save output data
-    -S  <cpu/memory/pid         sort by key
-         block/wfc/new
-         runtime/file>
+    -S  <CHARACTER>             sort by key
+          [ c:cpu / m:memory / p:pid / b:block / w:wfc
+            n:new / r:runtime /file ]
     -P                          group threads in a same process
     -O  <CORE>                  set core filter
     -r  <DIR>                   set root path
@@ -17897,9 +17903,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          e:encode | g:genearlInfo
+          [ e:encode | g:genearlInfo ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W                          wait for input
@@ -17936,9 +17942,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          e:encode | g:genearlInfo
+          [ e:encode | g:genearlInfo ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -b  <SIZE:KB>               set buffer size
@@ -17975,9 +17981,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          e:encode | g:genearlInfo
+          [ e:encode | g:genearlInfo ]
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
@@ -18009,9 +18015,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          e:encode | g:genearlInfo
+          [ e:encode | g:genearlInfo ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W                          wait for input
@@ -18043,13 +18049,13 @@ Description:
 Options:
   [collect]
     -e  <CHARACTER>             enable options
-            b:block | B:binder | c:cgroup | d:disk
+          [ b:block | B:binder | c:cgroup | d:disk
             e:encode | g:graph | i:irq | I:i2c
             L:lock | m:mem | n:net | p:pipe
-            r:reset | P:power | w:workqueue
+            r:reset | P:power | w:workqueue ]
     -d  <CHARACTER>             disable options
-            a:all | c:cpu | C:compress | e:encode
-            g:generalInfo
+          [ a:all | c:cpu | C:compress | e:encode
+            g:generalInfo ]
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -18066,9 +18072,9 @@ Options:
   [report]
     -a                          show all stats and events
     -o  <DIR|FILE>              save output data
-    -S  <cpu/memory/pid         sort by key
-         block/wfc/new
-         runtime/file>
+    -S  <CHARACTER>             sort by key
+          [ c:cpu / m:memory / p:pid / b:block
+            w:wfc / n:new / r:runtime / f:file ]
     -P                          group threads in a same process
     -p  <TID>                   show preemption info
     -O  <CORE>                  set core filter
@@ -18681,9 +18687,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec | g:generalInfo | O:color
+          [ C:clone | e:encode | E:exec | g:generalInfo | O:color ]
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -18743,9 +18749,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | D:DWARF | e:encode
+          [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | D:DWARF | E:exec | g:generalInfo
+          [ C:clone | e:encode | D:DWARF | E:exec | g:generalInfo ]
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set filter
@@ -18799,9 +18805,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | D:DWARF | e:encode
+          [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          C:clone | D:DWARF | e:encode | E:exec | g:generalInfo
+          [ C:clone | D:DWARF | e:encode | E:exec | g:generalInfo ]
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set file
@@ -18887,9 +18893,9 @@ Description:
                     helpStr += '''
 Options:
     -e  <CHARACTER>             enable options
-          p:pipe | e:encode
+          [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          C:clone | e:encode | E:exec | g:generalInfo
+          [ C:clone | e:encode | E:exec | g:generalInfo ]
     -u                          run in the background
     -g  <COMM|TID{:FILE}>       set filter
     -I  <COMMAND>               set command
@@ -19172,7 +19178,7 @@ Description:
 
 Options:
         -e  <CHARACTER>             enable options
-              p:pipe | D:DWARF | e:encode
+              [ p:pipe | D:DWARF | e:encode ]
         -I  <FILE>                  set input path
         -g  <ADDR|SYMBOL>           set filter
         -v                          verbose
@@ -19661,7 +19667,7 @@ Description:
 
 Options:
     -e  <CHARACTER>             enable options
-          t:thread
+          [ t:thread ]
     -J                          print in JSON format
     -v                          verbose
                         '''.format(cmd, mode)
@@ -24611,9 +24617,6 @@ Copyright:
             elif option == 'I':
                 SysMgr.inputParam = value.strip()
 
-            elif option == 'f':
-                SysMgr.forceEnable = True
-
             elif option == 'L':
                 if not value:
                     SysMgr.printErr(
@@ -24755,6 +24758,9 @@ Copyright:
 
             elif option == 'W':
                 SysMgr.waitEnable = True
+
+            if 'F' in option:
+                SysMgr.drawFormat = value.strip()
 
             elif option == 'e':
                 options = value
@@ -25140,6 +25146,9 @@ Copyright:
         elif option == 's':
             SysMgr.applySaveOption(value)
 
+        elif option == 'f':
+            SysMgr.forceEnable = True
+
         elif option == 'H':
             try:
                 if not value:
@@ -25195,8 +25204,7 @@ Copyright:
 
     @staticmethod
     def isCommonOption(option):
-        optionList = 'osHQRuzAWEC'
-
+        optionList = 'ACEHQRWfosuz'
         if option in optionList:
             return True
         else:
@@ -25250,9 +25258,6 @@ Copyright:
 
             elif option == 'Y':
                 SysMgr.parsePriorityOption(value)
-
-            elif option == 'f':
-                SysMgr.forceEnable = True
 
             elif option == 'y':
                 SysMgr.systemEnable = True
@@ -59034,7 +59039,7 @@ class ThreadAnalyzer(object):
                 else:
                     name = os.path.splitext(outputFile)[0]
 
-                outputFile = '%s_%s.png' % (name, itype)
+                outputFile = '%s_%s.%s' % (name, itype, SysMgr.drawFormat)
 
             # backup an exist image file #
             if os.path.isfile(outputFile):
