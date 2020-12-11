@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201210"
+__revision__ = "201211"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3645,6 +3645,12 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convList2Histogram(items):
+        pass
+
+
+
+    @staticmethod
     def getSigList():
         sigList = dict(
             (k, v) for v, k in reversed(sorted(signal.__dict__.items()))
@@ -4023,6 +4029,29 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def isCompressed(fname=None, fd=None):
+        if fname:
+            try:
+                fd = open(fname, 'rb')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(fname)
+                sys.exit(0)
+
+        if fd:
+            data = fd.read(2)
+            fd.seek(0, 0)
+            if struct.unpack('BB', data) == (0x1f, 0x8b):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+
+
+    @staticmethod
     def conv2BitStr(content):
         return bin(content)
 
@@ -4124,9 +4153,25 @@ class UtilMgr(object):
                 SysMgr.printStat(
                     r"start loading '%s'..." % fname)
 
+        # check gzip #
+        try:
+            fd = None
+            with open(fname, 'rb') as fd:
+                data = fd.read(2)
+                if struct.unpack('BB', data) != (0x1f, 0x8b):
+                    raise Exception()
+
+            compressor = SysMgr.getPkg('gzip', False)
+            fd = compressor.open(fname, 'rt')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            fd = None
+
         # open a file #
         try:
-            fd = open(fname, 'r', encoding='utf-8')
+            if not fd:
+                fd = open(fname, 'r', encoding='utf-8')
         except SystemExit:
             sys.exit(0)
         except:
@@ -5431,9 +5476,11 @@ class NetworkMgr(object):
                 feedback = ''
 
             # check mode to print error message #
-            if SysMgr.warnEnable or SysMgr.isServerMode() or SysMgr.isClientMode():
+            if SysMgr.warnEnable or \
+                SysMgr.isServerMode() or \
+                SysMgr.isClientMode():
                 SysMgr.printErr(
-                    "fail to create socket with %s:%s as server because %s%s" % \
+                    "fail to create a socket for %s:%s as server because %s%s" % \
                         (self.ip, self.port, err, feedback))
 
             '''
@@ -7716,11 +7763,12 @@ class FunctionAnalyzer(object):
         if not self.userCallData and \
             not self.kernelCallData and \
             len(self.target) > 0:
-            if self.target == []:
+            if not self.target:
                 SysMgr.printErr("no collected stack data")
             else:
+                targetStr = ', '.join(self.target)
                 SysMgr.printErr(
-                    "no collected stack data related to %s" % self.target)
+                    "no collected stack related to '%s'" % targetStr)
             sys.exit(0)
         elif SysMgr.userEnable and \
             len(self.userCallData) == 1 and \
@@ -7730,9 +7778,10 @@ class FunctionAnalyzer(object):
                 SysMgr.printWarn(
                     "no collected user stack data", True)
             else:
+                targetStr = ', '.join(self.target)
                 SysMgr.printWarn(
-                    "no collected user stack data related to %s" % \
-                    self.target, True)
+                    "no collected user stack related to '%s'" % \
+                    targetStr, True)
 
         # Get symbols from call address #
         SysMgr.printStat(
@@ -10231,7 +10280,7 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             '{0:>16}({1:>7}/{2:>7}) {3:>30}({4:>3}) {5:>12}'.format(
-            "Name", "Tid", "Pid", "Syscall", "ID", "Count"))
+            "Name", "TID", "PID", "Syscall", "SID", "Count"))
         SysMgr.printPipe(twoLine)
 
         outputCnt = long(0)
@@ -10322,7 +10371,7 @@ class FunctionAnalyzer(object):
             (("{0:_^16}|{1:_^7}|{2:_^7}|{3:_^6}|{4:_^6}|"
             "{5:_^7}|{6:_^9}({7:_^8}/{8:_^8}/{9:_^8})|{10:_^8}|"
             "{11:_^7}|{12:_^8}|{13:_^8}|{14:_^9}|{15:_^6}|{16:_^8}|")).\
-            format("Name", "Tid", "Pid", "PICK", "LIFE",
+            format("Name", "TID", "PID", "PICK", "LIFE",
             "PER", "ALLOC", "USER", "BUF", "KERN", "FREE", "UFREE", cmenu2,
             "READ", "WRITE", "TRY", "EVENTS"))
         SysMgr.printPipe(twoLine)
@@ -12985,7 +13034,7 @@ class FileAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:_^16}({1:_^6})|{2:_^12}|{3:_^16}({4:_^5}) |".\
-            format("Process", "Pid", "MaxRAM", "ThreadName", "Tid"))
+            format("Process", "PID", "MaxRAM", "ThreadName", "TID"))
         SysMgr.printPipe(twoLine)
 
         procInfo = "{0:_^16}({1:^6})|{2:11} |".format('', '', '')
@@ -13387,7 +13436,7 @@ class FileAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:_^16}({1:_^6})|{2:_^13}|{3:_^16}({4:_^6}) |".\
-            format("Process", "Pid", "RAM", "Thread", "Tid"))
+            format("Process", "PID", "RAM", "Thread", "TID"))
         SysMgr.printPipe(twoLine)
 
         procInfo = "{0:^16}({0:^6})|{0:12} |".format('')
@@ -14492,7 +14541,7 @@ class SysMgr(object):
     saveCmd = None
     boundaryLine = None
     demangleEnable = True
-    compressEnable = True
+    compressEnable = False
     generalInfoEnable = True
     nrTop = None
     pipeForPager = None
@@ -16951,6 +17000,8 @@ class SysMgr(object):
         for pid in pids:
             try:
                 long(pid)
+            except SystemExit:
+                sys.exit(0)
             except:
                 continue
 
@@ -16976,6 +17027,8 @@ class SysMgr(object):
                         procTree[tid] = '%s(%s)' % (pid, comm)
                     else:
                         procTree[tid] = pid
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -17260,6 +17313,7 @@ class SysMgr(object):
                 'dump': 'Memory',
                 'exec': 'Command',
                 'getafnt': 'Affinity',
+                'comp': "Compress",
                 'hook': 'Function',
                 'kill/tkill': 'Signal',
                 'leaktrace': 'Leak',
@@ -17285,6 +17339,7 @@ class SysMgr(object):
                 'systat': 'Status',
                 'topdiff': 'Diff',
                 'topsum': 'Summary',
+                'decomp': 'Decompress',
                 'watch': "File",
                 },
             'log': {
@@ -17389,14 +17444,14 @@ Usage:
                 topSubStr = '''
 Options:
     -e  <CHARACTER>             enable options
-          [ a:affinity | b:block | c:cpu | C:cgroup
+          [ a:affinity | b:block | c:cpu | C:compress
             d:disk | D:DWARF | e:encode | E:exec
-            f:float | F:wfc | h:sigHandler | H:sched
-            i:irq | I:elastic | L:cmdline | m:mem | n:net
-            N:namespace | o:oomScore | O:color | p:pipe
-            P:perf | q:quit | r:report | R:fileReport
-            s:stack | S:pss | t:thread | u:uss
-            w:wss | W:wchan | x:fixTarget | Y:delay ]
+            f:float | F:wfc | G:cgroup | h:sigHandler
+            H:sched | i:irq | I:elastic | L:cmdline
+            m:mem | n:net | N:namespace | o:oomScore
+            O:color | p:pipe | P:perf | q:quit | r:report
+            R:fileReport | s:stack | S:pss | t:thread
+            u:uss | w:wss | W:wchan | x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:cpuAverage | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
@@ -19654,6 +19709,48 @@ Options:
 Examples:
     - Print tree of processes
         # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
+                # comp #
+                elif SysMgr.isCompMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Compress a file
+
+Options:
+    -o  <FILE>                  set output path
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Compress a file
+        # {0:1} {1:1} guider.out
+        # {0:1} {1:1} guider.out -o guider.out.gz
+                    '''.format(cmd, mode)
+
+                # decomp #
+                elif SysMgr.isDecompMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Decompress a file
+
+Options:
+    -o  <DIR>                   set output path
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Decompress a file
+        # {0:1} {1:1} guider.gz
+        # {0:1} {1:1} guider.gz -o guider.out
                     '''.format(cmd, mode)
 
                 # systat #
@@ -22034,6 +22131,11 @@ Copyright:
         else:
             disableStat += 'ENCODE '
 
+        if SysMgr.compressEnable:
+            enableStat += 'COMP '
+        else:
+            disableStat += 'COMP '
+
         # check current mode #
         if SysMgr.isTopMode():
             SysMgr.printInfo("<TOP MODE>")
@@ -22236,11 +22338,6 @@ Copyright:
                 else:
                     disableStat += 'LOCK '
 
-                if SysMgr.compressEnable:
-                    enableStat += 'COMP '
-                else:
-                    disableStat += 'COMP '
-
                 if SysMgr.disableAll:
                     enableStat += 'DISABLE '
                 else:
@@ -22323,11 +22420,6 @@ Copyright:
 
             if SysMgr.resetEnable:
                 enableStat += 'RESET '
-
-            if SysMgr.compressEnable:
-                enableStat += 'COMP '
-            else:
-                disableStat += 'COMP '
 
             if SysMgr.disableAll:
                 enableStat += 'DISABLE '
@@ -22670,8 +22762,16 @@ Copyright:
         # backup file already exists #
         SysMgr.backupFile(outputFile)
 
+        disabledOptions = SysMgr.getOption('d')
+
+        # compress data by default #
+        if disabledOptions and 'C' in disabledOptions:
+            compressEnable = False
+        else:
+            compressEnable = True
+
         # compress by gzip #
-        if SysMgr.isRecordMode() and SysMgr.compressEnable:
+        if SysMgr.isRecordMode() and compressEnable:
             compressor = SysMgr.getPkg('gzip', False)
         else:
             compressor = None
@@ -22687,42 +22787,19 @@ Copyright:
         try:
             if compressor:
                 fd = open(outputFile, 'wb')
-                magicStr = 'gzip %s\n' % ' '.join(sys.argv)
-                fd.write(magicStr.encode())
-
                 f = compressor.GzipFile(fileobj=fd)
-
-                # write system info #
-                if SysMgr.systemInfoBuffer != '':
-                    totalStr = '%s\n%s\n%s\n' % \
-                        (SysMgr.magicStr,
-                        SysMgr.systemInfoBuffer,
-                        SysMgr.magicStr)
-                    f.write(totalStr.encode())
-
-                # convert data #
-                lstring = '\n'.join(lines)
-                try:
-                    lstring = lstring.encode()
-                except:
-                    SysMgr.printErr(
-                        "fail to encoding data")
-                    sys.exit(0)
-
-                f.write(lstring)
             else:
                 f = open(outputFile, 'w')
 
-                # write system info #
-                if SysMgr.systemInfoBuffer != '':
-                    magicStr = '%s\n' % SysMgr.magicStr
-                    f.writelines(magicStr)
-                    f.writelines(SysMgr.systemInfoBuffer)
-                    f.writelines(magicStr)
+            # write system info #
+            if SysMgr.systemInfoBuffer:
+                magicStr = '%s\n' % SysMgr.magicStr
+                f.writelines(magicStr)
+                f.writelines(SysMgr.systemInfoBuffer)
+                f.writelines(magicStr)
 
-                # write trace info #
-                f.writelines(lines)
-
+            # write trace info #
+            f.writelines(lines)
             f.close()
 
             try:
@@ -23908,12 +23985,25 @@ Copyright:
             SysMgr.inputFile = \
                 os.path.normpath(SysMgr.inputFile)
 
+            # apply for filename extension for compression #
+            if SysMgr.compressEnable:
+                SysMgr.inputFile += '.gz'
+                if SysMgr.outPath:
+                    SysMgr.outPath += '.gz'
+
             # backup an exist file #
             SysMgr.backupFile(SysMgr.inputFile)
 
             # open file #
             try:
+                # open output file #
                 SysMgr.printFd = open(SysMgr.inputFile, 'w+')
+
+                # apply for compression to the file #
+                if SysMgr.compressEnable:
+                    compressor = SysMgr.getPkg('gzip', False)
+                    SysMgr.printFd = compressor.GzipFile(
+                        fileobj=SysMgr.printFd)
 
                 # print file name #
                 if SysMgr.outPath:
@@ -24897,8 +24987,11 @@ Copyright:
                 if 'E' in options:
                     SysMgr.execEnable = True
 
-                if 'C' in options:
+                if 'G' in options:
                     SysMgr.cgroupEnable = True
+
+                if 'C' in options:
+                    SysMgr.compressEnable = True
 
                 if 'q' in options:
                     SysMgr.exitFlag = True
@@ -25875,6 +25968,24 @@ Copyright:
 
 
     @staticmethod
+    def isCompMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'comp':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
+    def isDecompMode():
+        if len(sys.argv) > 1 and sys.argv[1] == 'decomp':
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isSystatMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'systat':
             return True
@@ -26441,6 +26552,26 @@ Copyright:
         # PSTREE MODE #
         elif SysMgr.isPstreeMode():
             SysMgr.doPstree()
+
+        # COMP MODE #
+        elif SysMgr.isCompMode():
+            try:
+                SysMgr.doCompress()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to compress', True)
+
+        # DECOMP MODE #
+        elif SysMgr.isDecompMode():
+            try:
+                SysMgr.doDecompress()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to decompress', True)
 
         # PS MODE #
         elif SysMgr.isSystatMode():
@@ -30530,7 +30661,8 @@ Copyright:
 
                 for addr in addrList:
                     try:
-                        sym, size = binObj.getSymbolByOffset(addr, onlyFunc=False)
+                        sym, size = binObj.getSymbolByOffset(
+                            addr, onlyFunc=False)
                         resInfo[addr] = [sym, filePath, 'N/A']
                         if len(sym) > maxSymLen:
                             maxSymLen = len(sym)
@@ -32762,6 +32894,172 @@ Copyright:
         obj.saveSystemStat()
 
         ThreadAnalyzer.printProcTree(obj.procData)
+
+
+
+    @staticmethod
+    def doCompress():
+        SysMgr.printFd = None
+        SysMgr.setStream()
+        SysMgr.setDefaultSignal()
+
+        # check input #
+        if len(sys.argv) < 3:
+            SysMgr.printErr("no path for compression")
+            sys.exit(0)
+
+        # set input file #
+        infile = sys.argv[2]
+
+        if not os.path.isfile(infile):
+            SysMgr.printErr("wrong path for compression")
+            sys.exit(0)
+
+        # check output #
+        outfile = SysMgr.outPath
+        SysMgr.outPath = None
+        if outfile:
+            # check dir #
+            if os.path.isdir(outfile):
+                outfile = os.path.join(outfile, infile + '.gz')
+        else:
+            outfile = 'guider.gz'
+
+        # check final input and output path #
+        if infile == outfile:
+            SysMgr.printErr(
+                "both input and output are the same as '%s' " % infile)
+            sys.exit(0)
+
+        # check exist file #
+        if os.path.exists(outfile):
+            SysMgr.backupFile(outfile)
+
+        # 1MB chunk size #
+        chunkSize = 1 << 20
+
+        # get compressor #
+        compressor = SysMgr.getPkg('gzip')
+
+        # open input file #
+        infd = open(infile, 'rb')
+
+        # get total file size #
+        wroteSize = 0
+        fileSize = long(os.fstat(infd.fileno()).st_size)
+        infileSizeStr = UtilMgr.convSize2Unit(fileSize)
+
+        # open output file #
+        outfd = compressor.open(outfile, 'wb')
+
+        SysMgr.printInfo(
+            "start compressing %s[%s] to %s" % \
+                (infile, infileSizeStr, outfile))
+
+        while 1:
+            chunk = infd.read(chunkSize)
+            if not chunk:
+                outfd.flush()
+                break
+
+            outfd.write(chunk)
+
+            wroteSize += len(chunk)
+            UtilMgr.printProgress(wroteSize, fileSize)
+
+        UtilMgr.deleteProgress()
+
+        outfileSize = long(os.fstat(outfd.fileno()).st_size)
+        outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+
+        SysMgr.printInfo(
+            "finished compressing %s[%s] to %s[%s]" % \
+                (infile, infileSizeStr, outfile, outfileSizeStr))
+
+
+
+    @staticmethod
+    def doDecompress():
+        SysMgr.printFd = None
+        SysMgr.setStream()
+        SysMgr.setDefaultSignal()
+
+        # check input #
+        if len(sys.argv) < 3:
+            SysMgr.printErr("no path for decompression")
+            sys.exit(0)
+
+        # set input file #
+        infile = sys.argv[2]
+
+        if not os.path.isfile(infile):
+            SysMgr.printErr("wrong path for decompression")
+            sys.exit(0)
+
+        # check output #
+        outfile = SysMgr.outPath
+        SysMgr.outPath = None
+        if outfile:
+            # check dir #
+            if os.path.isdir(outfile):
+                outfile = os.path.join(outfile, infile.rstrip('.gz'))
+        else:
+            if infile.endswith('.gz'):
+                outfile = infile.rstrip('.gz')
+            else:
+                outfile = infile + '.decomp'
+
+        # check final input and output path #
+        if infile == outfile:
+            SysMgr.printErr(
+                "both input and output are the same as '%s' " % infile)
+            sys.exit(0)
+
+        # check exist file #
+        if os.path.exists(outfile):
+            SysMgr.backupFile(outfile)
+
+        # 1MB chunk size #
+        chunkSize = 1 << 20
+
+        # get compressor #
+        compressor = SysMgr.getPkg('gzip')
+
+        # open input file #
+        infd = compressor.open(infile, 'rb')
+
+        # get total file size #
+        wroteSize = 0
+        fileSize = long(os.fstat(infd.fileno()).st_size)
+        infileSizeStr = UtilMgr.convSize2Unit(fileSize)
+
+        # open output file #
+        outfd = open(outfile, 'wb')
+
+        SysMgr.printInfo(
+            "start decompressing %s[%s] to %s" % \
+                (infile, infileSizeStr, outfile))
+
+        while 1:
+            chunk = infd.read(chunkSize)
+            if not chunk:
+                outfd.flush()
+                break
+
+            outfd.write(chunk)
+
+            wroteSize += len(chunk)
+            UtilMgr.printProgress(wroteSize, fileSize)
+
+        UtilMgr.deleteProgress()
+
+        outfileSize = long(os.fstat(outfd.fileno()).st_size)
+        outfileSizeStr = UtilMgr.convSize2Unit(outfileSize)
+
+        SysMgr.printInfo(
+            "finished decompressing %s[%s] to %s[%s]" % \
+                (infile, infileSizeStr, outfile, outfileSizeStr))
+
 
 
 
@@ -59229,7 +59527,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread Signal Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^6} {1:^16} {2:>10}({3:>6}) {4:^10} {5:>16}({6:>6})".\
+                "{0:^6} {1:^16} {2:>10}({3:>7}) {4:^10} {5:>16}({6:>6})".\
                 format('TYPE', 'TIME', 'SENDER',
                 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SysMgr.printPipe(twoLine)
@@ -59268,16 +59566,16 @@ class ThreadAnalyzer(object):
                         stid = long(0)
 
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16}({3:>6}) "
-                        "{4:^10} {5:>16}({6:>6})").\
+                        "{0:^6} {1:>10.6f} {2:>16}({3:>7}) "
+                        "{4:^10} {5:>16}({6:>7})").\
                         format(stype, stime, scomm, stid,
                         signal, rcomm, rtid))
 
                     cnt += 1
                 elif val[0] == 'RECV':
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16} {3:>6}  "
-                        "{4:^10} {5:>16}({6:>6})").\
+                        "{0:^6} {1:>10.6f} {2:>16} {3:>7}  "
+                        "{4:^10} {5:>16}({6:>7})").\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
 
                     cnt += 1
@@ -59360,7 +59658,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} {5:>10}".\
-                format('Event', 'Comm', 'Tid', 'Count',
+                format('Event', 'COMM', 'TID', 'Count',
                 'MaxPeriod', 'MinPeriod'))
             SysMgr.printPipe(twoLine)
 
@@ -59433,7 +59731,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe((
                 "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
-                format('Event', 'Comm', 'Tid', 'Usage', 'Count',
+                format('Event', 'COMM', 'TID', 'Usage', 'Count',
                 'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
             SysMgr.printPipe(twoLine)
 
@@ -59477,7 +59775,8 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
                 "{0:^32} {1:>6} {2:^10} {3:>16}({4:>6}) {5:^16} {6:>10}".\
-                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID', 'CALLER', 'ELAPSED'))
+                format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID',
+                    'CALLER', 'ELAPSED'))
             SysMgr.printPipe(twoLine)
 
             cnt = long(0)
@@ -59523,7 +59822,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe((
                 "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
-                format('Event', 'Comm', 'Tid', 'Usage', 'Count', 'ProcMax',
+                format('Event', 'COMM', 'TID', 'Usage', 'Count', 'ProcMax',
                 'ProcMin', 'InterMax', 'InterMin'))
             SysMgr.printPipe(twoLine)
 
@@ -59721,7 +60020,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe((
             "%16s(%6s/%6s)|%2s|%5s(%5s)|%5s|%6s|%3s|%5s|"
             "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|%4s(%3s/%3s/%3s)|%s|") % \
-            ('Name', 'Tid', 'Pid', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri',
+            ('Name', 'TID', 'PID', 'LF', 'Usage', '%', 'Prmt', 'Latc', 'Pri',
             'IRQ', 'Yld', ' Lose', 'Steal', 'Mig',
             'Read', 'MB', 'Cnt', 'Write', 'MB',
             'Sum', 'Usr', 'Buf', 'Ker', lastBField))
@@ -60084,7 +60383,7 @@ class ThreadAnalyzer(object):
                 totalDreclaimedCnt = '-'
 
             # set last field #
-            if len(SysMgr.savedProcComm) > 0:
+            if SysMgr.savedProcComm:
                 if key in SysMgr.savedProcComm:
                     lastField = "{0:>16}".format(
                         SysMgr.savedProcComm[key])
@@ -60101,33 +60400,40 @@ class ThreadAnalyzer(object):
 
             if value['new'] != ' ':
                 newCnt += 1
+                taskInfo = "%16s(%6s/%6s)" % \
+                    (value['comm'], key, value['ptid'])
                 newThreadString += (
-                    ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    ("%s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                     "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                     "%4s(%3s/%3s/%3s)|%s|\n") % \
-                    (value['comm'], key, value['ptid'], value['new'], value['die'],
+                    (taskInfo[:31], value['new'], value['die'],
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime,
                     yieldCnt, preemptedCnt, preemptionCnt, migrateCnt,
                     ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock,
                     usedMem, userMem, cacheMem, kernelMem, lastField))
+
             if value['die'] != ' ':
                 dieCnt += 1
+                taskInfo = "%16s(%6s/%6s)" % \
+                    (value['comm'], key, value['ptid'])
                 dieThreadString += (
-                    ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                    ("%s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                     "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                     "%4s(%3s/%3s/%3s)|%s|\n") % \
-                    (value['comm'], key, value['ptid'], value['new'], value['die'],
+                    (taskInfo[:31], value['new'], value['die'],
                     cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime,
                     yieldCnt, preemptedCnt, preemptionCnt, migrateCnt,
                     ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock,
                     usedMem, userMem, cacheMem, kernelMem, lastField))
 
             normCnt += 1
+            taskInfo = "%16s(%6s/%6s)" % \
+                (value['comm'], key, value['tgid'])
             normThreadString += (
-                ("%16s(%6s/%6s)|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
+                ("%s|%s%s|%5s(%5s)|%5s|%6s|%3s|%5s|"
                 "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                 "%4s(%3s/%3s/%3s)|%s|\n") % \
-                (value['comm'], key, value['tgid'], value['new'], value['die'],
+                (taskInfo[:31], value['new'], value['die'],
                 cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime,
                 yieldCnt, preemptedCnt, preemptionCnt, migrateCnt,
                 ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock,
@@ -60226,17 +60532,22 @@ class ThreadAnalyzer(object):
                 key=lambda e: e[1]['usage'], reverse=True):
 
                 count += 1
-                if float(self.preemptData[index][4]) == 0:
+                stats = self.preemptData[index]
+
+                if float(stats[4]) == 0:
                     break
+
                 SysMgr.addPrint("%16s(%6s/%6s)|%s%s|%5.2f(%5s)\n"
                     % (self.threadData[key]['comm'], key, '0',
                     self.threadData[key]['new'],
                     self.threadData[key]['die'], value['usage'],
-                    '%.2f' % (value['usage'] / self.preemptData[index][4] * 100)))
+                    '%.2f' % (value['usage'] / stats[4] * 100)))
+
             SysMgr.printPipe(
-                "# %s: Tid(%s) / Comm(%s) / Total(%6.3f) / Threads(%d)\n" % \
-                ('PRT', tid, self.threadData[tid]['comm'],
+                "# %s: Target> %s(%s) / Total> %6.3f / Competitors> %d\n" % \
+                ('PRT', self.threadData[tid]['comm'], tid,
                 self.preemptData[index][4], count))
+
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
 
@@ -60291,7 +60602,7 @@ class ThreadAnalyzer(object):
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint(
             "{3:>16} ({4:^6})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
-                format("Type", "Time", "Module", "Comm", "Tid",
+                format("Type", "Time", "Module", "Comm", "TID",
                     "Elapsed", "RefCnt"))
         SysMgr.addPrint('%s\n' % twoLine)
 
@@ -60412,7 +60723,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "\t%5s/%4s \t%16s(%6s) -> %16s(%6s) \t%5s" % \
-            ("Total", "Inter", "From", "Tid", "To", "Tid", "Event"))
+            ("Total", "Inter", "From", "TID", "To", "TID", "Event"))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "%s# %s: %d\n" % ('', 'Dep', len(self.depData)))
@@ -60439,9 +60750,9 @@ class ThreadAnalyzer(object):
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            '{0:>16}({1:>6}/{2:>6}) {3:>10} {4:>9} {5:>10} {6:>8} {7:>10} '
+            '{0:>16}({1:>7}/{2:>7}) {3:>9} {4:>9} {5:>9} {6:>8} {7:>10} '
             '{8:>10} {9:>10} {10:>8} {11:>8} {12:>10} {13:>8} {14:>10}').\
-            format('Name', 'Tid', 'Pid', 'Elapsed', 'Process', 'Block',
+            format('Name', 'TID', 'PID', 'Elapsed', 'Process', 'Block',
             'NrBlock', 'CallMax', 'Lock', 'LockMax', 'NrLock', 'NrWait',
             'LBlock', 'NrLBlock', 'LastStat'))
         SysMgr.printPipe(twoLine)
@@ -60508,7 +60819,7 @@ class ThreadAnalyzer(object):
                 ftxLSwitch = totalInfo['ftxLSwitch'] = '-'
 
             futexInfo = \
-                ('{0:>16}({1:>6}/{2:>6}) {3:>10} {4:>9} {5:>10} ' + \
+                ('{0:>16}({1:>7}/{2:>7}) {3:>9} {4:>9} {5:>9} ' + \
                 '{6:>8} {7:>10} {8:>10} {9:>10} {10:>8} ' + \
                 '{11:>8} {12:>10} {13:>8} {14:>10}').\
                 format(value['comm'], key, pid, ftxTotal, ftxProcess, ftxBlock,
@@ -60541,7 +60852,7 @@ class ThreadAnalyzer(object):
                 totalInfo['ftxLSwitch'] = convertNum(totalInfo['ftxLSwitch'])
 
             totalFutexInfo = \
-                ('{0:>31} {1:>10} {2:>9} {3:>10} ' \
+                ('{0:>33} {1:>9} {2:>9} {3:>9} ' \
                 '{4:>8} {5:>10} {6:>10} {7:>10} {8:>8} ' \
                 '{9:>8} {10:>10} {11:>8} {12:>10}').\
                 format('[ TOTAL ]',
@@ -60565,7 +60876,7 @@ class ThreadAnalyzer(object):
             '\n[Thread Futex Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:>12} {1:>16}{2:>15} {3:>4} {4:^24} " + \
+            "{0:>12} {1:>16}{2:>17} {3:>4} {4:^24} " + \
             "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
             format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",
              "Type", "Elapsed", "Target", "Value", "Timer"))
@@ -60619,7 +60930,7 @@ class ThreadAnalyzer(object):
                         pass
 
                 SysMgr.printPipe((
-                    "{0:>12} {1:>16}{2:>15} {3:>4} {4:<24} " + \
+                    "{0:>12} {1:>16}{2:>17} {3:>4} {4:<24} " + \
                     "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
                     format(time, comm, tid, core, value[3],
                     otype, elapsed, value[6], ret, value[8]))
@@ -60644,7 +60955,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             '{0:>16}({1:>6})\t{2:>12}\t{3:>12}\t{4:>10}\t{5:>10}'.format(
-            'Name', 'Tid', 'Wait', 'Lock', 'nrTryLock', 'nrLocked'))
+            'Name', 'TID', 'Wait', 'Lock', 'nrTryLock', 'nrLocked'))
         SysMgr.printPipe(twoLine)
 
         for key, value in sorted(self.threadData.items(),
@@ -60675,7 +60986,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:>16}({1:>6}) {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}"\
-            .format("Name", "Tid", "Time", "Core",
+            .format("Name", "TID", "Time", "Core",
             "Type", "Device", "Inode", "Context"))
         SysMgr.printPipe(twoLine)
 
@@ -60721,9 +61032,9 @@ class ThreadAnalyzer(object):
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            '{0:>16}({1:>6}) {2:>30}({3:>3}) {4:>12} {5:>12} '
+            '{0:>16}({1:>7}) {2:>30}({3:>3}) {4:>12} {5:>12} '
             '{6:>12} {7:>12} {8:>12} {9:>12}').format(
-            "Name", "Tid", "Syscall", "ID", "Elapsed", "Count",
+            "Name", "TID", "Syscall", "SID", "Elapsed", "Count",
             "Error", "Min", "Max", "Avg"))
         SysMgr.printPipe(twoLine)
 
@@ -60741,7 +61052,7 @@ class ThreadAnalyzer(object):
 
             try:
                 if len(value['syscallInfo']) > 0:
-                    threadInfo = "%16s(%6s)" % (value['comm'], key)
+                    threadInfo = "%16s(%7s)" % (value['comm'], key)
                 else:
                     continue
             except:
@@ -60809,7 +61120,7 @@ class ThreadAnalyzer(object):
         if outputCnt == 0:
             SysMgr.printPipe('\tNone\n%s' % oneLine)
         else:
-            totalStrInfo = "{0:>24}".format('[ TOTAL ]')
+            totalStrInfo = "{0:>25}".format('[ TOTAL ]')
             SysMgr.printPipe(totalStrInfo)
 
             # print total info #
@@ -60842,10 +61153,10 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Syscall History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:>10} {1:>16}({2:>6}) {3:>4} {4:>18} {5:>3} "
+            "{0:>10} {1:>16}({2:>7}) {3:>4} {4:>18} {5:>3} "
             "{6:>5} {7:>10} {8:>16} {9:<1}").format(
-            "Time", "Name", "Tid", "Core", "Syscall",
-            "Sid", "Type", "Elapsed", "Return", "Arguments"))
+            "Time", "Name", "TID", "Core", "Syscall",
+            "SID", "Type", "Elapsed", "Return", "Arguments"))
         SysMgr.printPipe(twoLine)
 
         # remove calls of unavailable threads #
@@ -60972,7 +61283,7 @@ class ThreadAnalyzer(object):
                     tid = comm = ''
                 else:
                     comm = self.threadData[nowData[2]]['comm']
-                    tid = '(%6s)' % nowData[2]
+                    tid = '(%7s)' % nowData[2]
 
                 if icount > 0 and prevData[3] == nowData[3]:
                     core = ''
@@ -60980,7 +61291,7 @@ class ThreadAnalyzer(object):
                     core = nowData[3]
 
                 SysMgr.printPipe(
-                    ("{0:>10} {1:>16}{2:>8} {3:>4} {4:>18} {5:>3} "
+                    ("{0:>10} {1:>16}{2:>9} {3:>4} {4:>18} {5:>3} "
                     "{6:>5} {7:>10} {8:>16} {9:<1}").\
                     format('%.6f' % eventTime, comm, tid,
                     core, syscall[4:], nowData[4],
@@ -61007,7 +61318,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "%16s %6s %4s %10s %30s" % \
-            ('Name', 'Tid', 'Core', 'Time', 'Console message'))
+            ('Name', 'TID', 'Core', 'Time', 'Console message'))
         SysMgr.printPipe(twoLine)
 
         startTime = float(SysMgr.startTime)
@@ -61185,7 +61496,7 @@ class ThreadAnalyzer(object):
     def printEventIntervalInfo(self):
         # timeline #
         timeLine = ''
-        titleLine = "%16s(%5s/%5s):" % ('Name', 'Tid', 'Pid')
+        titleLine = "%16s(%5s/%5s):" % ('Name', 'TID', 'PID')
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         intervalEnable = SysMgr.intervalEnable
@@ -61426,7 +61737,7 @@ class ThreadAnalyzer(object):
 
         # timeline #
         timeLine = ''
-        titleLine = "%16s(%6s/%6s):" % ('Name', 'Tid', 'Pid')
+        titleLine = "%16s(%6s/%6s):" % ('Name', 'TID', 'PID')
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
@@ -62245,23 +62556,14 @@ class ThreadAnalyzer(object):
     @staticmethod
     def readTraceData(file):
         try:
+            # not compressed data #
             if SysMgr.isRecordMode() or \
-                not SysMgr.compressEnable:
+                not UtilMgr.isCompressed(file):
                 with open(file, 'r') as fd:
                     return fd.readlines()
 
+            # compressed data #
             with open(file, 'rb') as fd:
-                # find magic number and command #
-                buf = b''
-                while 1:
-                    char = fd.read(1)
-                    if char == b'\n':
-                        break
-                    buf += char
-
-                if len(buf) < 4 or buf[:4] != b'gzip':
-                    raise Exception('it is not gziped')
-
                 compressor = SysMgr.getPkg('gzip')
                 fd = compressor.GzipFile(fileobj=fd)
 
@@ -63875,16 +64177,18 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % twoLine)
 
         if SysMgr.processEnable:
-            idName = 'PID'
+            idType = 'PID'
+            pidType = 'PPID'
         else:
-            idName = 'TID'
+            idType = 'TID'
+            pidType = 'PID'
 
         # Print menu #
         SysMgr.printPipe((
             "{0:^{cl}} ({1:^{pd}}/{2:^{pd}}) | {3:^8} | "
             "{4:^5} | {5:^6} | {6:^6} | {7:^6} | {8:^6} | {9:^6} | {10:^10} | "
             "{11:^12} | {12:^12} | {13:^12} |\n{14}\n").\
-            format('COMM', idName, 'Pid', 'Type', 'Cnt',
+            format('COMM', idType, pidType, 'Type', 'Cnt',
             'VSS/M', 'RSS/M', 'PSS/M', 'SWAP/M', 'HUGE/M', 'LOCK/K',
             'PDRT/K', 'SDRT/K', 'NOPM/K', twoLine, cl=cl, pd=pd))
 
@@ -63897,6 +64201,8 @@ class ThreadAnalyzer(object):
             sortedList = sorted(SysMgr.procInstance.items(),
                 key=lambda e: long(e[1]['stat'][statList.index("RSS")]),
                 reverse=True)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to get memory details because of sort error")
@@ -64060,16 +64366,20 @@ class ThreadAnalyzer(object):
 
             # check compression #
             try:
-                buf = fd.readline()
-                if buf.decode().startswith('gzip'):
-                    SysMgr.compressEnable = True
+                if UtilMgr.isCompressed(fd=fd):
                     compressor = SysMgr.getPkg('gzip')
                     fd = compressor.GzipFile(fileobj=fd)
                 else:
-                    SysMgr.compressEnable = False
-                    compressor = None
-                    fd.close()
-                    fd = None
+                    buf = fd.readline()
+                    if buf.decode().startswith('gzip'):
+                        SysMgr.compressEnable = True
+                        compressor = SysMgr.getPkg('gzip')
+                        fd = compressor.GzipFile(fileobj=fd)
+                    else:
+                        SysMgr.compressEnable = False
+                        compressor = None
+                        fd.close()
+                        fd = None
             except SystemExit:
                 sys.exit(0)
             except:
@@ -64815,6 +65125,7 @@ class ThreadAnalyzer(object):
             func = d['func']
         etc = d['etc']
         time = d['time']
+        ftime = float(time)
 
         SysMgr.logSize += len(string)
 
@@ -64825,7 +65136,7 @@ class ThreadAnalyzer(object):
             return time
         elif SysMgr.countEnable and \
             SysMgr.repeatCount * SysMgr.intervalEnable <= \
-                float(time) - float(SysMgr.startTime):
+                ftime - float(SysMgr.startTime):
             self.stopFlag = True
             return time
 
@@ -64880,21 +65191,21 @@ class ThreadAnalyzer(object):
                     # check CPU idle status #
                     if self.threadData[coreId]['lastStatus'] == 'R':
                         self.threadData[coreId]['usage'] += \
-                            float(time) - self.threadData[coreId]['start']
-                        self.threadData[coreId]['start'] = float(time)
+                            ftime - self.threadData[coreId]['start']
+                        self.threadData[coreId]['start'] = ftime
                         continue
 
                     # check status of thread running on this core #
                     if self.threadData[tid]['lastStatus'] != 'R':
                         continue
 
-                    usage = float(time) - float(self.threadData[tid]['start'])
-                    allTime = float(time) - float(SysMgr.startTime)
+                    usage = ftime - float(self.threadData[tid]['start'])
+                    allTime = ftime - float(SysMgr.startTime)
                     if usage > allTime:
                         usage = allTime
 
                     self.threadData[tid]['usage'] += usage
-                    self.threadData[tid]['start'] = float(time)
+                    self.threadData[tid]['start'] = ftime
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -64961,7 +65272,7 @@ class ThreadAnalyzer(object):
 
             # check CPU wakeup #
             if self.threadData[coreId]['lastOff'] > 0:
-                diff = float(time) - self.threadData[coreId]['lastOff']
+                diff = ftime - self.threadData[coreId]['lastOff']
                 self.threadData[coreId]['offTime'] += diff
                 self.threadData[coreId]['lastOff'] = long(0)
 
@@ -64993,11 +65304,11 @@ class ThreadAnalyzer(object):
             # check event loss #
             if self.threadData[prev_id]['lastStatus'] != 'R' and \
                 self.threadData[coreId]['coreSchedCnt'] > 0:
-                self.threadData[prev_id]['start'] = float(time)
+                self.threadData[prev_id]['start'] = ftime
 
             # write current time #
-            self.threadData[prev_id]['stop'] = float(time)
-            self.threadData[next_id]['start'] = float(time)
+            self.threadData[prev_id]['stop'] = ftime
+            self.threadData[next_id]['start'] = ftime
             self.threadData[next_id]['waitStartAsParent'] = float(0)
 
             # update priority of thread to highest one #
@@ -65018,9 +65329,9 @@ class ThreadAnalyzer(object):
                 else:
                     tstart = fstart
 
-                stime = float(time) - tstart
+                stime = ftime - tstart
                 self.threadData[prev_id]['ftxProcess'] += stime
-                self.threadData[prev_id]['ftxBlock'] = float(time)
+                self.threadData[prev_id]['ftxBlock'] = ftime
                 self.threadData[prev_id]['ftxBlockCnt'] += 1
 
                 opt = '{0:^24}'.format('BLOCK')
@@ -65032,7 +65343,7 @@ class ThreadAnalyzer(object):
             # save block time with lock by futex #
             try:
                 if len(self.threadData[prev_id]['futexObj']) > 0:
-                    self.threadData[prev_id]['ftxLBlock'] = float(time)
+                    self.threadData[prev_id]['ftxLBlock'] = ftime
                     self.threadData[prev_id]['ftxLSwitch'] += 1
 
                     # remove previous BLOCK enter event #
@@ -65052,7 +65363,7 @@ class ThreadAnalyzer(object):
             # update total block time with lock by futex #
             if self.threadData[next_id]['ftxLBlock'] > 0:
                 cstop = self.threadData[next_id]['ftxLBlock']
-                btime = float(time) - cstop
+                btime = ftime - cstop
                 self.threadData[next_id]['ftxLBlockTotal'] += btime
                 self.threadData[next_id]['ftxLBlock'] = long(0)
 
@@ -65070,7 +65381,7 @@ class ThreadAnalyzer(object):
             # save block time by futex #
             if self.threadData[next_id]['ftxBlock'] > 0:
                 cstop = self.threadData[next_id]['ftxBlock']
-                btime = float(time) - cstop
+                btime = ftime - cstop
                 self.threadData[next_id]['ftxBlockTotal'] += btime
                 self.threadData[next_id]['ftxBlock'] = long(0)
 
@@ -65087,7 +65398,7 @@ class ThreadAnalyzer(object):
                 ''' calculate running time of previous thread started
                     before starting to profile '''
                 if self.threadData[coreId]['coreSchedCnt'] == 0:
-                    diff = float(time) - float(SysMgr.startTime)
+                    diff = ftime - float(SysMgr.startTime)
                     self.threadData[prev_id]['usage'] = diff
                 # it is possible that log was loss #
                 else:
@@ -65160,7 +65471,7 @@ class ThreadAnalyzer(object):
                             self.preemptData[index][1][next_id] = \
                                 dict(self.init_preemptData)
 
-                        self.preemptData[index][2] = float(time)
+                        self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
             elif d['prev_state'][0] == 'S' or \
@@ -65187,9 +65498,9 @@ class ThreadAnalyzer(object):
                 # calculate sched latency of next thread #
                 if self.threadData[next_id]['schedReady'] > 0:
                     self.threadData[next_id]['schedLatency'] += \
-                        (float(time) - self.threadData[next_id]['schedReady'])
+                        (ftime - self.threadData[next_id]['schedReady'])
                     self.threadData[coreId]['schedLatency'] += \
-                        (float(time) - self.threadData[next_id]['schedReady'])
+                        (ftime - self.threadData[next_id]['schedReady'])
                     self.threadData[next_id]['schedReady'] = long(0)
             # set sched status of next thread #
             elif self.threadData[next_id]['lastStatus'] == 'P':
@@ -65242,7 +65553,7 @@ class ThreadAnalyzer(object):
 
             # save irq period per thread #
             if threadData['irqList'][irqId]['start'] > 0:
-                diff = float(time) - threadData['irqList'][irqId]['start']
+                diff = ftime - threadData['irqList'][irqId]['start']
                 if diff > threadData['irqList'][irqId]['maxPeriod'] or \
                     threadData['irqList'][irqId]['maxPeriod'] <= 0:
                     threadData['irqList'][irqId]['maxPeriod'] = diff
@@ -65252,7 +65563,7 @@ class ThreadAnalyzer(object):
 
             # save irq period #
             if self.irqData[irqId]['start'] > 0:
-                diff = float(time) - self.irqData[irqId]['start']
+                diff = ftime - self.irqData[irqId]['start']
                 if diff > self.irqData[irqId]['maxPeriod'] or \
                     self.irqData[irqId]['maxPeriod'] <= 0:
                     self.irqData[irqId]['maxPeriod'] = diff
@@ -65260,9 +65571,9 @@ class ThreadAnalyzer(object):
                     self.irqData[irqId]['minPeriod'] <= 0:
                     self.irqData[irqId]['minPeriod'] = diff
 
-            self.irqData[irqId]['start'] = float(time)
+            self.irqData[irqId]['start'] = ftime
             self.irqData[irqId]['count'] += 1
-            threadData['irqList'][irqId]['start'] = float(time)
+            threadData['irqList'][irqId]['start'] = ftime
             threadData['irqList'][irqId]['count'] += 1
 
         elif func == "irq_handler_exit":
@@ -65284,7 +65595,7 @@ class ThreadAnalyzer(object):
 
             if threadData['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
-                diff = float(time) - \
+                diff = ftime - \
                     threadData['irqList'][irqId]['start']
                 threadData['irqList'][irqId]['usage'] += diff
                 threadData['irq'] += diff
@@ -65305,7 +65616,7 @@ class ThreadAnalyzer(object):
                 threadData['irqList'][irqId]['start'] = long(0)
 
             if self.irqData[irqId]['start'] > 0:
-                diff = float(time) - self.irqData[irqId]['start']
+                diff = ftime - self.irqData[irqId]['start']
                 # save softirq period #
                 if diff > self.irqData[irqId]['max'] or \
                     self.irqData[irqId]['max'] <= 0:
@@ -65349,7 +65660,7 @@ class ThreadAnalyzer(object):
 
             # save softirq period per thread #
             if threadData['irqList'][irqId]['start'] > 0:
-                diff = float(time) - \
+                diff = ftime - \
                     threadData['irqList'][irqId]['start']
                 if diff > threadData['irqList'][irqId]['maxPeriod'] or \
                     threadData['irqList'][irqId]['maxPeriod'] <= 0:
@@ -65360,7 +65671,7 @@ class ThreadAnalyzer(object):
 
             # save softirq period #
             if self.irqData[irqId]['start'] > 0:
-                diff = float(time) - self.irqData[irqId]['start']
+                diff = ftime - self.irqData[irqId]['start']
                 if diff > self.irqData[irqId]['maxPeriod'] or \
                     self.irqData[irqId]['maxPeriod'] <= 0:
                     self.irqData[irqId]['maxPeriod'] = diff
@@ -65368,9 +65679,9 @@ class ThreadAnalyzer(object):
                     self.irqData[irqId]['minPeriod'] <= 0:
                     self.irqData[irqId]['minPeriod'] = diff
 
-            self.irqData[irqId]['start'] = float(time)
+            self.irqData[irqId]['start'] = ftime
             self.irqData[irqId]['count'] += 1
-            threadData['irqList'][irqId]['start'] = float(time)
+            threadData['irqList'][irqId]['start'] = ftime
             threadData['irqList'][irqId]['count'] += 1
 
         elif func == "softirq_exit":
@@ -65393,7 +65704,7 @@ class ThreadAnalyzer(object):
 
             if threadData['irqList'][irqId]['start'] > 0:
                 # save softirq usage #
-                diff = float(time) - \
+                diff = ftime - \
                     threadData['irqList'][irqId]['start']
                 threadData['irqList'][irqId]['usage'] += diff
                 threadData['irq'] += diff
@@ -65414,7 +65725,7 @@ class ThreadAnalyzer(object):
                 threadData['irqList'][irqId]['start'] = long(0)
 
             if self.irqData[irqId]['start'] > 0:
-                diff = float(time) - self.irqData[irqId]['start']
+                diff = ftime - self.irqData[irqId]['start']
                 # save softirq period #
                 if diff > self.irqData[irqId]['max'] or \
                     self.irqData[irqId]['max'] <= 0:
@@ -65689,11 +66000,11 @@ class ThreadAnalyzer(object):
 
             self.threadData.setdefault(pid, dict(self.init_threadData))
             self.threadData[pid]['comm'] = target_comm
-            self.threadData[pid]['schedReady'] = float(time)
+            self.threadData[pid]['schedReady'] = ftime
 
             if self.wakeupData['tid'] == '0':
                 self.wakeupData['time'] = \
-                    float(time) - float(SysMgr.startTime)
+                    ftime - float(SysMgr.startTime)
             elif thread[0] == '0' or pid == '0':
                 return time
             elif self.wakeupData['valid'] > 0 and \
@@ -65711,7 +66022,7 @@ class ThreadAnalyzer(object):
                     kicker = threadData['comm']
                     kicker_pid = thread
 
-                ntime = round(float(time) - \
+                ntime = round(ftime - \
                     float(SysMgr.startTime), 7)
                 self.depData.append(
                     "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s" % \
@@ -65719,7 +66030,7 @@ class ThreadAnalyzer(object):
                     kicker, kicker_pid, target_comm, pid, "kick"))
 
                 self.wakeupData['time'] = \
-                    float(time) - float(SysMgr.startTime)
+                    ftime - float(SysMgr.startTime)
                 self.wakeupData['from'] = self.wakeupData['tid']
                 self.wakeupData['to'] = pid
 
@@ -65796,7 +66107,7 @@ class ThreadAnalyzer(object):
                     else:
                         td['ftxStat'] = '?'
 
-                    td['ftxEnter'] = float(time)
+                    td['ftxEnter'] = ftime
                     otype = '{0:<10}'.format('ENT')
                     self.futexData.append(
                         [thread, time, core, op, otype, '',
@@ -65804,7 +66115,7 @@ class ThreadAnalyzer(object):
 
             if self.wakeupData['tid'] == '0':
                 self.wakeupData['time'] = \
-                    float(time) - float(SysMgr.startTime)
+                    ftime - float(SysMgr.startTime)
 
             # write syscall #
             if nr == ConfigMgr.sysList.index("sys_write"):
@@ -65837,7 +66148,7 @@ class ThreadAnalyzer(object):
             threadData['nrSyscall'] += 1
             threadData['lastNrSyscall'] = nr
             threadData['syscallInfo'][nrstr]['count'] += 1
-            threadData['syscallInfo'][nrstr]['last'] = float(time)
+            threadData['syscallInfo'][nrstr]['last'] = ftime
 
             # save syscall history #
             if len(SysMgr.syscallList) > 0:
@@ -65883,7 +66194,7 @@ class ThreadAnalyzer(object):
                 # futex call status #
                 if lockEnter > 0:
                     # elasped time #
-                    futexTime = float(time) - lockEnter
+                    futexTime = ftime - lockEnter
 
                     if futexTime > td['ftxMax']:
                         td['ftxMax'] = futexTime
@@ -65893,10 +66204,10 @@ class ThreadAnalyzer(object):
 
                     # update CPU time by futex #
                     if td['start'] > lockEnter:
-                        ctime = float(time) - td['start']
+                        ctime = ftime - td['start']
                         td['ftxProcess'] += ctime
                     elif td['ftxBlock'] == 0 and td['ftxLBlock'] == 0:
-                        ctime = float(time) - lockEnter
+                        ctime = ftime - lockEnter
                         td['ftxProcess'] += ctime
 
                     # handle lock object #
@@ -65912,10 +66223,10 @@ class ThreadAnalyzer(object):
                         if lockStat == 'L':
                             # register lock object #
                             try:
-                                td['futexObj'][candObj] = float(time)
+                                td['futexObj'][candObj] = ftime
                             except:
                                 td['futexObj'] = {}
-                                td['futexObj'][candObj] = float(time)
+                                td['futexObj'][candObj] = ftime
                         # unlock context #
                         elif lockStat == 'U':
                             # remove lock object #
@@ -65927,7 +66238,7 @@ class ThreadAnalyzer(object):
 
                             # calculate lock time #
                             if lockStart > 0:
-                                ltime = float(time) - lockStart
+                                ltime = ftime - lockStart
                                 td['ftxLock'] += ltime
                                 if td['ftxLockMax'] < ltime:
                                     td['ftxLockMax'] = ltime
@@ -65964,7 +66275,7 @@ class ThreadAnalyzer(object):
                         self.lastJob[core]['job'] == "sched_wakeup" or \
                         self.lastJob[core]['job'] == "sched_wakeup_new") and \
                         self.lastJob[core]['prevWakeupTid'] != thread:
-                        ttime = float(time) - float(SysMgr.startTime)
+                        ttime = ftime - float(SysMgr.startTime)
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
@@ -65972,7 +66283,7 @@ class ThreadAnalyzer(object):
                             threadData['comm'], thread, "wakeup"))
 
                         self.wakeupData['time'] = \
-                            float(time) - float(SysMgr.startTime)
+                            ftime - float(SysMgr.startTime)
                         self.lastJob[core]['prevWakeupTid'] = thread
                 elif (SysMgr.arch == 'arm' and \
                     nr == ConfigMgr.sysList.index("sys_recv")) or \
@@ -65980,7 +66291,7 @@ class ThreadAnalyzer(object):
                     nr == ConfigMgr.sysList.index("sys_recvmsg") or \
                     nr == ConfigMgr.sysList.index("sys_recvmmsg"):
                     if self.lastJob[core]['prevWakeupTid'] != thread:
-                        ttime = float(time) - float(SysMgr.startTime)
+                        ttime = ftime - float(SysMgr.startTime)
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
@@ -65988,7 +66299,7 @@ class ThreadAnalyzer(object):
                             threadData['comm'], thread, "recv"))
 
                         self.wakeupData['time'] = \
-                            float(time) - float(SysMgr.startTime)
+                            ftime - float(SysMgr.startTime)
                         self.lastJob[core]['prevWakeupTid'] = thread
             except SystemExit:
                 sys.exit(0)
@@ -66010,7 +66321,7 @@ class ThreadAnalyzer(object):
             diff = ''
             sysItem = threadData['syscallInfo'][nrstr]
             if sysItem['last'] > 0:
-                diff = float(time) - sysItem['last']
+                diff = ftime - sysItem['last']
                 threadData['syscallInfo'][nrstr]['usage'] += diff
                 threadData['syscallInfo'][nrstr]['last'] = long(0)
 
@@ -66049,7 +66360,7 @@ class ThreadAnalyzer(object):
             sig = d['sig']
             target_comm = d['comm']
             pid = d['pid']
-            ttime = float(time) - float(SysMgr.startTime)
+            ttime = ftime - float(SysMgr.startTime)
 
             self.depData.append(
                 "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s(%s)" % \
@@ -66068,7 +66379,7 @@ class ThreadAnalyzer(object):
                     if self.threadData[pid]['waitStartAsParent'] > 0:
                         if self.threadData[pid]['waitPid'] == 0 or \
                             self.threadData[pid]['waitPid'] == long(thread):
-                            diff = float(time) - \
+                            diff = ftime - \
                                 self.threadData[pid]['waitStartAsParent']
                             threadData['waitParent'] = diff
                             self.threadData[pid]['waitChild'] += diff
@@ -66091,7 +66402,7 @@ class ThreadAnalyzer(object):
             sig = d['sig']
             flags = d['flags']
 
-            ttime = float(time) - float(SysMgr.startTime)
+            ttime = ftime - float(SysMgr.startTime)
             itime = ttime - float(self.wakeupData['time'])
             self.depData.append(
                 "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s(%s)" % \
@@ -66124,7 +66435,7 @@ class ThreadAnalyzer(object):
             if func == "block_bio_queue" and bio in self.ioData:
                 return time
 
-            self.ioData[bio] = {'thread': thread, 'time': float(time),
+            self.ioData[bio] = {'thread': thread, 'time': ftime,
                 'major': d['major'], 'minor': d['minor'],
                 'address': long(d['address']), 'size': long(d['size'])}
 
@@ -66140,7 +66451,7 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]['readBlockCnt'] += 1
 
                 if threadData['readStart'] == 0:
-                    threadData['readStart'] = float(time)
+                    threadData['readStart'] = ftime
             # synchronous write operation #
             elif opt == 'WS':
                 threadData['reqWrBlock'] += long(d['size'])
@@ -66150,7 +66461,7 @@ class ThreadAnalyzer(object):
                 self.threadData[coreId]['writeBlockCnt'] += 1
 
                 if threadData['writeStart'] == 0:
-                    threadData['writeStart'] = float(time)
+                    threadData['writeStart'] = ftime
 
         elif func == "block_rq_complete":
             m = re.match((
@@ -66265,7 +66576,7 @@ class ThreadAnalyzer(object):
                     """
                     if self.threadData[reqThd]['readStart'] > 0:
                         waitTime = \
-                            float(time) - \
+                            ftime - \
                             self.threadData[reqThd]['readStart']
                         self.threadData[coreId]['ioRdWait'] += waitTime
                         self.threadData[reqThd]['ioRdWait'] += waitTime
@@ -66288,7 +66599,7 @@ class ThreadAnalyzer(object):
                     """
                     if self.threadData[reqThd]['writeStart'] > 0:
                         waitTime = \
-                            float(time) - \
+                            ftime - \
                             self.threadData[reqThd]['writeStart']
                         self.threadData[coreId]['ioWrWait'] += waitTime
                         self.threadData[reqThd]['ioWrWait'] += waitTime
@@ -66344,7 +66655,7 @@ class ThreadAnalyzer(object):
                 self.reclaimData[thread] = {'start': float(0)}
 
             if self.reclaimData[thread]['start'] <= 0:
-                self.reclaimData[thread]['start'] = float(time)
+                self.reclaimData[thread]['start'] = ftime
 
             threadData['reclaimCnt'] += 1
 
@@ -66354,12 +66665,12 @@ class ThreadAnalyzer(object):
                 self.threadData[key]['comm'] = comm
 
                 self.threadData[key]['reclaimWait'] += \
-                    float(time) - float(value['start'])
+                    ftime - float(value['start'])
                 self.reclaimData.pop(key, None)
 
         elif func == "mm_vmscan_direct_reclaim_begin":
             if threadData['dReclaimStart'] <= 0:
-                threadData['dReclaimStart'] = float(time)
+                threadData['dReclaimStart'] = ftime
 
             threadData['dReclaimCnt'] += 1
             self.threadData[coreId]['dReclaimCnt'] += 1
@@ -66374,9 +66685,9 @@ class ThreadAnalyzer(object):
 
             if threadData['dReclaimStart'] > 0:
                 threadData['dReclaimWait'] += \
-                    float(time) - threadData['dReclaimStart']
+                    ftime - threadData['dReclaimStart']
                 self.threadData[coreId]['dReclaimWait'] += \
-                    float(time) - threadData['dReclaimStart']
+                    ftime - threadData['dReclaimStart']
 
             threadData['dReclaimStart'] = long(0)
 
@@ -66400,7 +66711,7 @@ class ThreadAnalyzer(object):
                 self.threadData[pid]['comm'] = d['comm']
                 self.threadData[pid]['ptid'] = thread
                 self.threadData[pid]['new'] = 'N'
-                self.threadData[pid]['createdTime'] = float(time)
+                self.threadData[pid]['createdTime'] = ftime
 
                 if not threadData['childList']:
                     threadData['childList'] = list()
@@ -66432,7 +66743,7 @@ class ThreadAnalyzer(object):
                 self.threadData[cpid]['comm'] = ccomm
                 self.threadData[cpid]['ptid'] = thread
                 self.threadData[cpid]['new'] = 'N'
-                self.threadData[cpid]['createdTime'] = float(time)
+                self.threadData[cpid]['createdTime'] = ftime
 
                 if not threadData['childList']:
                     threadData['childList'] = list()
@@ -66484,7 +66795,7 @@ class ThreadAnalyzer(object):
                 try:
                     if self.lockTable[fid]['owner'] == thread:
                         threadData['lockTime'] += \
-                            float(time) - self.lockTable[fid]['time']
+                            ftime - self.lockTable[fid]['time']
                         threadData['lockCnt'] += 1
                 except:
                     self.lockTable[fid] = {}
@@ -66502,15 +66813,15 @@ class ThreadAnalyzer(object):
                     # get lock #
                     if not self.lockTable[fid]['owner']:
                         self.lockTable[fid]['owner'] = thread
-                        self.lockTable[fid]['time'] = float(time)
+                        self.lockTable[fid]['time'] = ftime
                         self.lockTable[fid]['type'] = ltype
-                        threadData['lastLockTime'] = float(time)
+                        threadData['lastLockTime'] = ftime
 
                         # add wait time to get lock #
                         if threadData['lastLockWait'] > 0:
                             llw = threadData['lastLockWait']
                             threadData['lockWait'] += \
-                                float(time) - llw
+                                ftime - llw
 
                             threadData['lastLockWait'] = long(0)
                     # wait lock #
@@ -66519,16 +66830,16 @@ class ThreadAnalyzer(object):
                         if threadData['lastLockWait'] > 0:
                             llw = threadData['lastLockWait']
                             threadData['lockWait'] += \
-                                float(time) - llw
+                                ftime - llw
 
-                        threadData['lastLockWait'] = float(time)
+                        threadData['lastLockWait'] = ftime
                 except:
                     # no lock #
                     self.lockTable[fid] = {}
                     self.lockTable[fid]['owner'] = thread
-                    self.lockTable[fid]['time'] = float(time)
+                    self.lockTable[fid]['time'] = ftime
                     self.lockTable[fid]['type'] = ltype
-                    threadData['lastLockTime'] = float(time)
+                    threadData['lastLockTime'] = ftime
 
         elif func == "sched_process_exit":
             m = re.match(r'^\s*comm=(?P<comm>.*)\s+pid=(?P<pid>[0-9]+)', etc)
@@ -66558,7 +66869,7 @@ class ThreadAnalyzer(object):
 
             d = m.groupdict()
 
-            threadData['waitStartAsParent'] = float(time)
+            threadData['waitStartAsParent'] = ftime
             threadData['waitPid'] = long(d['pid'])
 
         elif func == "suspend_resume":
@@ -66662,16 +66973,16 @@ class ThreadAnalyzer(object):
             if self.threadData[tid]['coreSchedCnt'] == 0 and \
                 self.threadData[tid]['offTime'] == 0:
                 self.threadData[tid]['offTime'] = \
-                    float(time) - float(SysMgr.startTime)
+                    ftime - float(SysMgr.startTime)
 
             # Wake core up, but the number 3 as this condition is not certain #
             if long(d['state']) < 3:
                 self.threadData[tid]['offCnt'] += 1
-                self.threadData[tid]['lastOff'] = float(time)
+                self.threadData[tid]['lastOff'] = ftime
             # Start to sleep #
             elif self.threadData[tid]['lastOff'] > 0:
                 self.threadData[tid]['offTime'] += \
-                    (float(time) - self.threadData[tid]['lastOff'])
+                    (ftime - self.threadData[tid]['lastOff'])
                 self.threadData[tid]['lastOff'] = float(0)
 
         elif func == "cpu_frequency":
@@ -66730,7 +67041,7 @@ class ThreadAnalyzer(object):
         # custom event #
         if any([True for event in SysMgr.customEventList if func.startswith(event)]):
             # add data into list #
-            ntime = float(time) - float(SysMgr.startTime)
+            ntime = ftime - float(SysMgr.startTime)
             self.customEventData.append(
                 [func, comm, thread, ntime, etc.strip()])
 
@@ -66752,7 +67063,7 @@ class ThreadAnalyzer(object):
             # get interval #
             interDiff = long(0)
             if eventObj['start'] > 0:
-                interDiff = float(time) - eventObj['start']
+                interDiff = ftime - eventObj['start']
 
             # update period of thread #
             if interDiff > eventObj['maxPeriod'] or \
@@ -66769,7 +67080,7 @@ class ThreadAnalyzer(object):
                 self.customEventInfo[func]['minPeriod'] == 0:
                 self.customEventInfo[func]['minPeriod'] = interDiff
 
-            threadData['customEvent'][func]['start'] = float(time)
+            threadData['customEvent'][func]['start'] = ftime
 
             handleSpecialEvents = True
 
@@ -66795,17 +67106,17 @@ class ThreadAnalyzer(object):
 
             if func == '%s_enter' % name:
                 # add data into list #
-                ntime = float(time) - float(SysMgr.startTime)
+                ntime = ftime - float(SysMgr.startTime)
                 self.userEventData.append(
                     ['ENTER', name, comm, thread, ntime, ''])
 
                 # get interval #
                 interDiff = long(0)
                 if eventObj['start'] > 0:
-                    interDiff = float(time) - eventObj['start']
+                    interDiff = ftime - eventObj['start']
 
                 threadData['userEvent'][name]['count'] += 1
-                threadData['userEvent'][name]['start'] = float(time)
+                threadData['userEvent'][name]['start'] = ftime
 
                 # update period of thread #
                 if interDiff > eventObj['maxPeriod'] or \
@@ -66827,7 +67138,7 @@ class ThreadAnalyzer(object):
 
             elif func == '%s_exit' % name:
                 # add data into list #
-                ntime = float(time) - float(SysMgr.startTime)
+                ntime = ftime - float(SysMgr.startTime)
                 self.userEventData.append(
                     ['EXIT', name, comm, thread, ntime,
                     etc[etc.find('(')+1:etc.rfind('<-')]])
@@ -66835,7 +67146,7 @@ class ThreadAnalyzer(object):
                 # get usage #
                 usage = long(0)
                 if eventObj['start'] > 0:
-                    usage = float(time) - eventObj['start']
+                    usage = ftime - eventObj['start']
                     threadData['userEvent'][name]['usage'] += usage
                     self.userEventInfo[name]['usage'] += usage
 
@@ -66871,7 +67182,7 @@ class ThreadAnalyzer(object):
 
             if func == '%s_enter' % name:
                 # add data into list #
-                ntime = float(time) - float(SysMgr.startTime)
+                ntime = ftime - float(SysMgr.startTime)
 
                 isSaved = True
                 m = re.match(
@@ -66898,10 +67209,10 @@ class ThreadAnalyzer(object):
                 # get interval #
                 interDiff = long(0)
                 if eventObj['start'] > 0:
-                    interDiff = float(time) - eventObj['start']
+                    interDiff = ftime - eventObj['start']
 
                 threadData['kernelEvent'][name]['count'] += 1
-                threadData['kernelEvent'][name]['start'] = float(time)
+                threadData['kernelEvent'][name]['start'] = ftime
 
                 # update period of thread #
                 if interDiff > eventObj['maxPeriod'] or \
@@ -66923,7 +67234,7 @@ class ThreadAnalyzer(object):
 
             elif func == '%s_exit' % name:
                 # add data into list #
-                ntime = float(time) - float(SysMgr.startTime)
+                ntime = ftime - float(SysMgr.startTime)
 
                 isSaved = True
                 m = re.match((
@@ -66955,7 +67266,7 @@ class ThreadAnalyzer(object):
                 if eventObj['start'] <= 0:
                     continue
 
-                usage = float(time) - eventObj['start']
+                usage = ftime - eventObj['start']
                 threadData['kernelEvent'][name]['usage'] += usage
                 self.kernelEventInfo[name]['usage'] += usage
 
@@ -67026,7 +67337,7 @@ class ThreadAnalyzer(object):
 
         SysMgr.addPrint("%s\n" % twoLine + \
             ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
-            format("Process", "ID", "Pid", "Nr", "Pri", "FD", "Path", oneLine),
+            format("Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
             newline = 3)
 
         # set sort value #
