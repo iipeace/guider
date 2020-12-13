@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201211"
+__revision__ = "201213"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3645,8 +3645,85 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convList2Histogram(items):
-        pass
+    def printHist(table, title, unit):
+        if not table:
+            return
+
+        convNum = UtilMgr.convNum
+
+        # pop stats #
+        statmin = table.pop('min', None)
+        statmax = table.pop('max', None)
+        statcnt = table.pop('cnt', None)
+
+        SysMgr.printPipe(
+            '\n[%s Histogram] (unit:%s)\n%s' % (title, unit, twoLine))
+        SysMgr.printPipe('{0:^21}   {1:^17}'.format('Range', 'Count'))
+        SysMgr.printPipe(oneLine)
+
+        for digit, cnt in sorted(table.items()):
+            srange = long(pow(2, digit-1))
+
+            if srange == 0:
+                erange = 1
+            else:
+                erange = long((srange<<1)-1)
+
+            SysMgr.printPipe(
+                '{0:10}-{1:>10}   {2:>10}({3:5.1f}%)'.format(
+                    convNum(srange), convNum(erange), convNum(cnt),
+                    cnt/float(statcnt)*100))
+
+        SysMgr.printPipe(oneLine)
+        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Min', convNum(statmin)))
+        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Max', convNum(statmax)))
+        SysMgr.printPipe('{0:^21}   {1:>17}'.format('Cnt', convNum(statcnt)))
+        SysMgr.printPipe(oneLine)
+
+
+
+    @staticmethod
+    def convList2Histo(items, dtype='float', mult=1):
+        def getRangeIdx(value):
+            if value <= 1:
+                return 0
+
+            digit = 0
+            while 1:
+                digit += 1
+                value = value >> 1
+                if value == 0:
+                    return digit
+
+        if not items:
+            return None
+
+        # convert type #
+        if dtype == 'float':
+            if type(items[0]) != float:
+                items = list(map(float, items))
+        elif dtype == 'long':
+            if type(items[0]) != long:
+                items = list(map(long, items))
+        else:
+            return None
+
+        # convert unit #
+        items = list(map(lambda x: long(x * mult), items))
+
+        # get stats #
+        histDict = {
+            'max': max(items),
+            'min': min(items),
+            'cnt': len(items)
+        }
+
+        for value in items:
+            digit = getRangeIdx(value)
+            histDict.setdefault(digit, 0)
+            histDict[digit] += 1
+
+        return histDict
 
 
 
@@ -22711,12 +22788,6 @@ Copyright:
             # save system info #
             SysMgr.sysInstance.saveSysStat()
 
-            # compress by gzip #
-            if SysMgr.compressEnable:
-                compressor = SysMgr.getPkg('gzip', False)
-            else:
-                compressor = None
-
             # read trace data #
             try:
                 rpath = os.path.join(SysMgr.mountPath, '../trace')
@@ -24002,8 +24073,9 @@ Copyright:
                 # apply for compression to the file #
                 if SysMgr.compressEnable:
                     compressor = SysMgr.getPkg('gzip', False)
-                    SysMgr.printFd = compressor.GzipFile(
-                        fileobj=SysMgr.printFd)
+                    if compressor:
+                        SysMgr.printFd = compressor.GzipFile(
+                            fileobj=SysMgr.printFd)
 
                 # print file name #
                 if SysMgr.outPath:
@@ -47064,10 +47136,10 @@ struct cmsghdr {
 
             args = []
 
+            self.syscallTime[name] = self.current
+
             # convert args except for top mode #
-            if self.isRealtime:
-                self.syscallTime[name] = self.current
-            else:
+            if not self.isRealtime:
                 if self.isDeferrableCall(name):
                     self.status = 'deferrable'
 
@@ -47101,14 +47173,14 @@ struct cmsghdr {
             # set next status #
             self.status = 'enter'
 
+            # get diff #
+            try:
+                diff = self.current - self.syscallTime[name]
+            except:
+                diff = long(0)
+
             # get diff time #
             if self.isRealtime:
-                # get diff #
-                try:
-                    diff = self.current - self.syscallTime[name]
-                except:
-                    diff = long(0)
-
                 # apply diff #
                 try:
                     ttotal, tmax = self.syscallStat[name]
@@ -47186,10 +47258,10 @@ struct cmsghdr {
 
             # convert error color #
             if err:
-                err = UtilMgr.convColor(err, 'RED')
+                err = ' ' + UtilMgr.convColor(err, 'RED')
 
             # build call string #
-            callString = '= %s %s' % (retval, err)
+            callString = '= %s%s [%.6f]' % (retval, err, diff)
 
             if SysMgr.outPath:
                 if SysMgr.showAll and len(self.callPrint) > 0:
@@ -48393,6 +48465,7 @@ struct cmsghdr {
 
         callTable = dict()
         fileTable = dict()
+        elapsedTable = list()
 
         # define stop flag #
         needStop = False
@@ -48560,6 +48633,8 @@ struct cmsghdr {
                         (addVal, val['elapsed'], val['elapsed'] / val['cnt'],
                             val['min'], val['max'])
 
+                    elapsedTable.append(val['elapsed'])
+
                 addVal = '%s>' % addVal
             else:
                 addVal = '[%s]' % value['path']
@@ -48575,7 +48650,13 @@ struct cmsghdr {
 
         SysMgr.printPipe('%s%s' % (oneLine, suffix))
 
-        if len(fileTable) > 0:
+        if elapsedTable:
+            # print histo stats for elapsed time #
+            elapsedTable = UtilMgr.convList2Histo(
+                elapsedTable, mult=1000000)
+            UtilMgr.printHist(elapsedTable, 'elapsed', 'us')
+
+        if fileTable:
             # print file table #
             SysMgr.printPipe((
                 '\n[%s File Summary] [Elapsed: %.3f]%s%s '
@@ -60551,6 +60632,24 @@ class ThreadAnalyzer(object):
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
 
+        # print histo stats for runtime #
+        if 'runtime' in self.statData:
+            runtimeStats = UtilMgr.convList2Histo(
+                self.statData['runtime'], mult=1000000)
+            UtilMgr.printHist(runtimeStats, 'sched_runtime', 'us')
+
+        # print histo stats for preemption #
+        if 'prttime' in self.statData:
+            prttimeStats = UtilMgr.convList2Histo(
+                self.statData['prttime'], mult=1000000)
+            UtilMgr.printHist(prttimeStats, 'sched_preempted', 'us')
+
+        # print latency stats for preemption #
+        if 'schedlat' in self.statData:
+            latStats = UtilMgr.convList2Histo(
+                self.statData['schedlat'], mult=1000000)
+            UtilMgr.printHist(latStats, 'sched_latency', 'us')
+
         # prepare to draw graph #
         if not SysMgr.isRecordMode() and SysMgr.graphEnable:
             # check interval value #
@@ -64370,22 +64469,17 @@ class ThreadAnalyzer(object):
                     compressor = SysMgr.getPkg('gzip')
                     fd = compressor.GzipFile(fileobj=fd)
                 else:
-                    buf = fd.readline()
-                    if buf.decode().startswith('gzip'):
-                        SysMgr.compressEnable = True
-                        compressor = SysMgr.getPkg('gzip')
-                        fd = compressor.GzipFile(fileobj=fd)
-                    else:
-                        SysMgr.compressEnable = False
-                        compressor = None
-                        fd.close()
-                        fd = None
+                    SysMgr.compressEnable = False
+                    compressor = None
+                    fd.close()
+                    fd = None
             except SystemExit:
                 sys.exit(0)
             except:
+                SysMgr.compressEnable = False
                 compressor = None
                 SysMgr.printErr(
-                    "fail to check compression for %s" % fname, True)
+                    "fail to decompress for %s" % fname, True)
 
         while 1:
             start = end = -1
@@ -65013,6 +65107,7 @@ class ThreadAnalyzer(object):
         self.suspendData = []
         self.markData = []
         self.consoleData = []
+        self.statData = {}
 
         self.customEventInfo = {}
         self.userEventInfo = {}
@@ -65416,6 +65511,11 @@ class ThreadAnalyzer(object):
                         "usage time of %s(%s) is negative(%f) at line %d" % \
                         (prev_comm, prev_id, diff, SysMgr.curLine))
 
+            # add runtime to list for histogram #
+            if not prev_id.startswith('0['):
+                self.statData.setdefault('runtime', list())
+                self.statData['runtime'].append(diff)
+
             if diff > long(SysMgr.intervalEnable):
                 self.threadData[prev_id]['longRunCore'] = long(core)
 
@@ -65490,18 +65590,21 @@ class ThreadAnalyzer(object):
                 self.threadData[prev_id]['stop'] = long(0)
                 self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
 
+            # calculate sched latency of next thread #
+            if not next_id.startswith('0[') and \
+                self.threadData[next_id]['schedReady'] > 0:
+                schedLat = ftime - self.threadData[next_id]['schedReady']
+                self.threadData[next_id]['schedLatency'] += schedLat
+                self.threadData[coreId]['schedLatency'] += schedLat
+                self.threadData[next_id]['schedReady'] = long(0)
+
+                self.statData.setdefault('schedlat', list())
+                self.statData['schedlat'].append(schedLat)
+
             # calculate preempted time of next thread #
             if self.threadData[next_id]['stop'] == 0:
                 # no stop time of next thread because of some reasons #
-                self.threadData[next_id]['stop'] = long(0)
-
-                # calculate sched latency of next thread #
-                if self.threadData[next_id]['schedReady'] > 0:
-                    self.threadData[next_id]['schedLatency'] += \
-                        (ftime - self.threadData[next_id]['schedReady'])
-                    self.threadData[coreId]['schedLatency'] += \
-                        (ftime - self.threadData[next_id]['schedReady'])
-                    self.threadData[next_id]['schedReady'] = long(0)
+                pass
             # set sched status of next thread #
             elif self.threadData[next_id]['lastStatus'] == 'P':
                 preemptedTime = \
@@ -65523,6 +65626,11 @@ class ThreadAnalyzer(object):
                     self.preemptData[nextIdx][0] = False
                 except:
                     pass
+
+                # add preempted time to list for histogram #
+                if not next_id.startswith('0['):
+                    self.statData.setdefault('prttime', list())
+                    self.statData['prttime'].append(preemptedTime)
 
             self.threadData[next_id]['lastStatus'] = 'R'
 
