@@ -115,6 +115,7 @@ class ImplAnalyzer(object):
         parser.add_argument('--exceptpath', required=False, help='path for exception')
         parser.add_argument('--exceptapi', required=False, help='API for exception')
         parser.add_argument('--out', required=False, help='path for output')
+        parser.add_argument('--depth', required=False, help='depth for namespace')
         parser.add_argument('--filter', required=False, help='filter')
         parser.add_argument('--verbose', required=False, help='verbose')
         parser.add_argument('--config', required=False, help='path for config')
@@ -167,6 +168,16 @@ class ImplAnalyzer(object):
         else:
             out = None
 
+        # depth #
+        if args.depth:
+            if not args.depth.isdigit():
+                SysMgr.printErr('wrong depth type')
+                sys.exit(0)
+
+            depth = ImplAnalyzer.summaryNmDepth = long(args.depth)
+        else:
+            depth = 0
+
         # config #
         if args.config:
             configlist = args.config.split(',')
@@ -196,6 +207,7 @@ class ImplAnalyzer(object):
             'filters': filters,
             'configlist': configlist,
             'out': out,
+            'depth': depth,
             'verbose': verbose,
         })
 
@@ -232,7 +244,7 @@ class ImplAnalyzer(object):
             sys.exit(0)
         except:
             ImplAnalyzer.exceptHeaderList[filename] = True
-            SysMgr.printErr('Fail to parse %s' % filename, reason=True)
+            SysMgr.printErr('fail to parse %s' % filename, reason=True)
             return None
 
         '''
@@ -757,7 +769,7 @@ class ImplAnalyzer(object):
                 items = UtilMgr.convPath(header)
                 for header in items:
                     if os.path.isdir(header):
-                        tmplist = SysMgr.getFileList(header.strip())
+                        tmplist = UtilMgr.getFileList(header.strip())
                         tmplist = ImplAnalyzer.filterFileList(tmplist)
                         hfiles += tmplist
                     elif os.path.isfile(header):
@@ -790,7 +802,7 @@ class ImplAnalyzer(object):
                 items = UtilMgr.convPath(binary)
                 for binary in items:
                     if os.path.isdir(binary):
-                        bfiles += SysMgr.getFileList(binary.strip())
+                        bfiles += UtilMgr.getFileList(binary.strip())
                     elif os.path.isfile(binary):
                         bfiles.append(binary.strip())
 
@@ -851,7 +863,7 @@ class ImplAnalyzer(object):
         # get header files #
         hfiles = ImplAnalyzer.getHeaderList(args)
         if len(hfiles) == 0:
-            SysMgr.printErr('No header file')
+            SysMgr.printErr('no header file')
         for idx, filename in enumerate(hfiles):
             SysMgr.printStat("start parsing '%s'..." % filename)
             ret = ImplAnalyzer.getMethodsFromHeader(
@@ -1021,7 +1033,7 @@ class ImplAnalyzer(object):
         elif type(fileList) is list:
             configFileList = fileList
         else:
-            SysMgr.printErr("Fail to recognize %s" % fileList)
+            SysMgr.printErr("fail to recognize %s" % fileList)
             return None
 
         for fname in configFileList:
