@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201214"
+__revision__ = "201216"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4296,6 +4296,7 @@ class UtilMgr(object):
 
     @staticmethod
     def convPath(value, retStr=False, isExit=False, separator=' '):
+        value = value.strip()
         glob = SysMgr.getPkg('glob', False)
         if glob:
             res = glob.glob(value)
@@ -4465,6 +4466,52 @@ class UtilMgr(object):
             ctime = "%s%02s:%02s:%02s" % ('', '?', '?', '?')
 
         return ctime.strip()
+
+
+
+    @staticmethod
+    def prepareForImageFile(logFile, itype='', outFile=None):
+        # build output file name #
+        if outFile:
+            outputFile = outFile
+        else:
+            if SysMgr.outPath:
+                outputFile = os.path.normpath(SysMgr.outPath)
+            else:
+                outputFile = os.path.normpath(logFile)
+
+            # convert output path #
+            if os.path.isdir(outputFile):
+                filename = os.path.basename(logFile)
+                filename = os.path.splitext(filename)[0]
+                name = '%s/%s' % (outputFile, filename)
+            else:
+                name = os.path.splitext(outputFile)[0]
+
+            outputFile = '%s_%s.%s' % (name, itype, SysMgr.drawFormat)
+
+        try:
+            # backup an exist image file #
+            if os.path.isfile(outputFile):
+                name, ext = os.path.splitext(outputFile)
+
+                oldPath = '%s_old%s' % (name, ext)
+                if os.path.isfile(oldPath):
+                    os.remove(oldPath)
+
+                os.rename(outputFile, oldPath)
+
+                SysMgr.printInfo(
+                    "renamed '%s' to '%s' for backup" % \
+                        (outputFile, oldPath))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to backup '%s' to '%s'" % \
+                    (outputFile, oldPath), True)
+
+        return outputFile
 
 
 
@@ -4673,9 +4720,6 @@ class UtilMgr(object):
                 div = long(0)
 
             percent = long(div)
-
-            if div != percent:
-                return
 
             mod = percent & 3
 
@@ -6612,52 +6656,122 @@ class Timeline(object):
             self.time_start = time_start
             self.time_end = time_end
             self.text = None
+            self.id = None
+            self.state = None
             self._init_extra(extra)
 
         def _init_extra(self, extra):
             if "text" in extra:
                 self.text = extra["text"]
 
+            if "id" in extra:
+                self.id = extra["id"]
+
+            if "state" in extra:
+                self.state = extra["state"]
+
 
 
     class Config(object):
-        def __init__(self):
+        def _conv_palette(self, palette):
             # get svgwrite object #
             svgwrite = SysMgr.getPkg('svgwrite')
 
-            self.WIDTH = 120000
-            self.HEIGHT = 40000
-            self.TIME_AXIS_HEIGHT = 5
-            self.TICKS = 3
-            self.PALETTE = [svgwrite.rgb(244, 67, 54)]
-            self.FONT_SIZE = 0.1
-            self.LABEL_SIZE_MIN = 0.1
+            plist = []
+            for palette_entry in palette:
+                rgb = [int(rgb_value) for rgb_value in \
+                    re.findall("\d+", palette_entry)]
+                plist.append(svgwrite.rgb(rgb[0], rgb[1], rgb[2]))
+            return plist
+
+        def __init__(self):
+            self.WIDTH = 1500
+            self.HEIGHT = 770
+            self.TIME_AXIS_HEIGHT = 1
+            self.TICKS = 100
+            self.FONT_SIZE = 3
+            self.LABEL_SIZE_MIN = 0
+
+            palette = [
+                "(0,150,136)", "(0,188,212)", "(0,0,128)",
+                "(0,0,139)", "(0,0,205)", "(0,0,255)",
+                "(0,100,0)", "(0,128,0)", "(0,128,128)",
+                "(0,139,139)", "(0,191,255)", "(0,206,209)",
+                "(0,250,154)", "(0,255,0)", "(0,255,127)",
+                "(0,255,255)", "(100,149,237)", "(102,205,170)",
+                "(103,58,183)", "(106,90,205)", "(107,142,35)",
+                "(121,85,72)", "(123,104,238)", "(124,252,0)",
+                "(127,255,0)", "(127,255,212)", "(128,0,0)",
+                "(128,0,128)", "(128,128,0)", "(128,128,128)",
+                "(135,206,235)", "(135,206,250)", "(138,43,226)",
+                "(139,195,74)", "(139,0,0)", "(139,0,139)",
+                "(139,69,19)", "(143,188,143)", "(144,238,144)",
+                "(147,112,219)", "(148,0,211)", "(152,251,152)",
+                "(153,50,204)", "(154,205,50)", "(156,39,176)",
+                "(158,158,158)", "(160,82,45)", "(165,42,42)",
+                "(173,216,230)", "(173,255,47)", "(175,238,238)",
+                "(176,224,230)", "(178,34,34)", "(184,134,11)",
+                "(186,85,211)", "(188,143,143)", "(189,183,107)",
+                "(192,192,192)", "(199,21,133)", "(205,133,63)",
+                "(205,220,57)", "(205,92,92)", "(210,105,30)",
+                "(210,180,140)", "(216,191,216)", "(218,112,214)",
+                "(218,165,32)", "(219,112,147)", "(220,20,60)",
+                "(221,160,221)", "(222,184,135)", "(224,255,255)",
+                "(233,150,122)", "(233,30,99)", "(238,130,238)",
+                "(238,232,170)", "(240,128,128)", "(240,230,140)",
+                "(244,67,54)", "(244,164,96)", "(245,222,179)",
+                "(245,245,220)", "(25,25,112)", "(250,128,114)",
+                "(250,235,215)", "(250,250,210)", "(255,0,0)",
+                "(255,0,255)", "(255,105,180)", "(255,127,80)",
+                "(255,140,0)", "(255,152,0)", "(255,160,122)",
+                "(255,165,0)", "(255,182,193)", "(255,192,203)",
+                "(255,193,7)", "(255,20,147)", "(255,215,0)",
+                "(255,228,196)", "(255,235,205)", "(255,235,59)",
+                "(255,248,220)", "(255,250,205)", "(255,255,0)",
+                "(255,255,224)", "(255,69,0)", "(255,87,34)",
+                "(255,99,71)", "(3,169,244)", "(30,144,255)",
+                "(32,178,170)", "(33,150,243)", "(34,139,34)",
+                "(46,139,87)", "(47,79,79)", "(50,205,50)",
+                "(60,179,113)", "(63,81,181)", "(64,224,208)",
+                "(65,105,225)", "(70,130,180)", "(72,209,204)",
+                "(72,61,139)", "(75,0,130)", "(76,175,80)",
+                "(85,107,47)", "(95,158,160)", "(96,125,139)",
+            ]
+
+            self.PALETTE = self._conv_palette(palette)
+
+            # shuffle list #
+            random = SysMgr.getPkg('random', False)
+            if random:
+                random.shuffle(self.PALETTE)
 
         @staticmethod
-        def load(file_name):
-            with open(file_name) as json_file:
-                # get svgwrite, json object #
-                svgwrite = SysMgr.getPkg('svgwrite')
-                json = SysMgr.getPkg('json')
+        def load(file_name=None, data=None):
+            if file_name:
+                with open(file_name) as json_file:
+                    # get svgwrite and json object #
+                    svgwrite = SysMgr.getPkg('svgwrite')
+                    json = SysMgr.getPkg('json')
 
-                data = json.load(json_file)
-                config = Timeline.Config()
-                config.WIDTH = data.get("width", 800)
-                config.HEIGHT = data.get("height", 200)
-                config.FONT_SIZE = data.get("font_size", 2)
-                config.TICKS = data.get("time_ticks", 2)
-                config.TIME_AXIS_HEIGHT = data.get("time_axis_height", 10)
-                config.LABEL_SIZE_MIN = data.get("label_size_min", 10)
-                palette = []
-                for palette_entry in data.get("palette", []):
-                    rgb = [int(rgb_value) for rgb_value in re.findall("\d+", palette_entry)]
-                    palette.append(svgwrite.rgb(rgb[0], rgb[1], rgb[2]))
-                config.PALETTE = palette
-                return config
+                    data = json.load(json_file)
+            elif not data:
+                SysMgr.printErr('no path or data for timeline config')
+                sys.exit(0)
+
+            config = Timeline.Config()
+            config.WIDTH = data.get("width", 20000)
+            config.HEIGHT = data.get("height", 4000)
+            config.FONT_SIZE = data.get("font_size", 3)
+            config.TICKS = data.get("time_ticks", 5)
+            config.TIME_AXIS_HEIGHT = data.get("time_axis_height", 5)
+            config.LABEL_SIZE_MIN = data.get("label_size_min", 5)
+            config.PALETTE = config._conv_palette(data.get("palette", []))
+
+            return config
 
 
 
-    def __init__(self, segments, time_unit, config):
+    def __init__(self, segments, time_unit, config, tasks=[]):
         self.segments = segments
         self.time_unit = time_unit
         self.config = config
@@ -6665,18 +6779,37 @@ class Timeline(object):
             min(segments, key=lambda segment: segment.time_start).time_start
         self.time_end = \
             max(segments, key=lambda segment: segment.time_end).time_end
-        self.groups = len(set(s.group for s in self.segments))  # todo case groups empty
+        self.segment_groups = set(s.group for s in self.segments)
+        self.groups = len(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
         self.ratio = self.config.WIDTH / (self.time_end - self.time_start)
-        self.color_map = self._build_color_map()
+        self.tasks = tasks
+        self.last_group_segment = dict()
+        self.last_group_time = dict()
+        self.height_group_pos = dict()
+
+        if self.tasks:
+            self.color_map = self._build_task_color_map()
+        else:
+            self.color_map = self._build_color_map()
+
+
+
+    def _build_task_color_map(self):
+        color_map = {}
+        palette = self.config.PALETTE
+        for i, group in enumerate(self.tasks):
+            color_map[group] = palette[i % len(palette)]
+        return color_map
 
 
 
     def _build_color_map(self):
         color_map = {}
-        segment_groups = set(s.group for s in self.segments)
+        palette = self.config.PALETTE
+        segment_groups = self.segment_groups
         for i, group in enumerate(segment_groups):
-            color_map[group] = self.config.PALETTE[i % len(self.config.PALETTE)]
+            color_map[group] = palette[i % len(palette)]
         return color_map
 
 
@@ -6689,29 +6822,70 @@ class Timeline(object):
 
 
 
+    def _draw_group_axis(self, dwg):
+        dwg.add(dwg.rect(
+            (0, 0),
+            (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT), fill='black'))
+
+        idx = 0
+        for y_tick in range(0, self.config.HEIGHT):
+            try:
+                name = list(self.segment_groups)[idx]
+                idx += 1
+            except:
+                continue
+
+            y_tick *= self.scaled_height
+
+            dwg.add(dwg.line(
+                (0, y_tick), (self.config.WIDTH, y_tick),
+                stroke='black', stroke_width=0.1))
+
+            dwg.add(dwg.text(
+                name, (self.config.FONT_SIZE, y_tick+self.scaled_height/2),
+                font_size=self.config.FONT_SIZE*2,
+                color='rgb(255,255,255)'))
+
+
+
     def _draw_time_axis(self, dwg):
         dwg.add(dwg.rect(
             (0, self.config.HEIGHT),
-            (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='white'))
+            (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='black'))
 
         y_time_tick = self.config.HEIGHT + self.config.TIME_AXIS_HEIGHT / 2
 
         for x_tick_time in range(0, self.config.WIDTH, self.config.TICKS):
-            tick_time = "{:10.2f}".format(x_tick_time * (1 / self.ratio))
-            dwg.add(dwg.text(tick_time,
-                (x_tick_time, y_time_tick), font_size=self.config.FONT_SIZE))
+            tick_time = "{:10}".format(long(x_tick_time * (1 / self.ratio)))
+            dwg.add(dwg.text(
+                '%s %s' % (UtilMgr.convNum(tick_time), self.time_unit),
+                (x_tick_time, y_time_tick + self.config.FONT_SIZE*2),
+                font_size=self.config.FONT_SIZE*2,
+                color='rgb(255,255,255)'))
 
 
 
     def _draw_background(self, dwg):
         dwg.add(dwg.rect((0, 0),
-            (self.config.WIDTH, self.config.HEIGHT), fill='white'))
+            (self.config.WIDTH, self.config.HEIGHT),
+            fill='rgb(245,245,245)'))
+
+        title = 'Guider Timeline Chart'
+        fontsize = self.config.FONT_SIZE * 5
+        dwg.add(dwg.text(
+            title,
+            (self.config.WIDTH/2-len(title)*fontsize*self.ratio, fontsize),
+            font_size=fontsize,
+            font_weight='bolder',
+            fill='rgb(230,230,230)'))
 
 
 
     def _draw_segments(self, dwg):
-        for segment in self.segments:
+        for idx, segment in enumerate(self.segments):
+            UtilMgr.printProgress(idx, len(self.segments))
             self._draw_segment(segment, dwg)
+        UtilMgr.deleteProgress()
 
 
 
@@ -6719,60 +6893,102 @@ class Timeline(object):
         x0 = (segment.time_start - self.time_start) * self.ratio
         x1 = (segment.time_end - self.time_start) * self.ratio
         y0 = self.scaled_height * (segment.group % self.groups)
+        y1 = self.scaled_height * ((segment.group % self.groups)+1)
         scaled_width = (x1 - x0)
-        color = self.color_map[segment.group]
 
+        # get color #
+        if segment.id:
+            color = self.color_map[segment.id]
+        else:
+            color = self.color_map[segment.group]
+
+        # draw timeslice #
         dwg.add(dwg.rect((x0, y0),
             (scaled_width, self.scaled_height),
             rx=1, ry=1, fill=color, fill_opacity=0.5))
 
-        if scaled_width < self.config.LABEL_SIZE_MIN:
+        # draw preempted status #
+        if segment.state == 'R':
+            dwg.add(dwg.line(
+                (x1, y0), (x1, y0+self.scaled_height/7),
+                stroke='red', stroke_width=1.2))
+        # draw wait status #
+        elif segment.state == 'D':
+            dwg.add(dwg.line(
+                (x1, y1), (x1, y1-self.scaled_height/7),
+                stroke='black', stroke_width=1.2))
+
+        # check duration #
+        duration = segment.time_end - segment.time_start
+        if not SysMgr.showAll and \
+            (scaled_width < self.config.LABEL_SIZE_MIN or duration == 0):
             return
+        duration = '~%s %s' % (UtilMgr.convNum(duration), self.time_unit)
 
-        segment_label = "{} ({} {})".format(
-            segment.text, segment.time_end - segment.time_start, self.time_unit)
+        # initialize group data #
+        self.last_group_segment.setdefault(segment.group, None)
+        self.last_group_time.setdefault(segment.group, x0)
 
+        # previous task started again #
+        if self.last_group_segment[segment.group] == segment.text and \
+            x0 - self.last_group_time[segment.group] < self.config.TICKS:
+            segment_label = duration
+            color = 'rgb(50,50,50)'
+            font_size = self.config.FONT_SIZE - 1
+        # other task started #
+        else:
+            segment_label = "> %s/%s" % (segment.text, duration)
+            color = 'rgb(255,0,0)'
+            font_size = self.config.FONT_SIZE - 0.5
+
+        # update group info #
+        self.last_group_segment[segment.group] = segment.text
+        self.last_group_time[segment.group] = x0
+        self.height_group_pos.setdefault(segment.group, 0)
+
+        scaled_pos = self.scaled_height * 0.25
+        self.height_group_pos[segment.group] += self.config.FONT_SIZE
+        height_pos = self.height_group_pos[segment.group]
+        if height_pos + scaled_pos >= self.scaled_height:
+            height_pos = self.height_group_pos[segment.group] = 0
+
+        # draw text #
         dwg.add(dwg.text(segment_label,
-            (x0, y0 + self.scaled_height * 0.25),
-            font_size=self.config.FONT_SIZE))
-
-        time_start_label = "{} {}".format(
-            segment.time_start - self.time_start, self.time_unit)
-
-        time_end_label = "{} {}".format(
-            segment.time_end - self.time_start, self.time_unit)
-
-        dwg.add(dwg.text(
-            time_start_label,
-            (x0, y0 + self.scaled_height * 0.5),
-            font_size=self.config.FONT_SIZE))
-
-        dwg.add(dwg.text(time_end_label,
-            (x0, y0 + self.scaled_height * 0.75),
-            font_size=self.config.FONT_SIZE))
+            (x0, y0 + scaled_pos + height_pos),
+            fill=color, stroke='none',
+            font_size=font_size,
+            font_weight='normal'))
 
 
 
     def draw(self, dwg):
         self._draw_background(dwg)
         self._draw_grid(dwg)
-        self._draw_segments(dwg)
+        self._draw_group_axis(dwg)
         self._draw_time_axis(dwg)
+        self._draw_segments(dwg)
 
 
 
     @staticmethod
-    def load(file_name, config):
-        with open(file_name) as json_file:
-            # get json object #
-            json = SysMgr.getPkg('json')
+    def load(file_name=None, data=None, config=None, tasks=None):
+        if file_name:
+            with open(file_name) as json_file:
+                # get json object #
+                json = SysMgr.getPkg('json')
 
-            data = json.load(json_file)
-            segments = Timeline._load_segments(data)
-            time_unit = "???"
-            if "time_unit" in data:
-                time_unit = data["time_unit"]
-            return Timeline(segments, time_unit, config)
+                data = json.load(json_file)
+        elif not data:
+            SysMgr.printErr('no path or data for timeline input')
+            sys.exit(0)
+
+        segments = Timeline._load_segments(data)
+
+        time_unit = "???"
+        if "time_unit" in data:
+            time_unit = data["time_unit"]
+
+        return Timeline(segments, time_unit, config, tasks)
 
 
 
@@ -6780,14 +6996,15 @@ class Timeline(object):
     def _load_segments(data):
         segments = []
         for segment_data in data["segments"]:
-            extra = {}
-            if "text" in segment_data:
-                extra["text"] = segment_data["text"]
-            assert segment_data["time_start"] < segment_data["time_end"]
+            if segment_data["time_start"] > segment_data["time_end"]:
+                SysMgr.printWarn(
+                    "time_start is bigger than time_end for %s" % \
+                        segment_data)
+                continue
 
             segments.append(Timeline.Segment(
                 segment_data["group"], segment_data["time_start"],
-                segment_data["time_end"], extra))
+                segment_data["time_end"], segment_data))
 
         return segments
 
@@ -15403,16 +15620,22 @@ class SysMgr(object):
 
         # apply regular expression for first path #
         flist = UtilMgr.convPath(sys.argv[2])
-        if type(flist) is list and \
-            len(flist) > 0:
+        if type(flist) is list and len(flist) > 0:
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
 
         # thread draw mode #
-        if float(ThreadAnalyzer.getInitTime(sys.argv[2])) > 0:
+        if ThreadAnalyzer.getInitTime(sys.argv[2]) > 0:
             # apply launch option #
             SysMgr.applyLaunchOption()
 
-            if not SysMgr.isThreadMode():
+            # check data type #
+            if SysMgr.isThreadMode():
+                pass
+            elif SysMgr.isFunctionMode():
+                SysMgr.printErr(
+                    "fail to draw because this data is for function")
+                sys.exit(0)
+            else:
                 SysMgr.printErr(
                     "fail to draw because this data is not supported")
                 sys.exit(0)
@@ -15498,6 +15721,7 @@ class SysMgr(object):
     @staticmethod
     def execRecordLoop():
         while SysMgr.repeatInterval > 0:
+            # set alarm #
             signal.alarm(SysMgr.repeatInterval)
 
             # get init time in buffer for verification #
@@ -15505,12 +15729,15 @@ class SysMgr(object):
 
             # wait for timer #
             try:
-                time.sleep(SysMgr.repeatInterval)
+                for cnt in range(0, SysMgr.repeatInterval):
+                    UtilMgr.printProgress(cnt, SysMgr.repeatInterval)
+                    time.sleep(1)
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
 
+            # real-time copy from pipe to file #
             if SysMgr.pipeEnable:
                 if SysMgr.outputFile:
                     SysMgr.copyPipeToFile(
@@ -17573,6 +17800,7 @@ class SysMgr(object):
                 'drawmemavg': 'Memory',
                 'drawrss': 'RSS',
                 'drawrssavg': 'RSS',
+                'drawtimeline': 'Timeline',
                 'drawvss': 'VSS',
                 'drawvssavg': 'VSS',
                 },
@@ -17738,6 +17966,7 @@ Options:
     -l  <BOUNDARY>              set boundary lines
     -F  [svg/png/pdf/ps/eps]    set image format
     -E  <DIR>                   set cache dir path
+    -C  <PATH>                  set config file
     -v                          verbose
                     '''
 
@@ -17835,37 +18064,44 @@ Examples:
 
                 drawExamStr = '''
 Examples:
-    - Draw graphs of resource usage and memory chart
+    - Draw resource graph and memory chart
         # {0:1} {1:1} guider.out
 
-    - Draw graphs of resource usage and memory chart to specific image format
+    - Draw resource graph and timeline chart
+        # {0:1} {1:1} guider.dat
+        # {0:1} {1:1} guider.dat -a
+
+    - Draw resource graph and memory chart to specific image format
         # {0:1} {1:1} guider.out -F png
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw graphs of resource usage excluding chrome process and memory chart
+    - Draw resource graph and timeline chart with config file
+        # {0:1} {1:1} guider.dat -C config.json
+
+    - Draw resource graph excluding chrome process and memory chart
         # {0:1} {1:1} guider.out -g ^chrome
 
-    - Draw graphs of resource usage with some boundary lines
+    - Draw resource graph with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw graphs of resource usage after setting range
+    - Draw resource graph after setting range
         # {0:1} {1:1} guider.out -t 1234:1239
 
-    - Draw graphs of resource usage of top 5 processes
+    - Draw resource graph of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
 
-    - Draw graphs of resource usage with ylimit 100
+    - Draw resource graph with ylimit 100
         # {0:1} {1:1} guider.out worstcase.out -H 100
 
     - Draw graphs of total CPU usage by applying the multiplication of the number of CPUs
         # {0:1} {1:1} guider.out worstcase.out -d A
 
-    - Draw graphs of resource usage on customized layout
+    - Draw resource graph on customized layout
         # {0:1} {1:1} guider.out -L c:2, m:2, i:2
         # {0:1} {1:1} guider.out -L c:4, r:1, v:1
 
-    - Draw graphs of resource usage with multiple files for comparison
+    - Draw resource graph with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
 
     - Draw graphs of total resource usage with multiple files for comparison
@@ -19330,6 +19566,18 @@ Description:
 
                     helpStr += drawSubStr + drawExamStr
 
+                # timeline draw #
+                elif SysMgr.isDrawTimelineMode():
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw timeline chart
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
                 # memory draw #
                 elif SysMgr.isDrawMemMode():
                     helpStr = '''
@@ -19397,7 +19645,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw system resource graphs and memory chart
+    Draw system resource graph and memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -20452,6 +20700,9 @@ Copyright:
                         __repository__, __copyright__, __license__)
 
                 printPipe(helpStr)
+
+                # reset terminal #
+                SysMgr.resetTTY()
 
             sys.exit(0)
 
@@ -22960,8 +23211,9 @@ Copyright:
             UtilMgr.deleteProgress()
             sys.exit(0)
 
-        UtilMgr.printProgress(
-            SysMgr.progressCnt, SysMgr.repeatCount)
+        if SysMgr.repeatCount > 0:
+            UtilMgr.printProgress(
+                SysMgr.progressCnt, SysMgr.repeatCount)
 
         # update count #
         SysMgr.progressCnt += 1
@@ -23064,12 +23316,13 @@ Copyright:
             # write system info #
             if SysMgr.systemInfoBuffer:
                 magicStr = '%s\n' % SysMgr.magicStr
-                f.writelines(magicStr)
-                f.writelines(SysMgr.systemInfoBuffer)
-                f.writelines(magicStr)
+                magicStr = magicStr.encode('utf-8')
+                f.write(magicStr)
+                f.write(SysMgr.systemInfoBuffer.encode('utf-8'))
+                f.write(magicStr)
 
             # write trace info #
-            f.writelines(lines)
+            f.write('\n'.join(lines).encode('utf-8'))
             f.close()
 
             try:
@@ -23621,14 +23874,17 @@ Copyright:
         # apply mode option #
         if SysMgr.isDrawMode():
             SysMgr.printInfo("<DRAW MODE>")
-        elif ' funcrec ' in SysMgr.launchBuffer or \
+
+        if ' funcrec ' in SysMgr.launchBuffer or \
             ' funcrecord ' in SysMgr.launchBuffer:
             SysMgr.threadEnable = False
             SysMgr.functionEnable = True
-            SysMgr.printInfo("<FUNCTION MODE>")
+            if not SysMgr.isDrawMode():
+                SysMgr.printInfo("<FUNCTION MODE>")
         else:
             SysMgr.threadEnable = True
-            SysMgr.printInfo("<THREAD MODE>")
+            if not SysMgr.isDrawMode():
+                SysMgr.printInfo("<THREAD MODE>")
 
         # apply filter option #
         filterList = None
@@ -23845,17 +24101,51 @@ Copyright:
 
 
     @staticmethod
-    def drawTimeline(inputPath, outputPath, configPath=None):
+    def drawTimeline(
+        inputPath=None, inputData=None, outputPath=None,
+        configPath=None, configData=None, taskList=None):
+
         # get svgwrite object #
         svgwrite = SysMgr.getPkg('svgwrite')
 
-        dwg = svgwrite.Drawing(outputPath, profile='tiny')
-        config = Timeline.Config()
-        if configPath:
-            config = Timeline.Config.load(configPath)
-        timeline = Timeline.load(inputPath, config)
-        timeline.draw(dwg)
-        dwg.save()
+        if inputPath:
+            inputStr = ' from "%s"' % inputPath
+        else:
+            inputStr = ''
+
+        SysMgr.printInfo(
+            "start drawing timeline%s..." % inputStr)
+
+        try:
+            dwg = svgwrite.Drawing(outputPath, profile='tiny', debug=True)
+
+            config = Timeline.Config()
+            if configPath or configData:
+                config = Timeline.Config.load(configPath, configData)
+
+            timeline = Timeline.load(inputPath, inputData, config, taskList)
+            timeline.draw(dwg)
+
+            dwg.save()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to draw timeline', reason=True)
+            return
+
+        # get output size #
+        try:
+            fsize = long(os.path.getsize(outputPath))
+            fsize = UtilMgr.convSize2Unit(fsize)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            fsize = '?'
+
+        SysMgr.printStat(
+            "wrote timeline chart into '%s' [%s]" %
+                (outputPath, fsize))
 
 
 
@@ -24282,7 +24572,7 @@ Copyright:
             # open file #
             try:
                 # open output file #
-                SysMgr.printFd = open(SysMgr.inputFile, 'w+')
+                SysMgr.printFd = open(SysMgr.inputFile, 'wb')
 
                 # apply for compression to the file #
                 if SysMgr.compressEnable:
@@ -24306,10 +24596,10 @@ Copyright:
         if SysMgr.printFd:
             try:
                 if line:
-                    SysMgr.printFd.write(line)
+                    SysMgr.printFd.write(line.encode('utf-8'))
 
                     if newline and line[-1] != '\n':
-                        SysMgr.printFd.write('\n')
+                        SysMgr.printFd.write('\n'.encode('utf-8'))
 
                 if flush:
                     SysMgr.printFd.flush()
@@ -25574,7 +25864,11 @@ Copyright:
                     SysMgr.confFileName = \
                         os.path.abspath(SysMgr.confFileName)
 
-                if not SysMgr.loadConfig(SysMgr.confFileName):
+                # load configuration #
+                ret = SysMgr.loadConfig(SysMgr.confFileName)
+                if SysMgr.isDrawMode():
+                    pass
+                elif not ret:
                     sys.exit(0)
 
         elif option == 'E':
@@ -26866,6 +27160,10 @@ Copyright:
         elif SysMgr.isSystatMode():
             SysMgr.doSystat()
 
+        # DRAWTIMELINE MODE #
+        elif SysMgr.isDrawTimelineMode():
+            SysMgr.doDrawTimeline()
+
         # CPUTEST MODE #
         elif SysMgr.isCpuTestMode():
             SysMgr.setStream()
@@ -27024,6 +27322,16 @@ Copyright:
 
 
     @staticmethod
+    def isDrawTimelineMode():
+        if len(sys.argv) > 1 and \
+            (sys.argv[1] == 'drawtimeline' or sys.argv[1] == 'timelinedraw'):
+            return True
+        else:
+            return False
+
+
+
+    @staticmethod
     def isDrawAvgMode():
         if SysMgr.isDrawTotalAvgMode() or \
             SysMgr.isDrawCpuAvgMode() or \
@@ -27169,6 +27477,8 @@ Copyright:
         elif SysMgr.isDrawLeakMode():
             return True
         elif SysMgr.isDrawIoMode():
+            return True
+        elif SysMgr.isDrawTimelineMode():
             return True
         elif SysMgr.isDrawAvgMode():
             return True
@@ -30282,7 +30592,7 @@ Copyright:
         if SysMgr.inputParam:
             systemdPathList = SysMgr.inputParam.split(',')
             for d in systemdPathList:
-                if not os.path.isdir(d):
+                if not os.path.isdir(d.strip()):
                     SysMgr.printErr(
                         "%s is not an accessable directory" % d)
                     sys.exit(0)
@@ -32575,6 +32885,44 @@ Copyright:
 
 
     @staticmethod
+    def doDrawTimeline():
+        # get output file name #
+        if SysMgr.inputParam:
+            inputList = UtilMgr.getFileList(SysMgr.inputParam.split(','))
+        else:
+            if len(sys.argv) <= 2:
+                sys.argv.append(SysMgr.outFilePath)
+
+            inputList = UtilMgr.convPath(sys.argv[2])
+
+        # draw files #
+        for inputPath in inputList:
+            if SysMgr.outPath:
+                outputPath = SysMgr.outPath
+
+                # check dir #
+                if os.path.isdir(outputPath):
+                    outputFileName = '%s.svg' % \
+                        os.path.splitext(os.path.basename(inputPath))[0]
+                    outputPath = \
+                        os.path.join(outputPath, outputFileName)
+            else:
+                outputPath = UtilMgr.prepareForImageFile(
+                    inputPath, 'timeline')
+
+            # backup #
+            SysMgr.backupFile(outputPath)
+
+            # draw timeline #
+            SysMgr.drawTimeline(
+                inputPath=inputPath,
+                outputPath=outputPath,
+                configPath=SysMgr.confFileName
+            )
+
+
+
+    @staticmethod
     def doCpuTest():
         random = SysMgr.getPkg('random')
 
@@ -34286,6 +34634,9 @@ Copyright:
 
     @staticmethod
     def resetTTY():
+        if not SysMgr.isLinux:
+            return
+
         # reset terminal for recovery #
         try:
             SysMgr.getPkg('subprocess').Popen(
@@ -40442,7 +40793,7 @@ class DltAnalyzer(object):
             sys.exit(0)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
-                ret = UtilMgr.convPath(item)
+                ret = UtilMgr.convPath(item.strip())
                 flist += ret
             flist = list(set(flist))
 
@@ -55569,10 +55920,10 @@ class ThreadAnalyzer(object):
 
 
 
-    def __init__(self, file=None, onlyInstance=None):
+    def __init__(self, fpath=None, onlyInstance=None):
 
         # thread mode #
-        if file:
+        if fpath:
             self.initThreadData()
 
             self.init_threadData = \
@@ -55670,6 +56021,7 @@ class ThreadAnalyzer(object):
             self.lastTidPerCore = {}
             self.lastCore = '0'
             self.lastEvent = '0'
+            self.timelineData = {"time_unit": "ms", "segments": list()}
 
         # top mode #
         else:
@@ -55869,7 +56221,7 @@ class ThreadAnalyzer(object):
                 self.preemptData.append([False, {}, float(0), 0, float(0)])
 
         # read trace data #
-        lines = ThreadAnalyzer.readTraceData(file)
+        lines = ThreadAnalyzer.readTraceData(fpath)
 
         # save trace data and stop analysis #
         if SysMgr.outputFile:
@@ -56887,6 +57239,7 @@ class ThreadAnalyzer(object):
             'storageUsage': storageUsage,
             'networkUsage': networkUsage,
             'nrCore': nrCore[imin:imax],
+            'graphTitle': 'Guider Perf Graph',
         }
 
         return graphStats, chartStats
@@ -57383,7 +57736,7 @@ class ThreadAnalyzer(object):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            suptitle('Guider Graph', fontsize=8)
+            suptitle(graphStats['graphTitle'], fontsize=8)
 
             # define common label list #
             ymax = long(0)
@@ -57681,6 +58034,7 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_label_coords(-0.05,0.5)
             '''
 
+            # set legend position #
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(labelList, bbox_to_anchor=(1.12, 1.05),
                     fontsize=3.5, loc='upper right')
@@ -57792,7 +58146,7 @@ class ThreadAnalyzer(object):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            suptitle('Guider Graph', fontsize=8)
+            suptitle(graphStats['graphTitle'], fontsize=8)
 
             # get minimum timeline #
             timeline = None
@@ -58282,7 +58636,7 @@ class ThreadAnalyzer(object):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            suptitle('Guider Graph', fontsize=8)
+            suptitle(graphStats['graphTitle'], fontsize=8)
 
             # get minimum timeline #
             timeline = None
@@ -59297,7 +59651,7 @@ class ThreadAnalyzer(object):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            suptitle('Guider Graph', fontsize=8)
+            suptitle(graphStats['graphTitle'], fontsize=8)
 
             # add boundary line #
             drawBoundary('mem', labelList)
@@ -59617,48 +59971,11 @@ class ThreadAnalyzer(object):
 
 
     def saveImage(self, logFile, itype='', outFile=None):
-        try:
-            # build output file name #
-            if outFile:
-                outputFile = outFile
-            else:
-                if SysMgr.outPath:
-                    outputFile = os.path.normpath(SysMgr.outPath)
-                else:
-                    outputFile = os.path.normpath(logFile)
-
-                # convert output path #
-                if os.path.isdir(outputFile):
-                    filename = os.path.basename(logFile)
-                    filename = os.path.splitext(filename)[0]
-                    name = '%s/%s' % (outputFile, filename)
-                else:
-                    name = os.path.splitext(outputFile)[0]
-
-                outputFile = '%s_%s.%s' % (name, itype, SysMgr.drawFormat)
-
-            # backup an exist image file #
-            if os.path.isfile(outputFile):
-                name, ext = os.path.splitext(outputFile)
-
-                oldPath = '%s_old%s' % (name, ext)
-                if os.path.isfile(oldPath):
-                    os.remove(oldPath)
-
-                os.rename(outputFile, oldPath)
-
-                SysMgr.printInfo(
-                    "renamed '%s' to '%s' for backup" % \
-                        (outputFile, oldPath))
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printErr(
-                "fail to backup '%s' to '%s'" % \
-                    (outputFile, oldPath), True)
-
         # get pylab object #
         SysMgr.importPkgItems('pylab')
+
+        # get output file name #
+        outputFile = UtilMgr.prepareForImageFile(logFile, itype, outFile)
 
         try:
             # save graph #
@@ -59675,7 +59992,7 @@ class ThreadAnalyzer(object):
                 fsize = '?'
 
             SysMgr.printStat(
-                "write resource %s into '%s' [%s]" %
+                "wrote resource %s into '%s' [%s]" %
                     (itype, outputFile, fsize))
         except SystemExit:
             sys.exit(0)
@@ -61633,7 +61950,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Message Info]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "%16s %6s %4s %10s %30s" % \
+            "%16s %7s %4s %10s %30s" % \
             ('Name', 'TID', 'Core', 'Time', 'Console message'))
         SysMgr.printPipe(twoLine)
 
@@ -61642,7 +61959,7 @@ class ThreadAnalyzer(object):
         cnt = long(0)
         for msg in self.consoleData:
             try:
-                SysMgr.printPipe("%16s %6s %4s %10.3f %s" % \
+                SysMgr.printPipe("%16s %7s %4s %10.3f %s" % \
                     (self.threadData[msg[0]]['comm'], msg[0], msg[1],
                     round(float(msg[2]) - startTime, 7), msg[3]))
                 cnt += 1
@@ -61666,11 +61983,11 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe(
             '\n[Thread Page Info] (Unit: Order)')
         SysMgr.printPipe(twoLine)
-        SysMgr.printPipe("{0:^23} {1:>1}".format('Thread', orders))
+        SysMgr.printPipe("{0:^25} {1:>1}".format('Thread', orders))
         SysMgr.printPipe(twoLine)
 
         # print total pages #
-        totalInfo = "{0:^23} ".format('TOTAL')
+        totalInfo = "{0:^25} ".format('TOTAL')
         for order in orderTable:
             totalInfo += '{0:>5} '.format(
                 UtilMgr.convNum(self.allocPageData[order]))
@@ -61686,7 +62003,7 @@ class ThreadAnalyzer(object):
                 continue
 
             comm = self.threadData[tid]['comm']
-            taskInfo = "{0:>23} ".format('%s(%s)' % (comm, tid))
+            taskInfo = "{0:>25} ".format('%s(%s)' % (comm, tid))
             for order in orderTable:
                 if order in value['orderPages']:
                     addval = UtilMgr.convNum(value['orderPages'][order])
@@ -61812,7 +62129,7 @@ class ThreadAnalyzer(object):
     def printEventIntervalInfo(self):
         # timeline #
         timeLine = ''
-        titleLine = "%16s(%5s/%5s):" % ('Name', 'TID', 'PID')
+        titleLine = "%16s(%7s/%7s):" % ('Name', 'TID', 'PID')
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         intervalEnable = SysMgr.intervalEnable
@@ -61875,7 +62192,7 @@ class ThreadAnalyzer(object):
                         not SysMgr.showAll:
                         break
 
-                    SysMgr.addPrint("%16s(%5s/%5s): " % \
+                    SysMgr.addPrint("%16s(%7s/%7s): " % \
                         (self.threadData[key]['comm'], key,
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
@@ -61947,7 +62264,7 @@ class ThreadAnalyzer(object):
                         not SysMgr.showAll:
                         break
 
-                    SysMgr.addPrint("%16s(%5s/%5s): " % \
+                    SysMgr.addPrint("%16s(%7s/%7s): " % \
                         (self.threadData[key]['comm'], key,
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
@@ -62019,7 +62336,7 @@ class ThreadAnalyzer(object):
                         not SysMgr.showAll:
                         break
 
-                    SysMgr.addPrint("%16s(%5s/%5s): " % \
+                    SysMgr.addPrint("%16s(%7s/%7s): " % \
                         (self.threadData[key]['comm'], key,
                         self.threadData[key]['tgid']) + timeLine + '\n')
 
@@ -62053,7 +62370,7 @@ class ThreadAnalyzer(object):
 
         # timeline #
         timeLine = ''
-        titleLine = "%16s(%6s/%6s):" % ('Name', 'TID', 'PID')
+        titleLine = "%16s(%7s/%7s):" % ('Name', 'TID', 'PID')
         maxLineLen = SysMgr.lineLength
         timeLineLen = titleLineLen = len(titleLine)
         startTime = float(SysMgr.startTime)
@@ -62128,7 +62445,7 @@ class ThreadAnalyzer(object):
                 else:
                     timeLineLen += 4
 
-            SysMgr.addPrint("%16s(%6s/%6s): " % \
+            SysMgr.addPrint("%16s(%7s/%7s): " % \
                 (value['comm'], '-', '-') + timeLine + '\n')
 
             # make CPU usage list for graph #
@@ -62159,7 +62476,7 @@ class ThreadAnalyzer(object):
 
         if SysMgr.memEnable:
             SysMgr.addPrint(
-                "\n%16s(%6s/%6s): " % \
+                "\n%16s(%7s/%7s): " % \
                     ('MEM', '-', '-') + timeLine + '\n')
             if SysMgr.graphEnable:
                 timeLineData = [int(n) for n in timeLine.split()]
@@ -62190,7 +62507,7 @@ class ThreadAnalyzer(object):
 
             if brtotal > 0:
                 SysMgr.addPrint(
-                    "\n%16s(%6s/%6s): " % \
+                    "\n%16s(%7s/%7s): " % \
                         ('BLK_RD', '-', '-') + timeLine + '\n')
                 if SysMgr.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
@@ -62221,7 +62538,7 @@ class ThreadAnalyzer(object):
                 if brtotal == 0:
                     SysMgr.addPrint('\n')
                 SysMgr.addPrint(
-                    "%16s(%6s/%6s): " % \
+                    "%16s(%7s/%7s): " % \
                         ('BLK_WR', '0', '-----') + timeLine + '\n')
                 if SysMgr.graphEnable:
                     timeLineData = [int(n) for n in timeLine.split()]
@@ -62254,7 +62571,7 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%6s/%6s): " % \
+                "%16s(%7s/%7s): " % \
                     (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # total user event usage on timeline #
@@ -62289,7 +62606,7 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%6s/%6s): " % \
+                "%16s(%7s/%7s): " % \
                     (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # total kernel event usage on timeline #
@@ -62323,7 +62640,7 @@ class ThreadAnalyzer(object):
                 newLine = False
 
             SysMgr.addPrint(
-                "%16s(%6s/%6s): " % \
+                "%16s(%7s/%7s): " % \
                     (evt[:SysMgr.commLen], '-', '-') + timeLine + '\n')
 
         # print buffered info #
@@ -62466,7 +62783,7 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
 
-            SysMgr.addPrint("%16s(%6s/%6s): " % \
+            SysMgr.addPrint("%16s(%7s/%7s): " % \
                 (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if SysMgr.graphEnable and SysMgr.cpuEnable:
@@ -62530,17 +62847,16 @@ class ThreadAnalyzer(object):
             # add % unit to each value #
             try:
                 ytickLabel = ax.get_yticks().tolist()
-                ytickLabel = list(map(long, ytickLabel))
-
-                # convert label units #
-                ytickLabel = \
-                    ['%s%%' % val for val in ytickLabel]
-
-                ax.set_yticklabels(ytickLabel)
+                ymax = max(ytickLabel)
+                ylim([0, ymax+int(ymax/10)])
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(0, long(ymax + inc), inc), fontsize=5)
             except:
                 pass
 
-            suptitle('Guider Graph', fontsize=8)
+            suptitle('Guider Thread Graph', fontsize=8)
 
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
@@ -62615,7 +62931,7 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + prtPer + dieFlag)
 
-            SysMgr.addPrint("%16s(%6s/%6s): " % \
+            SysMgr.addPrint("%16s(%7s/%7s): " % \
                 (value['comm'], key, value['tgid']) + timeLine + '\n')
 
         if len(SysMgr.bufferString) > 0:
@@ -62681,7 +62997,7 @@ class ThreadAnalyzer(object):
                     kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
                     timeLine += '%4s' % \
                         (newFlag + str(memUsage + kmemUsage) + dieFlag)
-                SysMgr.addPrint("%16s(%6s/%6s): " % \
+                SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -62745,7 +63061,7 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['brUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
-                SysMgr.addPrint("%16s(%6s/%6s): " % \
+                SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -62811,7 +63127,7 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['bwUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
-                SysMgr.addPrint("%16s(%6s/%6s): " % \
+                SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
@@ -64706,7 +65022,11 @@ class ThreadAnalyzer(object):
                 try:
                     time.sleep(0.1)
                 except:
-                    return 0
+                    sys.exit(0)
+
+            if SysMgr.isRecordMode() and \
+                SysMgr.progressCnt >= SysMgr.repeatInterval:
+                break
 
             # update fd #
             try:
@@ -64911,11 +65231,15 @@ class ThreadAnalyzer(object):
 
             try:
                 self.intData[index]
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.intData.append(dict())
 
             try:
                 self.intData[index]['toTal']
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.intData[index]['toTal'] = \
                     {'totalBr': long(0), 'totalBw': long(0),
@@ -64955,6 +65279,8 @@ class ThreadAnalyzer(object):
             # make interval list #
             try:
                 self.intData[nextIndex]
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.intData.append({})
 
@@ -65012,6 +65338,8 @@ class ThreadAnalyzer(object):
                     try:
                         curIntval['totalCustomEvent'][evt]['count'] = \
                             self.threadData[key]['customEvent'][evt]['count']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -65030,6 +65358,8 @@ class ThreadAnalyzer(object):
 
                         curIntval['totalUserEvent'][evt]['usage'] = \
                             self.threadData[key]['userEvent'][evt]['usage']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -65048,6 +65378,8 @@ class ThreadAnalyzer(object):
 
                         curIntval['totalKernelEvent'][evt]['usage'] = \
                             self.threadData[key]['kernelEvent'][evt]['usage']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -65073,6 +65405,8 @@ class ThreadAnalyzer(object):
             else:
                 try:
                     self.intData[index - 1][key]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     self.intData[index - 1][key] = dict(self.init_intData)
 
@@ -65109,6 +65443,8 @@ class ThreadAnalyzer(object):
                         curIntval['customEvent'][evt]['count'] = \
                             curIntval['totalCustomEvent'][evt]['count'] - \
                                 prevIntval['totalCustomEvent'][evt]['count']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         curIntval['customEvent'][evt]['count'] = \
                             curIntval['totalCustomEvent'][evt]['count']
@@ -65127,6 +65463,8 @@ class ThreadAnalyzer(object):
                         curIntval['userEvent'][evt]['usage'] = \
                             curIntval['totalUserEvent'][evt]['usage'] - \
                                 prevIntval['totalUserEvent'][evt]['usage']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         curIntval['userEvent'][evt]['count'] = \
                             curIntval['totalUserEvent'][evt]['count']
@@ -65151,6 +65489,8 @@ class ThreadAnalyzer(object):
                         curIntval['kernelEvent'][evt]['usage'] = \
                             curIntval['totalKernelEvent'][evt]['usage'] - \
                                 prevIntval['totalKernelEvent'][evt]['usage']
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         curIntval['kernelEvent'][evt]['count'] = \
                             curIntval['totalKernelEvent'][evt]['count']
@@ -65194,12 +65534,16 @@ class ThreadAnalyzer(object):
                         long(curIntval['cpuUsage'] / intervalEnable), -1, -1):
                         try:
                             self.intData[idx][key]
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             if not idx in self.intData:
                                 continue
                             self.intData[idx][key] = dict(self.init_intData)
                         try:
                             self.intData[idx - 1][key]
+                        except SystemExit:
+                            sys.exit(0)
                         except:
                             if not idx - 1 in self.intData:
                                 continue
@@ -65212,6 +65556,8 @@ class ThreadAnalyzer(object):
                             longRunCoreId = '0[%s]' % longRunCore
                             try:
                                 self.intData[idx][longRunCoreId]
+                            except SystemExit:
+                                sys.exit(0)
                             except:
                                 self.intData[idx][longRunCoreId] = \
                                     dict(self.init_intData)
@@ -65263,10 +65609,15 @@ class ThreadAnalyzer(object):
                 for idx in range(index + 1, -1, -1):
                     try:
                         self.intData[idx][key]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         self.intData[idx][key] = dict(self.init_intData)
+
                     try:
                         self.intData[idx - 1][key]
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         self.intData[idx - 1][key] = dict(self.init_intData)
 
@@ -65469,6 +65820,8 @@ class ThreadAnalyzer(object):
         # make core thread entity in advance for total irq per core #
         try:
             self.threadData[coreId]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.nrCore += 1
             self.threadData[coreId] = dict(self.init_threadData)
@@ -65613,6 +65966,9 @@ class ThreadAnalyzer(object):
             if self.threadData[next_id]['comm'] == '<...>':
                 self.threadData[next_id]['comm'] = next_comm
 
+            # update status #
+            prev_state = d['prev_state'][0]
+
             # check event loss #
             if self.threadData[prev_id]['lastStatus'] != 'R' and \
                 self.threadData[coreId]['coreSchedCnt'] > 0:
@@ -65622,6 +65978,12 @@ class ThreadAnalyzer(object):
             self.threadData[prev_id]['stop'] = ftime
             self.threadData[next_id]['start'] = ftime
             self.threadData[next_id]['waitStartAsParent'] = float(0)
+
+            # define time #
+            prev_start = self.threadData[prev_id]['start']
+            prev_stop = self.threadData[prev_id]['stop']
+            next_start = self.threadData[next_id]['start']
+            next_stop = self.threadData[next_id]['stop']
 
             # update priority of thread to highest one #
             if self.threadData[prev_id]['pri'] == '?' or \
@@ -65633,11 +65995,10 @@ class ThreadAnalyzer(object):
 
             # update CPU time by futex #
             if self.threadData[prev_id]['ftxEnter'] > 0:
-                cstart = self.threadData[prev_id]['start']
                 fstart = self.threadData[prev_id]['ftxEnter']
 
-                if cstart > fstart:
-                    tstart = cstart
+                if prev_start > fstart:
+                    tstart = prev_start
                 else:
                     tstart = fstart
 
@@ -65706,7 +66067,7 @@ class ThreadAnalyzer(object):
 
             # calculate running time of previous thread #
             diff = long(0)
-            if self.threadData[prev_id]['start'] == 0:
+            if prev_start == 0:
                 ''' calculate running time of previous thread started
                     before starting to profile '''
                 if self.threadData[coreId]['coreSchedCnt'] == 0:
@@ -65716,8 +66077,7 @@ class ThreadAnalyzer(object):
                 else:
                     pass
             else:
-                diff = self.threadData[prev_id]['stop'] - \
-                    self.threadData[prev_id]['start']
+                diff = prev_stop - prev_start
                 if diff >= 0:
                     self.threadData[prev_id]['usage'] += diff
 
@@ -65728,10 +66088,40 @@ class ThreadAnalyzer(object):
                         "usage time of %s(%s) is negative(%f) at line %d" % \
                         (prev_comm, prev_id, diff, SysMgr.curLine))
 
-            # add runtime to list for histogram #
-            if not prev_id.startswith('0['):
+            # add timeline stats #
+            if not prev_id.startswith('0[') and \
+                (not SysMgr.filterGroup or \
+                    prev_id in SysMgr.filterGroup or \
+                    UtilMgr.isEffectiveStr(prev_comm)):
+
+                # add runtime to list for histogram #
                 self.statData.setdefault('runtime', list())
                 self.statData['runtime'].append(diff)
+
+                # add timestamps to list for timeline #
+                stime = float(SysMgr.startTime)
+
+                if prev_start == 0:
+                    start_delta = 0
+                else:
+                    start_delta = long((float(prev_start)-stime)*1000)
+
+                stop_delta = long((float(prev_stop)-stime)*1000)
+
+                # update comm #
+                if prev_comm == '<...>':
+                    tcomm = '??'
+                else:
+                    tcomm = prev_comm
+
+                self.timelineData['segments'].append({
+                    'group': long(coreId[2:-1]),
+                    'text': '%s(%s)' % (tcomm, prev_id),
+                    'id': prev_id,
+                    'state': prev_state,
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
 
             if diff > long(SysMgr.intervalEnable):
                 self.threadData[prev_id]['longRunCore'] = long(core)
@@ -65752,15 +66142,11 @@ class ThreadAnalyzer(object):
                             self.preemptData[index][1][prev_id] = \
                                 dict(self.init_preemptData)
 
-                        self.preemptData[index][1][prev_id]['usage'] += \
-                            self.threadData[prev_id]['stop'] - \
-                            self.threadData[prev_id]['start']
-                        self.preemptData[index][4] += \
-                            self.threadData[prev_id]['stop'] - \
-                            self.threadData[prev_id]['start']
+                        self.preemptData[index][1][prev_id]['usage'] += diff
+                        self.preemptData[index][4] += diff
 
             # set sched status #
-            if d['prev_state'][0] == 'R':
+            if prev_state == 'R':
                 # except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]['preempted'] += 1
@@ -65791,10 +66177,8 @@ class ThreadAnalyzer(object):
                         self.preemptData[index][2] = ftime
                         self.preemptData[index][3] = core
 
-            elif d['prev_state'][0] == 'S' or \
-                d['prev_state'][0] == 'D' or \
-                d['prev_state'][0] == 't' or \
-                d['prev_state'][0] == 'T':
+            elif prev_state == 'S' or prev_state == 'D' or \
+                prev_state == 't' or prev_state == 'T':
                 # except for core sched event #
                 if prev_id != coreId:
                     self.threadData[prev_id]['yield'] += 1
@@ -65805,7 +66189,7 @@ class ThreadAnalyzer(object):
 
             else:
                 self.threadData[prev_id]['stop'] = long(0)
-                self.threadData[prev_id]['lastStatus'] = d['prev_state'][0]
+                self.threadData[prev_id]['lastStatus'] = prev_state
 
             # calculate sched latency of next thread #
             if not next_id.startswith('0[') and \
@@ -65819,14 +66203,12 @@ class ThreadAnalyzer(object):
                 self.statData['schedlat'].append(schedLat)
 
             # calculate preempted time of next thread #
-            if self.threadData[next_id]['stop'] == 0:
+            if next_stop == 0:
                 # no stop time of next thread because of some reasons #
                 pass
             # set sched status of next thread #
             elif self.threadData[next_id]['lastStatus'] == 'P':
-                preemptedTime = \
-                    self.threadData[next_id]['start'] - \
-                    self.threadData[next_id]['stop']
+                preemptedTime = next_start - next_stop
 
                 if preemptedTime >= 0:
                     self.threadData[next_id]['cpuWait'] += preemptedTime
@@ -73640,9 +74022,9 @@ def main(args=None):
         SysMgr.execTopCmd()
         sys.exit(0)
     # FUNCTION_GRAPH MODE #
-    elif SysMgr.isRecordMode() and \
-        SysMgr.isFunctionMode() and \
-        SysMgr.graphEnable:
+    elif SysMgr.graphEnable and \
+        SysMgr.isRecordMode() and \
+        SysMgr.isFunctionMode():
         FunctionAnalyzer(SysMgr.inputFile)
 
     # set handler for exit #
@@ -73666,7 +74048,29 @@ def main(args=None):
         FunctionAnalyzer(SysMgr.inputFile).printUsage()
     # THREAD MODE #
     else:
-        ThreadAnalyzer(SysMgr.inputFile).printUsage()
+        if SysMgr.isDrawMode():
+            origInputFile = SysMgr.inputFile
+            origInterval = SysMgr.intervalEnable
+
+            # prepare for timeline chart #
+            SysMgr.graphEnable = False
+            SysMgr.intervalEnable = 0
+            tobj = ThreadAnalyzer(origInputFile)
+            outputPath = UtilMgr.prepareForImageFile(
+                SysMgr.inputFile, 'timeline')
+
+            # draw timeline chart #
+            SysMgr.drawTimeline(
+                inputData=tobj.timelineData,
+                outputPath=outputPath,
+                taskList=list(tobj.threadData.keys()))
+
+            # draw resource graph #
+            SysMgr.graphEnable = True
+            SysMgr.intervalEnable = origInterval
+            ThreadAnalyzer(origInputFile).printUsage()
+        else:
+            ThreadAnalyzer(SysMgr.inputFile).printUsage()
 
     # print event info #
     EventAnalyzer.printEventInfo()
