@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201216"
+__revision__ = "201217"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6782,7 +6782,7 @@ class Timeline(object):
         self.segment_groups = set(s.group for s in self.segments)
         self.groups = len(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
-        self.ratio = self.config.WIDTH / (self.time_end - self.time_start)
+        self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
         self.tasks = tasks
         self.last_group_segment = dict()
         self.last_group_time = dict()
@@ -6842,9 +6842,9 @@ class Timeline(object):
                 stroke='black', stroke_width=0.1))
 
             dwg.add(dwg.text(
-                name, (self.config.FONT_SIZE, y_tick+self.scaled_height/2),
-                font_size=self.config.FONT_SIZE*2,
-                color='rgb(255,255,255)'))
+                name, (self.config.FONT_SIZE, y_tick+self.scaled_height),
+                font_size=self.scaled_height,
+                fill='rgb(220,220,220)'))
 
 
 
@@ -6859,8 +6859,8 @@ class Timeline(object):
             tick_time = "{:10}".format(long(x_tick_time * (1 / self.ratio)))
             dwg.add(dwg.text(
                 '%s %s' % (UtilMgr.convNum(tick_time), self.time_unit),
-                (x_tick_time, y_time_tick + self.config.FONT_SIZE*2),
-                font_size=self.config.FONT_SIZE*2,
+                (x_tick_time, y_time_tick + self.config.FONT_SIZE*5),
+                font_size=self.config.FONT_SIZE*5,
                 color='rgb(255,255,255)'))
 
 
@@ -6871,10 +6871,10 @@ class Timeline(object):
             fill='rgb(245,245,245)'))
 
         title = 'Guider Timeline Chart'
-        fontsize = self.config.FONT_SIZE * 5
+        fontsize = self.config.FONT_SIZE * 20
         dwg.add(dwg.text(
             title,
-            (self.config.WIDTH/2-len(title)*fontsize*self.ratio, fontsize),
+            ((self.config.WIDTH/2)-(len(title)*fontsize/4), fontsize),
             font_size=fontsize,
             font_weight='bolder',
             fill='rgb(230,230,230)'))
@@ -6890,10 +6890,10 @@ class Timeline(object):
 
 
     def _draw_segment(self, segment, dwg):
-        x0 = (segment.time_start - self.time_start) * self.ratio
-        x1 = (segment.time_end - self.time_start) * self.ratio
-        y0 = self.scaled_height * (segment.group % self.groups)
-        y1 = self.scaled_height * ((segment.group % self.groups)+1)
+        x0 = float(segment.time_start - self.time_start) * self.ratio
+        x1 = float(segment.time_end - self.time_start) * self.ratio
+        y0 = self.scaled_height * float(segment.group % self.groups)
+        y1 = self.scaled_height * float((segment.group % self.groups)+1)
         scaled_width = (x1 - x0)
 
         # get color #
@@ -6911,12 +6911,12 @@ class Timeline(object):
         if segment.state == 'R':
             dwg.add(dwg.line(
                 (x1, y0), (x1, y0+self.scaled_height/7),
-                stroke='red', stroke_width=1.2))
+                stroke='red', stroke_width=0.3))
         # draw wait status #
         elif segment.state == 'D':
             dwg.add(dwg.line(
                 (x1, y1), (x1, y1-self.scaled_height/7),
-                stroke='black', stroke_width=1.2))
+                stroke='black', stroke_width=0.3))
 
         # check duration #
         duration = segment.time_end - segment.time_start
@@ -30518,7 +30518,7 @@ Copyright:
 
         conv(struct.pack("BBxx", TASKSTATS_CMD_GET, 0))
 
-        cmd = struct.pack('=I', int(target))
+        cmd = struct.pack('=I', long(target))
         msgLen = len(cmd) + 4
 
         conv(struct.pack("HH", msgLen, TASKSTATS_CMD_ATTR_PID))
@@ -56345,7 +56345,7 @@ class ThreadAnalyzer(object):
                     "fail to handle %s block requests" % len(self.ioData))
 
         # calculate usage of threads in last interval #
-        self.processIntervalData(self.finishTime)
+        self.handleIntData(self.finishTime)
 
         if not self.threadData:
             SysMgr.printErr(
@@ -62812,7 +62812,7 @@ class ThreadAnalyzer(object):
                     totalCpuUsage = item
                     continue
 
-                totalCpuUsage = list(map(long.__add__, totalCpuUsage, item))
+                totalCpuUsage = list(map(int.__add__, totalCpuUsage, item))
 
             avgCpuUsage = [x / len(cpuUsageList) for x in totalCpuUsage]
             plot(range(intervalEnable,
@@ -62848,7 +62848,7 @@ class ThreadAnalyzer(object):
             try:
                 ytickLabel = ax.get_yticks().tolist()
                 ymax = max(ytickLabel)
-                ylim([0, ymax+int(ymax/10)])
+                ylim([0, ymax+long(ymax/10)])
                 inc = long(ymax / 10)
                 if inc == 0:
                     inc = 1
@@ -65209,7 +65209,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def processIntervalData(self, time):
+    def handleIntData(self, time):
         if SysMgr.intervalEnable == 0:
             return
 
@@ -65877,7 +65877,7 @@ class ThreadAnalyzer(object):
                     continue
 
         # calculate usage of threads in interval #
-        self.processIntervalData(time)
+        self.handleIntData(time)
 
         # define flag for special events #
         handleSpecialEvents = False
@@ -66458,8 +66458,9 @@ class ThreadAnalyzer(object):
 
             self.threadData.setdefault(pid, dict(self.init_threadData))
             self.threadData[pid]['comm'] = d['comm']
-
             self.threadData[pid]['migrate'] += 1
+
+            self.threadData.setdefault(coreId, dict(self.init_threadData))
             self.threadData[coreId]['migrate'] += 1
 
             # update core data for preempted info #
@@ -68970,91 +68971,129 @@ class ThreadAnalyzer(object):
 
     def saveGpuData(self):
         try:
-            if not SysMgr.gpuEnable or \
-                not self.gpuCoreList:
+            if not SysMgr.gpuEnable or not self.gpuCoreList:
                 return
         except:
             self.gpuCoreList = {}
+            self.gpuNameList = {}
 
         devList = [
-            '/sys/devices', # nVIDIA tegra #
+            '/sys/devices',
+            '/sys/class',
             ]
 
-        # get candidate list for target GPU device #
+        # initialize candidates for GPU devices #
         if not self.gpuCoreList:
             candList = self.gpuCoreList
             for devPath in devList:
-                try:
-                    for targetDir in os.listdir(devPath):
-                        path = '%s/%s' % (devPath, targetDir)
-                        if path in candList:
-                            continue
+                # check permission #
+                if not os.access(devPath, os.R_OK) or \
+                    not os.path.isdir(devPath):
+                    continue
 
-                        try:
-                            if 'devfreq' in os.listdir(path):
-                                candList[path] = dict()
-                        except SystemExit:
-                            sys.exit(0)
-                        except:
-                            pass
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                for targetDir in os.listdir(devPath):
+                    path = '%s/%s' % (devPath, targetDir)
+                    if path in candList:
+                        continue
 
-        # no gpu supported #
+                    # get node list #
+                    if os.access(path, os.R_OK) and \
+                        os.path.isdir(path):
+                        nodes = os.listdir(path)
+                    else:
+                        continue
+
+                    # NVIDIA tegra #
+                    if 'devfreq' in nodes:
+                        candList[path] = dict()
+                        self.gpuNameList[path] = 'NVIDIA'
+
+                    # QUALCOMM #
+                    if 'kgsl-3d0' in nodes:
+                        name = '%s/%s/devfreq' % (path, 'kgsl-3d0')
+                        candList[name] = dict()
+                        self.gpuNameList[name] = 'QUALCOMM'
+
+        # no GPU supported #
         if not self.gpuCoreList:
             SysMgr.gpuEnable = False
             return
 
-        # read gpu stat from list #
+        # read GPU stat from list #
         for cand, value in self.gpuCoreList.items():
             try:
                 target = None
 
-                # save target device info #
-                if not 'uevent' in value:
-                    self.gpuCoreList[cand]['uevent'] = \
-                        open('%s/uevent' % cand, 'r')
-                fd = self.gpuCoreList[cand]['uevent']
-                fd.seek(0)
-                target = cand[cand.rfind('/')+1:]
-                self.gpuData[target] = dict()
-                for item in fd.readlines():
-                    attr, value = item[:-1].split('=')
-                    self.gpuData[target][attr] = value
+                # set GPU name #
+                gpuName = self.gpuNameList[cand]
 
-                # save target device load #
-                if not 'load' in value:
+                # save device info for NVIDIA #
+                if gpuName.startswith('NVIDIA'):
+                    devName = cand[cand.rfind('/')+1:]
+                    target = '%s/%s' % (gpuName, devName)
+                    self.gpuData[target] = dict()
+
+                    if not 'uevent' in value:
+                        self.gpuCoreList[cand]['uevent'] = \
+                            open('%s/uevent' % cand, 'r')
+                    fd = self.gpuCoreList[cand]['uevent']
+                    fd.seek(0)
+
+                    for item in fd.readlines():
+                        attr, value = item[:-1].split('=')
+                        self.gpuData[target][attr] = value
+
+                    # save GPU device load #
+                    if not 'load' in value:
+                        self.gpuCoreList[cand]['load'] = \
+                            open('%s/load' % cand, 'r')
+                    fd = self.gpuCoreList[cand]['load']
+                    fd.seek(0)
+                    self.gpuData[target]['CUR_LOAD'] = \
+                        long(fd.readline()[:-1]) / 10
+
+                    nodePath = '%s/devfreq/%s' % (cand, devName)
+
+                # save device info for QUALCOMM #
+                elif gpuName.startswith('QUALCOMM'):
+                    realCand = cand.rstrip('/devfreq')
+                    devName = realCand[realCand.rfind('/')+1:]
+                    target = '%s/%s' % (gpuName, devName)
+                    self.gpuData[target] = dict()
+
+                    # save GPU device load #
+                    value = {}
                     self.gpuCoreList[cand]['load'] = \
-                        open('%s/load' % cand, 'r')
-                fd = self.gpuCoreList[cand]['load']
-                fd.seek(0)
-                self.gpuData[target]['CUR_LOAD'] = \
-                    long(fd.readline()[:-1]) / 10
+                        open('%s/gpu_load' % cand, 'r')
+                    fd = self.gpuCoreList[cand]['load']
+                    fd.seek(0)
+                    self.gpuData[target]['CUR_LOAD'] = \
+                        long(fd.readline()[:-1])
 
-                # save current clock of target device #
+                    nodePath = cand
+
+                # save current clock of GPU device #
                 if not 'curfreq' in value:
                     self.gpuCoreList[cand]['curfreq'] = \
-                        open('%s/devfreq/%s/cur_freq' % (cand, target), 'r')
+                        open('%s/cur_freq' % nodePath, 'r')
                 fd = self.gpuCoreList[cand]['curfreq']
                 fd.seek(0)
                 self.gpuData[target]['CUR_FREQ'] = \
                     long(fd.readline()[:-1]) / 1000000
 
-                # save min clock of target device #
+                # save min clock of GPU device #
                 if not 'minfreq' in value:
                     self.gpuCoreList[cand]['minfreq'] = \
-                        open('%s/devfreq/%s/min_freq' % (cand, target), 'r')
+                        open('%s/min_freq' % nodePath, 'r')
                 fd = self.gpuCoreList[cand]['minfreq']
                 fd.seek(0)
                 self.gpuData[target]['MIN_FREQ'] = \
                     long(fd.readline()[:-1]) / 1000000
 
-                # save max clock of target device #
+                # save max clock of GPU device #
                 if not 'maxfreq' in value:
                     self.gpuCoreList[cand]['maxfreq'] = \
-                        open('%s/devfreq/%s/max_freq' % (cand, target), 'r')
+                        open('%s/max_freq' % nodePath, 'r')
                 fd = self.gpuCoreList[cand]['maxfreq']
                 fd.seek(0)
                 self.gpuData[target]['MAX_FREQ'] = \
@@ -70395,7 +70434,7 @@ class ThreadAnalyzer(object):
         if SysMgr.gpuEnable:
             gpuStats = {}
 
-            if len(self.gpuData) > 0:
+            if self.gpuData:
                 SysMgr.addPrint('%s\n' % oneLine)
 
             for idx, value in self.gpuData.items():
