@@ -4335,6 +4335,29 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convOverlayPath(path, overlayfsList):
+        fileList = []
+        itemList = ['lowerdir', 'upperdir']
+
+        for pos, info in overlayfsList.items():
+            if not pos in path:
+                continue
+
+            for target in itemList:
+                for item in info[target]:
+                    fullpath = item + path
+                    if os.path.exists(fullpath):
+                        fileList.append(fullpath)
+
+        # return recent path #
+        if fileList:
+            return fileList[-1]
+        else:
+            return path
+
+
+
+    @staticmethod
     def convStr2Num(string, verb=True):
         try:
             if type(string) is long:
@@ -17174,17 +17197,22 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getMountData():
+    def getMountData(pid='self'):
         try:
+            if pid != 'self':
+                raise Exception()
+
             SysMgr.mountFd.seek(0)
             return SysMgr.mountFd.readlines()
         except SystemExit:
             sys.exit(0)
         except:
             try:
-                mountPath = '%s/self/mountinfo' % SysMgr.procPath
-                SysMgr.mountFd = open(mountPath, 'r')
-                return SysMgr.mountFd.readlines()
+                mountPath = '%s/%s/mountinfo' % (SysMgr.procPath, pid)
+                mountFd = open(mountPath, 'r')
+                if pid == 'self':
+                    SysMgr.mountFd = mountFd
+                return mountFd.readlines()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -23726,6 +23754,86 @@ Copyright:
             return newList
         else:
             return targetList
+
+
+
+    @staticmethod
+    def getOverlayfsInfo(pid):
+        data = SysMgr.getMountData(pid)
+        mountList = SysMgr.convMountList(data)
+        if not mountList:
+            return {}
+
+        overlayList = {}
+        for point, info in mountList.items():
+            try:
+                if info['fs'] != 'overlay':
+                    continue
+
+                overlayList[point] = {}
+                items = info['subopt'].split(',')
+                for line in items:
+                    if line.startswith('lowerdir'):
+                        attr = 'lowerdir'
+                    elif line.startswith('upperdir'):
+                        attr = 'upperdir'
+                    elif line.startswith('mergedir'):
+                        continue
+                    else:
+                        continue
+
+                    dirs = line.lstrip(attr)[1:].split(':')
+                    overlayList[point][attr] = dirs
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
+        return overlayList
+
+
+
+    @staticmethod
+    def convMountList(mountInfo):
+        if not mountInfo:
+            return {}
+
+        mountList = {}
+        for l in mountInfo:
+            # split mount info #
+            values = l.split(' - ')
+            if len(values) != 2:
+                continue
+            left = values[0]
+            right = values[1]
+
+            # split left-side part #
+            left = left.split()
+            mountid, parentid, devid, root, path = left[:5]
+            major, minor = devid.split(':')
+            option = ' '.join(left[5:-1])
+
+            # split right-side part #
+            right = right.split()
+            fs, dev = right[0:2]
+            soption = ' '.join(right[2:])
+
+            if ':' in dev:
+                major, minor = dev.split(':')
+            else:
+                major = minor = -1
+
+            # save mount info #
+            mountList[path] = {
+                'major': major,
+                'minor': minor,
+                'mountid': mountid,
+                'fs': fs,
+                'opt': option,
+                'subopt': soption,
+            }
+
+        return mountList
 
 
 
@@ -36657,14 +36765,15 @@ Copyright:
                 continue
 
             # save mount info #
-            self.mountInfo[rpath] = dict()
-            self.mountInfo[rpath]['major'] = major
-            self.mountInfo[rpath]['minor'] = minor
-            self.mountInfo[rpath]['mountid'] = mountid
-            self.mountInfo[rpath]['path'] = path
-            self.mountInfo[rpath]['fs'] = fs
-            self.mountInfo[rpath]['option'] = option
-            self.mountInfo[rpath]['soption'] = soption
+            self.mountInfo[rpath] = {
+                'major': major,
+                'minor': minor,
+                'mountid': mountid,
+                'path': path,
+                'fs': fs,
+                'option': option,
+                'soption': soption,
+            }
 
 
 
@@ -41370,6 +41479,7 @@ class Debugger(object):
         self.fileList = []
         self.addrList = []
         self.callstack = []
+        self.overlayfsList = []
         self.totalCall = long(0)
         self.syscallAddr = None
         self.syscallFound = True
@@ -45517,15 +45627,20 @@ struct cmsghdr {
         if not ret:
             return False
 
+        # update overlayfs info #
+        if not self.overlayfsList:
+            self.overlayfsList = SysMgr.getOverlayfsInfo(self.pid)
+
         # register default libraries #
         for fpath in list(self.pmap.keys()):
-            # set minimum address on memory map #
+            # update start address #
             startAddr = self.pmap[fpath]['vstart']
             if self.startAddr is None:
                 self.startAddr = startAddr
             elif self.startAddr > startAddr:
                 self.startAddr = startAddr
 
+            # update load status #
             fname = os.path.basename(fpath)
             if fname.startswith('ld-'):
                 self.dftBpFileList[fpath] = 0
@@ -45540,7 +45655,8 @@ struct cmsghdr {
         # load file-mapped objects #
         for mfile in list(self.pmap.keys()):
             try:
-                eobj = ElfAnalyzer.getObject(mfile)
+                eobj = ElfAnalyzer.getObject(
+                    mfile, overlay=self.overlayfsList)
                 if eobj:
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
             except SystemExit:
@@ -51793,6 +51909,7 @@ class ElfAnalyzer(object):
     failedFiles = {}
     relocTypes = {}
     cachedDemangleTable = {}
+    overlayTable = {}
 
 
 
@@ -52009,13 +52126,32 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
-    def getObject(path, raiseExcept=False, fobj=None, cache=True):
+    def getObject(
+        path, raiseExcept=False, fobj=None, cache=True, overlay=None):
+
+        # remove segment number #
+        path = path.split(SysMgr.magicStr)[0]
+
+        # save original path #
+        origPath = path
+
+        # convert file path on overlayfs #
+        if path in ElfAnalyzer.overlayTable:
+            path = ElfAnalyzer.overlayTable[path]
+
         # immediate return for cached object #
         if cache and path in ElfAnalyzer.cachedFiles:
             return ElfAnalyzer.cachedFiles[path]
 
-        # remove segment number #
-        path = path.split(SysMgr.magicStr)[0]
+        # check overlayfs #
+        if overlay and \
+            path.startswith('/') and \
+            not os.path.exists(path):
+            path = UtilMgr.convOverlayPath(path, overlay)
+            if path != origPath:
+                ElfAnalyzer.overlayTable[origPath] = path
+            if path in ElfAnalyzer.failedFiles:
+                ElfAnalyzer.failedFiles.pop(path, None)
 
         # check black-list #
         if path in ElfAnalyzer.failedFiles:
