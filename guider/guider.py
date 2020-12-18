@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201217"
+__revision__ = "201218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -23316,13 +23316,25 @@ Copyright:
             # write system info #
             if SysMgr.systemInfoBuffer:
                 magicStr = '%s\n' % SysMgr.magicStr
-                magicStr = magicStr.encode('utf-8')
+
+                if compressor:
+                    magicStr = magicStr.encode('utf-8')
+
                 f.write(magicStr)
-                f.write(SysMgr.systemInfoBuffer.encode('utf-8'))
+
+                if compressor:
+                    f.write(SysMgr.systemInfoBuffer.encode('utf-8'))
+                else:
+                    f.write(SysMgr.systemInfoBuffer)
+
                 f.write(magicStr)
 
             # write trace info #
-            f.write('\n'.join(lines).encode('utf-8'))
+            if compressor:
+                f.write('\n'.join(lines).encode('utf-8'))
+            else:
+                f.writelines(lines)
+
             f.close()
 
             try:
@@ -27854,6 +27866,12 @@ Copyright:
     def mountDebugfs(mp=None):
         if not mp:
             mp = SysMgr.debugfsPath
+
+        # check root permission #
+        if not SysMgr.isRoot():
+            SysMgr.printErr(
+                "fail to get root permission to mount debugfs")
+            sys.exit(0)
 
         # mount debugfs #
         SysMgr.mountCmd =\
@@ -35592,6 +35610,12 @@ Copyright:
 
 
 
+        # check root permission #
+        if not SysMgr.isRoot():
+            SysMgr.printErr(
+                "fail to get root permission to trace system")
+            sys.exit(0)
+
         # mount debugfs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
@@ -35599,15 +35623,10 @@ Copyright:
 
         # check permission #
         if not os.path.isdir(SysMgr.mountPath):
-            if SysMgr.isRoot():
-                cmd = '/boot/config-$(uname -r)'
-                SysMgr.printErr((
-                    "check whether ftrace options are enabled in kernel "
-                    "through %s") % cmd)
-            else:
-                SysMgr.printErr(
-                    "fail to get root permission to trace system")
-
+            cmd = '/boot/config-$(uname -r)'
+            SysMgr.printErr((
+                "check whether ftrace options are enabled in kernel "
+                "through %s") % cmd)
             sys.exit(0)
 
         # write user command #
