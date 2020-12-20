@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201218"
+__revision__ = "201220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5621,8 +5621,8 @@ class NetworkMgr(object):
 
             # check mode to print error message #
             if SysMgr.warnEnable or \
-                SysMgr.isServerMode() or \
-                SysMgr.isClientMode():
+                SysMgr.checkMode('server') or \
+                SysMgr.checkMode('cli'):
                 SysMgr.printErr(
                     "fail to create a socket for %s:%s as server because %s%s" % \
                         (self.ip, self.port, err, feedback))
@@ -15581,20 +15581,20 @@ class SysMgr(object):
     @staticmethod
     def setRecordAttr():
         # function #
-        if SysMgr.isFuncRecMode():
+        if SysMgr.checkMode('funcrec'):
             SysMgr.functionEnable = True
 
         # file #
-        elif SysMgr.isFileRecMode():
+        elif SysMgr.checkMode('filerec'):
             SysMgr.fileEnable = True
 
         # syscall #
-        elif SysMgr.isSysRecMode():
+        elif SysMgr.checkMode('sysrec'):
             SysMgr.sysEnable = True
             SysMgr.cpuEnable = False
 
         # general #
-        elif SysMgr.isGenRecMode():
+        elif SysMgr.checkMode('genrec'):
             SysMgr.systemEnable = True
 
         # update record status #
@@ -15654,7 +15654,7 @@ class SysMgr(object):
             # check data type #
             if SysMgr.isThreadMode():
                 pass
-            elif SysMgr.isFunctionMode():
+            elif SysMgr.isFuncMode():
                 SysMgr.printErr(
                     "fail to draw because this data is for function")
                 sys.exit(0)
@@ -15672,29 +15672,29 @@ class SysMgr(object):
         # top draw mode #
         else:
             # CPU #
-            if SysMgr.isDrawCpuMode() or \
-                SysMgr.isDrawCpuAvgMode():
+            if SysMgr.checkMode('drawcpu') or \
+                SysMgr.checkMode('drawcpuavg'):
                 SysMgr.layout = 'CPU'
             # memory #
-            elif SysMgr.isDrawMemMode() or \
-                SysMgr.isDrawMemAvgMode():
+            elif SysMgr.checkMode('drawmem') or \
+                SysMgr.checkMode('drawmemavg'):
                 SysMgr.layout = 'MEM'
             # vss #
-            elif SysMgr.isDrawVssMode() or \
-                SysMgr.isDrawVssAvgMode():
+            elif SysMgr.checkMode('drawvss') or \
+                SysMgr.checkMode('drawvssavg'):
                 SysMgr.layout = 'MEM'
                 SysMgr.vssEnable = True
             # rss #
-            elif SysMgr.isDrawRssMode() or \
-                SysMgr.isDrawRssAvgMode():
+            elif SysMgr.checkMode('drawrss') or \
+                SysMgr.checkMode('drawrssavg'):
                 SysMgr.layout = 'MEM'
                 SysMgr.rssEnable = True
             # leak #
-            elif SysMgr.isDrawLeakMode():
+            elif SysMgr.checkMode('drawleak'):
                 SysMgr.layout = 'MEM'
                 SysMgr.leakEnable = True
             # io #
-            elif SysMgr.isDrawIoMode():
+            elif SysMgr.checkMode('drawio'):
                 SysMgr.layout = 'IO'
 
             # average #
@@ -15838,15 +15838,15 @@ class SysMgr(object):
         SysMgr.writeTraceCmd('BEFORE')
 
         # thread #
-        if SysMgr.isThreadTopMode():
+        if SysMgr.checkMode('ttop'):
             SysMgr.processEnable = False
 
         # file #
-        elif SysMgr.isFileTopMode():
+        elif SysMgr.checkMode('ftop'):
             SysMgr.fileTopEnable = True
 
         # stack #
-        elif SysMgr.isStackTopMode():
+        elif SysMgr.checkMode('stacktop'):
             if SysMgr.checkStackTopCond():
                 SysMgr.processEnable = False
                 SysMgr.stackEnable = True
@@ -15854,7 +15854,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # perf #
-        elif SysMgr.isPerfTopMode():
+        elif SysMgr.checkMode('ptop'):
             if SysMgr.checkPerfTopCond():
                 SysMgr.perfEnable = True
                 if SysMgr.findOption('g'):
@@ -15864,7 +15864,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # mem #
-        elif SysMgr.isMemTopMode():
+        elif SysMgr.checkMode('mtop'):
             if SysMgr.checkMemTopCond():
                 SysMgr.memEnable = True
                 SysMgr.sort = 'm'
@@ -15872,7 +15872,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # WSS (working set size) #
-        elif SysMgr.isWssTopMode():
+        elif SysMgr.checkMode('wtop'):
             if SysMgr.checkWssTopCond():
                 SysMgr.memEnable = True
                 SysMgr.wssEnable = True
@@ -15881,7 +15881,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # disk #
-        elif SysMgr.isDiskTopMode():
+        elif SysMgr.checkMode('disktop'):
             if SysMgr.checkDiskTopCond():
                 SysMgr.diskEnable = True
                 SysMgr.blockEnable = True
@@ -15890,7 +15890,7 @@ class SysMgr(object):
                 sys.exit(0)
 
         # all #
-        elif SysMgr.isAllTopMode():
+        elif SysMgr.checkMode('atop'):
             SysMgr.cpuEnable = True
             SysMgr.memEnable = True
             SysMgr.irqEnable = True
@@ -15899,7 +15899,7 @@ class SysMgr(object):
             SysMgr.perfEnable = True
 
         # condition #
-        elif SysMgr.isCondTopMode():
+        elif SysMgr.checkMode('ctop'):
             # check path for config file #
             if not SysMgr.getOption('C'):
                 if not SysMgr.loadConfig(SysMgr.confFileName):
@@ -15913,11 +15913,11 @@ class SysMgr(object):
                 SysMgr.bufferSize = -1
 
         # DLT #
-        elif SysMgr.isDltTopMode():
+        elif SysMgr.checkMode('dlttop'):
             SysMgr.dltTopEnable = True
 
         # D-Bus #
-        elif SysMgr.isDbusTopMode():
+        elif SysMgr.checkMode('dbustop'):
             SysMgr.dbusTopEnable = True
             SysMgr.floatEnable = True
 
@@ -15927,34 +15927,34 @@ class SysMgr(object):
                 SysMgr.intervalEnable = 3
 
         # usercall #
-        elif SysMgr.isUserTopMode():
+        elif SysMgr.checkMode('utop'):
             SysMgr.doTrace('usercall')
 
         # pycall #
-        elif SysMgr.isPyTopMode():
+        elif SysMgr.checkMode('pytop'):
             SysMgr.doTrace('pycall')
 
         # breakcall #
-        elif SysMgr.isBrkTopMode():
+        elif SysMgr.checkMode('btop'):
             SysMgr.doTrace('breakcall')
 
         # syscall #
-        elif SysMgr.isSysTopMode():
+        elif SysMgr.checkMode('systop'):
             SysMgr.doTrace('syscall')
 
         # network #
-        elif SysMgr.isNetTopMode():
+        elif SysMgr.checkMode('ntop'):
             SysMgr.networkEnable = True
 
         # background #
-        elif SysMgr.isBgTopMode():
+        elif SysMgr.checkMode('bgtop'):
             if SysMgr.checkBgTopCond():
                 SysMgr.runBackgroundMode()
             else:
                 sys.exit(0)
 
         # report #
-        elif SysMgr.isRepTopMode():
+        elif SysMgr.checkMode('rtop'):
             SysMgr.jsonEnable = True
 
             if SysMgr.isRoot():
@@ -17612,7 +17612,7 @@ class SysMgr(object):
             SysMgr.printInfo("sorted by FILE")
             SysMgr.fileTopEnable = True
         elif value == 'C':
-            if not SysMgr.isThreadTopMode():
+            if not SysMgr.checkMode('ttop'):
                 SysMgr.printErr(
                    "fail to sort by CONTEXTSWITCH because "
                     "it is supported on thread mode")
@@ -17671,17 +17671,17 @@ class SysMgr(object):
             sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
             if len(sys.argv) > 1 and \
-                not SysMgr.isClientMode() and \
+                not SysMgr.checkMode('cli') and \
                 not SysMgr.isDrawMode() and \
-                not SysMgr.isConvertMode() and \
-                not SysMgr.isReadelfMode() and \
-                not SysMgr.isAddr2symMode() and \
-                not SysMgr.isSym2addrMode() and \
-                not SysMgr.isTopDiffMode() and \
-                not SysMgr.isTopSumMode() and \
-                not SysMgr.isPrintDirMode() and \
-                not SysMgr.isReportMode() and \
-                not SysMgr.isExecMode() and \
+                not SysMgr.checkMode('convert') and \
+                not SysMgr.checkMode('readelf') and \
+                not SysMgr.checkMode('addr2sym') and \
+                not SysMgr.checkMode('sym2addr') and \
+                not SysMgr.checkMode('topdiff') and \
+                not SysMgr.checkMode('topsum') and \
+                not SysMgr.checkMode('printdir') and \
+                not SysMgr.checkMode('report') and \
+                not SysMgr.checkMode('exec') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -17828,7 +17828,7 @@ class SysMgr(object):
                 'drawmemavg': 'Memory',
                 'drawrss': 'RSS',
                 'drawrssavg': 'RSS',
-                'drawtimeline': 'Timeline',
+                'drawtime': 'Timeline',
                 'drawvss': 'VSS',
                 'drawvssavg': 'VSS',
                 },
@@ -17877,7 +17877,7 @@ class SysMgr(object):
                 'printjrl': 'Journal',
                 },
             'control': {
-                'client': 'Client',
+                'cli': 'Client',
                 'event': 'Event',
                 'list': 'List',
                 'send': 'Signal',
@@ -17998,7 +17998,7 @@ Options:
     -v                          verbose
                     '''
 
-                if SysMgr.isThreadTopMode():
+                if SysMgr.checkMode('ttop'):
                     target = 'threads'
                 else:
                     target = 'processes'
@@ -18375,7 +18375,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # function record #
-                if SysMgr.isFuncRecMode():
+                if SysMgr.checkMode('funcrec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18481,7 +18481,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # file record #
-                elif SysMgr.isFileRecMode():
+                elif SysMgr.checkMode('filerec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18520,7 +18520,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # syscall record #
-                elif SysMgr.isSysRecMode():
+                elif SysMgr.checkMode('sysrec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18559,7 +18559,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # report #
-                elif SysMgr.isReportMode():
+                elif SysMgr.checkMode('report'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18593,7 +18593,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # general record #
-                elif SysMgr.isGenRecMode():
+                elif SysMgr.checkMode('genrec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18626,7 +18626,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # thread record #
-                elif SysMgr.isThreadRecMode():
+                elif SysMgr.checkMode('rec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18752,7 +18752,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # file top #
-                elif SysMgr.isFileTopMode():
+                elif SysMgr.checkMode('ftop'):
                     fileTopStr = topCommonStr
 
                     helpStr = '''
@@ -18783,7 +18783,7 @@ Examples:
                     helpStr += fileTopStr + examStr
 
                 # thread top #
-                elif SysMgr.isThreadTopMode():
+                elif SysMgr.checkMode('ttop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18795,7 +18795,7 @@ Description:
                     helpStr += topSubStr + topCommonStr + topExamStr
 
                 # syscall top #
-                elif SysMgr.isSysTopMode():
+                elif SysMgr.checkMode('systop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -18830,7 +18830,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # python top #
-                elif SysMgr.isPyTopMode():
+                elif SysMgr.checkMode('pytop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -18865,7 +18865,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # usercall top #
-                elif SysMgr.isUserTopMode():
+                elif SysMgr.checkMode('utop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -18903,7 +18903,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # break top #
-                elif SysMgr.isBrkTopMode():
+                elif SysMgr.checkMode('btop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -18921,7 +18921,7 @@ Description:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # all top #
-                elif SysMgr.isAllTopMode():
+                elif SysMgr.checkMode('atop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18941,7 +18941,7 @@ Examples:
                     helpStr += topCommonStr + examStr
 
                 # condition top #
-                elif SysMgr.isCondTopMode():
+                elif SysMgr.checkMode('ctop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -18962,7 +18962,7 @@ Examples:
                     helpStr += topCommonStr + examStr
 
                 # stack top #
-                elif SysMgr.isStackTopMode():
+                elif SysMgr.checkMode('stacktop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -18982,7 +18982,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # perf top #
-                elif SysMgr.isPerfTopMode():
+                elif SysMgr.checkMode('ptop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19002,7 +19002,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # mem top #
-                elif SysMgr.isMemTopMode():
+                elif SysMgr.checkMode('mtop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19022,7 +19022,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # wss top #
-                elif SysMgr.isWssTopMode():
+                elif SysMgr.checkMode('wtop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19042,7 +19042,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # report top #
-                elif SysMgr.isRepTopMode():
+                elif SysMgr.checkMode('rtop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19071,7 +19071,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # background top #
-                elif SysMgr.isBgTopMode():
+                elif SysMgr.checkMode('bgtop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19094,7 +19094,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # disk top #
-                elif SysMgr.isDiskTopMode():
+                elif SysMgr.checkMode('disktop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19114,7 +19114,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # DLT top #
-                elif SysMgr.isDltTopMode():
+                elif SysMgr.checkMode('dlttop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19140,7 +19140,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # dbus top #
-                elif SysMgr.isDbusTopMode():
+                elif SysMgr.checkMode('dbustop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19172,7 +19172,7 @@ Examples:
                     helpStr += topSubStr + topCommonStr + examStr
 
                 # network top #
-                elif SysMgr.isNetTopMode():
+                elif SysMgr.checkMode('ntop'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19204,7 +19204,7 @@ Description:
                     helpStr += topSubStr + topCommonStr + topExamStr
 
                 # strings #
-                elif SysMgr.isStringsMode():
+                elif SysMgr.checkMode('strings'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19228,7 +19228,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # dump #
-                elif SysMgr.isDumpMode():
+                elif SysMgr.checkMode('dump'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19265,7 +19265,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # strace #
-                elif SysMgr.isStraceMode():
+                elif SysMgr.checkMode('strace'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19327,7 +19327,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # utrace #
-                elif SysMgr.isUtraceMode():
+                elif SysMgr.checkMode('utrace'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19383,7 +19383,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # btrace #
-                elif SysMgr.isBtraceMode():
+                elif SysMgr.checkMode('btrace'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19415,7 +19415,7 @@ Options:
                     helpStr += brkExamStr
 
                 # remote #
-                elif SysMgr.isRemoteMode():
+                elif SysMgr.checkMode('remote'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
@@ -19447,7 +19447,7 @@ Options:
                     helpStr += brkExamStr + remoteExamStr
 
                 # hook #
-                elif SysMgr.isHookMode():
+                elif SysMgr.checkMode('hook'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
@@ -19471,7 +19471,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # sigtrace #
-                elif SysMgr.isSigtraceMode():
+                elif SysMgr.checkMode('sigtrace'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19510,7 +19510,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # mem #
-                elif SysMgr.isMemMode():
+                elif SysMgr.checkMode('mem'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19535,7 +19535,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # CPU average draw #
-                elif SysMgr.isDrawCpuAvgMode():
+                elif SysMgr.checkMode('drawcpuavg'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19547,7 +19547,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # memory average draw #
-                elif SysMgr.isDrawMemAvgMode():
+                elif SysMgr.checkMode('drawmemavg'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19559,7 +19559,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # VSS average draw #
-                elif SysMgr.isDrawVssAvgMode():
+                elif SysMgr.checkMode('drawvssavg'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19571,7 +19571,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # RSS average draw #
-                elif SysMgr.isDrawRssAvgMode():
+                elif SysMgr.checkMode('drawrssavg'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19583,7 +19583,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # CPU draw #
-                elif SysMgr.isDrawCpuMode():
+                elif SysMgr.checkMode('drawcpu'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19595,7 +19595,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # timeline draw #
-                elif SysMgr.isDrawTimelineMode():
+                elif SysMgr.checkMode('drawtime'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19607,7 +19607,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # memory draw #
-                elif SysMgr.isDrawMemMode():
+                elif SysMgr.checkMode('drawmem'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19619,7 +19619,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # vss draw #
-                elif SysMgr.isDrawVssMode():
+                elif SysMgr.checkMode('drawvss'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19631,7 +19631,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # rss draw #
-                elif SysMgr.isDrawRssMode():
+                elif SysMgr.checkMode('drawrss'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19643,7 +19643,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # leak draw #
-                elif SysMgr.isDrawLeakMode():
+                elif SysMgr.checkMode('drawleak'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19655,7 +19655,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # I/O draw #
-                elif SysMgr.isDrawIoMode():
+                elif SysMgr.checkMode('drawio'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19679,7 +19679,7 @@ Description:
                     helpStr += drawSubStr + drawExamStr
 
                 # topdiff #
-                elif SysMgr.isTopDiffMode():
+                elif SysMgr.checkMode('topdiff'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19698,7 +19698,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # topsum #
-                elif SysMgr.isTopSumMode():
+                elif SysMgr.checkMode('topsum'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -19744,7 +19744,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # pause #
-                elif SysMgr.isPauseMode():
+                elif SysMgr.checkMode('pause'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -19770,7 +19770,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # readelf #
-                elif SysMgr.isReadelfMode():
+                elif SysMgr.checkMode('readelf'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -I <FILE> [OPTIONS] [--help]
@@ -19796,21 +19796,21 @@ Examples:
                     '''.format(cmd, mode)
 
                 # log #
-                elif SysMgr.isLogDltMode() or \
-                    SysMgr.isLogKmsgMode() or \
-                    SysMgr.isLogSysMode() or \
-                    SysMgr.isLogJournalMode():
+                elif SysMgr.checkMode('logdlt') or \
+                    SysMgr.checkMode('logkmsg') or \
+                    SysMgr.checkMode('logsys') or \
+                    SysMgr.checkMode('logjrl'):
                     helpStr = logCommonStr
 
                 # printdlt #
-                elif SysMgr.isPrintDltMode() or \
-                    SysMgr.isPrintDbusMode() or \
-                    SysMgr.isPrintKmsgMode() or \
-                    SysMgr.isPrintJournalMode() or \
-                    SysMgr.isPrintSyslogMode():
+                elif SysMgr.checkMode('printdlt') or \
+                    SysMgr.checkMode('printdbus') or \
+                    SysMgr.checkMode('printkmsg') or \
+                    SysMgr.checkMode('printjrl') or \
+                    SysMgr.checkMode('printsys'):
                     helpStr = printCommonStr
 
-                    if SysMgr.isPrintDbusMode():
+                    if SysMgr.checkMode('printdbus'):
                         helpStr += '''
     - Print D-Bus messages with detailed information in real-time
         # {0:1} {1:1} -a
@@ -19829,7 +19829,7 @@ Examples:
 
                     '''.format(cmd, mode)
 
-                    if SysMgr.isPrintJournalMode():
+                    if SysMgr.checkMode('printjrl'):
                         helpStr += '''
     - Print journal messages with all fields in real-time
         # {0:1} {1:1} -I
@@ -19841,7 +19841,7 @@ Examples:
         # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
-                    if SysMgr.isPrintDltMode():
+                    if SysMgr.checkMode('printdlt'):
                         helpStr += '''
     - Print DLT messages from specific files
         # {0:1} {1:1} -I "./*.dlt"
@@ -19854,7 +19854,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printsig #
-                elif SysMgr.isPrintSigMode():
+                elif SysMgr.checkMode('printsig'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19875,7 +19875,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printsubsc #
-                elif SysMgr.isPrintSubscMode():
+                elif SysMgr.checkMode('printsubsc'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -19902,7 +19902,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # watch #
-                elif SysMgr.isWatchMode():
+                elif SysMgr.checkMode('watch'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <OFFSET> [OPTIONS] [--help]
@@ -19932,7 +19932,7 @@ Examples:
 
 
                 # addr2sym #
-                elif SysMgr.isAddr2symMode():
+                elif SysMgr.checkMode('addr2sym'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -I <FILE> -g <OFFSET> [OPTIONS] [--help]
@@ -19956,7 +19956,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # sym2addr#
-                elif SysMgr.isSym2addrMode():
+                elif SysMgr.checkMode('sym2addr'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
@@ -19991,7 +19991,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printcgroup #
-                elif SysMgr.isPrintCgroupMode():
+                elif SysMgr.checkMode('printcrp'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20014,7 +20014,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # exec #
-                elif SysMgr.isExecMode():
+                elif SysMgr.checkMode('exec'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20041,7 +20041,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printdir #
-                elif SysMgr.isPrintDirMode():
+                elif SysMgr.checkMode('printdir'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20083,7 +20083,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # leaktracer #
-                elif SysMgr.isLeaktraceMode():
+                elif SysMgr.checkMode('leaktrace'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -20141,7 +20141,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printenv #
-                elif SysMgr.isPrintEnvMode():
+                elif SysMgr.checkMode('printenv'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
@@ -20163,7 +20163,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printns #
-                elif SysMgr.isPrintNsMode():
+                elif SysMgr.checkMode('printns'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20186,7 +20186,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printsvc #
-                elif SysMgr.isPrintSvcMode():
+                elif SysMgr.checkMode('printsvc'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20221,7 +20221,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printinfo #
-                elif SysMgr.isPrintInfoMode():
+                elif SysMgr.checkMode('printinfo'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20240,7 +20240,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # pstree #
-                elif SysMgr.isPstreeMode():
+                elif SysMgr.checkMode('pstree'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20259,7 +20259,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # comp #
-                elif SysMgr.isCompMode():
+                elif SysMgr.checkMode('comp'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -20280,7 +20280,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # decomp #
-                elif SysMgr.isDecompMode():
+                elif SysMgr.checkMode('decomp'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -20301,7 +20301,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # systat #
-                elif SysMgr.isSystatMode():
+                elif SysMgr.checkMode('systat'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20323,7 +20323,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # limitcpu #
-                elif SysMgr.isLimitCpuMode():
+                elif SysMgr.checkMode('limitcpu'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TID|PID:PER> [OPTIONS] [--help]
@@ -20345,7 +20345,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # setcpu #
-                elif SysMgr.isSetCpuMode():
+                elif SysMgr.checkMode('setcpu'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <CORE:CLOCK:GOVERNOR> [OPTIONS] [--help]
@@ -20377,7 +20377,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # convert #
-                elif SysMgr.isConvertMode():
+                elif SysMgr.checkMode('convert'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
@@ -20396,7 +20396,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # setsched #
-                elif SysMgr.isSetSchedMode():
+                elif SysMgr.checkMode('setsched'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
@@ -20431,7 +20431,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # getaffinity #
-                elif SysMgr.isGetAffinityMode():
+                elif SysMgr.checkMode('getafnt'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TID|COMM> [OPTIONS] [--help]
@@ -20452,7 +20452,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # setaffinity #
-                elif SysMgr.isSetAffinityMode():
+                elif SysMgr.checkMode('setafnt'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <TARGET:MASK> [OPTIONS] [--help]
@@ -20473,7 +20473,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # cputest #
-                elif SysMgr.isCpuTestMode():
+                elif SysMgr.checkMode('cputest'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <LOAD:NRTASK> [OPTIONS] [--help]
@@ -20510,7 +20510,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # memtest #
-                elif SysMgr.isMemTestMode():
+                elif SysMgr.checkMode('memtest'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} <SIZE:INTERVAL:COUNT> [OPTIONS] [--help]
@@ -20539,7 +20539,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # iotest #
-                elif SysMgr.isIoTestMode():
+                elif SysMgr.checkMode('iotest'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} -g <OP:PATH> [OPTIONS] [--help]
@@ -20569,7 +20569,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # nettest #
-                elif SysMgr.isNetTestMode():
+                elif SysMgr.checkMode('nettest'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20594,7 +20594,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # list #
-                elif SysMgr.isListMode():
+                elif SysMgr.checkMode('list'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20607,7 +20607,7 @@ Options:
                         '''.format(cmd, mode, __module__)
 
                 # start #
-                elif SysMgr.isStartMode():
+                elif SysMgr.checkMode('start'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20620,7 +20620,7 @@ Options:
                         '''.format(cmd, mode)
 
                 # event #
-                elif SysMgr.isEventMode():
+                elif SysMgr.checkMode('event'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [<EVENT>] [OPTIONS] [--help]
@@ -20639,7 +20639,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # server #
-                elif SysMgr.isServerMode():
+                elif SysMgr.checkMode('server'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20656,7 +20656,7 @@ Options:
                         '''.format(cmd, mode)
 
                 # client #
-                elif SysMgr.isClientMode():
+                elif SysMgr.checkMode('cli'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -22200,7 +22200,7 @@ Copyright:
             'sys_ioprio_set',
             ]
 
-        if SysMgr.isFunctionMode() and \
+        if SysMgr.isFuncMode() and \
             not SysMgr.heapEnable:
             cmd = 'raw_syscalls/sys_enter/enable'
         else:
@@ -22357,7 +22357,7 @@ Copyright:
                 enableStat += 'WARN '
 
         # function mode #
-        if SysMgr.isFunctionMode():
+        if SysMgr.isFuncMode():
             if not SysMgr.heapEnable:
                 disableStat += 'HEAP '
             else:
@@ -22850,7 +22850,7 @@ Copyright:
                 else:
                     disableStat += 'BAR '
 
-        elif SysMgr.isFunctionMode():
+        elif SysMgr.isFuncMode():
             SysMgr.printInfo("<FUNCTION MODE>")
 
             if SysMgr.graphEnable:
@@ -22997,7 +22997,7 @@ Copyright:
 
 
     @staticmethod
-    def isFunctionMode():
+    def isFuncMode():
         return SysMgr.functionEnable
 
 
@@ -25309,9 +25309,9 @@ Copyright:
             os.path.normpath(SysMgr.outputFile)
 
         # support no-report record mode #
-        if SysMgr.isFileRecMode() or \
+        if SysMgr.checkMode('filerec') or \
             SysMgr.findOption('F') or \
-            SysMgr.isGenRecMode() or \
+            SysMgr.checkMode('genrec') or \
             SysMgr.findOption('y'):
             if SysMgr.outputFile.endswith('.dat'):
                 SysMgr.outPath = '%s.out' % \
@@ -25531,7 +25531,7 @@ Copyright:
 
                 # set union option #
                 if SysMgr.isTraceMode() or \
-                    SysMgr.isClientMode():
+                    SysMgr.checkMode('cli'):
                     union = False
                 else:
                     union = True
@@ -25561,7 +25561,7 @@ Copyright:
                     SysMgr.processEnable = False
 
                 if 'H' in options:
-                    if not SysMgr.isThreadTopMode():
+                    if not SysMgr.checkMode('ttop'):
                         SysMgr.printErr(
                             "sched option is supported only in thread mode")
                         sys.exit(0)
@@ -25703,7 +25703,7 @@ Copyright:
                         "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
-            elif SysMgr.isFunctionMode():
+            elif SysMgr.isFuncMode():
                 SysMgr.functionEnable = True
 
             elif option == 'l':
@@ -25736,7 +25736,7 @@ Copyright:
                 SysMgr.rootPath = value
 
             elif option == 'T':
-                if SysMgr.isConvertMode():
+                if SysMgr.checkMode('convert'):
                     if not value:
                         SysMgr.printErr((
                             "wrong value with -%s option, "
@@ -26313,86 +26313,11 @@ Copyright:
 
     @staticmethod
     def isRecordMode():
-        if SysMgr.isThreadRecMode() or \
-            SysMgr.isFuncRecMode() or \
-            SysMgr.isFileRecMode() or \
-            SysMgr.isSysRecMode() or \
-            SysMgr.isGenRecMode():
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isThreadRecMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'record' or sys.argv[1] == 'rec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isFuncRecMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'funcrecord' or sys.argv[1] == 'funcrec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isFileRecMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'filerecord' or sys.argv[1] == 'filerec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSysRecMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'sysrecord' or sys.argv[1] == 'sysrec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isGenRecMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'genrecord' or sys.argv[1] == 'genrec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isStartMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'start':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isServerMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'server' or sys.argv[1] == 'serv':
+        if SysMgr.checkMode('rec') or \
+            SysMgr.checkMode('funcrec') or \
+            SysMgr.checkMode('filerec') or \
+            SysMgr.checkMode('sysrec') or \
+            SysMgr.checkMode('genrec'):
             return True
         else:
             return False
@@ -26413,37 +26338,8 @@ Copyright:
 
 
     @staticmethod
-    def isClientMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'client' or sys.argv[1] == 'cli':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isListMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'list':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isStopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'stop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isTkillMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'tkill':
+    def checkMode(mode):
+        if len(sys.argv) > 1 and sys.argv[1] == mode:
             return True
         else:
             return False
@@ -26456,448 +26352,7 @@ Copyright:
             return False
         elif sys.argv[1] == 'kill' or \
             sys.argv[1] == 'send' or \
-            SysMgr.isTkillMode():
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isCpuTestMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'cputest':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isIoTestMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'iotest':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isNetTestMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'nettest':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isMemTestMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'memtest':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSetSchedMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'setsched':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isConvertMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'convert':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isStraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'strace':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isUtraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'utrace':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isExecMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'exec':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isRemoteMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'remote':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isHookMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'hook':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDumpMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'dump':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isStringsMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'strings':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isWatchMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'watch':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isBtraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'btrace':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSigtraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'sigtrace':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintEnvMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printenv':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintNsMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printns':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintSvcMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printsvc':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintInfoMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printinfo':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSetAffinityMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'setafnt':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isGetAffinityMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'getafnt':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPstreeMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'pstree':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isCompMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'comp':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDecompMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'decomp':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSystatMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'systat':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLimitCpuMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'limitcpu':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSetCpuMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'setcpu':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPerfTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'perftop' or sys.argv[1] == 'ptop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isMemTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'memtop' or sys.argv[1] == 'mtop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isWssTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'wsstop' or sys.argv[1] == 'wtop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isBgTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'bgtop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isAllTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'atop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isCondTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'ctop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDiskTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'disktop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDltTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'dlttop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDbusTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'dbustop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isUserTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'usertop' or sys.argv[1] == 'utop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPyTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'pytop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isBrkTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'brktop' or sys.argv[1] == 'btop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSysTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'systop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isNetTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'nettop' or sys.argv[1] == 'ntop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isStackTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'stacktop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isFileTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'filetop' or sys.argv[1] == 'ftop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isRepTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'rtop' or sys.argv[1] == 'reptop':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isProcTopMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'top':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isThreadTopMode():
-        if len(sys.argv) == 1:
-            return False
-        elif sys.argv[1] == 'threadtop' or sys.argv[1] == 'ttop':
+            SysMgr.checkMode('tkill'):
             return True
         else:
             return False
@@ -26928,35 +26383,26 @@ Copyright:
 
 
     @staticmethod
-    def isReportMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'report':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
     def isTopMode():
-        if SysMgr.isProcTopMode() or \
-            SysMgr.isThreadTopMode() or \
-            SysMgr.isUserTopMode() or \
-            SysMgr.isBrkTopMode() or \
-            SysMgr.isSysTopMode() or \
-            SysMgr.isPyTopMode() or \
-            SysMgr.isFileTopMode() or \
-            SysMgr.isStackTopMode() or \
-            SysMgr.isPerfTopMode() or \
-            SysMgr.isMemTopMode() or \
-            SysMgr.isWssTopMode() or \
-            SysMgr.isRepTopMode() or \
-            SysMgr.isBgTopMode() or \
-            SysMgr.isAllTopMode() or \
-            SysMgr.isCondTopMode() or \
-            SysMgr.isNetTopMode() or \
-            SysMgr.isDltTopMode() or \
-            SysMgr.isDbusTopMode() or \
-            SysMgr.isDiskTopMode():
+        if SysMgr.checkMode('top') or \
+            SysMgr.checkMode('ttop') or \
+            SysMgr.checkMode('utop') or \
+            SysMgr.checkMode('btop') or \
+            SysMgr.checkMode('systop') or \
+            SysMgr.checkMode('pytop') or \
+            SysMgr.checkMode('ftop') or \
+            SysMgr.checkMode('stacktop') or \
+            SysMgr.checkMode('ptop') or \
+            SysMgr.checkMode('mtop') or \
+            SysMgr.checkMode('wtop') or \
+            SysMgr.checkMode('rtop') or \
+            SysMgr.checkMode('bgtop') or \
+            SysMgr.checkMode('atop') or \
+            SysMgr.checkMode('ctop') or \
+            SysMgr.checkMode('ntop') or \
+            SysMgr.checkMode('dlttop') or \
+            SysMgr.checkMode('dbustop') or \
+            SysMgr.checkMode('disktop'):
             return True
         else:
             return False
@@ -26967,12 +26413,12 @@ Copyright:
     def isTraceMode():
         if len(sys.argv) > 1 and sys.argv[1] == 'trace':
             return True
-        elif SysMgr.isStraceMode() or \
-            SysMgr.isUtraceMode() or \
-            SysMgr.isBtraceMode() or \
-            SysMgr.isRemoteMode() or \
-            SysMgr.isLeaktraceMode() or \
-            SysMgr.isSigtraceMode():
+        elif SysMgr.checkMode('strace') or \
+            SysMgr.checkMode('utrace') or \
+            SysMgr.checkMode('btrace') or \
+            SysMgr.checkMode('remote') or \
+            SysMgr.checkMode('leaktrace') or \
+            SysMgr.checkMode('sigtrace'):
             return True
         else:
             return False
@@ -26996,20 +26442,20 @@ Copyright:
         SysMgr.parseAnalOption()
 
         # LIST MODE #
-        if SysMgr.isListMode():
+        if SysMgr.checkMode('list'):
             SysMgr.printBgProcs()
 
         # SERVER MODE #
-        elif SysMgr.isServerMode():
+        elif SysMgr.checkMode('server'):
             SysMgr.runServerMode()
 
         # CLIENT MODE #
-        elif SysMgr.isClientMode():
+        elif SysMgr.checkMode('cli'):
             SysMgr.runClientMode()
 
         # START / STOP MODE #
-        elif SysMgr.isStartMode() or \
-            SysMgr.isStopMode():
+        elif SysMgr.checkMode('start') or \
+            SysMgr.checkMode('stop'):
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
@@ -27039,13 +26485,13 @@ Copyright:
                         "{0:>2}) {1:<12}".format(idx, sig), newline=newline)
                 sys.exit(0)
 
-            if SysMgr.isTkillMode():
+            if SysMgr.checkMode('tkill'):
                 SysMgr.sendSignalArgs(argList, isThread=True)
             else:
                 SysMgr.sendSignalArgs(argList)
 
         # TOPDIFF MODE #
-        elif SysMgr.isTopDiffMode():
+        elif SysMgr.checkMode('topdiff'):
             # remove option args #
             SysMgr.removeOptionArgs()
 
@@ -27060,7 +26506,7 @@ Copyright:
             ThreadAnalyzer.doDiffReports(argList)
 
         # TOPSUM MODE #
-        elif SysMgr.isTopSumMode():
+        elif SysMgr.checkMode('topsum'):
             # remove option args #
             SysMgr.removeOptionArgs()
 
@@ -27075,7 +26521,7 @@ Copyright:
             ThreadAnalyzer.doSumReport(fname)
 
         # PAUSE MODE #
-        elif SysMgr.isPauseMode():
+        elif SysMgr.checkMode('pause'):
             if not SysMgr.filterGroup:
                 SysMgr.printErr(
                     "no COMM or TID with -g option")
@@ -27091,7 +26537,7 @@ Copyright:
             Debugger.pauseThreads(targetList)
 
         # READELF MODE #
-        elif SysMgr.isReadelfMode():
+        elif SysMgr.checkMode('readelf'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             path = SysMgr.inputParam
@@ -27123,19 +26569,19 @@ Copyright:
                     "fail to analyze %s" % path, True)
 
         # LEAKTRACE MODE #
-        elif SysMgr.isLeaktraceMode():
+        elif SysMgr.checkMode('leaktrace'):
             SysMgr.doLeaktrace()
 
         # ADDR2SYM MODE #
-        elif SysMgr.isAddr2symMode():
+        elif SysMgr.checkMode('addr2sym'):
             SysMgr.doAddr2sym()
 
         # SYM2ADDR MODE #
-        elif SysMgr.isSym2addrMode():
+        elif SysMgr.checkMode('sym2addr'):
             SysMgr.doSym2addr()
 
         # PRINTDIR MODE #
-        elif SysMgr.isPrintDirMode():
+        elif SysMgr.checkMode('printdir'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             if not SysMgr.inputParam:
@@ -27151,41 +26597,29 @@ Copyright:
             SysMgr.printDirs(root, maxLevel)
 
         # PRINTCGROUP MODE #
-        elif SysMgr.isPrintCgroupMode():
+        elif SysMgr.checkMode('printcrp'):
             SysMgr.cgroupEnable = True
             SysMgr().printCgroupInfo(printTitle=False)
             SysMgr.printInfoBuffer()
 
         # LOGJRL MODE #
-        elif SysMgr.isLogJournalMode():
+        elif SysMgr.checkMode('logjrl'):
             SysMgr.doLogMode('journal')
 
         # LOGDLT MODE #
-        elif SysMgr.isLogDltMode():
+        elif SysMgr.checkMode('logdlt'):
             SysMgr.doLogMode('dlt')
 
         # LOGKMSG MODE #
-        elif SysMgr.isLogKmsgMode():
+        elif SysMgr.checkMode('logkmsg'):
             SysMgr.doLogMode('kmsg')
 
         # LOGSYS MODE #
-        elif SysMgr.isLogSysMode():
+        elif SysMgr.checkMode('logsys'):
             SysMgr.doLogMode('syslog')
 
-        # PRINTDLT MODE #
-        elif SysMgr.isPrintDltMode():
-            # set console info #
-            SysMgr.setStream()
-
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            # to prevent segmentation fault from python3.8 #
-            ThreadAnalyzer(onlyInstance=True)
-
-            DltAnalyzer.runDltReceiver(mode='print')
-
         # PRINTDBUS MODE #
-        elif SysMgr.isPrintDbusMode():
+        elif SysMgr.checkMode('printdbus'):
             # set console info #
             SysMgr.setStream()
 
@@ -27194,46 +26628,44 @@ Copyright:
             DbusAnalyzer.runDbusSnooper(mode='print')
 
         # PRINTSUBSC MODE #
-        elif SysMgr.isPrintSubscMode():
+        elif SysMgr.checkMode('printsubsc'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusAnalyzer.runDbusSnooper(mode='signal')
 
-        # PRINTSYSLOG MODE #
-        elif SysMgr.isPrintSyslogMode():
+        elif SysMgr.isPrintLogMode():
             # set console info #
             SysMgr.setStream()
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            LogMgr.printSyslog()
+            # PRINTSYSLOG MODE #
+            if SysMgr.checkMode('printsys'):
+                LogMgr.printSyslog()
 
-        # PRINTKMSG MODE #
-        elif SysMgr.isPrintKmsgMode():
-            # set console info #
-            SysMgr.setStream()
+            # PRINTKMSG MODE #
+            elif SysMgr.checkMode('printkmsg'):
+                LogMgr.printKmsg()
 
-            SysMgr.printLogo(big=True, onlyFile=True)
+            # PRINTJRL MODE #
+            elif SysMgr.checkMode('printjrl'):
+                LogMgr.printJournal()
 
-            LogMgr.printKmsg()
+            # PRINTDLT MODE #
+            elif SysMgr.checkMode('printdlt'):
+                # to prevent segmentation fault from python3.8 #
+                ThreadAnalyzer(onlyInstance=True)
 
-        # PRINTJRL MODE #
-        elif SysMgr.isPrintJournalMode():
-            # set console info #
-            SysMgr.setStream()
-
-            SysMgr.printLogo(big=True, onlyFile=True)
-
-            LogMgr.printJournal()
+                DltAnalyzer.runDltReceiver(mode='print')
 
         # PRINTSIG MODE #
-        elif SysMgr.isPrintSigMode():
+        elif SysMgr.checkMode('printsig'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             SysMgr.doPrintSig()
 
         # PAGE MODE #
-        elif SysMgr.isMemMode():
+        elif SysMgr.checkMode('mem'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             PageAnalyzer.getPageInfo(
@@ -27245,7 +26677,7 @@ Copyright:
             if not SysMgr.prio:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
-            if SysMgr.isLimitCpuMode():
+            if SysMgr.checkMode('limitcpu'):
                 limitInfo = SysMgr.getLimitCpuInfo(
                     SysMgr.filterGroup)
 
@@ -27253,11 +26685,11 @@ Copyright:
                     limitInfo, SysMgr.processEnable)
 
         # PSTREE MODE #
-        elif SysMgr.isPstreeMode():
+        elif SysMgr.checkMode('pstree'):
             SysMgr.doPstree()
 
         # COMP MODE #
-        elif SysMgr.isCompMode():
+        elif SysMgr.checkMode('comp'):
             try:
                 SysMgr.doCompress()
             except SystemExit:
@@ -27267,7 +26699,7 @@ Copyright:
                     'fail to compress', True)
 
         # DECOMP MODE #
-        elif SysMgr.isDecompMode():
+        elif SysMgr.checkMode('decomp'):
             try:
                 SysMgr.doDecompress()
             except SystemExit:
@@ -27277,29 +26709,29 @@ Copyright:
                     'fail to decompress', True)
 
         # PS MODE #
-        elif SysMgr.isSystatMode():
+        elif SysMgr.checkMode('systat'):
             SysMgr.doSystat()
 
         # DRAWTIMELINE MODE #
-        elif SysMgr.isDrawTimelineMode():
+        elif SysMgr.checkMode('drawtime'):
             SysMgr.doDrawTimeline()
 
         # CPUTEST MODE #
-        elif SysMgr.isCpuTestMode():
+        elif SysMgr.checkMode('cputest'):
             SysMgr.setStream()
 
             SysMgr.doCpuTest()
 
         # IOTEST MODE #
-        elif SysMgr.isIoTestMode():
+        elif SysMgr.checkMode('iotest'):
             SysMgr.doIoTest()
 
         # NETTEST MODE #
-        elif SysMgr.isNetTestMode():
+        elif SysMgr.checkMode('nettest'):
             SysMgr.doNetTest()
 
         # MEMTEST MODE #
-        elif SysMgr.isMemTestMode():
+        elif SysMgr.checkMode('memtest'):
             # remove option args #
             SysMgr.removeOptionArgs()
 
@@ -27308,36 +26740,36 @@ Copyright:
             SysMgr.doMemTest()
 
         # EXEC MODE #
-        elif SysMgr.isExecMode():
+        elif SysMgr.checkMode('exec'):
             SysMgr.doExec()
 
         # SETCPU MODE #
-        elif SysMgr.isSetCpuMode():
+        elif SysMgr.checkMode('setcpu'):
             # remove option args #
             SysMgr.removeOptionArgs()
 
             SysMgr.doSetCpu()
 
         # SETSCHED MODE #
-        elif SysMgr.isSetSchedMode():
+        elif SysMgr.checkMode('setsched'):
             SysMgr.doSetSched()
 
         # CONVERT MODE #
-        elif SysMgr.isConvertMode():
+        elif SysMgr.checkMode('convert'):
             SysMgr.doConvert()
 
         # STRINGS MODE #
-        elif SysMgr.isStringsMode():
+        elif SysMgr.checkMode('strings'):
             SysMgr.setStream(cut=False)
 
             SysMgr.doStrings()
 
         # DUMP MODE #
-        elif SysMgr.isDumpMode():
+        elif SysMgr.checkMode('dump'):
             SysMgr.doDump()
 
         # STRACE MODE #
-        elif SysMgr.isStraceMode():
+        elif SysMgr.checkMode('strace'):
             if SysMgr.findOption('l'):
                 SysMgr.setStream()
                 for idx, item in enumerate(ConfigMgr.sysList):
@@ -27356,54 +26788,54 @@ Copyright:
             SysMgr.doTrace('syscall')
 
         # UTRACE MODE #
-        elif SysMgr.isUtraceMode():
+        elif SysMgr.checkMode('utrace'):
             SysMgr.doTrace('usercall')
 
         # REMOTE MODE #
-        elif SysMgr.isRemoteMode():
+        elif SysMgr.checkMode('remote'):
             SysMgr.doTrace('remote')
 
         # HOOK MODE #
-        elif SysMgr.isHookMode():
+        elif SysMgr.checkMode('hook'):
             SysMgr.doTrace('hook')
 
         # BTRACE MODE #
-        elif SysMgr.isBtraceMode():
+        elif SysMgr.checkMode('btrace'):
             SysMgr.doTrace('breakcall')
 
         # WATCH MODE #
-        elif SysMgr.isWatchMode():
+        elif SysMgr.checkMode('watch'):
             SysMgr.doWatch()
 
         # SIGTRACE MODE #
-        elif SysMgr.isSigtraceMode():
+        elif SysMgr.checkMode('sigtrace'):
             SysMgr.doTrace('signal')
 
         # PRINTENV MODE #
-        elif SysMgr.isPrintEnvMode():
+        elif SysMgr.checkMode('printenv'):
             SysMgr.doPrintEnv()
 
         # PRINTNS MODE #
-        elif SysMgr.isPrintNsMode():
+        elif SysMgr.checkMode('printns'):
             SysMgr.doPrintNs()
 
         # PRINTSVC MODE #
-        elif SysMgr.isPrintSvcMode():
+        elif SysMgr.checkMode('printsvc'):
             SysMgr.doPrintSvc()
 
         # PRINTINFO MODE #
-        elif SysMgr.isPrintInfoMode():
+        elif SysMgr.checkMode('printinfo'):
             SysMgr.doPrintInfo()
 
         # AFFINITY MODE #
-        elif SysMgr.isSetAffinityMode():
+        elif SysMgr.checkMode('setafnt'):
             SysMgr.doSetAffinity()
 
-        elif SysMgr.isGetAffinityMode():
+        elif SysMgr.checkMode('getafnt'):
             SysMgr.doGetAffinity()
 
         # EVENT MODE #
-        elif SysMgr.isEventMode():
+        elif SysMgr.checkMode('event'):
             SysMgr.handleEventInput()
 
         else:
@@ -27415,36 +26847,7 @@ Copyright:
 
     @staticmethod
     def isLimitMode():
-        if SysMgr.isLimitCpuMode():
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isEventMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'event':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawCpuMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawcpu' or sys.argv[1] == 'cpudraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawTimelineMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawtimeline' or sys.argv[1] == 'timelinedraw'):
+        if SysMgr.checkMode('limitcpu'):
             return True
         else:
             return False
@@ -27453,124 +26856,11 @@ Copyright:
 
     @staticmethod
     def isDrawAvgMode():
-        if SysMgr.isDrawTotalAvgMode() or \
-            SysMgr.isDrawCpuAvgMode() or \
-            SysMgr.isDrawMemAvgMode() or \
-            SysMgr.isDrawVssAvgMode() or \
-            SysMgr.isDrawRssAvgMode():
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawTotalAvgMode():
-        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawavg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawCpuAvgMode():
-        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawcpuavg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawMemAvgMode():
-        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawmemavg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawVssAvgMode():
-        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawvssavg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawRssAvgMode():
-        if len(SysMgr.origArgs) > 1 and SysMgr.origArgs[1] == 'drawrssavg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawMemMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawmem' or sys.argv[1] == 'memdraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawVssMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawvss' or sys.argv[1] == 'vssdraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawRssMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawrss' or sys.argv[1] == 'rssdraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawLeakMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawleak' or sys.argv[1] == 'leakdraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isDrawIoMode():
-        if len(sys.argv) > 1 and \
-            (sys.argv[1] == 'drawio' or sys.argv[1] == 'iodraw'):
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isTopDiffMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'topdiff':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isTopSumMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'topsum':
+        if SysMgr.checkMode('drawavg') or \
+            SysMgr.checkMode('drawcpuavg') or \
+            SysMgr.checkMode('drawmemavg') or \
+            SysMgr.checkMode('drawvssavg') or \
+            SysMgr.checkMode('drawrssavg'):
             return True
         else:
             return False
@@ -27586,19 +26876,19 @@ Copyright:
             return False
         elif sys.argv[1] == 'draw' or orig:
             return True
-        elif SysMgr.isDrawCpuMode():
+        elif SysMgr.checkMode('drawcpu'):
             return True
-        elif SysMgr.isDrawMemMode():
+        elif SysMgr.checkMode('drawmem'):
             return True
-        elif SysMgr.isDrawVssMode():
+        elif SysMgr.checkMode('drawvss'):
             return True
-        elif SysMgr.isDrawRssMode():
+        elif SysMgr.checkMode('drawrss'):
             return True
-        elif SysMgr.isDrawLeakMode():
+        elif SysMgr.checkMode('drawleak'):
             return True
-        elif SysMgr.isDrawIoMode():
+        elif SysMgr.checkMode('drawio'):
             return True
-        elif SysMgr.isDrawTimelineMode():
+        elif SysMgr.checkMode('drawtime'):
             return True
         elif SysMgr.isDrawAvgMode():
             return True
@@ -27609,170 +26899,11 @@ Copyright:
 
 
     @staticmethod
-    def isPauseMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'pause':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isReadelfMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'readelf':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isAddr2symMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'addr2sym':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isSym2addrMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'sym2addr':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintCgroupMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printcrp':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintDirMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printdir':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintDltMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printdlt':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintDbusMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printdbus':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintSubscMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printsubsc':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintSigMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printsig':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintKmsgMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printkmsg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintJournalMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printjrl':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isPrintSyslogMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'printsys':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLogDltMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'logdlt':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLogKmsgMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'logkmsg':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLogSysMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'logsys':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLogJournalMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'logjrl':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isLeaktraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'leaktrace':
-            return True
-        else:
-            return False
-
-
-
-    @staticmethod
-    def isMemMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'mem':
+    def isPrintLogMode():
+        if SysMgr.checkMode('printsys') or \
+            SysMgr.checkMode('printkmsg') or \
+            SysMgr.checkMode('printjrl') or \
+            SysMgr.checkMode('printdlt'):
             return True
         else:
             return False
@@ -28218,7 +27349,7 @@ Copyright:
             # get pid list of Guider processes #
             pids = SysMgr.getProcPids(__module__)
             if not pids:
-                if SysMgr.isEventMode():
+                if SysMgr.checkMode('event'):
                     print("\nno running process in the background\n")
                 else:
                     SysMgr.printWarn(
@@ -28565,8 +27696,8 @@ Copyright:
         elif SysMgr.outPath or \
             SysMgr.bgStatus or \
             not sys.stdin or \
-            SysMgr.isRepTopMode() or \
-            SysMgr.isBrkTopMode() or \
+            SysMgr.checkMode('rtop') or \
+            SysMgr.checkMode('btop') or \
             not SysMgr.selectEnable or \
             'REMOTERUN' in os.environ:
             return
@@ -34369,7 +33500,7 @@ Copyright:
                     kill(pid, nrSig)
 
                     if verbose:
-                        if SysMgr.isStartMode() and waitStatus:
+                        if SysMgr.checkMode('start') and waitStatus:
                             SysMgr.printInfo(
                                 "started %s(%s) to profile" % (comm, pid))
                         else:
@@ -35782,7 +34913,7 @@ Copyright:
         self.prepareForTracing()
 
         #-------------------- FUNCTION MODE --------------------#
-        if SysMgr.isFunctionMode():
+        if SysMgr.isFuncMode():
             # check conditions for kernel function_graph #
             if SysMgr.graphEnable:
                 # start function graph #
@@ -36146,7 +35277,7 @@ Copyright:
     def stopRecording():
         if not (SysMgr.isRecordMode() and \
             (SysMgr.isThreadMode() or \
-            SysMgr.isFunctionMode())):
+            SysMgr.isFuncMode())):
             return
 
         # write signal command #
@@ -36183,7 +35314,7 @@ Copyright:
                 SysMgr.writeCmd(event + '/enable', '0')
                 SysMgr.writeCmd(event + '/filter', '0')
 
-        if SysMgr.isFunctionMode():
+        if SysMgr.isFuncMode():
             SysMgr.writeCmd('../options/stacktrace', '0')
             SysMgr.writeCmd('../trace_options', 'nouserstacktrace')
             SysMgr.writeCmd('../tracing_on', '0')
@@ -39326,7 +38457,7 @@ class DbusAnalyzer(object):
                     if SysMgr.repeatCount <= SysMgr.progressCnt:
                         sys.exit(0)
 
-            if SysMgr.isPrintDbusMode():
+            if SysMgr.checkMode('printdbus'):
                 checkRepeatCnt()
                 return
 
@@ -39668,14 +38799,14 @@ class DbusAnalyzer(object):
                             effectiveReply = True
 
                     # print message #
-                    if SysMgr.isPrintDbusMode() or SysMgr.customCmd:
+                    if SysMgr.checkMode('printdbus') or SysMgr.customCmd:
                         if len(jsonData['backtrace']) > 2:
                             backtrace = \
                                 'Backtrace: %s\n' % jsonData['backtrace']
                         else:
                             backtrace = ''
 
-                        if SysMgr.isDbusTopMode() or SysMgr.showAll:
+                        if SysMgr.checkMode('dbustop') or SysMgr.showAll:
                             addInfo = "\n%s%s" % \
                                 (libgioObj.g_dbus_message_print(
                                     c_ulong(gdmsg), c_ulong(0)).decode(),
@@ -39710,7 +38841,7 @@ class DbusAnalyzer(object):
                                 msgStr, SysMgr.customCmd, ignCap=True):
                             continue
 
-                        if SysMgr.isPrintDbusMode():
+                        if SysMgr.checkMode('printdbus'):
                             SysMgr.printPipe(msgStr, flush=True)
                             continue
 
@@ -40294,7 +39425,7 @@ class DltAnalyzer(object):
 
     @staticmethod
     def onAlarm(signum, frame):
-        if SysMgr.isPrintDltMode():
+        if SysMgr.checkMode('printdlt'):
             SysMgr.progressCnt += 1
             if SysMgr.repeatCount <= SysMgr.progressCnt:
                 sys.exit(0)
@@ -45372,7 +44503,7 @@ struct cmsghdr {
             sampleStr = ' [SampleRate: %g]' % self.sampleTime
 
             # continue target to prevent too long freezing #
-            if self.traceStatus:
+            if self.traceStatus and self.isAlive():
                 self.cont(check=True)
                 needStop = True
 
@@ -48923,7 +48054,7 @@ struct cmsghdr {
                 signal.signal(signal.SIGALRM, SysMgr.exitHandler)
 
             # inst #
-            if SysMgr.isUtraceMode() and \
+            if SysMgr.checkMode('utrace') and \
                 SysMgr.funcDepth > 0:
                 # set sampling rate for instruction #
                 self.skipInst = SysMgr.funcDepth
@@ -49188,7 +48319,7 @@ struct cmsghdr {
             addInfo = '[Path]'
 
             # continue target to prevent too long freezing #
-            if instance.traceStatus:
+            if instance.traceStatus and instance.isAlive():
                 instance.cont(check=True)
                 needStop = True
 
@@ -60030,7 +59161,7 @@ class ThreadAnalyzer(object):
         SysMgr.printStat(r"start drawing average graphs...")
 
         # draw All #
-        if SysMgr.isDrawTotalAvgMode():
+        if SysMgr.checkMode('drawavg'):
             if not SysMgr.layout:
                 drawAvgCpu(graphStats, 3, 0, 4)
                 drawAvgMem(graphStats, 1, 4, 2)
@@ -60111,7 +59242,7 @@ class ThreadAnalyzer(object):
                         raise Exception(err)
 
         # draw CPU #
-        elif SysMgr.isDrawCpuAvgMode():
+        elif SysMgr.checkMode('drawcpuavg'):
             drawAvgCpu(graphStats, 3, 0, 6)
         # draw Memory #
         else:
@@ -69303,7 +68434,7 @@ class ThreadAnalyzer(object):
             return
 
         # check main thread to remove redundant operation #
-        if SysMgr.isThreadTopMode():
+        if SysMgr.checkMode('ttop'):
             mainID = self.procData[tid]['mainID']
             if mainID in self.procData:
                 if 'cmdline' in self.procData[mainID]:
@@ -69315,7 +68446,7 @@ class ThreadAnalyzer(object):
         self.procData[tid]['cmdline'] = \
             SysMgr.getCmdline(tid)
 
-        if SysMgr.isThreadTopMode():
+        if SysMgr.checkMode('ttop'):
             if mainID in self.procData:
                 self.procData[mainID]['cmdline'] = \
                     self.procData[tid]['cmdline']
@@ -69615,7 +68746,7 @@ class ThreadAnalyzer(object):
 
     def updateOOMScore(self, path, tid):
         # check main thread to remove redundant operation #
-        if SysMgr.isThreadTopMode():
+        if SysMgr.checkMode('ttop'):
             mainID = self.procData[tid]['mainID']
             if mainID in self.procData:
                 if 'oomScore' in self.procData[mainID]:
@@ -69644,7 +68775,7 @@ class ThreadAnalyzer(object):
                     oomFd.close()
                     self.procData[tid]['oomFd'] = None
                     self.reclaimFds()
-                elif SysMgr.isThreadTopMode():
+                elif SysMgr.checkMode('ttop'):
                     if mainID in self.procData:
                         self.procData[mainID]['oomScore'] = \
                             self.procData[tid]['oomScore']
@@ -74140,6 +73271,13 @@ class ThreadAnalyzer(object):
 
 
 
+def decoratorFunc(origFunc):
+    def wrapper(*args, **kwargs):
+        return origFunc(*args, **kwargs)
+    return wrapper
+
+
+
 def main(args=None):
     # update arguments #
     if UtilMgr.isString(args):
@@ -74202,7 +73340,7 @@ def main(args=None):
     atexit.register(SysMgr.doExit)
 
     # REPORT MODE #
-    if SysMgr.isReportMode():
+    if SysMgr.checkMode('report'):
         SysMgr.setReportAttr()
     # VISUAL MODE #
     elif SysMgr.isDrawMode():
@@ -74218,7 +73356,7 @@ def main(args=None):
     # FUNCTION_GRAPH MODE #
     elif SysMgr.graphEnable and \
         SysMgr.isRecordMode() and \
-        SysMgr.isFunctionMode():
+        SysMgr.isFuncMode():
         FunctionAnalyzer(SysMgr.inputFile)
 
     # set handler for exit #
@@ -74238,7 +73376,7 @@ def main(args=None):
     SysMgr.printAnalOption()
 
     # FUNCTION MODE #
-    if SysMgr.isFunctionMode():
+    if SysMgr.isFuncMode():
         FunctionAnalyzer(SysMgr.inputFile).printUsage()
     # THREAD MODE #
     else:
