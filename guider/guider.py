@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201220"
+__revision__ = "201221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6804,12 +6804,16 @@ class Timeline(object):
             max(segments, key=lambda segment: segment.time_end).time_end
         self.segment_groups = set(s.group for s in self.segments)
         self.groups = len(self.segment_groups)
+        self.group_list = list(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
         self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
         self.tasks = tasks
         self.last_group_segment = dict()
         self.last_group_time = dict()
         self.height_group_pos = dict()
+        self.last_iogroup_segment = dict()
+        self.last_iogroup_time = dict()
+        self.height_iogroup_pos = dict()
 
         if self.tasks:
             self.color_map = self._build_task_color_map()
@@ -6851,9 +6855,10 @@ class Timeline(object):
             (self.config.TIME_AXIS_HEIGHT, self.config.HEIGHT), fill='black'))
 
         idx = 0
+        groupList = list(self.segment_groups)
         for y_tick in range(0, self.config.HEIGHT):
             try:
-                name = list(self.segment_groups)[idx]
+                name = groupList[idx]
                 idx += 1
             except:
                 continue
@@ -6866,7 +6871,7 @@ class Timeline(object):
 
             dwg.add(dwg.text(
                 name, (self.config.FONT_SIZE, y_tick+self.scaled_height),
-                font_size=self.scaled_height,
+                font_size=self.scaled_height/2,
                 fill='rgb(220,220,220)'))
 
 
@@ -6894,9 +6899,8 @@ class Timeline(object):
             fill='rgb(245,245,245)'))
 
         title = 'Guider Timeline Chart'
-        fontsize = self.config.FONT_SIZE * 20
-        dwg.add(dwg.text(
-            title,
+        fontsize = self.config.FONT_SIZE * 10
+        dwg.add(dwg.text(title,
             ((self.config.WIDTH/2)-(len(title)*fontsize/4), fontsize),
             font_size=fontsize,
             font_weight='bolder',
@@ -6915,31 +6919,53 @@ class Timeline(object):
     def _draw_segment(self, segment, dwg):
         x0 = float(segment.time_start - self.time_start) * self.ratio
         x1 = float(segment.time_end - self.time_start) * self.ratio
-        y0 = self.scaled_height * float(segment.group % self.groups)
-        y1 = self.scaled_height * float((segment.group % self.groups)+1)
+        group_idx = self.group_list.index(segment.group)
+        y0 = self.scaled_height * float(group_idx % self.groups)
+        y1 = self.scaled_height * float((group_idx % self.groups)+1)
         scaled_width = (x1 - x0)
+        scaled_top_height = y0 + (self.scaled_height / 7)
+        scaled_bottom_height = y1 - (self.scaled_height * 0.25)
 
         # get color #
         if segment.id:
             color = self.color_map[segment.id]
         else:
-            color = self.color_map[segment.group]
+            color = self.color_map[group_idx]
 
-        # draw timeslice #
-        dwg.add(dwg.rect((x0, y0),
-            (scaled_width, self.scaled_height),
-            rx=1, ry=1, fill=color, fill_opacity=0.5))
+        # draw bold line for core off status #
+        if segment.state == 'OFF':
+            dwg.add(dwg.line(
+                (x0, y0), (x1, y0),
+                stroke='black', stroke_width=1.5))
+            return
 
-        # draw preempted status #
-        if segment.state == 'R':
-            dwg.add(dwg.line(
-                (x1, y0), (x1, y0+self.scaled_height/7),
-                stroke='red', stroke_width=0.3))
-        # draw wait status #
-        elif segment.state == 'D':
-            dwg.add(dwg.line(
-                (x1, y1), (x1, y1-self.scaled_height/7),
-                stroke='black', stroke_width=0.3))
+        # draw line for block_read status #
+        if segment.state == 'RD':
+            dwg.add(dwg.rect((x0, scaled_bottom_height),
+                (scaled_width, self.scaled_height*0.25),
+                rx=1, ry=1, fill='purple', fill_opacity=0.5))
+        # draw line for block_write status #
+        elif segment.state == 'WR':
+            dwg.add(dwg.rect((x0, scaled_bottom_height),
+                (scaled_width, self.scaled_height%0.25),
+                rx=1, ry=1, fill='darkcyan', fill_opacity=0.5))
+        # draw line for sched status #
+        else:
+            # draw timeslice #
+            dwg.add(dwg.rect((x0, y0),
+                (scaled_width, self.scaled_height),
+                rx=1, ry=1, fill=color, fill_opacity=0.5))
+
+            # draw preempted status #
+            if segment.state == 'R':
+                dwg.add(dwg.line(
+                    (x1, y0), (x1, scaled_top_height),
+                    stroke='red', stroke_width=0.3))
+            # draw wait status #
+            elif segment.state == 'D':
+                dwg.add(dwg.line(
+                    (x1, y0), (x1, scaled_top_height),
+                    stroke='black', stroke_width=0.3))
 
         # check duration #
         duration = segment.time_end - segment.time_start
@@ -6948,32 +6974,76 @@ class Timeline(object):
             return
         duration = '~%s %s' % (UtilMgr.convNum(duration), self.time_unit)
 
-        # initialize group data #
-        self.last_group_segment.setdefault(segment.group, None)
-        self.last_group_time.setdefault(segment.group, x0)
+        # I/O #
+        if segment.state == 'RD' or segment.state == 'WR':
+            # initialize group data #
+            self.last_iogroup_segment.setdefault(group_idx, None)
+            self.last_iogroup_time.setdefault(group_idx, x0)
 
-        # previous task started again #
-        if self.last_group_segment[segment.group] == segment.text and \
-            x0 - self.last_group_time[segment.group] < self.config.TICKS:
-            segment_label = duration
-            color = 'rgb(50,50,50)'
-            font_size = self.config.FONT_SIZE - 1
-        # other task started #
+            last_iogroup_segment = self.last_iogroup_segment[group_idx]
+            last_iogroup_time = self.last_iogroup_time[group_idx]
+
+            # set text attributes for block_read #
+            if segment.state == 'RD':
+                if last_iogroup_segment == segment.text and \
+                    x0 - last_iogroup_time < self.config.TICKS:
+                    segment_label = duration
+                else:
+                    segment_label = "| %s_%s" % (segment.text, duration)
+                color = 'rgb(128,0,128)'
+                font_size = self.config.FONT_SIZE - 0.7
+            # set text attributes for block_write #
+            elif segment.state == 'WR':
+                if last_iogroup_segment == segment.text and \
+                    x0 - last_iogroup_time < self.config.TICKS:
+                    segment_label = duration
+                else:
+                    segment_label = "| %s_%s" % (segment.text, duration)
+                color = 'rgb(0,139,139)'
+                font_size = self.config.FONT_SIZE - 0.7
+
+            # update group info #
+            self.last_iogroup_segment[group_idx] = segment.text
+            self.last_iogroup_time[group_idx] = x0
+            self.height_iogroup_pos.setdefault(group_idx, 0)
+
+            # set text position #
+            scaled_pos = self.scaled_height * 0.75
+            self.height_iogroup_pos[group_idx] += self.config.FONT_SIZE
+            height_pos = self.height_iogroup_pos[group_idx]
+            if height_pos + scaled_pos >= self.scaled_height:
+                height_pos = \
+                    self.height_iogroup_pos[group_idx] = \
+                    self.config.FONT_SIZE
+        # CPU #
         else:
-            segment_label = "> %s/%s" % (segment.text, duration)
-            color = 'rgb(255,0,0)'
-            font_size = self.config.FONT_SIZE - 0.5
+            # initialize group data #
+            self.last_group_segment.setdefault(group_idx, None)
+            self.last_group_time.setdefault(group_idx, x0)
 
-        # update group info #
-        self.last_group_segment[segment.group] = segment.text
-        self.last_group_time[segment.group] = x0
-        self.height_group_pos.setdefault(segment.group, 0)
+            # set text attributes for same task #
+            if self.last_group_segment[group_idx] == segment.text and \
+                x0 - self.last_group_time[group_idx] < self.config.TICKS:
+                segment_label = duration
+                color = 'rgb(50,50,50)'
+                font_size = self.config.FONT_SIZE - 1
+            # set text attributes for new task #
+            else:
+                segment_label = "> %s/%s" % (segment.text, duration)
+                color = 'rgb(255,0,0)'
+                font_size = self.config.FONT_SIZE - 0.5
 
-        scaled_pos = self.scaled_height * 0.25
-        self.height_group_pos[segment.group] += self.config.FONT_SIZE
-        height_pos = self.height_group_pos[segment.group]
-        if height_pos + scaled_pos >= self.scaled_height:
-            height_pos = self.height_group_pos[segment.group] = 0
+            # update group info #
+            self.last_group_segment[group_idx] = segment.text
+            self.last_group_time[group_idx] = x0
+            self.height_group_pos.setdefault(group_idx, 0)
+
+            # set text position #
+            scaled_pos = self.scaled_height * 0.15
+            self.height_group_pos[group_idx] += self.config.FONT_SIZE
+            height_pos = self.height_group_pos[group_idx]
+            if height_pos + scaled_pos*2.5 >= self.scaled_height:
+                height_pos = self.height_group_pos[group_idx] = 0
 
         # draw text #
         dwg.add(dwg.text(segment_label,
@@ -7019,12 +7089,19 @@ class Timeline(object):
     def _load_segments(data):
         segments = []
         for segment_data in data["segments"]:
+            # apply for core filter #
+            if SysMgr.perCoreDrawList:
+                if not segment_data['group'] in SysMgr.perCoreDrawList:
+                    continue
+
+            # verify time #
             if segment_data["time_start"] > segment_data["time_end"]:
                 SysMgr.printWarn(
                     "time_start is bigger than time_end for %s" % \
                         segment_data)
                 continue
 
+            # add segment #
             segments.append(Timeline.Segment(
                 segment_data["group"], segment_data["time_start"],
                 segment_data["time_end"], segment_data))
@@ -15290,6 +15367,7 @@ class SysMgr(object):
     killFilter = []
     syscallList = []
     perCoreList = []
+    perCoreDrawList = []
     childList = {}
     pidFilter = None
 
@@ -17995,6 +18073,7 @@ Options:
     -F  [svg/png/pdf/ps/eps]    set image format
     -E  <DIR>                   set cache dir path
     -C  <PATH>                  set config file
+    -O  <CORE>                  set core filter
     -v                          verbose
                     '''
 
@@ -18098,6 +18177,9 @@ Examples:
     - Draw resource graph and timeline chart
         # {0:1} {1:1} guider.dat
         # {0:1} {1:1} guider.dat -a
+
+    - Draw resource graph and timeline chart for specific cores
+        # {0:1} {1:1} guider.dat -O 1, 4, 10
 
     - Draw resource graph and memory chart to specific image format
         # {0:1} {1:1} guider.out -F png
@@ -22414,12 +22496,12 @@ Copyright:
             else:
                 disableStat += 'POWER '
 
-            if len(SysMgr.preemptGroup) > 0:
+            if SysMgr.preemptGroup:
                 enableStat += 'PREEMPT '
             else:
                 disableStat += 'PREEMPT '
 
-            if len(SysMgr.perCoreList) > 0:
+            if SysMgr.perCoreList:
                 enableStat += 'PERCORE '
             else:
                 disableStat += 'PERCORE '
@@ -25773,6 +25855,10 @@ Copyright:
 
                 SysMgr.perCoreList = \
                     list(map(long, SysMgr.perCoreList))
+
+                if SysMgr.isDrawMode():
+                    SysMgr.perCoreDrawList = SysMgr.perCoreList
+                    SysMgr.perCoreList = []
 
             elif option == 't' and \
                 not SysMgr.isRecordMode() and \
@@ -35032,7 +35118,7 @@ Copyright:
             # block events #
             if SysMgr.blockEnable:
                 blkCmd = cmd + \
-                    " && (rwbs == 'R' || rwbs == 'RA' || rwbs == 'RM' || rwbs == 'WS')"
+                    " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
                 SysMgr.writeCmd('block/block_bio_queue/filter', blkCmd)
                 SysMgr.writeCmd('block/block_bio_queue/enable', '1')
                 SysMgr.writeCmd(
@@ -35253,7 +35339,7 @@ Copyright:
                 SysMgr.writeCmd('kmem/mm_page_free_direct/enable', '1')
 
         # block events #
-        cmd = "rwbs == 'R' || rwbs == 'RA' || rwbs == 'RM' || rwbs == 'WS'"
+        cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
         if self.cmdList["block/block_bio_queue"]:
             SysMgr.writeCmd('block/block_bio_queue/filter', cmd)
         if self.cmdList["block/block_rq_complete"]:
@@ -55254,7 +55340,7 @@ class ThreadAnalyzer(object):
                 'ioWrWait': float(0), 'awriteBlock': long(0),
                 'awriteBlockCnt': long(0), 'schedLatency': float(0),
                 'schedReady': float(0), 'lastNrSyscall': long(-1),
-                'nrSyscall': long(0)}
+                'nrSyscall': long(0), 'lastCore': long(0)}
 
             self.init_irqData = \
                 {'name': None, 'usage': float(0), 'start': float(0),
@@ -55548,14 +55634,49 @@ class ThreadAnalyzer(object):
 
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
+            # apply core off time #
+            coreId = '0[%s]' % idx
+            if self.threadData[coreId]['coreSchedCnt'] == 0 and \
+                self.threadData[coreId]['offTime'] == 0:
+                # define time delta #
+                start_delta = long(0)
+                stime = float(SysMgr.startTime)
+                stop_delta = long((float(self.finishTime)-stime)*1000)
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': long(idx),
+                    'text': 'OFF',
+                    'id': coreId,
+                    'state': 'OFF',
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
+
+            elif self.threadData[coreId]['lastOff'] > 0:
+                self.threadData[coreId]['usage'] += \
+                    float(self.finishTime) - \
+                        self.threadData[coreId]['start']
+
+                # define time delta #
+                startTime = self.threadData[coreId]['lastOff']
+                stime = float(SysMgr.startTime)
+                start_delta = long((float(startTime)-stime)*1000)
+                stop_delta = long((float(self.finishTime)-stime)*1000)
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': long(idx),
+                    'text': 'OFF',
+                    'id': coreId,
+                    'state': 'OFF',
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
+
             if self.threadData[val]['lastStatus'] == 'S':
-                # apply core off time #
-                coreId = '0[%s]' % idx
-                if self.threadData[coreId]['lastOff'] > 0:
-                    self.threadData[coreId]['usage'] += \
-                        float(self.finishTime) - \
-                            self.threadData[coreId]['start']
                 continue
+
             self.threadData[val]['usage'] += \
                 (float(self.finishTime) - float(self.threadData[val]['start']))
 
@@ -65075,6 +65196,8 @@ class ThreadAnalyzer(object):
         etc = d['etc']
         time = d['time']
         ftime = float(time)
+        stime = float(SysMgr.startTime)
+        allTime = ftime - stime
 
         SysMgr.logSize += len(string)
 
@@ -65084,8 +65207,7 @@ class ThreadAnalyzer(object):
             func != "tracing_mark_write"):
             return time
         elif SysMgr.countEnable and \
-            SysMgr.repeatCount * SysMgr.intervalEnable <= \
-                ftime - float(SysMgr.startTime):
+            SysMgr.repeatCount * SysMgr.intervalEnable <= ftime - stime:
             self.stopFlag = True
             return time
 
@@ -65117,6 +65239,9 @@ class ThreadAnalyzer(object):
         self.threadData.setdefault(thread, dict(self.init_threadData))
         if comm[0] != '<':
             self.threadData[thread]['comm'] = comm
+
+        # update last core #
+        self.threadData[thread]['lastCore'] = core
 
         # define shortcut variable #
         threadData = self.threadData[thread]
@@ -65151,7 +65276,6 @@ class ThreadAnalyzer(object):
                         continue
 
                     usage = ftime - float(self.threadData[tid]['start'])
-                    allTime = ftime - float(SysMgr.startTime)
                     if usage > allTime:
                         usage = allTime
 
@@ -65357,7 +65481,7 @@ class ThreadAnalyzer(object):
                 ''' calculate running time of previous thread started
                     before starting to profile '''
                 if self.threadData[coreId]['coreSchedCnt'] == 0:
-                    diff = ftime - float(SysMgr.startTime)
+                    diff = allTime
                     self.threadData[prev_id]['usage'] = diff
                 # it is possible that log was loss #
                 else:
@@ -65385,8 +65509,6 @@ class ThreadAnalyzer(object):
                 self.statData['runtime'].append(diff)
 
                 # add timestamps to list for timeline #
-                stime = float(SysMgr.startTime)
-
                 if prev_start == 0:
                     start_delta = 0
                 else:
@@ -65400,6 +65522,7 @@ class ThreadAnalyzer(object):
                 else:
                     tcomm = prev_comm
 
+                # add timeline data #
                 self.timelineData['segments'].append({
                     'group': long(coreId[2:-1]),
                     'text': '%s(%s)' % (tcomm, prev_id),
@@ -65997,8 +66120,7 @@ class ThreadAnalyzer(object):
             self.threadData[pid]['schedReady'] = ftime
 
             if self.wakeupData['tid'] == '0':
-                self.wakeupData['time'] = \
-                    ftime - float(SysMgr.startTime)
+                self.wakeupData['time'] = allTime
             elif thread[0] == '0' or pid == '0':
                 return time
             elif self.wakeupData['valid'] > 0 and \
@@ -66016,15 +66138,13 @@ class ThreadAnalyzer(object):
                     kicker = threadData['comm']
                     kicker_pid = thread
 
-                ntime = round(ftime - \
-                    float(SysMgr.startTime), 7)
+                ntime = round(allTime, 7)
                 self.depData.append(
                     "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s" % \
                     (ntime, round(ntime - float(self.wakeupData['time']), 7),
                     kicker, kicker_pid, target_comm, pid, "kick"))
 
-                self.wakeupData['time'] = \
-                    ftime - float(SysMgr.startTime)
+                self.wakeupData['time'] = allTime
                 self.wakeupData['from'] = self.wakeupData['tid']
                 self.wakeupData['to'] = pid
 
@@ -66108,8 +66228,7 @@ class ThreadAnalyzer(object):
                         addr, l['val'], l['timer']])
 
             if self.wakeupData['tid'] == '0':
-                self.wakeupData['time'] = \
-                    ftime - float(SysMgr.startTime)
+                self.wakeupData['time'] = allTime
 
             # write syscall #
             if nr == ConfigMgr.sysList.index("sys_write"):
@@ -66269,15 +66388,14 @@ class ThreadAnalyzer(object):
                         self.lastJob[core]['job'] == "sched_wakeup" or \
                         self.lastJob[core]['job'] == "sched_wakeup_new") and \
                         self.lastJob[core]['prevWakeupTid'] != thread:
-                        ttime = ftime - float(SysMgr.startTime)
+                        ttime = allTime
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "wakeup"))
 
-                        self.wakeupData['time'] = \
-                            ftime - float(SysMgr.startTime)
+                        self.wakeupData['time'] = allTime
                         self.lastJob[core]['prevWakeupTid'] = thread
                 elif (SysMgr.arch == 'arm' and \
                     nr == ConfigMgr.sysList.index("sys_recv")) or \
@@ -66285,15 +66403,14 @@ class ThreadAnalyzer(object):
                     nr == ConfigMgr.sysList.index("sys_recvmsg") or \
                     nr == ConfigMgr.sysList.index("sys_recvmmsg"):
                     if self.lastJob[core]['prevWakeupTid'] != thread:
-                        ttime = ftime - float(SysMgr.startTime)
+                        ttime = allTime
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
                             "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "recv"))
 
-                        self.wakeupData['time'] = \
-                            ftime - float(SysMgr.startTime)
+                        self.wakeupData['time'] = allTime
                         self.lastJob[core]['prevWakeupTid'] = thread
             except SystemExit:
                 sys.exit(0)
@@ -66354,7 +66471,7 @@ class ThreadAnalyzer(object):
             sig = d['sig']
             target_comm = d['comm']
             pid = d['pid']
-            ttime = ftime - float(SysMgr.startTime)
+            ttime = allTime
 
             self.depData.append(
                 "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s(%s)" % \
@@ -66396,7 +66513,7 @@ class ThreadAnalyzer(object):
             sig = d['sig']
             flags = d['flags']
 
-            ttime = ftime - float(SysMgr.startTime)
+            ttime = allTime
             itime = ttime - float(self.wakeupData['time'])
             self.depData.append(
                 "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s(%s)" % \
@@ -66552,7 +66669,10 @@ class ThreadAnalyzer(object):
                     pass
 
                 reqThd = request['thread']
+                tcomm = self.threadData[reqThd]['comm']
+                lastCore = long(self.threadData[reqThd]['lastCore'])
 
+                # READ #
                 if opt[0] == 'R':
                     self.threadData[reqThd]['readBlock'] += matchBlock
                     self.threadData[coreId]['readBlock'] += matchBlock
@@ -66569,13 +66689,28 @@ class ThreadAnalyzer(object):
                     # self.threadData[reqThd]['readQueueCnt'] == 0 #
                     """
                     if self.threadData[reqThd]['readStart'] > 0:
-                        waitTime = \
-                            ftime - \
-                            self.threadData[reqThd]['readStart']
+                        startTime = self.threadData[reqThd]['readStart']
+                        waitTime = ftime - startTime
                         self.threadData[coreId]['ioRdWait'] += waitTime
                         self.threadData[reqThd]['ioRdWait'] += waitTime
                         self.threadData[reqThd]['readStart'] = long(0)
+                        workload = UtilMgr.convSize2Unit(
+                            matchBlock * SysMgr.blockSize, True)
 
+                        start_delta = long((float(startTime)-stime)*1000)
+                        stop_delta = long((float(ftime)-stime)*1000)
+
+                        # add timeline data #
+                        self.timelineData['segments'].append({
+                            'group': lastCore,
+                            'text': '%s(%s)_RD[%s]' % (tcomm, reqThd, workload),
+                            'id': reqThd,
+                            'state': 'RD',
+                            'time_start': start_delta,
+                            'time_end': stop_delta,
+                        })
+
+                # WRITE #
                 elif opt == 'WS':
                     self.threadData[reqThd]['writeBlock'] += matchBlock
                     self.threadData[coreId]['writeBlock'] += matchBlock
@@ -66592,12 +66727,26 @@ class ThreadAnalyzer(object):
                     # self.threadData[reqThd]['writeQueueCnt'] == 0 #
                     """
                     if self.threadData[reqThd]['writeStart'] > 0:
-                        waitTime = \
-                            ftime - \
-                            self.threadData[reqThd]['writeStart']
+                        startTime = self.threadData[reqThd]['writeStart']
+                        waitTime = ftime - startTime
                         self.threadData[coreId]['ioWrWait'] += waitTime
                         self.threadData[reqThd]['ioWrWait'] += waitTime
                         self.threadData[reqThd]['writeStart'] = long(0)
+                        workload = UtilMgr.convSize2Unit(
+                            matchBlock * SysMgr.blockSize, True)
+
+                        start_delta = long((float(startTime)-stime)*1000)
+                        stop_delta = long((float(ftime)-stime)*1000)
+
+                        # add timeline data #
+                        self.timelineData['segments'].append({
+                            'group': lastCore,
+                            'text': '%s(%s)_WR[%s]' % (tcomm, reqThd, workload),
+                            'id': reqThd,
+                            'state': 'WR',
+                            'time_start': start_delta,
+                            'time_end': stop_delta,
+                        })
 
         elif func == "writeback_dirty_page":
             m = re.match((
@@ -66956,28 +67105,53 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
 
             SysMgr.powerEnable = True
+            tid = '0[%s]' % d['cpu_id']
+            state = long(d['state'])
 
-            tid = '0[' + d['cpu_id']+ ']'
-
-            if self.threadData[tid]['lastIdleStatus'] == long(d['state']):
+            # no change #
+            if self.threadData[tid]['lastIdleStatus'] == state:
                 return time
+
+            # update status #
+            self.threadData[tid]['lastIdleStatus'] = state
+
+            # check wakeup state #
+            isWakeuped = (state == 4294967295 or state == -1)
+
+            # wakeup #
+            if isWakeuped:
+                # update off time from start #
+                if self.threadData[tid]['coreSchedCnt'] == 0 and \
+                    self.threadData[tid]['offTime'] == 0:
+                    self.threadData[tid]['offTime'] = allTime
+                    start_delta = long(0)
+                # start to sleep #
+                elif self.threadData[tid]['lastOff'] > 0:
+                    startTime = self.threadData[tid]['lastOff']
+                    start_delta = long((float(startTime)-stime)*1000)
+                    self.threadData[tid]['offTime'] += \
+                        (ftime - self.threadData[tid]['lastOff'])
+                    self.threadData[tid]['lastOff'] = float(0)
+                # undefined #
+                else:
+                    return time
+
+                stop_delta = long((float(ftime)-stime)*1000)
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': long(core),
+                    'text': 'OFF',
+                    'id': thread,
+                    'state': 'OFF',
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
+
+            # sleep #
             else:
-                self.threadData[tid]['lastIdleStatus'] = long(d['state'])
-
-            if self.threadData[tid]['coreSchedCnt'] == 0 and \
-                self.threadData[tid]['offTime'] == 0:
-                self.threadData[tid]['offTime'] = \
-                    ftime - float(SysMgr.startTime)
-
-            # Wake core up, but the number 3 as this condition is not certain #
-            if long(d['state']) < 3:
                 self.threadData[tid]['offCnt'] += 1
                 self.threadData[tid]['lastOff'] = ftime
-            # Start to sleep #
-            elif self.threadData[tid]['lastOff'] > 0:
-                self.threadData[tid]['offTime'] += \
-                    (ftime - self.threadData[tid]['lastOff'])
-                self.threadData[tid]['lastOff'] = float(0)
 
         elif func == "cpu_frequency":
             # toDo: calculate power consumption for DVFS system #
@@ -67034,10 +67208,8 @@ class ThreadAnalyzer(object):
 
         # custom event #
         if any([True for event in SysMgr.customEventList if func.startswith(event)]):
-            # add data into list #
-            ntime = ftime - float(SysMgr.startTime)
             self.customEventData.append(
-                [func, comm, thread, ntime, etc.strip()])
+                [func, comm, thread, allTime, etc.strip()])
 
             # make event list #
             if not threadData['customEvent']:
@@ -67099,10 +67271,8 @@ class ThreadAnalyzer(object):
             eventObj = threadData['userEvent'][name]
 
             if func == '%s_enter' % name:
-                # add data into list #
-                ntime = ftime - float(SysMgr.startTime)
                 self.userEventData.append(
-                    ['ENTER', name, comm, thread, ntime, ''])
+                    ['ENTER', name, comm, thread, allTime, ''])
 
                 # get interval #
                 interDiff = long(0)
@@ -67131,10 +67301,8 @@ class ThreadAnalyzer(object):
                     self.userEventInfo[name]['minPeriod'] = interDiff
 
             elif func == '%s_exit' % name:
-                # add data into list #
-                ntime = ftime - float(SysMgr.startTime)
                 self.userEventData.append(
-                    ['EXIT', name, comm, thread, ntime,
+                    ['EXIT', name, comm, thread, allTime,
                     etc[etc.find('(')+1:etc.rfind('<-')]])
 
                 # get usage #
@@ -67175,23 +67343,20 @@ class ThreadAnalyzer(object):
             eventObj = threadData['kernelEvent'][name]
 
             if func == '%s_enter' % name:
-                # add data into list #
-                ntime = ftime - float(SysMgr.startTime)
-
                 isSaved = True
                 m = re.match(
                     r'^\s*\((?P<name>.+)\+(?P<offset>.+) <(?P<addr>.+)>\)(?P<args>.*)', etc)
                 if m:
                     d = m.groupdict()
                     self.kernelEventData.append(
-                        ['ENTER', name, d['addr'], comm, thread, ntime, '', d['args']])
+                        ['ENTER', name, d['addr'], comm, thread, allTime, '', d['args']])
                 else:
                     m = re.match(
                         r'^\s*\((?P<name>.+)\+(?P<offset>.+)\)(?P<args>.*)', etc)
                     if m:
                         d = m.groupdict()
                         self.kernelEventData.append(
-                            ['ENTER', name, '', comm, thread, ntime, '', d['args']])
+                            ['ENTER', name, '', comm, thread, allTime, '', d['args']])
                     else:
                         isSaved = False
                         SysMgr.printWarn(
@@ -67227,9 +67392,6 @@ class ThreadAnalyzer(object):
                     self.kernelEventInfo[name]['minPeriod'] = interDiff
 
             elif func == '%s_exit' % name:
-                # add data into list #
-                ntime = ftime - float(SysMgr.startTime)
-
                 isSaved = True
                 m = re.match((
                     r'^\s*\((?P<caller>.+)\+(?P<offset>.+) <(?P<caddr>.+)> <- '
@@ -67237,7 +67399,7 @@ class ThreadAnalyzer(object):
                 if m:
                     d = m.groupdict()
                     self.kernelEventData.append(
-                        ['EXIT', name, d['addr'], comm, thread, ntime,
+                        ['EXIT', name, d['addr'], comm, thread, allTime,
                         d['caller'], d['args'], d['caddr']])
                 else:
                     m = re.match((
@@ -67246,7 +67408,7 @@ class ThreadAnalyzer(object):
                     if m:
                         d = m.groupdict()
                         self.kernelEventData.append(
-                            ['EXIT', name, '', comm, thread, ntime,
+                            ['EXIT', name, '', comm, thread, allTime,
                             d['caller'], d['args'], ''])
                     else:
                         isSaved = False
@@ -73383,6 +73545,9 @@ def main(args=None):
         if SysMgr.isDrawMode():
             origInputFile = SysMgr.inputFile
             origInterval = SysMgr.intervalEnable
+
+            # check svgwrite object #
+            svgwrite = SysMgr.getPkg('svgwrite')
 
             # prepare for timeline chart #
             SysMgr.graphEnable = False
