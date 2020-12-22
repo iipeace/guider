@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201221"
+__revision__ = "201222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4299,7 +4299,12 @@ class UtilMgr(object):
         value = value.strip()
         glob = SysMgr.getPkg('glob', False)
         if glob:
-            res = glob.glob(value)
+            # check recursive path for specific version(>=python 3.5) #
+            if '**' in value and sys.version_info >= (3, 5):
+                res = glob.glob(value, recursive=True)
+            else:
+                res = glob.glob(value)
+
             if not res and isExit:
                 SysMgr.printErr(
                     "fail to find a file matching '%s'" % value)
@@ -6947,7 +6952,7 @@ class Timeline(object):
         # draw line for block_write status #
         elif segment.state == 'WR':
             dwg.add(dwg.rect((x0, scaled_bottom_height),
-                (scaled_width, self.scaled_height%0.25),
+                (scaled_width, self.scaled_height*0.25),
                 rx=1, ry=1, fill='darkcyan', fill_opacity=0.5))
         # draw line for sched status #
         else:
@@ -6980,6 +6985,7 @@ class Timeline(object):
             self.last_iogroup_segment.setdefault(group_idx, None)
             self.last_iogroup_time.setdefault(group_idx, x0)
 
+            # define data #
             last_iogroup_segment = self.last_iogroup_segment[group_idx]
             last_iogroup_time = self.last_iogroup_time[group_idx]
 
@@ -6988,19 +6994,21 @@ class Timeline(object):
                 if last_iogroup_segment == segment.text and \
                     x0 - last_iogroup_time < self.config.TICKS:
                     segment_label = duration
+                    font_size = self.config.FONT_SIZE - 1
                 else:
-                    segment_label = "| %s_%s" % (segment.text, duration)
+                    segment_label = "> %s | %s" % (segment.text, duration)
+                    font_size = self.config.FONT_SIZE - 0.7
                 color = 'rgb(128,0,128)'
-                font_size = self.config.FONT_SIZE - 0.7
             # set text attributes for block_write #
             elif segment.state == 'WR':
                 if last_iogroup_segment == segment.text and \
                     x0 - last_iogroup_time < self.config.TICKS:
                     segment_label = duration
+                    font_size = self.config.FONT_SIZE - 1
                 else:
-                    segment_label = "| %s_%s" % (segment.text, duration)
+                    segment_label = "> %s | %s" % (segment.text, duration)
+                    font_size = self.config.FONT_SIZE - 0.7
                 color = 'rgb(0,139,139)'
-                font_size = self.config.FONT_SIZE - 0.7
 
             # update group info #
             self.last_iogroup_segment[group_idx] = segment.text
@@ -7029,7 +7037,7 @@ class Timeline(object):
                 font_size = self.config.FONT_SIZE - 1
             # set text attributes for new task #
             else:
-                segment_label = "> %s/%s" % (segment.text, duration)
+                segment_label = "> %s | %s" % (segment.text, duration)
                 color = 'rgb(255,0,0)'
                 font_size = self.config.FONT_SIZE - 0.5
 
@@ -7088,7 +7096,8 @@ class Timeline(object):
     @staticmethod
     def _load_segments(data):
         segments = []
-        for segment_data in data["segments"]:
+        for segment_data in sorted(
+            data["segments"], key=lambda e: e['time_start']):
             # apply for core filter #
             if SysMgr.perCoreDrawList:
                 if not segment_data['group'] in SysMgr.perCoreDrawList:
@@ -15973,6 +15982,7 @@ class SysMgr(object):
             SysMgr.memEnable = True
             SysMgr.irqEnable = True
             SysMgr.diskEnable = True
+            SysMgr.blockEnable = True
             SysMgr.networkEnable = True
             SysMgr.perfEnable = True
 
@@ -16026,10 +16036,13 @@ class SysMgr(object):
 
         # background #
         elif SysMgr.checkMode('bgtop'):
-            if SysMgr.checkBgTopCond():
-                SysMgr.runBackgroundMode()
-            else:
+            if not SysMgr.checkBgTopCond():
                 sys.exit(0)
+
+            SysMgr.blockEnable = True
+            SysMgr.diskEnable = True
+            SysMgr.networkEnable = True
+            SysMgr.runBackgroundMode()
 
         # report #
         elif SysMgr.checkMode('rtop'):
@@ -16047,8 +16060,8 @@ class SysMgr(object):
                         SysMgr.networkEnable = False
             else:
                 SysMgr.printWarn(
-                    "fail to get disk and network stats "
-                    "because no root permission")
+                    "fail to get stats for disk and network "
+                    "because of no root permission")
 
             if not SysMgr.checkRepTopCond():
                 sys.exit(0)
@@ -55146,8 +55159,8 @@ class ThreadAnalyzer(object):
             ('Diff', 'Nr', 'Min', 'Avg', 'Max')
         lenGpuStat = len(emptyCpuStat)
 
-        menuBuf = "{0:^16} | ".format('Task')
-        printBuf = "{0:^16} | ".format('File')
+        menuBuf = "{0:^24} | ".format('Task')
+        printBuf = "{0:^24} | ".format('File')
         for fname in flist:
             printBuf = \
                 ('{0:1} {1:^%d}' % len(emptyGpuStat)).format(printBuf, fname)
@@ -55158,7 +55171,7 @@ class ThreadAnalyzer(object):
 
         for pname, value in sorted(unionGpuList.items(),
             key=lambda e:float(e[1]), reverse=True):
-            printBuf = "%16s | " % pname
+            printBuf = "%24s | " % pname
             for idx, fname in enumerate(flist):
                 try:
                     prevGpuProcList = \
@@ -57832,8 +57845,8 @@ class ThreadAnalyzer(object):
 
                     maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
                     totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
-                    maxval = '%s[%s]%s' % (prefix, maxsize, idx)
-                    lastval = '%s[%s]%s' % \
+                    maxval = '%s%s[%s]' % (prefix, idx, maxsize)
+                    lastval = '%s%s[%s]' % \
                         (prefix, convSize2Unit(wrUsage[-1] << 10), idx)
 
                     if wrUsage[minIdx] == wrUsage[maxIdx] == 0:
@@ -57871,8 +57884,8 @@ class ThreadAnalyzer(object):
 
                     maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
                     totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
-                    maxval = '%s[%s]%s' % (prefix, maxsize, idx)
-                    lastval = '%s[%s]%s' % \
+                    maxval = '%s%s[%s]' % (prefix, idx, maxsize)
+                    lastval = '%s%s[%s]' % \
                         (prefix, convSize2Unit(rdUsage[-1] << 10), idx)
 
                     if rdUsage[minIdx] == rdUsage[maxIdx] == 0:
@@ -63854,7 +63867,7 @@ class ThreadAnalyzer(object):
                         convSize2Unit(stats['write'], True),
                         convSize2Unit(stats['free'], True))
                 except:
-                    continue
+                    usage = '0/0/0/0'
 
                 timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
                 lineLen += 21
@@ -63927,7 +63940,7 @@ class ThreadAnalyzer(object):
                         (convSize2Unit(stats['recv'], True),
                         convSize2Unit(stats['tran'], True))
                 except:
-                    continue
+                    usage = '0/0'
 
                 timeLine = '%s%s' % (timeLine, '{0:>21} '.format(usage))
                 lineLen += 21
@@ -66703,7 +66716,7 @@ class ThreadAnalyzer(object):
                         # add timeline data #
                         self.timelineData['segments'].append({
                             'group': lastCore,
-                            'text': '%s(%s)_RD[%s]' % (tcomm, reqThd, workload),
+                            'text': '%s(%s) | RD[%s]' % (tcomm, reqThd, workload),
                             'id': reqThd,
                             'state': 'RD',
                             'time_start': start_delta,
@@ -66741,7 +66754,7 @@ class ThreadAnalyzer(object):
                         # add timeline data #
                         self.timelineData['segments'].append({
                             'group': lastCore,
-                            'text': '%s(%s)_WR[%s]' % (tcomm, reqThd, workload),
+                            'text': '%s(%s) | WR[%s]' % (tcomm, reqThd, workload),
                             'id': reqThd,
                             'state': 'WR',
                             'time_start': start_delta,
@@ -68750,6 +68763,8 @@ class ThreadAnalyzer(object):
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = getStatBuf(self, statPath, tid)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(statPath)
             self.procData.pop(tid, None)
@@ -68825,6 +68840,8 @@ class ThreadAnalyzer(object):
                     flag = item[2]
                     if flag != 'CONT':
                         SysMgr.affinityFilter.remove(item)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -68845,6 +68862,8 @@ class ThreadAnalyzer(object):
                             (ConfigMgr.SIG_LIST[sig], comm, tid))
                     if flag != 'CONT':
                         SysMgr.killFilter.remove(item)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -68854,9 +68873,10 @@ class ThreadAnalyzer(object):
             self.procData[tid]['io'] = {}
             for line in ioBuf:
                 line = line.split()
-                if line[0] != 'read_bytes:' and line[0] != 'write_bytes:':
+                item = line[0].decode()
+                if item != 'read_bytes:' and item != 'write_bytes:':
                     continue
-                self.procData[tid]['io'][line[0][:-1]] = long(line[1])
+                self.procData[tid]['io'][item[:-1]] = long(line[1])
 
         # save perf fds #
         if SysMgr.perfGroupEnable and \
@@ -68984,6 +69004,8 @@ class ThreadAnalyzer(object):
         # total memory #
         try:
             totalMem = memData['MemTotal'] >> 10
+        except SystemExit:
+            sys.exit(0)
         except:
             totalMem = long(0)
             SysMgr.printWarn("fail to get totalMem")
@@ -68992,6 +69014,8 @@ class ThreadAnalyzer(object):
         try:
             freeMem = memData['MemFree'] >> 10
             freeMemDiff = freeMem - (prevMemData['MemFree'] >> 10)
+        except SystemExit:
+            sys.exit(0)
         except:
             freeMem = freeMemDiff = long(0)
             SysMgr.printWarn("fail to get freeMem")
@@ -69016,6 +69040,8 @@ class ThreadAnalyzer(object):
                 availMemDiff = long(0)
 
             availMemPer = long(availMem / float(totalMem) * 100)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.freeMemEnable = True
             availMem = availMemDiff = long(0)
@@ -69027,6 +69053,8 @@ class ThreadAnalyzer(object):
             totalAnonMem = vmData['nr_anon_pages'] >> 8
             anonMemDiff = (vmData['nr_anon_pages'] - \
                 self.prevVmData['nr_anon_pages']) >> 8
+        except SystemExit:
+            sys.exit(0)
         except:
             actAnonMem = inactAnonMem = totalAnonMem = anonMemDiff = long(0)
             SysMgr.printWarn("fail to get anonMem")
@@ -69038,6 +69066,8 @@ class ThreadAnalyzer(object):
             totalFileMem = vmData['nr_file_pages'] >> 8
             fileMemDiff = (vmData['nr_file_pages'] - \
                 self.prevVmData['nr_file_pages']) >> 8
+        except SystemExit:
+            sys.exit(0)
         except:
             actFileMem = inactFileMem = totalFileMem = fileMemDiff = long(0)
             SysMgr.printWarn("fail to get fileMem")
@@ -69054,6 +69084,8 @@ class ThreadAnalyzer(object):
                 long((vmData['nr_dirty'] / \
                 float(vmData['nr_dirty_background_threshold'])) * 100)
             '''
+        except SystemExit:
+            sys.exit(0)
         except:
             pgDirty = long(0)
             SysMgr.printWarn("fail to get dirtyMem")
@@ -69072,6 +69104,8 @@ class ThreadAnalyzer(object):
                 (vmData['nr_slab_reclaimable'] + \
                 vmData['nr_slab_unreclaimable']) >> 8
             slabMemDiff = (slabReclmDiff + slabUnReclmDiff) >> 8
+        except SystemExit:
+            sys.exit(0)
         except:
             slabReclm = slabUnReclm = slabReclmDiff = \
                 slabUnReclmDiff = totalSlabMem = slabMemDiff = long(0)
@@ -69083,6 +69117,8 @@ class ThreadAnalyzer(object):
         try:
             totalKernelMem = \
                 totalMem - (totalAnonMem + totalCacheMem + freeMem)
+        except SystemExit:
+            sys.exit(0)
         except:
             totalKernelMem =  0
 
@@ -69091,6 +69127,8 @@ class ThreadAnalyzer(object):
             nrMajFault = vmData['pgmajfault'] - self.prevVmData['pgmajfault']
             nrTotalFault = vmData['pgfault'] - self.prevVmData['pgfault']
             nrMinFault = nrTotalFault - nrMajFault
+        except SystemExit:
+            sys.exit(0)
         except:
             nrMajFault = nrTotalFault = nrMinFault = long(0)
             SysMgr.printWarn("fail to get faultMem")
@@ -69101,6 +69139,8 @@ class ThreadAnalyzer(object):
                 (vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
             pgOutMemDiff = \
                 (vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
+        except SystemExit:
+            sys.exit(0)
         except:
             pgInMemDiff = pgOutMemDiff = long(0)
             SysMgr.printWarn("fail to get pgMem")
@@ -69121,6 +69161,8 @@ class ThreadAnalyzer(object):
                 (vmData['pswpin'] - self.prevVmData['pswpin']) >> 10
             swapOutMem = \
                 (vmData['pswpout'] - self.prevVmData['pswpout']) >> 10
+        except SystemExit:
+            sys.exit(0)
         except:
             swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
                 swapFreePer = swapInMem = swapOutMem = long(0)
@@ -69161,8 +69203,12 @@ class ThreadAnalyzer(object):
                 nrBgReclaim = \
                     vmData['pageoutrun'] - \
                     self.prevVmData['pageoutrun']
+            except SystemExit:
+                sys.exit(0)
             except:
                 nrBgReclaim = long(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             pgRclmBg = nrBgReclaim = long(0)
             SysMgr.printWarn("fail to get bgReclmMem")
@@ -69202,8 +69248,12 @@ class ThreadAnalyzer(object):
                 nrDrReclaim = \
                     vmData['allocstall'] - \
                     self.prevVmData['allocstall']
+            except SystemExit:
+                sys.exit(0)
             except:
                 nrDrReclaim = long(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             pgRclmFg = nrDrReclaim = long(0)
             SysMgr.printWarn("fail to get drReclmMem")
@@ -69239,6 +69289,8 @@ class ThreadAnalyzer(object):
                     cmaDevMem = long(0)
             else:
                 cmaTotalMem = long(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             cmaTotalMem = cmaFreeMem = cmaDevMem = long(0)
             SysMgr.printWarn("fail to get cmaMem")
@@ -69283,6 +69335,8 @@ class ThreadAnalyzer(object):
             nrCtxSwc = \
                 self.cpuData['ctxt']['ctxt'] - \
                 self.prevCpuData['ctxt']['ctxt']
+        except SystemExit:
+            sys.exit(0)
         except:
             nrCtxSwc = long(0)
 
@@ -69290,6 +69344,8 @@ class ThreadAnalyzer(object):
             nrIrq = \
                 self.cpuData['intr']['intr'] - \
                 self.prevCpuData['intr']['intr']
+        except SystemExit:
+            sys.exit(0)
         except:
             nrIrq = long(0)
 
@@ -69297,6 +69353,8 @@ class ThreadAnalyzer(object):
             nrSoftIrq = \
                 self.cpuData['softirq']['softirq'] - \
                 self.prevCpuData['softirq']['softirq']
+        except SystemExit:
+            sys.exit(0)
         except:
             nrSoftIrq = long(0)
 
@@ -69374,6 +69432,8 @@ class ThreadAnalyzer(object):
                 irqUsage += coreStats[idx]['irq']
                 coreStats[idx]['idle'] = long(idleCoreUsage * scale)
                 idleUsage += coreStats[idx]['idle']
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -69406,6 +69466,8 @@ class ThreadAnalyzer(object):
             netIO = '%s/%s' % \
                 (UtilMgr.convSize2Unit(netIn, True),
                     UtilMgr.convSize2Unit(netOut, True))
+        except SystemExit:
+            sys.exit(0)
         except:
             netIO = '-/-'
 
@@ -69496,6 +69558,8 @@ class ThreadAnalyzer(object):
                     devPath = '%s/%s/device/name' % (tempPath, item)
                     if os.path.isfile(devPath):
                         tempDirList.append(devPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -69511,6 +69575,8 @@ class ThreadAnalyzer(object):
 
                     if fd.readline()[:-1] == 'coretemp':
                         tempPath.append(os.path.dirname(tempDir))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -69548,6 +69614,8 @@ class ThreadAnalyzer(object):
 
                             tempData[coreId] = \
                                 long(tfd.readline()[:-4])
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         pass
 
@@ -69562,6 +69630,8 @@ class ThreadAnalyzer(object):
                     [ '%s/%s' % (tempPath, item) \
                     for item in os.listdir(tempPath) \
                     if item.startswith('thermal_zone') ]
+            except SystemExit:
+                sys.exit(0)
             except:
                 tempDirList = []
 
@@ -69577,6 +69647,8 @@ class ThreadAnalyzer(object):
                             coreTempData['CPU'] = long(fd.readline()[:-4])
                         elif 'GPU' in ctype:
                             coreTempData['GPU'] = long(fd.readline()[:-4])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -69673,6 +69745,8 @@ class ThreadAnalyzer(object):
                         self.cpuData[idx]['curFd'] = open(curPath, 'r')
                         curFreq = self.cpuData[idx]['curFd'].readline()[:-1]
                         percoreStats[idx]['curFreq'] = curFreq
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         curFreq = None
 
@@ -69835,6 +69909,8 @@ class ThreadAnalyzer(object):
                 # merge governor info #
                 try:
                     coreFreq = '{0:^13} | {1:>1}'.format(gov, coreFreq)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -69953,6 +70029,8 @@ class ThreadAnalyzer(object):
 
                     SysMgr.addPrint(
                         '%s%s| %s\n' % (coreStat, coreGraph, coreFreq))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     continue
 
@@ -69989,6 +70067,8 @@ class ThreadAnalyzer(object):
             self.reportData['system']['load1m'] = loads[0]
             self.reportData['system']['load5m'] = loads[1]
             self.reportData['system']['load15m'] = loads[2]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -70042,6 +70122,8 @@ class ThreadAnalyzer(object):
             self.reportData['mem']['cmaTotal'] = cmaTotalMem
             self.reportData['mem']['cmaFree'] = cmaFreeMem
             self.reportData['mem']['cmaDev'] = cmaDevMem
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
