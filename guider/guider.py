@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201222"
+__revision__ = "201223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3490,25 +3490,6 @@ class ConfigMgr(object):
         'PERF_COUNT_HW_CACHE_RESULT_ACCESS',
         'PERF_COUNT_HW_CACHE_RESULT_MISS',
         ]
-
-
-
-    @staticmethod
-    def readProcData(tid, path, num):
-        path = '%s/%s/%s' % (SysMgr.procPath, tid, path)
-
-        try:
-            f = open(path, 'r')
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(path)
-            return None
-
-        if num == 0:
-            return f.readline().replace('\n', '')
-        else:
-            return f.readline().replace('\n', '').split(' ')[num - 1]
 
 
 
@@ -15416,6 +15397,8 @@ class SysMgr(object):
         self.procData = None
         self.macAddr = None
         self.uname = []
+        self.openFileData = {}
+        self.limitData = []
 
         # update starttime #
         SysMgr.updateUptime()
@@ -17721,6 +17704,27 @@ class SysMgr(object):
         SysMgr.sortCond = cond
 
         return True
+
+
+
+    @staticmethod
+    def readProcData(tid, path, num=-1):
+        path = '%s/%s/%s' % (SysMgr.procPath, tid, path)
+
+        try:
+            f = open(path, 'r')
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printOpenErr(path)
+            return None
+
+        if num == -1:
+            return f.readlines()
+        elif num == 0:
+            return f.readline().replace('\n', '')
+        else:
+            return f.readline().replace('\n', '').split()[num - 1]
 
 
 
@@ -26437,8 +26441,15 @@ Copyright:
 
 
     @staticmethod
-    def checkMode(mode):
-        if len(sys.argv) > 1 and sys.argv[1] == mode:
+    def checkMode(mode, orig=False):
+        # set target list #
+        if orig:
+            target = SysMgr.origArgs
+        else:
+            target = sys.argv
+
+        # check value #
+        if len(target) > 1 and target[1] == mode:
             return True
         else:
             return False
@@ -26955,11 +26966,11 @@ Copyright:
 
     @staticmethod
     def isDrawAvgMode():
-        if SysMgr.checkMode('drawavg') or \
-            SysMgr.checkMode('drawcpuavg') or \
-            SysMgr.checkMode('drawmemavg') or \
-            SysMgr.checkMode('drawvssavg') or \
-            SysMgr.checkMode('drawrssavg'):
+        if SysMgr.checkMode('drawavg', True) or \
+            SysMgr.checkMode('drawcpuavg', True) or \
+            SysMgr.checkMode('drawmemavg', True) or \
+            SysMgr.checkMode('drawvssavg', True) or \
+            SysMgr.checkMode('drawrssavg', True):
             return True
         else:
             return False
@@ -26975,19 +26986,19 @@ Copyright:
             return False
         elif sys.argv[1] == 'draw' or orig:
             return True
-        elif SysMgr.checkMode('drawcpu'):
+        elif SysMgr.checkMode('drawcpu', True):
             return True
-        elif SysMgr.checkMode('drawmem'):
+        elif SysMgr.checkMode('drawmem', True):
             return True
-        elif SysMgr.checkMode('drawvss'):
+        elif SysMgr.checkMode('drawvss', True):
             return True
-        elif SysMgr.checkMode('drawrss'):
+        elif SysMgr.checkMode('drawrss', True):
             return True
-        elif SysMgr.checkMode('drawleak'):
+        elif SysMgr.checkMode('drawleak', True):
             return True
-        elif SysMgr.checkMode('drawio'):
+        elif SysMgr.checkMode('drawio', True):
             return True
-        elif SysMgr.checkMode('drawtime'):
+        elif SysMgr.checkMode('drawtime', True):
             return True
         elif SysMgr.isDrawAvgMode():
             return True
@@ -34150,9 +34161,11 @@ Copyright:
         self.updateIPCInfo()
         self.saveMacAddr()
 
-        # save syste/user info #
+        # save system/user info #
         self.saveUnameInfo()
         self.saveUserInfo()
+        self.saveOpenFileInfo()
+        self.saveLimitInfo()
 
         # save system info #
         if initialized:
@@ -35458,6 +35471,8 @@ Copyright:
 
         self.printProcTreeInfo()
 
+        self.printLimitInfo()
+
 
 
     def printProcTreeInfo(self):
@@ -35522,6 +35537,45 @@ Copyright:
         except:
             pass
 
+        SysMgr.infoBufferPrint(twoLine)
+
+
+
+    def printLimitInfo(self):
+        if not self.limitData:
+            return
+
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault('general', dict())
+            SysMgr.jsonData['general'].setdefault('limit', dict())
+            jsonData = SysMgr.jsonData['general']['limit']
+
+        limitData = self.limitData
+        title = limitData.pop(0)
+
+        SysMgr.infoBufferPrint('\n[Task Limit Info]')
+        SysMgr.infoBufferPrint(twoLine)
+        SysMgr.infoBufferPrint(title.rstrip())
+        SysMgr.infoBufferPrint(twoLine)
+        for line in self.limitData[1:]:
+            limit = line.rstrip()
+            SysMgr.infoBufferPrint(limit)
+
+            if not SysMgr.jsonEnable:
+                continue
+
+            try:
+                items = limit.split()
+                name = ' '.join(items[:-4])
+                jsonData.setdefault(name, dict())
+                jsonData[name]['soft'] = items[-3]
+                jsonData[name]['hard'] = items[-2]
+                jsonData[name]['unit'] = items[-1]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
         SysMgr.infoBufferPrint(twoLine)
 
 
@@ -35714,13 +35768,26 @@ Copyright:
         except:
             pass
 
-        # last pid #
+        # last PID #
         try:
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<10}".format('LastPid', self.loadData[4]))
 
             if SysMgr.jsonEnable:
                 jsonData['lastPid'] = self.loadData[4]
+        except:
+            pass
+
+        # open files #
+        try:
+            SysMgr.infoBufferPrint(
+                "{0:20} {1:<1}(cur) / {2:<1}(max)".format(
+                    'OpenFile', convNum(self.openFileData['cur']),
+                        convNum(self.openFileData['max'])))
+
+            if SysMgr.jsonEnable:
+                jsonData['nrCurOpenFile'] = self.openFileData['cur']
+                jsonData['nrMaxOpenFile'] = self.openFileData['max']
         except:
             pass
 
@@ -36284,6 +36351,30 @@ Copyright:
             sys.exit(0)
         except:
             return
+
+
+
+    def saveLimitInfo(self):
+        if self.limitData:
+            return
+        else:
+            self.limitData = SysMgr.readProcData('self', 'limits')
+
+
+
+    def saveOpenFileInfo(self):
+        if self.openFileData:
+            return
+
+        try:
+            with open('%s/sys/fs/file-nr' % SysMgr.procPath) as fd:
+                stats = list(map(long, fd.readline()[:-1].split()))
+                self.openFileData['cur'] = stats[0]
+                self.openFileData['max'] = stats[2]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
 
 
@@ -57001,6 +57092,105 @@ class ThreadAnalyzer(object):
 
 
 
+    def drawBottom(self, xtype, ax):
+        if xtype == 1:
+            # convert tick type to integer #
+            try:
+                xtickLabel = ax.get_xticks().tolist()
+                xtickLabel = list(map(long, xtickLabel))
+                if len(str(xtickLabel[0])) > 5:
+                    for idx, item in enumerate(list(xtickLabel)):
+                        if idx % 2 > 0:
+                            xtickLabel[idx] = '\n%s' % item
+                    ax.set_xticklabels(xtickLabel)
+                if xtickLabel[0] != xtickLabel[-1]:
+                    xlim([xtickLabel[0], xtickLabel[-1]])
+                    xtickLabel[-1] = '   TIME(Sec)'
+                    ax.set_xticklabels(xtickLabel)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+        elif xtype == 3:
+            # draw the number of tasks #
+            try:
+                xtickLabel = ax.get_xticks().tolist()
+                xlim([xtickLabel[0], xtickLabel[-1]])
+                if sum(effectProcList) == 0:
+                    for seq, cnt in enumerate(xtickLabel):
+                        xtickLabel[seq] = '?'
+                else:
+                    for seq, cnt in enumerate(xtickLabel):
+                        try:
+                            xtickLabel[seq] = \
+                                effectProcList[timeline.index(long(cnt))]
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            xtickLabel[seq] = ' '
+                xtickLabel[-1] = '   TASK(NR)'
+                ax.set_xticklabels(xtickLabel)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+        elif xtype == 2:
+            # draw the number of cores #
+            try:
+                xtickLabel = ax.get_xticks().tolist()
+                xlim([xtickLabel[0], xtickLabel[-1]])
+                for seq, cnt in enumerate(xtickLabel):
+                    try:
+                        xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        xtickLabel[seq] = ' '
+                xtickLabel[-1] = '   CORE(NR)'
+                ax.set_xticklabels(xtickLabel)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+
+
+    def drawBoundary(self, gtype, labelList):
+        if not SysMgr.boundaryLine:
+            return
+
+        try:
+            boundaryList = \
+                list(map(UtilMgr.convUnit2Size, SysMgr.boundaryLine))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to set boundary line", True)
+            sys.exit(0)
+
+        # draw boundary graph #
+        for boundary in boundaryList:
+            if gtype == 'io':
+                bl = boundary >> 10
+            elif gtype == 'mem':
+                bl = boundary >> 20
+            else:
+                bl = boundary
+
+            try:
+                axhline(y=bl, linewidth=1, linestyle='--', color='black')
+
+                labelList.append(
+                    '[ Boundary %s ]' % \
+                        UtilMgr.convSize2Unit(boundary))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
+
+
+
     def drawGraph(self, graphStats, logFile, outFile=None):
         # pylint: disable=undefined-variable
 
@@ -57060,98 +57250,6 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-        def drawBottom(xtype, ax):
-            if xtype == 1:
-                # convert tick type to integer #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xtickLabel = list(map(long, xtickLabel))
-                    if xtickLabel[0] != xtickLabel[-1]:
-                        xlim([xtickLabel[0], xtickLabel[-1]])
-                        xtickLabel[-1] = '   TIME(Sec)'
-                        ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-            elif xtype == 3:
-                # draw the number of tasks #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    if sum(effectProcList) == 0:
-                        for seq, cnt in enumerate(xtickLabel):
-                            xtickLabel[seq] = '?'
-                    else:
-                        for seq, cnt in enumerate(xtickLabel):
-                            try:
-                                xtickLabel[seq] = \
-                                    effectProcList[timeline.index(long(cnt))]
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   TASK(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-            elif xtype == 2:
-                # draw the number of cores #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = \
-                                nrCore[timeline.index(long(cnt))]
-                        except SystemExit:
-                            sys.exit(0)
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   CORE(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-        def drawBoundary(gtype, labelList):
-            if not SysMgr.boundaryLine:
-                return
-
-            try:
-                boundaryList = \
-                    list(map(UtilMgr.convUnit2Size,
-                        SysMgr.boundaryLine))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to set boundary line", True)
-                sys.exit(0)
-
-            # draw boundary graph #
-            for boundary in boundaryList:
-                if gtype == 'io':
-                    bl = boundary >> 10
-                elif gtype == 'mem':
-                    bl = boundary >> 20
-                else:
-                    bl = boundary
-
-                try:
-                    axhline(y=bl, linewidth=1, linestyle='--', color='black')
-
-                    labelList.append(
-                        '[ Boundary %s ]' % \
-                            UtilMgr.convSize2Unit(boundary))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    continue
-
         def drawCpu(graphStats, xtype, pos, size):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
@@ -57172,6 +57270,8 @@ class ThreadAnalyzer(object):
                 elif len(timeline) > len(val):
                     timeline = val
             lent = len(timeline)
+
+            conv = UtilMgr.convNum
 
             # start loop #
             for key, val in graphStats.items():
@@ -57205,7 +57305,7 @@ class ThreadAnalyzer(object):
                     isVisibleTotal = False
 
                 # add boundary line #
-                drawBoundary('cpu', labelList)
+                self.drawBoundary('cpu', labelList)
 
                 #-------------------- Total GPU usage --------------------#
                 if isVisibleTotal:
@@ -57228,8 +57328,10 @@ class ThreadAnalyzer(object):
                             linewidth=1, marker='d', markersize=1,
                             solid_capstyle='round')
 
+                        totalUsage = sum(stat)
+
                         try:
-                            avgUsage = round(sum(stat) / len(stat), 1)
+                            avgUsage = round(totalUsage / len(stat), 1)
                         except:
                             avgUsage = long(0)
 
@@ -57244,8 +57346,8 @@ class ThreadAnalyzer(object):
                             if idx != 0 and stat[idx] == stat[idx-1]:
                                 continue
                             text(timeline[idx], stat[maxIdx],
-                                '%s max: %d%% / avg: %d%%' % \
-                                    (prefix, maxUsage, avgUsage),
+                                '%s max_%d%% | avg_%d%% | total_%s%%' % \
+                                (prefix, maxUsage, avgUsage, conv(totalUsage)),
                                 fontsize=4, color='olive', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
                                 alpha=0.3),
@@ -57273,13 +57375,16 @@ class ThreadAnalyzer(object):
                             linewidth=1, marker='d', markersize=1,
                             solid_capstyle='round')
 
+                        totalUsage = sum(blkWait)
+
                         try:
-                            avgUsage = round(sum(blkWait) / len(blkWait), 1)
+                            avgUsage = round(totalUsage / len(blkWait), 1)
                         except:
                             avgUsage = long(0)
 
                         labelList.append(
-                            '%s[ CPU+IO Average ] - %s%%' % (prefix, avgUsage))
+                            '%s[ CPU+IO Average ] - %.1f%%' % \
+                                (prefix, avgUsage))
 
                         maxUsage = max(blkWait)
                         maxIdx = blkWait.index(maxUsage)
@@ -57289,8 +57394,8 @@ class ThreadAnalyzer(object):
                             if idx != 0 and blkWait[idx] == blkWait[idx-1]:
                                 continue
                             text(timeline[idx], blkWait[maxIdx],
-                                '%s max: %d%% / avg: %.1f%%' % \
-                                    (prefix, maxUsage, avgUsage),
+                                '%s max_%d%% | avg_%.1f%% | total_%s%%' % \
+                                (prefix, maxUsage, avgUsage, conv(totalUsage)),
                                 fontsize=4, color='pink', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
                                 alpha=0.3),
@@ -57308,8 +57413,10 @@ class ThreadAnalyzer(object):
                         linewidth=1, marker='d', markersize=1,
                         solid_capstyle='round')
 
+                    totalUsage = sum(cpuUsage)
+
                     try:
-                        avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
+                        avgUsage = round(totalUsage / len(cpuUsage), 1)
                     except:
                         avgUsage = long(0)
 
@@ -57328,8 +57435,8 @@ class ThreadAnalyzer(object):
                         if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
                             continue
                         text(timeline[idx], cpuUsage[maxIdx],
-                            '%smax: %d%% / avg: %.1f%%' % \
-                            (prefix, maxUsage, avgUsage),
+                            '%smax_%d%% | avg_%.1f%% | total_%s%%' % \
+                            (prefix, maxUsage, avgUsage, conv(totalUsage)),
                             fontsize=4, color='red', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
@@ -57348,8 +57455,10 @@ class ThreadAnalyzer(object):
                         linewidth=1, marker='d', markersize=1,
                         solid_capstyle='round')
 
+                    totalSumUsage = sum(totalUsage)
+
                     try:
-                        avgUsage = round(sum(totalUsage) / len(totalUsage), 1)
+                        avgUsage = round(totalSumUsage / len(totalUsage), 1)
                     except:
                         avgUsage = long(0)
 
@@ -57369,8 +57478,8 @@ class ThreadAnalyzer(object):
                             continue
 
                         text(timeline[idx], totalUsage[maxIdx],
-                            '%s max: %d%% / avg: %.1f%%' % \
-                                (prefix, maxUsage, avgUsage),
+                            '%s max_%d%%|avg_%.1f%%|total_%s%%' % \
+                            (prefix, maxUsage, avgUsage, conv(totalSumUsage)),
                             fontsize=4, color='green', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
                             alpha=0.3),
@@ -57401,8 +57510,10 @@ class ThreadAnalyzer(object):
                     usage = list(map(long, usage))[:lent]
                     cpuUsage = list(usage)
 
+                    totalUsage = sum(cpuUsage)
+
                     try:
-                        avgUsage = round(sum(cpuUsage) / len(cpuUsage), 1)
+                        avgUsage = round(totalUsage / len(cpuUsage), 1)
                     except:
                         avgUsage = long(0)
 
@@ -57429,19 +57540,26 @@ class ThreadAnalyzer(object):
                         ymax = maxusage
 
                     maxIdx = usage.index(maxusage)
-                    color = plot(timeline, usage, '-')[0].get_color()
+                    color = plot(
+                        timeline, usage, '-', linewidth=0.7)[0].get_color()
 
                     margin = self.getMargin()
 
                     maxCpuPer = str(cpuUsage[maxIdx])
                     if idx in blkProcUsage and not SysMgr.blockEnable:
-                        maxBlkPer = str(blkUsage[maxIdx])
+                        maxBlkPer = blkUsage[maxIdx]
                     else:
-                        maxBlkPer = '0'
-                    maxPer = '[max: %s%%+%s%% / avg: %s%%]' % \
-                        (maxCpuPer, maxBlkPer, avgUsage)
+                        maxBlkPer = 0
 
-                    ilabel = '%s%s %s' % (prefix, idx, maxPer)
+                    if maxBlkPer > 0:
+                        maxBlkPerStr = '+%s%%' % maxBlkPer
+                    else:
+                        maxBlkPerStr = ''
+
+                    maxPer = '[max_%s%%%s|avg_%s%%|total_%s%%]' % \
+                        (maxCpuPer, maxBlkPerStr, avgUsage, conv(totalUsage))
+
+                    ilabel = '%s%s%s' % (prefix, idx, maxPer)
                     text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,
                         fontsize=3, color=color, fontweight='bold',
                         ha=getTextAlign(maxIdx, timeline))
@@ -57456,11 +57574,12 @@ class ThreadAnalyzer(object):
 
             # set legend position #
             if SysMgr.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    fontsize=3.5, loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(
-                    labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
+                    loc='upper right', markerfirst=False)
+            res.set_zorder(1)
 
             grid(which='both', linestyle=':', linewidth=0.2)
 
@@ -57503,7 +57622,7 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax)
 
         def drawIo(graphStats, xtype, pos, size):
             def drawSystemIo(statList, color, ymax):
@@ -57550,9 +57669,9 @@ class ThreadAnalyzer(object):
 
                 if usage[minIdx] == usage[maxIdx] == 0:
                     plot(timeline, statList, '-', c=rcolor,
-                        linewidth=1, alpha=0.1)
+                        linewidth=0.7, alpha=0.1)
                 else:
-                    plot(timeline, statList, '-', c=rcolor, linewidth=1)
+                    plot(timeline, statList, '-', c=rcolor, linewidth=0.7)
 
                 return totalsize, ymax
 
@@ -57580,7 +57699,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            drawBoundary('io', labelList)
+            self.drawBoundary('io', labelList)
 
             # start loop #
             for key, val in graphStats.items():
@@ -57666,7 +57785,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, wrUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 wrUsage[maxIdx] + margin, maxval,
@@ -57705,7 +57824,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, rdUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval,
@@ -57756,7 +57875,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, wrUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 wrUsage[maxIdx] + margin, maxval,
@@ -57794,7 +57913,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, rdUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
                                 rdUsage[maxIdx] + margin, maxval,
@@ -57854,7 +57973,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, wrUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
@@ -57893,7 +58012,7 @@ class ThreadAnalyzer(object):
                     else:
                         color = \
                             plot(timeline, rdUsage, '-',
-                                linewidth=1)[0].get_color()
+                                linewidth=0.7)[0].get_color()
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
@@ -57919,11 +58038,12 @@ class ThreadAnalyzer(object):
 
             if len(labelList) > 0:
                 if SysMgr.matplotlibVersion >= 1.2:
-                    legend(labelList, bbox_to_anchor=(1.12, 0.95),
-                        fontsize=3.5, loc='upper right')
+                    res = legend(labelList, bbox_to_anchor=(1.12, 0.95),
+                        fontsize=3.5, loc='upper right', markerfirst=False)
                 else:
-                    legend(labelList, bbox_to_anchor=(1.12, 0.95),
-                        loc='upper right')
+                    res = legend(labelList, bbox_to_anchor=(1.12, 0.95),
+                        loc='upper right', markerfirst=False)
+            res.set_zorder(1)
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -57999,7 +58119,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax)
 
         def drawMem(graphStats, xtype, pos, size):
             def drawSystemMem(statList, color, ymax):
@@ -58042,7 +58162,7 @@ class ThreadAnalyzer(object):
                     fcolor = color
 
                 plot(timeline, usage, '-', c=fcolor,
-                    linewidth=1, solid_capstyle='round')
+                    linewidth=0.7, solid_capstyle='round')
 
                 return lastsize, ymax
 
@@ -58070,7 +58190,7 @@ class ThreadAnalyzer(object):
             lent = len(timeline)
 
             # add boundary line #
-            drawBoundary('mem', labelList)
+            self.drawBoundary('mem', labelList)
 
             # define top variable #
             if SysMgr.nrTop:
@@ -58148,7 +58268,7 @@ class ThreadAnalyzer(object):
 
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=1)[0].get_color()
+                            linewidth=0.7)[0].get_color()
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin,
@@ -58264,7 +58384,7 @@ class ThreadAnalyzer(object):
 
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=1)[0].get_color()
+                            linewidth=0.7)[0].get_color()
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] - margin,
@@ -58337,7 +58457,7 @@ class ThreadAnalyzer(object):
 
                         # get color #
                         color = plot(timeline, usage, '-',
-                            linewidth=1)[0].get_color()
+                            linewidth=0.7)[0].get_color()
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin,
@@ -58406,11 +58526,12 @@ class ThreadAnalyzer(object):
             '''
 
             if SysMgr.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    fontsize=3.5, loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(
-                    labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
+                    loc='upper right', markerfirst=False)
+            res.set_zorder(1)
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -58478,7 +58599,7 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax)
 
         #==================== BODY PART ====================#
 
@@ -58661,95 +58782,6 @@ class ThreadAnalyzer(object):
                 newList.append(name)
             return newList
 
-
-        def drawBottom(xtype, ax):
-            if xtype == 1:
-                # convert tick type to integer #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xtickLabel = list(map(long, xtickLabel))
-                    if xtickLabel[0] != xtickLabel[-1]:
-                        xlim([xtickLabel[0], xtickLabel[-1]])
-                        xtickLabel[-1] = '   TIME(Sec)'
-                        ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-            elif xtype == 3:
-                # draw the number of tasks #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    if sum(effectProcList) == 0:
-                        for seq, cnt in enumerate(xtickLabel):
-                            xtickLabel[seq] = '?'
-                    else:
-                        for seq, cnt in enumerate(xtickLabel):
-                            try:
-                                xtickLabel[seq] = \
-                                    effectProcList[timeline.index(long(cnt))]
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   TASK(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-            elif xtype == 2:
-                # draw the number of cores #
-                try:
-                    xtickLabel = ax.get_xticks().tolist()
-                    xlim([xtickLabel[0], xtickLabel[-1]])
-                    for seq, cnt in enumerate(xtickLabel):
-                        try:
-                            xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
-                        except:
-                            xtickLabel[seq] = ' '
-                    xtickLabel[-1] = '   CORE(NR)'
-                    ax.set_xticklabels(xtickLabel)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
-
-        def drawBoundary(gtype, labelList):
-            if not SysMgr.boundaryLine:
-                return
-
-            try:
-                boundaryList = \
-                    list(map(UtilMgr.convUnit2Size, SysMgr.boundaryLine))
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to set boundary line", True)
-                sys.exit(0)
-
-            # draw boundary graph #
-            for boundary in boundaryList:
-                if gtype == 'io':
-                    bl = boundary >> 10
-                elif gtype == 'mem':
-                    bl = boundary >> 20
-                else:
-                    bl = boundary
-
-                try:
-                    axhline(y=bl, linewidth=1, linestyle='--', color='black')
-
-                    labelList.append(
-                        '[ Boundary %s ]' % \
-                            UtilMgr.convSize2Unit(boundary))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    continue
-
         def drawAvgCpu(graphStats, xtype, pos, size):
             # pylint: disable=undefined-variable
 
@@ -58788,7 +58820,7 @@ class ThreadAnalyzer(object):
                 isVisibleTotal = False
 
             # add boundary line #
-            drawBoundary('cpu', labelList)
+            self.drawBoundary('cpu', labelList)
 
             #-------------------- Total GPU usage --------------------#
             if isVisibleTotal:
@@ -58841,7 +58873,7 @@ class ThreadAnalyzer(object):
 
                     maxUsage = max(blkWait)
                     labelList.append(
-                        '[ CPU+IO Average ] - %s%%' % (maxUsage))
+                        '[ CPU+IO Average ] - %.1f%%' % (maxUsage))
 
                     margin = self.getMargin()
 
@@ -58981,11 +59013,12 @@ class ThreadAnalyzer(object):
             cpuProcUsage.pop("[ TOTAL ]", None)
 
             if SysMgr.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    fontsize=3.5, loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(
-                    labelList, bbox_to_anchor=(1.12, 1.05), loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
+                    loc='upper right', markerfirst=False)
+            res.set_zorder(1)
 
             grid(which='both', linestyle=':', linewidth=0.2)
 
@@ -59031,8 +59064,6 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            drawBottom(xtype, ax)
-
         def drawAvgMem(graphStats, xtype, pos, size):
             # pylint: disable=undefined-variable
             def drawSystemMem(statList, color, ymax):
@@ -59074,7 +59105,7 @@ class ThreadAnalyzer(object):
             suptitle(graphStats['graphTitle'], fontsize=8)
 
             # add boundary line #
-            drawBoundary('mem', labelList)
+            self.drawBoundary('mem', labelList)
 
             # define top variable #
             if SysMgr.nrTop:
@@ -59216,11 +59247,12 @@ class ThreadAnalyzer(object):
             '''
 
             if SysMgr.matplotlibVersion >= 1.2:
-                legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    fontsize=3.5, loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(
-                    labelList, bbox_to_anchor=(1.12, 0.75), loc='upper right')
+                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
+                    loc='upper right', markerfirst=False)
+            res.set_zorder(1)
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -59290,12 +59322,10 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            drawBottom(xtype, ax)
-
         SysMgr.printStat(r"start drawing average graphs...")
 
         # draw All #
-        if SysMgr.checkMode('drawavg'):
+        if SysMgr.checkMode('drawavg', True):
             if not SysMgr.layout:
                 drawAvgCpu(graphStats, 3, 0, 4)
                 drawAvgMem(graphStats, 1, 4, 2)
@@ -59376,7 +59406,7 @@ class ThreadAnalyzer(object):
                         raise Exception(err)
 
         # draw CPU #
-        elif SysMgr.checkMode('drawcpuavg'):
+        elif SysMgr.checkMode('drawcpuavg', True):
             drawAvgCpu(graphStats, 3, 0, 6)
         # draw Memory #
         else:
@@ -62121,9 +62151,10 @@ class ThreadAnalyzer(object):
 
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(ioLabelList, bbox_to_anchor=(1.1, 1),
-                    fontsize=3.5, loc='upper right')
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(ioLabelList, bbox_to_anchor=(1.1, 1), loc='upper right')
+                legend(ioLabelList, bbox_to_anchor=(1.1, 1),
+                    loc='upper right', markerfirst=False)
 
             # add % unit to each value #
             try:
@@ -62259,10 +62290,10 @@ class ThreadAnalyzer(object):
             totalLabel = [' CPU Average '] + cpuThrLabelList
             if SysMgr.matplotlibVersion >= 1.2:
                 legend(totalLabel, bbox_to_anchor=(1.12, 1),
-                    fontsize=3.5, loc='upper right')
+                    fontsize=3.5, loc='upper right', markerfirst=False)
             else:
-                legend(totalLabel,
-                bbox_to_anchor=(1.12, 1), loc='upper right')
+                legend(totalLabel, bbox_to_anchor=(1.12, 1),
+                    loc='upper right', markerfirst=False)
 
             # add % unit to each value #
             try:
@@ -68493,6 +68524,7 @@ class ThreadAnalyzer(object):
                     devName = cand[cand.rfind('/')+1:]
                     target = '%s/%s' % (gpuName, devName)
                     self.gpuData[target] = dict()
+                    nodePath = '%s/devfreq/%s' % (cand, devName)
 
                     if not 'uevent' in value:
                         self.gpuCoreList[cand]['uevent'] = \
@@ -68513,25 +68545,32 @@ class ThreadAnalyzer(object):
                     self.gpuData[target]['CUR_LOAD'] = \
                         long(fd.readline()[:-1]) / 10
 
-                    nodePath = '%s/devfreq/%s' % (cand, devName)
-
                 # save device info for QUALCOMM #
                 elif gpuName.startswith('QUALCOMM'):
                     realCand = cand.rstrip('/devfreq')
                     devName = realCand[realCand.rfind('/')+1:]
                     target = '%s/%s' % (gpuName, devName)
                     self.gpuData[target] = dict()
+                    nodePath = cand
 
                     # save GPU device load #
                     value = {}
-                    self.gpuCoreList[cand]['load'] = \
-                        open('%s/gpu_load' % cand, 'r')
-                    fd = self.gpuCoreList[cand]['load']
-                    fd.seek(0)
-                    self.gpuData[target]['CUR_LOAD'] = \
-                        long(fd.readline()[:-1])
-
-                    nodePath = cand
+                    try:
+                        self.gpuCoreList[cand]['load'] = \
+                            open('%s/gpu_busy_percentage' % realCand, 'r')
+                        fd = self.gpuCoreList[cand]['load']
+                        fd.seek(0)
+                        self.gpuData[target]['CUR_LOAD'] = \
+                            long(fd.readline()[:-3])
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        self.gpuCoreList[cand]['load'] = \
+                            open('%s/gpu_load' % cand, 'r')
+                        fd = self.gpuCoreList[cand]['load']
+                        fd.seek(0)
+                        self.gpuData[target]['CUR_LOAD'] = \
+                            long(fd.readline()[:-1])
 
                 # save current clock of GPU device #
                 if not 'curfreq' in value:
