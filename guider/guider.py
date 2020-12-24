@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201223"
+__revision__ = "201224"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6918,11 +6918,25 @@ class Timeline(object):
         else:
             color = self.color_map[group_idx]
 
-        # draw bold line for core off status #
+        # draw bold line for core off #
         if segment.state == 'OFF':
             dwg.add(dwg.line(
                 (x0, y0), (x1, y0),
                 stroke='black', stroke_width=1.5))
+            return
+
+        # draw circle and text for event #
+        if segment.state == 'EVENT':
+            font_size = self.config.FONT_SIZE
+            dwg.add(dwg.circle(
+                center=(x0,y0), r=font_size/2,
+                stroke='darkgreen', fill='darkgreen'))
+
+            # draw text #
+            dwg.add(dwg.text(segment.text,
+                (x0+font_size, y0), fill='darkgreen', stroke='none',
+                font_size=font_size, font_weight='bolder'))
+
             return
 
         # draw line for block_read status #
@@ -9312,7 +9326,7 @@ class FunctionAnalyzer(object):
             return None
 
         # check addr2line path #
-        if not 'ADDR2LINE' in SysMgr.binPathList:
+        if not 'ADDR2LINE' in SysMgr.environList:
             try:
                 symbolList = list()
                 binObj = ElfAnalyzer.getObject(binPath)
@@ -9346,7 +9360,7 @@ class FunctionAnalyzer(object):
             SysMgr.printInfo(
                 "use %s as addr2line path" % ', '.join(addr2linePath))
         else:
-            for path in SysMgr.binPathList['ADDR2LINE']:
+            for path in SysMgr.environList['ADDR2LINE']:
                 if not os.path.isfile(path):
                     SysMgr.printErr(
                         "fail to find %s to use addr2line" % path)
@@ -9357,7 +9371,7 @@ class FunctionAnalyzer(object):
         if not subprocess:
             sys.exit(0)
 
-        for path in SysMgr.binPathList['ADDR2LINE']:
+        for path in SysMgr.environList['ADDR2LINE']:
             # Set addr2line command #
             args = [path, "-C", "-f", "-a", "-e", binPath]
 
@@ -15104,7 +15118,7 @@ class SysMgr(object):
     libglesPath = 'libGLESv2'
     ldCachePath = '/etc/ld.so.cache'
     libdemanglePath = libcppPath
-    binPathList = {}
+    environList = {}
     eventLogPath = None
     inputFile = None
     outputFile = None
@@ -16258,7 +16272,7 @@ class SysMgr(object):
             sys.exit(0)
         elif not SysMgr.outPath:
             SysMgr.printErr(
-                "no PATH with -o option")
+                "no path with -o option")
             sys.exit(0)
 
         # convert comm to pid #
@@ -17777,6 +17791,8 @@ class SysMgr(object):
                 not SysMgr.checkMode('printdir') and \
                 not SysMgr.checkMode('report') and \
                 not SysMgr.checkMode('exec') and \
+                not SysMgr.checkMode('comp') and \
+                not SysMgr.checkMode('decomp') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -18045,7 +18061,7 @@ Usage:
     -C  <PATH>                  set config file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
-    -q                          set path for binaries
+    -q                          set environment variables
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
@@ -18348,6 +18364,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|getret
         # {0:1} {1:1} -g a.out -c write\\|getret:stop\\$print
 
+    - Handle write function calls with colorful elapsed time when the elapsed time exceed 0.1 second
+        # {0:1} {1:1} -g a.out -c write\\|getret -q ELAPSED:0.1
+
     - Handle write function calls as a repeat point
         # {0:1} {1:1} -g a.out -c write\\|repeat
         # {0:1} {1:1} -g a.out -c write\\|repeat:5
@@ -18375,7 +18394,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
 
-    - Print write function calls if the elapsed time exceed 0.0005 second
+    - Print write function calls if only the elapsed time exceed 0.0005 second
         # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005
 
     - Print write function calls with specific conditions
@@ -18519,7 +18538,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
-    -q                          set path for binaries
+    -q                          set environment variables
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -18604,7 +18623,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -Q                          print all rows in a stream
-    -q                          set path for binaries
+    -q                          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -18713,7 +18732,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
-    -q                          set path for binaries
+    -q                          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -18771,7 +18790,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
-    -q                          set path for binaries
+    -q                          set environment variables
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
@@ -19389,6 +19408,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
+    -q                          set environment variables
     -v                          verbose
                     '''
 
@@ -19402,6 +19422,9 @@ Examples:
 
     - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
+        # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
     - Trace all read syscalls for a specific thread and save summary tables, call history to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o . -a
@@ -19508,6 +19531,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
+    -q                          set environment variables
     -v                          verbose
                     '''
 
@@ -19535,6 +19559,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
+    -q                          set environment variables
     -v                          verbose
                     '''
 
@@ -19562,6 +19587,7 @@ Options:
     -o  <DIR|FILE>              save output data
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
+    -q                          set environment variables
     -v                          verbose
 
 Examples:
@@ -22189,7 +22215,7 @@ Copyright:
             objdumpPath = None
             if not cmdFormat[1].startswith('0x'):
                 # symbol input with no objdump path #
-                if not 'OBJDUMP' in SysMgr.binPathList:
+                if not 'OBJDUMP' in SysMgr.environList:
                     # get address of symbol in binary #
                     addr = ElfAnalyzer.getSymOffset(
                         cmdFormat[1], cmdFormat[2], loadAddr=True)
@@ -22206,14 +22232,14 @@ Copyright:
                                 "use -q option with OBJDUMP to set binary path"))
                             sys.exit(0)
 
-                        SysMgr.binPathList['OBJDUMP'] = objdumpPath
+                        SysMgr.environList['OBJDUMP'] = objdumpPath
                         objdumpPath = objdumpPath[0]
 
                         SysMgr.printInfo(
                             "use %s as objdump path" % objdumpPath)
                 # symbol input with objdump #
                 else:
-                    objdumpPath = SysMgr.binPathList['OBJDUMP'][0]
+                    objdumpPath = SysMgr.environList['OBJDUMP'][0]
                     if not os.path.isfile(objdumpPath):
                         SysMgr.printErr(
                             "fail to find %s to use objdump" % objdumpPath)
@@ -25400,7 +25426,7 @@ Copyright:
                 raise Exception('not writable')
         except:
             SysMgr.printErr(
-                "wrong PATH %s with -s option because of permission" % value)
+                "wrong path '%s' with -s option because of permission" % value)
             sys.exit(0)
 
         # remove double slashs #
@@ -26004,10 +26030,6 @@ Copyright:
                 if not SysMgr.setSortValue(value):
                     sys.exit(0)
 
-            elif option == 'q':
-                itemList = UtilMgr.splitString(value)
-                SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
-
             # Ignore options #
             elif SysMgr.isEffectiveOption(option):
                 continue
@@ -26032,7 +26054,7 @@ Copyright:
             # check writable access #
             if not SysMgr.isWritable(value):
                 SysMgr.printErr((
-                    "wrong PATH %s with -o option "
+                    "wrong path '%s' with -o option "
                     "because of permission") % value)
                 sys.exit(0)
 
@@ -26061,6 +26083,10 @@ Copyright:
 
         elif option == 'Q':
             SysMgr.setStream()
+
+        elif option == 'q':
+            itemList = UtilMgr.splitString(value)
+            SysMgr.environList = UtilMgr.convertList2Dict(itemList)
 
         elif option == 'R':
             SysMgr.parseRuntimeOption(value)
@@ -26103,7 +26129,7 @@ Copyright:
 
     @staticmethod
     def isCommonOption(option):
-        optionList = 'ACEHQRWfosuz'
+        optionList = 'ACEHQRWfoqsuz'
         if option in optionList:
             return True
         else:
@@ -26218,10 +26244,6 @@ Copyright:
 
             elif option == 'D':
                 SysMgr.depEnable = True
-
-            elif option == 'q':
-                itemList = UtilMgr.splitString(value)
-                SysMgr.binPathList = UtilMgr.convertList2Dict(itemList)
 
             elif option == 'w':
                 SysMgr.rcmdList = \
@@ -26653,7 +26675,7 @@ Copyright:
             path = SysMgr.inputParam
             if not path:
                 SysMgr.printErr(
-                    "no PATH with -I option")
+                    "no path with -I option")
                 sys.exit(0)
 
             # set debug flag #
@@ -27095,7 +27117,7 @@ Copyright:
             if upDirPos > 0 and \
                 not os.path.isdir(reportPath[:upDirPos]):
                 SysMgr.printErr(
-                    "wrong PATH %s with -j option to report stats" % \
+                    "wrong path '%s' with -j option to report stats" % \
                     reportPath)
                 return False
         # file path #
@@ -27237,6 +27259,12 @@ Copyright:
 
     @staticmethod
     def handleEventInput():
+        # check root permission #
+        if not SysMgr.isRoot():
+            SysMgr.printErr(
+                "fail to get root permission to generate event")
+            sys.exit(0)
+
         pids = []
 
         # mount debug fs #
@@ -28732,7 +28760,7 @@ Copyright:
             if not os.path.isfile(targetPath):
                 SysMgr.printWarn(
                     'failed to find %s to transfer' % targetPath, True)
-                sendErrMsg(netObj, "wrong PATH %s" % targetPath)
+                sendErrMsg(netObj, "wrong path '%s'" % targetPath)
                 return
 
             # response from command request #
@@ -29447,12 +29475,12 @@ Copyright:
         value = ' '.join(sys.argv[2:])
         if not value:
             SysMgr.printErr(
-                ("no PATH to convert file, "
+                ("no path to convert file, "
                 "input the path of a text file"))
             sys.exit(0)
         elif not os.path.isfile(value):
             SysMgr.printErr(
-                "wrong PATH %s to convert file" % value)
+                "wrong path '%s' to convert file" % value)
             sys.exit(0)
 
         # set output file name #
@@ -29712,7 +29740,7 @@ Copyright:
 
     @staticmethod
     def initNetlink():
-        if SysMgr.netlinkObj:
+        if not SysMgr.isLinux or SysMgr.netlinkObj:
             return
 
         array = SysMgr.getPkg('array', False)
@@ -30569,7 +30597,7 @@ Copyright:
 
         # check input #
         if not SysMgr.inputParam:
-            SysMgr.printErr("no PATH with -I option")
+            SysMgr.printErr("no path with -I option")
             sys.exit(0)
 
         # check symbol #
@@ -31374,7 +31402,7 @@ Copyright:
                     fname = '%s/leaks.out' % current
             else:
                 SysMgr.printErr(
-                    "no PATH for temporary input with -I option")
+                    "no path for temporary input with -I option")
                 sys.exit(0)
 
             # set output file path #
@@ -32916,7 +32944,7 @@ Copyright:
         infile = sys.argv[2]
 
         if not os.path.isfile(infile):
-            SysMgr.printErr("wrong path for compression")
+            SysMgr.printErr("wrong path '%s' for decompression" % infile)
             sys.exit(0)
 
         # check output #
@@ -32927,7 +32955,7 @@ Copyright:
             if os.path.isdir(outfile):
                 outfile = os.path.join(outfile, infile + '.gz')
         else:
-            outfile = 'guider.gz'
+            outfile = '%s.gz' % infile
 
         # check final input and output path #
         if infile == outfile:
@@ -32997,7 +33025,7 @@ Copyright:
         infile = sys.argv[2]
 
         if not os.path.isfile(infile):
-            SysMgr.printErr("wrong path for decompression")
+            SysMgr.printErr("wrong path '%s' for decompression" % infile)
             sys.exit(0)
 
         # check output #
@@ -33006,10 +33034,10 @@ Copyright:
         if outfile:
             # check dir #
             if os.path.isdir(outfile):
-                outfile = os.path.join(outfile, infile.rstrip('.gz'))
+                outfile = os.path.join(outfile, infile.replace('.gz', ''))
         else:
             if infile.endswith('.gz'):
-                outfile = infile.rstrip('.gz')
+                outfile = infile.replace('.gz', '')
             else:
                 outfile = infile + '.decomp'
 
@@ -41004,6 +41032,11 @@ struct cmsghdr {
         if self.pid != SysMgr.pid:
             Debugger.dbgInstance = self
 
+        # set return time condition #
+        self.retTime = 0.1
+        if 'ELAPSED' in SysMgr.environList:
+            self.retTime = float(SysMgr.environList['ELAPSED'][0])
+
 
 
     def getIovec(self, reg):
@@ -43367,8 +43400,8 @@ struct cmsghdr {
             self.setenv('PYTHONHOME', os.environ['PYTHONHOME'], False)
 
         # get libpython path #
-        if 'LIBPYTHON' in SysMgr.binPathList:
-            pylib = SysMgr.binPathList['LIBPYTHON']
+        if 'LIBPYTHON' in SysMgr.environList:
+            pylib = SysMgr.environList['LIBPYTHON']
         elif SysMgr.getPyLibPath():
             pylib = SysMgr.pyLibPath
         else:
@@ -46199,7 +46232,7 @@ struct cmsghdr {
                         addStr = ''
 
                     # convert elapsed color #
-                    if etime > 0.1:
+                    if etime > self.retTime:
                         elapsed = UtilMgr.convColor(elapsed, 'RED')
                     else:
                         elapsed = UtilMgr.convColor(elapsed, 'CYAN')
@@ -47284,8 +47317,15 @@ struct cmsghdr {
             if err:
                 err = ' ' + UtilMgr.convColor(err, 'RED')
 
+            # convert elapsed color #
+            diffStr = ' [%.6f]' % diff
+            if diff > self.retTime:
+                diffStr = UtilMgr.convColor(diffStr, 'RED')
+            else:
+                diffStr = UtilMgr.convColor(diffStr, 'CYAN')
+
             # build call string #
-            callString = '= %s%s [%.6f]' % (retval, err, diff)
+            callString = '= %s%s%s' % (retval, err, diffStr)
 
             if SysMgr.outPath:
                 if SysMgr.showAll and len(self.callPrint) > 0:
@@ -56644,7 +56684,7 @@ class ThreadAnalyzer(object):
         # check output data #
         if not totalRam:
             SysMgr.printErr(
-                "fail to find Detailed Statistics in %s" % logFile)
+                "fail to find statistics data in %s" % logFile)
             sys.exit(0)
         elif not timeline:
             SysMgr.printErr(
@@ -57089,6 +57129,91 @@ class ThreadAnalyzer(object):
 
         # save to file #
         self.saveImage(logFile, 'chart', outFile=outFile)
+
+
+
+    def drawLayout(self, graphStats, drawCpu, drawMem, drawIo, drawEvent):
+        pos = long(0)
+        total = long(0)
+        layoutDict = {}
+        layoutList = []
+        layout = SysMgr.layout.split(',')
+
+        # sum size of graph boxes #
+        for idx, graph in enumerate(layout):
+            try:
+                if len(graph.split(':')) == 1:
+                    target = graph
+                    size = 1
+                else:
+                    (target, size) = graph.split(':')
+
+                # check duplicated graph #
+                try:
+                    layoutDict[target]
+                    SysMgr.printErr(
+                        "fail to draw graph "
+                        "because %s graph is duplicated" % target)
+                    sys.exit(0)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    layoutDict[target] = True
+
+                size = long(size)
+                assert size > 0, 'wrong size'
+
+                total += size
+                layoutList.append([target, long(size)])
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to draw graph "
+                    "because graph format [TYPE:SIZE] is wrong")
+                sys.exit(0)
+
+        for idx, item in enumerate(layoutList):
+            target = item[0].strip()
+            size = item[1]
+
+            # convert size to proportion #
+            size = long((size / float(total)) * 6)
+
+            try:
+                xtype = len(layoutList) - idx
+
+                targetc = target.upper()
+
+                if targetc == 'CPU' or targetc.startswith('C'):
+                    drawCpu(graphStats, xtype, pos, size)
+                elif targetc == 'MEM' or targetc.startswith('M'):
+                    drawMem(graphStats, xtype, pos, size)
+                elif targetc == 'VSS' or targetc.startswith('V'):
+                    SysMgr.vssEnable = True
+                    drawMem(graphStats, xtype, pos, size)
+                elif targetc == 'RSS' or targetc.startswith('R'):
+                    SysMgr.rssEnable = True
+                    drawMem(graphStats, xtype, pos, size)
+                elif targetc == 'IO' or targetc.startswith('I'):
+                    if drawIo:
+                        drawIo(graphStats, xtype, pos, size)
+                else:
+                    SysMgr.printErr(
+                        "fail to draw graph "
+                        "because '%s' is not recognized" % target)
+                    sys.exit(0)
+
+                if drawEvent and idx == 0:
+                    # draw events on graphs #
+                    drawEvent(graphStats)
+
+                pos += size
+            except SystemExit:
+                sys.exit(0)
+            except:
+                err = SysMgr.getErrMsg()
+                raise Exception(err)
 
 
 
@@ -57626,6 +57751,9 @@ class ThreadAnalyzer(object):
 
         def drawIo(graphStats, xtype, pos, size):
             def drawSystemIo(statList, color, ymax):
+                if not statList:
+                    return
+
                 usage = list(map(long, statList))[:lent]
 
                 # update the maximum ytick #
@@ -57698,6 +57826,12 @@ class ThreadAnalyzer(object):
                     timeline = val
             lent = len(timeline)
 
+            # set visible total usage flag #
+            if SysMgr.showAll or not SysMgr.filterGroup:
+                isVisibleTotal = True
+            else:
+                isVisibleTotal = False
+
             # add boundary line #
             self.drawBoundary('io', labelList)
 
@@ -57724,38 +57858,42 @@ class ThreadAnalyzer(object):
                 storageUsage = graphStats['%sstorageUsage' % fname]
                 networkUsage = graphStats['%snetworkUsage' % fname]
 
-                # System Block Read #
-                totalsize, ymax = drawSystemIo(blkRead, 'skyblue', ymax)
-                labelList.append(
-                    '%sBlock Read - %s' % (prefix, totalsize))
+                if isVisibleTotal:
+                    # System Block Read #
+                    totalsize, ymax = drawSystemIo(blkRead, 'skyblue', ymax)
+                    labelList.append(
+                        '%sBlock Read - %s' % (prefix, totalsize))
 
-                # System Block Write #
-                totalsize, ymax = drawSystemIo(blkWrite, 'green', ymax)
-                labelList.append(
-                    '%sBlock Write - %s' % (prefix, totalsize))
+                    # System Block Write #
+                    totalsize, ymax = drawSystemIo(blkWrite, 'green', ymax)
+                    labelList.append(
+                        '%sBlock Write - %s' % (prefix, totalsize))
 
-                # System Background Reclaim #
-                totalsize, ymax = drawSystemIo(reclaimBg, 'pink', ymax)
-                labelList.append(
-                    '%sReclaim BG - %s' % (prefix, totalsize))
+                    # System Background Reclaim #
+                    totalsize, ymax = drawSystemIo(reclaimBg, 'pink', ymax)
+                    labelList.append(
+                        '%sReclaim BG - %s' % (prefix, totalsize))
 
-                # System Direct Reclaim #
-                totalsize, ymax = drawSystemIo(reclaimDr, 'red', ymax)
-                labelList.append(
-                    '%sReclaim FG - %s' % (prefix, totalsize))
+                    # System Direct Reclaim #
+                    totalsize, ymax = drawSystemIo(reclaimDr, 'red', ymax)
+                    labelList.append(
+                        '%sReclaim FG - %s' % (prefix, totalsize))
 
-                # System Network Inbound #
-                totalsize, ymax = drawSystemIo(netRead, 'purple', ymax)
-                labelList.append(
-                    '%sNetwork In - %s' % (prefix, totalsize))
+                    # System Network Inbound #
+                    totalsize, ymax = drawSystemIo(netRead, 'purple', ymax)
+                    labelList.append(
+                        '%sNetwork In - %s' % (prefix, totalsize))
 
-                # System Network Outbound #
-                totalsize, ymax = drawSystemIo(netWrite, 'cyan', ymax)
-                labelList.append(
-                    '%sNetwork Out - %s' % (prefix, totalsize))
+                    # System Network Outbound #
+                    totalsize, ymax = drawSystemIo(netWrite, 'cyan', ymax)
+                    labelList.append(
+                        '%sNetwork Out - %s' % (prefix, totalsize))
 
                 # System Network Usage #
                 for idx, item in networkUsage.items():
+                    if not isVisibleTotal:
+                        break
+
                     rdUsage = item['recv'][:lent]
                     wrUsage = item['tran'][:lent]
 
@@ -57845,6 +57983,9 @@ class ThreadAnalyzer(object):
 
                 # System Storage Usage #
                 for idx, item in storageUsage.items():
+                    if not isVisibleTotal:
+                        break
+
                     rdUsage = item['read'][:lent]
                     wrUsage = item['write'][:lent]
                     freeUsage = item['free'][:lent]
@@ -58038,10 +58179,10 @@ class ThreadAnalyzer(object):
 
             if len(labelList) > 0:
                 if SysMgr.matplotlibVersion >= 1.2:
-                    res = legend(labelList, bbox_to_anchor=(1.12, 0.95),
+                    res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
                         fontsize=3.5, loc='upper right', markerfirst=False)
                 else:
-                    res = legend(labelList, bbox_to_anchor=(1.12, 0.95),
+                    res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
                         loc='upper right', markerfirst=False)
             res.set_zorder(1)
 
@@ -58633,94 +58774,12 @@ class ThreadAnalyzer(object):
 
         if not SysMgr.layout:
             drawCpu(graphStats, 3, 0, 4)
-
-            # draw events on graphs #
             drawEvent(graphStats)
-
             drawIo(graphStats, 2, 4, 1)
-
             drawMem(graphStats, 1, 5, 1)
         else:
-            pos = long(0)
-            total = long(0)
-            layoutDict = {}
-            layoutList = []
-            layout = SysMgr.layout.split(',')
-
-            # sum size of graph boxes #
-            for idx, graph in enumerate(layout):
-                try:
-                    if len(graph.split(':')) == 1:
-                        target = graph
-                        size = 1
-                    else:
-                        (target, size) = graph.split(':')
-
-                    # check duplicated graph #
-                    try:
-                        layoutDict[target]
-                        SysMgr.printErr(
-                            "fail to draw graph "
-                            "because %s graph is duplicated" % target)
-                        sys.exit(0)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        layoutDict[target] = True
-
-                    size = long(size)
-                    assert size > 0, 'wrong size'
-
-                    total += size
-                    layoutList.append([target, long(size)])
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "fail to draw graph "
-                        "because graph format [TYPE:SIZE] is wrong")
-                    sys.exit(0)
-
-            for idx, item in enumerate(layoutList):
-                target = item[0]
-                size = item[1]
-
-                # convert size to proportion #
-                size = long((size / float(total)) * 6)
-
-                try:
-                    xtype = len(layoutList) - idx
-
-                    targetc = target.upper()
-
-                    if targetc == 'CPU' or targetc.startswith('C'):
-                        drawCpu(graphStats, xtype, pos, size)
-                    elif targetc == 'MEM' or targetc.startswith('M'):
-                        drawMem(graphStats, xtype, pos, size)
-                    elif targetc == 'VSS' or targetc.startswith('V'):
-                        SysMgr.vssEnable = True
-                        drawMem(graphStats, xtype, pos, size)
-                    elif targetc == 'RSS' or targetc.startswith('R'):
-                        SysMgr.rssEnable = True
-                        drawMem(graphStats, xtype, pos, size)
-                    elif targetc == 'IO' or targetc.startswith('I'):
-                        drawIo(graphStats, xtype, pos, size)
-                    else:
-                        SysMgr.printErr(
-                            "fail to draw graph "
-                            "because '%s' is not recognized" % target)
-                        sys.exit(0)
-
-                    if idx == 0:
-                        # draw events on graphs #
-                        drawEvent(graphStats)
-
-                    pos += size
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    err = SysMgr.getErrMsg()
-                    raise Exception(err)
+            self.drawLayout(
+                graphStats, drawCpu, drawMem, drawIo, drawEvent)
 
         # draw system info #
         try:
@@ -59330,80 +59389,8 @@ class ThreadAnalyzer(object):
                 drawAvgCpu(graphStats, 3, 0, 4)
                 drawAvgMem(graphStats, 1, 4, 2)
             else:
-                pos = long(0)
-                total = long(0)
-                layoutDict = {}
-                layoutList = []
-                layout = SysMgr.layout.split(',')
-
-                # sum size of graph boxes #
-                for idx, graph in enumerate(layout):
-                    try:
-                        if len(graph.split(':')) == 1:
-                            target = graph
-                            size = 1
-                        else:
-                            (target, size) = graph.split(':')
-
-                        # check duplicated graph #
-                        try:
-                            layoutDict[target]
-                            SysMgr.printErr(
-                                "fail to draw graph "
-                                "because %s graph is duplicated" % target)
-                            sys.exit(0)
-                        except SystemExit:
-                            sys.exit(0)
-                        except:
-                            layoutDict[target] = True
-
-                        size = long(size)
-                        assert size >= 0, 'wrong size'
-
-                        total += size
-                        layoutList.append([target, long(size)])
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "fail to draw graph "
-                            "because graph format [TYPE:SIZE] is wrong")
-                        sys.exit(0)
-
-                for idx, item in enumerate(layoutList):
-                    target = item[0]
-                    size = item[1]
-
-                    # convert size to proportion #
-                    size = long((size / float(total)) * 6)
-
-                    try:
-                        xtype = len(layoutList) - idx
-
-                        targetc = target.upper()
-
-                        if targetc == 'CPU' or targetc.startswith('C'):
-                            drawAvgCpu(graphStats, xtype, pos, size)
-                        elif targetc == 'MEM' or targetc.startswith('M'):
-                            drawAvgMem(graphStats, xtype, pos, size)
-                        elif targetc == 'VSS' or targetc.startswith('V'):
-                            SysMgr.vssEnable = True
-                            drawAvgMem(graphStats, xtype, pos, size)
-                        elif targetc == 'RSS' or targetc.startswith('R'):
-                            SysMgr.rssEnable = True
-                            drawAvgMem(graphStats, xtype, pos, size)
-                        else:
-                            SysMgr.printErr(
-                                "fail to draw graph "
-                                "because '%s' is not recognized" % target)
-                            sys.exit(0)
-
-                        pos += size
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        err = SysMgr.getErrMsg()
-                        raise Exception(err)
+                self.drawLayout(
+                    graphStats, drawAvgCpu, drawAvgMem, None, None)
 
         # draw CPU #
         elif SysMgr.checkMode('drawcpuavg', True):
@@ -66743,11 +66730,12 @@ class ThreadAnalyzer(object):
 
                         start_delta = long((float(startTime)-stime)*1000)
                         stop_delta = long((float(ftime)-stime)*1000)
+                        text = '%s(%s) | RD[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
                         self.timelineData['segments'].append({
                             'group': lastCore,
-                            'text': '%s(%s) | RD[%s]' % (tcomm, reqThd, workload),
+                            'text': text,
                             'id': reqThd,
                             'state': 'RD',
                             'time_start': start_delta,
@@ -66781,11 +66769,12 @@ class ThreadAnalyzer(object):
 
                         start_delta = long((float(startTime)-stime)*1000)
                         stop_delta = long((float(ftime)-stime)*1000)
+                        text = '%s(%s) | WR[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
                         self.timelineData['segments'].append({
                             'group': lastCore,
-                            'text': '%s(%s) | WR[%s]' % (tcomm, reqThd, workload),
+                            'text': text,
                             'id': reqThd,
                             'state': 'WR',
                             'time_start': start_delta,
@@ -67246,6 +67235,18 @@ class ThreadAnalyzer(object):
             d = m.groupdict()
 
             self.handleUserEvent(d['event'], time)
+
+            start_delta = stop_delta = long((float(ftime)-stime)*1000)
+
+            # add timeline data #
+            self.timelineData['segments'].append({
+                'group': long(core),
+                'text': d['event'],
+                'id': thread,
+                'state': 'EVENT',
+                'time_start': start_delta,
+                'time_end': stop_delta,
+            })
 
         else:
             handleSpecialEvents = True
