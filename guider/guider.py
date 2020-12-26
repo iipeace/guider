@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201224"
+__revision__ = "201226"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6775,6 +6775,8 @@ class Timeline(object):
             config.TIME_AXIS_HEIGHT = data.get("time_axis_height", 5)
             config.LABEL_SIZE_MIN = data.get("label_size_min", 5)
             config.PALETTE = config._conv_palette(data.get("palette", []))
+            config.TIMEUNIT = data.get("time_unit", None)
+            config.TIMEFACTOR = data.get("time_factor", 1)
 
             return config
 
@@ -6801,6 +6803,13 @@ class Timeline(object):
         self.last_iogroup_time = dict()
         self.height_iogroup_pos = dict()
 
+        # time factor #
+        if hasattr(self.config, 'TIMEFACTOR'):
+            self.time_factor = self.config.TIMEFACTOR
+        else:
+            self.time_factor = 1
+
+        # task color #
         if self.tasks:
             self.color_map = self._build_task_color_map()
         else:
@@ -7078,18 +7087,51 @@ class Timeline(object):
             SysMgr.printErr('no path or data for timeline input')
             sys.exit(0)
 
-        segments = Timeline._load_segments(data)
-
-        time_unit = "???"
+        # get  default timeunit #
+        time_unit = ''
         if "time_unit" in data:
             time_unit = data["time_unit"]
+            time_unit = time_unit.lower()
+
+        # get configured timeunit #
+        time_factor = 1
+        if hasattr(config, 'TIMEUNIT') and config.TIMEUNIT:
+            new_time_unit = config.TIMEUNIT.lower()
+
+            if time_unit == new_time_unit:
+                pass
+            elif time_unit == 'ns':
+                if new_time_unit == 'ms':
+                    time_factor = 1/1000
+                elif new_time_unit == 'sec':
+                    time_factor = 1/1000000
+                else:
+                    SysMgr.printErr(
+                        "no support '%s' unit for timeline" % new_time_unit)
+            elif time_unit == 'ms':
+                if new_time_unit == 'ns':
+                    time_factor = 1000
+                elif new_time_unit == 'sec':
+                    time_factor = 1/1000
+                else:
+                    SysMgr.printErr(
+                        "no support '%s' unit for timeline" % new_time_unit)
+            else:
+                SysMgr.printErr(
+                    "no support '%s' unit for timeline" % new_time_unit)
+
+            time_unit = new_time_unit
+            config.TIMEFACTOR = time_factor
+
+        # load segments #
+        segments = Timeline._load_segments(data, time_factor)
 
         return Timeline(segments, time_unit, config, tasks)
 
 
 
     @staticmethod
-    def _load_segments(data):
+    def _load_segments(data, time_factor=1):
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
@@ -7105,10 +7147,12 @@ class Timeline(object):
                         segment_data)
                 continue
 
+            time_start = long(segment_data["time_start"] * time_factor)
+            time_end = long(segment_data["time_end"] * time_factor)
+
             # add segment #
             segments.append(Timeline.Segment(
-                segment_data["group"], segment_data["time_start"],
-                segment_data["time_end"], segment_data))
+                segment_data["group"], time_start, time_end, segment_data))
 
         return segments
 
@@ -18107,6 +18151,7 @@ Options:
     -E  <DIR>                   set cache dir path
     -C  <PATH>                  set config file
     -O  <CORE>                  set core filter
+    -q                          set environment variables
     -v                          verbose
                     '''
 
@@ -18209,6 +18254,11 @@ Examples:
 
     - Draw resource graph and timeline chart
         # {0:1} {1:1} guider.dat
+
+    - Draw resource graph and timeline chart in ms timeunit
+        # {0:1} {1:1} guider.dat -q TIMEUNIT:ms
+
+    - Draw resource graph and timeline chart for all events
         # {0:1} {1:1} guider.dat -a
 
     - Draw resource graph and timeline chart for specific cores
@@ -22158,12 +22208,12 @@ Copyright:
             if cmd != '':
                 SysMgr.writeCmd("kprobes/filter", cmd)
             else:
-                SysMgr.printErr("fail to apply kprobe filter")
+                SysMgr.printErr("fail to apply '%s' to kprobe filter" % cmd)
                 sys.exit(0)
 
         # enable kprobe events #
         if SysMgr.writeCmd("kprobes/enable", '1') < 0:
-            SysMgr.printErr("fail to apply kprobe events")
+            SysMgr.printErr("fail to apply '%s' to kprobe events" % cmd)
             sys.exit(0)
 
 
@@ -22218,36 +22268,23 @@ Copyright:
                 if not 'OBJDUMP' in SysMgr.environList:
                     # get address of symbol in binary #
                     addr = ElfAnalyzer.getSymOffset(
-                        cmdFormat[1], cmdFormat[2], loadAddr=True)
-
-                    # use external objdump #
-                    if not addr:
-                        # get system objdump path #
-                        objdumpPath = UtilMgr.which('objdump')
-
-                        if not objdumpPath:
-                            SysMgr.printErr((
-                                "fail to find objdump "
-                                "to get address for user-level functions, "
-                                "use -q option with OBJDUMP to set binary path"))
-                            sys.exit(0)
-
-                        SysMgr.environList['OBJDUMP'] = objdumpPath
-                        objdumpPath = objdumpPath[0]
-
-                        SysMgr.printInfo(
-                            "use %s as objdump path" % objdumpPath)
+                        cmdFormat[1], cmdFormat[2], loadAddr=False)
                 # symbol input with objdump #
                 else:
                     objdumpPath = SysMgr.environList['OBJDUMP'][0]
+
+                    SysMgr.printInfo(
+                        "use '%s' as objdump path" % objdumpPath)
+
                     if not os.path.isfile(objdumpPath):
                         SysMgr.printErr(
                             "fail to find %s to use objdump" % objdumpPath)
                         sys.exit(0)
 
-                # get address of symbol in binary #
-                addr = ElfAnalyzer.getSymOffset(
-                    cmdFormat[1], cmdFormat[2], objdumpPath, loadAddr=True)
+                    # get address of symbol in binary #
+                    addr = ElfAnalyzer.getSymOffset(
+                        cmdFormat[1], cmdFormat[2], objdumpPath, loadAddr=True)
+
                 if not addr:
                     SysMgr.printErr("fail to find '%s' in %s" % \
                         (cmdFormat[1], cmdFormat[2]))
@@ -22268,8 +22305,12 @@ Copyright:
                         "redundant user event name '%s'" % item[0])
                     sys.exit(0)
 
+            # convert address #
             if type(addr) is list:
-                addr = str(addr[0][0])
+                try:
+                    addr = str(hex(addr[0][0])).rstrip('L')
+                except:
+                    addr = str(addr[0][1])
 
             effectiveCmd.append([cmdFormat[0], addr, cmdFormat[2]])
 
@@ -22300,12 +22341,12 @@ Copyright:
             if cmd != '':
                 SysMgr.writeCmd("uprobes/filter", cmd)
             else:
-                SysMgr.printErr("fail to apply uprobe filter")
+                SysMgr.printErr("fail to apply '%s' to uprobe filter" % cmd)
                 sys.exit(0)
 
         # enable uprobe events #
         if SysMgr.writeCmd("uprobes/enable", '1') < 0:
-            SysMgr.printErr("fail to apply uprobe events")
+            SysMgr.printErr("fail to apply '%s' to uprobe events" % cmd)
             sys.exit(0)
 
 
@@ -24367,6 +24408,10 @@ Copyright:
             config = Timeline.Config()
             if configPath or configData:
                 config = Timeline.Config.load(configPath, configData)
+
+            # check timeunit #
+            if 'TIMEUNIT' in SysMgr.environList:
+                config.TIMEUNIT = SysMgr.environList['TIMEUNIT'][0].lower()
 
             timeline = Timeline.load(inputPath, inputData, config, taskList)
             timeline.draw(dwg)
@@ -27273,29 +27318,30 @@ Copyright:
             SysMgr.printWarn(
                 "fail to get debugfs mount point", True)
 
+        # oneshot #
+        if len(sys.argv) > 2:
+            event = ' '.join(sys.argv[2:])
+            SysMgr.writeEvent("EVENT_%s" % event)
+            SysMgr.broadcastEvent(event)
+            return
+
         while 1:
             SysMgr.printStat(
                 "input event name... [ STOP(Ctrl+c) ]")
 
-            if len(sys.argv) <= 2:
-                try:
-                    event = sys.stdin.readline()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    continue
+            try:
+                event = sys.stdin.readline()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                continue
 
-                if not event.strip():
-                    SysMgr.writeEvent("EVENT_USER")
-                    pids = SysMgr.broadcastEvent('EVENT', pids)
-                else:
-                    SysMgr.writeEvent("EVENT_%s" % event[:-1])
-                    pids = SysMgr.broadcastEvent(event[:-1], pids)
+            if not event.strip():
+                SysMgr.writeEvent("EVENT_USER")
+                pids = SysMgr.broadcastEvent('EVENT', pids)
             else:
-                event = ' '.join(sys.argv[2:])
-                SysMgr.writeEvent("EVENT_%s" % event)
-                SysMgr.broadcastEvent(event)
-                return
+                SysMgr.writeEvent("EVENT_%s" % event[:-1])
+                pids = SysMgr.broadcastEvent(event[:-1], pids)
 
 
 
@@ -30633,41 +30679,41 @@ Copyright:
 
         # single file #
         if not pids:
-            menu1st = 'Address'
-            menu2nd = 'Offset'
-
             # check file #
-            if os.path.isfile(inputArg):
-                filePath = inputArg
-
-                # create ELF object #
-                try:
-                    binObj = ElfAnalyzer.getObject(filePath, True)
-                    if not binObj:
-                        err = SysMgr.getErrMsg()
-                        raise Exception(err)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "fail to load %s as an ELF object" % filePath, True)
-                    sys.exit(0)
-
-                for addr in addrList:
-                    try:
-                        sym, size = binObj.getSymbolByOffset(
-                            addr, onlyFunc=False)
-                        resInfo[addr] = [sym, filePath, 'N/A']
-                        if maxSymLen < len(sym) < SysMgr.ttyCols/2:
-                            maxSymLen = len(sym)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        resInfo[addr] = ['??', filePath, 'N/A']
-            else:
+            if not os.path.isfile(inputArg):
                 SysMgr.printErr(
                     "fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
+
+            menu1st = 'Address'
+            menu2nd = 'Offset'
+
+            filePath = inputArg
+
+            # create ELF object #
+            try:
+                binObj = ElfAnalyzer.getObject(filePath, True)
+                if not binObj:
+                    err = SysMgr.getErrMsg()
+                    raise Exception(err)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to load %s as an ELF object" % filePath, True)
+                sys.exit(0)
+
+            for addr in addrList:
+                try:
+                    sym, size = binObj.getSymbolByOffset(
+                        addr, onlyFunc=False)
+                    resInfo[addr] = [sym, filePath, 'N/A']
+                    if maxSymLen < len(sym) < SysMgr.ttyCols/2:
+                        maxSymLen = len(sym)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    resInfo[addr] = ['??', filePath, 'N/A']
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((
@@ -31110,31 +31156,32 @@ Copyright:
         # single file #
         if not pids:
             # check file #
-            if os.path.isfile(inputArg):
-                filePath = inputArg
-                for sym in SysMgr.filterGroup:
-                    # create ELF object #
-                    try:
-                        offset = ElfAnalyzer.getSymOffset(sym, inputArg)
-                        if not offset:
-                            continue
-
-                        for item in offset:
-                            resInfo['%s|%s' % (item[1], filePath)] = \
-                                (hex(item[0]), filePath, None, item[1])
-
-                            if maxSymLen < len(item[1]) < SysMgr.ttyCols/2:
-                                maxSymLen = len(item[1])
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        SysMgr.printErr(
-                            "fail to get '%s' info" % sym, True)
-                        sys.exit(0)
-            else:
+            if not os.path.isfile(inputArg):
                 SysMgr.printErr(
                     "fail to recognize %s as a file or a process" % inputArg)
                 sys.exit(0)
+
+            filePath = inputArg
+
+            for sym in SysMgr.filterGroup:
+                # create ELF object #
+                try:
+                    offset = ElfAnalyzer.getSymOffset(sym, inputArg)
+                    if not offset:
+                        continue
+
+                    for item in offset:
+                        resInfo['%s|%s' % (item[1], filePath)] = \
+                            (hex(item[0]), filePath, None, item[1])
+
+                        if maxSymLen < len(item[1]) < SysMgr.ttyCols/2:
+                            maxSymLen = len(item[1])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to get '%s' info" % sym, True)
+                    sys.exit(0)
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((
@@ -55537,7 +55584,7 @@ class ThreadAnalyzer(object):
             self.lastTidPerCore = {}
             self.lastCore = '0'
             self.lastEvent = '0'
-            self.timelineData = {"time_unit": "ms", "segments": list()}
+            self.timelineData = {"time_unit": "ns", "segments": list()}
 
         # top mode #
         else:
@@ -55785,7 +55832,7 @@ class ThreadAnalyzer(object):
                 # define time delta #
                 start_delta = long(0)
                 stime = float(SysMgr.startTime)
-                stop_delta = long((float(self.finishTime)-stime)*1000)
+                stop_delta = long((float(self.finishTime)-stime)*1000000)
 
                 # add timeline data #
                 self.timelineData['segments'].append({
@@ -55805,8 +55852,8 @@ class ThreadAnalyzer(object):
                 # define time delta #
                 startTime = self.threadData[coreId]['lastOff']
                 stime = float(SysMgr.startTime)
-                start_delta = long((float(startTime)-stime)*1000)
-                stop_delta = long((float(self.finishTime)-stime)*1000)
+                start_delta = long((float(startTime)-stime)*1000000)
+                stop_delta = long((float(self.finishTime)-stime)*1000000)
 
                 # add timeline data #
                 self.timelineData['segments'].append({
@@ -65543,9 +65590,9 @@ class ThreadAnalyzer(object):
                 if prev_start == 0:
                     start_delta = 0
                 else:
-                    start_delta = long((float(prev_start)-stime)*1000)
+                    start_delta = long((float(prev_start)-stime)*1000000)
 
-                stop_delta = long((float(prev_stop)-stime)*1000)
+                stop_delta = long((float(prev_stop)-stime)*1000000)
 
                 # update comm #
                 if prev_comm == '<...>':
@@ -66728,8 +66775,8 @@ class ThreadAnalyzer(object):
                         workload = UtilMgr.convSize2Unit(
                             matchBlock * SysMgr.blockSize, True)
 
-                        start_delta = long((float(startTime)-stime)*1000)
-                        stop_delta = long((float(ftime)-stime)*1000)
+                        start_delta = long((float(startTime)-stime)*1000000)
+                        stop_delta = long((float(ftime)-stime)*1000000)
                         text = '%s(%s) | RD[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
@@ -66767,8 +66814,8 @@ class ThreadAnalyzer(object):
                         workload = UtilMgr.convSize2Unit(
                             matchBlock * SysMgr.blockSize, True)
 
-                        start_delta = long((float(startTime)-stime)*1000)
-                        stop_delta = long((float(ftime)-stime)*1000)
+                        start_delta = long((float(startTime)-stime)*1000000)
+                        stop_delta = long((float(ftime)-stime)*1000000)
                         text = '%s(%s) | WR[%s]' % (tcomm, reqThd, workload)
 
                         # add timeline data #
@@ -67161,7 +67208,7 @@ class ThreadAnalyzer(object):
                 # start to sleep #
                 elif self.threadData[tid]['lastOff'] > 0:
                     startTime = self.threadData[tid]['lastOff']
-                    start_delta = long((float(startTime)-stime)*1000)
+                    start_delta = long((float(startTime)-stime)*1000000)
                     self.threadData[tid]['offTime'] += \
                         (ftime - self.threadData[tid]['lastOff'])
                     self.threadData[tid]['lastOff'] = float(0)
@@ -67169,7 +67216,7 @@ class ThreadAnalyzer(object):
                 else:
                     return time
 
-                stop_delta = long((float(ftime)-stime)*1000)
+                stop_delta = long((float(ftime)-stime)*1000000)
 
                 # add timeline data #
                 self.timelineData['segments'].append({
@@ -67236,7 +67283,7 @@ class ThreadAnalyzer(object):
 
             self.handleUserEvent(d['event'], time)
 
-            start_delta = stop_delta = long((float(ftime)-stime)*1000)
+            start_delta = stop_delta = long((float(ftime)-stime)*1000000)
 
             # add timeline data #
             self.timelineData['segments'].append({
