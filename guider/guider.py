@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201226"
+__revision__ = "201227"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -71460,11 +71460,42 @@ class ThreadAnalyzer(object):
             if not SysMgr.delayEnable:
                 return
 
+            conv = UtilMgr.convNum
+
+            # get performance stats #
             while 1:
                 val = SysMgr.getTaskstats(idx)
                 if not val or str(val['ac_pid']) == idx:
                     break
 
+            scaledFactor = 1000000000.0
+
+            # get total usage #
+            try:
+                cpuRealTotal = val['cpu_run_real_total'] / scaledFactor
+                cpuVirtTotal = val['cpu_run_virtual_total'] / scaledFactor
+                cpuStimeTotal = val['ac_stime'] / 1000000.0
+                cpuStimePer = cpuStimeTotal / cpuRealTotal * 100
+                cpuUtimeTotal = val['ac_utime'] / 1000000.0
+                cpuUtimePer = cpuUtimeTotal / cpuRealTotal * 100
+                majfltTotal = conv(val['ac_majflt'])
+                minfltTotal = conv(val['ac_minflt'])
+
+                cpuTotalStr = \
+                    ('REALTIME: %.3f / VIRTTIME: %.3f / STIME: %.3f(%d%%) / '
+                    'UTIME: %.3f(%d%%) / MAJFLT: %s / MINFLT: %s' )% \
+                        (cpuRealTotal, cpuVirtTotal, cpuStimeTotal,
+                        cpuStimePer, cpuUtimeTotal, cpuUtimePer,
+                        majfltTotal, minfltTotal)
+
+                SysMgr.addPrint(
+                    "{0:>39} | {1:1}\n".format('TOTAL_USAGE', cpuTotalStr))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+            # get total delay #
             cpuDelay = val['cpu_delay_total']
             blkDelay = val['blkio_delay_total']
             swapDelay = val['swapin_delay_total']
@@ -71479,10 +71510,10 @@ class ThreadAnalyzer(object):
 
             prevData = self.prevProcData[idx]
 
-            cpuTotalDelay = cpuDelay / 1000000000.0
-            blkTotalDelay = blkDelay / 1000000000.0
-            swapTotalDelay = swapDelay / 1000000000.0
-            rclmTotalDelay = rclmDelay / 1000000000.0
+            cpuTotalDelay = cpuDelay / scaledFactor
+            blkTotalDelay = blkDelay / scaledFactor
+            swapTotalDelay = swapDelay / scaledFactor
+            rclmTotalDelay = rclmDelay / scaledFactor
 
             delayTotalStr = \
                 'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
@@ -71490,8 +71521,7 @@ class ThreadAnalyzer(object):
                         swapTotalDelay, rclmTotalDelay)
 
             SysMgr.addPrint(
-                "{0:>39} | {1:1}\n".format(
-                    'TOTAL_DELAY', delayTotalStr))
+                "{0:>39} | {1:1}\n".format('TOTAL_DELAY', delayTotalStr))
 
             if not 'delay' in prevData:
                 return
@@ -71501,10 +71531,10 @@ class ThreadAnalyzer(object):
             swapDelayDiff = swapDelay - prevData['delay']['SWAP']
             rclmDelayDiff = rclmDelay - prevData['delay']['RCLM']
 
-            cpuDelayDiff /= 1000000000.0
-            blkDelayDiff /= 1000000000.0
-            swapDelayDiff /= 1000000000.0
-            rclmDelayDiff /= 1000000000.0
+            cpuDelayDiff /= scaledFactor
+            blkDelayDiff /= scaledFactor
+            swapDelayDiff /= scaledFactor
+            rclmDelayDiff /= scaledFactor
 
             delayStr = \
                 'CPU: %.3f / BLK: %.3f / SWAP: %.3f / RCLM: %.3f' % \
