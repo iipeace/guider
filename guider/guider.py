@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201227"
+__revision__ = "201228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6786,6 +6786,7 @@ class Timeline(object):
         self.segments = segments
         self.time_unit = time_unit
         self.config = config
+
         self.time_start = \
             min(segments, key=lambda segment: segment.time_start).time_start
         self.time_end = \
@@ -6794,7 +6795,14 @@ class Timeline(object):
         self.groups = len(self.segment_groups)
         self.group_list = list(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
-        self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
+
+        try:
+            self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
+        except:
+            SysMgr.printErr(
+                'fail to recognize timeline because start and end time are same')
+            sys.exit(0)
+
         self.tasks = tasks
         self.last_group_segment = dict()
         self.last_group_time = dict()
@@ -6981,7 +6989,7 @@ class Timeline(object):
         if not SysMgr.showAll and \
             (scaled_width < self.config.LABEL_SIZE_MIN or duration == 0):
             return
-        duration = '~%s %s' % (UtilMgr.convNum(duration), self.time_unit)
+        duration = '~%s' % (UtilMgr.convNum(duration))
 
         # I/O #
         if segment.state == 'RD' or segment.state == 'WR':
@@ -7094,7 +7102,7 @@ class Timeline(object):
             time_unit = time_unit.lower()
 
         # get configured timeunit #
-        time_factor = 1
+        time_factor = 1.0
         if hasattr(config, 'TIMEUNIT') and config.TIMEUNIT:
             new_time_unit = config.TIMEUNIT.lower()
 
@@ -7102,17 +7110,17 @@ class Timeline(object):
                 pass
             elif time_unit == 'ns':
                 if new_time_unit == 'ms':
-                    time_factor = 1/1000
+                    time_factor = 1/1000.0
                 elif new_time_unit == 'sec':
-                    time_factor = 1/1000000
+                    time_factor = 1/1000000.0
                 else:
                     SysMgr.printErr(
                         "no support '%s' unit for timeline" % new_time_unit)
             elif time_unit == 'ms':
                 if new_time_unit == 'ns':
-                    time_factor = 1000
+                    time_factor = 1000.0
                 elif new_time_unit == 'sec':
-                    time_factor = 1/1000
+                    time_factor = 1/1000.0
                 else:
                     SysMgr.printErr(
                         "no support '%s' unit for timeline" % new_time_unit)
@@ -18499,6 +18507,23 @@ Examples:
         # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha &"
                 '''.format(cmd, mode)
 
+                reportStr = '''
+    - report all analysis results for a specific thread having TID 1234 to ./guider.out
+        # {0:1} guider.dat -o . -g 1234 -a
+
+    - report all analysis results including interval information for all threads to ./guider.out
+        # {0:1} guider.dat -o . -a -i
+
+    - report analysis results including preemption info for specific threads to ./guider.out
+        # {0:1} guider.dat -o . -p 1234, 4567
+
+    - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
+        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
+
+    - report all function analysis result with maximum 3-depth for a specific thread having TID 1234 to ./guider.out
+        # {0:1} guider.dat -o . -g 1234 -H 3
+                '''.format(cmd)
+
                 logCommonStr = '''
 Usage:
     # {0:1} {1:1} -I <MESSAGE>
@@ -18602,51 +18627,41 @@ Options:
 
                     helpStr += '''
 Examples:
-    - record default function events of all threads to ./guider.dat
+    - record default function events for all threads to ./guider.dat
         # {0:1} {1:1} -s .
 
-    - report function analysis result of all threads to ./guider.out
-        # {0:1} guider.dat -o .
+    - record default function events for all threads to ./guider.dat for only 3 minutes
+        # {0:1} {1:1} -s . -R 3m
 
-    - convert function event data compressed to original one
-        # {0:1} guider.dat -s .
+    - record default function events for all threads to ./guider.dat every 3 minutes continuously
+        # {0:1} {1:1} -s . -R 3m:1:
 
-    - report all function analysis result with maximum 3-depth of a specific thread having TID 1234 to ./guider.out
-        # {0:1} guider.dat -o . -g 1234 -H 3
-
-    - report all function analysis result of specific threads including other threads involved in the same process to ./guider.out
-        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
-
-    - record default function events of all threads to ./guider.dat for only 3 minutes
-        # {0:1} guider.dat -o . -R 3m
-
-    - record default function events of all threads to ./guider.dat every 3 minutes continuously
-        # {0:1} guider.dat -o . -R 3m:1:
-
-    - record default function events of specific threads having TID bigger than 1024 to ./guider.dat in the background
+    - record default function events for specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
 
-    - record specific function events including memory, block, heap of all threads to ./guider.dat
+    - record specific function events including memory, block, heap for all threads to ./guider.dat
         # {0:1} {1:1} -s . -e m, b, h
 
-    - record specific function events including all syscalls of all threads to ./guider.dat
+    - record specific function events including all syscalls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -t
 
-    - record specific function events including softirq_entry event of all threads to ./guider.dat
+    - record specific function events including softirq_entry event for all threads to ./guider.dat
         # {0:1} {1:1} -s . -c softirq_entry:vec==1
 
-    - record specific function events including segmentation fault of all threads to ./guider.dat in real-time
+    - record specific function events including segmentation fault for all threads to ./guider.dat in real-time
         # {0:1} {1:1} -s . -d c -K segflt:bad_area -e p
 
-    - record specific function events including blocking of all threads to ./guider.dat
+    - record specific function events including blocking for all threads to ./guider.dat
         # {0:1} {1:1} -s . -d c -K block:schedule
 
-    - record default function events of all threads to ./guider.dat and execute user commands
+    - record default function events for all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - record all kernel function calls of all threads to ./guider.dat
+    - record all kernel function calls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -e g
                     '''.format(cmd, mode)
+
+                    helpStr += reportStr
 
                 # file record #
                 elif SysMgr.checkMode('filerec'):
@@ -18760,6 +18775,8 @@ Examples:
         # {0:1} {1:1} -g 1234 -a
                     '''.format(cmd, mode)
 
+                    helpStr += reportStr
+
                 # general record #
                 elif SysMgr.checkMode('genrec'):
                     helpStr = '''
@@ -18863,26 +18880,14 @@ Examples:
     - record default events of specific threads that having TID bigger than 1234 to ./guider.dat
         # {0:1} {1:1} -s . -g ">1234"
 
-    - report analysis result of all threads to ./guider.out
-        # {0:1} guider.dat -o .
-
-    - convert event data compressed to original one
-        # {0:1} guider.dat -s .
-
     - record default events of all threads and their commands
         # {0:1} {1:1} -s . -B
 
-    - report all analysis results of a specific thread having TID 1234 to ./guider.out
-        # {0:1} guider.dat -o . -g 1234 -a
-
-    - report all analysis results including interval information of all threads to ./guider.out
-        # {0:1} guider.dat -o . -a -i
-
     - record default events of all threads to ./guider.dat for only 3 seconds
-        # {0:1} guider.dat -o . -R 3
+        # {0:1} {1:1} -s . -R 3
 
     - record default events of all threads to ./guider.dat every 3 seconds continuously
-        # {0:1} guider.dat -o . -R 3:1:
+        # {0:1} {1:1} -s . -R 3:1:
 
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
@@ -18912,12 +18917,14 @@ Examples:
     - record default events of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
 
-    - report all analysis results including specific threads's preemption of all threads to ./guider.out
-        # {0:1} guider.dat -o . -p 1234, 4567 -a
+    - report analysis result for all threads to ./guider.out
+        # {0:1} guider.dat -o .
 
-    - report all analysis results of specific threads including other threads involved in the same process to ./guider.out
-        # {0:1} guider.dat -o . -P -g 1234, 4567 -a
+    - convert event data compressed to original one
+        # {0:1} guider.dat -s .
                     '''.format(cmd, mode)
+
+                    helpStr += reportStr
 
                 # file top #
                 elif SysMgr.checkMode('ftop'):
@@ -53062,8 +53069,8 @@ Section header string table index: %d
         if debug:
             SysMgr.printPipe(
                 ("\n[Section Headers]\n%s\n"
-                "[NR] %50s%15s%12s%12s%10s%8s%5s%5s%5s%6s\n%s") % \
-                (twoLine, "Name", "Type", "Address", "Offset", "Size",
+                "[NR] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s\n%s") % \
+                (twoLine, "Name", "Type", "Address", "Offset", "Size(%)",
                 "EntSize", "Flag", "Link", "Info", "Align", twoLine))
 
         # parse section header #
@@ -53097,12 +53104,18 @@ Section header string table index: %d
 
             # print section header #
             if debug:
+                try:
+                    size_per = sh_size / float(self.fileSize) * 100
+                except:
+                    size_per = 0
+
+                size_str = '%s(%2.1f%%)' % (UtilMgr.convNum(sh_size), size_per)
                 SysMgr.printPipe(
-                    "[%02d] %50s%15s%12s%12s%10d%8d%5s%5s%5s%6s" % \
+                    "[%02d] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s" % \
                     (i, symbol,
                     ElfAnalyzer.SH_TYPE[sh_type] \
                         if sh_type in ElfAnalyzer.SH_TYPE else hex(sh_type),
-                    '0x%x' % sh_addr, '0x%x' % sh_offset, sh_size, sh_entsize,
+                    '0x%x' % sh_addr, '0x%x' % sh_offset, size_str, sh_entsize,
                     f, sh_link, sh_info, sh_addralign))
 
             # get header index #
@@ -56187,6 +56200,7 @@ class ThreadAnalyzer(object):
 
         cpuUsage = []
         nrCore = []
+        nrTask = []
         memFree = []
         memAnon = []
         memCache = []
@@ -56353,6 +56367,11 @@ class ThreadAnalyzer(object):
                 except:
                     blkRead.append(0)
                     blkWrite.append(0)
+
+                try:
+                    nrTask.append(sline[11])
+                except:
+                    nrTask.append('')
 
                 try:
                     nrCore.append(long(sline[12]))
@@ -56793,8 +56812,8 @@ class ThreadAnalyzer(object):
                     value['rssUsage'] = ' '.join(value['rssUsage'])
 
             for name, value in gpuUsage.items():
-                value['usage'] = value['usage'].split()[imin:imax]
-                value['usage'] = ' '.join(value['usage'])
+                value = value.split()[imin:imax]
+                gpuUsage[name] = ' '.join(value)
 
             for name, dev in storageUsage.items():
                 for item, value in dev.items():
@@ -56837,6 +56856,7 @@ class ThreadAnalyzer(object):
             'storageUsage': storageUsage,
             'networkUsage': networkUsage,
             'nrCore': nrCore[imin:imax],
+            'nrTask': nrTask[imin:imax],
             'graphTitle': 'Guider Perf Graph',
         }
 
@@ -57264,7 +57284,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def drawBottom(self, xtype, ax):
+    def drawBottom(self, xtype, ax, timeline, nrTask, effectProcList):
         if xtype == 1:
             # convert tick type to integer #
             try:
@@ -57284,7 +57304,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
         elif xtype == 3:
-            # draw the number of tasks #
+            # draw the number of running tasks #
             try:
                 xtickLabel = ax.get_xticks().tolist()
                 xlim([xtickLabel[0], xtickLabel[-1]])
@@ -57300,25 +57320,25 @@ class ThreadAnalyzer(object):
                             sys.exit(0)
                         except:
                             xtickLabel[seq] = ' '
-                xtickLabel[-1] = '   TASK(NR)'
+                xtickLabel[-1] = '   RUN(NR)'
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
             except:
                 pass
         elif xtype == 2:
-            # draw the number of cores #
+            # draw the number of total tasks (proc/thread) #
             try:
                 xtickLabel = ax.get_xticks().tolist()
                 xlim([xtickLabel[0], xtickLabel[-1]])
                 for seq, cnt in enumerate(xtickLabel):
                     try:
-                        xtickLabel[seq] = nrCore[timeline.index(long(cnt))]
+                        xtickLabel[seq] = nrTask[timeline.index(long(cnt))]
                     except SystemExit:
                         sys.exit(0)
                     except:
                         xtickLabel[seq] = ' '
-                xtickLabel[-1] = '   CORE(NR)'
+                xtickLabel[-1] = '   TASK(NR)'
                 ax.set_xticklabels(xtickLabel)
             except SystemExit:
                 sys.exit(0)
@@ -57733,8 +57753,8 @@ class ThreadAnalyzer(object):
 
                     ilabel = '%s%s%s' % (prefix, idx, maxPer)
                     text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,
-                        fontsize=3, color=color, fontweight='bold',
-                        ha=getTextAlign(maxIdx, timeline))
+                        fontsize=2, color=color, fontweight='normal',
+                        rotation=35, ha=getTextAlign(maxIdx, timeline))
 
                     labelList.append(
                         '%s%s - %s%%' % (prefix, idx, avgUsage))
@@ -57794,7 +57814,7 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            self.drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
         def drawIo(graphStats, xtype, pos, size):
             def drawSystemIo(statList, color, ymax):
@@ -57844,9 +57864,10 @@ class ThreadAnalyzer(object):
 
                 if usage[minIdx] == usage[maxIdx] == 0:
                     plot(timeline, statList, '-', c=rcolor,
-                        linewidth=0.7, alpha=0.1)
+                        linewidth=0.1, alpha=0.1)
                 else:
-                    plot(timeline, statList, '-', c=rcolor, linewidth=0.7)
+                    plot(timeline, statList, '-', c=rcolor,
+                        linewidth=0.7, marker='d', markersize=1)
 
                 return totalsize, ymax
 
@@ -58165,7 +58186,7 @@ class ThreadAnalyzer(object):
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
-                                fontweight='bold',
+                                fontweight='normal', rotation=35,
                                 ha=getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
                             try:
@@ -58174,8 +58195,7 @@ class ThreadAnalyzer(object):
                                 unit = long(0)
                             text(timeline[-1], wrUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
-                                fontweight='bold',
-                                ha='right')
+                                fontweight='normal', rotation=35, ha='right')
 
                         labelList.append(
                             '%s%s[BWR] - %s' % (prefix, idx, totalsize))
@@ -58204,7 +58224,7 @@ class ThreadAnalyzer(object):
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
-                                fontweight='bold',
+                                fontweight='normal', rotation=35,
                                 ha=getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
                             try:
@@ -58213,8 +58233,7 @@ class ThreadAnalyzer(object):
                                 unit = long(0)
                             text(timeline[-1], rdUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
-                                fontweight='bold',
-                                ha='right')
+                                fontweight='normal', rotation=35, ha='right')
 
                         labelList.append(
                             '%s%s[BRD] - %s' % (prefix, idx, totalsize))
@@ -58307,7 +58326,7 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            self.drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
         def drawMem(graphStats, xtype, pos, size):
             def drawSystemMem(statList, color, ymax):
@@ -58787,7 +58806,7 @@ class ThreadAnalyzer(object):
                 figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
             self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
 
-            self.drawBottom(xtype, ax)
+            self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
         #==================== BODY PART ====================#
 
@@ -58815,6 +58834,15 @@ class ThreadAnalyzer(object):
             for key, val in graphStats.items():
                 if key.endswith('nrCore') and len(val) > len(nrCore):
                     nrCore = val
+
+        # get nrTask #
+        if 'nrTask' in graphStats:
+            nrTask = graphStats['nrTask']
+        else:
+            nrCore = []
+            for key, val in graphStats.items():
+                if key.endswith('nrTask') and len(val) > len(nrTask):
+                    nrTask = val
 
         # get effectProcList #
         effectProcList = [0] * len(timeline)
@@ -63440,7 +63468,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % twoLine)
 
         # Print menu #
-        gpuInfo = "{0:^16} | {1:^12} |".format('GPU', 'Min/Avg/Max')
+        gpuInfo = "{0:^23} | {1:^12} |".format('GPU', 'Min/Avg/Max')
         gpuInfoLen = len(gpuInfo)
         maxLineLen = SysMgr.lineLength
 
@@ -63469,7 +63497,7 @@ class ThreadAnalyzer(object):
             stats = '%d/%d/%d' % \
                 (stat['min'] if stat['min'] > 0 else 0, avg, stat['max'])
 
-            gpuInfo = "{0:>16} | {1:^12} |".format(gpu, stats)
+            gpuInfo = "{0:>23} | {1:^12} |".format(gpu, stats)
             gpuInfoLen = len(gpuInfo)
             maxLineLen = SysMgr.lineLength
 
@@ -68741,7 +68769,9 @@ class ThreadAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(newPath)
 
-        #buf = list(map(lambda x: x.decode(), buf))
+        if sys.version_info >= (3, 0):
+            buf = list(map(lambda x: x.decode(), buf))
+
         return buf
 
 
@@ -68960,7 +68990,7 @@ class ThreadAnalyzer(object):
             self.procData[tid]['io'] = {}
             for line in ioBuf:
                 line = line.split()
-                item = line[0].decode()
+                item = line[0]
                 if item != 'read_bytes:' and item != 'write_bytes:':
                     continue
                 self.procData[tid]['io'][item[:-1]] = long(line[1])
