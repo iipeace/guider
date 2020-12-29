@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201228"
+__revision__ = "201229"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18266,6 +18266,9 @@ Examples:
     - Draw resource graph and timeline chart in ms timeunit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ms
 
+    - Draw resource graph and event markers on specific points
+        # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
+
     - Draw resource graph and timeline chart for all events
         # {0:1} {1:1} guider.dat -a
 
@@ -18286,8 +18289,8 @@ Examples:
     - Draw resource graph with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw resource graph after setting range
-        # {0:1} {1:1} guider.out -t 1234:1239
+    - Draw resource graph within specific interval range
+        # {0:1} {1:1} guider.out -q TRIM:9:15
 
     - Draw resource graph of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -25887,9 +25890,20 @@ Copyright:
                 if SysMgr.isDrawMode():
                     SysMgr.boundaryLine = \
                         SysMgr.cleanItem(value.split(','))
-                    SysMgr.printInfo(
-                        "set %s as a boundary line" % \
-                        ', '.join(SysMgr.boundaryLine))
+
+                    try:
+                        cval = sorted(list(map(long, SysMgr.boundaryLine)))
+
+                        SysMgr.printInfo(
+                            "set boundary line [%s]" % \
+                            ', '.join(SysMgr.boundaryLine))
+
+                        SysMgr.boundaryLine = cval
+                    except:
+                        SysMgr.printErr(
+                            'fail to convert [%s] to number' % \
+                                ', '.join(SysMgr.boundaryLine), True)
+                        sys.exit(0)
                 else:
                     options = value
 
@@ -25956,8 +25970,7 @@ Copyright:
                     SysMgr.perCoreList = []
 
             elif option == 't' and \
-                not SysMgr.isRecordMode() and \
-                not SysMgr.isDrawMode():
+                not SysMgr.isRecordMode():
                 SysMgr.syscallList = \
                     SysMgr.cleanItem(value.split(','))
                 enabledSyscall = []
@@ -55812,6 +55825,14 @@ class ThreadAnalyzer(object):
             'start analyzing... [ STOP(Ctrl+c) ]')
         SysMgr.totalLine = len(lines)
 
+        # get indexes for trim #
+        if 'TRIM' in SysMgr.environList:
+            start, end = SysMgr.environList['TRIM'][0].split(':')
+            if start.strip():
+                self.trimStart = float(start.strip())
+            if end.strip():
+                self.trimStop = float(end.strip())
+
         for idx, log in enumerate(lines):
             time = self.parse(log)
             UtilMgr.printProgress(idx, SysMgr.totalLine)
@@ -56758,9 +56779,8 @@ class ThreadAnalyzer(object):
             sys.exit(0)
 
         # get indexes for trim #
-        trim = SysMgr.getOption('t')
-        if trim:
-            trim = trim.split(':')
+        if 'TRIM' in SysMgr.environList:
+            trim = SysMgr.environList['TRIM'][0].split(':')
             try:
                 if len(trim) == 1:
                     condMin = long(trim[0])
@@ -56986,7 +57006,10 @@ class ThreadAnalyzer(object):
                 # merge stats #
                 for key, val in gstats.items():
                     fname = os.path.basename(lfile)
-                    graphStats['%s:%s' % (fname, key)] = val
+                    if key == 'graphTitle':
+                        graphStats[key] = val
+                    else:
+                        graphStats['%s:%s' % (fname, key)] = val
 
         # initialize environment for drawing #
         self.initDrawEnv()
@@ -57347,6 +57370,55 @@ class ThreadAnalyzer(object):
 
 
 
+    def drawUserEvent(self, mode=None):
+        if not 'EVENT' in SysMgr.environList:
+            return
+
+        for item in SysMgr.environList['EVENT']:
+            try:
+                values = item.split(':')
+                if not (3 <= len(values) <= 5):
+                    SysMgr.printErr((
+                        'fail to recognize %s in '
+                        'X:Y:NAME:RESOURCE:[BOX|CIRCLE|LARROW|RARROW] format') % item)
+                    sys.exit(0)
+
+                if len(values) == 5:
+                    x, y, name, resource, feature = values
+                elif len(values) == 4:
+                    x, y, name, resource = values
+                    feature = 'none'
+                elif len(values) == 3:
+                    x, y, name = values
+                    feature = 'none'
+                    resource = 'none'
+
+                if mode and mode.upper() != resource.upper():
+                    continue
+
+                if feature.upper() == 'CIRCLE':
+                    feature = 'Circle,pad=1'
+                elif feature.upper() == 'LARROW':
+                    feature = 'LArrow,pad=1'
+                elif feature.upper() == 'RARROW':
+                    feature = 'RArrow,pad=1'
+                else:
+                    feature = 'Roundtooth,pad=1'
+
+                text(long(x), long(y), name, family='fantasy', style='italic',
+                    fontsize=5, color='green', fontweight='bold',
+                    bbox=dict(boxstyle=feature, facecolor='gold',
+                    alpha=0.7))
+
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to draw events', reason=True)
+                sys.exit(0)
+
+
+
     def drawBoundary(self, gtype, labelList):
         if not SysMgr.boundaryLine:
             return
@@ -57498,6 +57570,9 @@ class ThreadAnalyzer(object):
 
                 # add boundary line #
                 self.drawBoundary('cpu', labelList)
+
+                # draw user event #
+                self.drawUserEvent('cpu')
 
                 #-------------------- Total GPU usage --------------------#
                 if isVisibleTotal:
@@ -57902,6 +57977,9 @@ class ThreadAnalyzer(object):
 
             # add boundary line #
             self.drawBoundary('io', labelList)
+
+            # draw user event #
+            self.drawUserEvent('io')
 
             # start loop #
             for key, val in graphStats.items():
@@ -58399,6 +58477,9 @@ class ThreadAnalyzer(object):
             # add boundary line #
             self.drawBoundary('mem', labelList)
 
+            # draw user event #
+            self.drawUserEvent('mem')
+
             # define top variable #
             if SysMgr.nrTop:
                 tcnt = long(0)
@@ -58839,7 +58920,7 @@ class ThreadAnalyzer(object):
         if 'nrTask' in graphStats:
             nrTask = graphStats['nrTask']
         else:
-            nrCore = []
+            nrTask = []
             for key, val in graphStats.items():
                 if key.endswith('nrTask') and len(val) > len(nrTask):
                     nrTask = val
@@ -58955,6 +59036,9 @@ class ThreadAnalyzer(object):
 
             # add boundary line #
             self.drawBoundary('cpu', labelList)
+
+            # draw user event #
+            self.drawUserEvent('cpu')
 
             #-------------------- Total GPU usage --------------------#
             if isVisibleTotal:
@@ -59240,6 +59324,9 @@ class ThreadAnalyzer(object):
 
             # add boundary line #
             self.drawBoundary('mem', labelList)
+
+            # draw user event #
+            self.drawUserEvent('mem')
 
             # define top variable #
             if SysMgr.nrTop:
@@ -65204,6 +65291,8 @@ class ThreadAnalyzer(object):
         self.cxtSwitch = long(0)
         self.nrNewTask = long(0)
         self.thisInterval = long(0)
+        self.trimStart = float(0)
+        self.trimStop = float(0)
 
 
 
@@ -65307,13 +65396,20 @@ class ThreadAnalyzer(object):
 
         SysMgr.logSize += len(string)
 
+        # check trim range #
+        if self.trimStart > 0 and allTime < self.trimStart:
+            return time
+        elif self.trimStop > 0 and allTime > self.trimStop:
+            return time
+
+        # check skip condition #
         if len(SysMgr.perCoreList) > 0 and \
             long(core) not in SysMgr.perCoreList and \
             (func != "console" and \
             func != "tracing_mark_write"):
             return time
         elif SysMgr.countEnable and \
-            SysMgr.repeatCount * SysMgr.intervalEnable <= ftime - stime:
+            SysMgr.repeatCount * SysMgr.intervalEnable <= allTime:
             self.stopFlag = True
             return time
 
