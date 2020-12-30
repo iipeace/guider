@@ -20268,6 +20268,7 @@ Examples:
         # {0:1} {1:1}
 
     - Print directory structure from / dir
+        # {0:1} {1:1} /
         # {0:1} {1:1} -I /
 
     - Print directory structure in 2-depth from / dir
@@ -26853,7 +26854,10 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             if not SysMgr.inputParam:
-                root = '.'
+                if len(sys.argv) <= 2:
+                    root = '.'
+                else:
+                    root = sys.argv[2]
             else:
                 root = SysMgr.inputParam
 
@@ -31122,12 +31126,13 @@ Copyright:
             abspath = "[%s]" % (os.path.abspath(path))
             result = [abspath]
 
+            SysMgr.printStat(
+                r"start traversing dirs from %s..." % abspath)
+
             recurse(path, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
 
-            SysMgr.printStat(
-                r"start traversing dirs from %s..." % abspath)
             SysMgr.printPipe(output)
 
 
