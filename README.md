@@ -1125,7 +1125,7 @@ Usage:
     $ ./guider.py COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
-    [CONTROL]       client          <Client>
+    [CONTROL]       cli             <Client>
                     event           <Event>
                     list            <List>
                     send            <Signal>
@@ -1180,6 +1180,8 @@ COMMAND:
                     utrace          <Function>
 
     [UTIL]          addr2sym        <Symbol>
+                    comp            <Compress>
+                    decomp          <Decompress>
                     dump            <Memory>
                     exec            <Command>
                     getafnt         <Affinity>
@@ -1221,6 +1223,7 @@ COMMAND:
                     drawmemavg      <Memory>
                     drawrss         <RSS>
                     drawrssavg      <RSS>
+                    drawtime        <Timeline>
                     drawvss         <VSS>
                     drawvssavg      <VSS>
 
