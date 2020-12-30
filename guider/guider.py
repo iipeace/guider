@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201229"
+__revision__ = "201230"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4752,17 +4752,17 @@ class UtilMgr(object):
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="1200" height="230" onload="init(evt)" viewBox="0 0 1200 230"
-	xmlns="http://www.w3.org/2000/svg"
-	xmlns:xlink="http://www.w3.org/1999/xlink">
-	<!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
-	<!--NOTES: -->
-	<defs>
-		<linearGradient id="background" y1="0" y2="1" x1="0" x2="0">
-			<stop stop-color="#eeeeee" offset="5%"/>
-			<stop stop-color="#eeeeb0" offset="95%"/>
-		</linearGradient>
-	</defs>
-	<style type="text/css">
+        xmlns="http://www.w3.org/2000/svg"
+        xmlns:xlink="http://www.w3.org/1999/xlink">
+        <!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
+        <!--NOTES: -->
+        <defs>
+                <linearGradient id="background" y1="0" y2="1" x1="0" x2="0">
+                        <stop stop-color="#eeeeee" offset="5%"/>
+                        <stop stop-color="#eeeeb0" offset="95%"/>
+                </linearGradient>
+        </defs>
+        <style type="text/css">
 text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
 #title { text-anchor:middle; font-size:17px; }
 #search { opacity:0.1; cursor:pointer; }
@@ -4773,8 +4773,8 @@ text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
 .hide { display:none; }
 .parent { opacity:0.5; }
 </style>
-	<script type="text/ecmascript">
-		<![CDATA[var nametype = 'Function:';
+        <script type="text/ecmascript">
+                <![CDATA[var nametype = 'Function:';
 var fontsize = 12;
 var fontwidth = 0.59;
 var xpad = 10;
@@ -4782,7 +4782,7 @@ var inverted = true;
 var searchcolor = 'rgb(230,0,230)';
 var fluiddrawing = true;
 var truncate_text_right = false;]]>
-		<![CDATA["use strict";
+                <![CDATA["use strict";
 var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
 function init(evt) {
     details = document.getElementById("details").firstChild;
@@ -5184,205 +5184,205 @@ function format_percent(n) {
     return n.toFixed(4) + "%";
 }
 ]]>
-	</script>
-	<rect x="0" y="0" width="100%" height="230" fill="url(#background)"/>
-	<text id="title" x="50.0000%" y="24.00">Guider Flamegraph</text>
-	<text id="details" x="10" y="213.00"></text>
-	<text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
-	<text id="search" x="1090" y="24.00">Search</text>
-	<text id="matched" x="1090" y="213.00"></text>
-	<svg id="frames" x="10" width="1180">
-		<g>
-			<title>printSystemUsage (./guider.py:67307) (3 samples, 1.00%)</title>
-			<rect x="0.3344%" y="148" width="1.0033%" height="15" fill="rgb(227,0,7)"/>
-			<text x="0.5844%" y="158.50"></text>
-		</g>
-		<g>
-			<title>printSystemStat (./guider.py:70940) (10 samples, 3.34%)</title>
-			<rect x="0.3344%" y="132" width="3.3445%" height="15" fill="rgb(217,0,24)"/>
-			<text x="0.5844%" y="142.50">pri..</text>
-		</g>
-		<g>
-			<title>saveTaskData (./guider.py:66310) (5 samples, 1.67%)</title>
-			<rect x="4.3478%" y="180" width="1.6722%" height="15" fill="rgb(221,193,54)"/>
-			<text x="4.5978%" y="190.50"></text>
-		</g>
-		<g>
-			<title>saveProcStatusData (./guider.py:66357) (8 samples, 2.68%)</title>
-			<rect x="4.3478%" y="164" width="2.6756%" height="15" fill="rgb(248,212,6)"/>
-			<text x="4.5978%" y="174.50">sa..</text>
-		</g>
-		<g>
-			<title>saveTaskData (./guider.py:66329) (3 samples, 1.00%)</title>
-			<rect x="6.0201%" y="180" width="1.0033%" height="15" fill="rgb(208,68,35)"/>
-			<text x="6.2701%" y="190.50"></text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69057) (11 samples, 3.68%)</title>
-			<rect x="4.3478%" y="148" width="3.6789%" height="15" fill="rgb(232,128,0)"/>
-			<text x="4.5978%" y="158.50">prin..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66029) (5 samples, 1.67%)</title>
-			<rect x="9.0301%" y="164" width="1.6722%" height="15" fill="rgb(207,160,47)"/>
-			<text x="9.2801%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66030) (50 samples, 16.72%)</title>
-			<rect x="10.7023%" y="164" width="16.7224%" height="15" fill="rgb(228,23,34)"/>
-			<text x="10.9523%" y="174.50">saveProcSmapsData (./guide..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66040) (6 samples, 2.01%)</title>
-			<rect x="27.4247%" y="164" width="2.0067%" height="15" fill="rgb(218,30,26)"/>
-			<text x="27.6747%" y="174.50">s..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66041) (5 samples, 1.67%)</title>
-			<rect x="29.4314%" y="164" width="1.6722%" height="15" fill="rgb(220,122,19)"/>
-			<text x="29.6814%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66042) (28 samples, 9.36%)</title>
-			<rect x="31.1037%" y="164" width="9.3645%" height="15" fill="rgb(250,228,42)"/>
-			<text x="31.3537%" y="174.50">saveProcSmaps..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66045) (15 samples, 5.02%)</title>
-			<rect x="40.4682%" y="164" width="5.0167%" height="15" fill="rgb(240,193,28)"/>
-			<text x="40.7182%" y="174.50">savePr..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66064) (3 samples, 1.00%)</title>
-			<rect x="46.1538%" y="164" width="1.0033%" height="15" fill="rgb(216,20,37)"/>
-			<text x="46.4038%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66079) (3 samples, 1.00%)</title>
-			<rect x="47.8261%" y="164" width="1.0033%" height="15" fill="rgb(206,188,39)"/>
-			<text x="48.0761%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66087) (4 samples, 1.34%)</title>
-			<rect x="49.1639%" y="164" width="1.3378%" height="15" fill="rgb(217,207,13)"/>
-			<text x="49.4139%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66088) (4 samples, 1.34%)</title>
-			<rect x="50.5017%" y="164" width="1.3378%" height="15" fill="rgb(231,73,38)"/>
-			<text x="50.7517%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66091) (5 samples, 1.67%)</title>
-			<rect x="52.1739%" y="164" width="1.6722%" height="15" fill="rgb(225,20,46)"/>
-			<text x="52.4239%" y="174.50"></text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66094) (6 samples, 2.01%)</title>
-			<rect x="54.5151%" y="164" width="2.0067%" height="15" fill="rgb(210,31,41)"/>
-			<text x="54.7651%" y="174.50">s..</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66096) (19 samples, 6.35%)</title>
-			<rect x="56.5217%" y="164" width="6.3545%" height="15" fill="rgb(221,200,47)"/>
-			<text x="56.7717%" y="174.50">saveProc..</text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69075) (173 samples, 57.86%)</title>
-			<rect x="8.0268%" y="148" width="57.8595%" height="15" fill="rgb(226,26,5)"/>
-			<text x="8.2768%" y="158.50">printProcUsage (./guider.py:69075)</text>
-		</g>
-		<g>
-			<title>saveProcSmapsData (./guider.py:66108) (3 samples, 1.00%)</title>
-			<rect x="64.8829%" y="164" width="1.0033%" height="15" fill="rgb(249,33,26)"/>
-			<text x="65.1329%" y="174.50"></text>
-		</g>
-		<g>
-			<title>getMemDetails (./guider.py:67970) (3 samples, 1.00%)</title>
-			<rect x="68.5619%" y="164" width="1.0033%" height="15" fill="rgb(235,183,28)"/>
-			<text x="68.8119%" y="174.50"></text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69204) (8 samples, 2.68%)</title>
-			<rect x="67.5585%" y="148" width="2.6756%" height="15" fill="rgb(221,5,38)"/>
-			<text x="67.8085%" y="158.50">pr..</text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69235) (18 samples, 6.02%)</title>
-			<rect x="70.2341%" y="148" width="6.0201%" height="15" fill="rgb(247,18,42)"/>
-			<text x="70.4841%" y="158.50">printPro..</text>
-		</g>
-		<g>
-			<title>addPrint (./guider.py:22200) (18 samples, 6.02%)</title>
-			<rect x="70.2341%" y="164" width="6.0201%" height="15" fill="rgb(241,131,45)"/>
-			<text x="70.4841%" y="174.50">addPrint..</text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69320) (43 samples, 14.38%)</title>
-			<rect x="76.5886%" y="148" width="14.3813%" height="15" fill="rgb(249,31,29)"/>
-			<text x="76.8386%" y="158.50">printProcUsage (./guid..</text>
-		</g>
-		<g>
-			<title>addPrint (./guider.py:22200) (40 samples, 13.38%)</title>
-			<rect x="77.5920%" y="164" width="13.3779%" height="15" fill="rgb(225,111,53)"/>
-			<text x="77.8420%" y="174.50">addPrint (./guider.p..</text>
-		</g>
-		<g>
-			<title>addPrint (./guider.py:22200) (11 samples, 3.68%)</title>
-			<rect x="91.9732%" y="164" width="3.6789%" height="15" fill="rgb(238,160,17)"/>
-			<text x="92.2232%" y="174.50">addP..</text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69379) (12 samples, 4.01%)</title>
-			<rect x="91.9732%" y="148" width="4.0134%" height="15" fill="rgb(214,148,48)"/>
-			<text x="92.2232%" y="158.50">prin..</text>
-		</g>
-		<g>
-			<title>all (299 samples, 100%)</title>
-			<rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(232,36,49)"/>
-			<text x="0.2500%" y="46.50"></text>
-		</g>
-		<g>
-			<title>&lt;module&gt; (./guider.py:71084) (299 samples, 100.00%)</title>
-			<rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(209,103,24)"/>
-			<text x="0.2500%" y="62.50">&lt;module&gt; (./guider.py:71084)</text>
-		</g>
-		<g>
-			<title>main (./guider.py:71034) (299 samples, 100.00%)</title>
-			<rect x="0.0000%" y="68" width="100.0000%" height="15" fill="rgb(229,88,8)"/>
-			<text x="0.2500%" y="78.50">main (./guider.py:71034)</text>
-		</g>
-		<g>
-			<title>execTopCmd (./guider.py:14684) (299 samples, 100.00%)</title>
-			<rect x="0.0000%" y="84" width="100.0000%" height="15" fill="rgb(213,181,19)"/>
-			<text x="0.2500%" y="94.50">execTopCmd (./guider.py:14684)</text>
-		</g>
-		<g>
-			<title>__init__ (./guider.py:53453) (299 samples, 100.00%)</title>
-			<rect x="0.0000%" y="100" width="100.0000%" height="15" fill="rgb(254,191,54)"/>
-			<text x="0.2500%" y="110.50">__init__ (./guider.py:53453)</text>
-		</g>
-		<g>
-			<title>runTaskTop (./guider.py:53770) (298 samples, 99.67%)</title>
-			<rect x="0.3344%" y="116" width="99.6656%" height="15" fill="rgb(241,83,37)"/>
-			<text x="0.5844%" y="126.50">runTaskTop (./guider.py:53770)</text>
-		</g>
-		<g>
-			<title>printSystemStat (./guider.py:70949) (288 samples, 96.32%)</title>
-			<rect x="3.6789%" y="132" width="96.3211%" height="15" fill="rgb(233,36,39)"/>
-			<text x="3.9289%" y="142.50">printSystemStat (./guider.py:70949)</text>
-		</g>
-		<g>
-			<title>printProcUsage (./guider.py:69450) (12 samples, 4.01%)</title>
-			<rect x="95.9866%" y="148" width="4.0134%" height="15" fill="rgb(226,3,54)"/>
-			<text x="96.2366%" y="158.50">prin..</text>
-		</g>
-		<g>
-			<title>addPrint (./guider.py:22200) (12 samples, 4.01%)</title>
-			<rect x="95.9866%" y="164" width="4.0134%" height="15" fill="rgb(245,192,40)"/>
-			<text x="96.2366%" y="174.50">addP..</text>
-		</g>
-	</svg>
+        </script>
+        <rect x="0" y="0" width="100%" height="230" fill="url(#background)"/>
+        <text id="title" x="50.0000%" y="24.00">Guider Flamegraph</text>
+        <text id="details" x="10" y="213.00"></text>
+        <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
+        <text id="search" x="1090" y="24.00">Search</text>
+        <text id="matched" x="1090" y="213.00"></text>
+        <svg id="frames" x="10" width="1180">
+                <g>
+                        <title>printSystemUsage (./guider.py:67307) (3 samples, 1.00%)</title>
+                        <rect x="0.3344%" y="148" width="1.0033%" height="15" fill="rgb(227,0,7)"/>
+                        <text x="0.5844%" y="158.50"></text>
+                </g>
+                <g>
+                        <title>printSystemStat (./guider.py:70940) (10 samples, 3.34%)</title>
+                        <rect x="0.3344%" y="132" width="3.3445%" height="15" fill="rgb(217,0,24)"/>
+                        <text x="0.5844%" y="142.50">pri..</text>
+                </g>
+                <g>
+                        <title>saveTaskData (./guider.py:66310) (5 samples, 1.67%)</title>
+                        <rect x="4.3478%" y="180" width="1.6722%" height="15" fill="rgb(221,193,54)"/>
+                        <text x="4.5978%" y="190.50"></text>
+                </g>
+                <g>
+                        <title>saveProcStatusData (./guider.py:66357) (8 samples, 2.68%)</title>
+                        <rect x="4.3478%" y="164" width="2.6756%" height="15" fill="rgb(248,212,6)"/>
+                        <text x="4.5978%" y="174.50">sa..</text>
+                </g>
+                <g>
+                        <title>saveTaskData (./guider.py:66329) (3 samples, 1.00%)</title>
+                        <rect x="6.0201%" y="180" width="1.0033%" height="15" fill="rgb(208,68,35)"/>
+                        <text x="6.2701%" y="190.50"></text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69057) (11 samples, 3.68%)</title>
+                        <rect x="4.3478%" y="148" width="3.6789%" height="15" fill="rgb(232,128,0)"/>
+                        <text x="4.5978%" y="158.50">prin..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66029) (5 samples, 1.67%)</title>
+                        <rect x="9.0301%" y="164" width="1.6722%" height="15" fill="rgb(207,160,47)"/>
+                        <text x="9.2801%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66030) (50 samples, 16.72%)</title>
+                        <rect x="10.7023%" y="164" width="16.7224%" height="15" fill="rgb(228,23,34)"/>
+                        <text x="10.9523%" y="174.50">saveProcSmapsData (./guide..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66040) (6 samples, 2.01%)</title>
+                        <rect x="27.4247%" y="164" width="2.0067%" height="15" fill="rgb(218,30,26)"/>
+                        <text x="27.6747%" y="174.50">s..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66041) (5 samples, 1.67%)</title>
+                        <rect x="29.4314%" y="164" width="1.6722%" height="15" fill="rgb(220,122,19)"/>
+                        <text x="29.6814%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66042) (28 samples, 9.36%)</title>
+                        <rect x="31.1037%" y="164" width="9.3645%" height="15" fill="rgb(250,228,42)"/>
+                        <text x="31.3537%" y="174.50">saveProcSmaps..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66045) (15 samples, 5.02%)</title>
+                        <rect x="40.4682%" y="164" width="5.0167%" height="15" fill="rgb(240,193,28)"/>
+                        <text x="40.7182%" y="174.50">savePr..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66064) (3 samples, 1.00%)</title>
+                        <rect x="46.1538%" y="164" width="1.0033%" height="15" fill="rgb(216,20,37)"/>
+                        <text x="46.4038%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66079) (3 samples, 1.00%)</title>
+                        <rect x="47.8261%" y="164" width="1.0033%" height="15" fill="rgb(206,188,39)"/>
+                        <text x="48.0761%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66087) (4 samples, 1.34%)</title>
+                        <rect x="49.1639%" y="164" width="1.3378%" height="15" fill="rgb(217,207,13)"/>
+                        <text x="49.4139%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66088) (4 samples, 1.34%)</title>
+                        <rect x="50.5017%" y="164" width="1.3378%" height="15" fill="rgb(231,73,38)"/>
+                        <text x="50.7517%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66091) (5 samples, 1.67%)</title>
+                        <rect x="52.1739%" y="164" width="1.6722%" height="15" fill="rgb(225,20,46)"/>
+                        <text x="52.4239%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66094) (6 samples, 2.01%)</title>
+                        <rect x="54.5151%" y="164" width="2.0067%" height="15" fill="rgb(210,31,41)"/>
+                        <text x="54.7651%" y="174.50">s..</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66096) (19 samples, 6.35%)</title>
+                        <rect x="56.5217%" y="164" width="6.3545%" height="15" fill="rgb(221,200,47)"/>
+                        <text x="56.7717%" y="174.50">saveProc..</text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69075) (173 samples, 57.86%)</title>
+                        <rect x="8.0268%" y="148" width="57.8595%" height="15" fill="rgb(226,26,5)"/>
+                        <text x="8.2768%" y="158.50">printProcUsage (./guider.py:69075)</text>
+                </g>
+                <g>
+                        <title>saveProcSmapsData (./guider.py:66108) (3 samples, 1.00%)</title>
+                        <rect x="64.8829%" y="164" width="1.0033%" height="15" fill="rgb(249,33,26)"/>
+                        <text x="65.1329%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>getMemDetails (./guider.py:67970) (3 samples, 1.00%)</title>
+                        <rect x="68.5619%" y="164" width="1.0033%" height="15" fill="rgb(235,183,28)"/>
+                        <text x="68.8119%" y="174.50"></text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69204) (8 samples, 2.68%)</title>
+                        <rect x="67.5585%" y="148" width="2.6756%" height="15" fill="rgb(221,5,38)"/>
+                        <text x="67.8085%" y="158.50">pr..</text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69235) (18 samples, 6.02%)</title>
+                        <rect x="70.2341%" y="148" width="6.0201%" height="15" fill="rgb(247,18,42)"/>
+                        <text x="70.4841%" y="158.50">printPro..</text>
+                </g>
+                <g>
+                        <title>addPrint (./guider.py:22200) (18 samples, 6.02%)</title>
+                        <rect x="70.2341%" y="164" width="6.0201%" height="15" fill="rgb(241,131,45)"/>
+                        <text x="70.4841%" y="174.50">addPrint..</text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69320) (43 samples, 14.38%)</title>
+                        <rect x="76.5886%" y="148" width="14.3813%" height="15" fill="rgb(249,31,29)"/>
+                        <text x="76.8386%" y="158.50">printProcUsage (./guid..</text>
+                </g>
+                <g>
+                        <title>addPrint (./guider.py:22200) (40 samples, 13.38%)</title>
+                        <rect x="77.5920%" y="164" width="13.3779%" height="15" fill="rgb(225,111,53)"/>
+                        <text x="77.8420%" y="174.50">addPrint (./guider.p..</text>
+                </g>
+                <g>
+                        <title>addPrint (./guider.py:22200) (11 samples, 3.68%)</title>
+                        <rect x="91.9732%" y="164" width="3.6789%" height="15" fill="rgb(238,160,17)"/>
+                        <text x="92.2232%" y="174.50">addP..</text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69379) (12 samples, 4.01%)</title>
+                        <rect x="91.9732%" y="148" width="4.0134%" height="15" fill="rgb(214,148,48)"/>
+                        <text x="92.2232%" y="158.50">prin..</text>
+                </g>
+                <g>
+                        <title>all (299 samples, 100%)</title>
+                        <rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(232,36,49)"/>
+                        <text x="0.2500%" y="46.50"></text>
+                </g>
+                <g>
+                        <title>&lt;module&gt; (./guider.py:71084) (299 samples, 100.00%)</title>
+                        <rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(209,103,24)"/>
+                        <text x="0.2500%" y="62.50">&lt;module&gt; (./guider.py:71084)</text>
+                </g>
+                <g>
+                        <title>main (./guider.py:71034) (299 samples, 100.00%)</title>
+                        <rect x="0.0000%" y="68" width="100.0000%" height="15" fill="rgb(229,88,8)"/>
+                        <text x="0.2500%" y="78.50">main (./guider.py:71034)</text>
+                </g>
+                <g>
+                        <title>execTopCmd (./guider.py:14684) (299 samples, 100.00%)</title>
+                        <rect x="0.0000%" y="84" width="100.0000%" height="15" fill="rgb(213,181,19)"/>
+                        <text x="0.2500%" y="94.50">execTopCmd (./guider.py:14684)</text>
+                </g>
+                <g>
+                        <title>__init__ (./guider.py:53453) (299 samples, 100.00%)</title>
+                        <rect x="0.0000%" y="100" width="100.0000%" height="15" fill="rgb(254,191,54)"/>
+                        <text x="0.2500%" y="110.50">__init__ (./guider.py:53453)</text>
+                </g>
+                <g>
+                        <title>runTaskTop (./guider.py:53770) (298 samples, 99.67%)</title>
+                        <rect x="0.3344%" y="116" width="99.6656%" height="15" fill="rgb(241,83,37)"/>
+                        <text x="0.5844%" y="126.50">runTaskTop (./guider.py:53770)</text>
+                </g>
+                <g>
+                        <title>printSystemStat (./guider.py:70949) (288 samples, 96.32%)</title>
+                        <rect x="3.6789%" y="132" width="96.3211%" height="15" fill="rgb(233,36,39)"/>
+                        <text x="3.9289%" y="142.50">printSystemStat (./guider.py:70949)</text>
+                </g>
+                <g>
+                        <title>printProcUsage (./guider.py:69450) (12 samples, 4.01%)</title>
+                        <rect x="95.9866%" y="148" width="4.0134%" height="15" fill="rgb(226,3,54)"/>
+                        <text x="96.2366%" y="158.50">prin..</text>
+                </g>
+                <g>
+                        <title>addPrint (./guider.py:22200) (12 samples, 4.01%)</title>
+                        <rect x="95.9866%" y="164" width="4.0134%" height="15" fill="rgb(245,192,40)"/>
+                        <text x="96.2366%" y="174.50">addP..</text>
+                </g>
+        </svg>
 </svg>
         '''
 
@@ -6800,7 +6800,7 @@ class Timeline(object):
             self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
         except:
             SysMgr.printErr(
-                'fail to recognize timeline because start and end time are same')
+                'fail to recognize timeline because start and end are same')
             sys.exit(0)
 
         self.tasks = tasks
@@ -6931,9 +6931,14 @@ class Timeline(object):
 
         # get color #
         if segment.id:
-            color = self.color_map[segment.id]
+            colorid = segment.id
         else:
-            color = self.color_map[group_idx]
+            colorid = group_idx
+
+        try:
+            color = self.color_map[colorid]
+        except:
+            color = self.color_map[list(self.color_map.keys())[0]]
 
         # draw bold line for core off #
         if segment.state == 'OFF':
@@ -6943,8 +6948,14 @@ class Timeline(object):
             return
 
         # draw circle and text for event #
-        if segment.state == 'EVENT':
-            font_size = self.config.FONT_SIZE
+        if segment.state and segment.state.startswith('EVENT'):
+            if segment.state == 'EVENT_MARK':
+                font_size = self.config.FONT_SIZE
+            elif segment.state == 'EVENT_USER':
+                font_size = self.config.FONT_SIZE * 2
+            else:
+                font_size = self.config.FONT_SIZE
+
             dwg.add(dwg.circle(
                 center=(x0,y0), r=font_size/2,
                 stroke='darkgreen', fill='darkgreen'))
@@ -7131,6 +7142,10 @@ class Timeline(object):
             time_unit = new_time_unit
             config.TIMEFACTOR = time_factor
 
+        if time_unit:
+            SysMgr.printInfo(
+                "apply '%s' in timeunit" % time_unit)
+
         # load segments #
         segments = Timeline._load_segments(data, time_factor)
 
@@ -7143,7 +7158,7 @@ class Timeline(object):
         segments = []
         for segment_data in sorted(
             data["segments"], key=lambda e: e['time_start']):
-            # apply for core filter #
+            # apply core filter #
             if SysMgr.perCoreDrawList:
                 if not segment_data['group'] in SysMgr.perCoreDrawList:
                     continue
@@ -18263,8 +18278,8 @@ Examples:
     - Draw resource graph and timeline chart
         # {0:1} {1:1} guider.dat
 
-    - Draw resource graph and timeline chart in ms timeunit
-        # {0:1} {1:1} guider.dat -q TIMEUNIT:ms
+    - Draw resource graph and timeline chart in ns timeunit
+        # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
 
     - Draw resource graph and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
@@ -19913,6 +19928,7 @@ Description:
 Options:
     -g  <TID|COMM>              set filter
     -l                          print signal list
+    -W                          wait for task
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -19921,10 +19937,13 @@ Examples:
     - Send the notification signal to all running Guiders
         # {0:1} {1:1}
 
-    - Send SIGSTOP signal to a specific tasks
+    - Send SIGSTOP signal to specific tasks
         # {0:1} {1:1} -stop 1234
 
-    - Send SIGKILL signal to a specific tasks
+    - Send SIGSTOP signal to specific tasks until one gets the signal
+        # {0:1} {1:1} -stop 1234 -W
+
+    - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
                     '''.format(cmd, mode)
 
@@ -21231,13 +21250,19 @@ Copyright:
 
 
     @staticmethod
-    def checkRootPerm(exit=True, verb=True, msg=''):
+    def checkRootPerm(exit=True, verb=True, attr='error', msg=''):
         if not SysMgr.isRoot():
             if verb:
                 if msg:
                     msg = ' to %s' % msg
-                SysMgr.printErr(
-                    "fail to get root permission%s" % msg)
+
+                if attr == 'error':
+                    logger = SysMgr.printErr
+                else:
+                    logger = SysMgr.printWarn
+
+                logger("fail to get root permission%s" % msg)
+
             if exit:
                 sys.exit(0)
             return False
@@ -24422,6 +24447,41 @@ Copyright:
             # check timeunit #
             if 'TIMEUNIT' in SysMgr.environList:
                 config.TIMEUNIT = SysMgr.environList['TIMEUNIT'][0].lower()
+            else:
+                config.TIMEUNIT = 'ms'
+
+            # apply user event #
+            for item in SysMgr.environList['EVENT']:
+                if not inputData:
+                    break
+
+                try:
+                    values = item.split(':')
+                    if not (3 <= len(values) <= 5):
+                        SysMgr.printErr((
+                            'fail to recognize %s in '
+                            'X:Y:NAME:[CPU|MEM|IO]:[BOX|CIRCLE|LARROW|RARROW]'
+                            'format') % item)
+                        sys.exit(0)
+
+                    x, y, name = values[:3]
+
+                    # add timeline data #
+                    inputData['segments'].append({
+                        'group': long(y),
+                        'text': name,
+                        'id': None,
+                        'state': 'EVENT_USER',
+                        'time_start': float(x),
+                        'time_end': float(x)+0.000001,
+                    })
+
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        'fail to recognize event for timeline', reason=True)
+                    sys.exit(0)
 
             timeline = Timeline.load(inputPath, inputData, config, taskList)
             timeline.draw(dwg)
@@ -24860,7 +24920,7 @@ Copyright:
             SysMgr.inputFile = \
                 os.path.normpath(SysMgr.inputFile)
 
-            # apply for filename extension for compression #
+            # apply filename extension for compression #
             if SysMgr.compressEnable:
                 SysMgr.inputFile += '.gz'
                 if SysMgr.outPath:
@@ -24874,7 +24934,7 @@ Copyright:
                 # open output file #
                 SysMgr.printFd = open(SysMgr.inputFile, 'wb')
 
-                # apply for compression to the file #
+                # apply compression to the file #
                 if SysMgr.compressEnable:
                     compressor = SysMgr.getPkg('gzip', False)
                     if compressor:
@@ -25001,7 +25061,7 @@ Copyright:
         else:
             rstring = ''
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.WARNING
             colorl = ConfigMgr.ENDC
@@ -25043,7 +25103,7 @@ Copyright:
         except:
             pass
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.FAIL
             colorl = ConfigMgr.ENDC
@@ -25089,7 +25149,7 @@ Copyright:
         else:
             prefix = ''
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.BOLD
             colorl = ConfigMgr.ENDC
@@ -25125,7 +25185,7 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.OKGREEN
             colorl = ConfigMgr.ENDC
@@ -25149,7 +25209,7 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.UNDERLINE
             colorl = ConfigMgr.ENDC
@@ -25173,7 +25233,7 @@ Copyright:
         if not SysMgr.logEnable:
             return
 
-        # apply for color #
+        # apply color #
         if SysMgr.colorEnable:
             color = ConfigMgr.SPECIAL
             colorl = ConfigMgr.ENDC
@@ -26549,7 +26609,7 @@ Copyright:
             return False
         elif sys.argv[1] == 'kill' or \
             sys.argv[1] == 'send' or \
-            SysMgr.checkMode('tkill'):
+            sys.argv[1] == 'tkill':
             return True
         else:
             return False
@@ -26678,14 +26738,19 @@ Copyright:
                         newline = True
                     else:
                         newline = False
+
                     SysMgr.printPipe(
                         "{0:>2}) {1:<12}".format(idx, sig), newline=newline)
+
                 sys.exit(0)
 
+            waitFlag = SysMgr.waitEnable
+
+            # send signal #
             if SysMgr.checkMode('tkill'):
-                SysMgr.sendSignalArgs(argList, isThread=True)
+                SysMgr.sendSignalArgs(argList, isThread=True, wait=waitFlag)
             else:
-                SysMgr.sendSignalArgs(argList)
+                SysMgr.sendSignalArgs(argList, wait=waitFlag)
 
         # TOPDIFF MODE #
         elif SysMgr.checkMode('topdiff'):
@@ -26730,6 +26795,12 @@ Copyright:
             for item in SysMgr.filterGroup:
                 targetList += SysMgr.getPids(item, sibling=sibling)
             targetList = list(set(targetList))
+
+            if not targetList:
+                SysMgr.printErr(
+                    "no task related to '%s'" % \
+                        ', '.join(SysMgr.filterGroup))
+                sys.exit(0)
 
             Debugger.pauseThreads(targetList)
 
@@ -30908,7 +30979,7 @@ Copyright:
                     totalDir += 1
                     isEffective = False
 
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if UtilMgr.isEffectiveStr(subPath, inc=False):
                             isEffective = True
@@ -30918,7 +30989,7 @@ Copyright:
                         string = "%s%s[%s]" % (prefix, idc, subPath)
                         result.append(string)
 
-                    # apply for command #
+                    # apply command #
                     if isEffective and SysMgr.customCmd:
                         executeCmd(fullPath)
 
@@ -30949,7 +31020,7 @@ Copyright:
                 elif os.path.isfile(fullPath):
                     size = ''
 
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(subPath, inc=False):
                             continue
@@ -30967,7 +31038,7 @@ Copyright:
                         string = '%s%s' % (fullPath, size)
                         SysMgr.printPipe(string)
 
-                        # apply for command #
+                        # apply command #
                         if SysMgr.customCmd:
                             executeCmd(fullPath)
 
@@ -30989,7 +31060,7 @@ Copyright:
                     if not SysMgr.showAll or SysMgr.filterGroup:
                         continue
 
-                    # apply for command #
+                    # apply command #
                     if SysMgr.customCmd:
                         executeCmd(fullPath)
 
@@ -33533,7 +33604,7 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalArgs(argList, isThread=False):
+    def sendSignalArgs(argList, isThread=False, wait=False):
         sig = signal.SIGQUIT
         SIG_LIST = ConfigMgr.SIG_LIST
         if not argList:
@@ -33545,13 +33616,14 @@ Copyright:
         isFound = False
         for val in options:
             try:
-                sig = SysMgr.getSigNum(val[1:])
-                if not sig:
+                if not val.startswith('-'):
                     continue
 
-                isFound = True
+                sig = SysMgr.getSigNum(val[1:])
+                if sig:
+                    isFound = True
+
                 del argList[argList.index(val)]
-                break
             except SystemExit:
                 sys.exit(0)
             except:
@@ -33572,11 +33644,27 @@ Copyright:
             except:
                 pass
 
+        isPrinted = False
+
         # convert comm to pid #
-        targetList = SysMgr.convertPidList(
-            argList, isThread=isThread, exceptMe=True)
-        if not targetList:
-            targetList = argList
+        while 1:
+            targets = SysMgr.convertPidList(
+                argList, isThread=isThread, exceptMe=True)
+            if targets:
+                targetList = targets
+            else:
+                targetList = argList
+
+            # check break condition #
+            if not wait:
+                break
+            elif targets:
+                break
+
+            if not isPrinted:
+                SysMgr.printInfo(
+                    "start busy-waiting for '%s'" % ', '.join(argList))
+                isPrinted = True
 
         # send signal #
         SysMgr.sendSignalProcs(sig, targetList, isThread=isThread)
@@ -33764,7 +33852,7 @@ Copyright:
     def parsePriorityOption(value):
         if not value:
             SysMgr.printErr((
-                "wrong value '%s' to apply for new priority, "
+                "wrong value '%s' to apply new priority, "
                 "input POLICY:PRIORITY|TIME:TID|COMM in the format") % value)
             sys.exit(0)
 
@@ -33830,7 +33918,7 @@ Copyright:
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((
-                    "wrong value '%s' to apply for new priority because %s, "
+                    "wrong value '%s' to apply new priority because %s, "
                     "input in the format POLICY:PRIORITY|TIME:TID") % \
                     (item, ' '.join(list(err))))
                 sys.exit(0)
@@ -48115,7 +48203,7 @@ struct cmsghdr {
                     self.ptrace(self.cmd)
 
             try:
-                # apply for tracing overhead time #
+                # apply tracing overhead time #
                 overhead = time.time() - self.current + self.timeDelay
                 self.dstart += overhead
                 for item in self.entryTime.keys():
@@ -48923,17 +49011,15 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
             return taskList
 
+        # check thread list #
+        if not tlist:
+            return False
+
         SysMgr.checkRootPerm()
 
         # check ptrace scope #
         if Debugger.checkPtraceScope() < 0:
-            return
-
-        # check thread list #
-        if not tlist:
-            SysMgr.printErr(
-                "fail to task to pause")
-            return
+            return False
 
         # set alarm #
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
@@ -51058,7 +51144,7 @@ class ElfAnalyzer(object):
                     if mnemonic == 'finish':
                         break
 
-                    # apply for CFA offset #
+                    # apply CFA offset #
                     if mnemonic.startswith(sp_opsstr):
                         ops = mnemonic[len(sp_opsstr):]
                         if ops[0] == '+':
@@ -53383,7 +53469,7 @@ Section header string table index: %d
 
                 # print .dynsym table #
                 if debug:
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(symbol, inc=True):
                             continue
@@ -53491,7 +53577,7 @@ Section header string table index: %d
 
                 # parse .sym table #
                 if debug:
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(symbol, inc=True):
                             continue
@@ -53582,7 +53668,7 @@ Section header string table index: %d
                     saddr = long(0)
 
                 if debug:
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(symbol, inc=True):
                             continue
@@ -53665,7 +53751,7 @@ Section header string table index: %d
                     if symbol:
                         symbol = '%s + ' % symbol
                 if debug:
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(symbol, inc=True):
                             continue
@@ -54409,7 +54495,7 @@ Section header string table index: %d
 
                     # print info #
                     if debug:
-                        # apply for filter #
+                        # apply filter #
                         if SysMgr.filterGroup:
                             if not UtilMgr.isEffectiveStr(symbol, inc=True):
                                 continue
@@ -54533,7 +54619,7 @@ Section header string table index: %d
                 if debug:
                     output = '%05s %016x %016x' % (idx, initLoc, addr)
 
-                    # apply for filter #
+                    # apply filter #
                     if SysMgr.filterGroup:
                         if not UtilMgr.isEffectiveStr(output, inc=True):
                             continue
@@ -57380,7 +57466,8 @@ class ThreadAnalyzer(object):
                 if not (3 <= len(values) <= 5):
                     SysMgr.printErr((
                         'fail to recognize %s in '
-                        'X:Y:NAME:RESOURCE:[BOX|CIRCLE|LARROW|RARROW] format') % item)
+                        'X:Y:NAME:[CPU|MEM|IO]:[BOX|CIRCLE|LARROW|RARROW]'
+                        'format') % item)
                     sys.exit(0)
 
                 if len(values) == 5:
@@ -57405,7 +57492,7 @@ class ThreadAnalyzer(object):
                 else:
                     feature = 'Roundtooth,pad=1'
 
-                text(long(x), long(y), name, family='fantasy', style='italic',
+                text(long(x), long(y), name, style='italic',
                     fontsize=5, color='green', fontweight='bold',
                     bbox=dict(boxstyle=feature, facecolor='gold',
                     alpha=0.7))
@@ -67414,7 +67501,7 @@ class ThreadAnalyzer(object):
                 'group': long(core),
                 'text': d['event'],
                 'id': thread,
-                'state': 'EVENT',
+                'state': 'EVENT_MARK',
                 'time_start': start_delta,
                 'time_end': stop_delta,
             })
