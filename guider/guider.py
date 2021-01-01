@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "201230"
+__revision__ = "210101"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3718,7 +3718,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convertList2Dict(optList, sep=':'):
+    def convList2Dict(optList, sep=':'):
         newDict = {}
         for item in optList:
             try:
@@ -6757,12 +6757,9 @@ class Timeline(object):
         @staticmethod
         def load(file_name=None, data=None):
             if file_name:
-                with open(file_name) as json_file:
-                    # get svgwrite and json object #
-                    svgwrite = SysMgr.getPkg('svgwrite')
-                    json = SysMgr.getPkg('json')
-
-                    data = json.load(json_file)
+                with open(file_name) as fd:
+                    data = fd.read()
+                    data = UtilMgr.convStr2Dict(data)
             elif not data:
                 SysMgr.printErr('no path or data for timeline config')
                 sys.exit(0)
@@ -6952,7 +6949,7 @@ class Timeline(object):
             if segment.state == 'EVENT_MARK':
                 font_size = self.config.FONT_SIZE
             elif segment.state == 'EVENT_USER':
-                font_size = self.config.FONT_SIZE * 2
+                font_size = self.config.FONT_SIZE * 3
             else:
                 font_size = self.config.FONT_SIZE
 
@@ -15752,7 +15749,7 @@ class SysMgr(object):
         SysMgr.recordStatus = True
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
 
-        # change priority of process #
+        # change priority for process #
         if not SysMgr.prio:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
@@ -17014,7 +17011,7 @@ class SysMgr(object):
             if pid in SysMgr.commFdCache:
                 fd = SysMgr.commFdCache[pid]
                 fd.seek(0)
-                comm = fd.readline()[:-1]
+                return fd.readline()[:-1]
         except SystemExit:
             sys.exit(0)
         except:
@@ -20607,7 +20604,7 @@ Usage:
     # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Set CPU scheduler policy and priority of threads / processes
+    Set CPU scheduler policy and priority for threads / processes
 
 Policy:
     c: CFS
@@ -24427,35 +24424,12 @@ Copyright:
         inputPath=None, inputData=None, outputPath=None,
         configPath=None, configData=None, taskList=None):
 
-        # get svgwrite object #
-        svgwrite = SysMgr.getPkg('svgwrite')
+        def addUserEvent(inputData):
+            if not inputData or \
+                not 'EVENT' in SysMgr.environList:
+                return
 
-        if inputPath:
-            inputStr = ' from "%s"' % inputPath
-        else:
-            inputStr = ''
-
-        SysMgr.printInfo(
-            "start drawing timeline%s..." % inputStr)
-
-        try:
-            dwg = svgwrite.Drawing(outputPath, profile='tiny', debug=True)
-
-            config = Timeline.Config()
-            if configPath or configData:
-                config = Timeline.Config.load(configPath, configData)
-
-            # check timeunit #
-            if 'TIMEUNIT' in SysMgr.environList:
-                config.TIMEUNIT = SysMgr.environList['TIMEUNIT'][0].lower()
-            else:
-                config.TIMEUNIT = 'ms'
-
-            # apply user event #
             for item in SysMgr.environList['EVENT']:
-                if not inputData:
-                    break
-
                 try:
                     values = item.split(':')
                     if not (3 <= len(values) <= 5):
@@ -24484,7 +24458,39 @@ Copyright:
                         'fail to recognize event for timeline', reason=True)
                     sys.exit(0)
 
+
+
+        # get svgwrite object #
+        svgwrite = SysMgr.getPkg('svgwrite')
+
+        if inputPath:
+            inputStr = ' from "%s"' % inputPath
+        else:
+            inputStr = ''
+
+        SysMgr.printInfo(
+            "start drawing timeline%s..." % inputStr)
+
+        try:
+            dwg = svgwrite.Drawing(outputPath, profile='tiny', debug=True)
+
+            config = Timeline.Config()
+            if configPath or configData:
+                config = Timeline.Config.load(configPath, configData)
+
+            # check timeunit #
+            if 'TIMEUNIT' in SysMgr.environList:
+                config.TIMEUNIT = SysMgr.environList['TIMEUNIT'][0].lower()
+            else:
+                config.TIMEUNIT = 'ms'
+
+            # apply user event #
+            addUserEvent(inputData)
+
+            # load data #
             timeline = Timeline.load(inputPath, inputData, config, taskList)
+
+            # draw timeslices #
             timeline.draw(dwg)
 
             dwg.save()
@@ -26212,7 +26218,7 @@ Copyright:
 
         elif option == 'q':
             itemList = UtilMgr.splitString(value)
-            SysMgr.environList = UtilMgr.convertList2Dict(itemList)
+            SysMgr.environList = UtilMgr.convList2Dict(itemList)
 
         elif option == 'R':
             SysMgr.parseRuntimeOption(value)
@@ -26945,7 +26951,7 @@ Copyright:
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
-            # change priority of process #
+            # change priority for process #
             if not SysMgr.prio:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
@@ -27768,7 +27774,9 @@ Copyright:
 
     @staticmethod
     def getPids(
-        name, isThread=True, sibling=False, main=False, inc=False):
+        name, isThread=True, sibling=False,
+        main=False, inc=False, cache=False):
+
         pidList = []
 
         # tid #
@@ -27795,7 +27803,7 @@ Copyright:
             # process #
             if not isThread:
                 # get comm #
-                comm = SysMgr.getComm(pid)
+                comm = SysMgr.getComm(pid, cache)
                 if (not inc and comm == name) or \
                     (inc and name in comm):
                     pidList.append(pid)
@@ -28115,7 +28123,7 @@ Copyright:
             ulist[0] == 'a':
             if len(ulist) > 2:
                 pids = (' '.join(ulist[2:])).split(',')
-                pids = SysMgr.convertPidList(pids, isThread=True)
+                pids = SysMgr.convPidList(pids, isThread=True)
                 SysMgr.setAffinity(ulist[1], pids)
             else:
                 printHelp()
@@ -29841,7 +29849,7 @@ Copyright:
         if not SysMgr.filterGroup:
             SysMgr.filterGroup.append(str(SysMgr.pid))
 
-        pids = SysMgr.convertPidList(SysMgr.filterGroup, exceptMe=True)
+        pids = SysMgr.convPidList(SysMgr.filterGroup, exceptMe=True)
         if not pids:
             SysMgr.printErr("fail to find %s process" % \
                 ', '.join(SysMgr.filterGroup))
@@ -30550,13 +30558,13 @@ Copyright:
             inputParam = None
 
             # convert comm to pid #
-            pids = SysMgr.convertPidList(
+            pids = SysMgr.convPidList(
                 SysMgr.filterGroup, isThread=True,
                     sibling=SysMgr.groupProcEnable)
 
             # get pids of process groups #
             if mode == 'breakcall':
-                allpids = SysMgr.convertPidList(
+                allpids = SysMgr.convPidList(
                     SysMgr.filterGroup, isThread=True, sibling=True)
             else:
                 allpids = pids
@@ -31411,7 +31419,7 @@ Copyright:
         pid = None
         isMulti = False
         startTime = endTime = 0
-        pids = SysMgr.convertPidList(targetList, exceptMe=True)
+        pids = SysMgr.convPidList(targetList, exceptMe=True)
         if not pids:
             SysMgr.printErr("no %s process" % \
                 ', '.join(targetList))
@@ -32433,6 +32441,12 @@ Copyright:
 
             inputList = UtilMgr.convPath(sys.argv[2])
 
+        # get config path #
+        if SysMgr.getOption('C'):
+            config = SysMgr.confFileName
+        else:
+            config = None
+
         # draw files #
         for inputPath in inputList:
             if SysMgr.outPath:
@@ -32455,7 +32469,7 @@ Copyright:
             SysMgr.drawTimeline(
                 inputPath=inputPath,
                 outputPath=outputPath,
-                configPath=SysMgr.confFileName
+                configPath=config
             )
 
 
@@ -33565,8 +33579,10 @@ Copyright:
 
 
     @staticmethod
-    def convertPidList(
-        procList, isThread=False, exceptMe=False, sibling=False, inc=False):
+    def convPidList(
+        procList, isThread=False, exceptMe=False,
+        sibling=False, inc=False, cache=False):
+
         if not procList:
             return
 
@@ -33575,7 +33591,7 @@ Copyright:
         # get pids #
         for pid in procList:
             taskList = SysMgr.getPids(
-                pid, isThread, sibling, False, inc)
+                pid, isThread, sibling, False, inc, cache)
             targetList += taskList
 
         # remove redundant items #
@@ -33653,8 +33669,8 @@ Copyright:
 
         # convert comm to pid #
         while 1:
-            targets = SysMgr.convertPidList(
-                argList, isThread=isThread, exceptMe=True)
+            targets = SysMgr.convPidList(
+                argList, isThread=isThread, exceptMe=True, cache=wait)
             if targets:
                 targetList = targets
             else:
@@ -33932,6 +33948,9 @@ Copyright:
 
     @staticmethod
     def setDeadlinePriority(pid, runtime, deadline, period):
+        # get comm #
+        comm = SysMgr.getComm(pid)
+
         # check kernel version #
         try:
             ver = SysMgr.getKernelVersion().split('.')[0:2]
@@ -33939,7 +33958,7 @@ Copyright:
             # check whether kernel version is higher than 3.14 #
             if ver < 3.14:
                 SysMgr.printErr((
-                    "fail to set priority of %d "
+                    "fail to set priority for %s(%s) "
                     "because kernel version %g is lesser than 3.14") % \
                     (pid, ver))
                 return -1
@@ -34004,8 +34023,8 @@ Copyright:
         # check deadline and period #
         if deadline == period == 0:
             SysMgr.printErr((
-                "fail to set priority of %s "
-                "as runtime(ns)/deadline(ns)/period(ns)[D]") % pid)
+                "fail to set priority for %s(%s) "
+                "to runtime(ns)/deadline(ns)/period(ns)[D]") % (comm, pid))
             return -1
         elif deadline == 0:
             deadline = period
@@ -34020,18 +34039,15 @@ Copyright:
         ret = SysMgr.libcObj.syscall(
             nrSyscall, pid, pointer(sched_attr), 0)
 
-        # get comm #
-        comm = SysMgr.getComm(pid)
-
         # check return value #
         if ret == 0:
             SysMgr.printInfo((
-                "changed the priority of %s(%s) to "
+                "changed the priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
         else:
             SysMgr.printErr((
-                "fail to set priority of %s(%s) as "
+                "fail to set priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
 
@@ -34130,14 +34146,14 @@ Copyright:
 
             if verb:
                 SysMgr.printInfo(
-                    'changed the priority of %s(%s) to %d[%s]' % \
+                    'changed priority for %s(%s) to %d[%s]' % \
                         (comm, pid, pri, upolicy))
         except:
-            err = "fail to set priority of %d as %s[%s]" % \
-                (pid, pri, upolicy)
+            err = "fail to set priority for %s(%s) to %s[%s]" % \
+                (comm, pid, pri, upolicy)
 
             if not SysMgr.isRoot():
-                err += ', it requires root permission to make priority higher'
+                err += ' because it requires root permission'
 
             SysMgr.printWarn(err, True)
             return
@@ -65689,7 +65705,7 @@ class ThreadAnalyzer(object):
             next_start = self.threadData[next_id]['start']
             next_stop = self.threadData[next_id]['stop']
 
-            # update priority of thread to highest one #
+            # update priority for thread to highest one #
             if self.threadData[prev_id]['pri'] == '?' or \
                 long(self.threadData[prev_id]['pri']) > long(d['prev_prio']):
                 self.threadData[prev_id]['pri'] = d['prev_prio']
@@ -67960,7 +67976,7 @@ class ThreadAnalyzer(object):
 
         # get process list #
         if procFilter:
-            pids = SysMgr.convertPidList(
+            pids = SysMgr.convPidList(
                 procFilter, isThread=True, inc=True)
             newPids = []
             for pid in pids:
