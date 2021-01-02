@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210101"
+__revision__ = "210102"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15151,6 +15151,7 @@ class SysMgr(object):
     memHighThreshold = 1024
     memLowThreshold = 100
     swapPerThreshold = 90
+    diskPerHighThreshold = 90
 
     # path #
     procPath = '/proc'
@@ -33960,7 +33961,7 @@ Copyright:
                 SysMgr.printErr((
                     "fail to set priority for %s(%s) "
                     "because kernel version %g is lesser than 3.14") % \
-                    (pid, ver))
+                    (comm, pid, ver))
                 return -1
         except:
             err = sys.exc_info()[1]
@@ -37408,7 +37409,7 @@ Copyright:
             "{0:^16} {1:>7} {2:>8} {3:>8} {4:>8} "
             "{5:>8} {6:>6} {7:>7} {8:>8} {9:>40}").\
             format("DEV", "NUM", "READ", "WRITE",
-            "TOTAL", "FREE", "USAGE", "AVF", "FS", "MountPoint <Option>"))
+            "TOTAL", "FREE", "USAGE", "NrAVF", "FS", "MountPoint <Option>"))
         SysMgr.infoBufferPrint(twoLine)
 
         devInfo = {}
@@ -71175,17 +71176,31 @@ class ThreadAnalyzer(object):
                 totalStat['tdiff'][3] += tdiff[3]
                 totalStat['tdiff'][4] += tdiff[-1]
 
+                # convert color for network usage #
+                recvSize = '%8s' % convertFunc(rdiff[0])
+                if rdiff[0] > 0:
+                    recvSize = '%s' % UtilMgr.convColor(recvSize, 'YELLOW')
+                tranSize = '%8s' % convertFunc(tdiff[0])
+                if tdiff[0] > 0:
+                    tranSize = '%s' % UtilMgr.convColor(tranSize, 'YELLOW')
+
+                # convert color for network error #
+                recvErr = '%8s' % convertFunc(rdiff[2])
+                if rdiff[2] > 0:
+                    recvErr = '%s' % UtilMgr.convColor(recvErr, 'RED')
+                tranErr = '%8s' % convertFunc(tdiff[2])
+                if tdiff[2] > 0:
+                    tranErr = '%s' % UtilMgr.convColor(tranErr, 'RED')
+
                 SysMgr.addPrint((
                     "{0:>16} | {1:>21} | "
                     "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                     "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
                         dev, val['ipaddr'],
-                        convertFunc(rdiff[0]), convertFunc(rdiff[1]),
-                        convertFunc(rdiff[2]), convertFunc(rdiff[3]),
-                        convertFunc(rdiff[-1]),
-                        convertFunc(tdiff[0]), convertFunc(tdiff[1]),
-                        convertFunc(tdiff[2]), convertFunc(tdiff[3]),
-                        convertFunc(tdiff[-1])))
+                        recvSize, convertFunc(rdiff[1]), recvErr,
+                        convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
+                        tranSize, convertFunc(tdiff[1]), tranErr,
+                        convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
                 cnt += 1
             except SystemExit:
                 sys.exit(0)
@@ -71197,17 +71212,32 @@ class ThreadAnalyzer(object):
         else:
             rdiff = totalStat['rdiff']
             tdiff = totalStat['tdiff']
+
+            # convert color for network usage #
+            recvSize = '%8s' % convertFunc(rdiff[0])
+            if rdiff[0] > 0:
+                recvSize = '%s' % UtilMgr.convColor(recvSize, 'YELLOW')
+            tranSize = '%8s' % convertFunc(tdiff[0])
+            if tdiff[0] > 0:
+                tranSize = '%s' % UtilMgr.convColor(tranSize, 'YELLOW')
+
+            # convert color for network error #
+            recvErr = '%8s' % convertFunc(rdiff[2])
+            if rdiff[2] > 0:
+                recvErr = '%s' % UtilMgr.convColor(recvErr, 'RED')
+            tranErr = '%8s' % convertFunc(tdiff[2])
+            if tdiff[2] > 0:
+                tranErr = '%s' % UtilMgr.convColor(tranErr, 'RED')
+
             SysMgr.addPrint((
                 "{0:>16} | {1:^21} | "
                 "{2:>8} | {3:>8} | {4:>8} | {5:>8} | {6:>9} | "
                 "{7:>8} | {8:>8} | {9:>8} | {10:>8} | {11:>9} |\n").format(
                     '[ TOTAL ]', ' ',
-                    convertFunc(rdiff[0]), convertFunc(rdiff[1]),
-                    convertFunc(rdiff[2]), convertFunc(rdiff[3]),
-                    convertFunc(rdiff[-1]),
-                    convertFunc(tdiff[0]), convertFunc(tdiff[1]),
-                    convertFunc(tdiff[2]), convertFunc(tdiff[3]),
-                    convertFunc(tdiff[-1])))
+                    recvSize, convertFunc(rdiff[1]), recvErr,
+                    convertFunc(rdiff[3]), convertFunc(rdiff[-1]),
+                    tranSize, convertFunc(tdiff[1]), tranErr,
+                    convertFunc(tdiff[3]), convertFunc(tdiff[-1])))
 
 
 
@@ -71229,7 +71259,7 @@ class ThreadAnalyzer(object):
             "{0:^24}|{1:4}|{2:^5}|{3:^7}|{4:^7}|{5:>7}({6:>7})|"
             "{7:^5}|{8:^7}|{9:^7}|{10:^8}|{11:^53}|\n").\
             format("DEV", "BUSY", "AVQ", "READ", "WRITE", "FREE", 'DIFF',
-            "USAGE", "TOTAL", "AVF", "FS", "MountPoint <Option>"))
+            "USAGE", "TOTAL", "NrAVF", "FS", "MountPoint <Option>"))
         SysMgr.addPrint('%s\n' % oneLine)
 
         storageData = SysMgr.sysInstance.storageData
@@ -71255,6 +71285,8 @@ class ThreadAnalyzer(object):
             try:
                 readtime = value['readtime'] - \
                     prevStorageData[origDev]['readtime']
+            except SystemExit:
+                sys.exit(0)
             except:
                 readtime = long(0)
 
@@ -71262,6 +71294,8 @@ class ThreadAnalyzer(object):
             try:
                 writetime = value['writetime'] - \
                     prevStorageData[origDev]['writetime']
+            except SystemExit:
+                sys.exit(0)
             except:
                 writetime = long(0)
 
@@ -71270,11 +71304,14 @@ class ThreadAnalyzer(object):
                 iotime = value['iotime'] - \
                     prevStorageData[origDev]['iotime']
 
-                busytime = '%s%%' % \
-                    long(iotime / 10 / SysMgr.uptimeDiff)
+                busyper = long(iotime / 10.0 / SysMgr.uptimeDiff)
 
-                iowtime = value['iowtime'] - \
-                    prevStorageData[origDev]['iowtime']
+                # convert color for storage busy rate #
+                busytime = '%3s%%' % busyper
+                if busyper > 0:
+                    busytime = '%s' % UtilMgr.convColor(busytime, 'RED')
+            except SystemExit:
+                sys.exit(0)
             except:
                 busytime = '0%'
 
@@ -71284,6 +71321,8 @@ class ThreadAnalyzer(object):
                     prevStorageData[origDev]['iowtime']
 
                 avq = '%.1f' % (iowtime / iotime)
+            except SystemExit:
+                sys.exit(0)
             except:
                 avq = '0'
 
@@ -71293,6 +71332,8 @@ class ThreadAnalyzer(object):
                     prevStorageData[origDev]['read']
 
                 readSize = convSize2Unit(readSize << 20)
+            except SystemExit:
+                sys.exit(0)
             except:
                 readSize = long(0)
 
@@ -71330,8 +71371,15 @@ class ThreadAnalyzer(object):
             except:
                 freeDiff = long(0)
 
-            use = convSize2Unit(value['usagePer'])
-            avail = convSize2Unit(value['favail'])
+            # convert color for storage usage #
+            usePer = '%4s%%' % value['usagePer']
+            if value['usagePer'] > SysMgr.diskPerHighThreshold:
+                usePer = '%s' % UtilMgr.convColor(usePer, 'RED')
+
+            favail = '%7s' % convSize2Unit(value['favail'])
+            if value['favail'] == 0:
+                favail = '%s' % UtilMgr.convColor(favail, 'RED')
+
             fs = value['mount']['fs']
             path = value['mount']['path']
             option = value['mount']['option']
@@ -71346,7 +71394,7 @@ class ThreadAnalyzer(object):
                 ("{0:<24}|{1:>4}|{2:>5}|{3:>7}|{4:>7}|{5:>7}({6:>7})|"
                 "{7:>5}|{8:>7}|{9:>7}|{10:^8}| {11:<52}|\n").\
                 format(dev, busytime, avq, readSize, writeSize, free,
-                freeDiff, '%s%%' % use, total, avail, fs, mountInfo[:51])
+                freeDiff, usePer, total, favail, fs, mountInfo[:51])
 
             if SysMgr.checkCutCond():
                 return
@@ -72383,11 +72431,11 @@ class ThreadAnalyzer(object):
             SysMgr.addPrint("{0:1}\n{1:1}\n".format(frame, oneLine))
 
         # print special processes #
-        if self.printSpecialTask('abnormal') == -1:
+        if not self.printSpecialTask('abnormal'):
             return
-        elif self.printSpecialTask('new') == -1:
+        if not self.printSpecialTask('new'):
             return
-        elif self.printSpecialTask('die') == -1:
+        if not self.printSpecialTask('die'):
             return
 
 
@@ -72424,7 +72472,7 @@ class ThreadAnalyzer(object):
         procCnt = long(0)
         for tid in sorted(list(map(long, taskList))):
             if SysMgr.checkCutCond():
-                return -1
+                return False
 
             idx = str(tid)
 
@@ -72434,26 +72482,20 @@ class ThreadAnalyzer(object):
                     continue
 
             # define stat variables #
-            if taskType == 'die':
+            if idx in self.procData:
+                value = self.procData[idx]
+                stat = value['stat']
+            elif idx in self.prevProcData:
                 value = self.prevProcData[idx]
                 stat = value['stat']
-
-                try:
-                    jsonData[idx] = value
-                except:
-                    pass
             else:
-                if not idx in self.procData:
-                    value = dict(self.init_procData)
-                    stat = ['?'] * 52
-                else:
-                    value = self.procData[idx]
-                    stat = value['stat']
+                value = dict(self.init_procData)
+                stat = ['?'] * 52
 
-                try:
-                    jsonData[idx] = value
-                except:
-                    pass
+            try:
+                jsonData[idx] = value
+            except:
+                pass
 
             # set comm #
             comm = stat[self.commIdx][1:-1]
@@ -72576,6 +72618,8 @@ class ThreadAnalyzer(object):
 
         if procCnt > 0:
             SysMgr.addPrint("%s\n" % oneLine)
+
+        return True
 
 
 
