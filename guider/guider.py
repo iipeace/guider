@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210102"
+__revision__ = "210103"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18161,6 +18161,10 @@ Options:
 
                 drawSubStr = '''
 Options:
+    -e  <CHARACTER>             enable options
+          [ d:disk | n:network ]
+    -d  <CHARACTER>             disable options
+          [ A:average ]
     -g  <COMM|TID{:FILE}>       set filter
     -o  <DIR>                   save output data
     -a                          show all stats and events
@@ -18317,6 +18321,9 @@ Examples:
     - Draw resource graph on customized layout
         # {0:1} {1:1} guider.out -L c:2, m:2, i:2
         # {0:1} {1:1} guider.out -L c:4, r:1, v:1
+
+    - Draw resource graph on devices for block and network
+        # {0:1} {1:1} guider.out -e d n
 
     - Draw resource graph with multiple files for comparison
         # {0:1} {1:1} guider*.out worstcase.out
@@ -19787,7 +19794,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw CPU graphs and memory chart
+    Draw CPU graphs
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -19859,7 +19866,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw system I/O graphs and memory chart
+    Draw system I/O graphs
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -19871,7 +19878,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw system resource graph and memory chart
+    Draw system resource graph, event timeline, memory chart
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -57683,8 +57690,9 @@ class ThreadAnalyzer(object):
                 # draw user event #
                 self.drawUserEvent('cpu')
 
-                #-------------------- Total GPU usage --------------------#
+                # System Processor usage #
                 if isVisibleTotal:
+                    #------------------ Total GPU usage ------------------#
                     for gpu, stat in gpuUsage.items():
                         stat = list(map(long, stat.split()))[:lent]
                         try:
@@ -57700,7 +57708,7 @@ class ThreadAnalyzer(object):
                             gcolor = 'olive'
 
                         # draw total gpu graph #
-                        plot(timeline, stat, '-', c=gcolor, linestyle='-',
+                        plot(timeline, stat, '-', c=gcolor, linestyle='--',
                             linewidth=1, marker='d', markersize=1,
                             solid_capstyle='round')
 
@@ -57722,7 +57730,7 @@ class ThreadAnalyzer(object):
                             if idx != 0 and stat[idx] == stat[idx-1]:
                                 continue
                             text(timeline[idx], stat[maxIdx],
-                                '%s max_%d%% | avg_%d%% | total_%s%%' % \
+                                '%s Max_%d%% | Avg_%d%% | Total_%s%%' % \
                                 (prefix, maxUsage, avgUsage, conv(totalUsage)),
                                 fontsize=4, color='olive', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
@@ -57730,8 +57738,7 @@ class ThreadAnalyzer(object):
                                 ha=getTextAlign(idx, timeline))
                             break
 
-                #-------------------- Total CPU usage --------------------#
-                if isVisibleTotal:
+                    #------------------ Total CPU usage ------------------#
                     if sum(blkWait) > 0:
                         for idx, item in enumerate(blkWait):
                             blkWait[idx] += cpuUsage[idx]
@@ -57747,7 +57754,7 @@ class ThreadAnalyzer(object):
                             icolor = 'pink'
 
                         # draw total CPU + iowait graph #
-                        plot(timeline, blkWait, '-', c=icolor, linestyle='-',
+                        plot(timeline, blkWait, '-', c=icolor, linestyle='--',
                             linewidth=1, marker='d', markersize=1,
                             solid_capstyle='round')
 
@@ -57770,7 +57777,7 @@ class ThreadAnalyzer(object):
                             if idx != 0 and blkWait[idx] == blkWait[idx-1]:
                                 continue
                             text(timeline[idx], blkWait[maxIdx],
-                                '%s max_%d%% | avg_%.1f%% | total_%s%%' % \
+                                '%s Max_%d%% | Avg_%.1f%% | Total_%s%%' % \
                                 (prefix, maxUsage, avgUsage, conv(totalUsage)),
                                 fontsize=4, color='pink', fontweight='bold',
                                 bbox=dict(boxstyle='round', facecolor='wheat',
@@ -57785,7 +57792,7 @@ class ThreadAnalyzer(object):
                         ccolor = 'red'
 
                     # draw total CPU graph #
-                    plot(timeline, cpuUsage, '-', c=ccolor, linestyle='-',
+                    plot(timeline, cpuUsage, '-', c=ccolor, linestyle='--',
                         linewidth=1, marker='d', markersize=1,
                         solid_capstyle='round')
 
@@ -57811,7 +57818,7 @@ class ThreadAnalyzer(object):
                         if idx != 0 and cpuUsage[idx] == cpuUsage[idx-1]:
                             continue
                         text(timeline[idx], cpuUsage[maxIdx],
-                            '%smax_%d%% | avg_%.1f%% | total_%s%%' % \
+                            '%sMax_%d%% | Avg_%.1f%% | Total_%s%%' % \
                             (prefix, maxUsage, avgUsage, conv(totalUsage)),
                             fontsize=4, color='red', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
@@ -57819,7 +57826,7 @@ class ThreadAnalyzer(object):
                             ha=getTextAlign(idx, timeline))
                         break
 
-                #-------------------- Process CPU usage --------------------#
+                #------------------- Process CPU usage -------------------#
                 # total Process CPU usage filtered #
                 if "[ TOTAL ]" in cpuProcUsage and \
                     cpuProcUsage["[ TOTAL ]"]['count'] > 1:
@@ -57854,7 +57861,7 @@ class ThreadAnalyzer(object):
                             continue
 
                         text(timeline[idx], totalUsage[maxIdx],
-                            '%s max_%d%%|avg_%.1f%%|total_%s%%' % \
+                            '%s Max_%d%%|Avg_%.1f%%|Total_%s%%' % \
                             (prefix, maxUsage, avgUsage, conv(totalSumUsage)),
                             fontsize=4, color='green', fontweight='bold',
                             bbox=dict(boxstyle='round', facecolor='wheat',
@@ -57932,7 +57939,7 @@ class ThreadAnalyzer(object):
                     else:
                         maxBlkPerStr = ''
 
-                    maxPer = '[max_%s%%%s|avg_%s%%|total_%s%%]' % \
+                    maxPer = '[Max_%s%%%s|Avg_%s%%|Total_%s%%]' % \
                         (maxCpuPer, maxBlkPerStr, avgUsage, conv(totalUsage))
 
                     ilabel = '%s%s%s' % (prefix, idx, maxPer)
@@ -58026,17 +58033,17 @@ class ThreadAnalyzer(object):
                 if usage[minIdx] > 0:
                     text(timeline[minIdx], usage[minIdx], minval,
                         fontsize=4, color=color, fontweight='bold',
-                        ha=getTextAlign(minIdx, timeline))
+                        ha=getTextAlign(minIdx, timeline), rotation=35)
                 if usage[minIdx] != usage[maxIdx] and usage[maxIdx] > 0:
                     text(timeline[maxIdx], usage[maxIdx], maxval,
                         fontsize=4, color=color, fontweight='bold',
-                        ha=getTextAlign(maxIdx, timeline))
+                        ha=getTextAlign(maxIdx, timeline), rotation=35)
                 if usage[-1] > 0:
                     try:
                         unit = (timeline[-1]-timeline[-2]) / 10
                     except:
                         unit = long(0)
-                    text(timeline[-1], usage[-1], lastval,
+                    text(timeline[-1], usage[-1], lastval, rotation=35,
                         fontsize=4, color=color, fontweight='bold',
                         ha='right')
 
@@ -58050,7 +58057,7 @@ class ThreadAnalyzer(object):
                     plot(timeline, statList, '-', c=rcolor,
                         linewidth=0.1, alpha=0.1)
                 else:
-                    plot(timeline, statList, '-', c=rcolor,
+                    plot(timeline, statList, '--', c=rcolor,
                         linewidth=0.7, marker='d', markersize=1)
 
                 return totalsize, ymax
@@ -58115,12 +58122,12 @@ class ThreadAnalyzer(object):
 
                 if isVisibleTotal:
                     # System Block Read #
-                    totalsize, ymax = drawSystemIo(blkRead, 'skyblue', ymax)
+                    totalsize, ymax = drawSystemIo(blkRead, 'purple', ymax)
                     labelList.append(
                         '%sBlock Read - %s' % (prefix, totalsize))
 
                     # System Block Write #
-                    totalsize, ymax = drawSystemIo(blkWrite, 'green', ymax)
+                    totalsize, ymax = drawSystemIo(blkWrite, 'darkgreen', ymax)
                     labelList.append(
                         '%sBlock Write - %s' % (prefix, totalsize))
 
@@ -58135,7 +58142,7 @@ class ThreadAnalyzer(object):
                         '%sReclaim FG - %s' % (prefix, totalsize))
 
                     # System Network Inbound #
-                    totalsize, ymax = drawSystemIo(netRead, 'purple', ymax)
+                    totalsize, ymax = drawSystemIo(netRead, 'orange', ymax)
                     labelList.append(
                         '%sNetwork In - %s' % (prefix, totalsize))
 
@@ -58144,9 +58151,19 @@ class ThreadAnalyzer(object):
                     labelList.append(
                         '%sNetwork Out - %s' % (prefix, totalsize))
 
+                # check device enable flag #
+                diskEnable = False
+                networkEnable = False
+                enableList = SysMgr.getOption('e')
+                if enableList:
+                    if 'd' in enableList:
+                        diskEnable = True
+                    if 'n' in enableList:
+                        networkEnable = True
+
                 # System Network Usage #
                 for idx, item in networkUsage.items():
-                    if not isVisibleTotal:
+                    if not isVisibleTotal or not networkEnable:
                         break
 
                     rdUsage = item['recv'][:lent]
@@ -58181,7 +58198,7 @@ class ThreadAnalyzer(object):
                                 linewidth=0.7)[0].get_color()
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
-                                wrUsage[maxIdx] + margin, maxval,
+                                wrUsage[maxIdx] + margin, maxval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha=getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
@@ -58190,7 +58207,7 @@ class ThreadAnalyzer(object):
                             except:
                                 unit = long(0)
                             text(timeline[-1],
-                                wrUsage[-1] + margin, lastval,
+                                wrUsage[-1] + margin, lastval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha='right')
 
@@ -58220,7 +58237,7 @@ class ThreadAnalyzer(object):
                                 linewidth=0.7)[0].get_color()
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
-                                rdUsage[maxIdx] + margin, maxval,
+                                rdUsage[maxIdx] + margin, maxval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha=getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
@@ -58229,7 +58246,7 @@ class ThreadAnalyzer(object):
                             except:
                                 unit = long(0)
                             text(timeline[-1],
-                                rdUsage[-1] + margin, lastval,
+                                rdUsage[-1] + margin, lastval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha='right')
 
@@ -58238,9 +58255,10 @@ class ThreadAnalyzer(object):
 
                 # System Storage Usage #
                 for idx, item in storageUsage.items():
-                    if not isVisibleTotal:
+                    if not isVisibleTotal or not diskEnable:
                         break
 
+                    busyUsage = item['busy'][:lent]
                     rdUsage = item['read'][:lent]
                     wrUsage = item['write'][:lent]
                     freeUsage = item['free'][:lent]
@@ -58262,7 +58280,8 @@ class ThreadAnalyzer(object):
 
                     maxsize = convSize2Unit(wrUsage[maxIdx] << 10)
                     totalsize = convSize2Unit(long(sum(wrUsage)) << 10)
-                    maxval = '%s%s' % (prefix, maxsize)
+                    busyval = busyUsage[maxIdx]
+                    maxval = '%s%s[%s%%]' % (prefix, maxsize, busyval)
                     lastval = '%s%s' % \
                         (prefix, convSize2Unit(wrUsage[-1] << 10))
 
@@ -58272,11 +58291,13 @@ class ThreadAnalyzer(object):
                         color = \
                             plot(timeline, wrUsage, '-',
                                 linewidth=0.7)[0].get_color()
+
                         if wrUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
-                                wrUsage[maxIdx] + margin, maxval,
+                                wrUsage[maxIdx] + margin, maxval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha=getTextAlign(maxIdx, timeline))
+
                         if wrUsage[-1] > 0:
                             try:
                                 unit = (timeline[-1]-timeline[-2]) / 10
@@ -58284,7 +58305,7 @@ class ThreadAnalyzer(object):
                                 unit = long(0)
                             text(timeline[-1], wrUsage[-1] + margin, lastval,
                                 fontsize=4, color=color, fontweight='bold',
-                                ha='right')
+                                ha='right', rotation=35)
 
                         labelList.append(
                             '%s%s Write - %s' % (prefix, idx, totalsize))
@@ -58300,7 +58321,8 @@ class ThreadAnalyzer(object):
 
                     maxsize = convSize2Unit(rdUsage[maxIdx] << 10)
                     totalsize = convSize2Unit(long(sum(rdUsage)) << 10)
-                    maxval = '%s%s' % (prefix, maxsize)
+                    busyval = busyUsage[maxIdx]
+                    maxval = '%s%s[%s%%]' % (prefix, maxsize, busyval)
                     lastval = '%s%s' % \
                         (prefix, convSize2Unit(rdUsage[-1] << 10))
 
@@ -58312,7 +58334,7 @@ class ThreadAnalyzer(object):
                                 linewidth=0.7)[0].get_color()
                         if rdUsage[maxIdx] > 0:
                             text(timeline[maxIdx],
-                                rdUsage[maxIdx] + margin, maxval,
+                                rdUsage[maxIdx] + margin, maxval, rotation=35,
                                 fontsize=4, color=color, fontweight='bold',
                                 ha=getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
@@ -58322,14 +58344,14 @@ class ThreadAnalyzer(object):
                                 unit = long(0)
                             text(timeline[-1], rdUsage[-1] + margin, lastval,
                                 fontsize=4, color=color, fontweight='bold',
-                                ha='right')
+                                ha='right', rotation=35)
 
                         labelList.append(
                             '%s%s Read - %s' % (prefix, idx, totalsize))
 
                 # Process IO usage #
                 for idx, item in blkProcUsage.items():
-                    if not SysMgr.blockEnable:
+                    if not SysMgr.blockEnable or not SysMgr.showAll:
                         break
 
                     usage = item['usage'].split()[:lent]
@@ -58669,15 +58691,15 @@ class ThreadAnalyzer(object):
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin,
-                                minval, color=color, fontsize=3,
+                                minval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                maxval, color=color, fontsize=3,
+                                maxval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(maxIdx, timeline))
                         if usage[-1]:
                             text(timeline[-1], usage[-1] + margin,
-                                lastval, color=color, fontsize=3,
+                                lastval, color=color, fontsize=3, rotation=35,
                                 ha='right')
 
                         labelList.append(
@@ -58785,11 +58807,11 @@ class ThreadAnalyzer(object):
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] - margin,
-                                minval, color=color, fontsize=3,
+                                minval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                lastval, color=color, fontsize=3,
+                                lastval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(maxIdx, timeline))
 
                         labelList.append('%s [LEAK] - %s' % (key, diffsize))
@@ -58858,15 +58880,15 @@ class ThreadAnalyzer(object):
 
                         if usage[minIdx]:
                             text(timeline[minIdx], usage[minIdx] + margin,
-                                minval, color=color, fontsize=3,
+                                minval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(minIdx, timeline))
                         if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
-                                maxval, color=color, fontsize=3,
+                                maxval, color=color, fontsize=3, rotation=35,
                                 ha=getTextAlign(maxIdx, timeline))
                         if usage[-1]:
                             text(timeline[-1], usage[-1] + margin,
-                                lastval, color=color, fontsize=3,
+                                lastval, color=color, fontsize=3, rotation=35,
                                 ha='right')
 
                         # set memory type #
