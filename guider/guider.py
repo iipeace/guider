@@ -15581,7 +15581,12 @@ class SysMgr(object):
 
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        if not SysMgr.inputParam:
+        # get message #
+        if SysMgr.getMainArg():
+            msg = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            msg = SysMgr.inputParam
+        else:
             SysMgr.printErr((
                 "wrong value with -I option, "
                 "input a %s message") % mtype)
@@ -15593,7 +15598,6 @@ class SysMgr(object):
             signal.alarm(SysMgr.intervalEnable)
 
         while 1:
-            msg = SysMgr.inputParam
             ret = func(msg=msg)
             if ret == 0:
                 SysMgr.printInfo(
@@ -15692,10 +15696,13 @@ class SysMgr(object):
 
     @staticmethod
     def setReportAttr():
-        if not SysMgr.inputParam:
-            SysMgr.inputFile = 'guider.dat'
-        else:
+        # get argument #
+        if SysMgr.getMainArg():
+            SysMgr.inputFile = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
             SysMgr.inputFile = SysMgr.inputParam
+        else:
+            SysMgr.inputFile = 'guider.dat'
 
         if not SysMgr.outPath:
             SysMgr.outPath = \
@@ -16327,11 +16334,17 @@ class SysMgr(object):
 
     @staticmethod
     def doDump():
-        if not SysMgr.filterGroup:
+        # get argument #
+        if SysMgr.getMainArg():
+            inputParam = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            inputParam = SysMgr.inputParam
+        else:
             SysMgr.printErr(
                 "no COMM or PID with -g option")
             sys.exit(0)
-        elif not SysMgr.inputParam:
+
+        if not SysMgr.inputParam:
             SysMgr.printErr(
                 "no memory info with -I option")
             sys.exit(0)
@@ -16342,7 +16355,7 @@ class SysMgr(object):
 
         # convert comm to pid #
         targetList = []
-        for item in SysMgr.filterGroup:
+        for item in inputParam:
             targetList += SysMgr.getPids(item, isThread=False)
         targetList = list(set(targetList))
 
@@ -16367,17 +16380,21 @@ class SysMgr(object):
 
     @staticmethod
     def doStrings():
-        if not SysMgr.inputParam:
+        # get argument #
+        if SysMgr.getMainArg():
+            inputParam = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            inputParam = SysMgr.inputParam
             SysMgr.printErr(
                 "no file path with -I option")
             sys.exit(0)
 
         SysMgr.setStream()
 
-        SysMgr.printStat('start reading %s...' % SysMgr.inputParam)
+        SysMgr.printStat('start reading %s...' % inputParam)
 
         # convert binary file to string #
-        clist = UtilMgr.convBin2Str(SysMgr.inputParam, pos=True)
+        clist = UtilMgr.convBin2Str(inputParam, pos=True)
         if not clist:
             SysMgr.printErr("no available string")
             return
@@ -16397,9 +16414,12 @@ class SysMgr(object):
         isProcess = False
         SysMgr.warnEnable = True
 
-        # parse options #
-        value = SysMgr.filterGroup
-        if not value:
+        # get argument #
+        if SysMgr.getMainArg():
+            value = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
             SysMgr.printErr(
                 "fail to set CPU affinity of task because of no target")
             sys.exit(0)
@@ -16549,9 +16569,12 @@ class SysMgr(object):
     def doGetAffinity():
         SysMgr.warnEnable = True
 
-        # parse options #
-        value = SysMgr.filterGroup
-        if not value:
+        # get argument #
+        if SysMgr.getMainArg():
+            value = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
             SysMgr.printErr(
                 "fail to get CPU affinity of task because of no target")
             sys.exit(0)
@@ -17804,6 +17827,17 @@ class SysMgr(object):
             return f.readline().replace('\n', '')
         else:
             return f.readline().replace('\n', '').split()[num - 1]
+
+
+
+    @staticmethod
+    def getMainArg():
+        if len(sys.argv) <= 2:
+            return None
+        elif sys.argv[2].startswith('-'):
+            return None
+        else:
+            return sys.argv[2]
 
 
 
@@ -20229,7 +20263,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Execute a command with various condition
+    Execute commands repeatedly with various conditions
 
 Options:
     -v                          verbose
@@ -26823,10 +26857,13 @@ Copyright:
         elif SysMgr.checkMode('readelf'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            path = SysMgr.inputParam
-            if not path:
-                SysMgr.printErr(
-                    "no path with -I option")
+            # get path #
+            if SysMgr.getMainArg():
+                path = SysMgr.getMainArg()
+            elif SysMgr.inputParam:
+                path = SysMgr.inputParam
+            else:
+                SysMgr.printErr("no path with -I option")
                 sys.exit(0)
 
             # set debug flag #
@@ -26867,14 +26904,15 @@ Copyright:
         elif SysMgr.checkMode('printdir'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            if not SysMgr.inputParam:
-                if len(sys.argv) <= 2:
-                    root = '.'
-                else:
-                    root = sys.argv[2]
-            else:
+            # get start dir #
+            if SysMgr.getMainArg():
+                root = SysMgr.getMainArg()
+            elif SysMgr.inputParam:
                 root = SysMgr.inputParam
+            else:
+                root = '.'
 
+            # get depth #
             if not SysMgr.funcDepth:
                 maxLevel = -1
             else:
@@ -26954,8 +26992,15 @@ Copyright:
         elif SysMgr.checkMode('mem'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
+            # check input #
+            if SysMgr.getMainArg():
+                target = [SysMgr.getMainArg()]
+            else:
+                target = SysMgr.filterGroup
+
+            print(target)
             PageAnalyzer.getPageInfo(
-                SysMgr.filterGroup, SysMgr.inputParam)
+                target, SysMgr.inputParam)
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
@@ -26963,9 +27008,14 @@ Copyright:
             if not SysMgr.prio:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
+            # get argument #
+            if SysMgr.getMainArg():
+                filterGroup = SysMgr.getMainArg().split(',')
+            elif SysMgr.filterGroup:
+                filterGroup = SysMgr.filterGroup
+
             if SysMgr.checkMode('limitcpu'):
-                limitInfo = SysMgr.getLimitCpuInfo(
-                    SysMgr.filterGroup)
+                limitInfo = SysMgr.getLimitCpuInfo(filterGroup)
 
                 SysMgr.doLimitCpu(
                     limitInfo, SysMgr.processEnable)
@@ -29628,14 +29678,17 @@ Copyright:
         # remove option args #
         SysMgr.removeOptionArgs()
 
-        # parse options #
-        value = ' '.join(sys.argv[2:])
-        if not value:
+        # get argument #
+        if SysMgr.getMainArg():
+            value = SysMgr.getMainArg()
+        else:
             SysMgr.printErr(
                 ("no path to convert file, "
                 "input the path of a text file"))
             sys.exit(0)
-        elif not os.path.isfile(value):
+
+        # check file #
+        if not os.path.isfile(value):
             SysMgr.printErr(
                 "wrong path '%s' to convert file" % value)
             sys.exit(0)
@@ -29663,18 +29716,25 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
+        # check cpu driver #
         if not os.path.isdir(freqPath):
             SysMgr.printErr(
                 "fail to find CPU node for governor")
             sys.exit(0)
-        elif not SysMgr.filterGroup:
+
+        # get argument #
+        if SysMgr.getMainArg():
+            filterGroup = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            filterGroup = SysMgr.filterGroup
+        else:
             SysMgr.printErr(
                 "no core value with -g option")
             sys.exit(0)
 
         # parse values #
         targetlist = []
-        for val in list(SysMgr.filterGroup):
+        for val in list(filterGroup):
             vals = val.split(':')
 
             # check error #
@@ -29770,8 +29830,13 @@ Copyright:
                 long(clock) > 0 and not clock in cpulist[core]['avail']) or \
                 (gov and not gov in cpulist[core]['governors']):
 
-                avail = ' '.join(cpulist[core]['avail'])
+                try:
+                    avail = ' '.join(cpulist[core]['avail'])
+                except:
+                    avail = '?'
+
                 governors = ' '.join(cpulist[core]['governors'])
+
                 SysMgr.printErr((
                     "fail to set CPU(%s) clock because it only supports \n\t"
                     "[%s] clock list \n\t[%s] governor list") % \
@@ -29836,13 +29901,18 @@ Copyright:
         isProcess = False
         SysMgr.warnEnable = True
 
-        # parse options #
-        value = ','.join(SysMgr.filterGroup)
-        if not value:
+        # get argument #
+        if SysMgr.getMainArg():
+            value = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
             SysMgr.printErr(
                 ("wrong value to set priority, "
                 "input in the format POLICY:PRIORITY|TIME:TID|COMM"))
             sys.exit(0)
+
+        value = ','.join(value)
 
         SysMgr.parsePriorityOption(value)
 
@@ -29854,13 +29924,18 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
-        if not SysMgr.filterGroup:
-            SysMgr.filterGroup.append(str(SysMgr.pid))
+        # get argument #
+        if SysMgr.getMainArg():
+            filterGroup = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            filterGroup = SysMgr.filterGroup
+        else:
+            filterGroup = [str(SysMgr.pid)]
 
-        pids = SysMgr.convPidList(SysMgr.filterGroup, exceptMe=True)
+        pids = SysMgr.convPidList(filterGroup, exceptMe=True)
         if not pids:
             SysMgr.printErr("fail to find %s process" % \
-                ', '.join(SysMgr.filterGroup))
+                ', '.join(filterGroup))
             sys.exit(0)
 
         # print empty for initialization #
@@ -29868,7 +29943,7 @@ Copyright:
         lenLine = long(len(oneLine)/2)
 
         for pid in pids:
-            comm = SysMgr.getComm(pid)
+            comm = SysMgr.getComm(pid, True)
 
             if SysMgr.jsonEnable:
                 envs = SysMgr.getEnv(pid, retdict=True)
@@ -30525,9 +30600,16 @@ Copyright:
         targetBpFileList = {}
         exceptBpFileList = {}
 
+        # get argument #
+        if SysMgr.getMainArg():
+            inputParam = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            inputParam = SysMgr.inputParam
+        else:
+            inputParam = None
+
         # check input #
-        if not SysMgr.filterGroup and \
-            not SysMgr.inputParam:
+        if not SysMgr.filterGroup and not inputParam:
             SysMgr.printErr(
                 "Input value for target with -g or -I option")
             sys.exit(0)
@@ -30537,7 +30619,7 @@ Copyright:
             if not SysMgr.customCmd:
                 SysMgr.printErr("fail to get remote command")
                 sys.exit(0)
-            elif SysMgr.inputParam:
+            elif inputParam:
                 SysMgr.printErr("executing a program is not supported")
                 sys.exit(0)
 
@@ -30562,9 +30644,7 @@ Copyright:
                 SysMgr.dwarfEnable = True
 
         # get pids #
-        if not SysMgr.inputParam:
-            inputParam = None
-
+        if not inputParam:
             # convert comm to pid #
             pids = SysMgr.convPidList(
                 SysMgr.filterGroup, isThread=True,
@@ -30578,9 +30658,9 @@ Copyright:
                 allpids = pids
 
         # check command #
-        if SysMgr.inputParam:
+        if inputParam:
             pid = None
-            execCmd = SysMgr.inputParam.split()
+            execCmd = inputParam.split()
         # check permission #
         elif not SysMgr.isRoot():
             SysMgr.printErr(
@@ -30592,7 +30672,7 @@ Copyright:
                 flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(
                     "no thread related to %s" % flist)
-            elif not SysMgr.inputParam:
+            elif not inputParam:
                 SysMgr.printErr(
                     "no TID with -g option or command with -I option")
             else:
@@ -30753,7 +30833,11 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # check input #
-        if not SysMgr.inputParam:
+        if SysMgr.getMainArg():
+            inputArg = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            inputArg = str(SysMgr.inputParam)
+        else:
             SysMgr.printErr("no path with -I option")
             sys.exit(0)
 
@@ -30775,7 +30859,6 @@ Copyright:
                     addrList.append(long(addr))
 
         resInfo = {}
-        inputArg = str(SysMgr.inputParam)
         menu1st = 'Offset'
         menu2nd = 'Address'
         maxSymLen = 5
@@ -31239,7 +31322,11 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # check input #
-        if not SysMgr.inputParam:
+        if SysMgr.getMainArg():
+            inputArg = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            inputArg = str(SysMgr.inputParam)
+        else:
             SysMgr.printErr(
                 "no PATH or COMM or PID with -I option")
             sys.exit(0)
@@ -31254,7 +31341,6 @@ Copyright:
                     ','.join(SysMgr.filterGroup))
 
         resInfo = {}
-        inputArg = str(SysMgr.inputParam)
         maxSymLen = 5
 
         # get pid list #
@@ -32417,12 +32503,15 @@ Copyright:
                 SysMgr.printErr("wrong variable '%s'" % conv)
                 sys.exit(0)
 
-        if SysMgr.inputParam is None:
+        # get command #
+        if SysMgr.getMainArg():
+            cmd = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            cmd = SysMgr.inputParam
+        else:
             SysMgr.printErr(
                 "no command with -I option")
             sys.exit(0)
-        else:
-            cmd = SysMgr.inputParam
 
         # convert variables #
         if SysMgr.customCmd:
@@ -33101,13 +33190,13 @@ Copyright:
         SysMgr.setDefaultSignal()
 
         # check input #
-        if len(sys.argv) < 3:
+        if SysMgr.getMainArg():
+            infile = SysMgr.getMainArg()
+        else:
             SysMgr.printErr("no path for compression")
             sys.exit(0)
 
-        # set input file #
-        infile = sys.argv[2]
-
+        # check file #
         if not os.path.isfile(infile):
             SysMgr.printErr("wrong path '%s' for decompression" % infile)
             sys.exit(0)
@@ -33182,13 +33271,13 @@ Copyright:
         SysMgr.setDefaultSignal()
 
         # check input #
-        if len(sys.argv) < 3:
+        if SysMgr.getMainArg():
+            infile = SysMgr.getMainArg()
+        else:
             SysMgr.printErr("no path for decompression")
             sys.exit(0)
 
-        # set input file #
-        infile = sys.argv[2]
-
+        # check file #
         if not os.path.isfile(infile):
             SysMgr.printErr("wrong path '%s' for decompression" % infile)
             sys.exit(0)
@@ -34070,10 +34159,21 @@ Copyright:
         # open the environ file #
         try:
             with open(path, 'r') as fd:
-                elist = fd.readlines()[0].split('\x00')[:-1]
+                data = fd.readlines()
+                if not data:
+                    comm = SysMgr.getComm(pid, True)
+                    SysMgr.printErr(
+                        'fail to read environment variables for %s(%s)' % \
+                            (comm, pid))
+                    return
+                elist = data[0].split('\x00')[:-1]
+        except SystemExit:
+            sys.exit(0)
         except:
+            comm = SysMgr.getComm(pid, True)
             SysMgr.printErr(
-                "fail to get environment variables of process %s" % pid, True)
+                "fail to get environment variables of %s(%s)" % \
+                    (comm, pid), True)
             elist = []
 
         # convert list to dictionary #
