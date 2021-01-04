@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210103"
+__revision__ = "210104"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -45930,6 +45930,7 @@ struct cmsghdr {
             SysMgr.printWarn(
                 'fail to find DWARF info for %s(%s) in %s' % \
                     (sym, hex(foffset), fname))
+            SysMgr.dwarfEnable = False
             return None
 
         # get function address from CFA index table #
@@ -53257,7 +53258,7 @@ Section header string table index: %d
                 e_shdynstr = i
             elif symbol == '.dynamic':
                 e_shdynamic = i
-            elif symbol == '.eh_frame':
+            elif symbol == '.eh_frame' or symbol == '.debug_frame':
                 e_shehframe = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
@@ -53803,10 +53804,19 @@ Section header string table index: %d
         else:
             self.attr['dwarfEnabled'] = False
 
-        # check .eh_frame section #
-        self.attr['dwarfTable'] = dict()
-        if SysMgr.dwarfEnable and e_shehframe >= 0 and \
+        # check frame section #
+        if '.debug_frame' in self.attr['sectionHeader'] and \
+            self.attr['sectionHeader']['.debug_frame']['type'] != 'NOBITS':
+            frameSectName = 'debug_frame'
+        elif '.eh_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
+            frameSectName = 'eh_frame'
+        else:
+            frameSectName = ''
+
+        # check frame section #
+        self.attr['dwarfTable'] = dict()
+        if SysMgr.dwarfEnable and e_shehframe >= 0 and frameSectName:
             def getEncType(encoding):
                 if encoding == ENC_FLAGS['DW_EH_PE_omit']:
                     SysMgr.printErr(
@@ -54330,14 +54340,24 @@ Section header string table index: %d
                 # format #
                 dwarfFormat = 64 if size == 0xFFFFFFFF else 32
 
+                # initial length #
+                initLenField = 4 if dwarfFormat == 32 else 12
+
                 # start position #
                 startPos = fd.tell()
 
                 # CIE ID #
                 cid = struct.unpack('I', fd.read(4))[0]
 
+                # check CIE #
+                if frameSectName == 'eh_frame':
+                    isCIE = cid == 0
+                else:
+                    isCIE = (dwarfFormat == 32 and cid == 0xFFFFFFFF) or \
+                        cid == 0xFFFFFFFFFFFFFFFF
+
                 #-------------------- CIE --------------------#
-                if cid == 0:
+                if isCIE:
                     entry = 'CIE'
                     nrCIE += 1
                     initLoc = 0
@@ -54350,8 +54370,12 @@ Section header string table index: %d
                     table = fd.read(dataSize)
 
                     # Augmentation String #
-                    augstr = self.getString(table)
-                    pos = len(augstr) + 1
+                    if frameSectName == 'eh_frame':
+                        augstr = self.getString(table)
+                        pos = len(augstr) + 1
+                    else:
+                        augstr = ''
+                        pos = 1
 
                     # ehdata #
                     if 'eh' in augstr:
@@ -54387,9 +54411,14 @@ Section header string table index: %d
                         augsize = 0
 
                     # Augmentation Data #
-                    augdict, augdatastr, augdata = \
-                        getAugData(augstr, table, pos, augsize)
-                    pos += augsize
+                    if frameSectName == 'eh_frame':
+                        augdict, augdatastr, augdata = \
+                            getAugData(augstr, table, pos, augsize)
+                        pos += augsize
+                    else:
+                        augdict = {}
+                        augdatastr = ''
+                        augdata = ''
 
                     # Call Frame Instructions #
                     cfi = self.getCFI(table, pos, dataSize)
@@ -54437,27 +54466,46 @@ Section header string table index: %d
                     ciePtr = cid
 
                     # CIE #
-                    cieOffset = offset + dwarfFormat // 8 - ciePtr
-                    cie = self.attr['dwarf']['CIE'][cieOffset]
-                    augstr = cie['augstr']
-                    augdict = cie['augdict']
-                    augdatastr = None
+                    try:
+                        if frameSectName == 'eh_frame':
+                            cieOffset = offset + dwarfFormat // 8 - ciePtr
+                            cie = self.attr['dwarf']['CIE'][cieOffset]
+                        elif frameSectName == 'debug_frame':
+                            cieOffset = 0
+                            cie = self.attr['dwarf']['CIE'][ciePtr]
+                    except:
+                        continue
 
                     # check encoding #
-                    if not 'fdeEncoding' in augdict:
-                        SysMgr.printErr(
-                            "fail to find FDE encoding data from CIE %x" % \
-                                cie['id'])
-                        sys.exit(0)
+                    if frameSectName == 'eh_frame':
+                        augstr = cie['augstr']
+                        augdict = cie['augdict']
+                        augdatastr = None
+
+                        if not 'fdeEncoding' in augdict:
+                            SysMgr.printErr(
+                                "fail to find FDE encoding data from CIE %x" % \
+                                    cie['id'])
+                            sys.exit(0)
+                    else:
+                        augstr = ''
+                        augdict = {}
+                        augdatastr = None
 
                     # get offset #
                     curOffset = fd.tell() - sh_offset
 
                     # get encoding #
-                    encoding = cie['augdict']['fdeEncoding']
-                    basicEnc, encMod, encFormat = getEncType(encoding)
-                    if basicEnc is None:
-                        continue
+                    if frameSectName == 'eh_frame':
+                        encoding = cie['augdict']['fdeEncoding']
+                        basicEnc, encMod, encFormat = getEncType(encoding)
+                        if basicEnc is None:
+                            continue
+                    else:
+                        encoding = ''
+                        basicEnc = ''
+                        encMod = ENC_FLAGS['DW_EH_PE_absptr']
+                        encFormat = "DW_EH_PE_absptr"
 
                     # get function address #
                     initLoc = decodeData(encFormat, fd)
