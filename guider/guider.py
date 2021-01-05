@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210104"
+__revision__ = "210105"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6794,7 +6794,8 @@ class Timeline(object):
         self.scaled_height = self.config.HEIGHT / self.groups
 
         try:
-            self.ratio = self.config.WIDTH / float(self.time_end - self.time_start)
+            self.ratio = \
+                self.config.WIDTH / float(self.time_end - self.time_start)
         except:
             SysMgr.printErr(
                 'fail to recognize timeline because start and end are same')
@@ -6974,6 +6975,11 @@ class Timeline(object):
             dwg.add(dwg.rect((x0, scaled_bottom_height),
                 (scaled_width, self.scaled_height*0.25),
                 rx=1, ry=1, fill='darkcyan', fill_opacity=0.5))
+        # draw line for syscall status #
+        elif segment.state == 'SYSCALL':
+            dwg.add(dwg.rect((x0, y0),
+                (scaled_width, self.scaled_height*0.5),
+                rx=1, ry=1, fill=color, fill_opacity=0.5))
         # draw line for sched status #
         else:
             # draw timeslice #
@@ -6997,7 +7003,12 @@ class Timeline(object):
         if not SysMgr.showAll and \
             (scaled_width < self.config.LABEL_SIZE_MIN or duration == 0):
             return
-        duration = '~%s' % (UtilMgr.convNum(duration))
+
+        # convert duration to text #
+        if duration == 0:
+            duration = '~'
+        else:
+            duration = '~%s' % (UtilMgr.convNum(duration))
 
         # I/O #
         if segment.state == 'RD' or segment.state == 'WR':
@@ -7073,12 +7084,16 @@ class Timeline(object):
             if height_pos + scaled_pos*2.5 >= self.scaled_height:
                 height_pos = self.height_group_pos[group_idx] = 0
 
+        xpos = x0
+        ypos = y0 + scaled_pos + height_pos
+
         # draw text #
         dwg.add(dwg.text(segment_label,
-            (x0, y0 + scaled_pos + height_pos),
+            (xpos, ypos),
             fill=color, stroke='none',
             font_size=font_size,
-            font_weight='normal'))
+            font_weight='normal',
+            transform='rotate(0,%s,%s)' % (xpos, ypos)))
 
 
 
@@ -18340,8 +18355,9 @@ Examples:
     - Draw resource graph with some boundary lines
         # {0:1} {1:1} guider.out worstcase.out -l 80, 100, 120
 
-    - Draw resource graph within specific interval range
+    - Draw resource graph within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
+        # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
 
     - Draw resource graph of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -54614,7 +54630,7 @@ Section header string table index: %d
                     initLoc = decodeAddr(initLoc, sh_addr, curOffset, encMod)
 
                     # Range Length #
-                    lenSize = struct.unpack('I', fd.read(4))[0]
+                    lenSize = decodeData(encFormat, fd)
 
                     # Augmentation Size #
                     if 'z' in augstr:
@@ -65893,16 +65909,16 @@ class ThreadAnalyzer(object):
                 else:
                     tstart = fstart
 
-                stime = ftime - tstart
-                self.threadData[prev_id]['ftxProcess'] += stime
+                fstime = ftime - tstart
+                self.threadData[prev_id]['ftxProcess'] += fstime
                 self.threadData[prev_id]['ftxBlock'] = ftime
                 self.threadData[prev_id]['ftxBlockCnt'] += 1
 
                 opt = '{0:^24}'.format('BLOCK')
                 otype = '{0:<10}'.format('ENT')
-                stime = '%.6f' % stime
+                fstime = '%.6f' % fstime
                 self.futexData.append(
-                    [prev_id, time, core, opt, otype, stime, '', '', ''])
+                    [prev_id, time, core, opt, otype, fstime, '', '', ''])
 
             # save block time with lock by futex #
             try:
@@ -66913,6 +66929,20 @@ class ThreadAnalyzer(object):
             diff = ''
             sysItem = threadData['syscallInfo'][nrstr]
             if sysItem['last'] > 0:
+                start_delta = long((float(sysItem['last'])-stime)*1000000)
+                stop_delta = long((float(ftime)-stime)*1000000)
+                text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': core,
+                    'text': text,
+                    'id': thread,
+                    'state': 'SYSCALL',
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
+
                 diff = ftime - sysItem['last']
                 threadData['syscallInfo'][nrstr]['usage'] += diff
                 threadData['syscallInfo'][nrstr]['last'] = long(0)
@@ -66924,6 +66954,20 @@ class ThreadAnalyzer(object):
 
                 if ret[0] == '-':
                     threadData['syscallInfo'][nrstr]['err'] += 1
+            else:
+                start_delta = long(0)
+                stop_delta = long((float(ftime)-stime)*1000000)
+                text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
+
+                # add timeline data #
+                self.timelineData['segments'].append({
+                    'group': core,
+                    'text': text,
+                    'id': thread,
+                    'state': 'SYSCALL',
+                    'time_start': start_delta,
+                    'time_end': stop_delta,
+                })
 
             # save syscall history #
             if len(SysMgr.syscallList) > 0:
