@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210105"
+__revision__ = "210106"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4748,7 +4748,7 @@ class UtilMgr(object):
     @staticmethod
     def writeFlamegraph(path):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
-        fgCode = '''
+        flameCode = '''
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="1200" height="230" onload="init(evt)" viewBox="0 0 1200 230"
@@ -5389,6 +5389,27 @@ function format_percent(n) {
 
 
     @staticmethod
+    def getFileSize(path, string=True):
+        try:
+            fsize = long(os.path.getsize(path))
+            if string:
+                return UtilMgr.convSize2Unit(fsize)
+            else:
+                return fsize
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "fail to get file size for '%s'" % path)
+
+            if string:
+                return '?'
+            else:
+                return 0
+
+
+
+    @staticmethod
     def printFile(path):
         try:
             with open(path, 'r') as fd:
@@ -5727,9 +5748,8 @@ class NetworkMgr(object):
 
                 SysMgr.printInfo(
                     "downloaded %s [%s] from %s:%s:%s successfully\n" % \
-                    (targetPath,
-                    UtilMgr.convSize2Unit(os.path.getsize(targetPath)),
-                    targetIp, targetPort, origPath))
+                    (targetPath, UtilMgr.getFileSize(targetPath),
+                        targetIp, targetPort, origPath))
             except:
                 SysMgr.printErr(
                     'fail to download %s from %s:%s:%s' % \
@@ -5793,7 +5813,7 @@ class NetworkMgr(object):
 
                 SysMgr.printInfo(
                     "uploaded %s [%s] to %s:%s successfully\n" % \
-                        (origPath, convert(os.path.getsize(origPath)),
+                        (origPath, UtilMgr.getFileSize(origPath),
                             addr, targetPath))
             except:
                 SysMgr.printErr(
@@ -23342,9 +23362,8 @@ Copyright:
                 ThreadAnalyzer.printIntervalUsage()
 
                 if os.path.exists(SysMgr.inputFile):
-                    fsize = \
-                        UtilMgr.convSize2Unit(
-                            long(os.path.getsize(SysMgr.inputFile)))
+                    # get output size #
+                    fsize = UtilMgr.getFileSize(SysMgr.inputFile)
 
                     SysMgr.printInfo(
                         "saved results based monitoring into "
@@ -23435,9 +23454,7 @@ Copyright:
                 SysMgr.printFd = None
 
             # print output info #
-            fsize = \
-                UtilMgr.convSize2Unit(
-                    long(os.path.getsize(SysMgr.inputFile)))
+            fsize = UtilMgr.getFileSize(SysMgr.inputFile)
 
             SysMgr.printInfo(
                 "saved results based monitoring into "
@@ -23622,11 +23639,8 @@ Copyright:
 
             f.close()
 
-            try:
-                fsize = UtilMgr.convSize2Unit(
-                    long(os.path.getsize(outputFile)))
-            except:
-                fsize = '?'
+            # get output size #
+            fsize = UtilMgr.getFileSize(outputFile)
 
             SysMgr.printInfo(
                 "finish saving trace data into '%s' [%s] successfully" % \
@@ -24560,13 +24574,7 @@ Copyright:
             return
 
         # get output size #
-        try:
-            fsize = long(os.path.getsize(outputPath))
-            fsize = UtilMgr.convSize2Unit(fsize)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            fsize = '?'
+        fsize = UtilMgr.getFileSize(outputPath)
 
         SysMgr.printStat(
             "wrote timeline chart into '%s' [%s]" %
@@ -24676,7 +24684,6 @@ Copyright:
             # write text on image #
             drawnImage.text((1, imagePosY), text, (0,0,0), font=imageFont)
 
-        imageObject.save(SysMgr.imagePath)
         try:
             # save image as file #
             imageObject.save(SysMgr.imagePath)
@@ -24685,15 +24692,12 @@ Copyright:
                 "fail to save image as %s\n" % SysMgr.imagePath)
             return
 
-        try:
-            fsize = \
-                UtilMgr.convSize2Unit(
-                long(os.path.getsize(SysMgr.imagePath)))
-        except:
-            fsize = '?'
+        # get output size #
+        fsize = UtilMgr.getFileSize(SysMgr.imagePath)
+
         SysMgr.printStat(
             "saved image into %s [%s] successfully" % \
-            (SysMgr.imagePath, fsize))
+                (SysMgr.imagePath, fsize))
 
 
 
@@ -29018,8 +29022,8 @@ Copyright:
 
                 SysMgr.printInfo(
                     "uploaded %s [%s] to %s:%s successfully" % \
-                        (targetPath, UtilMgr.convSize2Unit(
-                            os.path.getsize(targetPath)), addr, remotePath))
+                        (targetPath, UtilMgr.getFileSize(targetPath),
+                            addr, remotePath))
             except:
                 SysMgr.printErr(
                     "fail to upload %s to %s:%s" % \
@@ -29080,9 +29084,8 @@ Copyright:
 
                 SysMgr.printInfo(
                     "downloaded %s [%s] from %s:%s successfully" % \
-                    (targetPath,
-                    UtilMgr.convSize2Unit(
-                        os.path.getsize(targetPath)), addr, origPath))
+                    (targetPath, UtilMgr.getFileSize(targetPath),
+                        addr, origPath))
             except:
                 SysMgr.printErr(
                     'fail to download %s from %s:%s' % \
@@ -29790,6 +29793,8 @@ Copyright:
             try:
                 with open(affectpath, 'r') as fd:
                     cpulist[cpu]['affect'] = fd.readlines()[0].split()
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -29797,6 +29802,8 @@ Copyright:
             try:
                 with open(govpath, 'r') as fd:
                     cpulist[cpu]['governors'] = fd.readlines()[0].split()
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -29808,6 +29815,8 @@ Copyright:
                     cpulist[cpu]['avail'].sort()
                     cpulist[cpu]['avail'] = \
                         list(map(str, cpulist[cpu]['avail']))
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -29817,6 +29826,8 @@ Copyright:
                     cpulist[cpu]['min'] = fd.readlines()[0]
                 with open(maxfreqpath, 'r') as fd:
                     cpulist[cpu]['max'] = fd.readlines()[0]
+            except SystemExit:
+                sys.exit(0)
             except:
                 cpulist.pop(cpu, None)
 
@@ -29855,7 +29866,7 @@ Copyright:
 
                 SysMgr.printErr((
                     "fail to set CPU(%s) clock because it only supports \n\t"
-                    "[%s] clock list \n\t[%s] governor list") % \
+                    "-clock: [%s]\n\t-governor: [%s]") % \
                         (core, avail, governors))
                 sys.exit(0)
 
@@ -29878,6 +29889,8 @@ Copyright:
                     if gov:
                         with open(curgovpath, 'w') as fd:
                             fd.write(gov)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     if not minres:
                         res = 'min clock'
@@ -29894,6 +29907,8 @@ Copyright:
                 try:
                     with open(curgovpath, 'r') as fd:
                         curgovernor = fd.readlines()[0].split()[0]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     curgovernor = '?'
 
@@ -30186,7 +30201,8 @@ Copyright:
             if cnt > 3:
                 return None
 
-        (size, ftype, flags, seq, pid) = struct.unpack(str('=IHHII'), data[:16])
+        (size, ftype, flags, seq, pid) = \
+            struct.unpack(str('=IHHII'), data[:16])
         data = data[16:size]
 
         cmd, version = struct.unpack(str('=BBxx'), data[:4])
@@ -30223,6 +30239,8 @@ Copyright:
 
                     name, value = line[:-1].split('=', 1)
                     attrList[name.strip()] = value.strip()
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printWarn(
                         "fail to parse line '%s'" % line[:-1], reason=True)
@@ -32440,9 +32458,9 @@ Copyright:
             # get subprocess object #
             subprocess = SysMgr.getPkg('subprocess')
 
-            startTime = time.time()
-
             SysMgr.printInfo("executed '%s'" % cmd)
+
+            startTime = time.time()
 
             # create process to communicate #
             procObj = subprocess.Popen(
@@ -32455,11 +32473,14 @@ Copyright:
                 sys.exit(0)
             except:
                 duration = time.time() - startTime
+
                 SysMgr.printErr(
                     "fail to wait termination for '%s'" % cmd, True)
+
                 sys.exit(0)
 
             duration = time.time() - startTime
+
             SysMgr.printInfo(
                 "terminated '%s' and elapsed %s" % (cmd, duration))
 
@@ -34531,6 +34552,8 @@ Copyright:
         try:
             with open(OSFile, 'r') as osf:
                 self.osData = osf.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(OSFile)
 
@@ -34558,12 +34581,16 @@ Copyright:
         try:
             self.osData = osf.readlines()
             osf.close()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(OSFile)
 
         try:
             self.devData = devf.readlines()
             devf.close()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(devFile)
 
@@ -34572,6 +34599,8 @@ Copyright:
     def saveCpuInfo(self):
         try:
             self.cpuData = SysMgr.procReadlines('cpuinfo')
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to save CPU info", reason=True)
@@ -34614,11 +34643,15 @@ Copyright:
                         self.cpuCacheInfo[core] = '%sL%s(%s)=%s   ' % \
                             (self.cpuCacheInfo[core], level[:-1],
                             type[:-1], size[:-1])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
                 if not self.cpuCacheInfo[core]:
                     del self.cpuCacheInfo[core]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -34649,6 +34682,8 @@ Copyright:
                     target[num].append(item[1])
                 except:
                     target[num] = [item[1]]
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to save deice info", reason=True)
@@ -34700,6 +34735,8 @@ Copyright:
                         self.partitionInfo[partName]['start'] = long(start)
                         self.partitionInfo[partName]['end'] = \
                             long(start) + long(size)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -34713,6 +34750,8 @@ Copyright:
                 self.memData['prev'] = lines
             else:
                 self.memData['next'] = lines
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to update memory", reason=True)
@@ -34727,6 +34766,8 @@ Copyright:
             f = open(bufFile, 'r')
             size = f.readlines()
             f.close()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenWarn(bufFile)
             return 0
@@ -34789,11 +34830,13 @@ Copyright:
                 # save system info #
                 SysMgr.sysInstance.saveSysStat()
 
+                path = SysMgr.outputFile
+
                 rbuf = ''
-                with open(SysMgr.outputFile, 'r') as fd:
+                with open(path, 'r') as fd:
                     rbuf = fd.read()
 
-                with open(SysMgr.outputFile, 'w') as fd:
+                with open(path, 'w') as fd:
                     if SysMgr.systemInfoBuffer != '':
                         fd.writelines(SysMgr.magicStr + '\n')
                         fd.writelines(SysMgr.systemInfoBuffer)
@@ -34801,8 +34844,8 @@ Copyright:
                         fd.writelines(rbuf)
 
                 SysMgr.printInfo(
-                    "wrote data to '%s' successfully" % \
-                    SysMgr.outputFile)
+                    "wrote data to '%s' [%s] successfully" % \
+                    (path, UtilMgr.getFileSize(path)))
 
                 return
 
@@ -46847,6 +46890,13 @@ struct cmsghdr {
                     "fail to find python binary for %s" % procInfo)
                 sys.exit(0)
 
+        # set pthread ID for target task #
+        threadList = SysMgr.getThreadList(self.pid)
+        if len(threadList) == 1:
+            self.pthreadid = -1
+        else:
+            self.pthreadid = self.remoteUsercall('pthread_self')
+
         # get symbol for interpreter #
         pySym = ['_PyThreadState_Current', '_PyRuntime']
         symbolInfo = SysMgr.getProcAddrBySymbol(
@@ -47042,12 +47092,10 @@ struct cmsghdr {
         # toDo: get GIL usage by comparing thread_id with pthread_self() #
         nrThread = len(frameList)
 
-        # get pthread ID for target task #
-        if self.pthreadid == 0:
-            self.pthreadid = self.remoteUsercall('pthread_self')
-
         # get top-level frame for target task #
-        if not self.pthreadid in frameList:
+        if self.pthreadid == -1:
+            framep = frameList.values()[0]
+        elif not self.pthreadid in frameList:
             return
         else:
             framep = frameList[self.pthreadid]
@@ -59877,13 +59925,7 @@ class ThreadAnalyzer(object):
             clf() # pylint: disable=undefined-variable
 
             # get output size #
-            try:
-                fsize = long(os.path.getsize(outputFile))
-                fsize = UtilMgr.convSize2Unit(fsize)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                fsize = '?'
+            fsize = UtilMgr.getFileSize(outputFile)
 
             SysMgr.printStat(
                 "wrote resource %s into '%s' [%s]" %
@@ -73813,13 +73855,8 @@ class ThreadAnalyzer(object):
                 # rename output file #
                 os.rename(SysMgr.inputFile, filePath)
 
-                try:
-                    fsize = UtilMgr.convSize2Unit(
-                        long(os.path.getsize(filePath)))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    fsize = '?'
+                # get output size #
+                fsize = UtilMgr.getFileSize(filePath)
 
                 SysMgr.printStat((
                     "saved results based monitoring into "
