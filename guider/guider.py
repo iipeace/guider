@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210106"
+__revision__ = "210107"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6686,6 +6686,7 @@ class Timeline(object):
             self.time_end = time_end
             self.text = None
             self.id = None
+            self.color = None
             self.state = None
             self._init_extra(extra)
 
@@ -6695,6 +6696,9 @@ class Timeline(object):
 
             if "id" in extra:
                 self.id = extra["id"]
+
+            if "color" in extra:
+                self.color = extra["color"]
 
             if "state" in extra:
                 self.state = extra["state"]
@@ -6799,7 +6803,10 @@ class Timeline(object):
 
 
 
-    def __init__(self, segments, time_unit, config, tasks=[]):
+    def __init__(
+        self, title, segments, time_unit, fontsize, config, tasks=[]):
+
+        self.title = title
         self.segments = segments
         self.time_unit = time_unit
         self.config = config
@@ -6840,6 +6847,10 @@ class Timeline(object):
             self.color_map = self._build_task_color_map()
         else:
             self.color_map = self._build_color_map()
+
+        # update font size #
+        if fontsize and self.config:
+            self.config.FONT_SIZE = fontsize
 
 
 
@@ -6919,8 +6930,15 @@ class Timeline(object):
             (self.config.WIDTH, self.config.HEIGHT),
             fill='rgb(245,245,245)'))
 
-        title = 'Guider Timeline Chart'
+        # set title #
+        if self.title:
+            title = self.title
+        else:
+            title = 'Guider Timeline Chart'
+
+        # set font size for title #
         fontsize = self.config.FONT_SIZE * 10
+
         dwg.add(dwg.text(title,
             ((self.config.WIDTH/2)-(len(title)*fontsize/4), fontsize),
             font_size=fontsize,
@@ -6947,16 +6965,20 @@ class Timeline(object):
         scaled_top_height = y0 + (self.scaled_height / 7)
         scaled_bottom_height = y1 - (self.scaled_height * 0.25)
 
-        # get color #
-        if segment.id:
-            colorid = segment.id
+        # get color id #
+        if segment.color:
+            color = segment.color
         else:
-            colorid = group_idx
+            if segment.id:
+                colorid = segment.id
+            else:
+                colorid = group_idx
 
-        try:
-            color = self.color_map[colorid]
-        except:
-            color = self.color_map[list(self.color_map.keys())[0]]
+            # get real color via id #
+            try:
+                color = self.color_map[colorid]
+            except:
+                color = self.color_map[list(self.color_map.keys())[0]]
 
         # draw bold line for core off #
         if segment.state == 'OFF':
@@ -7138,11 +7160,23 @@ class Timeline(object):
             SysMgr.printErr('no path or data for timeline input')
             sys.exit(0)
 
-        # get  default timeunit #
+        # get default timeunit #
         time_unit = ''
         if "time_unit" in data:
             time_unit = data["time_unit"]
             time_unit = time_unit.lower()
+
+        # get title #
+        if "title" in data:
+            title = data['title']
+        else:
+            title = ''
+
+        # get title #
+        if "font_size" in data:
+            fontsize = data['font_size']
+        else:
+            fontsize = None
 
         # get configured timeunit #
         time_factor = 1.0
@@ -7181,7 +7215,7 @@ class Timeline(object):
         # load segments #
         segments = Timeline._load_segments(data, time_factor)
 
-        return Timeline(segments, time_unit, config, tasks)
+        return Timeline(title, segments, time_unit, fontsize, config, tasks)
 
 
 
@@ -19876,10 +19910,53 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw timeline chart
+    Draw timeline chart from JSON format data
                         '''.format(cmd, mode)
 
-                    helpStr += drawSubStr + drawExamStr
+                    drawTimelineStr = '''
+Format:
+    DATA: {{
+      "title": "example",   // optional for title
+      "font_size": 3,            // optional for font size
+      "time_unit": "ms",    // [sec | ms | ns]
+      "segments": [
+        {{
+          "group": 0,
+          "text": "task0",
+          "time_start": 10,
+          "time_end": 40
+          "id": 12,         // optional for class
+          "color": "red",   // optional for color
+          "state": 'OFF',   // optional for event
+        }},
+        {{
+          "group": 1,
+          "text": "task1",
+          "time_start": 10,
+          "time_end": 40
+          "id": 13,
+          "color": "rgb(128,0,128)",
+          "state": 'OFF',
+        }}
+      ]
+    }}
+
+    CONFIG: {{
+        "width": 400,
+        "height": 100,
+        "font_size": 4,
+        "time_ticks": 20,
+        "time_axis_height": 10,
+        "label_size_min": 30,
+        "palette": [
+            "(244, 67, 54)",
+            "(233,30,99)",
+            "(156, 39, 176)"
+        ]
+    }}
+                        '''
+
+                    helpStr += drawSubStr + drawTimelineStr + drawExamStr
 
                 # memory draw #
                 elif SysMgr.checkMode('drawmem'):
@@ -49962,6 +50039,8 @@ class ElfAnalyzer(object):
         6:"PHDR",
         7:"TLS",
         8:"NUM",
+        "LOOS":0x60000000,
+        "HIOS":0x6fffffff,
         0x60000000:"LOOS",
         0x6fffffff:"HIOS",
         0x70000000:"LOPROC",
@@ -53296,29 +53375,45 @@ Section header string table index: %d
             if p_type == 3:
                 e_shinterpndx = i
 
+            # get flags #
+            if p_flags in ElfAnalyzer.PT_FLAGS:
+                flags = ElfAnalyzer.PT_FLAGS[p_flags]
+            else:
+                flags = ''
+
+            # convert type #
+            if p_type in ElfAnalyzer.PT_TYPE:
+                typeval = ElfAnalyzer.PT_TYPE[p_type]
+            else:
+                typeval = p_type
+
             # save program info #
             self.attr['progHeader'].append([\
-                ElfAnalyzer.PT_TYPE[p_type] \
-                    if p_type in ElfAnalyzer.PT_TYPE else p_type,\
-                p_offset, p_vaddr, p_paddr, p_filesz,\
-                p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]])
+                typeval, p_offset, p_vaddr, p_paddr, \
+                    p_filesz, p_memsz, flags])
 
-            p_type = ElfAnalyzer.PT_TYPE[p_type] \
-                if p_type in ElfAnalyzer.PT_TYPE else hex(p_type)
+            # convert type for print #
+            if p_type in ElfAnalyzer.PT_TYPE:
+                typestr = ElfAnalyzer.PT_TYPE[p_type]
+            elif p_type >= ElfAnalyzer.PT_TYPE['LOOS'] and \
+                p_type <= ElfAnalyzer.PT_TYPE['HIOS']:
+                typestr = 'LOOS+0x%lx' % \
+                    (p_type - ElfAnalyzer.PT_TYPE['LOOS'])
+            else:
+                typestr = '<unknown>'
 
             # save load address #
-            if p_type == 'LOAD' and \
-                ElfAnalyzer.PT_FLAGS[p_flags] == 'RE':
+            if typestr == 'LOAD' and flags == 'RE':
                 self.loadAddr = p_vaddr
 
-            # print program header #
             if not debug:
                 continue
 
+            # print program header #
             SysMgr.printPipe(
                 "%16s 0x%08x 0x%014x 0x%014x 0x%010x 0x%010x %010s" % \
-                (p_type, p_offset, p_vaddr, p_paddr, p_filesz,
-                    p_memsz, ElfAnalyzer.PT_FLAGS[p_flags]))
+                (typestr, p_offset, p_vaddr, p_paddr, \
+                    p_filesz, p_memsz, flags))
 
         if debug:
             SysMgr.printPipe(oneLine)
@@ -56187,6 +56282,7 @@ class ThreadAnalyzer(object):
         # add comsumed time of jobs not finished yet to each threads #
         for idx, val in self.lastTidPerCore.items():
             # apply core off time #
+            nrCore = long(idx)
             coreId = '0[%s]' % idx
             if self.threadData[coreId]['coreSchedCnt'] == 0 and \
                 self.threadData[coreId]['offTime'] == 0:
@@ -56197,9 +56293,9 @@ class ThreadAnalyzer(object):
 
                 # add timeline data #
                 self.timelineData['segments'].append({
-                    'group': long(idx),
+                    'group': nrCore,
                     'text': 'OFF',
-                    'id': coreId,
+                    'id': nrCore,
                     'state': 'OFF',
                     'time_start': start_delta,
                     'time_end': stop_delta,
@@ -56218,9 +56314,9 @@ class ThreadAnalyzer(object):
 
                 # add timeline data #
                 self.timelineData['segments'].append({
-                    'group': long(idx),
+                    'group': nrCore,
                     'text': 'OFF',
-                    'id': coreId,
+                    'id': nrCore,
                     'state': 'OFF',
                     'time_start': start_delta,
                     'time_end': stop_delta,
