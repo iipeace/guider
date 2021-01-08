@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210107"
+__revision__ = "210108"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18134,6 +18134,7 @@ class SysMgr(object):
                 'pstree': 'Process',
                 'readelf': 'File',
                 'remote': 'Command',
+                'request': 'URL',
                 'setafnt': 'Affinity',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
@@ -20677,6 +20678,33 @@ Options:
 Examples:
     - Print system status
         # {0:1} {1:1}
+                    '''.format(cmd, mode)
+
+                # request #
+                elif SysMgr.checkMode('request'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} REQUEST [OPTIONS] [--help]
+
+Description:
+    Request URLs
+
+Options:
+    -I  <METHOD/ADDR/{{CONTENT}}> input requests
+    -R  <DELAY:COUNT>           set repeat count
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Request GET / url to specific server
+        # {0:1} {1:1} GET/http://127.0.0.1:5000
+
+    - Request POST / url to specific server
+        # {0:1} {1:1} POST/http://127.0.0.1:5000/{{\\"key\\":\\"value\\"}}
+
+    - Request GET / url to specific server 10 times with 500ms delay
+        # {0:1} {1:1} GET/http://127.0.0.1:5000 -R 500:10
                     '''.format(cmd, mode)
 
                 # limitcpu #
@@ -25570,11 +25598,14 @@ Copyright:
                 SysMgr.repeatInterval = interval
 
                 # get count #
-                if repeatParams[1] == '':
+                cnt = repeatParams[1]
+                if not cnt:
                     SysMgr.repeatCount = sys.maxsize
+                elif cnt.isdigit():
+                    SysMgr.repeatCount = long(cnt)
                 else:
                     SysMgr.repeatCount = \
-                        long(convTime(repeatParams[1]) / interval)
+                        long(convTime(cnt) / interval)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -27175,6 +27206,12 @@ Copyright:
         # EXEC MODE #
         elif SysMgr.checkMode('exec'):
             SysMgr.doExec()
+
+        # REQUEST MODE #
+        elif SysMgr.checkMode('request'):
+            SysMgr.setStream()
+
+            SysMgr.doRequest()
 
         # SETCPU MODE #
         elif SysMgr.checkMode('setcpu'):
@@ -32520,6 +32557,130 @@ Copyright:
                 cuda.cuCtxDetach(context)
 
         return gpuInfo
+
+
+
+    @staticmethod
+    def doRequest():
+        def _request(req, cache):
+            cmd = None
+            arg = None
+
+            # get data from cache #
+            if req in cache:
+                cmd, content, arg = cache[req]
+            else:
+                # GET #
+                if req.startswith('GET/'):
+                    method = 'GET/'
+                    cmd = requests.get
+                # POST #
+                elif req.startswith('POST/'):
+                    method = 'POST/'
+                    cmd = requests.post
+                else:
+                    SysMgr.printErr(
+                        "fail to recognize method[GET|POST] for '%s'" % req)
+                    return
+
+                if not cmd:
+                    return
+
+                # parse request and args #
+                pos = req.rfind('/{')
+                if pos < 0:
+                    content = req[len(method):]
+                else:
+                    content = req[len(method):pos]
+                    arg = UtilMgr.convStr2Dict(req[pos+1:])
+
+                if not content.startswith('http'):
+                    SysMgr.printWarn(
+                        'no protocol info such like http in %s' % \
+                            req, True)
+
+                # cache data #
+                cache[req] = (cmd, content, arg)
+
+            SysMgr.printPipe("\n[%s] request (%s)" % (time.time(), req))
+
+            # request #
+            before = time.time()
+            if arg:
+                res = cmd(content, arg)
+            else:
+                res = cmd(content)
+            after = time.time()
+
+            # check result #
+            if res.ok:
+                success = 'SUCCESS'
+            else:
+                success = 'FAIL'
+
+            # check text #
+            if SysMgr.showAll:
+                text = '\n%s' % res.text
+            else:
+                text = ''
+
+            SysMgr.printPipe(
+                '-> [%s/%.6f] %s%s' % \
+                    (res.status_code, after-before, success, text))
+
+
+
+        # import package #
+        requests = SysMgr.getPkg('requests')
+
+        # get requests #
+        if SysMgr.getMainArg():
+            reqstr = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            reqstr = SysMgr.inputParam
+        else:
+            SysMgr.printErr(
+                "no request with -I option")
+            sys.exit(0)
+
+        # split requests #
+        reqs = reqstr.split('|')
+
+        # get repeat count #
+        if SysMgr.repeatCount > 1:
+            repeat = SysMgr.repeatCount
+            delay = SysMgr.intervalEnable / 1000.0
+        elif SysMgr.intervalEnable > 1:
+            repeat = SysMgr.intervalEnable
+            delay = 0
+        else:
+            repeat = 1
+            delay = 0
+
+        # define cache list #
+        cache = {}
+
+        SysMgr.printInfo(
+            'start requests %s times with %s second delay' % \
+                (UtilMgr.convNum(repeat), delay))
+
+        start = time.time()
+
+        for idx in range(0, repeat):
+            for req in reqs:
+                try:
+                    _request(req, cache)
+                    time.sleep(delay)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to request '%s'" % req, reason=True)
+
+        # print elapsed time #
+        elapsed = time.time() - start
+        SysMgr.printInfo(
+            'finished handling all requests for %.6f' % elapsed)
 
 
 
@@ -49950,13 +50111,16 @@ class EventAnalyzer(object):
 class MemoryFile(object):
     """ File for memory region """
 
-    def __init__(self, addr, size=4096, name=None):
+    def __init__(self, addr=0, size=4096, name=None):
         self.pos = 0
         self.addr = addr
         self.size = size
         self.name = name
 
-        self.resize(size)
+        if addr == 0:
+            self.mem = bytearray(size)
+        else:
+            self.resize(size)
 
 
 
@@ -52679,6 +52843,42 @@ class ElfAnalyzer(object):
 
 
 
+    def unzip(self, fd, name):
+        # get pkg #
+        zlib = SysMgr.getPkg('zlib', False)
+        if not zlib:
+            return None, None
+
+        # check format #
+        magic = fd.read(4)
+        if magic != b'ZLIB':
+            SysMgr.printWarn(
+                "wrong zlib magic number '%s' for %s section" % (magic, name))
+            return None, None
+
+        compSize = struct.unpack('>Q', fd.read(8))[0]
+
+        uncompBytes = b''
+        decompressor = zlib.decompressobj()
+
+        while True:
+            chunk = fd.read(SysMgr.pageSize)
+            if not chunk:
+                break
+            uncompBytes += decompressor.decompress(chunk)
+
+        uncompBytes += decompressor.flush()
+
+        if len(uncompBytes) != compSize:
+            SysMgr.printWarn((
+                'fail to decompress %s section because '
+                'decompressed size is wrong [record: %s, actual: %s]') % \
+                    (name, compSize, len(uncompBytes)))
+
+        return uncompBytes, len(uncompBytes)
+
+
+
     def getString(self, strtable, start=0):
         idx = start
         end = self.fileSize - start
@@ -53517,7 +53717,9 @@ Section header string table index: %d
                 e_shdynstr = i
             elif symbol == '.dynamic':
                 e_shdynamic = i
-            elif symbol == '.eh_frame' or symbol == '.debug_frame':
+            elif symbol == '.eh_frame' or \
+                symbol == '.debug_frame' or \
+                symbol == '.zdebug_frame':
                 e_shehframe = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
@@ -54067,6 +54269,9 @@ Section header string table index: %d
         if '.debug_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.debug_frame']['type'] != 'NOBITS':
             frameSectName = 'debug_frame'
+        elif '.zdebug_frame' in self.attr['sectionHeader'] and \
+            self.attr['sectionHeader']['.zdebug_frame']['type'] != 'NOBITS':
+            frameSectName = 'debug_frame'
         elif '.eh_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
             frameSectName = 'eh_frame'
@@ -54581,6 +54786,19 @@ Section header string table index: %d
             # set position #
             fd.seek(sh_offset)
 
+            # decompress section #
+            if shname.startswith('.z'):
+                decompSect, decompSize = self.unzip(fd, shname)
+                if decompSize:
+                    isCompressed = True
+                    origFd = fd
+                    sh_size = decompSize
+                    fd = MemoryFile(size=sh_offset+sh_size, name=shname)
+                    fd.seek(sh_offset)
+                    fd.write(decompSect)
+            else:
+                isCompressed = False
+
             while 1:
                 # offset #
                 offset = fd.tell() - sh_offset
@@ -54610,7 +54828,7 @@ Section header string table index: %d
 
                 # check CIE #
                 if frameSectName == 'eh_frame':
-                    isCIE = cid == 0
+                    isCIE = (cid == 0)
                 else:
                     isCIE = (dwarfFormat == 32 and cid == 0xFFFFFFFF) or \
                         cid == 0xFFFFFFFFFFFFFFFF
@@ -54733,6 +54951,8 @@ Section header string table index: %d
                             cieOffset = 0
                             cie = self.attr['dwarf']['CIE'][ciePtr]
                     except:
+                        SysMgr.printWarn(
+                            'fail to get CIE info for FDE', reason=True)
                         continue
 
                     # check encoding #
@@ -54885,6 +55105,10 @@ Section header string table index: %d
                     '\n< Total CIE: %s / FDE: %s >\n%s' % \
                         (UtilMgr.convNum(nrCIE),
                             UtilMgr.convNum(nrFDE), oneLine))
+
+            # recover original fd #
+            if isCompressed:
+                fd = origFd
 
         # check .eh_frame_hdr section #
         if SysMgr.dwarfEnable and e_shehframehdr >= 0 and \
