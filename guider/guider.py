@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210108"
+__revision__ = "210109"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -54522,13 +54522,17 @@ Section header string table index: %d
                         curLine['cfa'] = CFARule(reg=args[0], offset=args[1])
                     elif name == 'DW_CFA_def_cfa_sf':
                         curLine['cfa'] = CFARule(reg=args[0],
-                            offset=args[1] * cie['caf'])
+                            offset=args[1] * cie['daf'])
                     elif name == 'DW_CFA_def_cfa_register':
                         curLine['cfa'] = CFARule(reg=args[0],
                             offset=curLine['cfa'][offsetIdx])
                     elif name == 'DW_CFA_def_cfa_offset':
                         curLine['cfa'] = CFARule(
                             reg=curLine['cfa'][regIdx], offset=args[0])
+                    elif name == 'DW_CFA_def_cfa_offset_sf':
+                        curLine['cfa'] = CFARule(
+                            reg=curLine['cfa'][regIdx],
+                            offset=args[0] * cie['daf'])
                     elif name == 'DW_CFA_def_cfa_expression':
                         curLine['cfa'] = CFARule(expr=args[0])
                     elif name == 'DW_CFA_undefined':
@@ -54578,6 +54582,10 @@ Section header string table index: %d
                         pc = curLine['pc']
                         curLine = lineStack.pop()
                         curLine['pc'] = pc
+                    elif name == 'DW_CFA_nop':
+                        pass
+                    else:
+                        SysMgr.printWarn('fail to decode %s' % name)
 
                 '''
                 The current line is appended to the table after
@@ -54743,6 +54751,8 @@ Section header string table index: %d
                     elif name in ('DW_CFA_def_cfa_offset',
                                   'DW_CFA_GNU_args_size'):
                         s += ' %s: %s\n' % (name, args[0])
+                    elif name in ('DW_CFA_def_cfa_offset_sf'):
+                        s += ' %s: %s\n' % (name, args[0] * cie['daf'])
                     elif name == 'DW_CFA_def_cfa_expression':
                         '''
                         expr_dumper = ExprDumper(entry.structs)
