@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210109"
+__revision__ = "210110"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15325,6 +15325,7 @@ class SysMgr(object):
 
     maxCore = long(0)
     nrCore = long(0)
+    utilProc = long(0)
     logSize = long(0)
     curLine = long(0)
     totalLine = long(0)
@@ -15339,6 +15340,7 @@ class SysMgr(object):
     loadavg = ''
     netInIndex = -1
 
+    # log #
     printStreamEnable = False
     loggingEnable = False
     dltEnable = False
@@ -18206,11 +18208,11 @@ Usage:
                 mode = sys.argv[1]
 
                 topCommonStr = '''
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -u                          run in the background
     -W                          wait for input
     -b  <SIZE:KB>               set buffer size
-    -T  <FILE>                  set font path
+    -T  <PROC>                  set process number
     -j  <DIR|FILE>              set report path
     -w  <TIME:FILE{:VALUE}>     set additional command
     -x  <IP:PORT>               set local address
@@ -18270,7 +18272,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ A:average ]
     -g  <COMM|TID{:FILE}>       set filter
-    -o  <DIR>                   save output data
+    -o  <DIR>                   set output path
     -a                          show all stats and events
     -T  <NUM>                   set top number
     -t  <START:END>             set y axis range
@@ -18682,7 +18684,7 @@ Options:
     -c  <LEVEL>                 set log level
     -I  <FILE|FIELD>            set path / field
     -J                          print in JSON format
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
 
 Examples:
     - Print messages in real-time
@@ -18726,7 +18728,7 @@ Options:
     -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
 
   [report]
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -S  <CHARACTER>             sort by key
           [ c:cpu / m:memory / p:pid / b:block / w:wfc
             n:new / r:runtime /file ]
@@ -18811,7 +18813,7 @@ Options:
     -u                          run in the background
     -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
@@ -18852,7 +18854,7 @@ Options:
     -t  <SYSCALL>               trace syscall
     -W                          wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
@@ -18885,7 +18887,7 @@ Options:
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
           [ e:encode | g:genearlInfo ]
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
@@ -18924,7 +18926,7 @@ Options:
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
     -W                          wait for input
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
     -q                          set environment variables
@@ -18974,7 +18976,7 @@ Options:
 
   [report]
     -a                          show all stats and events
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -S  <CHARACTER>             sort by key
           [ c:cpu / m:memory / p:pid / b:block
             w:wfc / n:new / r:runtime / f:file ]
@@ -19519,7 +19521,7 @@ Description:
                     helpStr += '''
 Options:
     -I  <FILE>                  set file path
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
@@ -19547,7 +19549,7 @@ Options:
     -g  <COMM|TID>              set filter
     -I  <RANGE>                 set memory address
     -R  <TIME>                  set timer
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
@@ -19590,7 +19592,7 @@ Options:
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
     -l                          print syscall list
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q                          set environment variables
@@ -19656,7 +19658,7 @@ Options:
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
     -H  <SKIP>                  set instrunction sampling rate
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
@@ -19707,13 +19709,13 @@ Options:
           [ C:clone | D:DWARF | e:encode | E:exec | g:generalInfo ]
     -u                          run in the background
     -a                          show all stats including registers
-    -T  <FILE>                  set file
+    -T  <FILE>                  set target file
     -g  <COMM|TID{:FILE}>       set filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <SYM|ADDR{:CMD}>        set breakpoint
     -H  <LEVEL>                 set function depth level
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q                          set environment variables
@@ -19741,7 +19743,7 @@ Options:
     -i  <REPEAT>                set repeat count
     -c  <SYM|ADDR{:CMD}>        set command
     -H  <LEVEL>                 set function depth level
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q                          set environment variables
@@ -19769,7 +19771,7 @@ Options:
     -g  <COMM|TID>              set filter
     -c  <TARGET#BIN#HOOK>       set command
     -H  <LEVEL>                 set function depth level
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -q                          set environment variables
@@ -19801,7 +19803,7 @@ Options:
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -H  <LEVEL>                 set function depth level
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
     -v                          verbose
@@ -19832,7 +19834,7 @@ Description:
                     helpStr += '''
 Options:
     -g  <COMM|TID{:FILE}>       set filter
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -I  <ADDR>                  set address area
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
@@ -20220,7 +20222,7 @@ Description:
     Show signal status
 
 Options:
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -g  <TID|COMM>              set filter
     -v                          verbose
                         '''.format(cmd, mode)
@@ -20241,7 +20243,7 @@ Description:
     Show D-Bus signal subscription info
 
 Options:
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -a                          show all stats
     -v                          verbose
                         '''.format(cmd, mode)
@@ -20467,9 +20469,9 @@ Description:
 
 Options:
     -I  <DIR|FILE>              set input path
-    -o  <DIR|FILE>              save output data
+    -o  <DIR|FILE>              set output path
     -c  <{{STARTSIZE:}}ENDSIZE>   set condition for RSS
-    -T  <FILE>                  set hook path for injection
+    -T  <FILE>                  set hook file
     -g  <PID|COMM>              set target process
     -k  <{{START,}}STOP>          set signal
     -C  <PATH>                  set config path
@@ -20691,7 +20693,9 @@ Description:
 
 Options:
     -I  <METHOD/ADDR/{{CONTENT}}> input requests
+    -o  <DIR|FILE>              set output path
     -R  <DELAY:COUNT>           set repeat count
+    -T  <PROC>                  set process number
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -20703,8 +20707,14 @@ Examples:
     - Request POST / url to specific server
         # {0:1} {1:1} POST/http://127.0.0.1:5000/{{\\"key\\":\\"value\\"}}
 
+    - Request POST / url to specific server with data from data.json file
+        # {0:1} {1:1} POST/http://127.0.0.1:5000/{{PATH#data.json}}
+
     - Request GET / url to specific server 10 times with 500ms delay
         # {0:1} {1:1} GET/http://127.0.0.1:5000 -R 500:10
+
+    - Request GET / url to specific server 10 times by 10 processes
+        # {0:1} {1:1} GET/http://127.0.0.1:5000 -R 10 -T 10
                     '''.format(cmd, mode)
 
                 # limitcpu #
@@ -24939,6 +24949,32 @@ Copyright:
 
 
     @staticmethod
+    def updateOutPath():
+        # dir #
+        if os.path.isdir(SysMgr.outPath):
+            SysMgr.inputFile = \
+                os.path.join(SysMgr.outPath, SysMgr.outFilePath)
+        # file #
+        else:
+            SysMgr.inputFile = SysMgr.outPath
+
+        # append suffix to output file #
+        if SysMgr.fileSuffix:
+            dirname = os.path.dirname(SysMgr.inputFile)
+            filename = os.path.basename(SysMgr.inputFile)
+            name, ext = os.path.splitext(filename)
+            filepath = os.path.join(dirname, name)
+            SysMgr.inputFile = '%s_%s%s' % \
+                (filepath, SysMgr.fileSuffix, ext)
+
+        # append uptime to the output file #
+        if not SysMgr.termFlag:
+            SysMgr.inputFile = '%s_%s' % \
+                (SysMgr.inputFile, SysMgr.getRuntime())
+
+
+
+    @staticmethod
     def printPipe(line='', newline=True, flush=False, pager=True):
         # check logging option #
         if SysMgr.loggingEnable:
@@ -25053,27 +25089,7 @@ Copyright:
         if SysMgr.outPath and not SysMgr.printFd:
             # profile #
             if SysMgr.isRuntimeMode():
-                # dir #
-                if os.path.isdir(SysMgr.outPath):
-                    SysMgr.inputFile = \
-                        os.path.join(SysMgr.outPath, SysMgr.outFilePath)
-                # file #
-                else:
-                    SysMgr.inputFile = SysMgr.outPath
-
-                # append suffix to output file #
-                if SysMgr.fileSuffix:
-                    dirname = os.path.dirname(SysMgr.inputFile)
-                    filename = os.path.basename(SysMgr.inputFile)
-                    name, ext = os.path.splitext(filename)
-                    filepath = os.path.join(dirname, name)
-                    SysMgr.inputFile = '%s_%s%s' % \
-                        (filepath, SysMgr.fileSuffix, ext)
-
-                # append uptime to the output file #
-                if not SysMgr.termFlag:
-                    SysMgr.inputFile = '%s_%s' % \
-                        (SysMgr.inputFile, SysMgr.getRuntime())
+                SysMgr.updateOutPath()
             # analysis #
             else:
                 # dir #
@@ -25701,6 +25717,15 @@ Copyright:
 
 
     @staticmethod
+    def checkOptVal(option, value):
+        if not value:
+            SysMgr.printErr(
+                'no value with -%s option' % option)
+            sys.exit(0)
+
+
+
+    @staticmethod
     def applySaveOption(value=None):
         # apply default path #
         if value == '':
@@ -25727,9 +25752,7 @@ Copyright:
 
         # support no-report record mode #
         if SysMgr.checkMode('filerec') or \
-            SysMgr.findOption('F') or \
-            SysMgr.checkMode('genrec') or \
-            SysMgr.findOption('y'):
+            SysMgr.checkMode('genrec'):
             if SysMgr.outputFile.endswith('.dat'):
                 SysMgr.outPath = '%s.out' % \
                     os.path.splitext(SysMgr.outputFile)[0]
@@ -25818,6 +25841,7 @@ Copyright:
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
+                SysMgr.checkOptVal(option, value)
                 SysMgr.inputParam = value.strip()
 
             elif option == 'L':
@@ -25834,6 +25858,7 @@ Copyright:
                     SysMgr.stdlog = LogMgr(value)
 
             elif option == 'w':
+                SysMgr.checkOptVal(option, value)
                 SysMgr.rcmdList = \
                     SysMgr.parseCustomRecordCmd(value)
 
@@ -25844,8 +25869,7 @@ Copyright:
                 SysMgr.depEnable = True
 
             elif option == 'P':
-                pfilter = SysMgr.getOption('g')
-                if not pfilter:
+                if not SysMgr.getOption('g'):
                     SysMgr.printErr((
                         "use also -g option to group threads "
                         "in a same process"))
@@ -25854,25 +25878,13 @@ Copyright:
                 SysMgr.groupProcEnable = True
 
             elif option == 'p':
-                if SysMgr.findOption('i'):
-                    SysMgr.printErr(
-                        "wrong -%s option, -i option is already used" % option)
-                    sys.exit(0)
-                elif SysMgr.findOption('g'):
-                    SysMgr.printErr(
-                        "wrong -%s option, -g option is already used" % option)
-                    sys.exit(0)
-                else:
-                    SysMgr.preemptGroup = \
-                        SysMgr.cleanItem(value.split(','))
+                SysMgr.checkOptVal(option, value)
 
-                    if not SysMgr.preemptGroup:
-                        SysMgr.printErr((
-                            "no specific thread targeted, "
-                            "input TID with -%s option") % option)
-                        sys.exit(0)
+                SysMgr.preemptGroup = \
+                    SysMgr.cleanItem(value.split(','))
 
             elif option == 'Y':
+                SysMgr.checkOptVal(option, value)
                 if not SysMgr.prio:
                     SysMgr.parsePriorityOption(value)
 
@@ -25880,10 +25892,12 @@ Copyright:
                 SysMgr.jsonEnable = True
 
             elif option == 'k':
+                SysMgr.checkOptVal(option, value)
                 if not SysMgr.isKillMode():
                     SysMgr.parseKillOption(value)
 
             elif option == 'd':
+                SysMgr.checkOptVal(option, value)
                 options = value
 
                 if 'b' in options:
@@ -25934,21 +25948,11 @@ Copyright:
                 if 'D' in options:
                     SysMgr.dwarfEnable = False
 
-            elif option == 'G':
-                itemList = UtilMgr.splitString(value)
-
-                SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
-
-                SysMgr.printInfo(
-                    "applied ignore keyword [ %s ]" % \
-                        ', '.join(SysMgr.ignoreItemList))
-
             elif option == 'c':
                 itemList = UtilMgr.splitString(value)
 
                 # set union option #
-                if SysMgr.isTraceMode() or \
-                    SysMgr.checkMode('cli'):
+                if SysMgr.isTraceMode() or SysMgr.checkMode('cli'):
                     union = False
                 else:
                     union = True
@@ -25956,13 +25960,17 @@ Copyright:
                 SysMgr.customCmd = SysMgr.cleanItem(itemList, union=union)
 
             elif option == 'g':
+                SysMgr.checkOptVal(option, value)
+
                 itemList = UtilMgr.splitString(value)
                 SysMgr.filterGroup = SysMgr.cleanItem(itemList)
 
             elif option == 'W':
                 SysMgr.waitEnable = True
 
-            if 'F' in option:
+            elif 'F' in option:
+                SysMgr.checkOptVal(option, value)
+
                 SysMgr.drawFormat = value.strip()
 
             elif option == 'e':
@@ -26120,6 +26128,7 @@ Copyright:
                         "unrecognized option -%s to enable" % options)
                     sys.exit(0)
 
+            # ignore below options for function mode #
             elif SysMgr.isFuncMode():
                 SysMgr.functionEnable = True
 
@@ -26161,15 +26170,14 @@ Copyright:
                         SysMgr.syslogEnable = True
 
             elif option == 'r':
+                SysMgr.checkOptVal(option, value)
+
                 SysMgr.rootPath = value
 
             elif option == 'T':
+                SysMgr.checkOptVal(option, value)
+
                 if SysMgr.checkMode('convert'):
-                    if not value:
-                        SysMgr.printErr((
-                            "wrong value with -%s option, "
-                            "input path for font") % option)
-                        sys.exit(0)
                     SysMgr.fontPath = value
                 elif SysMgr.isDrawMode():
                     try:
@@ -26179,8 +26187,16 @@ Copyright:
                             "wrong value with -%s option, "
                             "input number in integer format") % option)
                         sys.exit(0)
+                # this value will be used in various mode #
+                else:
+                    try:
+                        SysMgr.utilProc = long(value)
+                    except:
+                        pass
 
             elif option == 'O':
+                SysMgr.checkOptVal(option, value)
+
                 SysMgr.perCoreList = \
                     SysMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
@@ -26267,6 +26283,8 @@ Copyright:
                                 SysMgr.ttyRows = rows
                             if cols > 0:
                                 SysMgr.ttyCols = cols
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     SysMgr.printErr((
                         "wrong value with -%s option, "
@@ -26276,6 +26294,7 @@ Copyright:
 
             elif option == 'b' and \
                 not SysMgr.isRecordMode():
+                SysMgr.checkOptVal(option, value)
                 try:
                     if value.isdigit():
                         osize = bsize = long(value) << 10
@@ -26307,6 +26326,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'N':
+                SysMgr.checkOptVal(option, value)
                 networkList = SysMgr.cleanItem(value.split(','))
                 for item in networkList:
                     service, ip, port = NetworkMgr.parseAddr(item)
@@ -26317,8 +26337,8 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'x':
+                SysMgr.checkOptVal(option, value)
                 service, ip, port = NetworkMgr.parseAddr(value)
-
                 NetworkMgr.setServerNetwork(ip, port)
 
             elif option == 'X':
@@ -26387,20 +26407,24 @@ Copyright:
             SysMgr.setStream()
 
         elif option == 'q':
+            SysMgr.checkOptVal(option, value)
             itemList = UtilMgr.splitString(value)
             SysMgr.environList = UtilMgr.convList2Dict(itemList)
 
         elif option == 'R':
+            SysMgr.checkOptVal(option, value)
             SysMgr.parseRuntimeOption(value)
 
         elif option == 'u':
             SysMgr.runBackgroundMode()
 
         elif option == 'z':
+            SysMgr.checkOptVal(option, value)
             SysMgr.parseAffinityOption(
                 SysMgr.cleanItem(value.split(',')))
 
         elif option == 'A':
+            SysMgr.checkOptVal(option, value)
             SysMgr.archOption = value
             SysMgr.setArch(value)
 
@@ -26427,11 +26451,19 @@ Copyright:
             SysMgr.printInfo(
                 "use %s as cache directory" % value)
 
+        elif option == 'G':
+            SysMgr.checkOptVal(option, value)
+            itemList = UtilMgr.splitString(value)
+            SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
+            SysMgr.printInfo(
+                "applied ignore keyword [ %s ]" % \
+                    ', '.join(SysMgr.ignoreItemList))
+
 
 
     @staticmethod
     def isCommonOption(option):
-        optionList = 'ACEHQRWfoqsuz'
+        optionList = 'ACEGHQRWfoqsuz'
         if option in optionList:
             return True
         else:
@@ -26488,15 +26520,6 @@ Copyright:
 
             elif option == 'y':
                 SysMgr.systemEnable = True
-
-            elif option == 'G':
-                itemList = UtilMgr.splitString(value)
-
-                SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
-
-                SysMgr.printInfo(
-                    "applied ignore keyword [ %s ]" % \
-                        ', '.join(SysMgr.ignoreItemList))
 
             elif option == 'e':
                 options = value
@@ -26863,7 +26886,8 @@ Copyright:
     def isRuntimeMode():
         if SysMgr.isRecordMode() or \
             SysMgr.isTopMode() or \
-            SysMgr.isTraceMode():
+            SysMgr.isTraceMode() or \
+            SysMgr.checkMode('request'):
             return True
 
         return False
@@ -28320,8 +28344,7 @@ Copyright:
             else:
                 printHelp()
         # filter #
-        elif ulist[0].upper() == 'FILTER' or \
-            ulist[0] == 'f':
+        elif ulist[0].upper() == 'FILTER' or ulist[0] == 'f':
             if len(ulist) == 1:
                 SysMgr.filterGroup = []
             else:
@@ -32592,7 +32615,26 @@ Copyright:
                     content = req[len(method):]
                 else:
                     content = req[len(method):pos]
-                    arg = UtilMgr.convStr2Dict(req[pos+1:])
+
+                    # get argument #
+                    arg = req[pos+1:]
+                    # file #
+                    if arg[1:].startswith('PATH#'):
+                        try:
+                            path = '??'
+                            path = arg.lstrip('{PATH#')
+                            path = path[:path.rfind('}')]
+                            with open(path, 'r') as fd:
+                                arg = fd.read()
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printErr(
+                                "fail to get data from '%s'" % path,
+                                reason=True)
+                            sys.exit(0)
+
+                    arg = UtilMgr.convStr2Dict(arg, verb=True)
 
                 if not content.startswith('http'):
                     SysMgr.printWarn(
@@ -32602,7 +32644,9 @@ Copyright:
                 # cache data #
                 cache[req] = (cmd, content, arg)
 
-            SysMgr.printPipe("\n[%s] request (%s)" % (time.time(), req))
+            SysMgr.printPipe(
+                "\n%s(%s) [%.6f] -> (%s)" % \
+                    (SysMgr.comm, SysMgr.pid, time.time(), req))
 
             # request #
             before = time.time()
@@ -32625,8 +32669,21 @@ Copyright:
                 text = ''
 
             SysMgr.printPipe(
-                '-> [%s/%.6f] %s%s' % \
-                    (res.status_code, after-before, success, text))
+                '%s(%s) [%.6f] <- [%s/%.6f] %s%s' % \
+                    (SysMgr.comm, SysMgr.pid, after, \
+                        res.status_code, after-before, success, text))
+
+        def _task(reqs, repeat, delay, cache):
+            for idx in range(0, repeat):
+                for req in reqs:
+                    try:
+                        _request(req, cache)
+                        time.sleep(delay)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            "fail to request '%s'" % req, reason=True)
 
 
 
@@ -32660,27 +32717,50 @@ Copyright:
         # define cache list #
         cache = {}
 
+        # set log for delay #
+        if delay > 0:
+            delayStr = ' with %s second delay' % delay
+        else:
+            delayStr = ''
+
+        # set log for processes #
+        if SysMgr.utilProc > 1:
+            procStr = ' by %s processes' % SysMgr.utilProc
+        else:
+            procStr = ''
+
         SysMgr.printInfo(
-            'start requests %s times with %s second delay' % \
-                (UtilMgr.convNum(repeat), delay))
+            'request %s times%s%s' % \
+                (UtilMgr.convNum(repeat), delayStr, procStr))
 
         start = time.time()
 
-        for idx in range(0, repeat):
-            for req in reqs:
-                try:
-                    _request(req, cache)
-                    time.sleep(delay)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        "fail to request '%s'" % req, reason=True)
+        try:
+            # process #
+            if SysMgr.utilProc > 1:
+                for idx in range(1, SysMgr.utilProc+1):
+                    # create a new worker #
+                    pid = SysMgr.createProcess()
+                    if pid == 0:
+                        _task(reqs, repeat, delay, cache)
+
+                        sys.exit(0)
+
+                # wait for childs #
+                SysMgr.waitChild()
+            else:
+                _task(reqs, repeat, delay, cache)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to request', reason=True)
+            sys.exit(0)
 
         # print elapsed time #
         elapsed = time.time() - start
         SysMgr.printInfo(
-            'finished handling all requests for %.6f' % elapsed)
+            'finished all requests for %.6f' % elapsed)
 
 
 
@@ -56458,6 +56538,15 @@ class ThreadAnalyzer(object):
 
         # initialize preempt thread list #
         if SysMgr.preemptGroup:
+            if SysMgr.findOption('i'):
+                SysMgr.printErr(
+                    "-i option is already used")
+                sys.exit(0)
+            elif SysMgr.findOption('g'):
+                SysMgr.printErr(
+                    "-g option is already used")
+                sys.exit(0)
+
             for index in SysMgr.preemptGroup:
                 '''
                 preempted state
