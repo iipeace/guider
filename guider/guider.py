@@ -28868,6 +28868,21 @@ Copyright:
 
 
     @staticmethod
+    def spawnProcess(func, args, cnt=1, wait=True):
+        multiprocessing = SysMgr.getPkg('multiprocessing')
+        plist = []
+        for seq in range(0, cnt):
+            p = multiprocessing.Process(target=func, args=args)
+            p.start()
+            plist.append(p)
+
+        if wait:
+            for p in plist:
+                p.join()
+
+
+
+    @staticmethod
     def createProcess(
         cmd=None, isDaemon=False, mute=False, chPgid=False, chMid=False):
         # flush print buffer before fork #
@@ -32954,16 +32969,20 @@ Copyright:
         try:
             # process #
             if SysMgr.utilProc > 1:
-                for idx in range(1, SysMgr.utilProc+1):
-                    # create a new worker #
-                    pid = SysMgr.createProcess()
-                    if pid == 0:
-                        _task(reqs, repeat, delay, cache)
+                if SysMgr.isLinux:
+                    for idx in range(1, SysMgr.utilProc+1):
+                        # create a new worker #
+                        pid = SysMgr.createProcess()
+                        if pid == 0:
+                            _task(reqs, repeat, delay, cache)
 
-                        sys.exit(0)
+                            sys.exit(0)
 
-                # wait for childs #
-                SysMgr.waitChild()
+                    # wait for childs #
+                    SysMgr.waitChild()
+                else:
+                    SysMgr.spawnProcess(
+                        _task, (reqs, repeat, delay, cache), SysMgr.utilProc)
             else:
                 _task(reqs, repeat, delay, cache)
         except SystemExit:
@@ -40434,8 +40453,7 @@ class DltAnalyzer(object):
         DltAnalyzer.procInfo.saveProcInstance()
         saved = False
         for pid in DltAnalyzer.pids:
-            ret = DltAnalyzer.procInfo.saveProcData(
-                '%s/%s' % (SysMgr.procPath, pid), pid)
+            ret = DltAnalyzer.procInfo.saveProcData(None, pid)
             if ret:
                 saved = True
 
@@ -41357,10 +41375,8 @@ class DltAnalyzer(object):
         SysMgr.cmdlineEnable = True
         procInfo = DltAnalyzer.procInfo = ThreadAnalyzer(onlyInstance=True)
         for pid in DltAnalyzer.pids:
-            procInfo.saveProcData(
-                '%s/%s' % (SysMgr.procPath, pid), pid)
-            procInfo.saveCmdlineData(
-                '%s/%s' % (SysMgr.procPath, pid), pid)
+            procInfo.saveProcData(None, pid)
+            procInfo.saveCmdlineData(None, pid)
 
         # set timer #
         signal.signal(signal.SIGALRM, DltAnalyzer.onAlarm)
@@ -69811,6 +69827,9 @@ class ThreadAnalyzer(object):
         if not SysMgr.cmdlineEnable:
             return
 
+        if not path:
+            path = '%s/%s' % (SysMgr.procPath, tid)
+
         # check kernel thread #
         if self.isKernelThread(tid):
             self.procData[tid]['cmdline'] = ''
@@ -69950,6 +69969,9 @@ class ThreadAnalyzer(object):
                 self.reclaimFds()
 
             return statBuf
+
+        if not path:
+            path = '%s/%s' % (SysMgr.procPath, tid)
 
         # initialize task #
         if not tid in self.procData:
