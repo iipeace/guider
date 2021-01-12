@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210111"
+__revision__ = "210112"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4388,6 +4388,7 @@ class UtilMgr(object):
         if not SysMgr.colorEnable or \
             not color in ConfigMgr.COLOR_LIST or \
             SysMgr.outPath or \
+            not SysMgr.isLinux or \
             'REMOTERUN' in os.environ:
             return string
 
@@ -14706,7 +14707,7 @@ class LogMgr(object):
                 self.notified = True
 
             with open(errorFile, 'a') as fd:
-                fd.write(message)
+                SysMgr.writeErr(fd, message)
         except SystemExit:
             sys.exit(0)
         except:
@@ -14722,6 +14723,40 @@ class LogMgr(object):
 
     def __getattr__(self, attr):
         return getattr(self.terminal, attr)
+
+
+
+    @staticmethod
+    def lock(fd):
+        if not SysMgr.isLinux:
+            return
+
+        try:
+            SysMgr.importPkgItems('fcntl')
+            lockf(fd, LOCK_EX, 1, 0, 0)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            name = fd.name if fd else 'logger'
+            reason = SysMgr.getErrMsg()
+            print('fail to get lock for %s because %s' % (name, reason))
+
+
+
+    @staticmethod
+    def unlock(fd):
+        if not SysMgr.isLinux:
+            return
+
+        try:
+            SysMgr.importPkgItems('fcntl')
+            lockf(fd, LOCK_UN, 1, 0, 0)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            name = fd.name if fd else 'logger'
+            reason = SysMgr.getErrMsg()
+            print('fail to free lock for %s because %s' % (name, reason))
 
 
 
@@ -15569,6 +15604,19 @@ class SysMgr(object):
 
     def __del__(self):
         pass
+
+
+
+    @staticmethod
+    def writeErr(fd, log):
+        LogMgr.lock(fd)
+        try:
+            fd.write(log)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
+        LogMgr.unlock(fd)
 
 
 
@@ -17112,9 +17160,17 @@ class SysMgr(object):
         except:
             pass
 
+        # use psutil #
+        if not SysMgr.isLinux:
+            try:
+                psutil = SysMgr.getPkg('psutil')
+                return psutil.Process(pid).name()
+            except:
+                pass
+
+        comm = None
         commPath = \
             '%s/%s/comm' % (SysMgr.procPath, pid)
-        comm = None
 
         try:
             fd = open(commPath, 'r')
@@ -17963,6 +18019,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('exec') and \
                 not SysMgr.checkMode('comp') and \
                 not SysMgr.checkMode('decomp') and \
+                not SysMgr.checkMode('request') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -20703,6 +20760,7 @@ Options:
 Examples:
     - Request GET / url to specific server
         # {0:1} {1:1} GET/http://127.0.0.1:5000
+        # {0:1} {1:1} GET/http://127.0.0.1:5000\|GET/http://10.25.123.123:5000
 
     - Request GET / url to specific server with 5 second timeout
         # {0:1} {1:1} GET/TIMEOUT:5/http://127.0.0.1:5000
@@ -25272,7 +25330,7 @@ Copyright:
         if 'REMOTERUN' in os.environ:
             print(log.replace('\n', ''))
         else:
-            SysMgr.stderr.write(log)
+            SysMgr.writeErr(SysMgr.stderr, log)
 
 
 
@@ -25314,7 +25372,7 @@ Copyright:
         if 'REMOTERUN' in os.environ:
             print(log.replace('\n', ''))
         else:
-            SysMgr.stderr.write(log)
+            SysMgr.writeErr(SysMgr.stderr, log)
 
 
 
@@ -25677,7 +25735,9 @@ Copyright:
             sys.exit(0)
 
         # get termination flag #
-        if repeatParams and len(repeatParams) == 3:
+        if SysMgr.checkMode('request'):
+            pass
+        elif repeatParams and len(repeatParams) == 3:
             SysMgr.termFlag = False
             SysMgr.printInfo(
                 "run every %s sec %s time" % \
@@ -25844,7 +25904,6 @@ Copyright:
                 SysMgr.parseCommonOption(option, value)
 
             elif option == 'I':
-                SysMgr.checkOptVal(option, value)
                 SysMgr.inputParam = value.strip()
 
             elif option == 'L':
@@ -28519,6 +28578,9 @@ Copyright:
 
         # print logo #
         SysMgr.printLogo(big=True, pager=False)
+
+        # increase stack depth #
+        sys.setrecursionlimit(2000)
 
         # check environment #
         SysMgr.checkEnv()
@@ -31609,6 +31671,41 @@ Copyright:
 
 
     @staticmethod
+    def initTaskMon(pid, update=True):
+        tobj = ThreadAnalyzer(None, onlyInstance=True)
+        path = '%s/%s' % (SysMgr.procPath, pid)
+        tobj.saveProcData(path, pid)
+        SysMgr.updateUptime()
+        if update:
+            tobj.saveProcInstance()
+        return tobj
+
+
+
+    @staticmethod
+    def getTaskMon(tobj, pid, res):
+        nowData = tobj.procData[pid]['stat']
+        prevData = tobj.prevProcData[pid]['stat']
+
+        if res == 'ttime':
+            utick = nowData[tobj.utimeIdx] - prevData[tobj.utimeIdx]
+            stick = nowData[tobj.stimeIdx] - prevData[tobj.stimeIdx]
+            return utick + stick
+        else:
+            return None
+
+
+
+    @staticmethod
+    def updateTaskMon(tobj, pid):
+        path = '%s/%s' % (SysMgr.procPath, SysMgr.pid)
+        SysMgr.updateUptime()
+        tobj.saveProcData(path, pid)
+        tobj.setProcUsage()
+
+
+
+    @staticmethod
     def doLeaktrace():
         def _waitAndKill(tobj, pid, comm, cond, sig, purpose, hookCmd=None):
             # define RSS index #
@@ -31785,11 +31882,8 @@ Copyright:
                 sys.exit(0)
 
         # create a task object #
-        tobj = ThreadAnalyzer(None, onlyInstance=True)
+        tobj = SysMgr.initTaskMon(pid, update=False)
         path = '%s/%s' % (SysMgr.procPath, pid)
-        tobj.saveProcData(path, pid)
-        SysMgr.updateUptime()
-        tobj.setProcUsage()
 
         # set input file path #
         autostart = False
@@ -32037,9 +32131,7 @@ Copyright:
 
         # calculate runtime and profile time #
         try:
-            tobj.saveProcData('%s/%s' % (SysMgr.procPath, pid), pid)
-            SysMgr.updateUptime()
-            tobj.setProcUsage()
+            SysMgr.updateTaskMon(tobj, pid)
             endTime = SysMgr.uptime
             runtime = UtilMgr.convTime(tobj.procData[pid]['runtime'])
             profiletime = UtilMgr.convTime(endTime - startTime)
@@ -32588,7 +32680,7 @@ Copyright:
 
     @staticmethod
     def doRequest():
-        def _request(req, cache, stats):
+        def _request(req, cache, stats, idx):
             cmd = None
             arg = None
 
@@ -32662,9 +32754,15 @@ Copyright:
                 # cache data #
                 cache[req] = (cmd, content, arg, timeout)
 
+            # convert req #
+            reqstr = UtilMgr.convColor(req, 'UNDERLINE')
+
+            # convert sequence #
+            idx = UtilMgr.convNum(idx)
+
             SysMgr.printPipe(
-                "\n%s(%s) [%.6f] -> (%s)" % \
-                    (SysMgr.comm, SysMgr.pid, time.time(), req))
+                "\n%s(%s) <%s> [%.6f] -> %s" % \
+                    (SysMgr.comm, SysMgr.pid, idx, time.time(), reqstr))
 
             before = time.time()
 
@@ -32681,22 +32779,27 @@ Copyright:
             stats['perReqTime'].setdefault(req, list())
             stats['perReqTime'][req].append(elapsed)
 
-            # check result #
+            # convert result #
             if res.ok:
-                success = 'SUCCESS'
+                success = UtilMgr.convColor('OK', 'GREEN')
             else:
-                success = 'FAIL'
+                success = UtilMgr.convColor('NG', 'RED')
 
-            # check text #
+            # convert code #
+            code = UtilMgr.convColor(res.status_code, 'SPECIAL')
+
+            # convert text #
             if SysMgr.showAll:
                 text = '\n%s' % res.text
             else:
                 text = ''
 
+            elapsed = '%.6f' % elapsed
+
             SysMgr.printPipe(
-                '%s(%s) [%.6f] <- [%s/%.6f] %s%s' % \
-                    (SysMgr.comm, SysMgr.pid, after, \
-                        res.status_code, elapsed, success, text))
+                '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
+                    (SysMgr.comm, SysMgr.pid, idx, after, code,
+                        UtilMgr.convColor(elapsed, 'CYAN'), success, text))
 
         def _task(reqs, repeat, delay, cache):
             # initialize statistics #
@@ -32706,34 +32809,55 @@ Copyright:
                 'perCycleTime': list(),
             }
 
+            # save task stat #
+            tobj = SysMgr.initTaskMon(SysMgr.pid)
+
             start = time.time()
 
-            for idx in range(0, repeat):
-                before = time.time()
-                for req in reqs:
-                    try:
-                        stats['perReqErr'].setdefault(req, 0)
-                        _request(req, cache, stats)
-                        time.sleep(delay)
-                    except SystemExit:
-                        sys.exit(0)
-                    except:
-                        stats['perReqErr'][req] += 1
-                        SysMgr.printErr(
-                            "fail to request '%s'" % req, reason=True)
-                elapsed = time.time() - before
+            try:
+                for idx in range(1, repeat+1):
+                    before = time.time()
+                    for req in reqs:
+                        try:
+                            stats['perReqErr'].setdefault(req, 0)
+                            _request(req, cache, stats, idx)
+                            time.sleep(delay)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            stats['perReqErr'][req] += 1
+                            SysMgr.printErr(
+                                "fail to request '%s'" % req, reason=True)
+                    elapsed = time.time() - before
 
-                stats['perCycleTime'].append(elapsed)
+                    stats['perCycleTime'].append(elapsed)
+            except:
+                pass
 
             totalElapsed = time.time() - start
+
+            # get CPU usage #
+            try:
+                SysMgr.updateTaskMon(tobj, SysMgr.pid)
+                tcpu = SysMgr.getTaskMon(tobj, SysMgr.pid, 'ttime')
+                acpu = tcpu / totalElapsed
+                tcpu = UtilMgr.convNum(tcpu)
+                acpu = UtilMgr.convNum(acpu)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                tcpu = '?'
+                acpu = '?'
 
             # summarize per-request time #
             SysMgr.printPipe((
                 '\n[Request Summary] [%s(%s)] [Elapsed: %.6f] '
-                '[NrReq: %s] [ReqCnt: %s]\n%s') % \
+                '[NrReq: %s] [ReqCnt: %s] [Delay: %s] '
+                '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                     (SysMgr.comm, SysMgr.pid,
                     totalElapsed, UtilMgr.convNum(len(reqs)),
-                    UtilMgr.convNum(len(reqs) * repeat), twoLine))
+                    UtilMgr.convNum(len(reqs) * repeat), delay,
+                    tcpu, acpu, twoLine))
 
             SysMgr.printPipe((
                 '{0:^7} | {1:^7} | {2:^7} | {3:^10} | {4:^10} | '
@@ -32749,10 +32873,13 @@ Copyright:
                 maxval = max(value)
                 stdval = UtilMgr.getStdev(value)
 
+                # get error #
                 if idx in stats['perReqErr']:
-                    err = stats['perReqErr'][idx]
-                    cnt += err
-                    err = UtilMgr.convNum(err)
+                    errcnt = stats['perReqErr'][idx]
+                    cnt += errcnt
+                    err = UtilMgr.convNum(errcnt)
+                    if errcnt > 0:
+                        err = UtilMgr.convColor('%7s' % err, 'RED')
                 else:
                     err = 0
 
@@ -32763,12 +32890,14 @@ Copyright:
                     '{4:>10.6f} | {5:>10.6f} | {6:>7} | {7:1}').format(
                         cnt, totval, avgval, minval, maxval, stdval, err, idx))
 
+            # print only errors #
             for idx, value in stats['perReqErr'].items():
                 if not idx in stats['perReqTime']:
+                    err = UtilMgr.convColor('%7s' % value, 'RED')
                     SysMgr.printPipe((
                         '{0:>7} | {1:>7.3f} | {2:>7.3f} | {3:>10.6f} | '
                         '{4:>10.6f} | {5:>10.6f} | {6:>7} | {7:1}').format(
-                            value, 0, 0, 0, 0, 0, value, idx))
+                            value, 0, 0, 0, 0, 0, err, idx))
 
             SysMgr.printPipe(oneLine)
 
@@ -32794,7 +32923,7 @@ Copyright:
         if SysMgr.repeatCount > 1:
             repeat = SysMgr.repeatCount
             delay = SysMgr.intervalEnable / 1000.0
-        elif SysMgr.intervalEnable > 1:
+        elif SysMgr.intervalEnable > 0:
             repeat = SysMgr.intervalEnable
             delay = 0
         else:

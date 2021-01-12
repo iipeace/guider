@@ -1202,6 +1202,7 @@ COMMAND:
                     pstree          <Process>
                     readelf         <File>
                     remote          <Command>
+                    request         <URL>
                     setafnt         <Affinity>
                     setcpu          <Clock>
                     setsched        <Priority>
