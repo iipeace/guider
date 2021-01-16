@@ -29540,6 +29540,8 @@ Copyright:
             # close listen socket of parent #
             connMan.close()
 
+            before = time.time()
+
             # handle request #
             if request == 'DOWNLOAD':
                 _onDownload(connObj, value, response)
@@ -29555,6 +29557,11 @@ Copyright:
                     connObj.send('PONG')
                 except:
                     pass
+
+            elapsed = time.time() - before
+            SysMgr.printInfo(
+                "elapsed %.6f for '%s' from %s:%s" % \
+                    (elapsed, message, ip, port))
 
             sys.exit(0)
 
@@ -29767,8 +29774,17 @@ Copyright:
         if SysMgr.loadLibcObj():
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+        # get argument #
+        if SysMgr.hasMainArg():
+            cmdList = SysMgr.getMainArg().split(',')
+            cmdList = SysMgr.cleanItem(cmdList)
+        elif SysMgr.customCmd:
+            cmdList = SysMgr.customCmd
+        else:
+            cmdList = []
+
         # set environment for parallel commands #
-        if SysMgr.customCmd:
+        if cmdList:
             SysMgr.setDefaultSignal()
 
             selectObj = SysMgr.getPkg('select')
@@ -29777,12 +29793,12 @@ Copyright:
                 SysMgr.setTTYAuto(True)
 
             # print window size for commands #
-            windowSize = long(SysMgr.ttyRows / len(SysMgr.customCmd))
+            windowSize = long(SysMgr.ttyRows / len(cmdList))
             SysMgr.printInfo("set each window height to %s" % (windowSize+2))
 
         # run parallel commands #
         cmdPipeList = {}
-        for idx, uinput in enumerate(SysMgr.customCmd):
+        for idx, uinput in enumerate(cmdList):
             fullInput = uinput
 
             # get address #
@@ -29812,7 +29828,7 @@ Copyright:
         # run mainloop for parallel commands #
         while 1:
             if not cmdPipeList:
-                if SysMgr.customCmd:
+                if cmdList:
                     sys.exit(0)
                 break
 
