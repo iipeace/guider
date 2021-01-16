@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210112"
+__revision__ = "210116"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -27,8 +27,8 @@ try:
     import signal
     import atexit
     import struct
-    #from ctypes import *
     from copy import deepcopy
+    #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
     print("[Error] fail to import essential packages: %s" % err.args[0])
@@ -15701,7 +15701,7 @@ class SysMgr(object):
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # get message #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             msg = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             msg = SysMgr.inputParam
@@ -15816,7 +15816,7 @@ class SysMgr(object):
     @staticmethod
     def setReportAttr():
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             SysMgr.inputFile = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             SysMgr.inputFile = SysMgr.inputParam
@@ -16454,7 +16454,7 @@ class SysMgr(object):
     @staticmethod
     def doDump():
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
@@ -16463,7 +16463,7 @@ class SysMgr(object):
                 "no COMM or PID with -g option")
             sys.exit(0)
 
-        if not SysMgr.inputParam:
+        if not inputParam:
             SysMgr.printErr(
                 "no memory info with -I option")
             sys.exit(0)
@@ -16500,12 +16500,12 @@ class SysMgr(object):
     @staticmethod
     def doStrings():
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
             SysMgr.printErr(
-                "no file path with -I option")
+                "no path with -I option")
             sys.exit(0)
 
         SysMgr.setStream()
@@ -16534,7 +16534,7 @@ class SysMgr(object):
         SysMgr.warnEnable = True
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             value = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -16689,7 +16689,7 @@ class SysMgr(object):
         SysMgr.warnEnable = True
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             value = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -17958,13 +17958,24 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getMainArg():
+    def hasMainArg():
+        if len(sys.argv) <= 2 or sys.argv[2].startswith('-'):
+            return False
+        else:
+            return True
+
+
+
+    @staticmethod
+    def getMainArg(path=False):
         if len(sys.argv) <= 2:
             return None
         elif sys.argv[2].startswith('-'):
             return None
         else:
-            return sys.argv[2]
+            if not path:
+                return sys.argv[2]
+            return UtilMgr.convPath(sys.argv[2], retStr=True, separator=',')
 
 
 
@@ -18009,6 +18020,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('cli') and \
                 not SysMgr.isDrawMode() and \
                 not SysMgr.checkMode('convert') and \
+                not SysMgr.checkMode('drawreq') and \
                 not SysMgr.checkMode('readelf') and \
                 not SysMgr.checkMode('addr2sym') and \
                 not SysMgr.checkMode('sym2addr') and \
@@ -18164,6 +18176,7 @@ class SysMgr(object):
                 'drawleak': 'Leak',
                 'drawmem': 'Memory',
                 'drawmemavg': 'Memory',
+                'drawreq': 'URL',
                 'drawrss': 'RSS',
                 'drawrssavg': 'RSS',
                 'drawtime': 'Timeline',
@@ -20749,7 +20762,7 @@ Description:
     Request URLs
 
 Options:
-    -I  <METHOD/ADDR/{{CONTENT}}> input requests
+    -I  <METHOD#OPTION#ADDR>    input requests
     -o  <DIR|FILE>              set output path
     -R  <DELAY:COUNT>           set repeat count
     -T  <PROC>                  set process number
@@ -20759,23 +20772,40 @@ Options:
                     helpStr += '''
 Examples:
     - Request GET / url to specific server
-        # {0:1} {1:1} GET/http://127.0.0.1:5000
-        # {0:1} {1:1} GET/http://127.0.0.1:5000\|GET/http://10.25.123.123:5000
-
-    - Request GET / url to specific server with 5 second timeout
-        # {0:1} {1:1} GET/TIMEOUT:5/http://127.0.0.1:5000
+        # {0:1} {1:1} http://127.0.0.1:5000
+        # {0:1} {1:1} GET#http://127.0.0.1:5000
+        # {0:1} {1:1} GET#http://127.0.0.1:5000\|GET#http://10.25.123.123:5000
 
     - Request POST / url to specific server
-        # {0:1} {1:1} POST/http://127.0.0.1:5000/{{\\"key\\":\\"value\\"}}
+        # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONDATA:"{{"key":"value"}}"#http://127.0.0.1:5000
 
     - Request POST / url to specific server with data from data.json file
-        # {0:1} {1:1} POST/http://127.0.0.1:5000/{{PATH#data.json}}
+        # {0:1} {1:1} POST#FILEJSON:data.json#http://127.0.0.1:5000
+
+    - Request POST / url to specific server with data from data file
+        # {0:1} {1:1} POST#FILEDATA:data#http://127.0.0.1:5000
 
     - Request GET / url to specific server 10 times with 500ms delay
-        # {0:1} {1:1} GET/http://127.0.0.1:5000 -R 500:10
+        # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 500:10
 
     - Request GET / url to specific server 10 times by 10 processes
-        # {0:1} {1:1} GET/http://127.0.0.1:5000 -R 10 -T 10
+        # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 10 -T 10
+
+    - Request GET / url to specific server with 5 second timeout
+        # {0:1} {1:1} GET#TIMEOUT:5#http://127.0.0.1:5000
+
+    - Request GET / url to specific server with no verification for SSL
+        # {0:1} {1:1} GET#VERIFY:false#https://127.0.0.1:5000
+
+    - Request GET / url to specific server with auth
+        # {0:1} {1:1} GET#AUTH:id,passwd#https://127.0.0.1:5000
+
+    - Request GET / url to specific server with cookies
+        # {0:1} {1:1} GET#COOKIES:sessionKey:sessionValue#https://127.0.0.1:5000
+
+    - Request GET / url to specific server with headers
+        # {0:1} {1:1} GET#HEADERS:Content-Type:application/json;charset=utf-8#https://127.0.0.1:5000
                     '''.format(cmd, mode)
 
                 # limitcpu #
@@ -20849,6 +20879,31 @@ Options:
 Examples:
     - Convert a text file to a image file
         # {0:1} {1:1} guider.out
+                    '''.format(cmd, mode)
+
+                # drawreq #
+                elif SysMgr.checkMode('drawreq'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw graphs for response time
+
+Options:
+    -v                          verbose
+    -I  <DIR|FILE>              set input path
+    -o  <DIR|FILE>              set output path
+    -g  <WORD>                  set filter
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Draw graphs for response time
+        # {0:1} {1:1} guider.out
+
+    - Draw graphs for response time for specific requests
+        # {0:1} {1:1} guider.out -g www.google.com
                     '''.format(cmd, mode)
 
                 # setsched #
@@ -27072,7 +27127,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # get path #
-            if SysMgr.getMainArg():
+            if SysMgr.hasMainArg():
                 path = SysMgr.getMainArg()
             elif SysMgr.inputParam:
                 path = SysMgr.inputParam
@@ -27119,7 +27174,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # get start dir #
-            if SysMgr.getMainArg():
+            if SysMgr.hasMainArg():
                 root = SysMgr.getMainArg()
             elif SysMgr.inputParam:
                 root = SysMgr.inputParam
@@ -27207,7 +27262,7 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # check input #
-            if SysMgr.getMainArg():
+            if SysMgr.hasMainArg():
                 target = [SysMgr.getMainArg()]
             else:
                 target = SysMgr.filterGroup
@@ -27223,7 +27278,7 @@ Copyright:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
             # get argument #
-            if SysMgr.getMainArg():
+            if SysMgr.hasMainArg():
                 filterGroup = SysMgr.getMainArg().split(',')
             elif SysMgr.filterGroup:
                 filterGroup = SysMgr.filterGroup
@@ -27313,6 +27368,10 @@ Copyright:
         # CONVERT MODE #
         elif SysMgr.checkMode('convert'):
             SysMgr.doConvert()
+
+        # DRAWREQ MODE #
+        elif SysMgr.checkMode('drawreq'):
+            SysMgr.doDrawReq()
 
         # STRINGS MODE #
         elif SysMgr.checkMode('strings'):
@@ -28872,7 +28931,14 @@ Copyright:
         multiprocessing = SysMgr.getPkg('multiprocessing')
         plist = []
         for seq in range(0, cnt):
-            p = multiprocessing.Process(target=func, args=args)
+            try:
+                p = multiprocessing.Process(target=func, args=args)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to create a new process', reason=True)
+                continue
             p.start()
             plist.append(p)
 
@@ -29910,12 +29976,207 @@ Copyright:
 
 
     @staticmethod
+    def doDrawReq():
+        def _drawRes(stats):
+            # pylint: disable=undefined-variable
+            def _drawMeta(labelList=None):
+                # pylint: disable=undefined-variable
+                # draw label #
+                ThreadAnalyzer.drawLabel(
+                    labelList, draw=True, anchor=(1.12, 1))
+
+                # draw grid #
+                xticks(fontsize=4)
+                yticks(fontsize=5)
+                grid(which='both', linestyle=':', linewidth=0.2)
+                tick_params(axis='x', direction='in')
+                tick_params(axis='y', direction='in')
+
+            # draw base #
+            figObj = ThreadAnalyzer.drawFigure()
+
+            # draw title #
+            ax = subplot2grid((6,1), (0,0), rowspan=3, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            suptitle('Guider Response Graph', fontsize=8)
+
+            # define integrated request list for processes #
+            totalStats = {}
+            maxLabelLen = 80
+
+            # draw line plots for per-process requests #
+            labelList = []
+            for req, stat in stats.items():
+                timeline = stat['reqtime']
+                response = stat['restime']
+
+                realreq = req[req.find(')_')+2:]
+                totalStats.setdefault(realreq, list())
+                totalStats[realreq] += response
+
+                # draw total gpu graph #
+                plot(timeline, response, '-',
+                    linewidth=1, marker='d', markersize=1,
+                    solid_capstyle='round')
+
+                labelList.append(req[:maxLabelLen])
+
+            # set ticks #
+            try:
+                ax.set_ylim(bottom=0)
+                xtickLabel = ax.get_xticks().tolist()
+                xtickLabel[-1] = 'Time'
+                ax.set_xticks(ax.get_xticks())
+                ax.set_xticklabels(xtickLabel)
+            except:
+                pass
+
+            _drawMeta(labelList)
+
+            # draw bar plots for requests #
+            ax = subplot2grid((6,1), (3,0), rowspan=3, colspan=1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            start = 0
+            width = 0.1
+            for req, value in totalStats.items():
+                totval = sum(value)
+                avgval = totval / len(value)
+                minval= min(value)
+                maxval = max(value)
+                data = [minval, avgval, maxval]
+
+                brange = []
+                for idx in range(-1, 2):
+                    brange.append(start + idx/10)
+                ax.bar(brange, data, width=width,
+                    edgecolor='white', label=req[:maxLabelLen])
+                start += 1
+
+            # set ticks #
+            try:
+                ax.set_ylim(bottom=0)
+                xtickLabel = ax.get_xticks().tolist()
+                xtickLabel = list(range(-1, len(totalStats)+1))
+                ax.set_xticks(xtickLabel)
+                xtickLabel[0] = ''
+                xtickLabel[-1] = 'Req'
+                for idx in range(1, len(totalStats)+1):
+                    xtickLabel[idx] = 'Min/Avg/Max'
+                ax.set_xticklabels(xtickLabel)
+            except:
+                pass
+
+            _drawMeta(None)
+
+            # save to file #
+            ThreadAnalyzer.saveImage(SysMgr.inputFile, 'graph')
+
+        def _getDrawStat(path):
+            try:
+                fd = open(path, 'r')
+                data = fd.readlines()
+                fd.close()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to read '%s'" % path, reason=True)
+                sys.exit(0)
+
+            startPos = -1
+            task = None
+            for idx, line in enumerate(data):
+                if line.startswith('[Response Time]'):
+                    for item in line.split('['):
+                        if item.startswith('Task:'):
+                            task = item.lstrip('Task:').strip().rstrip(']')
+                    startPos = idx+4
+                    break
+
+            # check start pos #
+            if startPos == -1:
+                SysMgr.printErr(
+                    "fail to recognize '%s'" % path)
+                sys.exit(0)
+
+            edata = data[startPos:]
+
+            # parse response time for requests #
+            resTable = {}
+            for line in edata:
+                if not line.strip():
+                    break
+                elif line.startswith(oneLine):
+                    continue
+
+                req, times = line.split('|', 1)
+
+                if SysMgr.filterGroup:
+                    if not UtilMgr.isEffectiveStr(req):
+                        continue
+
+                reqtimeList = []
+                restimeList = []
+                timeList = times.split(',')
+                for item in timeList:
+                    reqtime, restime = item.split('/')
+                    reqtimeList.append(float(reqtime))
+                    restimeList.append(float(restime))
+
+                # initialize lists #
+                reqid = '%s_%s' % (task, req)
+                resTable.setdefault(reqid, dict())
+                resTable[reqid].setdefault('reqtime', list())
+                resTable[reqid].setdefault('restime', list())
+
+                resTable[reqid]['reqtime'] += reqtimeList
+                resTable[reqid]['restime'] += restimeList
+
+            return resTable
+
+        # initialize environment for drawing #
+        ThreadAnalyzer.initDrawEnv()
+
+        # get argument #
+        if SysMgr.hasMainArg():
+            inputParam = SysMgr.getMainArg(True).split(',')
+        elif SysMgr.inputParam:
+            inputParam = UtilMgr.convPath(SysMgr.inputParam)
+        else:
+            inputParam = [SysMgr.outFilePath]
+
+        # get response time from file #
+        stats = {}
+        for path in inputParam:
+            try:
+                SysMgr.printStat(
+                    r"start loading '%s'..." % path)
+                stat = _getDrawStat(path)
+                if not stat:
+                    raise Exception('no data')
+                stats.update(stat)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    "fail to get stats from '%s'" % path, reason=True)
+                sys.exit(0)
+
+        SysMgr.printStat(r"start drawing graphs...")
+
+        # draw response time #
+        _drawRes(stats)
+
+
+
+    @staticmethod
     def doConvert():
         # remove option args #
         SysMgr.removeOptionArgs()
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             value = SysMgr.getMainArg()
         else:
             SysMgr.printErr(
@@ -29926,7 +30187,7 @@ Copyright:
         # check file #
         if not os.path.isfile(value):
             SysMgr.printErr(
-                "wrong path '%s' to convert file" % value)
+                "wrong path '%s' for converting" % value)
             sys.exit(0)
 
         # set output file name #
@@ -29959,7 +30220,7 @@ Copyright:
             sys.exit(0)
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             filterGroup = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
@@ -30150,7 +30411,7 @@ Copyright:
         SysMgr.warnEnable = True
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             value = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -30173,7 +30434,7 @@ Copyright:
         SysMgr.checkRootPerm()
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             filterGroup = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
@@ -30852,7 +31113,7 @@ Copyright:
         exceptBpFileList = {}
 
         # get argument #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
@@ -31084,7 +31345,7 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # check input #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             inputArg = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam)
@@ -31573,7 +31834,7 @@ Copyright:
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # check input #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             inputArg = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam)
@@ -32694,63 +32955,68 @@ Copyright:
 
 
     @staticmethod
-    def doRequest():
-        def _request(req, cache, stats, idx):
+    def doRequest(reqstr=None):
+        def _request(req, cache, stats, idx, lastReqTime):
             cmd = None
             arg = None
 
             # get data from cache #
             if req in cache:
-                cmd, content, arg, timeout = cache[req]
+                cmd, method, content, arg, timeout, auth, \
+                    verify, cookies, headers, reqstr = cache[req]
+            # parse request #
             else:
                 timeout = None
+                auth = None
+                verify = False
+                cookies = None
+                headers = None
 
                 # GET #
-                if req.startswith('GET/'):
-                    method = 'GET/'
+                if req.startswith('GET#'):
+                    method = 'GET'
                     cmd = requests.get
+                    remain = req[len(method)+1:]
                 # POST #
-                elif req.startswith('POST/'):
-                    method = 'POST/'
+                elif req.startswith('POST#'):
+                    method = 'POST'
                     cmd = requests.post
+                    remain = req[len(method)+1:]
+                # default #
                 else:
-                    SysMgr.printErr(
-                        "fail to recognize method[GET|POST] for '%s'" % req)
-                    return
+                    method = 'GET'
+                    cmd = requests.get
+                    remain = req
 
                 # check method #
                 if not cmd:
                     return
 
-                remain = req[len(method):]
-
-                # get timeout #
-                if remain.startswith('TIMEOUT:'):
-                    timestr, remain = remain.split('/', 1)
-                    timeout = timestr.lstrip('TIMEOUT:')
-                    if not timeout.isdigit():
-                        SysMgr.printErr(
-                            'fail to get timeout(sec) in %s' % timestr)
-                        sys.exit(0)
-                    timeout = long(timeout)
-
-                # parse request and args #
-                pos = remain.rfind('/{')
-                if pos < 0:
-                    content = remain
-                else:
-                    content = remain[:pos]
-
-                    # get argument #
-                    arg = remain[pos+1:]
-                    # file #
-                    if arg[1:].startswith('PATH#'):
+                # parse options #
+                while 1:
+                    if remain.startswith('DATA:') or remain.startswith('JSON'):
+                        orig = remain
+                        data, remain = remain.split('#', 1)
+                        data = data.split(':', 1)[1]
+                        if orig.startswith('JSON'):
+                            arg = UtilMgr.convStr2Dict(data, verb=True)
+                        else:
+                            arg = data
+                    elif remain.startswith('FILEDATA:') or \
+                        remain.startswith('FILEJSON:'):
                         try:
+                            orig = remain
+                            data, remain = remain.split('#', 1)
+
                             path = '??'
-                            path = arg.lstrip('{PATH#')
-                            path = path[:path.rfind('}')]
+                            path = data.split(':', 1)[1]
                             with open(path, 'r') as fd:
-                                arg = fd.read()
+                                data = fd.read()
+
+                            if orig.startswith('FILEJSON:'):
+                                arg = UtilMgr.convStr2Dict(data, verb=True)
+                            else:
+                                arg = data
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -32758,19 +33024,74 @@ Copyright:
                                 "fail to get data from '%s'" % path,
                                 reason=True)
                             sys.exit(0)
+                    elif remain.startswith('TIMEOUT:'):
+                        timestr, remain = remain.split('#', 1)
+                        timeout = timestr.split(':', 1)[1].strip()
+                        if not timeout.isdigit():
+                            SysMgr.printErr(
+                                'fail to get timeout(sec) in %s' % timestr)
+                            sys.exit(0)
+                        timeout = long(timeout)
+                    elif remain.startswith('AUTH:'):
+                        authstr, remain = remain.split('#', 1)
+                        auth = authstr.split(':', 1)[1].strip()
+                        auth = tuple([item.strip() for item in auth.split(',')])
+                    elif remain.startswith('VERIFY:'):
+                        verifystr, remain = remain.split('#', 1)
+                        verify = verifystr.split(':', 1)[1].strip().upper()
+                        if verify == 'TRUE':
+                            verify = True
+                        elif verify == 'FALSE':
+                            verify = False
+                        else:
+                            SysMgr.printErr(
+                                'fail to get verify(TRUE/FALSE) value')
+                            sys.exit(0)
+                    elif remain.startswith('COOKIES:'):
+                        cookiestr, remain = remain.split('#', 1)
+                        cookiestr = cookiestr.split(':', 1)[1].strip()
+                        cookielist = cookiestr.split(',')
+                        cookies = {}
+                        for item in cookielist:
+                            data = item.split(':', 1)
+                            cookies.setdefault(data[0].strip(), data[1].strip())
+                    elif remain.startswith('HEADERS:'):
+                        headerstr, remain = remain.split('#', 1)
+                        headerstr = headerstr.split(':', 1)[1].strip()
+                        headerlist = headerstr.split(',')
+                        headers = {}
+                        for item in headerlist:
+                            data = item.split(':', 1)
+                            headers.setdefault(data[0].strip(), data[1].strip())
+                    else:
+                        break
 
-                    arg = UtilMgr.convStr2Dict(arg, verb=True)
-
+                # check protocol #
+                content = remain
                 if not content.startswith('http'):
                     SysMgr.printWarn(
                         'no protocol info such like http in %s' % \
                             req, True)
 
-                # cache data #
-                cache[req] = (cmd, content, arg, timeout)
+                # convert request #
+                reqstr = '%s %s' % (method, content)
+                if arg:
+                    reqstr += ' DATA:%s' % arg
+                if timeout:
+                    reqstr += ' TIMEOUT:%s' % timeout
+                if auth:
+                    reqstr += ' AUTH:%s' % str(auth)
+                if verify:
+                    reqstr += ' VERIFY:%s' % verify
+                if cookies:
+                    reqstr += ' COOKIES:%s' % cookies
+                if headers:
+                    reqstr += ' HEADERS:%s' % headers
+                reqstr = UtilMgr.convColor(reqstr, 'UNDERLINE')
 
-            # convert req #
-            reqstr = UtilMgr.convColor(req, 'UNDERLINE')
+                # cache data #
+                cache[req] = (cmd, method, content, arg, timeout, \
+                    auth, verify, cookies, headers, reqstr)
 
             # convert sequence #
             idx = UtilMgr.convNum(idx)
@@ -32780,12 +33101,15 @@ Copyright:
                     (SysMgr.comm, SysMgr.pid, idx, time.time(), reqstr))
 
             before = time.time()
+            lastReqTime[0] = before
 
             # request #
             if arg:
-                res = cmd(content, arg, timeout=timeout)
+                res = cmd(content, arg, timeout=timeout,\
+                    auth=auth, verify=verify, cookies=cookies, headers=headers)
             else:
-                res = cmd(content, timeout=timeout)
+                res = cmd(content, timeout=timeout,\
+                    auth=auth, verify=verify, cookies=cookies, headers=headers)
 
             after = time.time()
             elapsed = after - before
@@ -32793,6 +33117,7 @@ Copyright:
             # save statistics #
             stats['perReqTime'].setdefault(req, list())
             stats['perReqTime'][req].append(elapsed)
+            stats['perReqTimeAll'][req].append([before, elapsed])
 
             # convert result #
             if res.ok:
@@ -32820,6 +33145,7 @@ Copyright:
             # initialize statistics #
             stats = {
                 'perReqTime': dict(),
+                'perReqTimeAll': dict(),
                 'perReqErr': dict(),
                 'perCycleTime': list(),
             }
@@ -32830,16 +33156,21 @@ Copyright:
             start = time.time()
 
             try:
+                lastReqTime = [0]
                 for idx in range(1, repeat+1):
                     before = time.time()
                     for req in reqs:
                         try:
+                            stats['perReqTimeAll'].setdefault(req, list())
                             stats['perReqErr'].setdefault(req, 0)
-                            _request(req, cache, stats, idx)
+
+                            _request(req, cache, stats, idx, lastReqTime)
                             time.sleep(delay)
                         except SystemExit:
                             sys.exit(0)
                         except:
+                            stats['perReqTimeAll'][req].append(
+                                [lastReqTime[0], 0])
                             stats['perReqErr'][req] += 1
                             SysMgr.printErr(
                                 "fail to request '%s'" % req, reason=True)
@@ -32864,9 +33195,34 @@ Copyright:
                 tcpu = '?'
                 acpu = '?'
 
-            # summarize per-request time #
+
+
+            # list per-request response time #
+            if SysMgr.outPath:
+                SysMgr.printPipe((
+                    '\n[Response Time] [Task: %s(%s)] [Elapsed: %.6f] '
+                    '[NrReq: %s] [ReqCnt: %s] [Delay: %s] '
+                    '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
+                        (SysMgr.comm, SysMgr.pid,
+                        totalElapsed, UtilMgr.convNum(len(reqs)),
+                        UtilMgr.convNum(len(reqs) * repeat), delay,
+                        tcpu, acpu, twoLine))
+
+                SysMgr.printPipe(
+                    '{0:^50} | {1:^80}\n{2:1}'.format(
+                        'Reqest', 'Response Times', oneLine))
+
+                for idx, value in stats['perReqTimeAll'].items():
+                    interval = ', '.join(list(
+                        map(lambda x: '%s/%s' % (x[0], x[1]), value)))
+
+                    SysMgr.printPipe(
+                        '{0:>20} | {1:1}\n{2:1}'.format(
+                            idx, interval, oneLine))
+
+            # summarize per-request response time #
             SysMgr.printPipe((
-                '\n[Request Summary] [%s(%s)] [Elapsed: %.6f] '
+                '\n[Response Summary] [Task: %s(%s)] [Elapsed: %.6f] '
                 '[NrReq: %s] [ReqCnt: %s] [Delay: %s] '
                 '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                     (SysMgr.comm, SysMgr.pid,
@@ -32878,7 +33234,7 @@ Copyright:
                 '{0:^7} | {1:^7} | {2:^7} | {3:^10} | {4:^10} | '
                 '{5:^10} | {6:^7} | {7:1} \n{8:1}').format(
                     'Cnt', 'Elapsed', 'Avg', 'Min', 'Max',
-                    'Std', 'Err', 'Req', oneLine))
+                    'Std', 'Err', 'Request', oneLine))
 
             for idx, value in stats['perReqTime'].items():
                 cnt = len(value)
@@ -32921,8 +33277,19 @@ Copyright:
         # import package #
         requests = SysMgr.getPkg('requests')
 
+        # add ssl variables for TLS 1.0 #
+        try:
+            requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += \
+                ':DES-CBC3-SHA'
+            requests.packages.urllib3.disable_warnings(
+                requests.packages.urllib3.exceptions.InsecureRequestWarning)
+        except:
+            pass
+
         # get requests #
-        if SysMgr.getMainArg():
+        if reqstr:
+            pass
+        elif SysMgr.hasMainArg():
             reqstr = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             reqstr = SysMgr.inputParam
@@ -33094,7 +33461,7 @@ Copyright:
                 sys.exit(0)
 
         # get command #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             cmd = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             cmd = SysMgr.inputParam
@@ -33780,7 +34147,7 @@ Copyright:
         SysMgr.setDefaultSignal()
 
         # check input #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             infile = SysMgr.getMainArg()
         else:
             SysMgr.printErr("no path for compression")
@@ -33861,7 +34228,7 @@ Copyright:
         SysMgr.setDefaultSignal()
 
         # check input #
-        if SysMgr.getMainArg():
+        if SysMgr.hasMainArg():
             infile = SysMgr.getMainArg()
         else:
             SysMgr.printErr("no path for decompression")
@@ -56655,10 +57022,10 @@ class ThreadAnalyzer(object):
                 return
 
             if SysMgr.graphEnable:
-                # convert text-based statistics to images #
+                # draw images based on statistics #
                 if SysMgr.inputParam:
                     self.drawStats(SysMgr.inputParam)
-                # no path for statistics file #
+                # no path for statistics #
                 else:
                     SysMgr.printErr((
                         "wrong option used, "
@@ -57221,6 +57588,8 @@ class ThreadAnalyzer(object):
         # get file handle #
         try:
             fd = UtilMgr.getTextLines(logFile, retfd=True)
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr("fail to read %s\n" % logFile)
             sys.exit(0)
@@ -57869,6 +58238,10 @@ class ThreadAnalyzer(object):
         avgList = {}
 
         for name, value in stats.items():
+            if name == 'graphTitle':
+                avgList.setdefault(name, value)
+                continue
+
             try:
                 fname, sname = name.split(':', 1)
             except:
@@ -57899,10 +58272,12 @@ class ThreadAnalyzer(object):
                     # add average usage #
                     avgList[sname][pname][fileIdxList[fname]] += usage
             elif type(value) is list:
-                if value:
+                if not value:
+                    usage = 0
+                elif type(value[0]) is long:
                     usage = round(sum(value) / len(value), 1)
                 else:
-                    usage = 0
+                    continue
 
                 avgList.setdefault(sname, [0] * len(flist))
                 avgList[sname][fileIdxList[fname]] = usage
@@ -57925,7 +58300,50 @@ class ThreadAnalyzer(object):
 
 
 
-    def initDrawEnv(self):
+    @staticmethod
+    def drawFigure():
+        # pylint: disable=undefined-variable
+        #ticklabel_format(useOffset=False)
+        locator_params(axis = 'x', nbins=30)
+        obj = figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
+        obj.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+        return obj
+
+
+    @staticmethod
+    def drawLabel(
+        labelList, draw=True, anchor=(1.12, 0.75), loc='upper right',
+        fontsize=3.5, markerfirst=False):
+        # pylint: disable=undefined-variable
+
+        # set legend position #
+        if SysMgr.matplotlibVersion >= 1.2:
+            if labelList:
+                res = legend(labelList, bbox_to_anchor=anchor,
+                    fontsize=fontsize, loc=loc, markerfirst=markerfirst)
+            elif draw:
+                res = legend(bbox_to_anchor=anchor,
+                    fontsize=fontsize, loc=loc, markerfirst=markerfirst)
+            else:
+                res = None
+        else:
+            if labelList:
+                res = legend(labelList, bbox_to_anchor=anchor,
+                    loc=loc, markerfirst=markerfirst)
+            elif draw:
+                res = legend(bbox_to_anchor=anchor,
+                    loc=loc, markerfirst=markerfirst)
+            else:
+                res = None
+
+        # set zorder #
+        if res:
+            res.set_zorder(1)
+
+
+
+    @staticmethod
+    def initDrawEnv():
         # get matplotlib object #
         matplotlib = SysMgr.getPkg('matplotlib', False)
         if not matplotlib:
@@ -57986,13 +58404,15 @@ class ThreadAnalyzer(object):
                         graphStats['%s:%s' % (fname, key)] = val
 
         # initialize environment for drawing #
-        self.initDrawEnv()
+        ThreadAnalyzer.initDrawEnv()
 
         # draw avreage graphs #
         if SysMgr.avgEnable:
             try:
                 # convert pull path to file name #
                 fnameList = [ os.path.basename(fname) for fname in flist ]
+                if len(fnameList) < 2:
+                    raise Exception('of input for multiple files')
                 graphStats = self.getAvgStats(fnameList, graphStats)
                 graphStats['fileList'] = fnameList
                 self.drawAvgGraph(graphStats, logFile, outFile=outFile)
@@ -58192,11 +58612,11 @@ class ThreadAnalyzer(object):
                 left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
-        self.saveImage(logFile, 'chart', outFile=outFile)
+        ThreadAnalyzer.saveImage(logFile, 'chart', outFile=outFile)
 
 
 
-    def drawLayout(self, graphStats, drawCpu, drawMem, drawIo, drawEvent):
+    def drawLayout(self, graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent):
         pos = long(0)
         total = long(0)
         layoutDict = {}
@@ -58260,7 +58680,7 @@ class ThreadAnalyzer(object):
                     SysMgr.rssEnable = True
                     _drawMem(graphStats, xtype, pos, size)
                 elif targetc == 'IO' or targetc.startswith('I'):
-                    if drawIo:
+                    if _drawIo:
                         _drawIo(graphStats, xtype, pos, size)
                 else:
                     SysMgr.printErr(
@@ -58268,7 +58688,7 @@ class ThreadAnalyzer(object):
                         "because '%s' is not recognized" % target)
                     sys.exit(0)
 
-                if drawEvent and idx == 0:
+                if _drawEvent and idx == 0:
                     # draw events on graphs #
                     _drawEvent(graphStats)
 
@@ -58814,17 +59234,11 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_label_coords(-0.05,0.5)
             '''
 
-            # set legend position #
-            if SysMgr.matplotlibVersion >= 1.2:
-                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    loc='upper right', markerfirst=False)
-            res.set_zorder(1)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=True, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
-
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
@@ -58858,11 +59272,8 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            #ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            self.figure = \
-                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
-            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            # draw base #
+            self.figure = ThreadAnalyzer.drawFigure()
 
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
@@ -59311,14 +59722,9 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_label_coords(-0.05,0.5)
             '''
 
-            if len(labelList) > 0:
-                if SysMgr.matplotlibVersion >= 1.2:
-                    res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                        fontsize=3.5, loc='upper right', markerfirst=False)
-                else:
-                    res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                        loc='upper right', markerfirst=False)
-            res.set_zorder(1)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=False, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -59355,10 +59761,8 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            locator_params(axis = 'x', nbins=30)
-            self.figure = \
-                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
-            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            # draw base #
+            self.figure = ThreadAnalyzer.drawFigure()
 
             # convert tick type to integer #
             try:
@@ -59803,13 +60207,9 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_label_coords(-0.05,0.5)
             '''
 
-            if SysMgr.matplotlibVersion >= 1.2:
-                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    loc='upper right', markerfirst=False)
-            res.set_zorder(1)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=True, anchor=(1.12, 0.75))
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -59871,11 +60271,8 @@ class ThreadAnalyzer(object):
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
-            #ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            self.figure = \
-                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
-            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            # draw base #
+            self.figure = ThreadAnalyzer.drawFigure()
 
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
@@ -59925,7 +60322,7 @@ class ThreadAnalyzer(object):
             _drawMem(graphStats, 1, 5, 1)
         else:
             self.drawLayout(
-                graphStats, drawCpu, drawMem, drawIo, drawEvent)
+                graphStats, _drawCpu, _drawMem, _drawIo, _drawEvent)
 
         # draw system info #
         try:
@@ -59953,7 +60350,7 @@ class ThreadAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        self.saveImage(logFile, 'graph', outFile=outFile)
+        ThreadAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
 
 
 
@@ -60220,16 +60617,11 @@ class ThreadAnalyzer(object):
 
             cpuProcUsage.pop("[ TOTAL ]", None)
 
-            if SysMgr.matplotlibVersion >= 1.2:
-                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                res = legend(labelList, bbox_to_anchor=(1.12, 1.05),
-                    loc='upper right', markerfirst=False)
-            res.set_zorder(1)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=True, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
-
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
@@ -60266,11 +60658,8 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
-            #ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            self.figure = \
-                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
-            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            # draw base #
+            self.figure = ThreadAnalyzer.drawFigure()
 
         def _drawAvgMem(graphStats, xtype, pos, size):
             # pylint: disable=undefined-variable
@@ -60457,13 +60846,9 @@ class ThreadAnalyzer(object):
             ax.yaxis.set_label_coords(-0.05,0.5)
             '''
 
-            if SysMgr.matplotlibVersion >= 1.2:
-                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                res = legend(labelList, bbox_to_anchor=(1.12, 0.75),
-                    loc='upper right', markerfirst=False)
-            res.set_zorder(1)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=True, anchor=(1.12, 0.75))
 
             grid(which='both', linestyle=':', linewidth=0.2)
             tick_params(axis='x', direction='in')
@@ -60527,11 +60912,8 @@ class ThreadAnalyzer(object):
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
-            #ticklabel_format(useOffset=False)
-            locator_params(axis = 'x', nbins=30)
-            self.figure = \
-                figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
-            self.figure.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
+            # draw base #
+            self.figure = ThreadAnalyzer.drawFigure()
 
         SysMgr.printStat(r"start drawing average graphs...")
 
@@ -60555,11 +60937,12 @@ class ThreadAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        self.saveImage(logFile, 'graph', outFile=outFile)
+        ThreadAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
 
 
 
-    def saveImage(self, logFile, itype='', outFile=None):
+    @staticmethod
+    def saveImage(logFile, itype='', outFile=None):
         # get pylab object #
         SysMgr.importPkgItems('pylab')
 
@@ -63282,12 +63665,9 @@ class ThreadAnalyzer(object):
                     text(maxIdx + 1, item[maxIdx] - margin, maxUsage, fontsize=4,
                         color=color, fontweight='bold')
 
-            if SysMgr.matplotlibVersion >= 1.2:
-                legend(ioLabelList, bbox_to_anchor=(1.1, 1),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                legend(ioLabelList, bbox_to_anchor=(1.1, 1),
-                    loc='upper right', markerfirst=False)
+            # draw label #
+            ThreadAnalyzer.drawLabel(
+                labelList, draw=True, anchor=(1.1, 1))
 
             # add % unit to each value #
             try:
@@ -63306,10 +63686,9 @@ class ThreadAnalyzer(object):
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
             xticks(fontsize=4)
-            #ticklabel_format(useOffset=False)
-            locator_params(axis='x', nbins=30)
-            figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
+
+            # draw base #
+            ThreadAnalyzer.drawFigure()
 
         # CPU usage on timeline #
         for key, value in sorted(self.threadData.items(),
@@ -63419,14 +63798,10 @@ class ThreadAnalyzer(object):
                 text(maxIdx + 1, item[maxIdx] + margin, label,
                     fontsize=3, color=color, fontweight='bold')
 
-            # draw CPU graph #
+            # draw label #
             totalLabel = [' CPU Average '] + cpuThrLabelList
-            if SysMgr.matplotlibVersion >= 1.2:
-                legend(totalLabel, bbox_to_anchor=(1.12, 1),
-                    fontsize=3.5, loc='upper right', markerfirst=False)
-            else:
-                legend(totalLabel, bbox_to_anchor=(1.12, 1),
-                    loc='upper right', markerfirst=False)
+            ThreadAnalyzer.drawLabel(
+                totalLabel, draw=True, anchor=(1.12, 1))
 
             # add % unit to each value #
             try:
@@ -63445,10 +63820,9 @@ class ThreadAnalyzer(object):
             grid(which='both', linestyle=':', linewidth=0.2)
             yticks(fontsize=5)
             xticks(fontsize=4)
-            #ticklabel_format(useOffset=False)
-            locator_params(axis='x', nbins=30)
-            figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k').\
-                subplots_adjust(left=0.06, top=0.95, bottom=0.05)
+
+            # draw base #
+            ThreadAnalyzer.drawFigure()
 
         if SysMgr.cpuEnable:
             SysMgr.printPipe("%s# %s\n" % ('', 'CPU(%)'))
@@ -63725,7 +64099,7 @@ class ThreadAnalyzer(object):
         # save graph #
         if SysMgr.graphEnable and\
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
-            self.saveImage(SysMgr.inputFile, 'graph')
+            ThreadAnalyzer.saveImage(SysMgr.inputFile, 'graph')
 
 
 

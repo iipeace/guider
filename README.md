@@ -1222,6 +1222,7 @@ COMMAND:
                     drawleak        <Leak>
                     drawmem         <Memory>
                     drawmemavg      <Memory>
+                    drawreq         <URL>
                     drawrss         <RSS>
                     drawrssavg      <RSS>
                     drawtime        <Timeline>
