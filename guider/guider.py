@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210116"
+__revision__ = "210117"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -11217,11 +11217,17 @@ class FunctionAnalyzer(object):
             else:
                 nrCustom = '-'
 
+            # update comm #
+            if value['comm'] == '<...>' and idx in SysMgr.commCache:
+                comm = SysMgr.commCache[idx]
+            else:
+                comm = value['comm']
+
             SysMgr.printPipe(
                 (("{0:>16}|{1:>7}|{2:>7}|{3:^6}|{4:^6}|"
                 "{5:>7}|{6:>9}({7:>8}/{8:>8}/{9:>8})|{10:>7}|{11:>8}|"
                 "{12:>8}|{13:>8}|{14:>9}|{15:>6}|{16:>8}|")).\
-                format(value['comm'], idx, value['tgid'], targetMark, life,
+                format(comm, idx, value['tgid'], targetMark, life,
                 cpuPer, allocMem, userMem, cacheMem,  kernelMem,
                 knownFreeMem, unknownFreeMem, cval,
                 readBlock, writeBlock, nrLock, nrCustom))
@@ -15319,6 +15325,7 @@ class SysMgr(object):
     ignoreItemList = []
     idList = []
     perfEventData = {}
+    commCache = {}
     commFdCache = {}
     fdCache = {}
     libCache = {}
@@ -17149,12 +17156,15 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getComm(pid, cache=False):
+    def getComm(pid, cache=False, save=False):
         try:
             if pid in SysMgr.commFdCache:
                 fd = SysMgr.commFdCache[pid]
                 fd.seek(0)
-                return fd.readline()[:-1]
+                comm = fd.readline()[:-1]
+                if save:
+                    SysMgr.commCache[pid] = comm
+                return comm
         except SystemExit:
             sys.exit(0)
         except:
@@ -17177,10 +17187,14 @@ class SysMgr(object):
 
             comm = fd.readline()[:-1]
 
+            # cache comm #
+            if save:
+                SysMgr.commCache[pid] = comm
+
             # flush fd cache #
             if SysMgr.maxKeepFd < fd.fileno():
                 SysMgr.commFdCache = {}
-            # cache a fd #
+            # cache  fd #
             elif cache:
                 SysMgr.commFdCache[pid] = fd
             else:
@@ -17836,7 +17850,7 @@ class SysMgr(object):
             taskPath = "%s/%s" % (procPath, 'task')
 
             # update comm of main thread #
-            comm = SysMgr.getComm(pid)
+            comm = SysMgr.getComm(pid, save=True)
 
             try:
                 tids = os.listdir(taskPath)
@@ -17849,6 +17863,10 @@ class SysMgr(object):
             for tid in tids:
                 try:
                     long(tid)
+
+                    # update comm of thread #
+                    tcomm = SysMgr.getComm(tid, save=True)
+
                     if tid == pid:
                         procTree[tid] = '%s(%s)' % (pid, comm)
                     else:
@@ -19135,7 +19153,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor the status of open files / sockets / pipes
+    Monitor the status of open files, sockets, pipes
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -19147,7 +19165,7 @@ Examples:
         # {0:1} {1:1} -g system
 
     - Monitor all processes sorted by the number of file descriptors
-        # {0:1} {1:1} -g system
+        # {0:1} {1:1} -S f
 
     - Report analysis result of open files to ./guider.out
         # {0:1} {1:1} -o .
@@ -19343,12 +19361,12 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor kernel stacks
+    Monitor kernel stacks for threads
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor kernel stacks of specific threads
+    - Monitor kernel stacks for specific threads
         # {0:1} {1:1} -g chrome
 
     See the top COMMAND help for more examples.
@@ -22317,6 +22335,9 @@ Copyright:
         if not value:
             return perfbuf
 
+        convColor= UtilMgr.convColor
+        convSize = UtilMgr.convSize2Unit
+
         inst = buscycle = refcpucycle = cpucycle = -1
         cacheref = cachemiss = cachemissrate = -1
         branch = branchmiss = branchmissrate = -1
@@ -22325,10 +22346,10 @@ Copyright:
         try:
             cpucycle = value['PERF_COUNT_HW_CPU_CYCLES']
             perfbuf = '%sCycle: %s / ' % \
-                (perfbuf, UtilMgr.convSize2Unit(cpucycle))
+                (perfbuf, convColor(convSize(cpucycle), 'YELLOW'))
             inst = value['PERF_COUNT_HW_INSTRUCTIONS']
             perfbuf = '%sInst: %s / ' % \
-                (perfbuf, UtilMgr.convSize2Unit(inst))
+                (perfbuf, convSize(inst))
             ipc = inst / float(cpucycle)
             perfbuf = '%sIPC: %.2f / ' % (perfbuf, ipc)
         except SystemExit:
@@ -22341,9 +22362,9 @@ Copyright:
             cacheref = value['PERF_COUNT_HW_CACHE_REFERENCES']
             cachemiss = value['PERF_COUNT_HW_CACHE_MISSES']
             cachemissrate = cachemiss / float(cacheref) * 100
-            perfbuf = '%sCacheMiss : %s(%d%%) / ' % \
-                (perfbuf, UtilMgr.convSize2Unit(cachemiss),
-                cachemissrate)
+            perfbuf = '%sCacheMiss : %s(%s%%) / ' % \
+                (perfbuf, convSize(cachemiss),
+                    convColor(long(cachemissrate), 'YELLOW'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -22354,9 +22375,9 @@ Copyright:
             branch = value['PERF_COUNT_HW_BRANCH_INSTRUCTIONS']
             branchmiss = value['PERF_COUNT_HW_BRANCH_MISSES']
             branchmissrate = branchmiss / float(branch) * 100
-            perfbuf = '%sBrcMiss: %s(%d%%) / ' % \
-                (perfbuf, UtilMgr.convSize2Unit(branchmiss),
-                branchmissrate)
+            perfbuf = '%sBrcMiss: %s(%s%%) / ' % \
+                (perfbuf, convSize(branchmiss),
+                    convColor(long(branchmissrate), 'YELLOW'))
         except SystemExit:
             sys.exit(0)
         except:
@@ -22365,7 +22386,7 @@ Copyright:
         # CPU stats #
         try:
             perfbuf = '%sClk: %s / ' % \
-                (perfbuf, UtilMgr.convSize2Unit(
+                (perfbuf, convSize(
                     value['PERF_COUNT_SW_CPU_CLOCK']))
         except SystemExit:
             sys.exit(0)
@@ -24414,12 +24435,26 @@ Copyright:
         if infoBuf == '':
             return
 
-        treePosStart = infoBuf.find('!!!!!')
-        if treePosStart == -1:
+        magic = '!!!!!'
+
+        # get tree pos #
+        treePos = infoBuf.find(magic)
+        if treePos == -1:
             return
 
+        newPos = treePos + len(magic)
+
+        # get comm pos #
+        commPos = infoBuf[newPos:].find(magic)
+
         # check whether there is procTreeInfo in saved buffer #
-        procTree = infoBuf[treePosStart + len('!!!!!'):].split(',')
+        if commPos < 0:
+            procTree = infoBuf[newPos:]
+            procTree = procTree[:procTree.find('\n')].split(',')
+        else:
+            procTree = infoBuf[newPos:newPos+commPos].split(',')
+
+        # parse proc tree #
         for pair in procTree:
             try:
                 ids = pair.split(':')
@@ -24439,7 +24474,13 @@ Copyright:
                 continue
 
         # remove process tree info #
-        SysMgr.systemInfoBuffer = infoBuf[:treePosStart]
+        if commPos < 0:
+            SysMgr.systemInfoBuffer = infoBuf[:treePos]
+        else:
+            commData = infoBuf[newPos+commPos+len(magic):]
+            commData = commData[:commData.find('\n')]
+            SysMgr.commCache = UtilMgr.convStr2Dict(commData)
+            SysMgr.systemInfoBuffer = infoBuf[:newPos + commPos]
 
 
 
@@ -26077,8 +26118,6 @@ Copyright:
                 SysMgr.customCmd = SysMgr.cleanItem(itemList, union=union)
 
             elif option == 'g':
-                SysMgr.checkOptVal(option, value)
-
                 itemList = UtilMgr.splitString(value)
                 SysMgr.filterGroup = SysMgr.cleanItem(itemList)
 
@@ -27267,7 +27306,6 @@ Copyright:
             else:
                 target = SysMgr.filterGroup
 
-            print(target)
             PageAnalyzer.getPageInfo(
                 target, SysMgr.inputParam)
 
@@ -27673,11 +27711,6 @@ Copyright:
         if not SysMgr.isRoot():
             SysMgr.printErr(
                 "fail to get root permission to sample stack")
-            return False
-        elif not SysMgr.getOption('g'):
-            SysMgr.printErr(
-                "wrong option for stack monitoring, "
-                "use also -g option to show stacks")
             return False
         elif not os.path.isfile('%s/self/stack' % SysMgr.procPath):
             SysMgr.printErr(
@@ -35456,7 +35489,7 @@ Copyright:
         if initialized:
             # process info #
             if SysMgr.isRecordMode():
-                self.saveProcTree()
+                self.saveProcTreeComm()
 
             # resource info #
             self.saveSystemInfo()
@@ -35472,13 +35505,15 @@ Copyright:
 
 
 
-    def saveProcTree(self):
+    def saveProcTreeComm(self):
         procTree = SysMgr.getProcTree()
 
         if procTree:
             self.procData = '!!!!!'
             for tid, pid in procTree.items():
                 self.procData += '%s:%s,' % (tid, pid)
+            self.procData += '!!!!!'
+            self.procData += str(SysMgr.commCache)
 
 
 
@@ -41053,6 +41088,13 @@ class DltAnalyzer(object):
                 ('mcnt', c_uint8)
             ]
 
+        # check dlt-daemon #
+        DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
+        if not DltAnalyzer.pids and not SysMgr.remoteServObj:
+            SysMgr.printErr(
+                "fail to find dlt-daemon process")
+            sys.exit(0)
+
         DLT_USER_BUF_MAX_SIZE = 1380
 
         # set log level #
@@ -41632,7 +41674,7 @@ class DltAnalyzer(object):
         DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
         if not DltAnalyzer.pids and not SysMgr.remoteServObj:
             SysMgr.printErr(
-                "fail to find running dlt-daemon process")
+                "fail to find dlt-daemon process")
             sys.exit(0)
 
         # set connection info #
@@ -57414,8 +57456,14 @@ class ThreadAnalyzer(object):
         SysMgr.checkRootPerm()
 
         if not os.path.isdir(SysMgr.procPath):
-            SysMgr.printErr("fail to access proc filesystem")
+            SysMgr.printErr("fail to access to proc filesystem")
             sys.exit(0)
+
+        # apply for filter from 1st argument #
+        if not SysMgr.filterGroup and SysMgr.hasMainArg():
+            value = SysMgr.getMainArg()
+            value = UtilMgr.splitString(value)
+            SysMgr.filterGroup = SysMgr.cleanItem(value)
 
         # import select package in the foreground #
         if not SysMgr.outPath:
@@ -57482,6 +57530,12 @@ class ThreadAnalyzer(object):
 
         # initialize perf events #
         SysMgr.initSystemPerfEvents()
+
+        # apply for filter from 1st argument #
+        if not SysMgr.filterGroup and SysMgr.hasMainArg():
+            value = SysMgr.getMainArg()
+            value = UtilMgr.splitString(value)
+            SysMgr.filterGroup = SysMgr.cleanItem(value)
 
         # import select package in the foreground #
         if not SysMgr.outPath:
@@ -66802,6 +66856,10 @@ class ThreadAnalyzer(object):
         else:
             thread = d['thread']
 
+        # update comm #
+        if comm == '<...>' and thread in SysMgr.commCache:
+            comm = SysMgr.commCache[thread]
+
         # make core thread entity in advance for total irq per core #
         try:
             self.threadData[coreId]
@@ -66907,6 +66965,10 @@ class ThreadAnalyzer(object):
             prev_pid = d['prev_pid']
             prev_id = prev_pid
 
+            # update prev comm #
+            if prev_comm == '<...>' and prev_id in SysMgr.commCache:
+                prev_comm = SysMgr.commCache[prev_id]
+
             coreId = '0[%s]' % core
 
             if long(d['prev_pid']) == 0:
@@ -66921,6 +66983,10 @@ class ThreadAnalyzer(object):
                 next_id = coreId
             else:
                 next_id = next_pid
+
+            # update prev comm #
+            if next_comm == '<...>' and next_id in SysMgr.commCache:
+                next_comm = SysMgr.commCache[next_id]
 
             # check CPU wakeup #
             if self.threadData[coreId]['lastOff'] > 0:
@@ -67055,7 +67121,7 @@ class ThreadAnalyzer(object):
             # calculate running time of previous thread #
             diff = long(0)
             if prev_start == 0:
-                ''' calculate running time of previous thread started
+                ''' calculate runtime of previous thread started
                     before starting to profile '''
                 if self.threadData[coreId]['coreSchedCnt'] == 0:
                     diff = allTime
@@ -67688,6 +67754,10 @@ class ThreadAnalyzer(object):
             target_comm = d['comm']
             pid = d['pid']
 
+            # update prev comm #
+            if target_comm == '<...>' and pid in SysMgr.commCache:
+                target_comm = SysMgr.commCache[pid]
+
             # skip self-wakeup #
             if thread == pid:
                 return time
@@ -68077,6 +68147,10 @@ class ThreadAnalyzer(object):
             target_comm = d['comm']
             pid = d['pid']
             ttime = allTime
+
+            # update prev comm #
+            if target_comm == '<...>' and pid in SysMgr.commCache:
+                target_comm = SysMgr.commCache[pid]
 
             self.depData.append(
                 "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s(%s)" % \
@@ -69111,7 +69185,7 @@ class ThreadAnalyzer(object):
             convNum(self.nrFd), convNum(len(self.fileData)), cpuStr))
 
         SysMgr.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:^5}/{2:^5}/{3:^4}/{4:>4})|{5:^4}|{6:^107}|\n{7:1}\n").\
+            ("{0:^16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^4}|{6:^103}|\n{7:1}\n").\
             format("Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
             newline = 3)
 
@@ -69138,7 +69212,7 @@ class ThreadAnalyzer(object):
             else:
                 schedValue = "%3d" % (abs(long(stat[self.prioIdx]) + 1))
 
-            procInfo = ("{0:>16} ({1:>5}/{2:>5}/{3:>4}/{4:>4})").\
+            procInfo = ("{0:>16} ({1:>7}/{2:>7}/{3:>4}/{4:>4})").\
                 format(comm, idx, pid, stat[self.nrthreadIdx],
                 ConfigMgr.SCHED_POLICY[int(stat[self.policyIdx])] + \
                 str(schedValue))
@@ -72675,6 +72749,8 @@ class ThreadAnalyzer(object):
             usePer = '%4s%%' % value['usagePer']
             if value['usagePer'] > SysMgr.diskPerHighThreshold:
                 usePer = '%s' % UtilMgr.convColor(usePer, 'RED')
+            elif value['usagePer'] > 0:
+                usePer = '%s' % UtilMgr.convColor(usePer, 'YELLOW')
 
             favail = '%7s' % convSize2Unit(value['favail'])
             if value['favail'] == 0:
@@ -73458,16 +73534,14 @@ class ThreadAnalyzer(object):
                     memstr = UtilMgr.convColor(memstr, 'YELLOW')
 
             # convert color for BTIME #
-            if btime == 0:
-                btimestr = btime
-            else:
+            if float(btime) > 0:
                 btimestr = r'%4s' % btime
                 btimestr = UtilMgr.convColor(btimestr, 'RED')
+            else:
+                btimestr = btime
 
             try:
-                if nrPrio >= 20:
-                    pass
-                else:
+                if nrPrio < 20:
                     sched = r'%4s' % sched
                     if nrPrio >= 0:
                         sched = UtilMgr.convColor(sched, 'YELLOW')
