@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210117"
+__revision__ = "210118"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15294,6 +15294,7 @@ class SysMgr(object):
     ldCachePath = '/etc/ld.so.cache'
     libdemanglePath = libcppPath
     environList = {}
+    environ = {}
     eventLogPath = None
     inputFile = None
     outputFile = None
@@ -17157,6 +17158,9 @@ class SysMgr(object):
 
     @staticmethod
     def getComm(pid, cache=False, save=False):
+        if pid in SysMgr.commCache:
+            return SysMgr.commCache[pid]
+
         try:
             if pid in SysMgr.commFdCache:
                 fd = SysMgr.commFdCache[pid]
@@ -18320,7 +18324,7 @@ Usage:
     -C  <PATH>                  set config file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
@@ -18370,7 +18374,7 @@ Options:
     -E  <DIR>                   set cache dir path
     -C  <PATH>                  set config file
     -O  <CORE>                  set core filter
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -v                          verbose
                     '''
 
@@ -18567,10 +18571,15 @@ Examples:
         # {0:1} {1:1} -g 1234
 
     - Print all function calls for a specific binary execution
+        # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
 
     - Print all function calls for a specific binary execution with DWARF info
         # {0:1} {1:1} -I "ls" -eD
+
+    - Print all function calls for a specific binary execution with environment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
     - Print all function calls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
@@ -18831,7 +18840,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -18906,7 +18915,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set filter
     -Q                          print all rows in a stream
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19017,7 +19026,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19075,7 +19084,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
 
   [common]
     -g  <COMM|TID{:FILE}>       set filter
@@ -19271,6 +19280,14 @@ Description:
 Examples:
     - Monitor function calls for a specific thread
         # {0:1} {1:1} -g a.out
+
+    - Monitor function calls for a binary
+        # {0:1} {1:1} a.out
+        # {0:1} {1:1} -I a.out
+
+    - Monitor function calls for a specific binary execution with enviornment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
     - Monitor function calls for a specific thread with DWARF info
         # {0:1} {1:1} -g a.out -eD
@@ -19683,7 +19700,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -v                          verbose
                     '''
 
@@ -19806,7 +19823,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -v                          verbose
                     '''
 
@@ -19834,7 +19851,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -v                          verbose
                     '''
 
@@ -19862,7 +19879,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q                          set environment variables
+    -q  <NAME:VALUE>            set environment variables
     -v                          verbose
 
 Examples:
@@ -20473,6 +20490,7 @@ Options:
     -v                          verbose
     -I  <COMMAND>               set commands
     -c  <VARIABLE>              set variables
+    -q  <NAME:VALUE>            set environment variables
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20485,6 +20503,10 @@ Examples:
 
     - Execute commands with file variables for a directory
         # {0:1} {1:1} -I "ls -lha FILE" -c FILE:/data
+
+    - Execute commands with enviornment variables
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
                     '''.format(cmd, mode)
 
                 # printdir #
@@ -21088,6 +21110,7 @@ Examples:
         # {0:1} {1:1}
 
     - Read all files from current directory recursively
+        # {0:1} {1:1} .
         # {0:1} {1:1} -g .
 
     - Read all device nodes mounted
@@ -21108,7 +21131,7 @@ Description:
 
 Options:
     -x  <IP:PORT>               set local address
-    -I  <PRO{{:IP:PORT}}>         set job
+    -I  <PROTOCOL{{:IP:PORT}}>    set job
     -R  <TIME>                  set timer
     -v                          verbose
                         '''.format(cmd, mode)
@@ -21119,6 +21142,7 @@ Examples:
         # {0:1} {1:1}
 
     - Send UDP packets with 3 processes
+        # {0:1} {1:1} udp, udp, udp
         # {0:1} {1:1} -I udp, udp, udp
                     '''.format(cmd, mode)
 
@@ -24480,7 +24504,7 @@ Copyright:
             commData = infoBuf[newPos+commPos+len(magic):]
             commData = commData[:commData.find('\n')]
             SysMgr.commCache = UtilMgr.convStr2Dict(commData)
-            SysMgr.systemInfoBuffer = infoBuf[:newPos + commPos]
+            SysMgr.systemInfoBuffer = infoBuf[:newPos-len(magic)]
 
 
 
@@ -26564,8 +26588,9 @@ Copyright:
 
         elif option == 'q':
             SysMgr.checkOptVal(option, value)
-            itemList = UtilMgr.splitString(value)
-            SysMgr.environList = UtilMgr.convList2Dict(itemList)
+            if not SysMgr.environList:
+                itemList = UtilMgr.splitString(value)
+                SysMgr.environList = UtilMgr.convList2Dict(itemList)
 
         elif option == 'R':
             SysMgr.checkOptVal(option, value)
@@ -28646,11 +28671,60 @@ Copyright:
 
 
     @staticmethod
+    def getEnvList():
+        def applyList(myEnv, envList):
+            for env in envList:
+                var = env.split('=', 1)
+                if len(var) > 1:
+                    myEnv[var[0]] = var[1].rstrip()
+
+        try:
+            # copy original variables #
+            myEnv = deepcopy(os.environ)
+            if not 'ENV' in SysMgr.environList and \
+                not 'ENVFILE' in SysMgr.environList:
+                return myEnv
+
+            # parse new variables #
+            if 'ENV' in SysMgr.environList:
+                envList = SysMgr.environList['ENV']
+            else:
+                envList = []
+            applyList(myEnv, envList)
+
+            # parse new variables from file #
+            if 'ENVFILE' in SysMgr.environList:
+                envFileList = SysMgr.environList['ENVFILE']
+            else:
+                envFileList = []
+            for fname in envFileList:
+                try:
+                    with open(fname, 'rb') as fd:
+                        envList = fd.readlines()
+                        applyList(myEnv, envList)
+                except:
+                    SysMgr.printErr(
+                        'fail to parse environment variable from %s' % \
+                            fname, True)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to parse enviroment variable', reason=True)
+            return None
+
+
+
+    @staticmethod
     def executeProcess(cmd=None, mute=False, closeFd=True):
+        # get new environ variables #
+        env = SysMgr.getEnvList()
+
+        # exec #
         try:
             SysMgr.resetFileTable(mute, closeFd)
 
-            os.execvp(cmd[0], cmd)
+            os.execvpe(cmd[0], cmd, env)
         except SystemExit:
             sys.exit(0)
         except:
@@ -29330,7 +29404,7 @@ Copyright:
                         break
 
                 # send file #
-                with open(targetPath,'rb') as fd:
+                with open(targetPath, 'rb') as fd:
                     buf = fd.read(netObj.sendSize)
                     while (buf):
                         netObj.send(buf)
@@ -30001,11 +30075,15 @@ Copyright:
             cpuBuf = None
             SysMgr.statFd.seek(0)
             cpuBuf = SysMgr.statFd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             try:
                 cpuPath = "%s/stat" % SysMgr.procPath
                 SysMgr.statFd = open(cpuPath, 'r')
                 cpuBuf = SysMgr.statFd.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printOpenWarn(cpuPath)
 
@@ -30518,9 +30596,12 @@ Copyright:
             if not envs:
                 sys.exit(0)
 
+            # get cmdline #
+            cmdline = SysMgr.getCmdline(pid)
+
             SysMgr.printPipe(
-                '\n[ %s(%s) ]\n%s\n' % \
-                    (comm, pid, oneLine[:lenLine]))
+                '\n[ %s(%s) ] < %s >\n%s\n' % \
+                    (comm, pid, cmdline, oneLine[:lenLine]))
             for env in envs:
                 SysMgr.printPipe(env)
 
@@ -32544,7 +32625,13 @@ Copyright:
             ip = '0.0.0.0'
             port = 55555
 
-            jobs = SysMgr.getOption('I')
+            if SysMgr.hasMainArg():
+                jobs = SysMgr.getMainArg()
+            elif SysMgr.inputParam:
+                jobs = SysMgr.inputParam
+            else:
+                jobs = None
+
             if jobs:
                 for item in jobs.split(','):
                     task = item.split(':')
@@ -32558,7 +32645,7 @@ Copyright:
                         ip = task[1]
                         port = long(task[2])
                     else:
-                        raise Exception('too many values')
+                        raise Exception('too many arguments')
 
                     workload.append([prot, ip, port])
             else:
@@ -32567,7 +32654,9 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "wrong option value", True)
+                ("wrong value for NETWORK load because %s, "
+                    "input number in the format PROTOCOL{:IP:PORT}") % \
+                        SysMgr.getErrMsg())
             sys.exit(0)
 
         # run tasks #
@@ -32710,7 +32799,10 @@ Copyright:
 
             op = load['op']
             path = load['path']
-            flag = os.O_RDWR | os.O_CREAT | os.O_TRUNC
+            if op == 'read':
+                flag = os.O_RDONLY
+            elif op == 'write':
+                flag = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
 
             # set operation #
             if op == 'read':
@@ -32729,8 +32821,7 @@ Copyright:
                 direct = 'from'
 
             # check I/O type #
-            if os.path.isfile(path) or \
-                SysMgr.isBlkDev(path):
+            if os.path.isfile(path) or SysMgr.isBlkDev(path):
                 target = 'file'
             elif os.path.isdir(path):
                 if op == 'write':
@@ -32755,36 +32846,56 @@ Copyright:
 
                 totalSize = 0
 
+                # FILE #
                 if target == 'file':
                     try:
                         fd = os.open(path, flag)
                         for piece in opFunc(fd):
                             if not piece:
                                 return
+                        os.close(fd)
+                    except SystemExit:
+                        sys.exit(0)
                     except:
-                        SysMgr.printErr('failed', True)
+                        SysMgr.printWarn(
+                            'failed to access %s for %s' % (path, op),
+                                True, True)
                         break
-                elif target == 'dir':
-                    for r, d, f in os.walk(path):
-                        for item in f:
-                            try:
-                                fpath = os.path.join(r, item)
-                                if not os.path.isfile(fpath):
-                                    continue
+                elif target != 'dir':
+                    continue
 
-                                fd = os.open(path, flag)
-                                for piece in opFunc(fd):
-                                    if not piece:
-                                        break
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                SysMgr.printWarn('failed', True, True)
+                # DIR #
+                for r, d, f in os.walk(path):
+                    for item in f:
+                        try:
+                            fpath = os.path.join(r, item)
+                            if not os.path.isfile(fpath):
+                                continue
+
+                            fd = os.open(fpath, flag)
+                            for piece in opFunc(fd):
+                                if not piece:
+                                    break
+                            os.close(fd)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printWarn(
+                                'failed to access %s for %s' % (fpath, op),
+                                True, True)
 
         # get tasks #
         try:
-            if SysMgr.filterGroup:
-                for item in list(SysMgr.filterGroup):
+            if SysMgr.hasMainArg():
+                opList = SysMgr.getMainArg().split(',')
+                opList = SysMgr.cleanItem(opList)
+            elif SysMgr.filterGroup:
+                opList = SysMgr.filterGroup
+            else:
+                opList = None
+
+            if opList:
+                for item in opList:
                     item = item.split(':')
                     if len(item) == 1:
                         op = 'read'
@@ -32829,12 +32940,13 @@ Copyright:
                         mountPoint = value['path']
                         break
 
+                # just use PWD #
                 if not mountPoint:
                     mountPoint = '.'
 
                 if not os.path.exists(mountPoint):
                     SysMgr.printErr(
-                        "fail to access %s" % mountPoint)
+                        "fail to access to %s" % mountPoint)
                     sys.exit(0)
 
                 workload.append(
@@ -32844,7 +32956,9 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "wrong option value", True)
+                ("wrong value for I/O load because %s, "
+                    "input number in the format OP:PATH") % \
+                        SysMgr.getErrMsg())
             sys.exit(0)
 
         # drop cache #
@@ -32868,8 +32982,9 @@ Copyright:
                     sys.exit(0)
 
         # set alarm #
+        SysMgr.repeatCount = sys.maxsize
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        signal.alarm(1)
 
         # wait for childs #
         while 1:
@@ -33429,11 +33544,14 @@ Copyright:
 
             SysMgr.printInfo("executed '%s'" % cmd)
 
+            # get environment variables #
+            env = SysMgr.getEnvList()
+
             startTime = time.time()
 
             # create process to communicate #
             procObj = subprocess.Popen(
-                cmd, shell=True, bufsize=0)
+                cmd, shell=True, bufsize=0, env=env)
 
             # run mainloop #
             try:
@@ -33602,13 +33720,14 @@ Copyright:
 
         # get the number of task and load #
         try:
-            if len(sys.argv) < 3:
-                raise Exception("no value")
+            if SysMgr.hasMainArg():
+                value = SysMgr.getMainArg().split(':')
+            else:
+                value = [100*SysMgr.getNrCore()]
 
             # parse values #
-            value = sys.argv[2].split(':')
             if len(value) > 2:
-                raise Exception('too much args')
+                raise Exception('too many arguments')
             elif len(value) == 2:
                 totalLoad, nrTask = list(map(long, value))
                 if nrTask == 0:
@@ -33629,8 +33748,8 @@ Copyright:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                ("wrong option value because %s, "
-                    "input integer number in the format LOAD{:NRTASK}") % \
+                ("wrong value for CPU load because %s, "
+                    "input number in the format LOAD{:NRTASK}") % \
                         SysMgr.getErrMsg())
             sys.exit(0)
 
@@ -34014,11 +34133,12 @@ Copyright:
 
         # convert time #
         try:
-            if len(sys.argv) < 3:
-                raise Exception("no value")
+            if SysMgr.hasMainArg():
+                value = SysMgr.getMainArg().split(':')
+            else:
+                value = ['100M']
 
             # parse option #
-            value = sys.argv[2].split(':')
             if len(value) == 3:
                 size, interval, count = value
             elif len(value) == 2:
@@ -34028,7 +34148,7 @@ Copyright:
                 size = value[0]
                 interval = count = long(0)
             else:
-                raise Exception('wrong args')
+                raise Exception('wrong arguments')
 
             if interval:
                 interval = UtilMgr.convUnit2Time(interval)
@@ -34044,8 +34164,8 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            errMsg = ("wrong option value because %s, "
-                "input integer number in the format SIZE{:INTERVAL:COUNT}") % \
+            errMsg = ("wrong value for memory load because %s, "
+                "input number in the format SIZE{:INTERVAL:COUNT}") % \
                     SysMgr.getErrMsg()
             SysMgr.printErr(errMsg)
             sys.exit(0)
@@ -35505,15 +35625,35 @@ Copyright:
 
 
 
-    def saveProcTreeComm(self):
-        procTree = SysMgr.getProcTree()
+    def saveCommCache(self):
+        try:
+            path = '%s/../saved_cmdlines' % SysMgr.mountPath
+            with open(path, 'r') as fd:
+                commList = fd.readlines()
+                for item in commList:
+                    pid, comm = item.split(' ', 1)
+                    if not pid in SysMgr.commCache:
+                        SysMgr.commCache[pid] = comm.rstrip()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
-        if procTree:
-            self.procData = '!!!!!'
-            for tid, pid in procTree.items():
-                self.procData += '%s:%s,' % (tid, pid)
-            self.procData += '!!!!!'
-            self.procData += str(SysMgr.commCache)
+
+
+    def saveProcTreeComm(self):
+        # read comm cache #
+        self.saveCommCache()
+
+        # read proc tree #
+        procTree = SysMgr.getProcTree()
+        self.procData = '!!!!!'
+        for tid, pid in procTree.items():
+            self.procData += '%s:%s,' % (tid, pid)
+
+        # add comm cache #
+        self.procData += '!!!!!'
+        self.procData += str(SysMgr.commCache)
 
 
 
@@ -38164,7 +38304,7 @@ Copyright:
                 if pid != prevOwner:
                     prevOwner = pid
 
-                    comm = SysMgr.getComm(pid)
+                    comm = SysMgr.getComm(pid, save=True)
                     if not comm:
                         raise Exception('no comm')
 
