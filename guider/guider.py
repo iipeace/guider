@@ -30173,11 +30173,22 @@ Copyright:
                 maxval = max(value)
                 data = [minval, avgval, maxval]
 
+                # draw bar #
                 brange = []
                 for idx in range(-1, 2):
                     brange.append(start + idx/10)
                 ax.bar(brange, data, width=width,
                     edgecolor='white', label=req[:maxLabelLen])
+
+                # draw text for stat #
+                for idx, value in enumerate(data):
+                    text(start + (idx-1)/10, value, '%.3f' % value,
+                        color='black', fontweight='bold', fontsize=2)
+
+                # draw text for request #
+                text(start-1/2, maxval/2, req,
+                    color='black', fontsize=3, rotation=35)
+
                 start += 1
 
             # set ticks #
@@ -33526,7 +33537,7 @@ Copyright:
         # print elapsed time #
         elapsed = time.time() - start
         SysMgr.printInfo(
-            'finished all requests for %.6f' % elapsed)
+            'finished all requests for %.6f sec' % elapsed)
 
 
 
