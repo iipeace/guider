@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210119"
+__revision__ = "210121"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -248,8 +248,7 @@ class ConfigMgr(object):
     MSG_TYPE = {
         0x1: "MSG_OOB",
         0x2: "MSG_PEEK",
-        0x4: "MSG_DONTROUTE",
-        0x4: "MSG_TRYHARD",
+        0x4: "MSG_DONTROUTE|MSG_TRYHARD",
         0x8: "MSG_CTRUNC",
         0x10: "MSG_PROBE",
         0x20: "MSG_TRUNC",
@@ -2753,7 +2752,7 @@ class ConfigMgr(object):
         'sys_preadv2', 'sys_pwritev2', 'sys_pkey_mprotect', 'sys_pkey_alloc',
         'sys_pkey_free', 'sys_statx', 'sys_rseq', 'sys_io_pgetevents',
         'sys_migrate_pages', 'sys_kexec_file_load', 'sys_unused',
-        ] + SYSCALL_COMMON32 + SYSCALL_COMMON
+    ] + SYSCALL_COMMON32 + SYSCALL_COMMON
 
     # Define syscall for AARCH64 #
     SYSCALL_AARCH64 = [
@@ -2833,7 +2832,7 @@ class ConfigMgr(object):
         'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2', 'sys_pwritev2',
         'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free', 'sys_statx',
         'sys_io_pgetevents', 'sys_rseq', 'sys_kexec_file_load',
-        ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON + \
+    ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON + \
         ['close_range', 'openat2', 'pidfd_getfd', 'pidfd_getfd', 'faccessat2']
 
     # Define syscall for x86 #
@@ -2940,7 +2939,7 @@ class ConfigMgr(object):
         'sys_reserved', 'sys_semget', 'sys_semctl', 'sys_shmget',
         'sys_shmctl', 'sys_shmat', 'sys_shmdt', 'sys_msgget',
         'sys_msgsnd', 'sys_msgrcv', 'sys_msgctl',
-        ] + SYSCALL_COMMON32 + SYSCALL_COMMON
+    ] + SYSCALL_COMMON32 + SYSCALL_COMMON
 
     # Define syscall for x86_64 #
     SYSCALL_X64 = [
@@ -3029,7 +3028,7 @@ class ConfigMgr(object):
         'sys_membarrier', 'sys_mlock2', 'sys_copy_file_range', 'sys_preadv2',
         'sys_pwritev2', 'sys_pkey_mprotect', 'sys_pkey_alloc', 'sys_pkey_free',
         'sys_statx', 'sys_io_pgetevents', 'sys_rseq',
-        ] + ['sys_null' for idx in range(335, 423, 1)] + SYSCALL_COMMON
+    ] + ['sys_null' for idx in range(335, 423, 1)] + SYSCALL_COMMON
 
     # Define default syscall list #
     sysList = []
@@ -3083,7 +3082,7 @@ class ConfigMgr(object):
         "aarch64": "x8",
         "x64": "orig_rax",
         "x86": "orig_eax"
-        }
+    }
 
     # Define return register #
     RET_LIST = {
@@ -3092,7 +3091,7 @@ class ConfigMgr(object):
         "aarch64": "x0",
         "x64": "rax",
         "x86": "eax"
-        }
+    }
 
     # Define signal #
     SIG_LIST = [
@@ -3104,7 +3103,7 @@ class ConfigMgr(object):
         'SIGTTIN', 'SIGTTOU', 'SIGURG', 'SIGXCPU', #24#
         'SIGXFSZ', 'SIGVTALRM', 'SIGPROF', 'SIGWINCH', #28#
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
-            ['SIGRT%d' % idx for idx in range(0, 32, 1)]
+        ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
 
     # stat list from http://linux.die.net/man/5/proc #
@@ -3120,7 +3119,7 @@ class ConfigMgr(object):
         'POLICY', 'DELAYBLKTICK', 'GUESTTIME', 'CGUESTTIME' #43#
         'STARTDATA', 'ENDDATA', 'STARTBRK', 'ARGSTART', 'ARGEND', #48#
         'ENVSTART', 'ENVEND', 'EXITCODE', #51#
-        ]
+    ]
 
     SCHED_POLICY = [
         'C', # 0: CFS #
@@ -3130,7 +3129,7 @@ class ConfigMgr(object):
         'N', # 4: NONE #
         'I', # 5: IDLE #
         'D', # 6: DEADLINE #
-        ]
+    ]
 
     # Define statm of process #
     STATM_TYPE = [
@@ -3141,7 +3140,7 @@ class ConfigMgr(object):
         'DATA',     # 4 #
         'LIB',      # 5 #
         'DIRTY',    # 6 #
-        ]
+    ]
 
     ERR_TYPE = [
         'EPERM',            # Operation not permitted #
@@ -3278,7 +3277,7 @@ class ConfigMgr(object):
         'ENOTRECOVERABLE',  # State not recoverable #
         'ERFKILL',          # Operation not possible due to RF-kill #
         'EHWPOISON',        # Memory page has hardware error #
-        ]
+    ]
 
     # Define rlimit of process #
     RLIMIT_TYPE = [
@@ -3299,7 +3298,7 @@ class ConfigMgr(object):
         'RLIMIT_RTPRIO',
         'RLIMIT_RTTIME',
         'RLIMIT_NLIMITS'
-        ]
+    ]
 
     # Define udp/tcp format of system #
     UDP_ATTR = [
@@ -3316,7 +3315,7 @@ class ConfigMgr(object):
         'ref',
         'pointer',
         'drops'
-        ]
+    ]
 
     # Define uds format of system #
     UDS_ATTR = [
@@ -3328,7 +3327,7 @@ class ConfigMgr(object):
         'St',
         'Inode',
         'Path',
-        ]
+    ]
 
     TCP_STAT = [
         'N/A',
@@ -3343,7 +3342,7 @@ class ConfigMgr(object):
         'LAST_ACK',
         'LISTEN',
         'CLOSING'
-        ]
+    ]
 
     # Define futex operation flags #
     FUTEX_TYPE = [
@@ -3360,7 +3359,7 @@ class ConfigMgr(object):
         'FUTEX_WAKE_BITSET',
         'FUTEX_WAIT_REQUEUE_PI',
         'FUTEX_CMP_REQUEUE_PI',
-        ]
+    ]
 
     # Define fcntl command flags #
     FCNTL_TYPE = [
@@ -3374,7 +3373,7 @@ class ConfigMgr(object):
         'F_GETLK',
         'F_SETLK',
         'F_SETLKW',
-        ]
+    ]
 
     # Define ipc call flags #
     IPC_TYPE = {
@@ -3390,7 +3389,7 @@ class ConfigMgr(object):
         22: "SHMDT",
         23: "SHMGET",
         24: "SHMCTL",
-        }
+    }
 
     # Define ptrace request type #
     PTRACE_TYPE = [
@@ -3419,7 +3418,7 @@ class ConfigMgr(object):
         '', '', '', '', '', '',
         'PTRACE_SYSEMU',            #31#
         'PTRACE_SYSEMU_SINGLESTEP', #32#
-        ]
+    ]
 
     # Define ptrace event type #
     PTRACE_EVENT_TYPE = [
@@ -3431,7 +3430,7 @@ class ConfigMgr(object):
         'PTRACE_EVENT_VFORK_DONE',
         'PTRACE_EVENT_EXIT',
         'PTRACE_EVENT_SECCOMP',
-        ] + ['NONE' for idx in range(0, 120, 1)] + ['PTRACE_EVENT_STOP']
+    ] + ['NONE' for idx in range(0, 120, 1)] + ['PTRACE_EVENT_STOP']
 
     # Define perf event types #
     PERF_EVENT_TYPE = [
@@ -3441,7 +3440,7 @@ class ConfigMgr(object):
         'PERF_TYPE_HW_CACHE',
         'PERF_TYPE_RAW',
         'PERF_TYPE_BREAKPOINT',
-        ]
+    ]
 
     PERF_HW_EVENT_TYPE = [
         'PERF_COUNT_HW_CPU_CYCLES',
@@ -3454,7 +3453,7 @@ class ConfigMgr(object):
         'PERF_COUNT_HW_STALLED_CYCLES_FRONTEND',
         'PERF_COUNT_HW_STALLED_CYCLES_BACKEND',
         'PERF_COUNT_HW_REF_CPU_CYCLES',
-        ]
+    ]
 
     PERF_SW_EVENT_TYPE = [
         'PERF_COUNT_SW_CPU_CLOCK',
@@ -3468,7 +3467,7 @@ class ConfigMgr(object):
         'PERF_COUNT_SW_EMULATION_FAULTS',
         'PERF_COUNT_SW_DUMMY',
         'PERF_COUNT_SW_BPF_OUTPUT',
-        ]
+    ]
 
     PERF_CACHE_EVENT_TYPE = [
         'PERF_COUNT_HW_CACHE_L1D',
@@ -3478,18 +3477,18 @@ class ConfigMgr(object):
         'PERF_COUNT_HW_CACHE_ITLB',
         'PERF_COUNT_HW_CACHE_BPU',
         'PERF_COUNT_HW_CACHE_NODE',
-        ]
+    ]
 
     PERF_CACHE_EVENT_OP = [
         'PERF_COUNT_HW_CACHE_OP_READ',
         'PERF_COUNT_HW_CACHE_OP_WRITE',
         'PERF_COUNT_HW_CACHE_OP_PREFETCH',
-        ]
+    ]
 
     PERF_CACHE_EVENT_OPRES = [
         'PERF_COUNT_HW_CACHE_RESULT_ACCESS',
         'PERF_COUNT_HW_CACHE_RESULT_MISS',
-        ]
+    ]
 
 
 
@@ -3591,8 +3590,8 @@ class UtilMgr(object):
             ConfigMgr.SYSCALL_AARCH64
         syscallList = set(syscallList)
 
-        protoList = \
-            set(['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
+        protoList = set(\
+            ['sys_%s' % name for name in ConfigMgr.SYSCALL_PROTOTYPES.keys()])
 
         # print final diff list #
         print("--- no prototype ---")
@@ -5701,12 +5700,18 @@ class NetworkMgr(object):
         def _onDownload(req):
             # parse path #
             plist = req.split('|', 1)[1]
-            path = plist.split(',')
-            origPath = path[0].strip()
-            targetPath = path[1].strip()
+            path = SysMgr.cleanItem(plist.split('@'), False)
+            if len(path) == 2:
+                origPath, targetPath = path
+                if origPath and not targetPath:
+                    origPath = targetPath
+            else:
+                origPath = targetPath = path[0]
+
             receiver = self
             targetIp = self.ip
             targetPort = self.port
+            addr = '%s:%s' % (targetIp, targetPort)
 
             # get select object #
             selectObj = SysMgr.getPkg('select')
@@ -5716,8 +5721,7 @@ class NetworkMgr(object):
                 curSize = long(0)
                 totalSize = None
                 dirPos = targetPath.rfind('/')
-                if dirPos >= 0 and \
-                    not os.path.isdir(targetPath[:dirPos]):
+                if dirPos >= 0 and not os.path.isdir(targetPath[:dirPos]):
                     os.makedirs(targetPath[:dirPos])
 
                 # receive file size #
@@ -5751,20 +5755,28 @@ class NetworkMgr(object):
                     "downloaded %s [%s] from %s:%s:%s successfully\n" % \
                     (targetPath, UtilMgr.getFileSize(targetPath),
                         targetIp, targetPort, origPath))
+
+                res = True
             except:
                 SysMgr.printErr(
-                    'fail to download %s from %s:%s:%s' % \
-                        (origPath, targetIp, targetPort, targetPath), True)
+                    'fail to download %s from %s in %s' % \
+                        (origPath, targetPath, addr), True)
+                res = False
             finally:
                 receiver.close()
+                return res
 
         def _onUpload(req):
             # parse path #
             plist = req.split('|', 1)[1]
-            path = plist.split(',')
+            path = SysMgr.cleanItem(plist.split('@'), False)
+            if len(path) == 2:
+                origPath, targetPath = path
+                if origPath and not targetPath:
+                    origPath = targetPath
+            else:
+                origPath = targetPath = path[0]
 
-            origPath = path[0].strip()
-            targetPath = path[1].strip()
             sender = self
             targetIp = self.ip
             targetPort = self.port
@@ -5775,8 +5787,6 @@ class NetworkMgr(object):
                 SysMgr.printErr(
                     'failed to find %s to transfer' % origPath)
                 return
-
-            convert = UtilMgr.convSize2Unit
 
             try:
                 # receive file size #
@@ -5816,16 +5826,19 @@ class NetworkMgr(object):
                     "uploaded %s [%s] to %s:%s successfully\n" % \
                         (origPath, UtilMgr.getFileSize(origPath),
                             addr, targetPath))
+
+                res = True
             except:
                 SysMgr.printErr(
-                    "fail to upload %s to %s:%s" % \
-                        (origPath, addr, targetPath), True)
+                    "fail to upload %s to %s in %s" % \
+                        (origPath, targetPath, addr), True)
+                res = False
             finally:
                 sender.close()
+                return res
 
         def _onRun(req, onlySocket):
             # parse command #
-            origReq = req
             command = req.split('|', 1)[1]
 
             # parse addr #
@@ -6156,7 +6169,9 @@ class NetworkMgr(object):
             return None
 
         # add command prefix #
-        if cmd.upper().startswith('PING'):
+        if cmd.upper().startswith('PING') or \
+            cmd.upper().startswith('UPLOAD') or \
+            cmd.upper().startswith('DOWNLOAD'):
             pass
         elif not cmd.startswith('run:'):
             cmd = 'run:%s' % cmd
@@ -8008,11 +8023,9 @@ class PageAnalyzer(object):
         else:
             try:
                 if vrange[0].startswith("0x"):
-                    addrType = 'hex'
                     addrs = long(vrange[0], base=16)
                     addre = addrs
                 else:
-                    addrType = 'dec'
                     addrs = long(vrange[0])
                     addre = addrs
             except SystemExit:
@@ -8026,10 +8039,8 @@ class PageAnalyzer(object):
             try:
                 if rangeCnt == 2:
                     if vrange[1].startswith("0x"):
-                        addrType = 'hex'
                         addre = long(vrange[1], base=16)
                     else:
-                        addrType = 'dec'
                         addre = long(vrange[1])
 
                     offset = long(0)
@@ -8148,7 +8159,6 @@ class PageAnalyzer(object):
         # set text position #
         tstr = menuStr.split()
         pstr = tstr[1]
-        pidx = menuStr.find(pstr)
 
         # print maps info #
         for line in buf:
@@ -8532,7 +8542,6 @@ class FunctionAnalyzer(object):
         self.kerSymData[ksym]['heapSize'] += size
 
         self.heapTable.setdefault(addr, dict(self.init_heapSegData))
-
         self.heapTable[addr]['size'] = size
         self.heapTable[addr]['sym'] = sym
         self.heapTable[addr]['ksym'] = ksym
@@ -8542,19 +8551,10 @@ class FunctionAnalyzer(object):
         self.heapTable[addr]['core'] = core
         self.heapTable[addr]['tid'] = tid
 
-        # Set user stack list #
-        if self.sort == 'sym':
-            targetStack = self.userSymData[sym]['symStack']
-        elif self.sort == 'pos':
-            targetStack = self.userSymData[sym]['stack']
-
 
 
     def handleHeapReduce(self, size, arg):
         addr = arg[0]
-        time = arg[1]
-        core = arg[2]
-        tid = arg[3]
 
         subStackIndex = FunctionAnalyzer.symStackIdxTable.index('STACK')
         heapExpIndex = FunctionAnalyzer.symStackIdxTable.index('HEAP_EXPAND')
@@ -9281,7 +9281,7 @@ class FunctionAnalyzer(object):
             sys.exit(0)
 
         # set download command #
-        req = 'DOWNLOAD:%s,%s' % (src, des)
+        req = 'DOWNLOAD:%s@%s' % (src, des)
 
         # get connection with server #
         self.connObj = NetworkMgr.getServerConn()
@@ -10451,11 +10451,6 @@ class FunctionAnalyzer(object):
                         except:
                             event = 'LOCK'
 
-                        try:
-                            op = flist[maskedOp]
-                        except:
-                            op = l['op']
-
                         # try to lock #
                         if maskedOp == flist.index("FUTEX_LOCK_PI") or \
                             maskedOp == flist.index("FUTEX_TRYLOCK_PI"):
@@ -11121,8 +11116,6 @@ class FunctionAnalyzer(object):
 
         for idx, value in sortedThreadData:
             targetMark = ''
-            dieMark = ''
-            newMark = ''
 
             # skip no event count thread #
             if value['eventCnt'] == 0:
@@ -11348,9 +11341,6 @@ class FunctionAnalyzer(object):
         eventIndex = FunctionAnalyzer.symStackIdxTable.index('SYSCALL')
         convertNum = UtilMgr.convNum
 
-        # Make syscall event list #
-        sysList = ConfigMgr.sysList
-
         # Print syscall event #
         SysMgr.clearPrint()
         SysMgr.printPipe(
@@ -11449,8 +11439,6 @@ class FunctionAnalyzer(object):
             time = call[1][1]
             core = call[1][2]
             tid = call[1][3]
-            userstack = call[2]
-            kernelstack = call[3]
 
             title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
                 format(event, self.threadData[tid]['comm'], tid, core, time)
@@ -11667,8 +11655,6 @@ class FunctionAnalyzer(object):
             time = call[1][1]
             core = call[1][2]
             tid = call[1][3]
-            userstack = call[2]
-            kernelstack = call[3]
 
             title = "{0:^32}| {1:>16}({2:>7})| {3:>6} | {4:>15} |".\
                 format(event, self.threadData[tid]['comm'], tid, core, time)
@@ -12072,9 +12058,6 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("FREE", "Function"))
         SysMgr.printPipe(twoLine)
 
-        # Make exception list to remove a redundant part of stack #
-        exceptList = self.getExceptionList()
-
         for idx, value in sorted(self.kerSymData.items(),
             key=lambda e: e[1]['unknownPageFreeCnt'], reverse=True):
 
@@ -12241,9 +12224,6 @@ class FunctionAnalyzer(object):
             "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SysMgr.printPipe(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
         for idx, value in sorted(self.kerSymData.items(),
@@ -12472,9 +12452,6 @@ class FunctionAnalyzer(object):
             "{0:^7}({1:^6}/{2:^6}/{3:^6})|{4:_^47}|{5:_^76}".\
             format("Usage", "Usr", "Buf", "Ker", "Function", "LifeTime"))
         SysMgr.printPipe(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        exceptList = self.getExceptionList()
 
         # Print mem usage of stacks #
         for idx, value in sorted(self.kerSymData.items(),
@@ -12916,7 +12893,6 @@ class FunctionAnalyzer(object):
             core = call[1][2]
             tid = call[1][3]
             userstack = call[2]
-            kernelstack = call[3]
 
             comm = self.threadData[tid]['comm']
             title = "{0:^32}|{1:^16}|{2:>16}({3:>7})| {4:>6} | {5:>15} |".\
@@ -13032,9 +13008,6 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SysMgr.printPipe(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        exceptList = self.getExceptionList()
 
         # Print block write usage of stacks #
         for idx, value in sorted(self.kerSymData.items(),
@@ -13181,9 +13154,6 @@ class FunctionAnalyzer(object):
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^9}|{1:_^144}".format("Usage", "Function"))
         SysMgr.printPipe(twoLine)
-
-        # Make exception list to remove a redundant part of stack #
-        exceptList = self.getExceptionList()
 
         # Print block read usage of stacks #
         for idx, value in sorted(self.kerSymData.items(),
@@ -14102,7 +14072,6 @@ class FileAnalyzer(object):
 
         newOffset = long(d['offset'], 16)
         newSize = endAddr - startAddr
-        newEnd = newOffset + newSize
 
         # handle discontiguous segments #
         if fileName in procMap and \
@@ -15687,7 +15656,7 @@ class SysMgr(object):
             return
 
         # int malloc_trim (size_t pad) #
-        ret = SysMgr.libcObj.malloc_trim(0)
+        SysMgr.libcObj.malloc_trim(0)
 
 
 
@@ -16373,8 +16342,6 @@ class SysMgr(object):
 
         SysMgr.checkRootPerm()
 
-        sigList = ConfigMgr.SIG_LIST
-
         jobs = value.split(',')
         for job in jobs:
             try:
@@ -16538,7 +16505,6 @@ class SysMgr(object):
 
     @staticmethod
     def doSetAffinity():
-        isProcess = False
         SysMgr.warnEnable = True
 
         # get argument #
@@ -16854,8 +16820,6 @@ class SysMgr(object):
         try:
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
-
-            nrCore = SysMgr.getNrCore()
 
             SysMgr.libcObj.sched_getaffinity.argtypes = \
                 [c_int, c_ulong, POINTER(c_ulong)]
@@ -17479,15 +17443,15 @@ class SysMgr(object):
             write = stat['curNrWrite'] - stat['prevNrWrite']
             io = read + write
 
-            if io > 0:
-                wio = stat['curWIoMs'] - stat['prevWIoMs']
-
         readMsTotal = curReadMsTotal - prevReadMsTotal
         writeMsTotal = curWriteMsTotal - prevWriteMsTotal
+
+        '''
         nrReadTotal = curNrReadTotal - prevNrReadTotal
         nrWriteTotal = curNrWriteTotal - prevNrWriteTotal
         ioMsTotal = curIoMsTotal - prevIoMsTotal
         wIoMsTotal = curWIoMsTotal - prevWIoMsTotal
+        '''
 
         retstr = '%s/%s' % (
             UtilMgr.convSize2Unit(readMsTotal),
@@ -17869,7 +17833,7 @@ class SysMgr(object):
                     long(tid)
 
                     # update comm of thread #
-                    tcomm = SysMgr.getComm(tid, save=True)
+                    SysMgr.getComm(tid, save=True)
 
                     if tid == pid:
                         procTree[tid] = '%s(%s)' % (pid, comm)
@@ -17980,8 +17944,9 @@ class SysMgr(object):
 
 
     @staticmethod
-    def hasMainArg():
-        if len(sys.argv) <= 2 or sys.argv[2].startswith('-'):
+    def hasMainArg(dash=False):
+        if len(sys.argv) <= 2 or \
+            (not dash and sys.argv[2].startswith('-')):
             return False
         else:
             return True
@@ -17991,8 +17956,6 @@ class SysMgr(object):
     @staticmethod
     def getMainArg(path=False):
         if len(sys.argv) <= 2:
-            return None
-        elif sys.argv[2].startswith('-'):
             return None
         else:
             if not path:
@@ -20956,7 +20919,7 @@ Description:
     Set CPU scheduler policy and priority for threads / processes
 
 Policy:
-    c: CFS
+    c: CFS [default]
     f: FIFO(RT)
     r: RR(RT)
     B: BATCH
@@ -20972,13 +20935,17 @@ Options:
                     helpStr += '''
 Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
+        # {0:1} {1:1} -g -20:a.out
         # {0:1} {1:1} -g c:-20:1234
 
+    - Set CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
+        # {0:1} {1:1} -g -20:a.out -P
+
     - Set CPU scheduler policy(FIFO), priority(90) for a specific thread
-        # {0:1} {1:1} -g f:90:1234
+        # {0:1} {1:1} -g f:90:a.out
 
     - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
-        # {0:1} {1:1} -g d:1000000/10000000/10000000:1234
+        # {0:1} {1:1} -g d:1000000/10000000/10000000:a.out
                     '''.format(cmd, mode)
 
                 # getaffinity #
@@ -21229,6 +21196,14 @@ Options:
 Examples:
     - Execute remote commands in interaction menu
         # {0:1} {1:1}
+
+    - Download a.out from server to ./a.out
+        # {0:1} {1:1} -c download:a.out:./a.out
+        # {0:1} {1:1} -c download:a.out
+
+    - Upload ./a.out to a.out in server
+        # {0:1} {1:1} -c upload:./a.out:a.out
+        # {0:1} {1:1} -c upload:./a.out
 
     - Execute remote commands in parallel
         # {0:1} {1:1} -c "ls -lha", "date"
@@ -22362,7 +22337,7 @@ Copyright:
         convColor= UtilMgr.convColor
         convSize = UtilMgr.convSize2Unit
 
-        inst = buscycle = refcpucycle = cpucycle = -1
+        inst = cpucycle = -1
         cacheref = cachemiss = cachemissrate = -1
         branch = branchmiss = branchmissrate = -1
 
@@ -23822,8 +23797,9 @@ Copyright:
                 rpath = os.path.join(SysMgr.mountPath, '../trace')
                 with open(rpath, 'r') as fr:
                     lines = fr.readlines()
+            except SystemExit:
+                sys.exit(0)
             except:
-                err = SysMgr.getErrMsg()
                 SysMgr.printOpenErr(rpath)
                 sys.exit(0)
 
@@ -23831,6 +23807,8 @@ Copyright:
             try:
                 SysMgr.saveTraceData(lines, output)
                 SysMgr.clearInfoBuffer()
+            except SystemExit:
+                sys.exit(0)
             except:
                 sys.exit(0)
         else:
@@ -26051,12 +26029,6 @@ Copyright:
                 SysMgr.depEnable = True
 
             elif option == 'P':
-                if not SysMgr.getOption('g'):
-                    SysMgr.printErr((
-                        "use also -g option to group threads "
-                        "in a same process"))
-                    sys.exit(0)
-
                 SysMgr.groupProcEnable = True
 
             elif option == 'p':
@@ -27958,7 +27930,6 @@ Copyright:
     def getProcPids(name):
         pidList = []
         myPid = str(SysMgr.pid)
-        compLen = len(name)
 
         pids = os.listdir(SysMgr.procPath)
         for pid in pids:
@@ -28138,7 +28109,7 @@ Copyright:
         procList = SysMgr.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%6s\t%6s\t%16s\t%8s\t%5s\t%14s\t%s\n%s\n' % \
+        bgStr = '%s%s\n%7s\t%7s\t%16s\t%8s\t%5s\t%14s\t%s\n%s\n' % \
             (bgStr, twoLine, "PID", "PPID", "COMM",
                 "STATE", "RSS", "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
@@ -28239,7 +28210,6 @@ Copyright:
 
     @staticmethod
     def getBgProcList(checkCmdline=False, isJson=False):
-        nrProc = long(0)
         printBuf = ''
         printDict = {}
         myPid = str(SysMgr.pid)
@@ -28359,7 +28329,7 @@ Copyright:
                     'network': network
                 }
             else:
-                printBuf = '%s%6s\t%6s\t%16s\t%8s\t%5s\t%14s\t%s %s\n' % \
+                printBuf = '%s%7s\t%7s\t%16s\t%8s\t%5s\t%14s\t%s %s\n' % \
                     (printBuf, pid, ppid, comm,
                         state, rss, runtime, cmdline, network)
 
@@ -29326,7 +29296,7 @@ Copyright:
 
         sigset = SysMgr.sigsetObj
 
-        pendingList = SysMgr.libcObj.sigpending(byref(sigset))
+        #pendingList = SysMgr.libcObj.sigpending(byref(sigset))
 
         if type(sig) is not list:
             sig = [sig]
@@ -29364,16 +29334,24 @@ Copyright:
         def _onDownload(netObj, value, response):
             # pick path #
             try:
-                src, des = value.split(',')
+                files = SysMgr.cleanItem(value.split('@', 1), False)
+                if len(files) == 2:
+                    src, des = files
+                    if src and not des:
+                        des = src
+                    elif not src:
+                        raise Exception()
+                else:
+                    src = des = files[0]
             except:
                 SysMgr.printWarn(
-                    'failed to recognize path', True)
+                    'failed to recognize %s' % value, True)
                 _sendErrMsg(netObj,
-                    "wrong format for path, input in the format {SRC,DES}")
+                    "wrong format for path, input in the format {SRC@DES}")
                 return
 
             # verify path #
-            targetPath = src.strip()
+            targetPath = src
             if not os.path.isfile(targetPath):
                 SysMgr.printWarn(
                     'failed to find %s to transfer' % targetPath, True)
@@ -29383,7 +29361,7 @@ Copyright:
             # response from command request #
             netObj.send(response)
 
-            remotePath = des.strip()
+            remotePath = des
             addr = '%s:%s' % (netObj.ip, netObj.port)
 
             # transfer file #
@@ -29416,19 +29394,27 @@ Copyright:
                             addr, remotePath))
             except:
                 SysMgr.printErr(
-                    "fail to upload %s to %s:%s" % \
-                    (targetPath, addr, remotePath), True)
+                    "fail to upload %s to %s in %s" % \
+                    (targetPath, remotePath, addr), True)
             finally:
                 netObj.close()
 
         def _onUpload(netObj, value, response):
             try:
-                src, des = value.split(',')
+                files = SysMgr.cleanItem(value.split('@', 1), False)
+                if len(files) == 2:
+                    src, des = files
+                    if src and not des:
+                        des = src
+                    elif not src:
+                        raise Exception()
+                else:
+                    src = des = files[0]
             except:
                 SysMgr.printWarn(
-                    'failed to recognize path', True)
+                    'failed to recognize %s' % value, True)
                 _sendErrMsg(netObj,
-                    "wrong format for path, input in the format {SRC,DES}")
+                    "wrong format for path, input in the format {SRC@DES}")
                 return
 
             # response from command request #
@@ -29444,8 +29430,8 @@ Copyright:
             try:
                 curSize = long(0)
                 totalSize = None
-                origPath = src.strip()
-                targetPath = des.strip()
+                origPath = src
+                targetPath = des
 
                 # receive file size #
                 while 1:
@@ -29478,8 +29464,8 @@ Copyright:
                         addr, origPath))
             except:
                 SysMgr.printErr(
-                    'fail to download %s from %s:%s' % \
-                        (origPath, addr, targetPath), True)
+                    'fail to download %s from %s in %s' % \
+                        (origPath, targetPath, addr), True)
             finally:
                 netObj.close()
 
@@ -29751,8 +29737,8 @@ Copyright:
         def _printMenu():
             sys.stdout.write(
                 '\n[Command List]\n'
-                '- DOWNLOAD:RemotePath,LocalPath\n'
-                '- UPLOAD:LocalPath,RemotePath\n'
+                '- DOWNLOAD:RemotePath@LocalPath\n'
+                '- UPLOAD:LocalPath@RemotePath\n'
                 '- RUN:Command\n'
                 '- HISTORY\n'
                 '- PING\n'
@@ -29884,7 +29870,7 @@ Copyright:
         # get argument #
         if SysMgr.hasMainArg():
             cmdList = SysMgr.getMainArg().split(',')
-            cmdList = SysMgr.cleanItem(cmdList)
+            cmdList = SysMgr.cleanItem(cmdList, False)
         elif SysMgr.customCmd:
             cmdList = SysMgr.customCmd
         else:
@@ -29918,14 +29904,15 @@ Copyright:
             uinput = _convUserCmd(uinput)
 
             # fit Guider's window size #
-            if uinput.startswith('run:GUIDER') and \
-                not ' -m' in uinput:
+            if uinput.startswith('run:GUIDER') and not ' -m' in uinput:
                 uinput += ' -m %s:%s' % (windowSize+2, SysMgr.ttyCols)
 
             # execute an user command #
             pipe = _execUserCmd(uinput, addr, retPipe=True)
             if not pipe:
                 sys.exit(0)
+            elif pipe is True:
+                continue
 
             # set timeout and register socket to command list #
             cmdPipeList[pipe.socket] = \
@@ -30549,7 +30536,7 @@ Copyright:
         SysMgr.warnEnable = True
 
         # get argument #
-        if SysMgr.hasMainArg():
+        if SysMgr.hasMainArg(dash=True):
             value = SysMgr.getMainArg().split(',')
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
@@ -31940,8 +31927,6 @@ Copyright:
                         fobj = ElfAnalyzer.cachedFiles[fname]
                         foffset = long(item[0])
                         startAddr = attr['vstart']
-                        voffset = attr['offset']
-                        vsize = attr['size']
                         totalDiff = 0
 
                         # get real offset for memory hole #
@@ -32853,9 +32838,8 @@ Copyright:
 
             # run loop #
             while 1:
+                # flush page caches #
                 _flushCache()
-
-                totalSize = 0
 
                 # FILE #
                 if target == 'file':
@@ -32899,7 +32883,7 @@ Copyright:
         try:
             if SysMgr.hasMainArg():
                 opList = SysMgr.getMainArg().split(',')
-                opList = SysMgr.cleanItem(opList)
+                opList = SysMgr.cleanItem(opList, False)
             elif SysMgr.filterGroup:
                 opList = SysMgr.filterGroup
             else:
@@ -33066,7 +33050,6 @@ Copyright:
         result = c_int()
         device = c_int()
         context = c_void_p()
-        error_str = c_char_p()
 
         try:
             cuda = SysMgr.loadLib('libcuda.so')
@@ -33901,7 +33884,6 @@ Copyright:
 
             vmData = {}
 
-            zonestr = '\n'
             conv = UtilMgr.convSize2Unit
             for line in vmBuf:
                 vmList = line.split()
@@ -34806,7 +34788,7 @@ Copyright:
 
         for pid in targetList:
             try:
-                _kill(pid, sig)
+                kill(pid, sig)
             except:
                 SysMgr.printSigError(pid, 'SIGKILL')
 
@@ -35117,39 +35099,47 @@ Copyright:
         schedGroup = SysMgr.cleanItem(schedGroup)
         for item in schedGroup:
             schedSet = item.split(':')
+
             try:
-                policy = schedSet[0].upper()
-                ConfigMgr.SCHED_POLICY.index(policy)
+                # policy and priority #
+                try:
+                    pri = long(schedSet[0])
+                    policy = 'C'
 
-                pri = schedSet[1]
-                if UtilMgr.isNumber(pri):
-                    pri = long(pri)
+                    # change myself #
+                    if len(schedSet) == 1:
+                        task = SysMgr.pid
+                        SysMgr.prio = pri
+                    # change others #
+                    else:
+                        task = schedSet[1]
+                except:
+                    policy = schedSet[0].upper()
+                    ConfigMgr.SCHED_POLICY.index(policy)
 
-                # change myself #
-                if len(schedSet) == 2:
-                    tid = SysMgr.pid
-                    SysMgr.prio = pri
-                # change others #
-                else:
-                    tid = schedSet[2]
+                    pri = schedSet[1]
+                    if UtilMgr.isNumber(pri):
+                        pri = long(pri)
 
-                # check tid #
-                if UtilMgr.isNumber(tid):
-                    isTid = True
-                else:
-                    isTid = False
+                    # change myself #
+                    if len(schedSet) == 2:
+                        task = SysMgr.pid
+                        SysMgr.prio = pri
+                    # change others #
+                    else:
+                        task = schedSet[2]
 
                 # get thread list #
                 sibling = SysMgr.groupProcEnable
-                targetList = SysMgr.getPids(tid, sibling=sibling)
+                targetList = SysMgr.getPids(task, sibling=sibling)
                 targetList = list(map(long, targetList))
 
                 if not targetList:
                     SysMgr.printErr(
-                        "no threads related to %s" % tid)
+                        "no threads related to '%s'" % task)
                     sys.exit(0)
 
-                for tid in targetList:
+                for task in targetList:
                     if schedSet[0].upper() == 'D':
                         # parse deadline arguments #
                         runtime, deadline, period = \
@@ -35157,9 +35147,9 @@ Copyright:
 
                         # set deadline sched #
                         SysMgr.setDeadlinePriority(
-                            tid, runtime, deadline, period)
+                            task, runtime, deadline, period)
                     else:
-                        SysMgr.setPriority(tid, policy, pri)
+                        SysMgr.setPriority(task, policy, pri)
 
                 # change others continually #
                 if len(schedSet) == 4:
@@ -35167,14 +35157,14 @@ Copyright:
                         raise Exception("wrong last value")
 
                     # add sched item to list #
-                    SysMgr.schedFilter.append([policy, pri, tid])
+                    SysMgr.schedFilter.append([policy, pri, task])
             except SystemExit:
                 sys.exit(0)
             except:
                 err = map(str, sys.exc_info()[1].args)
                 SysMgr.printErr((
                     "wrong value '%s' to apply new priority because %s, "
-                    "input in the format POLICY:PRIORITY|TIME:TID") % \
+                    "input in the format POLICY:PRIORITY|TIME:TID|COMM") % \
                     (item, ' '.join(list(err))))
                 sys.exit(0)
 
@@ -35339,10 +35329,10 @@ Copyright:
             if not SysMgr.importPkgItems('ctypes', False):
                 return
 
-        # get comm #
-        comm = SysMgr.getComm(pid)
-
         try:
+            # get args #
+            pri = long(pri)
+            comm = SysMgr.getComm(pid)
             upolicy = policy.upper()
 
             if not SysMgr.loadLibcObj():
@@ -35393,14 +35383,12 @@ Copyright:
                 SysMgr.printInfo(
                     'changed priority for %s(%s) to %d[%s]' % \
                         (comm, pid, pri, upolicy))
+        except SystemExit:
+            sys.exit(0)
         except:
             err = "fail to set priority for %s(%s) to %s[%s]" % \
                 (comm, pid, pri, upolicy)
-
-            if not SysMgr.isRoot():
-                err += ' because it requires root permission'
-
-            SysMgr.printWarn(err, True)
+            SysMgr.printWarn(err, always=True, reason=True)
             return
 
 
@@ -45282,10 +45270,6 @@ struct cmsghdr {
                     (self.comm, pid))
             return -1
 
-        errMsg = \
-            'fail to continue %s(%s) because it is terminated' % \
-                (self.comm, pid)
-
         # check target is running #
         try:
             os.kill(pid, 0)
@@ -45293,6 +45277,9 @@ struct cmsghdr {
             sys.exit(0)
         except:
             if not self.isAlive():
+                errMsg = \
+                    'fail to continue %s(%s) because it is terminated' % \
+                        (self.comm, pid)
                 SysMgr.printWarn(errMsg)
                 return -1
 
@@ -45310,6 +45297,9 @@ struct cmsghdr {
                 if cnt < 0:
                     break
                 elif not self.isAlive():
+                    errMsg = \
+                        'fail to continue %s(%s) because it is terminated' % \
+                            (self.comm, pid)
                     SysMgr.printErr(errMsg)
                     return -1
 
@@ -46196,8 +46186,9 @@ struct cmsghdr {
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
-                self.cont(check=True)
-                needStop = True
+                ret = self.cont(check=True)
+                if ret == 0:
+                    needStop = True
 
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
@@ -50025,8 +50016,9 @@ struct cmsghdr {
 
             # continue target to prevent too long freezing #
             if instance.traceStatus and instance.isAlive():
-                instance.cont(check=True)
-                needStop = True
+                ret = instance.cont(check=True)
+                if ret == 0:
+                    needStop = True
 
         if instance.isRealtime:
             mtype = 'Top'
@@ -59362,7 +59354,7 @@ class ThreadAnalyzer(object):
                     totalUsage = list(map(long, totalUsage))[:lent]
 
                     # draw total graph #
-                    plot(timeline, totalUsage, '-', c='green', linestyle='-',
+                    plot(timeline, totalUsage, '-', c='green', linestyle='-.',
                         linewidth=1, marker='d', markersize=1,
                         solid_capstyle='round')
 
@@ -59588,10 +59580,6 @@ class ThreadAnalyzer(object):
                         fontsize=3, color=color, fontweight='bold',
                         ha=_getTextAlign(maxIdx, timeline), rotation=35)
                 if usage[-1] > 0:
-                    try:
-                        unit = (timeline[-1]-timeline[-2]) / 10
-                    except:
-                        unit = long(0)
                     text(timeline[-1], usage[-1], lastval, rotation=35,
                         fontsize=3, color=color, fontweight='bold',
                         ha='right')
@@ -59744,10 +59732,6 @@ class ThreadAnalyzer(object):
                                 fontsize=3, color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1],
                                 wrUsage[-1] + margin, lastval, rotation=35,
                                 fontsize=3, color=color, fontweight='bold',
@@ -59783,10 +59767,6 @@ class ThreadAnalyzer(object):
                                 fontsize=3, color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1],
                                 rdUsage[-1] + margin, lastval, rotation=35,
                                 fontsize=3, color=color, fontweight='bold',
@@ -59841,10 +59821,6 @@ class ThreadAnalyzer(object):
                                 ha=_getTextAlign(maxIdx, timeline))
 
                         if wrUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1], wrUsage[-1] + margin, lastval,
                                 fontsize=3, color=color, fontweight='bold',
                                 ha='right', rotation=35)
@@ -59880,10 +59856,6 @@ class ThreadAnalyzer(object):
                                 fontsize=3, color=color, fontweight='bold',
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1], rdUsage[-1] + margin, lastval,
                                 fontsize=3, color=color, fontweight='bold',
                                 ha='right', rotation=35)
@@ -59940,10 +59912,6 @@ class ThreadAnalyzer(object):
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if wrUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1], wrUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -59978,10 +59946,6 @@ class ThreadAnalyzer(object):
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
                         if rdUsage[-1] > 0:
-                            try:
-                                unit = (timeline[-1]-timeline[-2]) / 10
-                            except:
-                                unit = long(0)
                             text(timeline[-1], rdUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -60866,8 +60830,6 @@ class ThreadAnalyzer(object):
                 else:
                     maxBlkPer = '0'
                 maxPer = '(%s%%+%s%%)' % (maxCpuPer, maxBlkPer)
-
-                ilabel = '%s %s' % (idx, maxPer)
 
                 for pidx, usage in enumerate(cpuUsage):
                     if usage == 0:
@@ -61949,11 +61911,11 @@ class ThreadAnalyzer(object):
                 value['offTime'] += float(self.finishTime) - value['lastOff']
 
             if SysMgr.powerEnable:
-                prtTime = offTime = '%5.2f' % value['offTime']
-                pri = offCnt = str(value['offCnt'])
+                offTime = '%5.2f' % value['offTime']
+                offCnt = str(value['offCnt'])
             else:
-                prtTime = offTime = '-'
-                pri = offCnt = '-'
+                offTime = '-'
+                offCnt = '-'
 
             if SysMgr.cpuEnable:
                 cpuTime = '%5.2f' % (self.totalTime - value['usage'])
@@ -62021,7 +61983,7 @@ class ThreadAnalyzer(object):
                 "%5s|%5s|%5s|%4s|%5s(%3s/%4s)|%5s(%3s)|"
                 "%4s(%3s/%3s/%3s)|%s|\n") % \
                     (value['comm'], '-'*5, '-'*5, '-', '-',
-                    cpuTime, cpuPer, prtTime, schedLatency, pri, irqTime,
+                    cpuTime, cpuPer, offTime, schedLatency, offCnt, irqTime,
                     yieldCnt, preemptedCnt, preemptionCnt, migrateCnt,
                     ioRdWait, readBlock, readBlockCnt, ioWrWait, writeBlock,
                     usedMem, userMem, cacheMem, kernelMem, lastField))
@@ -63269,24 +63231,30 @@ class ThreadAnalyzer(object):
                     mountInfo = SysMgr.savedMountTree
                     dev = mountInfo[num]['dev']
                     filesystem = mountInfo[num]['filesystem']
-                    mount = mountInfo[num]['mount']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     dev = '?'
                     filesystem = '?'
-                    mount = '?'
 
                 try:
                     seqPer = round((val[3] / float(val[0])) * 100, 1)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     seqPer = '?'
 
                 try:
                     size = format((val[0] >> 10), ',')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     size = val[0] >> 10
 
                 try:
                     seqSize = format((val[3] >> 10), ',')
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     seqSize = '?'
 
@@ -64662,7 +64630,6 @@ class ThreadAnalyzer(object):
                 write = convUnit2Size(tokenList[4].strip())
 
                 freestat = tokenList[5].strip().split('(')
-                free = convUnit2Size(freestat[0].strip())
                 freeDiff = convUnit2Size(freestat[1][:-1].strip())
 
                 # busy #
@@ -65939,8 +65906,6 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
-        convertFunc = UtilMgr.convSize2Unit
-
         SysMgr.printPipe((
             "\n{0:1}\n{1:^16} {2:>15} {3:>15} {4:>15} "
             "{5:>15} {6:>15} {7:>15} {8:>15} {9:>15}\n{10:1}\n").\
@@ -66247,14 +66212,10 @@ class ThreadAnalyzer(object):
     @staticmethod
     def getInitTime(fname):
         fd = None
-        systemInfoBuffer = ''
 
         if SysMgr.isRecordMode():
-            nrLine = SysMgr.pageSize
             compressor = None
         else:
-            nrLine = long(0)
-
             try:
                 fd = open(fname, 'rb')
             except SystemExit:
@@ -68358,10 +68319,8 @@ class ThreadAnalyzer(object):
                 })
 
             # save syscall history #
-            if len(SysMgr.syscallList) > 0:
+            if SysMgr.syscallList:
                 try:
-                    idx = SysMgr.syscallList.index(nr)
-
                     self.syscallData.append(
                         ['RET', time, thread, core, nrstr, ret, diff])
                 except:
@@ -71086,9 +71045,8 @@ class ThreadAnalyzer(object):
             swapFree = swapTotal - swapUsage
             if swapTotal:
                 swapUsagePer = long(swapUsage / float(swapTotal) * 100)
-                swapFreePer = long(swapFree / float(swapTotal) * 100)
             else:
-                swapUsagePer = swapFreePer = 0
+                swapUsagePer = 0
             swapUsageDiff = \
                 (self.prevVmData['swapUsed'] - vmData['swapUsed']) >> 10
             swapInMem = \
@@ -71099,7 +71057,7 @@ class ThreadAnalyzer(object):
             sys.exit(0)
         except:
             swapTotal = swapUsage = swapUsageDiff = swapUsagePer = \
-                swapFreePer = swapInMem = swapOutMem = long(0)
+                swapInMem = swapOutMem = long(0)
             SysMgr.printWarn("fail to get swapMem")
 
         # background reclaim #
@@ -71180,8 +71138,7 @@ class ThreadAnalyzer(object):
 
             try:
                 nrDrReclaim = \
-                    vmData['allocstall'] - \
-                    self.prevVmData['allocstall']
+                    vmData['allocstall'] - self.prevVmData['allocstall']
             except SystemExit:
                 sys.exit(0)
             except:
@@ -71865,7 +71822,6 @@ class ThreadAnalyzer(object):
                         raise Exception()
 
                     # get length of string #
-                    lenTotal = len(totalCoreStat)
                     lenFreq = len(coreFreq)
                     lenLine = SysMgr.lineLength - lenCoreStat - lenFreq - 2
 
@@ -73565,9 +73521,6 @@ class ThreadAnalyzer(object):
             else:
                 pid = value['mainID']
 
-            # get task status #
-            tstat = stat[self.statIdx]
-
             # get code size #
             codeSize = (long(stat[self.ecodeIdx]) - \
                 long(stat[self.scodeIdx])) >> 20
@@ -73730,11 +73683,12 @@ class ThreadAnalyzer(object):
 
             # get memory details #
             memBuf, nrss, pss, uss = self.getMemDetails(idx, value['maps'])
-            mems = rss = value['rss']
             if SysMgr.pssEnable:
                 mems = pss >> 8
             elif SysMgr.ussEnable:
                 mems = uss >> 8
+            else:
+                mems = value['rss']
 
             if SysMgr.customCmd:
                 # execute command #
