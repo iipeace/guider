@@ -14962,6 +14962,59 @@ class LogMgr(object):
 
 
     @staticmethod
+    def getKmsg(line=0):
+        try:
+            fd = os.open(SysMgr.kmsgPath, os.O_RDONLY | os.O_NONBLOCK)
+        except:
+            return None
+
+        buf = b''
+        while 1:
+            try:
+                data = os.read(fd, SysMgr.pageSize)
+                buf += data
+            except SystemExit:
+                sys.exit(0)
+            except:
+                break
+
+        # convert logs #
+        logs = list()
+        for log in buf.decode().split('\n'):
+            # parse log #
+            pos = log.find(';')
+
+            meta = log[:pos].split(',')
+            if len(meta) > 2:
+                nrLevel = long(meta[0])
+                try:
+                    level = ConfigMgr.LOG_LEVEL[nrLevel]
+                except:
+                    level = nrLevel
+
+                # time #
+                ltime = str(meta[2])
+                if len(ltime) < 7:
+                    ltime = '0.%s' % ltime
+                else:
+                    ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
+
+                # name & log #
+                log = log[pos + 1:]
+                npos = log.find(':')
+                name = log[:npos]
+                if log[-1] == '\n':
+                    log = log[npos + 1:-1]
+                else:
+                    log = log[npos + 1:]
+
+                logs.append('[%s] (%s) %s: %s' % (ltime, level, name, log))
+
+        return logs[-line:]
+
+
+
+    @staticmethod
     def printKmsg():
         # open kmsg device node #
         try:
@@ -15339,6 +15392,7 @@ class SysMgr(object):
     nrCore = long(0)
     utilProc = long(0)
     logSize = long(0)
+    kmsgLine = long(100)
     curLine = long(0)
     totalLine = long(0)
     dbgEventLine = long(0)
@@ -31148,15 +31202,15 @@ Copyright:
                 mapList += getProcMapInfo(pid, onlyExec=True).keys()
             mapList = list(set(mapList))
 
-            if mapList:
-                SysMgr.printInfo('start preloading binaries...')
-
             # load symbol caches at once #
+            printLog = True
             for item in mapList:
                 try:
-                    eobj = ElfAnalyzer.getObject(item)
+                    eobj = ElfAnalyzer.getObject(item, log=printLog)
                     if len(pidList) == 1 and eobj:
                         eobj.mergeSymTable()
+                        if printLog:
+                            printLog = False
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -31526,7 +31580,7 @@ Copyright:
 
             # create ELF object #
             try:
-                binObj = ElfAnalyzer.getObject(filePath, True)
+                binObj = ElfAnalyzer.getObject(filePath)
                 if not binObj:
                     err = SysMgr.getErrMsg()
                     raise Exception(err)
@@ -46464,15 +46518,16 @@ struct cmsghdr {
             elif fname.startswith('libpthread'):
                 self.dftBpFileList[fpath] = 0
 
-        SysMgr.printInfo('start loading binaries...')
-
         # load file-mapped objects #
+        printLog = True
         for mfile in list(self.pmap.keys()):
             try:
                 eobj = ElfAnalyzer.getObject(
-                    mfile, overlay=self.overlayfsList)
+                    mfile, overlay=self.overlayfsList, log=printLog)
                 if eobj:
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
+                    if printLog:
+                        printLog = False
             except SystemExit:
                 sys.exit(0)
             except:
@@ -52958,7 +53013,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def getObject(
-        path, raiseExcept=False, fobj=None, cache=True, overlay=None):
+        path, fobj=None, cache=True, overlay=None, log=False):
 
         # remove segment number #
         path = path.split(SysMgr.magicStr)[0]
@@ -52998,12 +53053,17 @@ class ElfAnalyzer(object):
         # load files #
         if not cache or not path in ElfAnalyzer.cachedFiles:
             # check exceptional case #
-            if not path.startswith('/'):
-                if path == 'vdso':
-                    fobj = SysMgr.getVDSO()
-                elif not os.path.exists(path):
-                    return None
+            if path != 'vdso' and not os.path.exists(path):
+                return None
 
+            # print start message #
+            if log:
+                SysMgr.printInfo('start loading binaries...')
+
+            if path == 'vdso':
+                fobj = SysMgr.getVDSO()
+
+            # print load message #
             SysMgr.printInfo(
                 "load %s... " % path, suffix=False, prefix=False)
 
@@ -65763,6 +65823,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printIntervalUsage():
+        def _printMenu(title):
+            stars = '*' * long((long(SysMgr.lineLength) - len(title)) / 2)
+            SysMgr.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, title, stars))
+
         if SysMgr.fileTopEnable:
             ThreadAnalyzer.printFileTable()
         elif SysMgr.jsonEnable or \
@@ -65788,9 +65852,7 @@ class ThreadAnalyzer(object):
         ThreadAnalyzer.printMemAnalysis()
 
         # print detailed statistics #
-        msg = ' Detailed Statistics '
-        stars = '*' * long((long(SysMgr.lineLength) - len(msg)) / 2)
-        SysMgr.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, msg, stars))
+        _printMenu(' Detailed Statistics ')
         if SysMgr.procBuffer == []:
             SysMgr.printPipe("\n\tNone")
         else:
@@ -65801,8 +65863,7 @@ class ThreadAnalyzer(object):
             msg = ' Process Lifecycle '
         else:
             msg = ' Thread Lifecycle '
-        stars = '*' * long((long(SysMgr.lineLength) - len(msg)) / 2)
-        SysMgr.printPipe('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        _printMenu(msg)
         ThreadAnalyzer.printProcLifecycle()
 
         # print process tree #
@@ -65810,15 +65871,22 @@ class ThreadAnalyzer(object):
             msg = ' Process Tree '
         else:
             msg = ' Thread Tree '
-        stars = '*' * long((long(SysMgr.lineLength) - len(msg)) / 2)
-        SysMgr.printPipe('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        _printMenu(msg)
         ThreadAnalyzer.printProcTree()
 
         # print Leak hint #
-        msg = ' Leak Hint '
-        stars = '*' * long((long(SysMgr.lineLength) - len(msg)) / 2)
-        SysMgr.printPipe('\n\n\n\n%s%s%s\n' % (stars, msg, stars))
+        _printMenu(' Leak Hint ')
         ThreadAnalyzer.printLeakHint()
+
+        # print kernel messages #
+        try:
+            _printMenu(' Kernel Message ')
+            SysMgr.printPipe(LogMgr.getKmsg(SysMgr.kmsgLine))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to save kernel message', reason=True)
 
         # initialize parse buffer #
         ThreadAnalyzer.lifeIntData = {}
