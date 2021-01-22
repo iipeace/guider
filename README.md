@@ -1190,7 +1190,7 @@ COMMAND:
                     leaktrace       <Leak>
                     limitcpu        <CPU>
                     pause           <Thread>
-                    printcrp        <Cgroup>
+                    printcg         <Cgroup>
                     printdbus       <D-Bus>
                     printdir        <Dir>
                     printenv        <Env>

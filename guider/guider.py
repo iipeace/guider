@@ -18233,7 +18233,7 @@ class SysMgr(object):
                 'leaktrace': 'Leak',
                 'limitcpu': 'CPU',
                 'pause': 'Thread',
-                'printcrp': 'Cgroup',
+                'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
@@ -20472,7 +20472,7 @@ Examples:
                     '''.format(cmd, mode)
 
                 # printcgroup #
-                elif SysMgr.checkMode('printcrp'):
+                elif SysMgr.checkMode('printcg'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -20482,7 +20482,9 @@ Description:
 
 Options:
     -v                          verbose
-    -a                          show name of all processes
+    -a                          show all processes
+    -g  <COMM>                  set filter
+    -H  <LEVEL>                 set depth level
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20490,8 +20492,18 @@ Examples:
     - Print system cgroup tree
         # {0:1} {1:1}
 
-    - Print system cgroup tree with the name of processes
+    - Print system cgroup tree for specific subsystem
+        # {0:1} {1:1} cpu
+        # {0:1} {1:1} blkio
+
+    - Print system cgroup tree with processes
         # {0:1} {1:1} -a
+
+    - Print system cgroup tree with processes having specific name
+        # {0:1} {1:1} -a -g kworker
+
+    - Print system cgroup tree with depth 3
+        # {0:1} {1:1} -H 3
                     '''.format(cmd, mode)
 
                 # exec #
@@ -27280,7 +27292,7 @@ Copyright:
             SysMgr.printDirs(root, maxLevel)
 
         # PRINTCGROUP MODE #
-        elif SysMgr.checkMode('printcrp'):
+        elif SysMgr.checkMode('printcg'):
             SysMgr.cgroupEnable = True
             SysMgr().printCgroupInfo(printTitle=False)
             SysMgr.printInfoBuffer()
@@ -38189,12 +38201,29 @@ Copyright:
     def printCgroupInfo(self, printTitle=True):
         commList = {}
 
-        def _printDirTree(root, depth):
+        def _printDirTree(root, depth, total=0):
+            # check depth #
+            if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
+                return
+
+            # chek type #
             if type(root) is not dict:
                 return
 
             tempRoot = deepcopy(root)
 
+            # calculate sum for subdirs #
+            newTotal = 0
+            for curdir, subdir in tempRoot.items():
+                if 'cpu.shares' in subdir:
+                    for parent, childs in subdir.items():
+                        if type(childs) is not dict:
+                            continue
+                        if 'cpu.shares' in childs:
+                            value = childs['cpu.shares'].replace(',', '')
+                            newTotal += long(value)
+
+            # traverse subdir #
             for curdir, subdir in sorted(tempRoot.items(),
                 key=lambda e: long(e[0]) if e[0].isdigit() else e[0]):
                 cstr = ''
@@ -38217,9 +38246,16 @@ Copyright:
                         nrProcs = subdir[val]
                         tempSubdir.pop(val, None)
                         continue
+                    elif val == 'cpu.shares' and total > 0:
+                        num = long(subdir[val].replace(',', ''))
+                        per = '%d' % (num / float(total) * 100)
+                        value = '%s/%s%%' % \
+                            (subdir[val], UtilMgr.convColor(per, 'RED'))
+                    else:
+                        value = subdir[val]
 
                     cname = '.'.join(val.split('.')[1:])
-                    cstr = '%s%s:%s, ' % (cstr, cname, subdir[val])
+                    cstr = '%s%s:%s, ' % (cstr, cname, value)
                     tempSubdir.pop(val, None)
 
                 indent = ''
@@ -38230,34 +38266,52 @@ Copyright:
                     indent = '%s%s|' % (indent, '     ')
 
                 if len(cstr) > 0:
-                    cstr = '<%s>' % cstr[:-2]
+                    cstr = ' <%s>' % cstr[:-2]
 
-                nrWorker = '(proc:%s/task:%s)' % (nrProcs, nrTasks)
+                # define worker info #
+                if nrProcs != '0':
+                    procstr = UtilMgr.convColor(nrProcs, 'YELLOW')
+                else:
+                    procstr = nrProcs
+                if nrTasks != '0':
+                    taskstr = UtilMgr.convColor(nrTasks, 'CYAN')
+                else:
+                    taskstr = nrTasks
+                nrWorker = ' (proc:%s/task:%s)' % (procstr, taskstr)
+
+                # parent node #
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
 
                     if curdir == 'PROCS':
                         nrWorker = ''
 
+                    if depth == 0:
+                        curdir = UtilMgr.convColor(curdir, 'GREEN')
+
                     SysMgr.infoBufferPrint(
                         '%s- %s%s%s%s' % \
                         (indent, curdir, nrChild, nrWorker, cstr))
+                # process node #
                 elif depth > 0 and nrProcs == nrTasks == 0:
                     if curdir in commList:
                         comm = commList[curdir]
                     else:
                         comm = commList[curdir] = \
-                            SysMgr.getComm(curdir)
+                            SysMgr.getComm(curdir, save=True)
 
-                    SysMgr.infoBufferPrint(
-                        '%s- %s(%s)' % \
-                        (indent, comm, curdir))
+                    # filter process #
+                    if UtilMgr.isEffectiveStr(comm, inc=True, ignCap=True):
+                        SysMgr.infoBufferPrint(
+                            '%s- %s(%s)' % \
+                            (indent, comm, curdir))
+                # leap node #
                 else:
                     SysMgr.infoBufferPrint(
                         '%s- %s%s%s' % \
                         (indent, curdir, nrWorker, cstr))
 
-                _printDirTree(tempSubdir, depth + 1)
+                _printDirTree(tempSubdir, depth + 1, newTotal)
 
             if depth == 0:
                 SysMgr.infoBufferPrint(' ')
@@ -38280,6 +38334,19 @@ Copyright:
             SysMgr.infoBufferPrint('\n[System Cgroup Info]')
             SysMgr.infoBufferPrint(twoLine)
 
+        # filter cgroup subsystem #
+        if SysMgr.hasMainArg():
+            # get filter for subsystems #
+            items = SysMgr.getMainArg().split(',')
+            items = SysMgr.cleanItem(items)
+
+            # remove subsystems from tree #
+            for subsystem in list(cgroupTree.keys()):
+                if not UtilMgr.isEffectiveStr(
+                    subsystem, key=items, inc=True, ignCap=True):
+                    cgroupTree.pop(subsystem, None)
+
+        # print cgroup tree #
         _printDirTree(cgroupTree, 0)
 
         if printTitle:
@@ -56532,6 +56599,10 @@ class ThreadAnalyzer(object):
             else:
                 return '(%s' % ''.join(namelist[:-1])
 
+        # enable RSS flag #
+        SysMgr.rssEnable = True
+
+        # get stats from files #
         flist = UtilMgr.getFileList(flist)
         if len(flist) < 2:
             SysMgr.printErr(
