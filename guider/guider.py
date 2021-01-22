@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210121"
+__revision__ = "210122"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14968,19 +14968,19 @@ class LogMgr(object):
         except:
             return None
 
-        buf = b''
+        logs = list()
         while 1:
             try:
-                data = os.read(fd, SysMgr.pageSize)
-                buf += data
+                data = os.read(fd, SysMgr.pageSize).decode()
+                logs.append(data)
             except SystemExit:
                 sys.exit(0)
             except:
                 break
 
         # convert logs #
-        logs = list()
-        for log in buf.decode().split('\n'):
+        retList = list()
+        for log in logs[-line:]:
             # parse log #
             pos = log.find(';')
 
@@ -15008,9 +15008,9 @@ class LogMgr(object):
                 else:
                     log = log[npos + 1:]
 
-                logs.append('[%s] (%s) %s: %s' % (ltime, level, name, log))
+                retList.append('[%s] (%s) %s: %s' % (ltime, level, name, log))
 
-        return logs[-line:]
+        return retList[-line:]
 
 
 
@@ -28723,13 +28723,14 @@ Copyright:
                 envFileList = []
             for fname in envFileList:
                 try:
-                    with open(fname, 'rb') as fd:
+                    with open(fname, 'r') as fd:
                         envList = fd.readlines()
                         applyList(myEnv, envList)
                 except:
                     SysMgr.printErr(
                         'fail to parse environment variable from %s' % \
                             fname, True)
+                    sys.exit(0)
         except SystemExit:
             sys.exit(0)
         except:
@@ -38105,11 +38106,8 @@ Copyright:
 
             mountpath = mountList[0].split()[4]
 
-            # check cgroup version #
-            if mountList[1].startswith('cgroup2'):
-                return mountpath
-            else:
-                return mountpath[:mountpath.rfind('/')]
+            # return cgroup mount point #
+            return mountpath[:mountpath.rfind('/')]
 
         return None
 
@@ -38234,7 +38232,7 @@ Copyright:
                 if len(cstr) > 0:
                     cstr = '<%s>' % cstr[:-2]
 
-                nrWorker = '(proc:%s,task:%s)' % (nrProcs, nrTasks)
+                nrWorker = '(proc:%s/task:%s)' % (nrProcs, nrTasks)
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
 
@@ -40180,6 +40178,7 @@ class DbusAnalyzer(object):
                 if SysMgr.repeatCount > 0:
                     SysMgr.progressCnt += 1
                     if SysMgr.repeatCount <= SysMgr.progressCnt:
+                        os.kill(SysMgr.pid, signal.SIGINT)
                         sys.exit(0)
 
             if SysMgr.checkMode('printdbus'):
@@ -40279,7 +40278,7 @@ class DbusAnalyzer(object):
                     return
 
                 # multi-threaded loop #
-                if len(threadingList) > 0:
+                if threadingList:
                     # sibling thread #
                     if SysMgr.pid != tid:
                         _updateDataFromPipe(rdPipeList)
@@ -44019,6 +44018,10 @@ struct cmsghdr {
 
 
     def removeAllBp(self, tgid=None, verb=True):
+        # ignore breakpoints for command #
+        if self.execCmd:
+            return
+
         if not tgid:
             tgid = self.pid
 
@@ -74140,7 +74143,7 @@ class ThreadAnalyzer(object):
                 pass
 
             # set comm #
-            comm = value['comm']
+            comm = stat[self.commIdx][1:-1]
             if taskType == 'new':
                 comm = '[+]%s' % comm
             elif taskType == 'die':
