@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Peace Lee"
-__copyright__ = "Copyright 2015-2020, Guider"
+__copyright__ = "Copyright 2015-2021, Guider"
 __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210122"
+__revision__ = "210124"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -53846,6 +53846,7 @@ class ElfAnalyzer(object):
                 SysMgr.printErr(
                     'fail to recognize CFI opcode %s for %s' % \
                         (hex(opcode), self.path))
+                break
 
             cfi.append([inst, opcode, args])
 
@@ -55881,8 +55882,10 @@ Section header string table index: %d
                         else:
                             ehdata = fd.read(8)
 
-                    # address size (uint8) is added in DWARF v4 #
-                    # segment size (uint8) is added in DWARF v4 #
+                    if ver >= 4:
+                        # address size (uint8) is added in DWARF v4 #
+                        # segment size (uint8) is added in DWARF v4 #
+                        pass
 
                     # Call Alignment Factor #
                     data = table[pos:].decode('latin-1')
@@ -55917,7 +55920,7 @@ Section header string table index: %d
                         augdatastr = ''
                         augdata = ''
 
-                    # Call Frame Instructions #
+                    # decode Call Frame Instructions #
                     cfi = self.getCFI(table, pos, dataSize)
 
                     # save info #
@@ -56027,22 +56030,34 @@ Section header string table index: %d
                         augsize = 0
 
                     # Augmentation Data #
-                    if augsize == 0 and 'personality' in augdict:
+                    if augsize == 0 and \
+                        'personality' in augdict and \
+                        'lsdaEncoding' in augdict:
+                        # get encoding format #
                         encFormat = augdict['personality']['format']
+
+                        # decode data for size #
                         curPos = fd.tell()
                         data = _decodeData(encFormat, fd)
                         datasize = fd.tell() - curPos
                         fd.seek(curPos)
+
+                        # load data #
                         augdata = fd.read(datasize)
                         augdatastr = _getAugStr(augdata)
 
                     # read remain part #
                     remain = fd.tell() - startPos
-                    table = fd.read(size - remain)
-                    pos = 0
+                    loadSize = size - remain
+                    if loadSize > 0:
+                        table = fd.read(loadSize)
 
-                    # Call Frame Instructions #
-                    cfi = self.getCFI(table, pos, len(table))
+                        # decode Call Frame Instructions #
+                        cfi = self.getCFI(table, pos=0, size=len(table))
+                    # wrong FDE #
+                    else:
+                        fd.seek(loadSize, 1)
+                        cfi = []
 
                     # save FDE info #
                     self.attr['dwarf']['FDE'][offset] = {
