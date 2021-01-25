@@ -1144,6 +1144,7 @@ COMMAND:
     [MONITOR]       atop            <System>
                     bgtop           <Background>
                     btop            <Function>
+                    cgtop           <Cgroup>
                     ctop            <Condition>
                     dbustop         <D-Bus>
                     disktop         <Storage>

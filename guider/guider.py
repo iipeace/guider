@@ -137,6 +137,14 @@ class ConfigMgr(object):
         'blkio.weight', 'blkio.weight_device',
     ]
 
+    # Define cgroup stat #
+    CGROUP_STAT = [
+        'cpuacct.usage',
+        'memory.usage_in_bytes',
+        'tasks',
+        'cgroup.procs',
+    ]
+
     # Define state of process #
     PROC_STAT_TYPE = {
         'R': 'running',
@@ -15290,6 +15298,7 @@ class SysMgr(object):
     imagePath = None
     mountPath = None
     mountCmd = None
+    cgroupPath = None
     drawFormat = 'svg'
     debugfsPath = '/sys/kernel/debug'
     cacheDirPath = '/var/log/guider'
@@ -15537,6 +15546,7 @@ class SysMgr(object):
     ttyEnable = False
     selectEnable = True
     cgroupEnable = False
+    cgTopEnable = False
     cmdlineEnable = False
     schedstatEnable = True
     intervalEnable = long(0)
@@ -16150,6 +16160,10 @@ class SysMgr(object):
         # file #
         elif SysMgr.checkMode('ftop'):
             SysMgr.fileTopEnable = True
+
+        # cgroup #
+        elif SysMgr.checkMode('cgtop'):
+            SysMgr.cgTopEnable = True
 
         # stack #
         elif SysMgr.checkMode('stacktop'):
@@ -18174,6 +18188,7 @@ class SysMgr(object):
                 'bgtop': 'Background',
                 'btop': 'Function',
                 'ctop': 'Condition',
+                'cgtop': 'Cgroup',
                 'dbustop': 'D-Bus',
                 'disktop': 'Storage',
                 'dlttop': 'DLT',
@@ -18290,8 +18305,7 @@ class SysMgr(object):
         printPipe = SysMgr.printPipe
 
         # help #
-        if len(sys.argv) <= 1 or \
-            SysMgr.isHelpMode():
+        if len(sys.argv) <= 1 or SysMgr.isHelpMode():
             # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
                 cmd = os.environ['CMDLINE']
@@ -18311,8 +18325,7 @@ Usage:
                 '''.format(cmd)
 
             # command help #
-            if len(sys.argv) > 1 and \
-                SysMgr.isHelpMode():
+            if len(sys.argv) > 1 and SysMgr.isHelpMode():
                 # get command #
                 mode = sys.argv[1]
 
@@ -19209,6 +19222,18 @@ Usage:
 
 Description:
     Monitor the status of threads
+                        '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + topExamStr
+
+                # cgroup top #
+                elif SysMgr.checkMode('cgtop'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Monitor the status of cgroup
                         '''.format(cmd, mode)
 
                     helpStr += topSubStr + topCommonStr + topExamStr
@@ -20485,6 +20510,7 @@ Options:
     -a                          show all processes
     -g  <COMM>                  set filter
     -H  <LEVEL>                 set depth level
+    -o  <DIR|FILE>              set output path
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20750,6 +20776,7 @@ Description:
 Options:
     -g  <COMM>                  set filter
     -H  <LEVEL>                 set depth level
+    -o  <DIR|FILE>              set output path
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -27094,6 +27121,7 @@ Copyright:
             SysMgr.checkMode('ctop') or \
             SysMgr.checkMode('ntop') or \
             SysMgr.checkMode('dlttop') or \
+            SysMgr.checkMode('cgtop') or \
             SysMgr.checkMode('dbustop') or \
             SysMgr.checkMode('disktop'):
             return True
@@ -38123,7 +38151,9 @@ Copyright:
 
 
     def getCgroupPath(self):
-        if not self.mountData:
+        if SysMgr.cgroupPath:
+            return SysMgr.cgroupPath
+        elif not self.mountData:
             return None
 
         # search cgroup mount point #
@@ -38136,7 +38166,9 @@ Copyright:
             mountpath = mountList[0].split()[4]
 
             # return cgroup mount point #
-            return mountpath[:mountpath.rfind('/')]
+            path = mountpath[:mountpath.rfind('/')]
+            SysMgr.cgroupPath = path
+            return path
 
         return None
 
@@ -57338,6 +57370,8 @@ class ThreadAnalyzer(object):
             self.maxPid = SysMgr.pid
             self.procData = {}
             self.prevProcData = {}
+            self.cgroupData = {}
+            self.prevCgroupData = {}
             self.nsData = {}
             self.fileData = {}
             self.cpuData = {}
@@ -57467,14 +57501,28 @@ class ThreadAnalyzer(object):
             else:
                 self.execEnable = True
 
-            # file top mode #
+            # file mode #
             if SysMgr.fileTopEnable:
-                self.runFileTop()
-            # DLT top mode #
+                try:
+                    self.runFileTop()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("fail to monitor files", reason=True)
+            # DLT mode #
             elif SysMgr.dltTopEnable:
                 DltAnalyzer.runDltReceiver(mode='top')
+            # D-Bus mode #
             elif SysMgr.dbusTopEnable:
                 DbusAnalyzer.runDbusSnooper(mode='top')
+            # cgroup  mode #
+            elif SysMgr.cgTopEnable:
+                try:
+                    self.runCgTop()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("fail to monitor cgroup", reason=True)
 
             # print system general info in advance #
             if SysMgr.outPath and SysMgr.pipeEnable and SysMgr.exitFlag:
@@ -57732,6 +57780,52 @@ class ThreadAnalyzer(object):
 
 
 
+    def runCgTop(self):
+        cgroupPath = SysMgr.sysInstance.getCgroupPath()
+        if not os.path.isdir(cgroupPath):
+            SysMgr.printErr("fail to access cgroup filesystem")
+            sys.exit(0)
+
+        # apply for filter from 1st argument #
+        if not SysMgr.filterGroup and SysMgr.hasMainArg():
+            value = SysMgr.getMainArg()
+            value = UtilMgr.splitString(value)
+            SysMgr.filterGroup = SysMgr.cleanItem(value)
+
+        # run loop #
+        while 1:
+            # collect system stats as soon as possible #
+            self.saveSystemStat(target='cgroup')
+
+            # save timestamp #
+            prevTime = time.time()
+
+            if self.prevCpuData:
+                # print system status #
+                self.printSystemStat(idIndex=True, target='cgroup')
+
+            # check repeat count #
+            SysMgr.checkProgress()
+
+            # reset system status #
+            self.reinitStats()
+
+            # write user command #
+            SysMgr.writeTraceCmd('AFTER')
+
+            # get delayed time #
+            delayTime = time.time() - prevTime
+            if delayTime > SysMgr.intervalEnable:
+                waitTime = 0.000001
+            else:
+                waitTime = SysMgr.intervalEnable - delayTime
+
+            # wait for next interval #
+            if not SysMgr.waitUserInput(waitTime):
+                time.sleep(waitTime)
+
+
+
     def runFileTop(self):
         def _getFilter(init=False):
             procFilter = []
@@ -57906,6 +58000,15 @@ class ThreadAnalyzer(object):
 
             # check request from client #
             self.checkServer()
+
+
+
+    def saveCgroupInstance(self):
+        del self.prevCgroupData
+        self.prevCgroupData = self.cgroupData
+        self.cgroupData = {}
+        SysMgr.topInstance = self
+        SysMgr.procInstance = self.procData
 
 
 
@@ -64625,6 +64728,9 @@ class ThreadAnalyzer(object):
                 TA.procIntData[index]['nrThread'] = d['nrThread']
             return
 
+        # define converter #
+        convUnit2Size = UtilMgr.convUnit2Size
+
         # Split stats #
         tokenList = procLine.split('|')
 
@@ -64773,8 +64879,6 @@ class ThreadAnalyzer(object):
 
         # Get Storage resource usage #
         elif len(tokenList) == 12 and tokenList[0][0] == '/':
-            convUnit2Size = UtilMgr.convUnit2Size
-
             TA.procIntData[index]['total'].setdefault('storage', dict())
 
             TA.procTotData['total'].setdefault('storage', dict())
@@ -64849,8 +64953,6 @@ class ThreadAnalyzer(object):
                 tokenList[0].strip() == 'Dev':
                 return
 
-            convUnit2Size = UtilMgr.convUnit2Size
-
             TA.procIntData[index]['total'].setdefault('netdev', dict())
 
             TA.procTotData['total'].setdefault('netdev', dict())
@@ -64882,6 +64984,10 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
+            return
+
+        # Get Cgroup resource usage #
+        elif len(tokenList) == 8:
             return
 
         # Get process resource usage #
@@ -69933,6 +70039,90 @@ class ThreadAnalyzer(object):
 
 
 
+    def saveCgroupStat(self):
+        def _getStats(root, path, sub):
+            # convert subsystem #
+            origSub = sub
+            if 'cpuacct' in sub:
+                sub = 'cpuacct'
+
+            # check subsystem #
+            if sub in root:
+                return
+
+            # register subsystem #
+            root.setdefault(sub, dict())
+            cgroupPath = SysMgr.cgroupPath
+
+            for dirpath, subdirs, subfiles in path:
+                # update subfiles #
+                for item in subfiles:
+                    # check file #
+                    if not item in ConfigMgr.CGROUP_STAT:
+                        continue
+
+                    # save stat #
+                    try:
+                        # convert name #
+                        stripLen = len(os.path.join(cgroupPath, origSub))
+                        dpath = dirpath[stripLen:]
+                        if dpath:
+                            dpath = dpath[1:]
+
+                        # check depth #
+                        if SysMgr.funcDepth > 0 and \
+                            dpath.count('/') >= SysMgr.funcDepth:
+                            continue
+
+                        if not dpath:
+                            dpath = '/'
+
+                        subfile = os.path.join(dirpath, item)
+
+                        # read stat #
+                        fd = SysMgr.getFd(subfile, 'r')
+                        fd.seek(0)
+                        stat = fd.read()
+
+                        # save stat #
+                        root[sub].setdefault(dpath, dict())
+                        root[sub][dpath][item] = stat
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printErr(
+                            'fail to read stat from %s' % subfile, True)
+
+        # reset and save cgroup instance #
+        self.saveCgroupInstance()
+
+        # get cgroup list #
+        try:
+            systems = os.listdir(SysMgr.cgroupPath)
+        except:
+            SysMgr.printOpenErr(SysMgr.cgroupPath)
+            sys.exit(0)
+
+        # save stats #
+        for sub in systems:
+            # check subsystem #
+            if sub in self.cgroupData:
+                continue
+            elif 'cpuacct' in sub or \
+                'memory' in sub or \
+                'blkio' in sub:
+                pass
+            else:
+                continue
+
+            # build path #
+            path = os.path.join(SysMgr.cgroupPath, sub)
+
+            # gather stats #
+            _getStats(self.cgroupData, os.walk(path), sub)
+
+
+
     def saveProcStat(self):
         if SysMgr.fixedProcList:
             pids = list(SysMgr.fixedProcList.keys())
@@ -70089,7 +70279,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def saveSystemStat(self):
+    def saveSystemStat(self, target='task'):
         # update uptime #
         SysMgr.updateUptime()
 
@@ -70303,7 +70493,14 @@ class ThreadAnalyzer(object):
             return
 
         # save proc stats #
-        self.saveProcStat()
+        if target == 'task':
+            self.saveProcStat()
+        elif target == 'cgroup':
+            self.saveCgroupStat()
+        else:
+            SysMgr.printErr(
+                "wrong monitor target for '%s'" % target)
+            sys.exit(0)
 
 
 
@@ -73285,6 +73482,128 @@ class ThreadAnalyzer(object):
 
 
 
+    def getCgroupUsage(self):
+        interval = SysMgr.uptimeDiff
+        if interval == 0:
+            interval = 0.1
+
+        stats = {}
+        prevData = self.prevCgroupData
+
+        for system, groups in self.cgroupData.items():
+            for group, values in groups.items():
+                # filter group #
+                if SysMgr.filterGroup:
+                    if not UtilMgr.isEffectiveStr(
+                        group, inc=True, ignCap=True):
+                        continue
+
+                for name, value in values.items():
+                    stats.setdefault(group, dict())
+
+                    if name == 'tasks' or name == 'cgroup.procs':
+                        stat = value.count('\n')
+                    else:
+                        stat = long(value.rstrip())
+
+                        # calculate usage #
+                        if system == 'cpuacct':
+                            try:
+                                prevStat = prevData[system][group][name]
+                                prevStat = long(prevStat.rstrip())
+                                stat = stat - prevStat
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                pass
+
+                    # save stat #
+                    stats[group].setdefault(name, stat)
+                    if stats[group][name] == 0:
+                        stats[group][name] = stat
+
+        return stats
+
+
+
+    def printCgroupUsage(self):
+        # check return condition #
+        if SysMgr.uptimeDiff == 0 or \
+            SysMgr.checkCutCond():
+            return
+        elif not self.cgroupData:
+            SysMgr.addPrint(twoLine)
+            return
+
+        # calculate resource usage of cgroup #
+        stats = self.getCgroupUsage()
+
+        # print menu #
+        ret = SysMgr.addPrint((
+                "{0:1}\n{1:<112}|{2:>4}|{3:>4}|"
+                "{4:>6}|{5:>7}|{6:>7}|{7:>7}|\n{8:1}\n").format(
+                twoLine, 'Control Group', 'Proc', 'Task',
+                'CPU(%)', 'Memory', 'Read', 'Write', oneLine), newline=3)
+
+        # set sort value #
+        if SysMgr.sort == 'm':
+            item = 'memory.usage_in_bytes'
+        else:
+            item = 'cpuacct.usage'
+
+        # iterate stats #
+        for system, value in sorted(stats.items(),
+            key=lambda e: e[1][item] if item in e[1] else 0, reverse=True):
+
+            # CPU #
+            try:
+                usage = value['cpuacct.usage'] / 10000000
+                cpu = '%6.1f' % usage
+
+                # convert color for CPU usage #
+                if usage < SysMgr.cpuPerLowThreshold:
+                    pass
+                else:
+                    if usage >= SysMgr.cpuPerHighThreshold:
+                        cpu = UtilMgr.convColor(cpu, 'RED')
+                    else:
+                        cpu = UtilMgr.convColor(cpu, 'YELLOW')
+            except SystemExit:
+                sys.exit(0)
+            except:
+                cpu = 0
+
+            # Memory #
+            try:
+                mem = value['memory.usage_in_bytes']
+                mem = UtilMgr.convSize2Unit(mem)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                mem = 0
+
+            # Task #
+            try:
+                proc = value['cgroup.procs']
+                task = value['tasks']
+            except SystemExit:
+                sys.exit(0)
+            except:
+                proc = 0
+                task = 0
+
+            # print stats of a process #
+            ret = SysMgr.addPrint((
+                "{0:<112}|{1:>4}|{2:>4}|"
+                "{3:>6}|{4:>7}|{5:>7}|{6:>7}|\n").format(
+                    system, proc, task, cpu, mem, '-', '-'))
+            if not ret:
+                return -1
+
+        SysMgr.addPrint("%s\n" % oneLine)
+
+
+
     def printProcUsage(self, idIndex=False):
         def _isBreakCond(idx, value):
             # define target #
@@ -73642,7 +73961,7 @@ class ThreadAnalyzer(object):
                     "VSS", mem, "Txt", "Shr", "Swp",
                     "Blk", "RD", "WR", "NrFlt",
                     sidType, pgrpType, "FD", "LifeTime", etc,
-                    oneLine, twoLine, cl=cl, pd=pd), newline = 3)
+                    oneLine, twoLine, cl=cl, pd=pd), newline=3)
         if not ret:
             return
 
@@ -75633,7 +75952,7 @@ class ThreadAnalyzer(object):
 
 
 
-    def printSystemStat(self, idIndex=False):
+    def printSystemStat(self, idIndex=False, target='task'):
         title = '[Top Info]'
         nrIndent = len(title)
 
@@ -75659,7 +75978,14 @@ class ThreadAnalyzer(object):
         self.printNetworkUsage()
 
         # print process stat #
-        self.printProcUsage(idIndex=idIndex)
+        if target == 'task':
+            self.printProcUsage(idIndex=idIndex)
+        elif target == 'cgroup':
+            self.printCgroupUsage()
+        else:
+            SysMgr.printErr(
+                "wrong monitor target for '%s'" % target)
+            sys.exit(0)
 
         # update session #
         SysMgr.updateSession()
