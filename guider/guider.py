@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210124"
+__revision__ = "210125"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20745,9 +20745,11 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Print the tree of processes
+    Print process tree
 
 Options:
+    -g  <COMM>                  set filter
+    -H  <LEVEL>                 set depth level
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -20755,6 +20757,12 @@ Options:
 Examples:
     - Print tree of processes
         # {0:1} {1:1}
+
+    - Print highlighting processes having specific name
+        # {0:1} {1:1} -g kworker
+
+    - Print tree of processes with depth 3
+        # {0:1} {1:1} -H 3
                     '''.format(cmd, mode)
 
                 # comp #
@@ -21300,9 +21308,14 @@ Options:
                         'wrong command %s' % mode)
                     sys.exit(0)
 
+                # no pager #
+                if SysMgr.findOption('Q'):
+                    SysMgr.setStream()
+
                 # print small logo #
                 SysMgr.printLogo()
 
+                # print help #
                 printPipe(helpStr)
 
             else:
@@ -21321,6 +21334,10 @@ Copyright:
                     '''.format(__author__, __email__,
                         __repository__, __copyright__, __license__)
 
+                # no pager #
+                SysMgr.setStream()
+
+                # print help #
                 printPipe(helpStr)
 
                 # reset terminal #
@@ -34365,7 +34382,7 @@ Copyright:
 
         obj.saveSystemStat()
 
-        ThreadAnalyzer.printProcTree(obj.procData)
+        ThreadAnalyzer.printProcTree(obj.procData, title=True)
 
 
 
@@ -66091,7 +66108,7 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def printProcTree(instance=None):
+    def printProcTree(instance=None, title=False):
         if not instance and SysMgr.procInstance:
             instance = SysMgr.procInstance
 
@@ -66111,16 +66128,30 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe("\n\tNone")
             return
 
+        # print title #
+        SysMgr.printPipe((
+            "\n[Process Tree Info]\n%s\n"
+            "  %-22s %4s(%8s/%11s) <%s>\n%s") % \
+                (twoLine, 'Name(ID)', 'Per', 'CPUTIME',
+                    'RUNTIME', 'SUB', oneLine))
+
         # print nodes in tree #
         def _printTreeNodes(root, depth):
             treestr = ''
+
+            # check depth #
+            if SysMgr.funcDepth > 0 and SysMgr.funcDepth <= depth:
+                return treestr
 
             for pid, childs in sorted(root.items(), key=lambda x: long(x[0])):
                 indent = ''
 
                 # get comm #
                 try:
-                    comm = instance[pid]['stat'][commIdx][1:-1]
+                    comm = instance[pid]['comm']
+                    if SysMgr.filterGroup and \
+                        UtilMgr.isEffectiveStr(comm, inc=True, ignCap=True):
+                        comm = UtilMgr.convColor(comm, 'RED')
                 except:
                     comm = '?'
 
@@ -66141,6 +66172,8 @@ class ThreadAnalyzer(object):
                     stime = long(instance[pid]['stat'][stimeIdx])
                     ttime = (utime + stime) / 100
                     ttimestr = UtilMgr.convTime(ttime)
+                    if ttime > 0:
+                        ttimestr = UtilMgr.convColor(ttimestr, 'YELLOW')
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -66150,6 +66183,10 @@ class ThreadAnalyzer(object):
                 # get CPU time by runtime #
                 try:
                     cpuPer = round(ttime / float(runtime) * 100, 1)
+                    if cpuPer > 0:
+                        cpuPer = UtilMgr.convColor(cpuPer, 'GREEN')
+                    else:
+                        cpuPer = 0
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -66162,7 +66199,7 @@ class ThreadAnalyzer(object):
                     indent = '%s%s|' % (indent, ' ' * 5)
 
                 procInfo = "%s(%s)" % (comm, pid)
-                treestr += '%s- %-22s %3d%%(%s/%s) ' % \
+                treestr += '%s- %-22s %3s%%(%s/%s) ' % \
                     (indent, procInfo, cpuPer, ttimestr, runtimestr)
 
                 nrChild = len(childs)
