@@ -16365,9 +16365,13 @@ class SysMgr(object):
 
 
     @staticmethod
-    def loadLib(lib):
+    def loadLib(lib, path=False):
         if not SysMgr.importPkgItems('ctypes', False):
             return
+
+        # absolute path #
+        if path:
+            return CDLL(lib)
 
         target = SysMgr.findLib(lib)
         if not target:
@@ -19580,6 +19584,9 @@ Examples:
     - Monitor DLT logs
         # {0:1} {1:1}
 
+    - Monitor DLT logs using libdlt.so from specific path
+        # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
+
     - Change default log level to be printed
         # {0:1} {1:1} -c INFO
 
@@ -20350,12 +20357,17 @@ Examples:
                     if SysMgr.checkMode('printdlt'):
                         helpStr += '''
     - Print DLT messages from specific files
+        # {0:1} {1:1} "./*.dlt"
         # {0:1} {1:1} -I "./*.dlt"
 
     - Change default log level to be printed
         # {0:1} {1:1} -c INFO
 
+    - Print DLT messages using libdlt.so from specific path
+        # {0:1} {1:1} -q LIBDLT:/home/iipeace/test/libdlt.so
+
     - Print DLT messages sorted by line from specific files
+        # {0:1} {1:1} "./*.dlt" -S
         # {0:1} {1:1} -I "./*.dlt" -S
                     '''.format(cmd, mode)
 
@@ -41401,9 +41413,8 @@ class DltAnalyzer(object):
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
         if not DltAnalyzer.pids and not SysMgr.remoteServObj:
-            SysMgr.printErr(
-                "fail to find dlt-daemon process")
-            sys.exit(0)
+            SysMgr.printWarn(
+                "fail to find dlt-daemon process", True)
 
         DLT_USER_BUF_MAX_SIZE = 1380
 
@@ -41845,7 +41856,10 @@ class DltAnalyzer(object):
 
         # load DLT library #
         try:
-            if not SysMgr.dltObj:
+            if 'LIBDLT' in SysMgr.environList:
+                libpath = SysMgr.environList['LIBDLT'][0]
+                SysMgr.dltObj = SysMgr.loadLib(libpath, True)
+            elif not SysMgr.dltObj:
                 SysMgr.dltObj = SysMgr.loadLib(SysMgr.libdltPath)
 
             if not SysMgr.dltObj:
@@ -41858,7 +41872,7 @@ class DltAnalyzer(object):
             SysMgr.dltObj = None
             SysMgr.printWarn(
                 'fail to find %s to get DLT log' % \
-                    SysMgr.libdltPath, True)
+                    SysMgr.libdltPath, always=True, reason=True)
             sys.exit(0)
 
         # define verbose #
@@ -41894,15 +41908,17 @@ class DltAnalyzer(object):
 
         # initialize input path #
         flist = []
-        if SysMgr.inputParam is not None and \
-            not SysMgr.inputParam:
-            SysMgr.printErr("no path for DLT file")
-            sys.exit(0)
+        if SysMgr.hasMainArg():
+            flist = SysMgr.getMainArg().split(',')
+            flist = SysMgr.cleanItem(flist)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
                 ret = UtilMgr.convPath(item.strip())
                 flist += ret
             flist = list(set(flist))
+        else:
+            SysMgr.printErr("no path for DLT file")
+            sys.exit(0)
 
         # check sort option #
         if SysMgr.findOption('S'):
@@ -41983,9 +41999,8 @@ class DltAnalyzer(object):
         # check dlt-daemon #
         DltAnalyzer.pids = SysMgr.getProcPids('dlt-daemon')
         if not DltAnalyzer.pids and not SysMgr.remoteServObj:
-            SysMgr.printErr(
-                "fail to find dlt-daemon process")
-            sys.exit(0)
+            SysMgr.printWarn(
+                "fail to find dlt-daemon process", True)
 
         # set connection info #
         try:
