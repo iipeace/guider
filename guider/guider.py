@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210125"
+__revision__ = "210126"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -37151,6 +37151,7 @@ Copyright:
         SysMgr.infoBufferPrint(twoLine)
         SysMgr.infoBufferPrint(title.rstrip())
         SysMgr.infoBufferPrint(twoLine)
+
         for line in self.limitData[1:]:
             limit = line.rstrip()
             SysMgr.infoBufferPrint(limit)
@@ -37169,6 +37170,7 @@ Copyright:
                 sys.exit(0)
             except:
                 pass
+
         SysMgr.infoBufferPrint(twoLine)
 
 
@@ -58544,7 +58546,7 @@ class ThreadAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and sname != 'Storage':
+                elif intervalList and sname != 'Device':
                     # define arrays #
                     storageUsage.setdefault(sname, dict())
                     busyList = list()
@@ -58578,7 +58580,7 @@ class ThreadAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and sname != 'Network':
+                elif intervalList and sname != 'Device':
                     # define arrays #
                     networkUsage.setdefault(sname, dict())
                     recvList = list()
@@ -58622,6 +58624,55 @@ class ThreadAnalyzer(object):
                             list(map(long, sline[2:-1]))
                     except:
                         pass
+
+            # Cgroup.cpu Details #
+            elif context == 'Cgroup.CPU':
+                pid = 0
+
+                if slen == 3 and sline[0].startswith('Cgroup'):
+                    pass
+                elif slen == 3:
+                    comm = sline[0].strip()
+
+                    if SysMgr.filterGroup:
+                        if not ThreadAnalyzer.checkFilter(comm, pid):
+                            intervalList = None
+                        else:
+                            pname = '%s' % comm
+
+                            intervalList = sline[2]
+                    else:
+                        pname = '%s' % comm
+
+                        intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList:
+                        intervalList += sline[1]
+                elif intervalList:
+                    # save previous info #
+                    cpuProcUsage[pname] = {}
+                    cpuProcUsage[pname]['pid'] = pid
+
+                    # get lifecycle info #
+                    intervalList = intervalList.split()
+                    cpuList = list(map(float, intervalList))
+                    cpuList = list(map(long, cpuList))
+                    intervalList = list(map(str, cpuList))
+                    intervalList = ' '.join(intervalList)
+
+                    cpuProcUsage[pname]['usage'] = intervalList
+                    intervalList = None
+
+                    # update statistics #
+                    if not cpuList:
+                        cpuProcUsage[pname]['minimum'] = long(0)
+                        cpuProcUsage[pname]['average'] = long(0)
+                        cpuProcUsage[pname]['maximum'] = long(0)
+                    else:
+                        cpuProcUsage[pname]['minimum'] = min(cpuList)
+                        cpuProcUsage[pname]['average'] = \
+                            sum(cpuList) / len(cpuList)
+                        cpuProcUsage[pname]['maximum'] = max(cpuList)
 
         UtilMgr.deleteProgress()
 
@@ -59677,6 +59728,10 @@ class ThreadAnalyzer(object):
                             break
                         else:
                             tcnt += 1
+                    elif not SysMgr.showAll and \
+                        not SysMgr.filterGroup and \
+                        item['maximum'] == 0:
+                        continue
 
                     usage = item['usage'].split()
                     usage = list(map(long, usage))[:lent]
@@ -59784,6 +59839,7 @@ class ThreadAnalyzer(object):
 
             # add % unit to each value #
             try:
+                ax.set_ylim(bottom=0)
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(long, ytickLabel))
 
@@ -64988,6 +65044,67 @@ class ThreadAnalyzer(object):
 
         # Get Cgroup resource usage #
         elif len(tokenList) == 8:
+            tokenList = SysMgr.cleanItem(tokenList, False)
+
+            system, proc, task, cpu, mem, read, write = tokenList
+
+            # CPU #
+            target = 'cgroup.cpu'
+
+            try:
+                usage = float(cpu)
+            except:
+                return
+
+            try:
+                TA.procTotData['total'].setdefault(target, dict())
+
+                TA.procTotData['total'][target][system]['usage'] += usage
+
+                if TA.procTotData['total'][target][system]['min'] > usage:
+                    TA.procTotData['total'][target][system]['min'] = usage
+                elif TA.procTotData['total'][target][system]['max'] < usage:
+                    TA.procTotData['total'][target][system]['max'] = usage
+            except:
+                TA.procTotData['total'][target][system] = dict()
+                TA.procTotData['total'][target][system]['usage'] = usage
+                TA.procTotData['total'][target][system]['min'] = usage
+                TA.procTotData['total'][target][system]['max'] = usage
+
+            try:
+                TA.procIntData[index]['total'].setdefault(target, dict())
+                TA.procIntData[index]['total'][target][system] = usage
+            except:
+                pass
+
+            # Memory #
+            target = 'cgroup.mem'
+
+            try:
+                usage = UtilMgr.convUnit2Size(mem)
+            except:
+                return
+
+            try:
+                TA.procTotData['total'].setdefault(target, dict())
+                TA.procTotData['total'][target][system]['usage'] = usage
+
+                if TA.procTotData['total'][target][system]['min'] > usage:
+                    TA.procTotData['total'][target][system]['min'] = usage
+                elif TA.procTotData['total'][target][system]['max'] < usage:
+                    TA.procTotData['total'][target][system]['max'] = usage
+            except:
+                TA.procTotData['total'][target][system] = dict()
+                TA.procTotData['total'][target][system]['usage'] = usage
+                TA.procTotData['total'][target][system]['min'] = usage
+                TA.procTotData['total'][target][system]['max'] = usage
+
+            try:
+                TA.procIntData[index]['total'].setdefault(target, dict())
+                TA.procIntData[index]['total'][target][system] = usage
+            except:
+                pass
+
             return
 
         # Get process resource usage #
@@ -65311,6 +65428,8 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printCpuInterval():
+        TA = ThreadAnalyzer
+
         # set comm and pid size #
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
@@ -65332,23 +65451,12 @@ class ThreadAnalyzer(object):
             cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 5
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(procInfo)
-        margin = 5
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
-                lineLen = len(procInfo)
+        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
 
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
-            lineLen += margin + 2
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
-
-        value = ThreadAnalyzer.procTotData['total']
+        value = TA.procTotData['total']
         cpuInfo = '%d/%.1f/%d/%d' % \
             (value['cpuMin'] if value['cpuMin'] > 0 else 0,
             value['cpuAvg'], value['cpuMax'], value['cpu'])
@@ -65362,13 +65470,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in range(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntData[idx]:
-                usage = ThreadAnalyzer.procIntData[idx]['total']['cpu']
+            if 'total' in TA.procIntData[idx]:
+                usage = TA.procIntData[idx]['total']['cpu']
             else:
                 usage = long(0)
 
@@ -65379,7 +65487,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print CPU usage of processes #
-        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),
+        for pid, value in sorted(TA.procTotData.items(),
             key=lambda e: e[1]['cpu'], reverse=True):
 
             if pid == 'total':
@@ -65399,21 +65507,20 @@ class ThreadAnalyzer(object):
             timeLine = ''
             lineLen = len(procInfo)
             total = long(0)
-            for idx in range(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntData[idx]:
-                    usage = ThreadAnalyzer.procIntData[idx][pid]['cpu']
-                    total += ThreadAnalyzer.procIntData[idx][pid]['cpu']
+                if pid in TA.procIntData[idx]:
+                    usage = TA.procIntData[idx][pid]['cpu']
+                    total += TA.procIntData[idx][pid]['cpu']
                 else:
                     usage = long(0)
 
                 lflag = ''
-                if pid in ThreadAnalyzer.lifeIntData and \
-                    idx in ThreadAnalyzer.lifeIntData[pid]:
-                    for item in ThreadAnalyzer.lifeIntData[pid][idx]:
+                if pid in TA.lifeIntData and idx in TA.lifeIntData[pid]:
+                    for item in TA.lifeIntData[pid][idx]:
                         if item == 'START':
                             lflag += '+'
                         elif item == 'FINISH':
@@ -65439,8 +65546,10 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printGpuInterval():
+        TA = ThreadAnalyzer
+
         # Check gpu data #
-        if 'gpu' not in ThreadAnalyzer.procTotData['total']:
+        if 'gpu' not in TA.procTotData['total']:
             return
 
         SysMgr.printPipe('\n[Top GPU Info] (Unit: %)\n')
@@ -65450,26 +65559,15 @@ class ThreadAnalyzer(object):
         gpuInfo = "{0:>23} | {1:^17} |".format('GPU', 'Min/Avg/Max/Tot')
         gpuInfoLen = len(gpuInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 5
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(gpuInfo)
-        margin = 5
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
-                lineLen = len(gpuInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
-            lineLen += 7
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(gpuInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, gpuInfoLen, gpuInfo, 1)
 
         # Print gpu usage #
-        for gpu, stat in ThreadAnalyzer.procTotData['total']['gpu'].items():
+        for gpu, stat in TA.procTotData['total']['gpu'].items():
             try:
-                avg = stat['usage'] / len(ThreadAnalyzer.procIntData)
+                avg = stat['usage'] / len(TA.procIntData)
             except:
                 avg = long(0)
 
@@ -65486,13 +65584,13 @@ class ThreadAnalyzer(object):
             lineLen = len(gpuInfo)
             total = long(0)
             margin = 5
-            for idx in range(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += ('\n' + (' ' * (gpuInfoLen - 1)) + '| ')
                     lineLen = len(gpuInfo)
 
                 try:
-                    usage = ThreadAnalyzer.procIntData[idx]['total']['gpu'][gpu]
+                    usage = TA.procIntData[idx]['total']['gpu'][gpu]
                     total += usage
                 except:
                     usage = long(0)
@@ -65507,6 +65605,8 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printRssInterval():
+        TA = ThreadAnalyzer
+
         # set comm and pid size #
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
@@ -65535,24 +65635,13 @@ class ThreadAnalyzer(object):
             format('COMM', idName, pidName, "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 5
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(procInfo)
-        margin = 5
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
-                lineLen = len(procInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
-            lineLen += 7
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
 
         # Print total free memory #
-        value = ThreadAnalyzer.procTotData['total']
+        value = TA.procTotData['total']
         procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
             format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -65560,13 +65649,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in range(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntData[idx]:
-                usage = ThreadAnalyzer.procIntData[idx]['total']['mem']
+            if 'total' in TA.procIntData[idx]:
+                usage = TA.procIntData[idx]['total']['mem']
             else:
                 usage = long(0)
 
@@ -65577,7 +65666,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print rss of processes #
-        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),
+        for pid, value in sorted(TA.procTotData.items(),
             key=lambda e: 0 if not 'maxMem' in e[1] else e[1]['maxMem'],
             reverse=True):
 
@@ -65595,7 +65684,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             minRss = maxRss = long(0)
             lineLen = len(procInfo)
-            intData = ThreadAnalyzer.procIntData
+            intData = TA.procIntData
             for idx in range(0,len(intData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
@@ -65654,6 +65743,8 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printVssInterval():
+        TA = ThreadAnalyzer
+
         # set comm and pid size #
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
@@ -65673,24 +65764,13 @@ class ThreadAnalyzer(object):
             format('COMM', idName, pidName, "Nr", "Pri", " Max", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 5
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(procInfo)
-        margin = 5
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
-                lineLen = len(procInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
-            lineLen += 7
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
 
         # Print total free memory #
-        value = ThreadAnalyzer.procTotData['total']
+        value = TA.procTotData['total']
         procInfo = "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|{5:>6} |".\
             format('[FREE/MIN]', '-', '-', '-', '-', value['minMem'], cl=cl, pd=pd)
         procInfoLen = len(procInfo)
@@ -65698,13 +65778,13 @@ class ThreadAnalyzer(object):
 
         timeLine = ''
         lineLen = len(procInfo)
-        for idx in range(0,len(ThreadAnalyzer.procIntData)):
+        for idx in range(0,len(TA.procIntData)):
             if lineLen + margin > maxLineLen:
                 timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                 lineLen = len(procInfo)
 
-            if 'total' in ThreadAnalyzer.procIntData[idx]:
-                usage = ThreadAnalyzer.procIntData[idx]['total']['mem']
+            if 'total' in TA.procIntData[idx]:
+                usage = TA.procIntData[idx]['total']['mem']
             else:
                 usage = long(0)
 
@@ -65715,7 +65795,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % oneLine)
 
         # Print vss of processes #
-        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),
+        for pid, value in sorted(TA.procTotData.items(),
             key=lambda e: 0 if not 'maxVss' in e[1] else e[1]['maxVss'],
             reverse=True):
 
@@ -65733,7 +65813,7 @@ class ThreadAnalyzer(object):
             timeLine = ''
             minVss = maxVss = long(0)
             lineLen = len(procInfo)
-            intData = ThreadAnalyzer.procIntData
+            intData = TA.procIntData
             for idx in range(0,len(intData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
@@ -65792,6 +65872,8 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printBlkInterval():
+        TA = ThreadAnalyzer
+
         # set comm and pid size #
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
@@ -65811,25 +65893,14 @@ class ThreadAnalyzer(object):
             format('COMM', idName, pidName, "Nr", "Pri", " Sum", cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 5
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(procInfo)
-        margin = 5
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
-                lineLen = len(procInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>6} '.format(i))
-            lineLen += 7
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(procInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
 
         # Print block usage of processes #
         itemCnt = long(0)
-        for pid, value in sorted(ThreadAnalyzer.procTotData.items(),
+        for pid, value in sorted(TA.procTotData.items(),
             key=lambda e: e[1]['blk'], reverse=True):
 
             if pid == 'total' or \
@@ -65850,13 +65921,13 @@ class ThreadAnalyzer(object):
 
             timeLine = ''
             lineLen = len(procInfo)
-            for idx in range(0,len(ThreadAnalyzer.procIntData)):
+            for idx in range(0,len(TA.procIntData)):
                 if lineLen + margin > maxLineLen:
                     timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
                     lineLen = len(procInfo)
 
-                if pid in ThreadAnalyzer.procIntData[idx]:
-                    target = ThreadAnalyzer.procIntData[idx][pid]
+                if pid in TA.procIntData[idx]:
+                    target = TA.procIntData[idx][pid]
                     if SysMgr.blockEnable:
                         usage = '%s/%s' % (target['blkrd'], target['blkwr'])
                     else:
@@ -65891,24 +65962,13 @@ class ThreadAnalyzer(object):
 
         # Print menu #
         storageInfo = "{0:>16} | {1:^21} |".\
-            format('Storage', 'Busy/Read/Write/Free')
+            format('Device', 'Busy/Read/Write/Free')
         storageInfoLen = len(storageInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 21
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(storageInfo)
-        margin = 21
-        for i in range(1,len(TA.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (storageInfoLen - 1)) + '| ')
-                lineLen = len(storageInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>21} '.format(i))
-            lineLen += margin
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(storageInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, storageInfoLen, storageInfo)
 
         # Check storage data #
         if 'storage' not in TA.procTotData['total']:
@@ -65929,7 +65989,7 @@ class ThreadAnalyzer(object):
             except:
                 continue
 
-            storageInfo = "{0:^16} | {1:^21} |".format(dev, total)
+            storageInfo = "{0:>16} | {1:^21} |".format(dev, total)
             storageInfoLen = len(storageInfo)
             maxLineLen = SysMgr.lineLength
 
@@ -65969,24 +66029,13 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % twoLine)
 
         # Print menu #
-        networkInfo = "{0:>16} | {1:^21} |".format('Network', 'Read/Write')
+        networkInfo = "{0:>16} | {1:^21} |".format('Device', 'Read/Write')
         networkInfoLen = len(networkInfo)
         maxLineLen = SysMgr.lineLength
+        margin = 21
 
         # Print timeline #
-        timeLine = ''
-        lineLen = len(networkInfo)
-        margin = 21
-        for i in range(1,len(TA.procIntData) + 1):
-            if lineLen + margin > maxLineLen:
-                timeLine += ('\n' + (' ' * (networkInfoLen - 1)) + '| ')
-                lineLen = len(networkInfo)
-
-            timeLine = '%s%s' % (timeLine, '{0:>21} '.format(i))
-            lineLen += margin
-
-        SysMgr.printPipe(("{0:1} {1:1}\n").format(networkInfo, timeLine))
-        SysMgr.printPipe("%s\n" % twoLine)
+        TA.printTimelineInterval(margin, networkInfoLen, networkInfo)
 
         # Check network data #
         if 'netdev' not in TA.procTotData['total']:
@@ -66005,7 +66054,7 @@ class ThreadAnalyzer(object):
             except:
                 continue
 
-            networkInfo = "{0:^16} | {1:^21} |".format(dev, total)
+            networkInfo = "{0:>16} | {1:^21} |".format(dev, total)
             networkInfoLen = len(networkInfo)
             maxLineLen = SysMgr.lineLength
 
@@ -66029,6 +66078,147 @@ class ThreadAnalyzer(object):
 
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n").format(networkInfo, timeLine))
+            SysMgr.printPipe("%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def printTimelineInterval(margin, length, title, more=0):
+        timeLine = ''
+        lineLen = length
+        maxLineLen = SysMgr.lineLength
+
+        if more > 0:
+            spaces = more * 2
+        else:
+            spaces = more
+
+        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
+            if lineLen + margin > maxLineLen:
+                timeLine += ('\n' + (' ' * (length - 1)) + '| ')
+                lineLen = length
+
+            timeLine = '%s%s' % \
+                (timeLine, '{0:>{margin}} '.format(i, margin=margin+more))
+            lineLen += margin + spaces
+
+        SysMgr.printPipe(("{0:1} {1:1}\n").format(title, timeLine))
+        SysMgr.printPipe("%s\n" % twoLine)
+
+
+
+    @staticmethod
+    def printCgCpuInterval():
+        TA = ThreadAnalyzer
+
+        convSize2Unit = UtilMgr.convSize2Unit
+
+        SysMgr.printPipe('\n[Top Cgroup.CPU Info] (Unit: %)\n')
+        SysMgr.printPipe("%s\n" % twoLine)
+
+        # Print menu #
+        cpuInfo = "{0:<48} | {1:^21} |".format(
+            'Cgroup', 'Min/Avg/Max/Tot')
+        cpuInfoLen = len(cpuInfo)
+        margin = 5
+
+        # Print timeline #
+        TA.printTimelineInterval(margin, cpuInfoLen, cpuInfo, 1)
+
+        # Check CPU data #
+        if 'cgroup.cpu' not in TA.procTotData['total']:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
+            return
+
+        # Print CPU usage #
+        for group, val in TA.procTotData['total']['cgroup.cpu'].items():
+            total = long(val['usage'])
+            minval = long(val['min'])
+            maxval = long(val['max'])
+
+            try:
+                avg = total / len(ThreadAnalyzer.procIntData)
+            except:
+                avg = long(0)
+
+            usagestr = '%s/%.1f/%s/%s' % (minval, avg, maxval, total)
+
+            cgroupInfo = "{0:<48} | {1:^21} |".format(group, usagestr)
+            cgroupInfoLen = len(cgroupInfo)
+            maxLineLen = SysMgr.lineLength
+
+            timeLine = ''
+            lineLen = len(cgroupInfo)
+            for idx in range(0,len(TA.procIntData)):
+                if lineLen + margin > maxLineLen:
+                    timeLine += ('\n' + (' ' * (cgroupInfoLen - 1)) + '| ')
+                    lineLen = len(cgroupInfo)
+
+                try:
+                    usage = TA.procIntData[idx]['total']['cgroup.cpu'][group]
+                except:
+                    usage = 0
+
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += margin + 2
+
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n").format(cgroupInfo, timeLine))
+            SysMgr.printPipe("%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def printCgMemInterval():
+        TA = ThreadAnalyzer
+
+        convSize2Unit = UtilMgr.convSize2Unit
+
+        SysMgr.printPipe('\n[Top Cgroup.Mem Info] (Unit: %)\n')
+        SysMgr.printPipe("%s\n" % twoLine)
+
+        # Print menu #
+        memInfo = "{0:<48} | {1:^15} |".format('Cgroup', 'Min/Max')
+        memInfoLen = len(memInfo)
+        margin = 5
+
+        # Print timeline #
+        TA.printTimelineInterval(margin, memInfoLen, memInfo, 1)
+
+        # Check Memory data #
+        if 'cgroup.mem' not in TA.procTotData['total']:
+            SysMgr.printPipe("\tNone\n%s\n" % oneLine)
+            return
+
+        # Print Memory usage #
+        for group, val in TA.procTotData['total']['cgroup.mem'].items():
+            minval = convSize2Unit(val['min'])
+            maxval = convSize2Unit(val['max'])
+
+            usagestr = '%s/%s' % (minval, maxval)
+
+            cgroupInfo = "{0:<48} | {1:^15} |".format(group, usagestr)
+            cgroupInfoLen = len(cgroupInfo)
+            maxLineLen = SysMgr.lineLength
+
+            timeLine = ''
+            lineLen = len(cgroupInfo)
+            for idx in range(0,len(TA.procIntData)):
+                if lineLen + margin > maxLineLen:
+                    timeLine += ('\n' + (' ' * (cgroupInfoLen - 1)) + '| ')
+                    lineLen = len(cgroupInfo)
+
+                try:
+                    usage = TA.procIntData[idx]['total']['cgroup.mem'][group]
+                    usage = convSize2Unit(usage)
+                except:
+                    usage = 0
+
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += margin + 2
+
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n").format(cgroupInfo, timeLine))
             SysMgr.printPipe("%s\n" % oneLine)
 
 
@@ -66059,6 +66249,8 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.printBlkInterval()
             ThreadAnalyzer.printStorageInterval()
             ThreadAnalyzer.printNetworkInterval()
+            ThreadAnalyzer.printCgCpuInterval()
+            ThreadAnalyzer.printCgMemInterval()
 
         # print interval info #
         ThreadAnalyzer.printMemAnalysis()
