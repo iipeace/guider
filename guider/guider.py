@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210126"
+__revision__ = "210128"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18385,7 +18385,7 @@ Options:
             R:fileReport | s:stack | S:pss | t:thread
             u:uss | w:wss | W:wchan | x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
-          [ a:memAvailable | A:cpuAverage | b:buffer
+          [ a:memAvailable | A:Average | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
             E:exec | g:generalInfo | G:gpu | L:log
             p:print | t:truncate | T:task ]
@@ -18604,14 +18604,18 @@ Examples:
     - Print all function calls for a specific thread
         # {0:1} {1:1} -g 1234
 
-    - Print all function calls for a specific binary execution
+    - Print all function calls from a specific binary
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
 
-    - Print all function calls for a specific binary execution with DWARF info
+    - Print all function calls for 4th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+
+    - Print all function calls from a specific binary with DWARF info
         # {0:1} {1:1} -I "ls" -eD
 
-    - Print all function calls for a specific binary execution with environment variables
+    - Print all function calls from a specific binary with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
@@ -18624,7 +18628,7 @@ Examples:
     - Print all function calls except for printPeace for a specific thread
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
-    - Print a specific function call for a specific binary execution
+    - Print a specific function call from a specific binary
         # {0:1} {1:1} -g 1234 -I ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
     - Print printPeace function calls only for 2 seconds
@@ -19327,9 +19331,17 @@ Examples:
     - Monitor function calls for a specific thread
         # {0:1} {1:1} -g a.out
 
-    - Monitor function calls for a binary
+    - Monitor function calls from a specific binary
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
+
+    - Monitor function calls for specific threads from a specific binary
+        # {0:1} {1:1} a.out -g a.out
+        # {0:1} {1:1} -I a.out -g a.out
+
+    - Monitor function calls for 4th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
     - Monitor function calls for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
@@ -19826,6 +19838,14 @@ Examples:
     - Trace usercalls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
+    - Trace usercalls from a specific binary
+        # {0:1} {1:1} "ls -al"
+        # {0:1} {1:1} -I "ls -al"
+
+    - Trace usercalls for specific threads from a specific binary
+        # {0:1} {1:1} "ls -al" -g a.out
+        # {0:1} {1:1} -I "ls -al" -g a.out
+
     - Trace usercalls for a specific thread in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
@@ -19841,7 +19861,8 @@ Examples:
     - Trace usercalls for a specific thread only for 2 seconds
         # {0:1} {1:1} -g a.out -R 2s
 
-    - Trace usercalls and pause when catching PLT function call
+    - Trace usercalls from a specific binary and pause when catching PLT function call
+        # {0:1} {1:1} "ls -al" -c PLT
         # {0:1} {1:1} -I "ls -al" -c PLT
                     '''.format(cmd, mode)
 
@@ -20198,13 +20219,22 @@ Description:
                         '''.format(cmd, mode)
 
                     helpStr += '''
+Options:
+    -d  <CHARACTER>             disable options
+          [ A:Average | e:encode ]
+                    '''
+
+                    helpStr += '''
 Examples:
     - Diff top report files
         # {0:1} {1:1} tc1.out tc2.out
 
     - Diff top report files
         # {0:1} {1:1} tc*.out
-                    '''.format(cmd, mode)
+
+    - Diff top report files by total usage
+        # {0:1} {1:1} tc*.out -dA
+                    '''
 
                 # topsum #
                 elif SysMgr.checkMode('topsum'):
@@ -20248,12 +20278,15 @@ Examples:
 
     - Send SIGSTOP signal to specific tasks
         # {0:1} {1:1} -stop 1234
+        # {0:1} {1:1} -stop a.out
+        # {0:1} {1:1} -stop a.out*
 
     - Send SIGSTOP signal to specific tasks until one gets the signal
         # {0:1} {1:1} -stop 1234 -W
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
+        # {0:1} {1:1} -kill 1234
                     '''.format(cmd, mode)
 
                 # pause #
@@ -34930,6 +34963,10 @@ Copyright:
 
         # get pids #
         for pid in procList:
+            if not inc and '*' in pid:
+                inc = True
+                pid = pid.replace('*', '')
+
             taskList = SysMgr.getPids(
                 pid, isThread, sibling, False, inc, cache)
             targetList += taskList
@@ -42223,6 +42260,7 @@ class Debugger(object):
     dbgInstance = None
     selfInstance = None
     RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
+    targetNum = -1
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -42456,6 +42494,10 @@ class Debugger(object):
         self.supportProcessVmWr = False
         self.lastSig = None
         self.forked = False
+        self.multi = False
+        self.sampleTime = long(0)
+        self.targetNum = 0
+        self.childNum = 0
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -42679,6 +42721,14 @@ struct cmsghdr {
         self.retTime = 0.1
         if 'ELAPSED' in SysMgr.environList:
             self.retTime = float(SysMgr.environList['ELAPSED'][0])
+
+        # set target sequence #
+        if Debugger.targetNum == -1 and \
+            'TARGETNUM' in SysMgr.environList:
+            Debugger.targetNum = long(SysMgr.environList['TARGETNUM'][0])
+            SysMgr.printInfo(
+                "set the number of target to '%s' for new threads" % \
+                    Debugger.targetNum)
 
 
 
@@ -45497,7 +45547,7 @@ struct cmsghdr {
         ret = self.ptrace(self.contCmd, 0, sig)
         if ret != 0:
             SysMgr.printWarn(
-                'fail to continue %s(%s)' % (self.comm, pid), reason=True)
+                'fail to continue %s(%s)' % (self.comm, pid))
             return -1
 
         return 0
@@ -45549,14 +45599,18 @@ struct cmsghdr {
             return
 
         # kill target process executed #
-        if hasattr(self, 'isRunning'):
-            if not self.isRunning:
-                try:
+        if self.execCmd:
+            try:
+                # kill process group #
+                if os.getpgid(self.pid) == self.pid:
+                    os.killpg(self.pid, signal.SIGTERM)
+                # kill target process #
+                else:
                     os.kill(self.pid, signal.SIGKILL)
-                except:
-                    SysMgr.printSigError(pid, 'SIGKILL')
+            except:
+                SysMgr.printSigError(pid, 'SIGKILL')
 
-                return 0
+            return 0
 
         # check the process is running #
         try:
@@ -46356,6 +46410,27 @@ struct cmsghdr {
         self.comm = SysMgr.getComm(self.pid, cache=True)
         if not self.comm:
             self.comm = origComm
+
+        # check comm filter for child #
+        if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNum > -1:
+            if not UtilMgr.isEffectiveStr(self.comm, inc=True) or \
+                Debugger.targetNum != self.targetNum:
+                SysMgr.printWarn(
+                    'stopped tracing for %s(%s) because it is not targeted' % \
+                        (self.comm, self.pid))
+
+                # disable alarm #
+                self.status = 'wait'
+                signal.alarm(0)
+
+                # disable file output #
+                SysMgr.outPath = None
+
+                # continue target #
+                if self.isStopped():
+                    self.cont()
+
+                return
 
         # print summary table #
         if self.mode == 'syscall':
@@ -49235,7 +49310,7 @@ struct cmsghdr {
 
 
 
-    def handoverNewTarget(self):
+    def handoverNewTarget(self, fork=False):
         # get tid of the child task #
         tid = self.getEventMsg()
 
@@ -49263,7 +49338,7 @@ struct cmsghdr {
         rd, wr = os.pipe()
 
         # create a new tracer to trace the child task #
-        pid = SysMgr.createProcess(isDaemon=True, chMid=chMid)
+        pid = SysMgr.createProcess(isDaemon=True, chMid=chMid, chPgid=True)
         # parent tracee #
         if pid > 0:
             # detach from the parent task #
@@ -49275,6 +49350,9 @@ struct cmsghdr {
             # attach to the parent task again #
             if self.attach(verb=True) < 0:
                 sys.exit(0)
+
+            # increase the number of childs #
+            self.childNum += 1
 
             # wait for tracer of child task #
             try:
@@ -49309,6 +49387,10 @@ struct cmsghdr {
             self.initValues()
             self.forked = True
             signal.alarm(SysMgr.intervalEnable)
+
+            # increase the number of childs #
+            self.targetNum = self.childNum + 1
+            self.childNum += 1
 
             # change status to leave clone context #
             if self.mode == 'syscall':
@@ -49368,6 +49450,7 @@ struct cmsghdr {
         # create a new controller #
         dobj = Debugger(pid=self.pid, attach=False, mode=self.mode)
         dobj.attached = True
+        dobj.initValues()
         if cmdline:
             dobj.execCmd = cmdline.split()
             dobj.targetBpList = self.targetBpList
@@ -49678,6 +49761,12 @@ struct cmsghdr {
         # initialize dynamic time for tracing #
         self.dstart = time.time()
 
+        # set update flag for time #
+        if SysMgr.isTraceMode():
+            updateTime = True
+        else:
+            updateTime = False
+
         # enter trace loop #
         while 1:
             # save backtrace info #
@@ -49688,7 +49777,7 @@ struct cmsghdr {
             # set status #
             if self.status == 'stop':
                 self.status = 'enter'
-            elif self.status == 'ready':
+            elif self.status == 'ready' or self.status == 'wait':
                 pass
             else:
                 # wait for sample calls #
@@ -49706,10 +49795,11 @@ struct cmsghdr {
 
             try:
                 # apply tracing overhead time #
-                overhead = time.time() - self.current + self.timeDelay
-                self.dstart += overhead
-                for item in self.entryTime.keys():
-                    self.entryTime[item] += overhead
+                if updateTime:
+                    overhead = time.time() - self.current + self.timeDelay
+                    self.dstart += overhead
+                    for item in self.entryTime.keys():
+                        self.entryTime[item] += overhead
 
                 # wait process #
                 rid, ostat = self.waitpid()
@@ -49719,8 +49809,11 @@ struct cmsghdr {
 
                 # handle clone event #
                 if not SysMgr.optStrace and SysMgr.cloneEnable:
-                    if self.isCloned(ostat) or self.isForked(ostat):
+                    if self.isCloned(ostat):
                         self.handoverNewTarget()
+                        continue
+                    elif self.isForked(ostat):
+                        self.handoverNewTarget(fork=True)
                         continue
 
                 # handle exec event #
@@ -49888,9 +49981,6 @@ struct cmsghdr {
         self.multi = multi
         self.lockObj = lock
         self.pbufsize = SysMgr.ttyCols >> 1
-
-        # sampling variables #
-        self.sampleTime = long(0)
 
         # disable extended ascii #
         SysMgr.encodeEnable = False
@@ -56702,6 +56792,14 @@ class ThreadAnalyzer(object):
         unionCpuList.setdefault('TOTAL', 0)
         unionRssList.setdefault('FREE', 0)
 
+        # get diff type #
+        if SysMgr.cpuAvgEnable:
+            item = 'average'
+            diffType = 'AvgDiff'
+        else:
+            item = 'total'
+            diffType = 'TotDiff'
+
         # parse stats from multiple files #
         for idx, lfile in enumerate(flist):
             try:
@@ -56765,8 +56863,9 @@ class ThreadAnalyzer(object):
                     target = cpuProcUsage[pinfo]
                     cpuProcUsage.setdefault(pname, target)
                     target['cnt'] = 1
+                    target['total'] = sum(target['usage'])
                     target['average'] = \
-                        sum(target['usage']) / float(len(target['usage']))
+                        target['total'] / float(len(target['usage']))
                     if '(' in pinfo:
                         cpuProcUsage.pop(pinfo)
 
@@ -56781,8 +56880,9 @@ class ThreadAnalyzer(object):
                 target['cnt'] += 1
                 target['minimum'] = min(target['usage'])
                 target['maximum'] = max(target['usage'])
+                target['total'] = sum(target['usage'])
                 target['average'] = \
-                    sum(target['usage']) / float(len(target['usage']))
+                    target['total'] / float(len(target['usage']))
 
                 # pop this task #
                 if '(' in pinfo:
@@ -56804,12 +56904,12 @@ class ThreadAnalyzer(object):
                         if _getProcName(proc) == pname:
                             targetList.setdefault(pname, pval)
 
-                    # get diff by average #
+                    # get diff #
                     if not targetList:
-                        value['diff'] = value['average']
+                        value['diff'] = value[item]
                     elif len(targetList) == 1:
                         target = targetList.popitem()[1]
-                        value['diff'] = value['average'] - target['average']
+                        value['diff'] = value[item] - target[item]
                     else:
                         pass
 
@@ -56860,8 +56960,9 @@ class ThreadAnalyzer(object):
                     target['cnt'] = 1
                     target['minimum'] = min(target['usage'])
                     target['maximum'] = max(target['usage'])
+                    target['total'] = sum(target['usage'])
                     target['average'] = \
-                        sum(target['usage']) / float(len(target['usage']))
+                        target['total'] / float(len(target['usage']))
 
                     gpuProcUsage.setdefault(pname, target)
 
@@ -56879,8 +56980,9 @@ class ThreadAnalyzer(object):
                 target['cnt'] += 1
                 target['minimum'] = min(target['usage'])
                 target['maximum'] = max(target['usage'])
+                target['total'] = sum(target['usage'])
                 target['average'] = \
-                    sum(target['usage']) / float(len(target['usage']))
+                    target['total'] / float(len(target['usage']))
 
                 # pop this task #
                 if '(' in pinfo:
@@ -56902,12 +57004,12 @@ class ThreadAnalyzer(object):
                         if _getProcName(proc) == pname:
                             targetList.setdefault(proc, pval)
 
-                    # get diff by average #
+                    # get diff #
                     if not targetList:
-                        value['diff'] = value['average']
+                        value['diff'] = value[item]
                     elif len(targetList) == 1:
                         target = targetList.popitem()[1]
-                        value['diff'] = value['average'] - target['average']
+                        value['diff'] = value[item] - target[item]
                     else:
                         pass
 
@@ -57031,10 +57133,10 @@ class ThreadAnalyzer(object):
         # print CPU diff #
         SysMgr.printPipe('\n[Diff CPU Info]\n%s' % twoLine)
 
-        emptyCpuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
-            ('-', '-', '-', '-', '-')
-        menuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
-            ('Diff', 'Nr', 'Min', 'Avg', 'Max')
+        emptyCpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+            ('-', '-', '-', '-', '-', '-')
+        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+            (diffType, 'Nr', 'Min', 'Avg', 'Max', 'Tot')
         lenCpuStat = len(emptyCpuStat)
 
         # print file names #
@@ -57066,9 +57168,13 @@ class ThreadAnalyzer(object):
                     if idx > 0 and \
                         prevCpuProcList and \
                         pname in prevCpuProcList:
-                        printBuf = '%s %6.1f%%%s' % \
-                            (printBuf, -(prevCpuProcList[pname]['average']),
-                                emptyCpuStat[7:])
+
+                        diff = -(prevCpuProcList[pname][item])
+                        if SysMgr.cpuAvgEnable:
+                            diff = '%6.1f' %  diff
+
+                        printBuf = '%s %6s%%%s' % \
+                            (printBuf, diff, emptyCpuStat[7:])
                     else:
                         printBuf = '%s %s' % (printBuf, emptyCpuStat)
                     continue
@@ -57078,17 +57184,20 @@ class ThreadAnalyzer(object):
                     diff = '-'
                 elif cpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%.1f' % cpuProcStat['diff']))
+                        '%6s' % ('+%s' % UtilMgr.convNum(cpuProcStat['diff'])))
                 elif cpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%.1f' % abs(cpuProcStat['diff'])))
+                        '%6s' % ('-%s' % \
+                            UtilMgr.convNum(abs(cpuProcStat['diff']))))
                 else:
                     diff = '0'
 
-                newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                total = UtilMgr.convNum(cpuProcStat['total'])
+
+                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%)" % \
                     (diff, cpuProcStat['cnt'],
                         cpuProcStat['minimum'], cpuProcStat['average'],
-                        cpuProcStat['maximum'])
+                        cpuProcStat['maximum'], total)
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
@@ -57109,10 +57218,10 @@ class ThreadAnalyzer(object):
         # print GPU diff #
         SysMgr.printPipe('\n[Diff GPU Info]\n%s' % twoLine)
 
-        emptyGpuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
-            ('-', '-', '-', '-', '-')
-        menuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
-            ('Diff', 'Nr', 'Min', 'Avg', 'Max')
+        emptyGpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+            ('-', '-', '-', '-', '-', '-')
+        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+            (diffType, 'Nr', 'Min', 'Avg', 'Max', 'Tot')
         lenGpuStat = len(emptyCpuStat)
 
         menuBuf = "{0:^24} | ".format('Task')
@@ -57141,9 +57250,13 @@ class ThreadAnalyzer(object):
                 if not pname in gpuProcList:
                     if idx > 0 and prevGpuProcList and \
                         pname in prevGpuProcList:
-                        printBuf = '%s %6.1f%%%s' % \
-                            (printBuf, -(prevGpuProcList[pname]['average']),
-                                emptyGpuStat[7:])
+
+                        diff = -(prevGpuProcList[pname][item])
+                        if SysMgr.cpuAvgEnable:
+                            diff = '%6.1f' %  diff
+
+                        printBuf = '%s %6s%%%s' % \
+                            (printBuf, diff, emptyGpuStat[7:])
                     else:
                         printBuf = '%s %s' % (printBuf, emptyGpuStat)
                     continue
@@ -57153,17 +57266,20 @@ class ThreadAnalyzer(object):
                     diff = '-'
                 elif gpuProcStat['diff'] > 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('+%.1f' % gpuProcStat['diff']))
+                        '%6s' % ('+%s' % UtilMgr.convNum(gpuProcStat['diff'])))
                 elif gpuProcStat['diff'] < 0:
                     diff = '{0:>6}%'.format(
-                        '%6s' % ('-%.1f' % abs(gpuProcStat['diff'])))
+                        '%6s' % ('-%s' % \
+                            UtilMgr.convNum(abs(gpuProcStat['diff']))))
                 else:
                     diff = '0'
 
-                newStat = "%7s(%2d)(%6.1f%%/%6.1f%%/%6.1f%%)" % \
+                total = UtilMgr.convNum(gpuProcStat['total'])
+
+                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%)" % \
                     (diff, gpuProcStat['cnt'],
                         gpuProcStat['minimum'], gpuProcStat['average'],
-                        gpuProcStat['maximum'])
+                        gpuProcStat['maximum'], total)
 
                 printBuf = '%s %s' % (printBuf, newStat)
 
@@ -58561,7 +58677,7 @@ class ThreadAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and sname != 'Device':
+                elif intervalList and (sname != 'Device' and sname != 'Storage'):
                     # define arrays #
                     storageUsage.setdefault(sname, dict())
                     busyList = list()
@@ -58595,7 +58711,7 @@ class ThreadAnalyzer(object):
                 elif slen == 2:
                     if intervalList:
                         intervalList += sline[1]
-                elif intervalList and sname != 'Device':
+                elif intervalList and (sname != 'Device' and sname != 'Network'):
                     # define arrays #
                     networkUsage.setdefault(sname, dict())
                     recvList = list()
@@ -72500,18 +72616,15 @@ class ThreadAnalyzer(object):
                     # print bar graph for GPU usage #
                     if totalGpuUsage > 0:
                         coreGraph = '#' * long(lenLine * totalGpuUsage / 100)
-
-                        glen = lenLine
-                        if SysMgr.colorEnable:
-                            lenColor = len(ConfigMgr.COLOR_LIST['RED'])
-                            glen += lenColor + len(ConfigMgr.ENDC)
-
-                        coreGraph = '{0:<{glen}}'.format(coreGraph, glen=glen)
+                        coreGraph += (' ' * (lenLine - len(coreGraph)))
+                        origCoreGraph = coreGraph
 
                         if totalGpuUsage >= SysMgr.cpuPerHighThreshold:
                             coreGraph = UtilMgr.convColor(coreGraph, 'RED')
                         else:
                             coreGraph = UtilMgr.convColor(coreGraph, 'YELLOW')
+
+                        coreGraph += (' ' * (len(coreGraph) - len(origCoreGraph)))
                     else:
                         coreGraph = ' ' * lenLine
 
