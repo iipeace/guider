@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210128"
+__revision__ = "210129"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -35,10 +35,6 @@ except ImportError:
     sys.exit(0)
 
 # convert types not supported #
-try:
-    range
-except:
-    range = range
 try:
     long
 except:
@@ -28843,9 +28839,13 @@ Copyright:
 
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False, closeFd=True):
+    def executeProcess(cmd=None, mute=False, closeFd=True, resetPri=True):
         # get new environ variables #
         env = SysMgr.getEnvList()
+
+        # reset priority #
+        if resetPri:
+            SysMgr.setPriority(SysMgr.pid, 'C', 0)
 
         # exec #
         try:
@@ -46451,8 +46451,7 @@ struct cmsghdr {
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
-                ret = self.cont(check=True)
-                if ret == 0:
+                if self.cont(check=True) == 0:
                     needStop = True
 
         nrTotal = float(self.totalCall)
@@ -49834,6 +49833,7 @@ struct cmsghdr {
                 if stat == signal.SIGTRAP:
                     # after execve() #
                     if self.status == 'ready':
+                        # initialize variables #
                         self.initValues()
 
                         self.ptraceEvent(self.traceEventList)
@@ -49842,17 +49842,24 @@ struct cmsghdr {
                             "start profiling %s(%d)..." % \
                                 (self.comm, self.pid))
 
+                        # set first command #
                         if self.cmd:
                             self.ptrace(self.cmd)
 
                         if self.mode == 'break':
+                            # remove all breakpoins for new child process #
+                            if forked:
+                                self.breakAllBp()
+
                             # load symbols again #
                             if self.loadSymbols():
                                 self.updateBpList()
 
+                            # continue target #
                             if self.cont(check=True) < 0:
                                 sys.exit(0)
 
+                        # change status #
                         self.status = 'enter'
 
                     # usercall / breakcall #
@@ -49953,6 +49960,7 @@ struct cmsghdr {
                     'detected %s(%s) with error' % \
                         (self.comm, self.pid), reason=True)
 
+                # continue target #
                 if self.mode == 'break':
                     if self.cont(check=True) < 0:
                         sys.exit(0)
@@ -50297,8 +50305,7 @@ struct cmsghdr {
 
             # continue target to prevent too long freezing #
             if instance.traceStatus and instance.isAlive():
-                ret = instance.cont(check=True)
-                if ret == 0:
+                if instance.cont(check=True) == 0:
                     needStop = True
 
         if instance.isRealtime:
