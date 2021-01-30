@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210129"
+__revision__ = "210130"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18397,7 +18397,6 @@ Options:
     -o  <DIR>                   set output path
     -a                          show all stats and events
     -T  <NUM>                   set top number
-    -t  <START:END>             set y axis range
     -L  <RES:PER>               set graph layout (sum of PER: 6)
     -l  <BOUNDARY>              set boundary lines
     -F  [svg/png/pdf/ps/eps]    set image format
@@ -18538,11 +18537,11 @@ Examples:
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
 
+    - Draw resource graph with y range 1-100
+        # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
+
     - Draw resource graph of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
-
-    - Draw resource graph with ylimit 100
-        # {0:1} {1:1} guider.out worstcase.out -H 100
 
     - Draw graphs of total CPU usage by applying the multiplication of the number of CPUs
         # {0:1} {1:1} guider.out worstcase.out -d A
@@ -20230,6 +20229,9 @@ Examples:
 
     - Diff top report files by total usage
         # {0:1} {1:1} tc*.out -dA
+
+    - Diff top report files within specific interval range in second unit
+        # {0:1} {1:1} tc*.out -q TRIM:9:15
                     '''
 
                 # topsum #
@@ -28839,7 +28841,7 @@ Copyright:
 
 
     @staticmethod
-    def executeProcess(cmd=None, mute=False, closeFd=True, resetPri=True):
+    def executeProcess(cmd=None, mute=False, closeFd=True, resetPri=False):
         # get new environ variables #
         env = SysMgr.getEnvList()
 
@@ -56795,10 +56797,6 @@ class ThreadAnalyzer(object):
         unionRssList = dict()
         statFileList = dict()
 
-        # define total key #
-        unionCpuList.setdefault('TOTAL', 0)
-        unionRssList.setdefault('FREE', 0)
-
         # get diff type #
         if SysMgr.cpuAvgEnable:
             item = 'average'
@@ -56825,6 +56823,8 @@ class ThreadAnalyzer(object):
 
             # get total CPU info #
             cpuUsage = gstats['cpuUsage']
+            if not cpuUsage:
+                break
             cpuProcUsage['TOTAL'] = {
                 'usage': cpuUsage,
                 'average': sum(cpuUsage) / float(len(cpuUsage)),
@@ -56897,9 +56897,13 @@ class ThreadAnalyzer(object):
 
             # iterate CPU list #
             for pinfo, value in sorted(cpuProcUsage.items()):
+                if not cpuProcUsage:
+                    break
+
                 pname = _getProcName(pinfo)
 
                 # register comm #
+                unionCpuList.setdefault('TOTAL', 0)
                 unionCpuList.setdefault(pname, 0)
 
                 # save diff itself #
@@ -57083,6 +57087,7 @@ class ThreadAnalyzer(object):
                 pname = _getProcName(pinfo)
 
                 # register comm #
+                unionRssList.setdefault('FREE', 0)
                 unionRssList.setdefault(pname, 0)
 
                 # set stat #
@@ -59561,6 +59566,47 @@ class ThreadAnalyzer(object):
             else:
                 return 'center'
 
+        def _setYticks(ax, ymax, fontsize=5):
+            # pylint: disable=undefined-variable
+            if 'YRANGE' in SysMgr.environList:
+                yrange = SysMgr.environList['YRANGE'][0].split(':')
+                yminval, ymaxval = SysMgr.cleanItem(yrange, False)
+                if yminval:
+                    ax.set_ylim(bottom=long(yminval))
+                    ymin = long(yminval)
+                else:
+                    ymin = long(min(ax.get_yticks().tolist()))
+
+                if ymaxval:
+                    ax.set_ylim(top=long(ymaxval))
+                    ymax = long(ymaxval)
+                else:
+                    ymax = long(min(ax.get_yticks().tolist()))
+
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+            else:
+                ymaxval = ymax+int(ymax/10)
+                if ymaxval == 0:
+                    ymaxval = 1
+                if ymaxval > 0:
+                    ylim([0, ymaxval])
+
+                # adjust yticks #
+                ylist = ax.get_yticks().tolist()
+                ymin = long(min(ylist))
+                if ymin < 0:
+                    ymin = long(0)
+                    ax.set_ylim(bottom=0)
+
+                #ymax = long(max(ylist))
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+
         def _drawEvent(graphStats):
             # get minimum timeline #
             timeline = None
@@ -59960,24 +60006,16 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
-            # update ymax #
-            if SysMgr.funcDepth > 0:
-                ymax = SysMgr.funcDepth
-
-            # set yticks attributes #
+            # update xticks #
             xticks(fontsize=4)
-            if ymax > 0:
-                ylim([0, ymax+int(ymax/10)])
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
-            inc = long(ymax / 10)
-            if inc == 0:
-                inc = 1
-            yticks(range(0, long(ymax + inc), inc), fontsize=5)
+
+            # update yticks #
+            _setYticks(ax, ymax)
 
             # add % unit to each value #
             try:
-                ax.set_ylim(bottom=0)
                 ytickLabel = ax.get_yticks().tolist()
                 ytickLabel = list(map(long, ytickLabel))
 
@@ -60429,28 +60467,10 @@ class ThreadAnalyzer(object):
             tick_params(axis='x', direction='in')
             tick_params(axis='y', direction='in')
 
-            # update and set ymax #
-            if SysMgr.funcDepth > 0:
-                ymaxval = SysMgr.funcDepth
-            else:
-                ymaxval = ymax+int(ymax/10)
-            if ymaxval == 0:
-                ymaxval = 1
-            if ymaxval > 0:
-                ylim([0, ymaxval])
+            # update yticks #
+            _setYticks(ax, ymax)
 
-            # adjust yticks #
-            ylist = ax.get_yticks().tolist()
-            ymin = long(min(ylist))
-            if ymin < 0:
-                ymin = long(0)
-
-            #ymax = long(max(ylist))
-            inc = long(ymax / 10)
-            if inc == 0:
-                inc = 1
-            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
-
+            # update xticks #
             xticks(fontsize=4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
@@ -60487,11 +60507,6 @@ class ThreadAnalyzer(object):
                 if ytickLabel[-1] == '0':
                     ax.set_ylim(top=1)
                     ax.get_yaxis().set_visible(False)
-                else:
-                    try:
-                        ax.set_ylim(bottom=0)
-                    except:
-                        pass
             except SystemExit:
                 sys.exit(0)
             except:
@@ -60924,20 +60939,8 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-            # update ymax #
-            if SysMgr.funcDepth > 0:
-                ymax = SysMgr.funcDepth
-
             # update yticks #
-            if ymax > 0:
-                ylim([ymin, ymax+int(ymax/10)])
-
-            inc = long(ymax / 10)
-            if inc == 0:
-                inc = 1
-
-            # set yticks #
-            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+            _setYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -61071,6 +61074,47 @@ class ThreadAnalyzer(object):
                 return 'right'
             else:
                 return 'center'
+
+        def _setYticks(ax, ymax, fontsize=5):
+            # pylint: disable=undefined-variable
+            if 'YRANGE' in SysMgr.environList:
+                yrange = SysMgr.environList['YRANGE'][0].split(':')
+                yminval, ymaxval = SysMgr.cleanItem(yrange, False)
+                if yminval:
+                    ax.set_ylim(bottom=long(yminval))
+                    ymin = long(yminval)
+                else:
+                    ymin = long(min(ax.get_yticks().tolist()))
+
+                if ymaxval:
+                    ax.set_ylim(top=long(ymaxval))
+                    ymax = long(ymaxval)
+                else:
+                    ymax = long(min(ax.get_yticks().tolist()))
+
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+            else:
+                ymaxval = ymax+int(ymax/10)
+                if ymaxval == 0:
+                    ymaxval = 1
+                if ymaxval > 0:
+                    ylim([0, ymaxval])
+
+                # adjust yticks #
+                ylist = ax.get_yticks().tolist()
+                ymin = long(min(ylist))
+                if ymin < 0:
+                    ymin = long(0)
+                    ax.set_ylim(bottom=0)
+
+                #ymax = long(max(ylist))
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
 
         def _convNameLabel(fileList):
             newList = []
@@ -61325,17 +61369,12 @@ class ThreadAnalyzer(object):
 
             # set xticks attributes #
             ax.set_xticklabels(_convNameLabel(graphStats['fileList']))
-
-            # set yticks attributes #
             xticks(fontsize=4)
-            if ymax > 0:
-                ylim([0, ymax+int(ymax/10)])
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
-            inc = long(ymax / 10)
-            if inc == 0:
-                inc = 1
-            yticks(range(0, long(ymax + inc), inc), fontsize=5)
+
+            # update yticks #
+            _setYticks(ax, ymax)
 
             # add % unit to each value #
             try:
@@ -61553,30 +61592,8 @@ class ThreadAnalyzer(object):
             # adjust yticks #
             ylist = ax.get_yticks().tolist()
 
-            # set ymin #
-            ymin = long(min(ylist))
-            if ymin < 0:
-                ymin = long(0)
-            elif ymin == 0:
-                try:
-                    ax.set_ylim(bottom=0)
-                except:
-                    pass
-
-            # update ymax #
-            if SysMgr.funcDepth > 0:
-                ymax = SysMgr.funcDepth
-
             # update yticks #
-            if ymax > 0:
-                ylim([ymin, ymax+int(ymax/10)])
-
-            inc = long(ymax / 10)
-            if inc == 0:
-                inc = 1
-
-            # set yticks #
-            yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
+            _setYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
