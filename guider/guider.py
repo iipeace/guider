@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210130"
+__revision__ = "210131"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18084,7 +18084,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('exec') and \
                 not SysMgr.checkMode('comp') and \
                 not SysMgr.checkMode('decomp') and \
-                not SysMgr.checkMode('request') and \
+                not SysMgr.checkMode('req') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -18260,7 +18260,7 @@ class SysMgr(object):
                 'pstree': 'Process',
                 'readelf': 'File',
                 'remote': 'Command',
-                'request': 'URL',
+                'req': 'URL',
                 'setafnt': 'Affinity',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
@@ -20900,16 +20900,16 @@ Examples:
                     '''.format(cmd, mode)
 
                 # request #
-                elif SysMgr.checkMode('request'):
+                elif SysMgr.checkMode('req'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} REQUEST [OPTIONS] [--help]
+    # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
     Request URLs
 
 Options:
-    -I  <METHOD#OPTION#ADDR>    input requests
+    -I  <METHOD#OPT#ADDR>       input requests
     -o  <DIR|FILE>              set output path
     -R  <DELAY:COUNT>           set repeat count
     -T  <PROC>                  set process number
@@ -20926,6 +20926,10 @@ Examples:
     - Request POST / url to specific server
         # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{"key":"value"}}"#http://127.0.0.1:5000
+
+    - Request POST / url to specific server with files
+        # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#FILE:doc:test.txt:doc/txt#http://127.0.0.1:5000
 
     - Request POST / url to specific server with data from data.json file
         # {0:1} {1:1} POST#FILEJSON:data.json#http://127.0.0.1:5000
@@ -21048,6 +21052,7 @@ Options:
 Examples:
     - Draw graphs for response time
         # {0:1} {1:1} guider.out
+        # {0:1} {1:1} "guider*.out"
 
     - Draw graphs for response time for specific requests
         # {0:1} {1:1} guider.out -g www.google.com
@@ -25986,7 +25991,7 @@ Copyright:
             sys.exit(0)
 
         # get termination flag #
-        if SysMgr.checkMode('request'):
+        if SysMgr.checkMode('req'):
             pass
         elif repeatParams and len(repeatParams) == 3:
             SysMgr.termFlag = False
@@ -27194,7 +27199,7 @@ Copyright:
         if SysMgr.isRecordMode() or \
             SysMgr.isTopMode() or \
             SysMgr.isTraceMode() or \
-            SysMgr.checkMode('request'):
+            SysMgr.checkMode('req'):
             return True
 
         return False
@@ -27538,7 +27543,7 @@ Copyright:
             SysMgr.doExec()
 
         # REQUEST MODE #
-        elif SysMgr.checkMode('request'):
+        elif SysMgr.checkMode('req'):
             SysMgr.setStream()
 
             SysMgr.doRequest()
@@ -30258,9 +30263,11 @@ Copyright:
                 ThreadAnalyzer.drawLabel(
                     labelList, draw=True, anchor=(1.12, 1))
 
+                # update yticks #
+                ThreadAnalyzer.drawYticks(ax, ymax=None, adjust=False)
+
                 # draw grid #
                 xticks(fontsize=4)
-                yticks(fontsize=5)
                 grid(which='both', linestyle=':', linewidth=0.2)
                 tick_params(axis='x', direction='in')
                 tick_params(axis='y', direction='in')
@@ -30294,10 +30301,10 @@ Copyright:
 
                 labelList.append(req[:maxLabelLen])
 
-            # set ticks #
+            # set xticks #
             try:
-                ax.set_ylim(bottom=0)
                 xtickLabel = ax.get_xticks().tolist()
+                xtickLabel = list(map(long, xtickLabel))
                 xtickLabel[-1] = 'Time'
                 ax.set_xticks(ax.get_xticks())
                 ax.set_xticklabels(xtickLabel)
@@ -30332,15 +30339,15 @@ Copyright:
                         color='black', fontweight='bold', fontsize=2)
 
                 # draw text for request #
-                text(start-1/2, maxval/2, req,
+                text(start-1/2, maxval/2, req[:maxLabelLen],
                     color='black', fontsize=3, rotation=35)
 
                 start += 1
 
             # set ticks #
             try:
-                ax.set_ylim(bottom=0)
                 xtickLabel = ax.get_xticks().tolist()
+                xtickLabel = list(map(long, xtickLabel))
                 xtickLabel = list(range(-1, len(totalStats)+1))
                 ax.set_xticks(xtickLabel)
                 xtickLabel[0] = ''
@@ -33280,7 +33287,7 @@ Copyright:
             # get data from cache #
             if req in cache:
                 cmd, method, content, arg, timeout, auth, \
-                    verify, cookies, headers, reqstr = cache[req]
+                    verify, cookies, headers, reqstr, files = cache[req]
             # parse request #
             else:
                 timeout = None
@@ -33309,7 +33316,10 @@ Copyright:
                 if not cmd:
                     return
 
+                files = []
+
                 # parse options #
+                # refer to https://requests.readthedocs.io #
                 while 1:
                     if remain.startswith('DATA:') or remain.startswith('JSON'):
                         orig = remain
@@ -33334,6 +33344,25 @@ Copyright:
                                 arg = UtilMgr.convStr2Dict(data, verb=True)
                             else:
                                 arg = data
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            SysMgr.printErr(
+                                "fail to get data from '%s'" % path,
+                                reason=True)
+                            sys.exit(0)
+                    elif remain.startswith('FILE:'):
+                        try:
+                            orig = remain
+                            data, remain = remain.split('#', 1)
+
+                            path = '??'
+                            fileInfo = data.split(':')[1:]
+                            name = fileInfo[0]
+                            path = fileInfo[1]
+                            fileInfo.insert(2, open(path, 'rb'))
+                            fileArgs = tuple(fileInfo[1:])
+                            files.append((name, fileArgs))
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -33408,7 +33437,7 @@ Copyright:
 
                 # cache data #
                 cache[req] = (cmd, method, content, arg, timeout, \
-                    auth, verify, cookies, headers, reqstr)
+                    auth, verify, cookies, headers, reqstr, files)
 
             # convert sequence #
             idx = UtilMgr.convNum(idx)
@@ -33422,11 +33451,13 @@ Copyright:
 
             # request #
             if arg:
-                res = cmd(content, arg, timeout=timeout,\
-                    auth=auth, verify=verify, cookies=cookies, headers=headers)
+                res = cmd(content, arg, timeout=timeout,
+                    auth=auth, verify=verify, cookies=cookies,
+                    headers=headers, files=files)
             else:
                 res = cmd(content, timeout=timeout,\
-                    auth=auth, verify=verify, cookies=cookies, headers=headers)
+                    auth=auth, verify=verify, cookies=cookies,
+                    headers=headers, files=files)
 
             after = time.time()
             elapsed = after - before
@@ -59014,6 +59045,68 @@ class ThreadAnalyzer(object):
         return obj
 
 
+
+    @staticmethod
+    def drawYticks(ax, ymax, fontsize=5, adjust=True):
+        # pylint: disable=undefined-variable
+        if 'YRANGE' in SysMgr.environList:
+            yrange = SysMgr.environList['YRANGE'][0].split(':')
+            yminval, ymaxval = SysMgr.cleanItem(yrange, False)
+
+            # set ymin #
+            if yminval:
+                ax.set_ylim(bottom=long(yminval))
+                ymin = long(yminval)
+            else:
+                ymin = long(min(ax.get_yticks().tolist()))
+                if ymin < 0:
+                    ymin = long(0)
+                    ax.set_ylim(bottom=0)
+
+            # set ymax #
+            if ymaxval:
+                ax.set_ylim(top=long(ymaxval))
+                ymax = long(ymaxval)
+            else:
+                ymax = long(min(ax.get_yticks().tolist()))
+
+            # adjust ticks #
+            if adjust:
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=fontsize)
+            else:
+                yticks(fontsize=fontsize)
+        else:
+            if ymax is None:
+                ylist = ax.get_yticks().tolist()
+                ymax = long(max(ylist))
+
+            ymaxval = ymax+int(ymax/10)
+            if ymaxval == 0:
+                ymaxval = 1
+            if ymaxval > 0:
+                ylim([0, ymaxval])
+
+            # get final yticks #
+            ylist = ax.get_yticks().tolist()
+            ymin = long(min(ylist))
+            if ymin < 0:
+                ymin = long(0)
+                ax.set_ylim(bottom=0)
+
+            # adjust yticks #
+            if adjust:
+                inc = long(ymax / 10)
+                if inc == 0:
+                    inc = 1
+                yticks(range(ymin, long(ymax + inc), inc), fontsize=fontsize)
+            else:
+                yticks(fontsize=fontsize)
+
+
+
     @staticmethod
     def drawLabel(
         labelList, draw=True, anchor=(1.12, 0.75), loc='upper right',
@@ -59566,47 +59659,6 @@ class ThreadAnalyzer(object):
             else:
                 return 'center'
 
-        def _setYticks(ax, ymax, fontsize=5):
-            # pylint: disable=undefined-variable
-            if 'YRANGE' in SysMgr.environList:
-                yrange = SysMgr.environList['YRANGE'][0].split(':')
-                yminval, ymaxval = SysMgr.cleanItem(yrange, False)
-                if yminval:
-                    ax.set_ylim(bottom=long(yminval))
-                    ymin = long(yminval)
-                else:
-                    ymin = long(min(ax.get_yticks().tolist()))
-
-                if ymaxval:
-                    ax.set_ylim(top=long(ymaxval))
-                    ymax = long(ymaxval)
-                else:
-                    ymax = long(min(ax.get_yticks().tolist()))
-
-                inc = long(ymax / 10)
-                if inc == 0:
-                    inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
-            else:
-                ymaxval = ymax+int(ymax/10)
-                if ymaxval == 0:
-                    ymaxval = 1
-                if ymaxval > 0:
-                    ylim([0, ymaxval])
-
-                # adjust yticks #
-                ylist = ax.get_yticks().tolist()
-                ymin = long(min(ylist))
-                if ymin < 0:
-                    ymin = long(0)
-                    ax.set_ylim(bottom=0)
-
-                #ymax = long(max(ylist))
-                inc = long(ymax / 10)
-                if inc == 0:
-                    inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
-
         def _drawEvent(graphStats):
             # get minimum timeline #
             timeline = None
@@ -60012,7 +60064,7 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # update yticks #
-            _setYticks(ax, ymax)
+            ThreadAnalyzer.drawYticks(ax, ymax)
 
             # add % unit to each value #
             try:
@@ -60468,7 +60520,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='y', direction='in')
 
             # update yticks #
-            _setYticks(ax, ymax)
+            ThreadAnalyzer.drawYticks(ax, ymax)
 
             # update xticks #
             xticks(fontsize=4)
@@ -60940,7 +60992,7 @@ class ThreadAnalyzer(object):
                     pass
 
             # update yticks #
-            _setYticks(ax, ymax)
+            ThreadAnalyzer.drawYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -61074,47 +61126,6 @@ class ThreadAnalyzer(object):
                 return 'right'
             else:
                 return 'center'
-
-        def _setYticks(ax, ymax, fontsize=5):
-            # pylint: disable=undefined-variable
-            if 'YRANGE' in SysMgr.environList:
-                yrange = SysMgr.environList['YRANGE'][0].split(':')
-                yminval, ymaxval = SysMgr.cleanItem(yrange, False)
-                if yminval:
-                    ax.set_ylim(bottom=long(yminval))
-                    ymin = long(yminval)
-                else:
-                    ymin = long(min(ax.get_yticks().tolist()))
-
-                if ymaxval:
-                    ax.set_ylim(top=long(ymaxval))
-                    ymax = long(ymaxval)
-                else:
-                    ymax = long(min(ax.get_yticks().tolist()))
-
-                inc = long(ymax / 10)
-                if inc == 0:
-                    inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
-            else:
-                ymaxval = ymax+int(ymax/10)
-                if ymaxval == 0:
-                    ymaxval = 1
-                if ymaxval > 0:
-                    ylim([0, ymaxval])
-
-                # adjust yticks #
-                ylist = ax.get_yticks().tolist()
-                ymin = long(min(ylist))
-                if ymin < 0:
-                    ymin = long(0)
-                    ax.set_ylim(bottom=0)
-
-                #ymax = long(max(ylist))
-                inc = long(ymax / 10)
-                if inc == 0:
-                    inc = 1
-                yticks(range(ymin, long(ymax + inc), inc), fontsize=5)
 
         def _convNameLabel(fileList):
             newList = []
@@ -61374,7 +61385,7 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # update yticks #
-            _setYticks(ax, ymax)
+            ThreadAnalyzer.drawYticks(ax, ymax)
 
             # add % unit to each value #
             try:
@@ -61593,7 +61604,7 @@ class ThreadAnalyzer(object):
             ylist = ax.get_yticks().tolist()
 
             # update yticks #
-            _setYticks(ax, ymax)
+            ThreadAnalyzer.drawYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
