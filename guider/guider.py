@@ -15945,8 +15945,8 @@ class SysMgr(object):
 
     @staticmethod
     def setVisualAttr():
-        if len(sys.argv) <= 2:
-            sys.argv.append(SysMgr.outFilePath)
+        if not SysMgr.hasMainArg():
+            sys.argv.insert(2, SysMgr.outFilePath)
 
         SysMgr.graphEnable = True
 
@@ -15987,16 +15987,19 @@ class SysMgr(object):
             if SysMgr.checkMode('drawcpu') or \
                 SysMgr.checkMode('drawcpuavg'):
                 SysMgr.layout = 'CPU'
+            # delay #
+            elif SysMgr.checkMode('drawdelay'):
+                SysMgr.layout = 'DELAY'
             # memory #
             elif SysMgr.checkMode('drawmem') or \
                 SysMgr.checkMode('drawmemavg'):
                 SysMgr.layout = 'MEM'
-            # vss #
+            # VSS #
             elif SysMgr.checkMode('drawvss') or \
                 SysMgr.checkMode('drawvssavg'):
                 SysMgr.layout = 'MEM'
                 SysMgr.vssEnable = True
-            # rss #
+            # RSS #
             elif SysMgr.checkMode('drawrss') or \
                 SysMgr.checkMode('drawrssavg'):
                 SysMgr.layout = 'MEM'
@@ -16005,7 +16008,7 @@ class SysMgr(object):
             elif SysMgr.checkMode('drawleak'):
                 SysMgr.layout = 'MEM'
                 SysMgr.leakEnable = True
-            # io #
+            # I/O #
             elif SysMgr.checkMode('drawio'):
                 SysMgr.layout = 'IO'
 
@@ -18226,6 +18229,7 @@ class SysMgr(object):
                 'drawavg': 'Average',
                 'drawcpu': 'CPU',
                 'drawcpuavg': 'CPU',
+                'drawdelay': 'Delay',
                 'drawio': 'I/O',
                 'drawleak': 'Leak',
                 'drawmem': 'Memory',
@@ -18398,6 +18402,7 @@ Options:
     -a                          show all stats and events
     -T  <NUM>                   set top number
     -L  <RES:PER>               set graph layout (sum of PER: 6)
+          [ C:CPU | D:delay | M:memory | I:io ]
     -l  <BOUNDARY>              set boundary lines
     -F  [svg/png/pdf/ps/eps]    set image format
     -E  <DIR>                   set cache dir path
@@ -18547,6 +18552,7 @@ Examples:
         # {0:1} {1:1} guider.out worstcase.out -d A
 
     - Draw resource graph on customized layout
+        # {0:1} {1:1} guider.out -L c:3, d:3
         # {0:1} {1:1} guider.out -L c:2, m:2, i:2
         # {0:1} {1:1} guider.out -L c:4, r:1, v:1
 
@@ -18554,10 +18560,10 @@ Examples:
         # {0:1} {1:1} guider.out -e d n
 
     - Draw resource graph with multiple files for comparison
-        # {0:1} {1:1} guider*.out worstcase.out
+        # {0:1} {1:1} "guider*.out" worstcase.out
 
     - Draw graphs of total resource usage with multiple files for comparison
-        # {0:1} {1:1} guider*.out worstcase.out -a -g TOTAL
+        # {0:1} {1:1} "guider*.out" worstcase.out -a -g TOTAL
                 '''.format(cmd, mode)
 
                 brkExamStr = '''
@@ -20072,6 +20078,18 @@ Usage:
 
 Description:
     Draw CPU graphs
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # CPU Delay draw #
+                elif SysMgr.checkMode('drawdelay'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw CPU Delay graphs
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -27686,6 +27704,8 @@ Copyright:
         elif sys.argv[1] == 'draw' or orig:
             return True
         elif SysMgr.checkMode('drawcpu', True):
+            return True
+        elif SysMgr.checkMode('drawdelay', True):
             return True
         elif SysMgr.checkMode('drawmem', True):
             return True
@@ -58383,6 +58403,7 @@ class ThreadAnalyzer(object):
         netWrite = []
         gpuUsage = {}
         cpuProcUsage = {}
+        cpuProcDelay = {}
         memProcUsage = {}
         blkProcUsage = {}
         storageUsage = {}
@@ -58452,7 +58473,7 @@ class ThreadAnalyzer(object):
                 contextList = line.split()
 
                 # termination #
-                if len(contextList) > 7:
+                if len(contextList) > 10:
                     strPos = line.find('[RAM')
                     sline = line[strPos:].split()
 
@@ -58697,6 +58718,108 @@ class ThreadAnalyzer(object):
                         cpuProcUsage[pname]['finish'] = finish
                     if zombie > -1:
                         cpuProcUsage[pname]['zombie'] = zombie
+
+            # DELAY #
+            elif context == 'Delay':
+                if slen == 3:
+                    m = re.match(r'\s*(?P<comm>.+)\(\s*(?P<pid>[0-9]+)', line)
+                    if not m:
+                        continue
+
+                    d = m.groupdict()
+                    comm = d['comm'].strip()
+
+                    if SysMgr.filterGroup:
+                        if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                            intervalList = None
+                        else:
+                            pid = d['pid']
+                            pname = '%s(%s)' % (comm, pid)
+
+                            intervalList = sline[2]
+                    else:
+                        pid = d['pid']
+                        pname = '%s(%s)' % (comm, pid)
+
+                        intervalList = sline[2]
+                elif slen == 2:
+                    if intervalList:
+                        intervalList += sline[1]
+                elif intervalList:
+                    # save previous info #
+                    cpuProcDelay[pname] = {}
+                    cpuProcDelay[pname]['pid'] = pid
+
+                    # get lifecycle info #
+                    start = -1
+                    finish = -1
+                    zombie = -1
+                    intervalList = intervalList.split()
+                    for idx, item in enumerate(list(intervalList)):
+                        if item.startswith('+'):
+                            start = idx
+                            intervalList[idx] = item[1:]
+                        if item.startswith('-'):
+                            finish = idx
+                            intervalList[idx] = item[1:]
+                        if item.startswith('z'):
+                            zombie = idx
+                            intervalList[idx] = item[1:]
+                    cpuList = list(map(long, intervalList))
+                    intervalList = ' '.join(intervalList)
+
+                    cpuProcDelay[pname]['usage'] = intervalList
+                    intervalList = None
+
+                    # calculate total usage of tasks filtered #
+                    if ThreadAnalyzer.checkFilter(comm, pid):
+                        if not "[ TOTAL ]" in cpuProcDelay:
+                            cpuProcDelay["[ TOTAL ]"] = dict()
+
+                            filterTotal = list(map(long,
+                                cpuProcDelay[pname]['usage'].split()))
+
+                            cpuProcDelay["[ TOTAL ]"]['usage'] = \
+                                ' '.join(list(map(str,filterTotal)))
+
+                            cpuProcDelay["[ TOTAL ]"]['count'] = 1
+                        else:
+                            filterTotal = list(map(long,
+                                cpuProcDelay["[ TOTAL ]"]['usage'].split()))
+
+                            for idx in range(0, len(filterTotal)):
+                                filterTotal[idx] += cpuList[idx]
+
+                            cpuProcDelay["[ TOTAL ]"]['usage'] = \
+                                ' '.join(list(map(str,filterTotal)))
+
+                            cpuProcDelay["[ TOTAL ]"]['count'] += 1
+
+                        cpuProcDelay["[ TOTAL ]"]['minimum'] = \
+                            min(filterTotal)
+                        cpuProcDelay["[ TOTAL ]"]['average'] = \
+                            sum(filterTotal) / len(filterTotal)
+                        cpuProcDelay["[ TOTAL ]"]['maximum'] = \
+                            max(filterTotal)
+
+                    # update statistics #
+                    if not cpuList:
+                        cpuProcDelay[pname]['minimum'] = long(0)
+                        cpuProcDelay[pname]['average'] = long(0)
+                        cpuProcDelay[pname]['maximum'] = long(0)
+                    else:
+                        cpuProcDelay[pname]['minimum'] = min(cpuList)
+                        cpuProcDelay[pname]['average'] = \
+                            sum(cpuList) / len(cpuList)
+                        cpuProcDelay[pname]['maximum'] = max(cpuList)
+
+                    # update lifecycle #
+                    if start > -1:
+                        cpuProcDelay[pname]['start'] = start
+                    if finish > -1:
+                        cpuProcDelay[pname]['finish'] = finish
+                    if zombie > -1:
+                        cpuProcDelay[pname]['zombie'] = zombie
 
             # GPU #
             elif context == 'GPU':
@@ -59079,6 +59202,7 @@ class ThreadAnalyzer(object):
             'eventList': eventList[imin:imax],
             'cpuUsage': cpuUsage[imin:imax],
             'cpuProcUsage': cpuProcUsage,
+            'cpuProcDelay': cpuProcDelay,
             'blkWait': blkWait[imin:imax],
             'blkProcUsage': blkProcUsage,
             'blkRead': blkRead[imin:imax],
@@ -59187,6 +59311,20 @@ class ThreadAnalyzer(object):
         obj = figure(num=1, figsize=(10, 10), facecolor='b', edgecolor='k')
         obj.subplots_adjust(left=0.06, top=0.95, bottom=0.04)
         return obj
+
+
+
+    @staticmethod
+    def drawName(ax, name, fontsize=20):
+        # pylint: disable=undefined-variable
+        xticks = ax.get_xticks().tolist()
+        yticks = ax.get_yticks().tolist()
+
+        x = xticks[long(len(xticks)*1/2)] - fontsize/len(name)
+        y = yticks[long(len(yticks)*1/2)]
+
+        annotate(name, xy=(x,y), xytext=(x,y), fontsize=fontsize,
+            fontweight='bold', color='gray', alpha=0.1)
 
 
 
@@ -59612,6 +59750,8 @@ class ThreadAnalyzer(object):
 
                 if targetc == 'CPU' or targetc.startswith('C'):
                     _drawCpu(graphStats, xtype, pos, size)
+                elif targetc == 'DELAY' or targetc.startswith('D'):
+                    _drawCpu(graphStats, xtype, pos, size, delay=True)
                 elif targetc == 'MEM' or targetc.startswith('M'):
                     _drawMem(graphStats, xtype, pos, size)
                 elif targetc == 'VSS' or targetc.startswith('V'):
@@ -59850,7 +59990,7 @@ class ThreadAnalyzer(object):
                     except:
                         pass
 
-        def _drawCpu(graphStats, xtype, pos, size):
+        def _drawCpu(graphStats, xtype, pos, size, delay=False):
             # draw title #
             ax = subplot2grid((6,1), (pos,0), rowspan=size, colspan=1)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -59888,6 +60028,7 @@ class ThreadAnalyzer(object):
 
                 cpuUsage = graphStats['%scpuUsage' % fname][:lent]
                 cpuProcUsage = graphStats['%scpuProcUsage' % fname]
+                cpuProcDelay = graphStats['%scpuProcDelay' % fname]
                 blkWait = graphStats['%sblkWait' % fname][:lent]
                 blkProcUsage = graphStats['%sblkProcUsage' % fname]
                 gpuUsage = graphStats['%sgpuUsage' % fname]
@@ -59911,7 +60052,7 @@ class ThreadAnalyzer(object):
                 self.drawUserEvent('cpu')
 
                 # System Processor usage #
-                if isVisibleTotal:
+                if not delay and isVisibleTotal:
                     #------------------ Total GPU usage ------------------#
                     for gpu, stat in gpuUsage.items():
                         stat = list(map(long, stat.split()))[:lent]
@@ -60048,7 +60189,8 @@ class ThreadAnalyzer(object):
 
                 #------------------- Process CPU usage -------------------#
                 # total Process CPU usage filtered #
-                if "[ TOTAL ]" in cpuProcUsage and \
+                if not delay and \
+                    "[ TOTAL ]" in cpuProcUsage and \
                     cpuProcUsage["[ TOTAL ]"]['count'] > 1:
                     totalUsage = cpuProcUsage["[ TOTAL ]"]['usage'].split()
                     totalUsage = list(map(long, totalUsage))[:lent]
@@ -60095,8 +60237,14 @@ class ThreadAnalyzer(object):
                 if SysMgr.nrTop:
                     tcnt = long(0)
 
+                # check delay option #
+                if delay:
+                    targetList = cpuProcDelay
+                else:
+                    targetList = cpuProcUsage
+
                 # Process CPU usage #
-                for idx, item in sorted(cpuProcUsage.items(),
+                for idx, item in sorted(targetList.items(),
                     key=lambda e: e[1]['average'], reverse=True):
 
                     if not SysMgr.cpuEnable:
@@ -60224,6 +60372,15 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 pass
+
+            # set name #
+            if delay:
+                name = 'Delay'
+            else:
+                name = 'CPU'
+
+            # draw name #
+            ThreadAnalyzer.drawName(ax, name)
 
             # draw base #
             self.figure = ThreadAnalyzer.drawFigure()
@@ -60675,6 +60832,9 @@ class ThreadAnalyzer(object):
                 ticklabel_format(useOffset=False)
             except:
                 pass
+
+            # draw name #
+            ThreadAnalyzer.drawName(ax, 'I/O')
 
             # draw base #
             self.figure = ThreadAnalyzer.drawFigure()
@@ -61166,6 +61326,9 @@ class ThreadAnalyzer(object):
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
 
+            # draw name #
+            ThreadAnalyzer.drawName(ax, 'MEM')
+
             # draw base #
             self.figure = ThreadAnalyzer.drawFigure()
 
@@ -61210,6 +61373,7 @@ class ThreadAnalyzer(object):
         # get effectProcList #
         effectProcList = [0] * len(timeline)
 
+        # draw plots #
         if not SysMgr.layout:
             _drawCpu(graphStats, 3, 0, 4)
             _drawEvent(graphStats)
@@ -61548,6 +61712,9 @@ class ThreadAnalyzer(object):
             except:
                 pass
 
+            # draw name #
+            ThreadAnalyzer.drawName(ax, 'CPU')
+
             # draw base #
             self.figure = ThreadAnalyzer.drawFigure()
 
@@ -61782,6 +61949,9 @@ class ThreadAnalyzer(object):
             xticks(fontsize=4)
             if len(timeline) > 1:
                 xlim([timeline[0], timeline[-1]])
+
+            # draw name #
+            ThreadAnalyzer.drawName(ax, 'MEM')
 
             # draw base #
             self.figure = ThreadAnalyzer.drawFigure()
