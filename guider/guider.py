@@ -38432,15 +38432,16 @@ Copyright:
                     taskstr = nrTasks
                 nrWorker = ' (proc:%s/task:%s)' % (procstr, taskstr)
 
+                # highlight subsystem name #
+                if depth == 0:
+                    curdir = UtilMgr.convColor(curdir, 'GREEN')
+
                 # parent node #
                 if len(tempSubdir) > 0:
                     nrChild = '[sub:%s]' % len(tempSubdir)
 
                     if curdir == 'PROCS':
                         nrWorker = ''
-
-                    if depth == 0:
-                        curdir = UtilMgr.convColor(curdir, 'GREEN')
 
                     SysMgr.infoBufferPrint(
                         '%s- %s%s%s%s' % \
@@ -47300,7 +47301,7 @@ struct cmsghdr {
 
 
 
-    def updateCallstack(self, sym):
+    def updateStack(self, sym):
         while 1:
             if not self.callstack:
                 return
@@ -47522,7 +47523,10 @@ struct cmsghdr {
         self.traceStatus = False
 
         # wait for sampling time #
-        time.sleep(self.sampleTime)
+        if self.runStatus:
+            time.sleep(self.sampleTime)
+        else:
+            time.sleep(self.sampleTime*2)
 
         # check run status #
         self.runStatus = self.isInRun()
@@ -48651,8 +48655,8 @@ struct cmsghdr {
             self.initPyEnv()
 
         # read address for PyThreadState #
-        PyThreadStatep = self.readMem(self.pyAddr)
-        PyThreadStatep = struct.unpack('Q', PyThreadStatep)[0]
+        pyThreadStateP = self.readMem(self.pyAddr)
+        pyThreadStateP = struct.unpack('Q', pyThreadStateP)[0]
 
         # read native call info #
         if sys.version_info >= (3, 7):
@@ -48661,12 +48665,12 @@ struct cmsghdr {
             if not curSym.startswith('_Py') and not curSym.startswith('Py'):
                 self.handleUsercall(update=False)
                 return
-        elif not PyThreadStatep:
+        elif not pyThreadStateP:
             self.handleUsercall()
             return
 
         # read PyThreadState #
-        frameList = self.readPyState(PyThreadStatep)
+        frameList = self.readPyState(pyThreadStateP)
 
         # toDo: get GIL usage by comparing thread_id with pthread_self() #
         nrThread = len(frameList)
@@ -48746,11 +48750,7 @@ struct cmsghdr {
             sym, fname, offset, fstart, fend, size = ret
         else:
             sym = ret
-            fname = '??'
-            offset = '??'
-            fstart = '??'
-            fend = '??'
-            size = '??'
+            fname = offset = fstart = fend = size = '??'
 
         # get backtrace #
         if self.isRealtime and SysMgr.funcDepth > 0:
@@ -48800,7 +48800,7 @@ struct cmsghdr {
             # save current call info as previous call #
             self.prevCallInfo = [sym, fname, vstart, vend, backtrace, self.pc]
 
-            self.updateCallstack(sym)
+            self.updateStack(sym)
 
             # check call relationship #
             if not self.sp or not self.prevSp:
@@ -59394,6 +59394,10 @@ class ThreadAnalyzer(object):
         labelList, draw=True, anchor=(1.12, 0.75), loc='upper right',
         fontsize=3.5, markerfirst=False):
         # pylint: disable=undefined-variable
+
+        # check labels #
+        if not labelList:
+            return
 
         # set legend position #
         if SysMgr.matplotlibVersion >= 1.2:
