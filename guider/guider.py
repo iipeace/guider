@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210131"
+__revision__ = "210201"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18187,7 +18187,7 @@ class SysMgr(object):
                 'atop': 'System',
                 'bgtop': 'Background',
                 'btop': 'Function',
-                'ctop': 'Condition',
+                'ctop': 'Threshold',
                 'cgtop': 'Cgroup',
                 'dbustop': 'D-Bus',
                 'disktop': 'Storage',
@@ -18255,7 +18255,7 @@ class SysMgr(object):
                 'printinfo': 'System',
                 'printns': 'Namespace',
                 'printsig': 'Signal',
-                'printsubsc': 'D-Bus',
+                'printsub': 'D-Bus',
                 'printsvc': 'systemd',
                 'pstree': 'Process',
                 'readelf': 'File',
@@ -19410,7 +19410,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Monitor resources by condition
+    Monitor resources by threshold
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -20423,8 +20423,8 @@ Examples:
         # {0:1} {1:1} -g a.out
                     '''.format(cmd, mode)
 
-                # printsubsc #
-                elif SysMgr.checkMode('printsubsc'):
+                # printsub #
+                elif SysMgr.checkMode('printsub'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -27415,8 +27415,8 @@ Copyright:
 
             DbusAnalyzer.runDbusSnooper(mode='print')
 
-        # PRINTSUBSC MODE #
-        elif SysMgr.checkMode('printsubsc'):
+        # PRINTSUB MODE #
+        elif SysMgr.checkMode('printsub'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusAnalyzer.runDbusSnooper(mode='signal')
@@ -38358,7 +38358,7 @@ Copyright:
 
             # traverse subdir #
             for curdir, subdir in sorted(tempRoot.items(),
-                key=lambda e: long(e[0]) if e[0].isdigit() else e[0]):
+                key=lambda e: long(e[0]) if e[0].isdigit() else 0):
                 cstr = ''
                 nrProcs = long(0)
                 nrTasks = long(0)
@@ -39521,6 +39521,144 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
+    def runMonitor(bus, des=None):
+        if not bus:
+            return
+
+        dbusObj = SysMgr.libdbusObj
+
+        conn = DbusAnalyzer.getBus(bus)
+        if not conn:
+            return
+
+        # prepare method args #
+        path = '/'
+        if not des:
+            des = 'org.freedesktop.DBus'
+        if not des.startswith(':'):
+            path += des.replace('.', '/')
+        if dbusObj.dbus_validate_path(
+            c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
+            SysMgr.printWarn(
+                "fail to create a D-Bus message because %s" % \
+                    DbusAnalyzer.getErrInfo())
+            return
+
+
+        # set interface, method, timeout #
+        iface = 'org.freedesktop.DBus.Monitoring'
+        method = 'BecomeMonitor'
+        timeout = c_int(-1)
+
+        # create a message for method call #
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(),
+            iface.encode(), method.encode())
+        if not msg:
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("fail to create a D-Bus message")
+            return
+
+        # prepare args #
+        array = c_char('a'.encode())
+        DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
+        uint32 = c_char('u'.encode())
+        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
+        dicte = c_char('e'.encode())
+        DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
+        char = c_char('s'.encode())
+        char2 = c_char('s'.encode())
+        DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        null = c_char('\0'.encode())
+        DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
+        zero = c_uint32(0)
+
+        class DBusMessageIter(Structure):
+            _fields_ = (
+                ("dummy1", c_void_p),
+                ("dummy2", c_void_p),
+                ("dummy3", c_uint32),
+                ("dummy4", c_int),
+                ("dummy5", c_int),
+                ("dummy6", c_int),
+                ("dummy7", c_int),
+                ("dummy8", c_int),
+                ("dummy9", c_int),
+                ("dummy10", c_int),
+                ("dummy11", c_int),
+                ("pad1", c_int),
+                ("pad2", c_void_p),
+                ("pad3", c_void_p),
+            )
+
+        msgIter = DBusMessageIter()
+        msgIterP = byref(msgIter)
+        arrayIter = DBusMessageIter()
+        arrayIterP = byref(arrayIter)
+
+        # initialize iteration #
+        ret = dbusObj.dbus_message_iter_init_append(msg, msgIterP)
+        if not ret:
+            SysMgr.printWarn("fail to initialize D-Bus message iteration")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            return
+
+        # append container #
+        ret = dbusObj.dbus_message_iter_open_container(
+            msgIterP, DBUS_TYPE_ARRAY, byref(char2), arrayIterP)
+        if not ret:
+            SysMgr.printWarn("fail to initialize D-Bus message container")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            return
+
+        '''
+        # append filter #
+        ret = dbusObj.dbus_message_iter_append_basic(
+            arrayIterP, DBUS_TYPE_STRING, byref(char))
+        if not ret:
+            SysMgr.printWarn("fail to initialize D-Bus message iteration")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            return
+        '''
+
+        # close container #
+        ret = dbusObj.dbus_message_iter_close_container(
+            msgIterP, arrayIterP)
+        if not ret:
+            SysMgr.printWarn("fail to close D-Bus message container")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            return
+
+        # append zero to container #
+        ret = dbusObj.dbus_message_iter_append_basic(
+            msgIterP, DBUS_TYPE_UINT32, pointer(zero))
+        if not ret:
+            SysMgr.printWarn("fail to initialize D-Bus message iteration")
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            return
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, timeout, DbusAnalyzer.getErrP())
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "fail to call a D-Bus remote method because %s" % \
+                    DbusAnalyzer.getErrInfo())
+            return
+
+        while 1:
+            reply = dbusObj.dbus_connection_read_write_dispatch(conn, -1)
+
+
+
+    @staticmethod
     def getStats(bus, request, des=None):
         if not bus:
             return
@@ -39544,6 +39682,7 @@ class DbusAnalyzer(object):
                     DbusAnalyzer.getErrInfo())
             return
 
+        # set interface, method, timeout #
         if request == 'introspect':
             iface = 'org.freedesktop.DBus.Introspectable'
             method = 'Introspect'
@@ -41107,6 +41246,11 @@ class DbusAnalyzer(object):
                 busServiceList[tid].append(busProcList)
             else:
                 busServiceList[tid].append(dict())
+
+            # monitor messages #
+            if mode == 'monitor':
+                ret = DbusAnalyzer.runMonitor(bus)
+                continue
 
             # print signals #
             if mode == 'signal':
@@ -56718,14 +56862,14 @@ class ThreadAnalyzer(object):
     init_procTotData = \
         {'comm': '', 'ppid': long(0), 'nrThreads': long(0), 'pri': '',
         'startIdx': long(0), 'cpu': long(0), 'cpuMax': long(0),
-        'cpuMin': long(-1), 'cpuAvg': long(0), 'initMem': long(0),
-        'lastMem': long(0), 'memDiff': long(0), 'blk': long(0),
+        'cpuMin': long(-1), 'cpuAvg': long(0), 'dly': long(0),
+        'initMem': long(0), 'lastMem': long(0), 'memDiff': long(0),
         'minMem': long(0), 'maxMem': long(0), 'minVss': long(0),
-        'maxVss': long(0), 'blkrd': long(0), 'blkwr': long(0)}
+        'maxVss': long(0), 'blk': long(0), 'blkrd': long(0), 'blkwr': long(0)}
 
     init_procIntData = \
         {'cpu': long(0), 'cpuMax': long(0), 'cpuMin': long(-1),
-        'cpuAvg': long(0), 'mem': long(0), 'memDiff': long(0),
+        'cpuAvg': long(0), 'dly': long(0), 'mem': long(0), 'memDiff': long(0),
         'blk': long(0), 'blkrd': long(0), 'blkwr': long(0), 'die': False}
 
 
@@ -65276,8 +65420,9 @@ class ThreadAnalyzer(object):
         # Get process resource usage #
         m = re.match((
             r'\s*(?P<comm>.+) \(\s*(?P<pid>[0-9]+)\/\s*(?P<ppid>[0-9]+)'
-            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|\s*(?P<cpu>\S+)'
-            r'\(.+\)\|\s*(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
+            r'\/\s*(?P<nrThreads>[0-9]+)\/(?P<pri>.{4})\)\|'
+            r'\s*(?P<cpu>\S+)\(.+/.+/(?P<dly>.+)\)\|\s*'
+            r'(?P<vss>[0-9]+)\(\s*(?P<rss>[0-9]+)\/.+\)\|\s*'
             r'(?P<blk>\S+)\(\s*(?P<blkrd>.+)\/\s*(?P<blkwr>.+)\/'), procLine)
         if not m:
             return
@@ -65345,7 +65490,14 @@ class ThreadAnalyzer(object):
             TA.procTotData[pid]['startIdx'] = index
 
         cpu = long(float(d['cpu']))
+
+        try:
+            dly = long(d['dly'])
+        except:
+            dly = 0
+
         blk = long(float(d['blk']))
+
         try:
             blkrd = long(d['blkrd'])
             blkwr = long(d['blkwr'])
@@ -65364,6 +65516,7 @@ class ThreadAnalyzer(object):
 
         # save CPU usage of process #
         TA.procTotData[pid]['cpu'] += cpu
+        TA.procTotData[pid]['dly'] += dly
 
         if TA.procTotData[pid]['cpuMax'] < cpu:
             TA.procTotData[pid]['cpuMax'] = cpu
@@ -65403,6 +65556,7 @@ class ThreadAnalyzer(object):
         if pid not in TA.procIntData[index]:
             TA.procIntData[index][pid] = dict(TA.init_procIntData)
             TA.procIntData[index][pid]['cpu'] = cpu
+            TA.procIntData[index][pid]['dly'] = dly
             TA.procIntData[index][pid]['vss'] = vss
             TA.procIntData[index][pid]['blk'] = blk
             TA.procIntData[index][pid]['blkrd'] = blkrd
@@ -65438,6 +65592,7 @@ class ThreadAnalyzer(object):
         if idx == 0:
             return
 
+        # calculate final stat #
         for pid, val in ThreadAnalyzer.procTotData.items():
             val['cpuAvg'] = round(val['cpu'] / float(idx), 1)
             val['memDiff'] = val['lastMem'] - val['initMem']
@@ -65600,7 +65755,7 @@ class ThreadAnalyzer(object):
         pd = SysMgr.pidDigit
         cl = 26 - (pd * 2)
 
-        SysMgr.printPipe('\n[Top CPU Info] (Unit: %)\n')
+        SysMgr.printPipe('\n[Top CPU Info] (Unit: %) (New: +) (Die: -)\n')
         SysMgr.printPipe("%s\n" % twoLine)
 
         if SysMgr.processEnable:
@@ -65707,6 +65862,85 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe(
                 ("{0:1} {1:1}\n").format(procInfo, timeLine))
             SysMgr.printPipe("%s\n" % oneLine)
+
+
+
+    @staticmethod
+    def printDlyInterval():
+        TA = ThreadAnalyzer
+
+        # set comm and pid size #
+        pd = SysMgr.pidDigit
+        cl = 26 - (pd * 2)
+
+        SysMgr.printPipe('\n[Top Delay Info] (Unit: %) (Target: THREAD)\n')
+        SysMgr.printPipe("%s\n" % twoLine)
+
+        if SysMgr.processEnable:
+            idName = 'PID'
+            pidName = 'PPID'
+        else:
+            idName = 'TID'
+            pidName = 'PID'
+
+        # Print menu #
+        procInfo = \
+            "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^5} |".\
+            format('COMM', idName, pidName, "Nr", "Pri", "Tot",
+            cl=cl, pd=pd)
+        procInfoLen = len(procInfo)
+        maxLineLen = SysMgr.lineLength
+        margin = 5
+
+        # Print timeline #
+        TA.printTimelineInterval(margin, procInfoLen, procInfo, 1)
+
+        # Print CPU delay for processes #
+        cnt = 0
+        for pid, value in sorted(TA.procTotData.items(),
+            key=lambda e: e[1]['dly'], reverse=True):
+
+            if pid == 'total':
+                continue
+
+            dlyInfo = '%d' % value['dly']
+
+            procInfo = \
+                "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^5} |".\
+                format(value['comm'][:cl], pid, value['ppid'],
+                value['nrThreads'], value['pri'], dlyInfo, cl=cl, pd=pd)
+            procInfoLen = len(procInfo)
+            maxLineLen = SysMgr.lineLength
+
+            timeLine = ''
+            lineLen = len(procInfo)
+            total = long(0)
+            for idx in range(0,len(TA.procIntData)):
+                if lineLen + margin > maxLineLen:
+                    timeLine += ('\n' + (' ' * (procInfoLen - 1)) + '| ')
+                    lineLen = len(procInfo)
+
+                if pid in TA.procIntData[idx]:
+                    usage = TA.procIntData[idx][pid]['dly']
+                    total += TA.procIntData[idx][pid]['dly']
+                else:
+                    usage = long(0)
+
+                timeLine = '%s%s' % (timeLine, '{0:>6} '.format(usage))
+                lineLen += margin + 2
+
+            # skip no delayed procdss #
+            if total == 0:
+                continue
+
+            SysMgr.printPipe(
+                ("{0:1} {1:1}\n").format(procInfo, timeLine))
+            SysMgr.printPipe("%s\n" % oneLine)
+
+            cnt += 1
+
+        if cnt == 0:
+            SysMgr.printPipe('\tNone\n%s\n' % oneLine)
 
 
 
@@ -66409,6 +66643,7 @@ class ThreadAnalyzer(object):
             ThreadAnalyzer.printTimeline()
             ThreadAnalyzer.printEventInterval()
             ThreadAnalyzer.printCpuInterval()
+            ThreadAnalyzer.printDlyInterval()
             ThreadAnalyzer.printGpuInterval()
             ThreadAnalyzer.printVssInterval()
             ThreadAnalyzer.printRssInterval()
