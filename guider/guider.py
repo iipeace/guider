@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210201"
+__revision__ = "210202"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18609,6 +18609,9 @@ Examples:
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
 
+    - Print all function calls except for wait status for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT:true
+
     - Print all function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
@@ -19339,6 +19342,12 @@ Examples:
     - Monitor function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
+
+    - Monitor function calls except for wait status for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT:true
+
+    - Monitor function calls for a specific thread after loading all symbols in stop status
+        # {0:1} {1:1} a.out -g a.out -q STOPTARGET:true
 
     - Monitor function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -20738,14 +20747,21 @@ Description:
 Options:
     -g  <PID|COMM>              set target process
     -J                          print in JSON format
+    -I  <WORD>                  set filter
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
     - Print environment variables for a specific process
+        # {0:1} {1:1} a.out
         # {0:1} {1:1} -g 1234
-        # {0:1} {1:1} -g a.out
+
+    - Print environment variables for all processes
+        # {0:1} {1:1} "*"
+
+    - Print environment variables including PWD for all processes
+        # {0:1} {1:1} "*" -I PWD
                     '''.format(cmd, mode)
 
                 # printns #
@@ -28846,6 +28862,8 @@ Copyright:
                 envFileList = SysMgr.environList['ENVFILE']
             else:
                 envFileList = []
+
+            # read variables from files #
             for fname in envFileList:
                 try:
                     with open(fname, 'r') as fd:
@@ -28856,6 +28874,8 @@ Copyright:
                         'fail to parse environment variable from %s' % \
                             fname, True)
                     sys.exit(0)
+
+            return myEnv
         except SystemExit:
             sys.exit(0)
         except:
@@ -30762,13 +30782,20 @@ Copyright:
         SysMgr.printPipe()
         lenLine = long(len(oneLine)/2)
 
+        # check filter #
+        if SysMgr.inputParam:
+            filters = SysMgr.inputParam.split(',')
+            filters = SysMgr.cleanItem(filters)
+        else:
+            filters = []
+
         for pid in pids:
             comm = SysMgr.getComm(pid, True)
 
             if SysMgr.jsonEnable:
                 envs = SysMgr.getEnv(pid, retdict=True)
                 if not envs:
-                    sys.exit(0)
+                    continue
 
                 envs['PID'] = pid
                 envs['COMM'] = comm
@@ -30778,7 +30805,7 @@ Copyright:
 
             envs = SysMgr.getEnv(pid)
             if not envs:
-                sys.exit(0)
+                continue
 
             # get cmdline #
             cmdline = SysMgr.getCmdline(pid)
@@ -30786,8 +30813,23 @@ Copyright:
             SysMgr.printPipe(
                 '\n[ %s(%s) ] < %s >\n%s\n' % \
                     (comm, pid, cmdline, oneLine[:lenLine]))
+
+            # filter variables #
+            if filters:
+                filteredList = []
+                for env in envs:
+                    if UtilMgr.isEffectiveStr(env, key=filters, inc=True):
+                        filteredList.append(env)
+                envs = filteredList
+
+            # print variables #
             for env in envs:
                 SysMgr.printPipe(env)
+
+            if not envs:
+                SysMgr.printPipe('\tNone\n%s' % oneLine[:lenLine])
+            else:
+                SysMgr.printPipe(oneLine[:lenLine])
 
         SysMgr.printPipe('\n')
 
@@ -31312,12 +31354,28 @@ Copyright:
     @staticmethod
     def doTrace(mode):
         def _doCommonJobs(pids, procList):
+            # check STOP condition #
+            if 'STOPTARGET' in SysMgr.environList:
+                needStop = True
+            else:
+                needStop = False
+
             # get pid list #
             for tid in pids:
                 try:
                     pid = SysMgr.getTgid(tid)
                     if not pid:
                         continue
+
+                    # stop target #
+                    try:
+                        if needStop:
+                            os.kill(long(pid), signal.SIGSTOP)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
                     procList.setdefault(pid, list())
                     procList[pid].append(tid)
                 except SystemExit:
@@ -31347,6 +31405,16 @@ Copyright:
                     sys.exit(0)
                 except:
                     pass
+
+            # continue target #
+            try:
+                if needStop:
+                    for pid in pidList:
+                        os.kill(pid, signal.SIGCONT)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             if mode != 'breakcall':
                 return
@@ -35503,7 +35571,7 @@ Copyright:
                 data = fd.readlines()
                 if not data:
                     comm = SysMgr.getComm(pid, True)
-                    SysMgr.printErr(
+                    SysMgr.printWarn(
                         'fail to read environment variables for %s(%s)' % \
                             (comm, pid))
                     return
@@ -35512,7 +35580,7 @@ Copyright:
             sys.exit(0)
         except:
             comm = SysMgr.getComm(pid, True)
-            SysMgr.printErr(
+            SysMgr.printWarn(
                 "fail to get environment variables of %s(%s)" % \
                     (comm, pid), True)
             elist = []
@@ -42459,6 +42527,7 @@ class Debugger(object):
     selfInstance = None
     RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
     targetNum = -1
+    exceptWait = False
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -42927,6 +42996,11 @@ struct cmsghdr {
             SysMgr.printInfo(
                 "set the number of target to '%s' for new threads" % \
                     Debugger.targetNum)
+
+        # ignore wait function #
+        if not Debugger.exceptWait and \
+            'EXCEPTWAIT' in SysMgr.environList:
+            Debugger.exceptWait = True
 
 
 
@@ -46594,6 +46668,12 @@ struct cmsghdr {
         SysMgr.waitUserInput(
             wait=0.000001, msg="press enter key...")
 
+        # check samples #
+        if not self.callTable:
+            SysMgr.printWarn(
+                "no sample profiled", True)
+            return
+
         # define stop flag #
         needStop = False
 
@@ -47316,6 +47396,9 @@ struct cmsghdr {
 
     def addSample(
         self, sym, filename, realtime=False, bt=None, err=None, elapsed=None):
+        if not self.runStatus and Debugger.exceptWait:
+            return
+
         if err:
             # increase err count #
             try:
@@ -49290,6 +49373,7 @@ struct cmsghdr {
                 SysMgr.printOpenWarn(statPath)
                 return None
 
+        # return full data #
         if retstr:
             return stat
 
@@ -49323,7 +49407,7 @@ struct cmsghdr {
             return None
 
         # check status #
-        if stat == 'T' or stat =='t':
+        if stat == 'T' or stat == 't':
             return True
         else:
             return False
@@ -49367,15 +49451,16 @@ struct cmsghdr {
         stime = long(statList[self.stimeIdx-2])
         ttime = utime + stime
 
+        # get CPU diff #
         prevUsage = self.prevCpuStat
-
-        if self.prevCpuStat == None:
+        if prevUsage == None:
             ret = [0, 0, 0]
         else:
             ret = [ttime - prevUsage[0],
                 utime - prevUsage[1],
                 stime - prevUsage[2]]
 
+        # save CPU usage #
         self.prevCpuStat = [ttime, utime, stime]
 
         return ret
@@ -71635,7 +71720,7 @@ class ThreadAnalyzer(object):
 
     def isKernelThread(self, tid):
         ppid = self.procData[tid]['stat'][self.ppidIdx]
-        if ppid == '2':
+        if ppid == '2' or tid == '2':
             return True
         else:
             return False
@@ -71918,16 +72003,23 @@ class ThreadAnalyzer(object):
                 except:
                     pass
 
-        # save io data #
+        # save I/O data #
         if SysMgr.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
-            self.procData[tid]['io'] = {}
-            for line in ioBuf:
-                line = line.split()
-                item = line[0]
-                if item != 'read_bytes:' and item != 'write_bytes:':
-                    continue
-                self.procData[tid]['io'][item[:-1]] = long(line[1])
+            self.procData[tid]['ioData'] = ioBuf
+
+            # check I/O data #
+            if tid in self.prevProcData and \
+                self.prevProcData[tid]['ioData'] == ioBuf:
+                self.procData[tid]['io'] = self.prevProcData[tid]['io']
+            else:
+                self.procData[tid]['io'] = {}
+                for line in ioBuf:
+                    line = line.split()
+                    item = line[0]
+                    if item != 'read_bytes:' and item != 'write_bytes:':
+                        continue
+                    self.procData[tid]['io'][item[:-1]] = long(line[1])
 
         # save perf fds #
         if SysMgr.perfGroupEnable and \
