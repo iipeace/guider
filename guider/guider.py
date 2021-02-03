@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210202"
+__revision__ = "210203"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3725,7 +3725,15 @@ class UtilMgr(object):
         newDict = {}
         for item in optList:
             try:
-                key, value = item.split(sep, 1)
+                # get values #
+                values = item.split(sep, 1)
+                if len(values) == 1:
+                    key = values[0]
+                    value = 'SET'
+                else:
+                    key, value = values
+
+                # set values #
                 if key in newDict:
                     newDict[key].append(value)
                 else:
@@ -18610,7 +18618,7 @@ Examples:
         # {0:1} {1:1} -I "ls"
 
     - Print all function calls except for wait status for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT:true
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
     - Print all function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -19344,10 +19352,10 @@ Examples:
         # {0:1} {1:1} -I a.out -g a.out
 
     - Monitor function calls except for wait status for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT:true
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
     - Monitor function calls for a specific thread after loading all symbols in stop status
-        # {0:1} {1:1} a.out -g a.out -q STOPTARGET:true
+        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
     - Monitor function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -36376,6 +36384,8 @@ Copyright:
                 func(*args)
             except SystemExit:
                 sys.exit(0)
+            except ProcessLookupError:
+                pass
             except:
                 SysMgr.printErr(
                     "fail to execute %s" % func, True)
@@ -46657,22 +46667,17 @@ struct cmsghdr {
 
             _resetStats()
 
-        if self.multi and not self.callTable:
+        # check samples #
+        if not self.callTable:
             SysMgr.printWarn(
-                "no call data for %s(%s)" % \
-                    (self.comm, self.pid))
+                "no sample data for %s(%s)" % \
+                    (self.comm, self.pid), True)
             _resetStats()
             return
 
         # check user input #
         SysMgr.waitUserInput(
             wait=0.000001, msg="press enter key...")
-
-        # check samples #
-        if not self.callTable:
-            SysMgr.printWarn(
-                "no sample profiled", True)
-            return
 
         # define stop flag #
         needStop = False
@@ -46685,14 +46690,23 @@ struct cmsghdr {
 
         # update comm #
         origComm = self.comm
-        self.comm = SysMgr.getComm(self.pid, cache=True)
+        self.comm = SysMgr.getComm(self.pid)
         if not self.comm:
             self.comm = origComm
 
         # check comm filter for child #
         if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNum > -1:
-            if not UtilMgr.isEffectiveStr(self.comm, inc=True) or \
-                Debugger.targetNum != self.targetNum:
+            if UtilMgr.isEffectiveStr(self.comm, inc=True):
+                pass
+            elif Debugger.targetNum == self.targetNum:
+                pass
+            else:
+                # skip on break mode #
+                if self.mode == 'break':
+                    _resetStats()
+                    return
+
+                # print status #
                 SysMgr.printWarn(
                     'stopped tracing for %s(%s) because it is not targeted' % \
                         (self.comm, self.pid))
@@ -46708,6 +46722,7 @@ struct cmsghdr {
                 if self.isStopped():
                     self.cont()
 
+                _resetStats()
                 return
 
         # print summary table #
@@ -46987,6 +47002,13 @@ struct cmsghdr {
         if not self.overlayfsList:
             self.overlayfsList = SysMgr.getOverlayfsInfo(self.pid)
 
+        # check STOP condition #
+        if 'STOPTARGET' in SysMgr.environList:
+            needStop = True
+            self.stop()
+        else:
+            needStop = False
+
         # register default libraries #
         for fpath in list(self.pmap.keys()):
             # update start address #
@@ -47017,6 +47039,10 @@ struct cmsghdr {
                     if printLog:
                         printLog = False
             except SystemExit:
+                # continue target #
+                if needStop:
+                    self.cont()
+
                 sys.exit(0)
             except:
                 pass
@@ -47026,6 +47052,10 @@ struct cmsghdr {
         if not self.fileList:
             SysMgr.printWarn(
                 'fail to get file list on memory map')
+
+        # continue target #
+        if needStop:
+            self.cont()
 
         return True
 
@@ -50130,8 +50160,8 @@ struct cmsghdr {
 
                         if self.mode == 'break':
                             # remove all breakpoins for new child process #
-                            if forked:
-                                self.breakAllBp()
+                            if self.forked:
+                                self.removeAllBp()
 
                             # load symbols again #
                             if self.loadSymbols():
