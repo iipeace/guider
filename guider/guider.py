@@ -20960,44 +20960,52 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Request GET / url to specific server
+    - Request GET / URL to specific server
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000\|GET#http://10.25.123.123:5000
 
-    - Request POST / url to specific server
-        # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
-        # {0:1} {1:1} POST#JSONDATA:"{{"key":"value"}}"#http://127.0.0.1:5000
+    - Request GET / URL to specific server and print contents for request
+        # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
 
-    - Request POST / url to specific server with files
+    - Request POST / URL to specific server
+        # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONDATA:"{{'key':'value'}}"#http://127.0.0.1:5000
+
+    - Request POST / URL to specific server after converting specific file path to it's base64-encoded contents
+        # {0:1} {1:1} POST#DATA:"@@@FILE:a.out@@@"#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONDATA:"{'date':'123', 'image': {'name': 'good', 'data':'@@@FILE:a.out@@@'}}"#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONFILE#http://127.0.0.1:5000
+
+    - Request POST / URL to specific server with files
         # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:doc:test.txt:doc/txt#http://127.0.0.1:5000
 
-    - Request POST / url to specific server with data from data.json file
-        # {0:1} {1:1} POST#FILEJSON:data.json#http://127.0.0.1:5000
+    - Request POST / URL to specific server with data from data.json file
+        # {0:1} {1:1} POST#JSONFILE:data.json#http://127.0.0.1:5000
 
-    - Request POST / url to specific server with data from data file
-        # {0:1} {1:1} POST#FILEDATA:data#http://127.0.0.1:5000
+    - Request POST / URL to specific server with data from data file
+        # {0:1} {1:1} POST#DATAFILE:data#http://127.0.0.1:5000
 
-    - Request GET / url to specific server 10 times with 500ms delay
+    - Request GET / URL to specific server 10 times with 500ms delay
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 500:10
 
-    - Request GET / url to specific server 10 times by 10 processes
+    - Request GET / URL to specific server 10 times by 10 processes
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 10 -T 10
 
-    - Request GET / url to specific server with 5 second timeout
+    - Request GET / URL to specific server with 5 second timeout
         # {0:1} {1:1} GET#TIMEOUT:5#http://127.0.0.1:5000
 
-    - Request GET / url to specific server with no verification for SSL
+    - Request GET / URL to specific server with no verification for SSL
         # {0:1} {1:1} GET#VERIFY:false#https://127.0.0.1:5000
 
-    - Request GET / url to specific server with auth
+    - Request GET / URL to specific server with auth
         # {0:1} {1:1} GET#AUTH:id,passwd#https://127.0.0.1:5000
 
-    - Request GET / url to specific server with cookies
+    - Request GET / URL to specific server with cookies
         # {0:1} {1:1} GET#COOKIES:sessionKey:sessionValue#https://127.0.0.1:5000
 
-    - Request GET / url to specific server with headers
+    - Request GET / URL to specific server with headers
         # {0:1} {1:1} GET#HEADERS:Content-Type:application/json;charset=utf-8#https://127.0.0.1:5000
                     '''.format(cmd, mode)
 
@@ -33376,14 +33384,50 @@ Copyright:
 
     @staticmethod
     def doRequest(reqstr=None):
+        def _convPath2Data(path):
+            if not path or not isinstance(path, str):
+                return path
+
+            if path.startswith('@@@FILE:') and path.endswith('@@@'):
+                rpath = path.lstrip('@@@FILE:')
+                rpath = rpath.rstrip('@@@')
+                with open(rpath, 'rb') as fd:
+                    data = fd.read()
+                    path = UtilMgr.encodeBase64(data)
+
+            return path
+
+        def _convPath2DataJson(obj):
+            if isinstance(obj, list):
+                for idx, item in enumerate(obj):
+                    if isinstance(item, list):
+                        obj[idx] = _convPath2DataJson(item)
+                    elif isinstance(item, dict):
+                        obj[idx] = _convPath2DataJson(item)
+                    else:
+                        obj[idx] = _convPath2Data(item)
+            elif isinstance(obj, dict):
+                for idx, item in obj.items():
+                    if isinstance(item, list):
+                        obj[idx] = _convPath2DataJson(item)
+                    elif isinstance(item, dict):
+                        obj[idx] = _convPath2DataJson(item)
+                    else:
+                        obj[idx] = _convPath2Data(item)
+            else:
+                return _convPath2Data(obj)
+
+            return obj
+
         def _request(req, cache, stats, idx, lastReqTime):
             cmd = None
             arg = None
+            json = None
 
             # get data from cache #
             if req in cache:
                 cmd, method, content, arg, timeout, auth, \
-                    verify, cookies, headers, reqstr, files = cache[req]
+                    verify, cookies, headers, reqstr, files, json = cache[req]
             # parse request #
             else:
                 timeout = None
@@ -33417,27 +33461,32 @@ Copyright:
                 # parse options #
                 # refer to https://requests.readthedocs.io #
                 while 1:
-                    if remain.startswith('DATA:') or remain.startswith('JSON'):
+                    if remain.startswith('DATA:') or \
+                        remain.startswith('JSONDATA:'):
                         orig = remain
                         data, remain = remain.split('#', 1)
                         data = data.split(':', 1)[1]
-                        if orig.startswith('JSON'):
-                            arg = UtilMgr.convStr2Dict(data, verb=True)
+
+                        # convert string to dictionary #
+                        if orig.startswith('JSONDATA:'):
+                            json = UtilMgr.convStr2Dict(data, verb=True)
                         else:
                             arg = data
-                    elif remain.startswith('FILEDATA:') or \
-                        remain.startswith('FILEJSON:'):
+                    elif remain.startswith('DATAFILE:') or \
+                        remain.startswith('JSONFILE:'):
                         try:
                             orig = remain
                             data, remain = remain.split('#', 1)
 
+                            # read data from file #
                             path = '??'
                             path = data.split(':', 1)[1]
-                            with open(path, 'r') as fd:
-                                data = fd.read()
+                            with open(path, 'rb') as fd:
+                                data = fd.read().decode()
 
-                            if orig.startswith('FILEJSON:'):
-                                arg = UtilMgr.convStr2Dict(data, verb=True)
+                            # convert string to dictionary #
+                            if orig.startswith('JSONFILE:'):
+                                json = UtilMgr.convStr2Dict(data, verb=True)
                             else:
                                 arg = data
                         except SystemExit:
@@ -33452,6 +33501,7 @@ Copyright:
                             orig = remain
                             data, remain = remain.split('#', 1)
 
+                            # pass file descriptor #
                             path = '??'
                             fileInfo = data.split(':')[1:]
                             name = fileInfo[0]
@@ -33511,14 +33561,15 @@ Copyright:
                 # check protocol #
                 content = remain
                 if not content.startswith('http'):
-                    SysMgr.printWarn(
-                        'no protocol info such like http in %s' % \
-                            req, True)
+                    SysMgr.printErr(
+                        'no protocol such like "http" in %s' % content)
 
                 # convert request #
                 reqstr = '%s %s' % (method, content)
                 if arg:
                     reqstr += ' DATA:%s' % arg
+                if json:
+                    reqstr += ' JSON:%s' % json
                 if timeout:
                     reqstr += ' TIMEOUT:%s' % timeout
                 if auth:
@@ -33531,9 +33582,15 @@ Copyright:
                     reqstr += ' HEADERS:%s' % headers
                 reqstr = UtilMgr.convColor(reqstr, 'UNDERLINE')
 
+                # convert path to data #
+                if json:
+                    _convPath2DataJson(json)
+                if arg:
+                    arg = _convPath2Data(arg)
+
                 # cache data #
                 cache[req] = (cmd, method, content, arg, timeout, \
-                    auth, verify, cookies, headers, reqstr, files)
+                    auth, verify, cookies, headers, reqstr, files, json)
 
             # convert sequence #
             idx = UtilMgr.convNum(idx)
@@ -33546,7 +33603,11 @@ Copyright:
             lastReqTime[0] = before
 
             # request #
-            if arg:
+            if json:
+                res = cmd(content, json=json, timeout=timeout,
+                    auth=auth, verify=verify, cookies=cookies,
+                    headers=headers, files=files)
+            elif arg:
                 res = cmd(content, arg, timeout=timeout,
                     auth=auth, verify=verify, cookies=cookies,
                     headers=headers, files=files)
@@ -33555,6 +33616,15 @@ Copyright:
                     auth=auth, verify=verify, cookies=cookies,
                     headers=headers, files=files)
 
+            # print request #
+            if 'PRINTREQ' in SysMgr.environList:
+                data = res.request.headers
+                data['Body'] = res.request.body
+                data = str(data).replace('\\n', '\n')
+                data = str(data).replace('\\r', '')
+                SysMgr.printWarn(data, True)
+
+            # update time #
             after = time.time()
             elapsed = after - before
 
@@ -33567,17 +33637,18 @@ Copyright:
             if res.ok:
                 success = UtilMgr.convColor('OK', 'GREEN')
             else:
-                success = UtilMgr.convColor('NG', 'RED')
+                success = UtilMgr.convColor(res.reason, 'RED')
 
             # convert code #
             code = UtilMgr.convColor(res.status_code, 'SPECIAL')
 
             # convert text #
             if SysMgr.showAll:
-                text = '\n%s' % res.text
+                text = ': %s' % res.text
             else:
                 text = ''
 
+            # round elapsd time #
             elapsed = '%.6f' % elapsed
 
             SysMgr.printPipe(
@@ -33631,8 +33702,11 @@ Copyright:
                 SysMgr.updateTaskMon(tobj, SysMgr.pid)
                 tcpu = SysMgr.getTaskMon(tobj, SysMgr.pid, 'ttime')
                 acpu = tcpu / totalElapsed
-                tcpu = UtilMgr.convNum(tcpu)
-                acpu = UtilMgr.convNum(acpu)
+                if tcpu <= totalElapsed:
+                    tcpu = UtilMgr.convNum(tcpu)
+                    acpu = UtilMgr.convNum(acpu)
+                else:
+                    tcpu = acpu = 0
             except SystemExit:
                 sys.exit(0)
             except:
