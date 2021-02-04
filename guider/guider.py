@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210203"
+__revision__ = "210204"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20965,17 +20965,17 @@ Examples:
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000\|GET#http://10.25.123.123:5000
 
-    - Request GET / URL to specific server and print contents for request
+    - Request GET / URL to specific server and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
 
     - Request POST / URL to specific server
         # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{'key':'value'}}"#http://127.0.0.1:5000
 
-    - Request POST / URL to specific server after converting specific file path to it's base64-encoded contents
+    - Request POST / URL to specific server after base64 encoding specific file data from specific path string "@@@FILE:PATH@@@"
         # {0:1} {1:1} POST#DATA:"@@@FILE:a.out@@@"#http://127.0.0.1:5000
-        # {0:1} {1:1} POST#JSONDATA:"{'date':'123', 'image': {'name': 'good', 'data':'@@@FILE:a.out@@@'}}"#http://127.0.0.1:5000
-        # {0:1} {1:1} POST#JSONFILE#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONDATA:"{{'date':'123', 'image': {{'name': 'good', 'data':'@@@FILE:a.out@@@'}}}}"#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#JSONFILE:input.json#http://127.0.0.1:5000
 
     - Request POST / URL to specific server with files
         # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
@@ -33384,38 +33384,60 @@ Copyright:
 
     @staticmethod
     def doRequest(reqstr=None):
-        def _convPath2Data(path):
+        def _convPath2Data(path, enc=False):
             if not path or not isinstance(path, str):
                 return path
 
-            if path.startswith('@@@FILE:') and path.endswith('@@@'):
-                rpath = path.lstrip('@@@FILE:')
-                rpath = rpath.rstrip('@@@')
-                with open(rpath, 'rb') as fd:
-                    data = fd.read()
-                    path = UtilMgr.encodeBase64(data)
+            # define keys #
+            skey = '@@@FILE:'
+            ekey = '@@@'
 
-            return path
+            # get start pos #
+            start = path.find(skey)
+            if start < 0:
+                return path
+            secStart = start+len(skey)
+            end = path[secStart:].find(ekey)
+            if end < 0:
+                return path
 
-        def _convPath2DataJson(obj):
+            # get real path #
+            rpath = path[secStart:secStart+end]
+
+            # read data #
+            with open(rpath, 'rb') as fd:
+                data = fd.read()
+
+                # encode to base64 #
+                if enc:
+                    data = UtilMgr.encodeBase64(data)
+                else:
+                    data = data
+
+                data = path[:start].encode() + data +\
+                    path[secStart+end+len(ekey):].encode()
+
+            return data
+
+        def _convPath2DataJson(obj, enc=False):
             if isinstance(obj, list):
                 for idx, item in enumerate(obj):
                     if isinstance(item, list):
-                        obj[idx] = _convPath2DataJson(item)
+                        obj[idx] = _convPath2DataJson(item, enc)
                     elif isinstance(item, dict):
-                        obj[idx] = _convPath2DataJson(item)
+                        obj[idx] = _convPath2DataJson(item, enc)
                     else:
-                        obj[idx] = _convPath2Data(item)
+                        obj[idx] = _convPath2Data(item, enc)
             elif isinstance(obj, dict):
                 for idx, item in obj.items():
                     if isinstance(item, list):
-                        obj[idx] = _convPath2DataJson(item)
+                        obj[idx] = _convPath2DataJson(item, enc)
                     elif isinstance(item, dict):
-                        obj[idx] = _convPath2DataJson(item)
+                        obj[idx] = _convPath2DataJson(item, enc)
                     else:
-                        obj[idx] = _convPath2Data(item)
+                        obj[idx] = _convPath2Data(item, enc)
             else:
-                return _convPath2Data(obj)
+                return _convPath2Data(obj, enc)
 
             return obj
 
@@ -33567,9 +33589,9 @@ Copyright:
                 # convert request #
                 reqstr = '%s %s' % (method, content)
                 if arg:
-                    reqstr += ' DATA:%s' % arg
+                    reqstr += ' DATA:%s' % repr(arg)
                 if json:
-                    reqstr += ' JSON:%s' % json
+                    reqstr += ' JSON:%s' % repr(json)
                 if timeout:
                     reqstr += ' TIMEOUT:%s' % timeout
                 if auth:
@@ -33577,16 +33599,16 @@ Copyright:
                 if verify:
                     reqstr += ' VERIFY:%s' % verify
                 if cookies:
-                    reqstr += ' COOKIES:%s' % cookies
+                    reqstr += ' COOKIES:%s' % repr(cookies)
                 if headers:
-                    reqstr += ' HEADERS:%s' % headers
+                    reqstr += ' HEADERS:%s' % repr(headers)
                 reqstr = UtilMgr.convColor(reqstr, 'UNDERLINE')
 
                 # convert path to data #
                 if json:
-                    _convPath2DataJson(json)
+                    _convPath2DataJson(json, enc=True)
                 if arg:
-                    arg = _convPath2Data(arg)
+                    arg = _convPath2Data(arg, enc=True)
 
                 # cache data #
                 cache[req] = (cmd, method, content, arg, timeout, \
@@ -33712,8 +33734,6 @@ Copyright:
             except:
                 tcpu = '?'
                 acpu = '?'
-
-
 
             # list per-request response time #
             if SysMgr.outPath:
