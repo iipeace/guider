@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210204"
+__revision__ = "210207"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -67528,9 +67528,10 @@ class ThreadAnalyzer(object):
                 except:
                     sys.exit(0)
 
+            # check repeat count #
             if SysMgr.isRecordMode() and \
                 SysMgr.progressCnt >= SysMgr.repeatInterval:
-                break
+                return 0
 
             # update fd #
             try:
@@ -72928,6 +72929,12 @@ class ThreadAnalyzer(object):
 
             freqPath = '/sys/devices/system/cpu/cpu'
 
+            # set max cols #
+            if SysMgr.ttyCols >= len(oneLine):
+                maxCols = len(oneLine)+1
+            else:
+                maxCols = SysMgr.ttyCols
+
             for idx, value in sorted(self.cpuData.items(),
                 key=lambda x:long(x[0]) if str(x[0]).isdigit() else 0,
                 reverse=False):
@@ -73188,7 +73195,7 @@ class ThreadAnalyzer(object):
                     # use short core stats for many-core system #
                     if not SysMgr.barGraphEnable and SysMgr.nrCore > 8:
                         shortCoreStats += coreStat
-                        coreFactor = long(SysMgr.ttyCols / lenCoreStat)
+                        coreFactor = long(maxCols / lenCoreStat)
                         if (curCore+1) % coreFactor == 0:
                             SysMgr.addPrint(shortCoreStats[:-1]+'\n')
                             shortCoreStats = ''
@@ -77038,7 +77045,7 @@ def main(args=None):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("terminated", reason=True)
+            SysMgr.printErr("terminated recording", reason=True)
 
     #==================== ANALYSIS PART ====================#
 
