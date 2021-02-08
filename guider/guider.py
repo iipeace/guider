@@ -60604,9 +60604,13 @@ class ThreadAnalyzer(object):
                     else:
                         maxBlkPer = 0
 
-                    if maxBlkPer > 0:
-                        maxBlkPerStr = '+%s%%' % maxBlkPer
-                    else:
+                    # get blocking time #
+                    try:
+                        if maxBlkPer > 0:
+                            maxBlkPerStr = '+%s%%' % maxBlkPer
+                        else:
+                            maxBlkPerStr = ''
+                    except:
                         maxBlkPerStr = ''
 
                     # check lifecycle event #
