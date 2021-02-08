@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210207"
+__revision__ = "210208"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3629,6 +3629,31 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def cleanItem(targetList, union=True):
+        targetType = type(targetList)
+
+        if targetType is str:
+            targetStr = ''
+            for val in targetList:
+                if val: targetStr = '%s%s' % (targetStr, val)
+            return targetStr
+        elif targetType is list:
+            # remove redundant values #
+            if union:
+                targetList = list(set(targetList))
+
+            # remove empty values #
+            newList = []
+            for val in targetList:
+                if val: newList.append(val.strip())
+
+            return newList
+        else:
+            return targetList
+
+
+
+    @staticmethod
     def printHist(table, title, unit):
         if not table:
             return
@@ -5712,7 +5737,7 @@ class NetworkMgr(object):
         def _onDownload(req):
             # parse path #
             plist = req.split('|', 1)[1]
-            path = SysMgr.cleanItem(plist.split('@'), False)
+            path = UtilMgr.cleanItem(plist.split('@'), False)
             if len(path) == 2:
                 origPath, targetPath = path
                 if origPath and not targetPath:
@@ -5781,7 +5806,7 @@ class NetworkMgr(object):
         def _onUpload(req):
             # parse path #
             plist = req.split('|', 1)[1]
-            path = SysMgr.cleanItem(plist.split('@'), False)
+            path = UtilMgr.cleanItem(plist.split('@'), False)
             if len(path) == 2:
                 origPath, targetPath = path
                 if origPath and not targetPath:
@@ -17133,6 +17158,35 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getUid(pid, itype='real'):
+        try:
+            path = '%s/status' % pid
+            data = SysMgr.procReadlines(path)
+
+            for line in data:
+                if line.startswith('Uid'):
+                    if itype == 'real':
+                        idx = 0
+                    elif itype == 'effective':
+                        idx = 1
+                    elif itype == 'saved':
+                        idx = 2
+                    elif itype == 'filesystem':
+                        idx = 3
+
+                    return long(line.split(':')[1].split()[idx])
+        except SystemExit:
+            sys.exit(0)
+        except:
+            comm = SysMgr.getComm(pid)
+            SysMgr.printErr(
+                'fail to get UID for %s(%s)' % (comm, pid), reason=True)
+
+        return 0
+
+
+
+    @staticmethod
     def getTgid(pid):
         statusPath = \
             '%s/%s/status' % (SysMgr.procPath, pid)
@@ -18458,8 +18512,11 @@ Examples:
     - Report analysis results of {2:2} to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - Report analysis results of {2:2} collected every 3 seconds for 5 minutes to ./guider.out
+    - Report analysis results of {2:2} collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
+
+    - Report analysis results of {2:2} collected every 3 seconds for 5 times to ./guider.out
+        # {0:1} {1:1} -R 3s:5 -o .
 
     - Report analysis results of {2:2} collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
@@ -18815,6 +18872,7 @@ Options:
 
 Examples:
     - Log a message
+        # {0:1} {1:1} "Hello World!"
         # {0:1} {1:1} -I "Hello World!"
                     '''.format(cmd, mode)
 
@@ -19642,6 +19700,9 @@ Description:
 Examples:
     - Monitor D-Bus messages
         # {0:1} {1:1}
+
+    - Monitor D-Bus messages including DBus interfaces
+        # {0:1} {1:1} -g dbus-daemon
 
     - Monitor D-Bus messages for dbus-client process
         # {0:1} {1:1} -g dbus-client
@@ -21532,7 +21593,7 @@ Copyright:
         if not arch or not arch:
             return
 
-        arch = SysMgr.cleanItem(arch)
+        arch = UtilMgr.cleanItem(arch)
 
         # set syscall table #
         if arch == 'arm':
@@ -24466,31 +24527,6 @@ Copyright:
 
 
     @staticmethod
-    def cleanItem(targetList, union=True):
-        targetType = type(targetList)
-
-        if targetType is str:
-            targetStr = ''
-            for val in targetList:
-                if val: targetStr = '%s%s' % (targetStr, val)
-            return targetStr
-        elif targetType is list:
-            # remove redundant values #
-            if union:
-                targetList = list(set(targetList))
-
-            # remove empty values #
-            newList = []
-            for val in targetList:
-                if val: newList.append(val.strip())
-
-            return newList
-        else:
-            return targetList
-
-
-
-    @staticmethod
     def getOverlayfsInfo(pid):
         data = SysMgr.getMountData(pid)
         mountList = SysMgr.convMountList(data)
@@ -24767,7 +24803,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.filterGroup = filterList.split(',')
             SysMgr.filterGroup = \
-                SysMgr.cleanItem(SysMgr.filterGroup)
+                UtilMgr.cleanItem(SysMgr.filterGroup)
             SysMgr.printInfo(
                 "only specific threads [ %s ] were recorded" % \
                 ', '.join(SysMgr.filterGroup))
@@ -24874,7 +24910,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.userCmd = str(filterList).split(',')
             SysMgr.userCmd = \
-                SysMgr.cleanItem(SysMgr.userCmd)
+                UtilMgr.cleanItem(SysMgr.userCmd)
             SysMgr.printInfo("profiled user events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SysMgr.userCmd]))
             SysMgr.userEventList = \
@@ -24888,7 +24924,7 @@ Copyright:
             filterList = filterList[:filterList.find(' -')].strip()
             SysMgr.kernelCmd = str(filterList).split(',')
             SysMgr.kernelCmd = \
-                SysMgr.cleanItem(SysMgr.kernelCmd)
+                UtilMgr.cleanItem(SysMgr.kernelCmd)
             SysMgr.printInfo("profiled kernel events [ %s ]" % \
                 ', '.join([ cmd.strip() for cmd in SysMgr.kernelCmd]))
             SysMgr.kernelEventList = \
@@ -25962,7 +25998,7 @@ Copyright:
 
         # split params #
         if value:
-            repeatParams = value.split(':')
+            repeatParams = UtilMgr.cleanItem(value.split(':'))
 
         if not value:
             SysMgr.intervalEnable = 1
@@ -26243,7 +26279,7 @@ Copyright:
                 SysMgr.checkOptVal(option, value)
 
                 SysMgr.preemptGroup = \
-                    SysMgr.cleanItem(value.split(','))
+                    UtilMgr.cleanItem(value.split(','))
 
             elif option == 'Y':
                 SysMgr.checkOptVal(option, value)
@@ -26319,11 +26355,11 @@ Copyright:
                 else:
                     union = True
 
-                SysMgr.customCmd = SysMgr.cleanItem(itemList, union=union)
+                SysMgr.customCmd = UtilMgr.cleanItem(itemList, union=union)
 
             elif option == 'g':
                 itemList = UtilMgr.splitString(value)
-                SysMgr.filterGroup = SysMgr.cleanItem(itemList)
+                SysMgr.filterGroup = UtilMgr.cleanItem(itemList)
 
             elif option == 'W':
                 SysMgr.waitEnable = True
@@ -26495,7 +26531,7 @@ Copyright:
             elif option == 'l':
                 if SysMgr.isDrawMode():
                     SysMgr.boundaryLine = \
-                        SysMgr.cleanItem(value.split(','))
+                        UtilMgr.cleanItem(value.split(','))
 
                     try:
                         cval = sorted(list(map(long, SysMgr.boundaryLine)))
@@ -26558,7 +26594,7 @@ Copyright:
                 SysMgr.checkOptVal(option, value)
 
                 SysMgr.perCoreList = \
-                    SysMgr.cleanItem(value.split(','))
+                    UtilMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
                     SysMgr.printErr(
                         "Input value for filter with -%s option" % option)
@@ -26585,7 +26621,7 @@ Copyright:
             elif option == 't' and \
                 not SysMgr.isRecordMode():
                 SysMgr.syscallList = \
-                    SysMgr.cleanItem(value.split(','))
+                    UtilMgr.cleanItem(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -26687,7 +26723,7 @@ Copyright:
 
             elif option == 'N':
                 SysMgr.checkOptVal(option, value)
-                networkList = SysMgr.cleanItem(value.split(','))
+                networkList = UtilMgr.cleanItem(value.split(','))
                 for item in networkList:
                     service, ip, port = NetworkMgr.parseAddr(item)
                     NetworkMgr.setRemoteNetwork(service, ip, port)
@@ -26782,7 +26818,7 @@ Copyright:
         elif option == 'z':
             SysMgr.checkOptVal(option, value)
             SysMgr.parseAffinityOption(
-                SysMgr.cleanItem(value.split(',')))
+                UtilMgr.cleanItem(value.split(',')))
 
         elif option == 'A':
             SysMgr.checkOptVal(option, value)
@@ -26815,7 +26851,7 @@ Copyright:
         elif option == 'G':
             SysMgr.checkOptVal(option, value)
             itemList = UtilMgr.splitString(value)
-            SysMgr.ignoreItemList = SysMgr.cleanItem(itemList, union=True)
+            SysMgr.ignoreItemList = UtilMgr.cleanItem(itemList, union=True)
             SysMgr.printInfo(
                 "applied ignore keyword [ %s ]" % \
                     ', '.join(SysMgr.ignoreItemList))
@@ -26918,7 +26954,7 @@ Copyright:
 
             elif option == 'g':
                 itemList = UtilMgr.splitString(value)
-                SysMgr.filterGroup = SysMgr.cleanItem(itemList)
+                SysMgr.filterGroup = UtilMgr.cleanItem(itemList)
                 if not SysMgr.filterGroup:
                     SysMgr.printErr(
                         "Input value for filter with -g option")
@@ -26938,12 +26974,12 @@ Copyright:
             elif option == 'U':
                 SysMgr.ueventEnable = True
                 itemList = UtilMgr.splitString(value)
-                SysMgr.userCmd = SysMgr.cleanItem(itemList)
+                SysMgr.userCmd = UtilMgr.cleanItem(itemList)
 
             elif option == 'K':
                 SysMgr.keventEnable = True
                 itemList = UtilMgr.splitString(value)
-                SysMgr.kernelCmd = SysMgr.cleanItem(itemList)
+                SysMgr.kernelCmd = UtilMgr.cleanItem(itemList)
 
             elif option == 'M':
                 SysMgr.objdumpPath = value
@@ -26981,7 +27017,7 @@ Copyright:
             elif option == 't':
                 SysMgr.sysEnable = True
                 SysMgr.syscallList = \
-                    SysMgr.cleanItem(value.split(','))
+                    UtilMgr.cleanItem(value.split(','))
                 enabledSyscall = []
 
                 for val in SysMgr.syscallList:
@@ -27016,7 +27052,7 @@ Copyright:
 
             elif option == 'c':
                 itemList = UtilMgr.splitString(value)
-                SysMgr.customCmd = SysMgr.cleanItem(itemList)
+                SysMgr.customCmd = UtilMgr.cleanItem(itemList)
                 if not SysMgr.customCmd:
                     SysMgr.printErr(
                         "fail to recognize custom events")
@@ -28711,7 +28747,7 @@ Copyright:
                 SysMgr.filterGroup = (' '.join(ulist[1:])).split(',')
 
             SysMgr.filterGroup = \
-                SysMgr.cleanItem(SysMgr.filterGroup)
+                UtilMgr.cleanItem(SysMgr.filterGroup)
 
             if SysMgr.isThreadMode():
                 mode = 'threads'
@@ -29554,7 +29590,7 @@ Copyright:
         def _onDownload(netObj, value, response):
             # pick path #
             try:
-                files = SysMgr.cleanItem(value.split('@', 1), False)
+                files = UtilMgr.cleanItem(value.split('@', 1), False)
                 if len(files) == 2:
                     src, des = files
                     if src and not des:
@@ -29621,7 +29657,7 @@ Copyright:
 
         def _onUpload(netObj, value, response):
             try:
-                files = SysMgr.cleanItem(value.split('@', 1), False)
+                files = UtilMgr.cleanItem(value.split('@', 1), False)
                 if len(files) == 2:
                     src, des = files
                     if src and not des:
@@ -30090,7 +30126,7 @@ Copyright:
         # get argument #
         if SysMgr.hasMainArg():
             cmdList = SysMgr.getMainArg().split(',')
-            cmdList = SysMgr.cleanItem(cmdList, False)
+            cmdList = UtilMgr.cleanItem(cmdList, False)
         elif SysMgr.customCmd:
             cmdList = SysMgr.customCmd
         else:
@@ -30801,7 +30837,7 @@ Copyright:
         # check filter #
         if SysMgr.inputParam:
             filters = SysMgr.inputParam.split(',')
-            filters = SysMgr.cleanItem(filters)
+            filters = UtilMgr.cleanItem(filters)
         else:
             filters = []
 
@@ -33153,7 +33189,7 @@ Copyright:
         try:
             if SysMgr.hasMainArg():
                 opList = SysMgr.getMainArg().split(',')
-                opList = SysMgr.cleanItem(opList, False)
+                opList = UtilMgr.cleanItem(opList, False)
             elif SysMgr.filterGroup:
                 opList = SysMgr.filterGroup
             else:
@@ -35480,7 +35516,7 @@ Copyright:
         SysMgr.checkRootPerm()
 
         schedGroup = value.split(',')
-        schedGroup = SysMgr.cleanItem(schedGroup)
+        schedGroup = UtilMgr.cleanItem(schedGroup)
         for item in schedGroup:
             schedSet = item.split(':')
 
@@ -37562,12 +37598,7 @@ Copyright:
 
         # user name #
         try:
-            data = SysMgr.procReadlines('self/status')
-
-            for line in data:
-                if line.startswith('Uid'):
-                    uid = line.split(':')[1].split()[0]
-                    break
+            uid = str(SysMgr.getUid('self'))
 
             SysMgr.infoBufferPrint(
                 "{0:20} {1:<100}".format('User', self.userData[uid]['name']))
@@ -38664,7 +38695,7 @@ Copyright:
         if SysMgr.hasMainArg():
             # get filter for subsystems #
             items = SysMgr.getMainArg().split(',')
-            items = SysMgr.cleanItem(items)
+            items = UtilMgr.cleanItem(items)
 
             # remove subsystems from tree #
             for subsystem in list(cgroupTree.keys()):
@@ -39648,9 +39679,29 @@ class DbusAnalyzer(object):
 
     @staticmethod
     def getBus(bus, tid=None, addr=None):
+        def setEuid():
+            # set EUID #
+            try:
+                euidOrig = os.geteuid()
+                if tid:
+                    euidNew = SysMgr.getUid(tid, 'effective')
+                    os.seteuid(euidNew)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                comm = SysMgr.getComm(tid)
+                SysMgr.printErr(
+                    "fail to set EUID for %s(%s)'s one" % \
+                        (comm, tid), reason=True)
+
+            return euidOrig
+
+
+
         dbusObj = SysMgr.libdbusObj
         name = "guider.method.caller".encode()
 
+        # get bus type #
         if bus == 'system':
             bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
         elif bus == 'session' or bus == 'user':
@@ -39659,9 +39710,14 @@ class DbusAnalyzer(object):
             SysMgr.printWarn("fail to recognize %s bus" % bus)
             return None
 
+        # set EUID #
+        euidOrig = setEuid()
+
         # get connection #
-        conn = dbusObj.dbus_bus_get(bustype, DbusAnalyzer.getErrP())
-        if not conn:
+        conn = dbusObj.dbus_bus_get_private(bustype, DbusAnalyzer.getErrP())
+        if conn:
+            conn = dbusObj.dbus_connection_ref(conn)
+        else:
             # get connection by session address #
             ADDRENV = 'DBUS_SESSION_BUS_ADDRESS'
             if ADDRENV in os.environ:
@@ -39670,6 +39726,9 @@ class DbusAnalyzer(object):
                 conn = dbusObj.dbus_connection_open(
                     address, DbusAnalyzer.getErrP())
             else:
+                # recover EUID #
+                os.seteuid(euidOrig)
+
                 envList = SysMgr.getEnv(tid)
                 for env in envList:
                     if env.startswith(ADDRENV):
@@ -39680,6 +39739,7 @@ class DbusAnalyzer(object):
 
             # check error #
             if conn:
+                conn = dbusObj.dbus_connection_ref(conn)
                 ret = dbusObj.dbus_bus_set_unique_name(
                     c_void_p(conn), c_char_p(name))
                 ret = dbusObj.dbus_bus_get_unique_name(c_void_p(conn))
@@ -39708,6 +39768,24 @@ class DbusAnalyzer(object):
                 "fail to request D-Bus bus name to %s because %s" % \
                     (name.decode(), DbusAnalyzer.getErrInfo()))
         '''
+
+        # check connection #
+        if dbusObj.dbus_connection_get_is_connected(conn) == 0:
+            SysMgr.printWarn(
+                'D-bus bus is not connected yet')
+
+        # send a message for method call #
+        if dbusObj.dbus_connection_get_is_authenticated(conn) == 0:
+            path = '/org/freedesktop/DBus'
+            des = iface = 'org.freedesktop.DBus'
+            method = 'Hello'
+            DbusAnalyzer.callMethod(conn, des, path, iface, method)
+
+        # recover EUID #
+        try:
+            os.seteuid(euidOrig)
+        except:
+            pass
 
         return conn
 
@@ -39852,6 +39930,37 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
+    def callMethod(conn, des, path, iface, method, timeout=None):
+        dbusObj = SysMgr.libdbusObj
+
+        if timeout is None:
+            timeout = c_int(-1)
+
+        # create a message for method call #
+        msg = dbusObj.dbus_message_new_method_call(
+            des.encode(), path.encode(),
+            iface.encode(), method.encode())
+        if not msg:
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn("fail to create a D-Bus message")
+            return msg, None
+
+        # call a remote method #
+        reply = dbusObj.dbus_connection_send_with_reply_and_block(
+            conn, msg, timeout, DbusAnalyzer.getErrP())
+        if not reply:
+            dbusObj.dbus_message_unref(msg)
+            dbusObj.dbus_connection_unref(conn)
+            SysMgr.printWarn(
+                "fail to call a D-Bus remote method because %s" % \
+                    DbusAnalyzer.getErrInfo())
+            return msg, reply
+
+        return msg, reply
+
+
+
+    @staticmethod
     def getStats(bus, request, des=None):
         if not bus:
             return
@@ -39888,24 +39997,10 @@ class DbusAnalyzer(object):
             SysMgr.printErr('unknown request %s' % request)
             sys.exit(0)
 
-        # create a message for method call #
-        msg = dbusObj.dbus_message_new_method_call(
-            des.encode(), path.encode(),
-            iface.encode(), method.encode())
-        if not msg:
-            dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("fail to create a D-Bus message")
-            return
-
-        # call a remote method #
-        reply = dbusObj.dbus_connection_send_with_reply_and_block(
-            conn, msg, timeout, DbusAnalyzer.getErrP())
-        if not reply:
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn(
-                "fail to call a D-Bus remote method because %s" % \
-                    DbusAnalyzer.getErrInfo())
+        # send a message for method call #
+        msg, reply = DbusAnalyzer.callMethod(
+            conn, des, path, iface, method, timeout)
+        if not msg or not reply:
             return
 
         # prepare args #
@@ -40246,23 +40341,10 @@ class DbusAnalyzer(object):
         path = '/'
         iface = des
         method = 'ListNames'
-        msg = dbusObj.dbus_message_new_method_call(
-            des.encode(), path.encode(),
-            iface.encode(), method.encode())
-        if not msg:
-            dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn("fail to create a D-Bus message")
-            return
 
-        # call a remote method #
-        reply = dbusObj.dbus_connection_send_with_reply_and_block(
-            conn, msg, -1, DbusAnalyzer.getErrP())
-        if not reply:
-            dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
-            SysMgr.printWarn(
-                "fail to call a D-Bus remote method because %s" % \
-                    DbusAnalyzer.getErrInfo())
+        # send a message for method call #
+        msg, reply = DbusAnalyzer.callMethod(conn, des, path, iface, method)
+        if not msg or not reply:
             return
 
         # prepare args #
@@ -40848,8 +40930,9 @@ class DbusAnalyzer(object):
             try:
                 # check syscall #
                 if ctype == "sendmsg" or ctype == "recvmsg":
-                    msgList = jsonData["args"]["msg"]["msg_iov"]
-                    _handleMsg(ctype, msgList, jsonData, data)
+                    if type(jsonData["args"]["msg"]) is dict:
+                        msgList = jsonData["args"]["msg"]["msg_iov"]
+                        _handleMsg(ctype, msgList, jsonData, data)
                 elif ctype == "sendmmsg" or ctype == "recvmmsg":
                     for idx, value in jsonData["args"]["msg"].items():
                         msgList = value["msg_iov"]
@@ -41084,10 +41167,12 @@ class DbusAnalyzer(object):
                             addInfo = " %s.%s" % \
                                 (iface.decode(), member.decode())
 
+                        mtime = jsonData['time']
+
                         msgStr = \
-                            "[%s] %s(%s) %s->%s %s %g %s%s" % \
-                            (mtype, jsonData['comm'], tid, srcInfo, desInfo,
-                                direction, jsonData['timediff'],
+                            "[%s] %.6f %s(%s) %s->%s %s %g %s%s" % \
+                            (mtype, mtime, jsonData['comm'], tid, srcInfo,
+                                desInfo, direction, jsonData['timediff'],
                                 UtilMgr.convSize2Unit(hsize), addInfo)
 
                         if effectiveReply:
@@ -41308,7 +41393,7 @@ class DbusAnalyzer(object):
             sys.exit(0)
         else:
             # remove redundant tasks #
-            taskList = SysMgr.cleanItem(taskList)
+            taskList = UtilMgr.cleanItem(taskList)
             taskList.sort(key=int)
             SysMgr.printInfo((
                 "only specific processes that are involved "
@@ -42317,7 +42402,7 @@ class DltAnalyzer(object):
         flist = []
         if SysMgr.hasMainArg():
             flist = SysMgr.getMainArg().split(',')
-            flist = SysMgr.cleanItem(flist)
+            flist = UtilMgr.cleanItem(flist)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
                 ret = UtilMgr.convPath(item.strip())
@@ -48505,7 +48590,7 @@ struct cmsghdr {
             self.needMapScan = False
 
         # check calls for memory map update #
-        if sym.startswith('mmap') and self.readArgs()[4] > 0:
+        if sym.startswith('mmap'):
             self.needMapScan = True
         elif sym.startswith('munmap'):
             unmapAddr = self.readArgs()[0]
@@ -58339,7 +58424,7 @@ class ThreadAnalyzer(object):
         if not SysMgr.filterGroup and SysMgr.hasMainArg():
             value = SysMgr.getMainArg()
             value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = SysMgr.cleanItem(value)
+            SysMgr.filterGroup = UtilMgr.cleanItem(value)
 
         # run loop #
         while 1:
@@ -58416,7 +58501,7 @@ class ThreadAnalyzer(object):
         if not SysMgr.filterGroup and SysMgr.hasMainArg():
             value = SysMgr.getMainArg()
             value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = SysMgr.cleanItem(value)
+            SysMgr.filterGroup = UtilMgr.cleanItem(value)
 
         # import select package in the foreground #
         if not SysMgr.outPath:
@@ -58488,7 +58573,7 @@ class ThreadAnalyzer(object):
         if not SysMgr.filterGroup and SysMgr.hasMainArg():
             value = SysMgr.getMainArg()
             value = UtilMgr.splitString(value)
-            SysMgr.filterGroup = SysMgr.cleanItem(value)
+            SysMgr.filterGroup = UtilMgr.cleanItem(value)
 
         # import select package in the foreground #
         if not SysMgr.outPath:
@@ -59542,7 +59627,7 @@ class ThreadAnalyzer(object):
         # pylint: disable=undefined-variable
         if 'YRANGE' in SysMgr.environList:
             yrange = SysMgr.environList['YRANGE'][0].split(':')
-            yminval, ymaxval = SysMgr.cleanItem(yrange, False)
+            yminval, ymaxval = UtilMgr.cleanItem(yrange, False)
 
             # set ymin #
             if yminval:
@@ -65737,7 +65822,7 @@ class ThreadAnalyzer(object):
 
         # Get Cgroup resource usage #
         elif len(tokenList) == 8:
-            tokenList = SysMgr.cleanItem(tokenList, False)
+            tokenList = UtilMgr.cleanItem(tokenList, False)
 
             system, proc, task, cpu, mem, read, write = tokenList
 
