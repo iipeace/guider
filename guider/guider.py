@@ -42974,6 +42974,7 @@ class Debugger(object):
         self.syscallAddr = None
         self.syscallFound = True
         self.callTable = {}
+        self.btTable = {}
         self.fileTable = {}
         self.bpList = {}
         self.bpNewList = {}
@@ -47033,12 +47034,18 @@ struct cmsghdr {
 
             # backtrace #
             if value['backtrace']:
+                # backup backtraces #
+                if SysMgr.outPath:
+                    self.btTable.setdefault(sym, dict())
+                    for bt, cnt in value['backtrace'].items():
+                        self.btTable[sym].setdefault(bt, 0)
+                        self.btTable[sym][bt] += cnt
+
                 for bt, cnt in sorted(value['backtrace'].items(),
                     key=lambda x:x[1], reverse=True):
 
                     bper = cnt / float(value['cnt']) * 100
-                    if bper < 1 and \
-                        not SysMgr.showAll:
+                    if bper < 1 and not SysMgr.showAll:
                         break
 
                     nline = bt.count('\n') + 1
@@ -50921,11 +50928,13 @@ struct cmsghdr {
             if sym[0] == '/':
                 sym = '??'
 
+            # get percentage #
             try:
                 per = value['cnt'] / nrTotal * 100
             except:
                 break
 
+            # add stats #
             if instance.mode == 'syscall':
                 addVal = '<Cnt: %s>' % convert(value['cnt'])
             elif instance.mode == 'break':
@@ -50953,6 +50962,15 @@ struct cmsghdr {
                 '{0:>7} | {1:<144}{2:1}'.format(
                     '%.1f%%' % per, '%s %s' % (sym, addVal), suffix))
 
+            # add backtraces #
+            if sym in instance.btTable:
+                for bt, btcnt in sorted(instance.btTable[sym].items(),
+                    key=lambda x:x[1], reverse=True):
+
+                    bper = btcnt / float(value['cnt']) * 100
+                    ret = SysMgr.printPipe(
+                        '{0:>17} | {1:<1}'.format('%.1f%%' % bper, bt))
+
             cnt += 1
 
         if cnt == 0:
@@ -50960,14 +50978,14 @@ struct cmsghdr {
 
         SysMgr.printPipe('%s%s' % (oneLine, suffix))
 
+        # print histo stats for elapsed time #
         if elapsedTable:
-            # print histo stats for elapsed time #
             elapsedTable = UtilMgr.convList2Histo(
                 elapsedTable, mult=1000000)
             UtilMgr.printHist(elapsedTable, 'elapsed', 'us')
 
+        # print file table #
         if fileTable:
-            # print file table #
             SysMgr.printPipe((
                 '\n[%s File Summary] [Elapsed: %.3f]%s%s '
                 '[NrSamples: %s(%s%%)] [NrFiles: %s] %s') % \
