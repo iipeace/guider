@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210208"
+__revision__ = "210209"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18141,6 +18141,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('drawreq') and \
                 not SysMgr.checkMode('readelf') and \
                 not SysMgr.checkMode('addr2sym') and \
+                not SysMgr.checkMode('mkcache') and \
                 not SysMgr.checkMode('sym2addr') and \
                 not SysMgr.checkMode('topdiff') and \
                 not SysMgr.checkMode('topsum') and \
@@ -18313,6 +18314,7 @@ class SysMgr(object):
                 'kill/tkill': 'Signal',
                 'leaktrace': 'Leak',
                 'limitcpu': 'CPU',
+                'mkcache': 'Cache',
                 'pause': 'Thread',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
@@ -18677,6 +18679,12 @@ Examples:
     - Print all function calls except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
+    - Print all function calls for a specific thread after loading all symbols in stop status
+        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+
+    - Print all function calls except for no symbol functions for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+
     - Print all function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
@@ -18707,9 +18715,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
     - Print specific function calls including specific word
-        # {0:1} {1:1} -g 1234 -c \\*printPeace
-        # {0:1} {1:1} -g 1234 -c printPeace\\*
-        # {0:1} {1:1} -g 1234 -c \\*printPeace\\*
+        # {0:1} {1:1} -g 1234 -c "*printPeace"
+        # {0:1} {1:1} -g 1234 -c "printPeace*"
+        # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
     - Print all function calls in specific files
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
@@ -18718,9 +18726,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
     - Handle specific function calls including specific word as a stop point
-        # {0:1} {1:1} -g a.out -c \\*printPeace|stop
-        # {0:1} {1:1} -g a.out -c printPeace\\*|stop
-        # {0:1} {1:1} -g a.out -c \\*printPeace\\*|stop
+        # {0:1} {1:1} -g a.out -c "*printPeace|stop"
+        # {0:1} {1:1} -g a.out -c "printPeace*|stop"
+        # {0:1} {1:1} -g a.out -c "*printPeace*|stop"
 
     - Handle all function calls as a 0.1 second sleep point
         # {0:1} {1:1} -g a.out -c \\|sleep:0.1
@@ -19411,6 +19419,9 @@ Examples:
 
     - Monitor function calls except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+
+    - Monitor function calls except for no symbol functions for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
 
     - Monitor function calls for a specific thread after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
@@ -20575,12 +20586,11 @@ Examples:
         # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out:"ls -lha"
                     '''.format(cmd, mode)
 
-
                 # addr2sym #
                 elif SysMgr.checkMode('addr2sym'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <FILE> -g <OFFSET> [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE|PID|COMM> -g <OFFSET> [OPTIONS] [--help]
 
 Description:
     Show symbols of specific addresses in a file or a process memory map
@@ -20600,11 +20610,34 @@ Examples:
         # {0:1} {1:1} -I yes -g ab1cf
                     '''.format(cmd, mode)
 
+                # mkcache #
+                elif SysMgr.checkMode('mkcache'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE|COMM|PID> -g <OFFSET> [OPTIONS] [--help]
+
+Description:
+    Make ELF caches
+
+Options:
+    -I  <FILE|COMM|PID>         set input path or process
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Make ELF caches for a.out and yes processes
+        # {0:1} {1:1} a.out, yes
+
+    - Make ELF caches for /usr/bin/yes
+        # {0:1} {1:1} /usr/bin/yes
+                    '''.format(cmd, mode)
+
                 # sym2addr#
                 elif SysMgr.checkMode('sym2addr'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -I <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
+    # {0:1} {1:1} <FILE|COMM|PID> -g <SYMBOL> [OPTIONS] [--help]
 
 Description:
     Show files and offset of specific symbols in a file or a process memory map
@@ -20624,9 +20657,9 @@ Examples:
         # {0:1} {1:1} -I /usr/bin/yes -g
 
     - Print infomation of specific symbols including specific word in a file
-        # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc
-        # {0:1} {1:1} -I /usr/bin/yes -g testFunc\\*
-        # {0:1} {1:1} -I /usr/bin/yes -g \\*testFunc\\*
+        # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc"
+        # {0:1} {1:1} -I /usr/bin/yes -g "testFunc*"
+        # {0:1} {1:1} -I /usr/bin/yes -g "*testFunc*"
 
     - Print infomation of specific symbols including specific word in a file
         # {0:1} {1:1} -I ~/test/mutex -g "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
@@ -25666,9 +25699,11 @@ Copyright:
         log = ('\n%s%s%s%s%s%s\n' % \
             (color, '[WARN] ', proc, line, rstring, colorl))
 
+        # write log #
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
 
+        # write log #
         if 'REMOTERUN' in os.environ:
             print(log.replace('\n', ''))
         else:
@@ -25708,9 +25743,11 @@ Copyright:
         log = ('\n%s%s%s%s%s%s\n' % \
             (color, '[ERROR] ', proc, line, rstring, colorl))
 
+        # write log #
         if SysMgr.stdlog:
             SysMgr.stdlog.write(log)
 
+        # write log #
         if 'REMOTERUN' in os.environ:
             print(log.replace('\n', ''))
         else:
@@ -26248,19 +26285,6 @@ Copyright:
             elif option == 'I':
                 SysMgr.inputParam = value.strip()
 
-            elif option == 'L':
-                if not value:
-                    SysMgr.printErr(
-                        "no option value with -%s option" % option)
-                    sys.exit(0)
-                elif SysMgr.isDrawMode():
-                    SysMgr.layout = value
-                elif not SysMgr.stdlog:
-                    if os.path.isdir(value):
-                        value = os.path.join(value, 'guider.log')
-                    SysMgr.printInfo("use '%s' for log" % value)
-                    SysMgr.stdlog = LogMgr(value)
-
             elif option == 'w':
                 SysMgr.checkOptVal(option, value)
                 SysMgr.rcmdList = \
@@ -26764,7 +26788,23 @@ Copyright:
         if value:
             value = value.strip()
 
-        if option == 'o':
+        if option == 'f':
+            SysMgr.forceEnable = True
+
+        elif option == 'L':
+            if not value:
+                SysMgr.printErr(
+                    "no option value with -%s option" % option)
+                sys.exit(0)
+            elif SysMgr.isDrawMode():
+                SysMgr.layout = value
+            elif not SysMgr.stdlog:
+                if os.path.isdir(value):
+                    value = os.path.join(value, 'guider.log')
+                SysMgr.printInfo("use '%s' for log" % value)
+                SysMgr.stdlog = LogMgr(value)
+
+        elif option == 'o':
             # apply default path #
             if value == '':
                 value = '.'
@@ -26780,9 +26820,6 @@ Copyright:
 
         elif option == 's':
             SysMgr.applySaveOption(value)
-
-        elif option == 'f':
-            SysMgr.forceEnable = True
 
         elif option == 'H':
             try:
@@ -26811,9 +26848,6 @@ Copyright:
         elif option == 'R':
             SysMgr.checkOptVal(option, value)
             SysMgr.parseRuntimeOption(value)
-
-        elif option == 'u':
-            SysMgr.runBackgroundMode()
 
         elif option == 'z':
             SysMgr.checkOptVal(option, value)
@@ -26856,11 +26890,14 @@ Copyright:
                 "applied ignore keyword [ %s ]" % \
                     ', '.join(SysMgr.ignoreItemList))
 
+        elif option == 'u':
+            SysMgr.runBackgroundMode()
+
 
 
     @staticmethod
     def isCommonOption(option):
-        optionList = 'ACEGHQRWfoqsuz'
+        optionList = 'ACEGHLQRWfoqsuz'
         if option in optionList:
             return True
         else:
@@ -27449,6 +27486,10 @@ Copyright:
         # SYM2ADDR MODE #
         elif SysMgr.checkMode('sym2addr'):
             SysMgr.doSym2addr()
+
+        # MKCACHE MODE #
+        elif SysMgr.checkMode('mkcache'):
+            SysMgr.doMkCache()
 
         # PRINTDIR MODE #
         elif SysMgr.checkMode('printdir'):
@@ -31582,12 +31623,8 @@ Copyright:
             mode == 'breakcall' or mode == 'hook' or \
             SysMgr.funcDepth > 0)
 
-        # check DWARF requirement #
-        if not SysMgr.dwarfEnable and \
-            (SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM'):
-            disableList = SysMgr.getOption('d')
-            if not disableList or not 'D' in disableList:
-                SysMgr.dwarfEnable = True
+        # set dwarf flag #
+        SysMgr.setDwarfFlag()
 
         # get pids #
         if not inputParam:
@@ -31887,7 +31924,7 @@ Copyright:
                     resInfo[addr] = ['??', '??', 'N/A']
 
         if procInfo:
-            procInfo = ' for %s' % procInfo
+            procInfo = ' [Task: %s]' % procInfo
 
         # make space between symbol and path #
         maxSymLen += 4
@@ -32262,6 +32299,98 @@ Copyright:
 
 
     @staticmethod
+    def setDwarfFlag():
+        # check DWARF requirement #
+        if not SysMgr.dwarfEnable and \
+            (SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM'):
+            disableList = SysMgr.getOption('d')
+            if not disableList or not 'D' in disableList:
+                SysMgr.dwarfEnable = True
+
+
+
+    @staticmethod
+    def doMkCache():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        # set dwarf flag #
+        SysMgr.setDwarfFlag()
+
+        # check input #
+        if SysMgr.hasMainArg():
+            inputArg = SysMgr.getMainArg().split(',')
+            inputArg = UtilMgr.cleanItem(inputArg, True)
+        elif SysMgr.inputParam:
+            inputArg = str(SysMgr.inputParam).split(',')
+            inputArg = UtilMgr.cleanItem(inputArg, True)
+        else:
+            SysMgr.printErr(
+                "no PATH or COMM or PID with -I option")
+            sys.exit(0)
+
+        # get pid list #
+        pids = []
+        for item in inputArg:
+            pids = SysMgr.getPids(item)
+            taskList = []
+            for tid in pids:
+                taskList.append(SysMgr.getTgid(tid))
+            pids += list(set(taskList))
+        pids = list(set(pids))
+
+        # single file #
+        if not pids:
+            for item in inputArg:
+                # check file #
+                if not os.path.isfile(item):
+                    SysMgr.printErr(
+                        "fail to recognize %s as a file or a process" % item)
+                    sys.exit(0)
+
+                ElfAnalyzer.getObject(item)
+        else:
+            procList = {}
+
+            # get pid list #
+            for tid in pids:
+                try:
+                    pid = SysMgr.getTgid(tid)
+                    if not pid:
+                        continue
+
+                    procList.setdefault(pid, list())
+                    procList[pid].append(tid)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+            pidList = list(map(long, procList.keys()))
+
+            # merge map files #
+            mapList = []
+            getProcMapInfo = FileAnalyzer.getProcMapInfo
+            for pid in pidList:
+                mapList += getProcMapInfo(pid, onlyExec=True).keys()
+            mapList = list(set(mapList))
+
+            # load symbol caches at once #
+            printLog = True
+            for item in mapList:
+                try:
+                    eobj = ElfAnalyzer.getObject(item, log=printLog)
+                    if len(pidList) == 1 and eobj:
+                        eobj.mergeSymTable()
+                        if printLog:
+                            printLog = False
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+
+
+    @staticmethod
     def doSym2addr():
         SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -32344,7 +32473,7 @@ Copyright:
                     maxSymLen = len(item[3])
 
         if procInfo:
-            procInfo = ' for %s' % procInfo
+            procInfo = ' [Task: %s]' % procInfo
 
         # make space between symbol and path #
         maxSymLen += 4
@@ -40483,11 +40612,29 @@ class DbusAnalyzer(object):
         dbusObj.dbus_connection_open.argtypes = [c_char_p, c_void_p]
         dbusObj.dbus_connection_open.restype = c_void_p
 
+        dbusObj.dbus_connection_open_private.argtypes = [c_char_p, c_void_p]
+        dbusObj.dbus_connection_open_private.restype = c_void_p
+
+        dbusObj.dbus_bus_get_private.argtypes = [c_uint, c_void_p]
+        dbusObj.dbus_bus_get_private.restype = c_void_p
+
+        dbusObj.dbus_connection_ref.argtypes = [c_void_p,]
+        dbusObj.dbus_connection_ref.restype = c_void_p
+
         dbusObj.dbus_bus_get_unique_name.argtypes = [c_void_p]
         dbusObj.dbus_bus_get_unique_name.restype = c_char_p
 
         dbusObj.dbus_bus_set_unique_name.argtypes = [c_void_p, c_char_p]
         dbusObj.dbus_bus_set_unique_name.restype = c_bool
+
+        dbusObj.dbus_connection_get_is_connected.argtypes = [c_void_p,]
+        dbusObj.dbus_connection_get_is_connected.restype = c_bool
+
+        dbusObj.dbus_connection_get_is_authenticated.argtypes = [c_void_p,]
+        dbusObj.dbus_connection_get_is_authenticated.restype = c_bool
+
+        dbusObj.dbus_connection_get_is_anonymous.argtypes = [c_void_p,]
+        dbusObj.dbus_connection_get_is_anonymous.restype = c_bool
 
         dbusObj.dbus_bus_register.argtypes = [c_void_p, c_void_p]
         dbusObj.dbus_bus_register.restype = c_bool
@@ -42717,6 +42864,7 @@ class Debugger(object):
     RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
     targetNum = -1
     exceptWait = False
+    exceptNoSymbol = False
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -43191,6 +43339,11 @@ struct cmsghdr {
         if not Debugger.exceptWait and \
             'EXCEPTWAIT' in SysMgr.environList:
             Debugger.exceptWait = True
+
+        # ignore non-symbol function #
+        if not Debugger.exceptNoSymbol and \
+            'EXCEPTNOSYM' in SysMgr.environList:
+            Debugger.exceptNoSymbol= True
 
 
 
@@ -45108,6 +45261,12 @@ struct cmsghdr {
         reins=False, cmd=None, origWord=None):
 
         procInfo = '%s(%s)' % (self.comm, self.pid)
+
+        # skip no symbol function #
+        if Debugger.exceptNoSymbol and sym and sym.startswith('0x'):
+            SysMgr.printWarn(
+                'skip injecting breakpoint for no symbol function %s' % sym)
+            return False
 
         # get original instruction #
         if addr in self.bpList:
