@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210209"
+__revision__ = "210210"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18637,6 +18637,7 @@ Examples:
 Commands:
     acc      [NAME:VAR|REG|VAL]
     check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
+    condexit
     dist     [NAME:VAR|REG|VAL]
     dump     [NAME|ADDR:FILE]
     exec     [CMD]
@@ -18684,6 +18685,9 @@ Examples:
 
     - Print all function calls except for no symbol functions for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+
+    - Print all function calls except for ld for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTLD
 
     - Print all function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -18764,6 +18768,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|getret
         # {0:1} {1:1} -g a.out -c write\\|getret:stop\\$print
 
+    - Handle return address for a write function call as a start point for all functions
+        # {0:1} {1:1} -g a.out -c write\\|getret:start
+
     - Handle write function calls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write\\|getret -q ELAPSED:0.1
 
@@ -18794,8 +18801,9 @@ Examples:
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
         # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
 
-    - Print write function calls if only the elapsed time exceed 0.0005 second
+    - Print return status for write function calls if only the elapsed time exceed 0.0005 second
         # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005
+        # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005 -H -a
 
     - Print write function calls with specific conditions
         # {0:1} {1:1} -g a.out -c write\\|check:2:EQ:4096
@@ -18810,8 +18818,14 @@ Examples:
     - Handle write function calls as a print point for 1st and 2nd arguments and save its return value
         # {0:1} {1:1} -g a.out -c write\\|getarg:0:1\\|save:writeRet
 
-    - Handle a write function call as a starting trace point for all functions
+    - Handle a write function call as a start point for all functions
         # {0:1} {1:1} -g a.out -c write\\|start
+
+    - Handle a write function call as a exit point
+        # {0:1} {1:1} -g a.out -c write\\|exit
+
+    - Handle specific call points as a profiling distance
+        # {0:1} {1:1} -g a.out -c open\|start, close\|getret:condexit
 
     - Handle a write function call as a call point for sleep
         # {0:1} {1:1} -g a.out -c write\\|usercall:sleep#3
@@ -18824,9 +18838,6 @@ Examples:
 
     - Handle a write function call as a load point for /usr/lib/preload.so
         # {0:1} {1:1} -g a.out -c write\\|load:/usr/lib/preload.so
-
-    - Handle a write function call as a exit point
-        # {0:1} {1:1} -g a.out -c write\\|exit
 
     - Handle a write function call as a thread creation point
         # {0:1} {1:1} -g a.out -c write\\|thread
@@ -42861,10 +42872,11 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
     selfInstance = None
-    RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
+    RETSTR = None
     targetNum = -1
     exceptWait = False
     exceptNoSymbol = False
+    exceptLD = False
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -43102,6 +43114,7 @@ class Debugger(object):
         self.sampleTime = long(0)
         self.targetNum = 0
         self.childNum = 0
+        self.startProfFlag = False
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -43335,6 +43348,10 @@ struct cmsghdr {
                 "set the number of target to '%s' for new threads" % \
                     Debugger.targetNum)
 
+        # apply color for return string #
+        if not Debugger.RETSTR:
+            Debugger.RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
+
         # ignore wait function #
         if not Debugger.exceptWait and \
             'EXCEPTWAIT' in SysMgr.environList:
@@ -43344,6 +43361,11 @@ struct cmsghdr {
         if not Debugger.exceptNoSymbol and \
             'EXCEPTNOSYM' in SysMgr.environList:
             Debugger.exceptNoSymbol= True
+
+        # ignore ld function #
+        if not Debugger.exceptLD and \
+            'EXCEPTLD' in SysMgr.environList:
+            Debugger.exceptLD = True
 
 
 
@@ -43796,6 +43818,10 @@ struct cmsghdr {
                 cmdformat = "NAME|ADDR:FILE"
             elif cmd == 'start':
                 cmdformat = ""
+            elif cmd == 'exit':
+                cmdformat = ""
+            elif cmd == 'condexit':
+                cmdformat = ""
             elif cmd == 'map':
                 cmdformat = ""
             elif cmd == 'stop':
@@ -43824,7 +43850,7 @@ struct cmsghdr {
                     (cmdset, cmd, cmdformat))
             sys.exit(0)
 
-        def handleCmd(cmdset, cmd):
+        def _handleCmd(cmdset, cmd):
             repeat = True
 
             # check repeat #
@@ -43836,7 +43862,7 @@ struct cmsghdr {
                 cmd = cmdset[0]
 
             # pick a command #
-            cmdstr = '%8s' % cmd
+            cmdstr = UtilMgr.convColor('%8s' % cmd, 'BOLD')
 
             if cmd == 'print':
                 if SysMgr.showAll:
@@ -43902,7 +43928,8 @@ struct cmsghdr {
                         targetAddr = \
                             self.readMem(targetAddr, retWord=True)
 
-                SysMgr.addPrint("\n[%s] 0x%x" % (cmdstr, ret))
+                retval = "0x%x" % ret
+                SysMgr.addPrint("\n[%s] %s" % (cmdstr, retval))
 
                 # set register values #
                 self.setRet(ret)
@@ -43916,11 +43943,12 @@ struct cmsghdr {
                 else:
                     cmd = None
 
+                # set breakpoint to return address #
                 ret = self.setRetBp(sym, fname, cmd)
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
-                        "return position for %s") % sym)
+                        "return address for %s") % sym)
                     return repeat
 
             elif cmd == 'setret':
@@ -43938,14 +43966,19 @@ struct cmsghdr {
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
-                        "return position for %s") % sym)
+                        "return address for %s") % sym)
                     return repeat
 
                 # register a return value #
                 newSym = '%s%s' % (sym, Debugger.RETSTR)
                 val = memset[0]
-                self.setRetList[newSym] = long(val)
+                try:
+                    num = long(val, 16)
+                except:
+                    num = long(val)
+                self.setRetList[newSym] = num
 
+                # print return value #
                 SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
 
             elif cmd == 'setarg':
@@ -44180,6 +44213,12 @@ struct cmsghdr {
                     if len(params) > 4:
                         SysMgr.broadcastEvent(params[4])
 
+                # change color for False #
+                if ret:
+                    ret = UtilMgr.convColor(ret, 'GREEN')
+                else:
+                    ret = UtilMgr.convColor(ret, 'RED')
+
                 SysMgr.addPrint(
                     "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
 
@@ -44335,10 +44374,15 @@ struct cmsghdr {
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
 
+                # remove filters #
                 SysMgr.customCmd = None
 
+                # inject breakpoints #
                 self.loadSymbols()
                 self.updateBpList()
+
+                # update status flag #
+                self.startProfFlag = True
 
             elif cmd == 'repeat':
                 if sym in self.repeatCntList:
@@ -44366,12 +44410,12 @@ struct cmsghdr {
                     # save register set #
                     self.regList[sym] = self.getRegs(new=True)
 
-                    # set a breakpoint at return position #
+                    # set a breakpoint at return address #
                     ret = self.setRetBp(sym, fname)
                     if not ret:
                         SysMgr.printErr((
                             "fail to set breakpoint to "
-                            "return position for %s") % sym)
+                            "return address for %s") % sym)
 
                 output = "\n[%s] %s%s" % (cmdstr, sym, rstr)
                 SysMgr.addPrint(output)
@@ -44710,6 +44754,11 @@ struct cmsghdr {
 
                 SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
 
+            elif cmd == 'condexit':
+                if self.startProfFlag:
+                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                    sys.exit(0)
+
             elif cmd == 'exit':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                 sys.exit(0)
@@ -44739,7 +44788,7 @@ struct cmsghdr {
 
             # execute a command #
             try:
-                repeat = handleCmd(cmdset, cmd)
+                repeat = _handleCmd(cmdset, cmd)
             except SystemExit:
                 _flushPrint()
                 sys.exit(0)
@@ -44920,6 +44969,39 @@ struct cmsghdr {
 
 
 
+    def injectDefaultBp(self):
+        # add default breakpoints such as mmap #
+        for lib in list(self.dftBpFileList.keys()):
+            # add all symbols of loader #
+            if not self.isRunning and not self.ldInjected and \
+                os.path.basename(lib).startswith('ld-'):
+                ret = self.getAddrBySymbol('', binary=[lib], inc=True)
+
+                for item in ret:
+                    ldaddr, ldsym, ldlib = item
+                    ret = self.injectBp(
+                        ldaddr, ldsym, fname=ldlib, reins=True)
+                    if ret:
+                        # register exceptional address #
+                        self.exceptBpList[ldaddr] = 0
+
+                self.ldInjected = True
+                continue
+
+            # add specific default symbols #
+            for dsym in list(self.dftBpSymList.keys()):
+                ret = self.getAddrBySymbol(dsym, binary=[lib])
+                if not ret: continue
+
+                addr = ret[0][0]
+                ret = self.injectBp(
+                    addr, dsym, fname=lib, reins=True)
+                if ret:
+                    # register exceptional address #
+                    self.exceptBpList[addr] = 0
+
+
+
     def getBpList(self, symlist, binlist=None, verb=True):
         if not symlist:
             symlist.append('**')
@@ -44934,36 +45016,6 @@ struct cmsghdr {
 
         addrList = []
         cmdList = []
-
-        # add default breakpoints such as mmap #
-        for lib in list(self.dftBpFileList.keys()):
-            # add all symbols of loader #
-            if not self.isRunning and not self.ldInjected and \
-                os.path.basename(lib).startswith('ld-'):
-                ret = self.getAddrBySymbol('', binary=[lib], inc=True)
-
-                for item in ret:
-                    ldaddr, ldsym, ldlib = item
-                    self.injectBp(
-                        ldaddr, ldsym, fname=ldlib, reins=True)
-
-                    # register exceptional address #
-                    self.exceptBpList[ldaddr] = 0
-
-                self.ldInjected = True
-                continue
-
-            # add specific default symbols #
-            for dsym in list(self.dftBpSymList.keys()):
-                ret = self.getAddrBySymbol(dsym, binary=[lib])
-                if not ret: continue
-
-                addr = ret[0][0]
-                ret = self.injectBp(
-                    addr, dsym, fname=lib, reins=True)
-
-                # register exceptional address #
-                self.exceptBpList[addr] = 0
 
         # add breakpoints requested by user #
         for value in symlist:
@@ -45041,7 +45093,9 @@ struct cmsghdr {
 
         # get address list for breakpoints #
         addrList, cmdList = self.getBpList(symList, binList, verb)
-        if not addrList: return
+        if not addrList:
+            self.injectDefaultBp()
+            return
 
         # get exceptional address list for breakpoints #
         exceptAddrList = []
@@ -45078,6 +45132,9 @@ struct cmsghdr {
 
         UtilMgr.deleteProgress()
 
+        # inject default breakpoints #
+        self.injectDefaultBp()
+
         return True
 
 
@@ -45112,13 +45169,11 @@ struct cmsghdr {
                 if not ret:
                     SysMgr.printErr((
                         "fail to set breakpoint to "
-                        "return position for %s") % sym)
-                    return False
-                continue
+                        "return address for %s") % sym)
+                return False
 
             # convert args for previous return #
             memset = self.convRetArgs(memset)
-
             ref = False
             addr = memset[0]
             op = memset[1]
@@ -48516,6 +48571,13 @@ struct cmsghdr {
 
 
     def printBpContext(self, sym, addr, fname, checkArg, origPC):
+        # skip ld functions #
+        if Debugger.exceptLD and fname and \
+            os.path.basename(fname).startswith('ld-'):
+            SysMgr.printWarn(
+                'skip printing %s in %s' % (sym, fname))
+            return False
+
         # read args #
         args = self.readArgs()
 
@@ -48584,7 +48646,6 @@ struct cmsghdr {
             btstr = indent = ''
 
         # print return value #
-        origSym = sym
         retstr = ''
         hasRetFilter = False
         elapsed = ''
@@ -48601,6 +48662,7 @@ struct cmsghdr {
                 if not elapsed:
                     raise Exception()
 
+                # get context string and remove breakpoint for return #
                 retstr = self.handleRetBp(sym, fname, addr)
 
                 # add previous symbol info #
@@ -48632,6 +48694,7 @@ struct cmsghdr {
                 isRetBp = False
 
             # check command #
+            origSym = sym[:-len(Debugger.RETSTR)]
             if origSym in self.retCmdList:
                 cmds = self.retCmdList[origSym]
         else:
@@ -48683,7 +48746,7 @@ struct cmsghdr {
 
         # execute commands #
         if cmds:
-            self.executeCmd(cmds, origSym, fname, args)
+            self.executeCmd(cmds, sym, fname, args)
 
         return isRetBp
 
@@ -50254,22 +50317,23 @@ struct cmsghdr {
         if not origSym in self.retFilterList:
             return etime, elapsed, hasRetFilter, skip
 
+        # check condition #
         try:
             filters = self.retFilterList[origSym][0]
-            op = filters[1]
+            op = filters[1].upper()
             cond = float(filters[2])
 
             # compare values #
-            if op.upper() == 'EQ':
+            if op == 'EQ':
                 if etime != cond:
                     skip = True
-            elif op.upper() == 'DF':
+            elif op == 'DF':
                 if etime == cond:
                     skip = True
-            elif op.upper() == 'BT':
+            elif op == 'BT':
                 if etime <= cond:
                     skip = True
-            elif op.upper() == 'LT':
+            elif op == 'LT':
                 if etime >= cond:
                     skip = True
             else:
@@ -50335,7 +50399,7 @@ struct cmsghdr {
 
 
     def setRetBp(self, sym, fname, cmd=None):
-        # get return position #
+        # get return address #
         try:
             if self.arch == 'aarch64' or self.arch == 'arm':
                 pos = self.lr
