@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210210"
+__revision__ = "210214"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4424,6 +4424,7 @@ class UtilMgr(object):
         if not SysMgr.colorEnable or \
             not color in ConfigMgr.COLOR_LIST or \
             SysMgr.outPath or \
+            SysMgr.outputFile or \
             not SysMgr.isLinux or \
             'REMOTERUN' in os.environ:
             return string
@@ -24744,7 +24745,7 @@ Copyright:
         else:
             procTree = infoBuf[newPos:newPos+commPos].split(',')
 
-        # parse proc tree #
+        # parse task tree #
         for pair in procTree:
             try:
                 ids = pair.split(':')
@@ -24763,7 +24764,7 @@ Copyright:
             except:
                 continue
 
-        # remove process tree info #
+        # remove task tree info #
         if commPos < 0:
             SysMgr.systemInfoBuffer = infoBuf[:treePos]
         else:
@@ -37512,9 +37513,13 @@ Copyright:
 
         self.printCgroupInfo()
 
-        self.printProcTreeInfo()
-
         self.printLimitInfo()
+
+        if SysMgr.isRecordMode():
+            ThreadAnalyzer.printThreadTree()
+
+        # keep this position for parser #
+        self.printProcTreeInfo()
 
 
 
@@ -63905,7 +63910,7 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe('\n[Thread Dependency Info]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "\t%5s/%4s \t%16s(%6s) -> %16s(%6s) \t%5s" % \
+            "\t%5s/%4s \t%32s(%7s) -> %32s(%7s) \t%5s" % \
             ("Total", "Inter", "From", "TID", "To", "TID", "Event"))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -65734,6 +65739,24 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
+    def printThreadTree():
+        try:
+            orig = SysMgr.processEnable
+            SysMgr.processEnable = False
+            obj = ThreadAnalyzer(onlyInstance=True)
+            obj.saveProcStat()
+            ThreadAnalyzer.printProcTree(
+                instance=obj.procData, printFunc=SysMgr.infoBufferPrint)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        finally:
+            SysMgr.processEnable = orig
+
+
+
+    @staticmethod
     def readTraceData(file):
         try:
             # not compressed data #
@@ -67520,12 +67543,15 @@ class ThreadAnalyzer(object):
 
 
     @staticmethod
-    def printProcTree(instance=None, title=False):
+    def printProcTree(instance=None, title=False, printFunc=None):
         if not instance and SysMgr.procInstance:
             instance = SysMgr.procInstance
 
+        if not printFunc:
+            printFunc = SysMgr.printPipe
+
         if not instance:
-            SysMgr.printPipe("\n\tNone")
+            printFunc("\n\tNone")
             return
 
         commIdx = ConfigMgr.STAT_ATTR.index("COMM")
@@ -67533,18 +67559,24 @@ class ThreadAnalyzer(object):
         utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
-        # get process/thread tree #
+        # get task tree #
         try:
             procTree = ThreadAnalyzer.getProcTreeFromList(instance)
         except:
-            SysMgr.printPipe("\n\tNone")
+            printFunc("\n\tNone")
             return
 
+        # set target #
+        if SysMgr.processEnable:
+            target = 'Process'
+        else:
+            target = 'Thread'
+
         # print title #
-        SysMgr.printPipe((
-            "\n[Process Tree Info]\n%s\n"
+        printFunc((
+            "\n[%s Tree Info]\n%s\n"
             "  %-22s %4s(%8s/%11s) <%s>\n%s") % \
-                (twoLine, 'Name(ID)', 'Per', 'CPUTIME',
+                (target, twoLine, 'Name(ID)', 'Per', 'CPUTIME',
                     'RUNTIME', 'SUB', oneLine))
 
         # print nodes in tree #
@@ -67628,7 +67660,7 @@ class ThreadAnalyzer(object):
         finalstr = _printTreeNodes(procTree, 0)
 
         # print tree #
-        SysMgr.printPipe(finalstr)
+        printFunc(finalstr)
 
 
 
@@ -69593,7 +69625,7 @@ class ThreadAnalyzer(object):
 
                 ntime = round(allTime, 7)
                 self.depData.append(
-                    "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s" % \
+                    "\t%.3f/%.3f \t%40s(%7s) -> %40s(%7s) \t%s" % \
                     (ntime, round(ntime - float(self.wakeupData['time']), 7),
                     kicker, kicker_pid, target_comm, pid, "kick"))
 
@@ -69844,7 +69876,7 @@ class ThreadAnalyzer(object):
                         ttime = allTime
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
-                            "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
+                            "\t%.3f/%.3f \t%40s %7s     %40s(%7s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "wakeup"))
 
@@ -69859,7 +69891,7 @@ class ThreadAnalyzer(object):
                         ttime = allTime
                         itime = ttime - float(self.wakeupData['time'])
                         self.depData.append(
-                            "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s" % \
+                            "\t%.3f/%.3f \t%40s %7s     %40s(%7s) \t%s" % \
                             (round(ttime, 7), round(itime, 7), " ", " ",
                             threadData['comm'], thread, "recv"))
 
@@ -69957,7 +69989,7 @@ class ThreadAnalyzer(object):
                 target_comm = SysMgr.commCache[pid]
 
             self.depData.append(
-                "\t%.3f/%.3f \t%16s(%6s) -> %16s(%6s) \t%s(%s)" % \
+                "\t%.3f/%.3f \t%40s(%7s) -> %40s(%7s) \t%s(%s)" % \
                 (round(ttime, 7),
                 round(ttime - float(self.wakeupData['time']), 7),
                 threadData['comm'], thread,
@@ -69999,7 +70031,7 @@ class ThreadAnalyzer(object):
             ttime = allTime
             itime = ttime - float(self.wakeupData['time'])
             self.depData.append(
-                "\t%.3f/%.3f \t%16s %6s     %16s(%6s) \t%s(%s)" % \
+                "\t%.3f/%.3f \t%40s %7s     %40s(%7s) \t%s(%s)" % \
                 (round(ttime, 7), round(itime, 7), "", "",
                 threadData['comm'], thread, "sigrecv", sig))
 
@@ -71815,17 +71847,27 @@ class ThreadAnalyzer(object):
     def getProcTreeFromList(procInstance):
         procTree = {}
         ppidIdx = ConfigMgr.STAT_ATTR.index("PPID")
+        pgrpIdx = ConfigMgr.STAT_ATTR.index("PGRP")
 
         # get a relation list to track ancestors of process #
         def _getRelationList(item, procInstance):
-            tmpId = item
+            tmpid = item
             relationList = []
 
             while 1:
                 try:
-                    relationList.insert(0, tmpId)
-                    tmpId = procInstance[tmpId]['stat'][ppidIdx]
-                    if tmpId == '0':
+                    relationList.insert(0, tmpid)
+
+                    # add main thread ID #
+                    pgrp = procInstance[tmpid]['stat'][pgrpIdx]
+                    if pgrp != '0' and pgrp != item:
+                        relationList.insert(0, pgrp)
+
+                    # add parent process ID #
+                    orig = tmpid
+                    tmpid = procInstance[tmpid]['stat'][ppidIdx]
+
+                    if tmpid == '0' or orig == tmpid:
                         return relationList
                 except:
                     return relationList
