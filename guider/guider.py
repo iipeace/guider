@@ -4422,15 +4422,18 @@ class UtilMgr(object):
     @staticmethod
     def convColor(string, color='LIGHT'):
         if not SysMgr.colorEnable or \
-            not color in ConfigMgr.COLOR_LIST or \
-            SysMgr.outPath or \
-            SysMgr.outputFile or \
-            not SysMgr.isLinux or \
-            'REMOTERUN' in os.environ:
+            SysMgr.outPath or SysMgr.outputFile or \
+            not SysMgr.isLinux or SysMgr.remoteRun:
             return string
 
-        return r'%s%s%s' % \
-            (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
+        try:
+            return r'%s%s%s' % \
+                (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to convert color for %s' % color, reason=True)
 
 
 
@@ -18636,229 +18639,286 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    acc      [NAME:VAR|REG|VAL]
-    check    [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
-    condexit
-    dist     [NAME:VAR|REG|VAL]
-    dump     [NAME|ADDR:FILE]
-    exec     [CMD]
-    exit
-    filter   [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
-    getarg   [REGS]
-    getenv   [VAR]
-    getret   [CMD]
-    jump     [FUNC#ARGS]
-    kill
-    load     [PATH]
-    log      [MESSAGE]
-    map
-    print
-    pyfile   [PATH:SYNC]
-    pystr    [CODE:SYNC]
-    rdmem    [VAR|ADDR|REG:SIZE]
-    repeat   [CNT]
-    ret      [VAL]
-    save     [VAR]
-    setarg   [REG#VAR|VAL]
-    setenv   [VAR:VAR|VAL]
-    setret   [VAL:CMD]
-    sleep    [SEC]
-    start
-    stop
-    syscall  [FUNC#ARGS]
-    thread
-    usercall [FUNC#ARGS]
-    wrmem    [VAR|ADDR|REG:VAL:SIZE]
+    acc      print accumulation stat
+             [NAME:VAR|REG|VAL]
+
+    check    check values
+             [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
+
+    condexit exit if tracing was started
+
+    dist     print distribution stat
+             [NAME:VAR|REG|VAL]
+
+    dump     dump specific memory range to a file
+             [NAME|ADDR:FILE]
+
+    exec     execute command
+             [CMD]
+
+    exit     exit
+
+    filter   print only filtered context
+             [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
+
+    getarg   print specific registers
+             [REGS]
+
+    getenv   print specific environment variable
+             [VAR]
+
+    getret   print return value
+             [CMD]
+
+    jump     jump to specific function with specific arguments
+             [FUNC#ARGS]
+
+    kill     terminate target
+
+    load     load specific library
+             [PATH]
+
+    log      print specific message
+             [MESSAGE]
+
+    map      print memory map
+
+    print    print context
+
+    pyfile   execute specific python file
+             [PATH:SYNC]
+
+    pystr    execute python code
+             [CODE:SYNC]
+
+    rdmem    print specific memory or register
+             [VAR|ADDR|REG:SIZE]
+
+    repeat   call again repeatedly
+             [CNT]
+
+    ret      return specific value immediately
+             [VAL]
+
+    save     save previous value
+             [VAR]
+
+    setarg   change value for specific register
+             [REG#VAR|VAL]
+
+    setenv   change specific environment variable
+             [VAR:VAR|VAL]
+
+    setret   change return value
+             [VAL:CMD]
+
+    sleep    sleep for seconds
+             [SEC]
+
+    start    start printing all functions
+
+    stop     pause tracing
+
+    syscall  call a syscall
+             [FUNC#ARGS]
+
+    thread   create a new thread
+
+    usercall call a specific function
+             [FUNC#ARGS]
+
+    wrmem    change specific memory or register
+             [VAR|ADDR|REG:VAL:SIZE]
 
 Examples:
-    - Print all function calls for a specific thread
+    - Print all call contexts for a specific thread
         # {0:1} {1:1} -g 1234
 
-    - Print all function calls from a specific binary
+    - Print all call contexts from a specific binary
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
 
-    - Print all function calls except for wait status for a specific thread
+    - Print all call contexts except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - Print all function calls for a specific thread after loading all symbols in stop status
+    - Print all call contexts for a specific thread after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - Print all function calls except for no symbol functions for a specific thread
+    - Print all call contexts except for no symbol functions for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
 
-    - Print all function calls except for ld for a specific thread
+    - Print all call contexts except for ld for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTLD
 
-    - Print all function calls for 4th new threads in each new processes from a specific binary
+    - Print all call contexts for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
-    - Print all function calls from a specific binary with DWARF info
+    - Print all call contexts from a specific binary with DWARF info
         # {0:1} {1:1} -I "ls" -eD
 
-    - Print all function calls from a specific binary with environment variables
+    - Print all call contexts from a specific binary with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Print all function calls with backtrace for a specific thread
+    - Print all call contexts with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -H
 
-    - Print printPeace function calls for a specific thread
+    - Print printPeace call contexts for a specific thread
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - Print all function calls except for printPeace for a specific thread
+    - Print all call contexts except for printPeace for a specific thread
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
-    - Print a specific function call from a specific binary
-        # {0:1} {1:1} -g 1234 -I ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
+    - Print a specific call contexts from a specific binary
+        # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Print printPeace function calls only for 2 seconds
+    - Print printPeace call contexts only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
-    - Print and save printPeace function calls to ./guider.out
+    - Print printPeace call contexts and save them to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
-    - Print specific function calls including specific word
+    - Print specific call contexts including specific word
         # {0:1} {1:1} -g 1234 -c "*printPeace"
         # {0:1} {1:1} -g 1234 -c "printPeace*"
         # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
-    - Print all function calls in specific files
+    - Print all call contexts related to specific files
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
-    - Print all function calls except for specific files
+    - Print all call contexts except for specific files
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
-    - Handle specific function calls including specific word as a stop point
+    - Print specific call contexts including specific word and stop tracing
         # {0:1} {1:1} -g a.out -c "*printPeace|stop"
         # {0:1} {1:1} -g a.out -c "printPeace*|stop"
         # {0:1} {1:1} -g a.out -c "*printPeace*|stop"
 
-    - Handle all function calls as a 0.1 second sleep point
-        # {0:1} {1:1} -g a.out -c \\|sleep:0.1
+    - Print all call contexts with 0.1 second sleep
+        # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
 
-    - Handle write function calls as a 0.1 second sleep point only one time
-        # {0:1} {1:1} -g a.out -c write\\|oneshot:sleep:0.1
+    - Print write call contexts with 0.1 second sleep only one time
+        # {0:1} {1:1} -g a.out -c "write|oneshot:sleep:0.1"
 
-    - Handle write function calls as a kill point
-        # {0:1} {1:1} -g a.out -c write\\|kill
+    - Print write call contexts and kill the target thread
+        # {0:1} {1:1} -g a.out -c "write|kill"
 
-    - Handle write function calls as a memory modification point
-        # {0:1} {1:1} -g a.out -c write\\|wrmem:0x1234:aaaa:4
+    - Print write call contexts and modify memory
+        # {0:1} {1:1} -g a.out -c "write|wrmem:0x1234:aaaa:4"
 
-    - Handle write function calls as a modification point for memory pointed by 1st argument
-        # {0:1} {1:1} -g a.out -c write\\|wrmem:0:aaaa:4
+    - Print write call contexts and modify memory pointed by 1st argument
+        # {0:1} {1:1} -g a.out -c "write|wrmem:0:aaaa:4"
 
-    - Handle printf function calls as a print point for 10-length string that 1st argument point to
-        # {0:1} {1:1} -g a.out -c printf\\|rdmem:0:10
+    - Print printf call contexts with 10-length string that 1st argument point to
+        # {0:1} {1:1} -g a.out -c "printf|rdmem:0:10"
 
-    - Handle printf function calls as a print point for 10-length string from the specific address
-        # {0:1} {1:1} -g a.out -c printf\\|rdmem:0x1234:10
+    - Print printf call contexts with 10-length string from the specific address
+        # {0:1} {1:1} -g a.out -c "printf|rdmem:0x1234:10"
 
-    - Handle write function calls as a immediate return point for a specific value
-        # {0:1} {1:1} -g a.out -c write\\|ret:3
+    - Print write call contexts and return a specific value immediately
+        # {0:1} {1:1} -g a.out -c "write|ret:3"
 
-    - Handle write function calls as a dump point for a specific memory range
-        # {0:1} {1:1} -g a.out -c write\\|dump:stack:stack.out
+    - Print write call contexts and dump stack to a file
+        # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
 
-    - Handle write function calls as a dump point for a specific memory range
-        # {0:1} {1:1} -g a.out -c write\\|dump:0x1234-0x4567:dump.out
+    - Print write call contexts and dump specific memory range to a file
+        # {0:1} {1:1} -g a.out -c "write|dump:0x1234-0x4567:dump.out"
 
-    - Handle write function calls as a print return point
-        # {0:1} {1:1} -g a.out -c write\\|getret
-        # {0:1} {1:1} -g a.out -c write\\|getret:stop\\$print
+    - Print write call contexts and return value
+        # {0:1} {1:1} -g a.out -c "write|getret"
 
-    - Handle return address for a write function call as a start point for all functions
-        # {0:1} {1:1} -g a.out -c write\\|getret:start
+    - Print write call contexts and stop tracing and save return value to specific variable
+        # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
-    - Handle write function calls with colorful elapsed time when the elapsed time exceed 0.1 second
-        # {0:1} {1:1} -g a.out -c write\\|getret -q ELAPSED:0.1
+    - Print write call contexts and start tracing all calls
+        # {0:1} {1:1} -g a.out -c "write|getret:start"
 
-    - Handle write function calls as a repeat point
-        # {0:1} {1:1} -g a.out -c write\\|repeat
-        # {0:1} {1:1} -g a.out -c write\\|repeat:5
+    - Print write call contexts with colorful elapsed time when the elapsed time exceed 0.1 second
+        # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
 
-    - Handle write function calls as a return point for a specific value
-        # {0:1} {1:1} -g a.out -c write\\|setret:3
-        # {0:1} {1:1} -g a.out -c write\\|setret:3:print
+    - Print write call contexts and call again repeatedly
+        # {0:1} {1:1} -g a.out -c "write|repeat"
+        # {0:1} {1:1} -g a.out -c "write|repeat:5"
 
-    - Handle write function calls as a argument modification point for 1st and 2nd arguments
-        # {0:1} {1:1} -g a.out -c write\\|setarg:0#2:1#5
+    - Print write call contexts and change return value
+        # {0:1} {1:1} -g a.out -c "write|setret:3"
+        # {0:1} {1:1} -g a.out -c "write|setret:3:print"
 
-    - Handle write function calls as a context print point
-        # {0:1} {1:1} -g a.out -c write\\|print
+    - Print write call contexts and modify 1st and 2nd arguments
+        # {0:1} {1:1} -g a.out -c "write|setarg:0#2:1#5"
 
-    - Handle write function calls as a variable print point
-        # {0:1} {1:1} -g a.out -c write\\|save:VAR1\\|print:VAR1\\|save:VAR2:123
-        # {0:1} {1:1} -g a.out -c write\\|save:ARG1:1:arg\\|print:VAR1
+    - Print write call contexts and details
+        # {0:1} {1:1} -g a.out -c "write|print"
 
-    - Print value of PATH environment variable
-        # {0:1} {1:1} -g a.out -c usercall:getenv#PATH, usercall:write#1#@getenv#1024
+    - Print write call contexts and save specific values to specific variables
+        # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
+        # {0:1} {1:1} -g a.out -c "write|save:ARG1:1:arg|print:VAR1"
 
-    - Print write function calls if the call meets specific conditions
-        # {0:1} {1:1} -g a.out -c write\\|filter:2:EQ:4096
-        # {0:1} {1:1} -g a.out -c write\\|filter:2:BT:0x1000
-        # {0:1} {1:1} -g a.out -c write\\|filter:*1:EQ:HELLO
-        # {0:1} {1:1} -g a.out -c write\\|filter:*1:INC:HE
+    - Print write call contexts if call meets specific conditions
+        # {0:1} {1:1} -g a.out -c "write|filter:2:EQ:4096"
+        # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
+        # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
+        # {0:1} {1:1} -g a.out -c "write|filter:*1:INC:HE"
 
-    - Print return status for write function calls if only the elapsed time exceed 0.0005 second
-        # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005
-        # {0:1} {1:1} -g a.out -c write\\|filter:RET:BT:0.0005 -H -a
+    - Print contexts for write call and return if only the elapsed time exceed 0.0005 second
+        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
+        # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
 
-    - Print write function calls with specific conditions
-        # {0:1} {1:1} -g a.out -c write\\|check:2:EQ:4096
-        # {0:1} {1:1} -g a.out -c write\\|check:2:BT:0x1000
-        # {0:1} {1:1} -g a.out -c write\\|check:*1:EQ:HELLO
-        # {0:1} {1:1} -g a.out -c write\\|check:*1:INC:HE
-        # {0:1} {1:1} -g a.out -c write\\|check:@RET1:EQ:@RET2:EVENT_CONT
+    - Print write call contexts with specific check results
+        # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
+        # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
+        # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
+        # {0:1} {1:1} -g a.out -c "write|check:*1:INC:HE"
+        # {0:1} {1:1} -g a.out -c "write|check:@RET1:EQ:@RET2:EVENT_CONT"
 
-    - Handle write function calls as a print point for 1st and 2nd arguments
-        # {0:1} {1:1} -g a.out -c write\\|getarg:0:1
+    - Print write call contexts and 1st and 2nd arguments
+        # {0:1} {1:1} -g a.out -c "write|getarg:0:1"
 
-    - Handle write function calls as a print point for 1st and 2nd arguments and save its return value
-        # {0:1} {1:1} -g a.out -c write\\|getarg:0:1\\|save:writeRet
+    - Print write call contexts and 1st and 2nd arguments and save its return value to specific variable
+        # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
-    - Handle a write function call as a start point for all functions
-        # {0:1} {1:1} -g a.out -c write\\|start
+    - Print a write call contexsts and start tracing all functions
+        # {0:1} {1:1} -g a.out -c "write|start"
 
-    - Handle a write function call as a exit point
-        # {0:1} {1:1} -g a.out -c write\\|exit
+    - Print write call context and terminate target thread
+        # {0:1} {1:1} -g a.out -c "write|exit"
 
-    - Handle specific call points as a profiling distance
-        # {0:1} {1:1} -g a.out -c open\|start, close\|getret:condexit
+    - Print specific call contexts and all call contexts within a specific range
+        # {0:1} {1:1} -g a.out -c "open|start, close|getret:condexit"
 
-    - Handle a write function call as a call point for sleep
-        # {0:1} {1:1} -g a.out -c write\\|usercall:sleep#3
-        # {0:1} {1:1} -g a.out -c write\\|usercall:printf#PEACE
-        # {0:1} {1:1} -g a.out -c write\\|usercall:printf#\\"12345\\"
+    - Print write call contexts and call specific functions
+        # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
+        # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE"
+        # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345"
+        # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
 
-    - Handle a write function call as a syscall point for getpid
-        # {0:1} {1:1} -g a.out -c write\\|syscall:getpid
-        # {0:1} {1:1} -g a.out -c write\\|syscall:open#test.out#1
+    - Print write call contexts and call specific syscalls
+        # {0:1} {1:1} -g a.out -c "write|syscall:getpid"
+        # {0:1} {1:1} -g a.out -c "write|syscall:open#test.out#1"
 
-    - Handle a write function call as a load point for /usr/lib/preload.so
-        # {0:1} {1:1} -g a.out -c write\\|load:/usr/lib/preload.so
+    - Print write call contexts and load specific library
+        # {0:1} {1:1} -g a.out -c "write|load:/usr/lib/preload.so"
 
-    - Handle a write function call as a thread creation point
-        # {0:1} {1:1} -g a.out -c write\\|thread
+    - Print write call contexts and create a thread
+        # {0:1} {1:1} -g a.out -c "write|thread"
 
-    - Handle a write function call as a excution point for python code
-        # {0:1} {1:1} -g a.out -c write\\|pystr:"print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
-        # {0:1} {1:1} -g a.out -c write\\|pyfile:test.py:false -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+    - Print write call contexts and execute python code
+        # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
+        # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - Handle a malloc function call as a accumulate table creation point for a argument
-        # {0:1} {1:1} -g a.out -c malloc\\|acc:CHUNK:0:arg
+    - Print malloc call contexts and accumulated stats for specific argument
+        # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0:arg"
 
-    - Handle a malloc function call as a distribution table creation point for a argument
-        # {0:1} {1:1} -g a.out -c malloc\\|acc:CHUNK:0:arg
+    - Print malloc call contexts and distribution stats for specific argument
+        # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0:arg"
 
-    - Handle write function calls as a jump point to the specific address with register values
-        # {0:1} {1:1} -g a.out -c write\\|jump:sleep#5
+    - Print write call contexts and jump to specific function with specific arguments
+        # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
 
-    - Handle all function calls as a command execution point
-        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha":"sleep 1"
-        # {0:1} {1:1} -g a.out -c \\|exec:"ls -lha &"
+    - Print all call contexts and execute specific commands
+        # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
+        # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
                 '''.format(cmd, mode)
 
                 reportStr = '''
@@ -19894,13 +19954,13 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -c open
 
     - Trace all syscalls and sleep for 1.5 second when catching open syscall
-        # {0:1} {1:1} -I "ls -al" -c open\\|sleep:1.5
+        # {0:1} {1:1} -I "ls -al" -c "open|sleep:1.5"
 
     - Trace all syscalls and sleep for 1.5 second whenever catching syscall
-        # {0:1} {1:1} -I "ls -al" -c \\|sleep:1.5
+        # {0:1} {1:1} -I "ls -al" -c "*|sleep:1.5"
 
     - Trace all syscalls and print memory that 2nd argument point to
-        # {0:1} {1:1} -I "ls -al" -c write\\|rdmem:1
+        # {0:1} {1:1} -I "ls -al" -c "write|rdmem:1"
                     '''.format(cmd, mode)
 
                 # utrace #
@@ -24513,8 +24573,7 @@ Copyright:
             return
 
         # check print option and remote runner #
-        if not SysMgr.printEnable or \
-            "REMOTERUN" in os.environ:
+        if not SysMgr.printEnable or SysMgr.remoteRun:
             return
 
         # check extended ascii support #
@@ -43124,7 +43183,7 @@ class Debugger(object):
         self.sampleTime = long(0)
         self.targetNum = 0
         self.childNum = 0
-        self.startProfFlag = False
+        self.startProfTime = False
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -43871,8 +43930,10 @@ struct cmsghdr {
                 cmdset = cmdval.split(':', 2)[1:]
                 cmd = cmdset[0]
 
+            convColor = UtilMgr.convColor
+
             # pick a command #
-            cmdstr = UtilMgr.convColor('%8s' % cmd, 'BOLD')
+            cmdstr = convColor('%8s' % cmd, 'BOLD')
 
             if cmd == 'print':
                 if SysMgr.showAll:
@@ -44175,6 +44236,9 @@ struct cmsghdr {
                 else:
                     sync = True
 
+                # remove all breakpoints #
+                self.removeAllBp(verb=False)
+
                 ret = self.loadPyLib()
                 if not ret: return
 
@@ -44190,6 +44254,10 @@ struct cmsghdr {
                     self.remotePyCall(script=source, wait=sync)
 
                 self.finishPyLib()
+
+                # inject all breakpoints again #
+                self.loadSymbols()
+                self.updateBpList(verb=False)
 
             elif cmd == 'dump':
                 if len(cmdset) == 1:
@@ -44225,9 +44293,9 @@ struct cmsghdr {
 
                 # change color for False #
                 if ret:
-                    ret = UtilMgr.convColor(ret, 'GREEN')
+                    ret = convColor(ret, 'GREEN')
                 else:
-                    ret = UtilMgr.convColor(ret, 'RED')
+                    ret = convColor(ret, 'RED')
 
                 SysMgr.addPrint(
                     "\n[%s] %s = %s" % (cmdstr, cmdset[1], ret))
@@ -44392,7 +44460,7 @@ struct cmsghdr {
                 self.updateBpList()
 
                 # update status flag #
-                self.startProfFlag = True
+                self.startProfTime = self.current - self.dstart
 
             elif cmd == 'repeat':
                 if sym in self.repeatCntList:
@@ -44754,6 +44822,9 @@ struct cmsghdr {
 
             elif cmd == 'kill':
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                _flushPrint(newline=False)
+                self.kill()
+                sys.exit(0)
 
             elif cmd == 'log':
                 if len(cmdset) == 1:
@@ -44765,8 +44836,10 @@ struct cmsghdr {
                 SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
 
             elif cmd == 'condexit':
-                if self.startProfFlag:
-                    SysMgr.addPrint("\n[%s]\n" % (cmdstr))
+                if self.startProfTime:
+                    diff = self.current - self.dstart - self.startProfTime
+                    diff = convColor('%.6f' % diff, 'RED')
+                    SysMgr.addPrint("\n[%s] %s\n" % (cmdstr, diff))
                     sys.exit(0)
 
             elif cmd == 'exit':
@@ -47945,7 +48018,7 @@ struct cmsghdr {
         isPaused = False
         for cmd in SysMgr.customCmd:
             item = cmd.split('|', 1)
-            if item[0] and item[0] != sym:
+            if item[0] and item[0] != '*' and item[0] != sym:
                 continue
 
             if len(item) == 1:
