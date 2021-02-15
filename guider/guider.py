@@ -14895,7 +14895,7 @@ class LogMgr(object):
             return
 
         SysMgr.printInfo(
-            "start printing journal log... [ STOP(Ctrl+c) ]")
+            "start printing journal... [ STOP(Ctrl+c) ]")
 
         # set head #
         res = systemdObj.sd_journal_seek_head(jrl)
@@ -14922,83 +14922,120 @@ class LogMgr(object):
         if not SysMgr.showAll:
             systemdObj.sd_journal_seek_tail(jrl)
 
-        # start reading loop #
-        while 1:
-            res = systemdObj.sd_journal_next(jrl)
-            if res == 0:
-                ret = systemdObj.sd_journal_wait(jrl, timeout)
-                # SD_JOURNAL_NOP / SD_JOURNAL_APPEND / SD_JOURNAL_INVALID #
-                if ret == 0 or ret == 1 or ret == 2:
-                    continue
-                elif ret < 0:
-                    break
-            elif res < 1:
-                break
+        # define summary table #
+        table = {}
 
-            # traverse all fields #
-            if SysMgr.inputParam is not None:
-                res = systemdObj.sd_journal_restart_data(jrl)
-                while 1:
-                    res = systemdObj.sd_journal_enumerate_data(
-                        jrl, byref(data), byref(size))
-                    if res < 1:
+        SysMgr.printPipe('\n')
+
+        # start reading journal in loop #
+        try:
+            while 1:
+                res = systemdObj.sd_journal_next(jrl)
+                if res == 0:
+                    ret = systemdObj.sd_journal_wait(jrl, timeout)
+                    # SD_JOURNAL_NOP / SD_JOURNAL_APPEND / SD_JOURNAL_INVALID #
+                    if ret == 0 or ret == 1 or ret == 2:
+                        continue
+                    elif ret < 0:
                         break
+                elif res < 1:
+                    break
 
-                    SysMgr.printPipe(cast(data, c_char_p).value, flush=True)
-                SysMgr.printPipe(flush=True)
-                continue
+                # traverse specific fields #
+                if SysMgr.inputParam:
+                    res = systemdObj.sd_journal_restart_data(jrl)
+                    while 1:
+                        res = systemdObj.sd_journal_enumerate_data(
+                            jrl, byref(data), byref(size))
+                        if res < 1:
+                            break
 
-            jrlStr = b''
-            for field in fieldList:
-                if field == b'_TIME':
-                    # get time #
-                    ret = systemdObj.sd_journal_get_realtime_usec(
-                        jrl, byref(usec))
-                    if ret < 0:
-                        realtime = 0
+                        SysMgr.printPipe(
+                            cast(data, c_char_p).value.decode('latin-1'),
+                            flush=True)
+                    SysMgr.printPipe(flush=True)
+                    continue
+
+                # traverse all fields #
+                jrlStr = b''
+                for field in fieldList:
+                    if field == b'_TIME':
+                        # get time #
+                        ret = systemdObj.sd_journal_get_realtime_usec(
+                            jrl, byref(usec))
+                        if ret < 0:
+                            realtime = 0
+                        else:
+                            realtime = usec.value
+
+                        wtime = time.strftime(
+                            '%m %d %H:%M:%S ',
+                                time.localtime(realtime / float(1000000)))
+                        '''
+                        ret = systemdObj.sd_journal_get_monotonic_usec(
+                            jrl, byref(usec), boottime)
+                        '''
+
+                        # set time #
+                        jrlStr += wtime.encode()
+
+                        continue
+
+                    res = systemdObj.sd_journal_get_data(
+                        jrl, field, byref(data), byref(size))
+                    if res < 0:
+                        continue
+
+                    val = cast(data, c_char_p).value[len(field)+1:]
+                    if field == b"_COMM":
+                        if SysMgr.outPath:
+                            comm = val.decode('latin-1').rstrip('\x01')
+                            table.setdefault(comm, 0)
+                            table[comm] += 1
+                    elif field == b"_PID":
+                        val = b'[%s]: ' % val
+                    elif field == b"_TRANSPORT" and val == b"kernel":
+                        val += b': '
                     else:
-                        realtime = usec.value
+                        val += b' '
 
-                    wtime = time.strftime(
-                        '%m %d %H:%M:%S',
-                            time.localtime(realtime / float(1000000)))
-                    '''
-                    ret = systemdObj.sd_journal_get_monotonic_usec(
-                        jrl, byref(usec), boottime)
-                    '''
+                    jrlStr += val
 
-                    # set time #
-                    jrlStr += wtime.encode()
+                # print journal #
+                if jrlStr:
+                    try:
+                        decstr = jrlStr.decode('latin-1')
+                        if not UtilMgr.isEffectiveStr(decstr):
+                            raise Exception()
+                        SysMgr.printPipe(decstr, flush=True)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printPipe(jrlStr, flush=True)
 
-                    continue
+            # close journal #
+            systemdObj.sd_journal_close(jrl)
+        except SystemExit:
+            if not table:
+                return
 
-                res = systemdObj.sd_journal_get_data(
-                    jrl, field, byref(data), byref(size))
-                if res < 0:
-                    continue
+            SysMgr.printPipe(
+                '\n[Journal Summary]\n%s\n' % twoLine)
 
-                val = cast(data, c_char_p).value[len(field)+1:]
-                if field == b"_COMM":
-                    pass
-                elif field == b"_PID":
-                    val = b'[%s]: ' % val
-                elif field == b"_TRANSPORT" and val == b"kernel":
-                    val += b': '
-                else:
-                    val += b' '
+            SysMgr.printPipe(
+                '{0:>32} {1:>16}\n{2:1}'.format(
+                    'COMM', 'COUNT', oneLine))
 
-                jrlStr += val
+            total = 0
+            for comm, count in sorted(table.items(),
+                key=lambda x:x[1], reverse=True):
+                SysMgr.printPipe(
+                    '{0:>32} {1:>16}'.format(comm, UtilMgr.convNum(count)))
+                total += count
 
-            if jrlStr and UtilMgr.isEffectiveStr(jrlStr):
-                try:
-                    SysMgr.printPipe(jrlStr.decode(), flush=True)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printPipe(jrlStr, flush=True)
-
-        # close journal #
-        systemdObj.sd_journal_close(jrl)
+            SysMgr.printPipe(
+                '\n{0:>32} {1:>16}\n{2:1}'.format(
+                    'TOTAL', UtilMgr.convNum(total), oneLine))
 
 
 
@@ -20554,14 +20591,14 @@ Examples:
 
                     if SysMgr.checkMode('printjrl'):
                         helpStr += '''
-    - Print journal messages with all fields in real-time
+    - Print all journals
+        # {0:1} {1:1} -a
+
+    - Print journals with all fields in real-time
         # {0:1} {1:1} -I
 
-    - Print journal messages with specific fields in real-time
+    - Print journals with specific fields in real-time
         # {0:1} {1:1} -I _TIME, _COMM, _PID
-
-    - Print all journal messages
-        # {0:1} {1:1} -a
                     '''.format(cmd, mode)
 
                     if SysMgr.checkMode('printdlt'):
