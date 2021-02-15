@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210214"
+__revision__ = "210215"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -20965,6 +20965,8 @@ Description:
     Print process tree
 
 Options:
+    -e  <CHARACTER>             enable options
+          [ t:thread ]
     -g  <COMM>                  set filter
     -H  <LEVEL>                 set depth level
     -o  <DIR|FILE>              set output path
@@ -20975,6 +20977,9 @@ Options:
 Examples:
     - Print tree of processes
         # {0:1} {1:1}
+
+    - Print tree of threads
+        # {0:1} {1:1} -e t
 
     - Print highlighting processes having specific name
         # {0:1} {1:1} -g kworker
@@ -37518,7 +37523,7 @@ Copyright:
         if SysMgr.isRecordMode():
             ThreadAnalyzer.printThreadTree()
 
-        # keep this position for parser #
+        # keep last position for parser #
         self.printProcTreeInfo()
 
 
@@ -65747,6 +65752,7 @@ class ThreadAnalyzer(object):
             obj.saveProcStat()
             ThreadAnalyzer.printProcTree(
                 instance=obj.procData, printFunc=SysMgr.infoBufferPrint)
+            SysMgr.infoBufferPrint('%s\n' % oneLine)
         except SystemExit:
             sys.exit(0)
         except:
@@ -67479,6 +67485,10 @@ class ThreadAnalyzer(object):
             if 'oomScore' not in val or val['oomScore'] == 0:
                 break
 
+            # skip sibling threads #
+            if not val['isMain']:
+                continue
+
             stat = val['stat']
             statm = val['statm']
             comm = stat[commIdx][1:-1]
@@ -67660,7 +67670,7 @@ class ThreadAnalyzer(object):
         finalstr = _printTreeNodes(procTree, 0)
 
         # print tree #
-        printFunc(finalstr)
+        printFunc(finalstr.strip('\n'))
 
 
 
@@ -71847,7 +71857,6 @@ class ThreadAnalyzer(object):
     def getProcTreeFromList(procInstance):
         procTree = {}
         ppidIdx = ConfigMgr.STAT_ATTR.index("PPID")
-        pgrpIdx = ConfigMgr.STAT_ATTR.index("PGRP")
 
         # get a relation list to track ancestors of process #
         def _getRelationList(item, procInstance):
@@ -71856,12 +71865,14 @@ class ThreadAnalyzer(object):
 
             while 1:
                 try:
-                    relationList.insert(0, tmpid)
+                    if not tmpid in relationList:
+                        relationList.insert(0, tmpid)
 
                     # add main thread ID #
-                    pgrp = procInstance[tmpid]['stat'][pgrpIdx]
-                    if pgrp != '0' and pgrp != item:
-                        relationList.insert(0, pgrp)
+                    if not procInstance[item]['isMain']:
+                        mainid = procInstance[item]['mainID']
+                        if not mainid in relationList:
+                            relationList.insert(0, mainid)
 
                     # add parent process ID #
                     orig = tmpid
@@ -71869,6 +71880,8 @@ class ThreadAnalyzer(object):
 
                     if tmpid == '0' or orig == tmpid:
                         return relationList
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return relationList
 
@@ -71882,6 +71895,7 @@ class ThreadAnalyzer(object):
                     nodePointer[item] = {}
                 nodePointer = nodePointer[item]
 
+        # make dictionary for tree #
         starttimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
         for pid, item in sorted(procInstance.items(),
             key=lambda e: long(e[1]['stat'][starttimeIdx])):
