@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210215"
+__revision__ = "210217"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3645,7 +3645,8 @@ class UtilMgr(object):
             # remove empty values #
             newList = []
             for val in targetList:
-                if val: newList.append(val.strip())
+                val = val.strip()
+                if val: newList.append(val)
 
             return newList
         else:
@@ -14777,7 +14778,7 @@ class LogMgr(object):
 
 
     @staticmethod
-    def printSyslog():
+    def printSyslog(console=False):
         # open syslog file #
         try:
             if not SysMgr.syslogFd:
@@ -14798,11 +14799,14 @@ class LogMgr(object):
             if not UtilMgr.isEffectiveStr(log):
                 continue
 
+            if SysMgr.outPath and console:
+                print(log)
+
             SysMgr.printPipe(log, newline=False)
 
 
     @staticmethod
-    def printJournal():
+    def printJournal(console=False):
        # get ctypes object #
         SysMgr.importPkgItems('ctypes')
 
@@ -15005,8 +15009,13 @@ class LogMgr(object):
                 if jrlStr:
                     try:
                         decstr = jrlStr.decode('latin-1')
+
                         if not UtilMgr.isEffectiveStr(decstr):
                             raise Exception()
+
+                        if SysMgr.outPath and console:
+                            print(decstr)
+
                         SysMgr.printPipe(decstr, flush=True)
                     except SystemExit:
                         sys.exit(0)
@@ -15093,7 +15102,7 @@ class LogMgr(object):
 
 
     @staticmethod
-    def printKmsg():
+    def printKmsg(console=False):
         # open kmsg device node #
         try:
             if not SysMgr.kmsgFd:
@@ -15144,6 +15153,9 @@ class LogMgr(object):
                 logBuf = memoryview(buf).tobytes().decode()
                 if not UtilMgr.isEffectiveStr(line):
                     continue
+
+                if SysMgr.outPath and console:
+                    print(logBuf)
 
                 SysMgr.printPipe(logBuf)
 
@@ -15215,6 +15227,9 @@ class LogMgr(object):
                 jsonResult = UtilMgr.convDict2Str(jsonResult)
                 SysMgr.printPipe(jsonResult)
             else:
+                if SysMgr.outPath and console:
+                    print(log[:-1])
+
                 SysMgr.printPipe(log[:-1])
 
 
@@ -17482,7 +17497,7 @@ class SysMgr(object):
         try:
             statPath = "%s/%s/stat" % (SysMgr.procPath, tid)
             with open(statPath, 'r') as fd:
-                stat = fd.readlines()[0]
+                stat = fd.read()
 
             # convert string to list #
             statList = stat.split(')')[1].split()
@@ -18869,7 +18884,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
     - Print write call contexts and start tracing all calls
-        # {0:1} {1:1} -g a.out -c "write|getret:start"
+        # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
     - Print write call contexts with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
@@ -18916,13 +18931,14 @@ Examples:
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
     - Print a write call contexsts and start tracing all functions
-        # {0:1} {1:1} -g a.out -c "write|start"
+        # {0:1} {1:1} -g a.out -c "write|start, *"
 
     - Print write call context and terminate target thread
         # {0:1} {1:1} -g a.out -c "write|exit"
 
     - Print specific call contexts and all call contexts within a specific range
-        # {0:1} {1:1} -g a.out -c "open|start, close|getret:condexit"
+        # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
+        # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
     - Print write call contexts and call specific functions
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
@@ -23358,6 +23374,11 @@ Copyright:
             else:
                 disableStat += 'POWER '
 
+            if SysMgr.wqEnable:
+                enableStat += 'WQ '
+            else:
+                disableStat += 'WQ '
+
             if SysMgr.preemptGroup:
                 enableStat += 'PREEMPT '
             else:
@@ -23916,6 +23937,11 @@ Copyright:
                 enableStat += 'POWER '
             else:
                 disableStat += 'POWER '
+
+            if SysMgr.wqEnable:
+                enableStat += 'WQ '
+            else:
+                disableStat += 'WQ '
 
             if SysMgr.resetEnable:
                 enableStat += 'RESET '
@@ -25001,6 +25027,8 @@ Copyright:
                 SysMgr.blockEnable = True
             if 'P' in filterList:
                 SysMgr.powerEnable = True
+            if 'w' in filterList:
+                SysMgr.wqEnable = True
             if 'B' in filterList:
                 SysMgr.binderEnable = True
             if 'I' in filterList:
@@ -27084,6 +27112,8 @@ Copyright:
                     SysMgr.pipeEnable = True
                 if 'P' in options:
                     SysMgr.powerEnable = True
+                if 'w' in options:
+                    SysMgr.wqEnable = True
                 if 'B' in options:
                     SysMgr.binderEnable = True
                 if 'I' in options:
@@ -27533,7 +27563,14 @@ Copyright:
 
         # PAUSE MODE #
         elif SysMgr.checkMode('pause'):
-            if not SysMgr.filterGroup:
+            # get target list #
+            if SysMgr.hasMainArg():
+                targets = SysMgr.getMainArg().split(',')
+                targets = UtilMgr.cleanItem(targets)
+            else:
+                targets = SysMgr.filterGroup
+
+            if not targets:
                 SysMgr.printErr(
                     "no COMM or TID with -g option")
                 sys.exit(0)
@@ -27541,14 +27578,13 @@ Copyright:
             # convert comm to pid #
             targetList = []
             sibling = SysMgr.groupProcEnable
-            for item in SysMgr.filterGroup:
+            for item in targets:
                 targetList += SysMgr.getPids(item, sibling=sibling)
             targetList = list(set(targetList))
 
             if not targetList:
                 SysMgr.printErr(
-                    "no task related to '%s'" % \
-                        ', '.join(SysMgr.filterGroup))
+                    "no task related to '%s'" % ', '.join(targets))
                 sys.exit(0)
 
             Debugger.pauseThreads(targetList)
@@ -27665,19 +27701,21 @@ Copyright:
             # set console info #
             SysMgr.setStream()
 
+            console = SysMgr.findOption('Q')
+
             SysMgr.printLogo(big=True, onlyFile=True)
 
             # PRINTSYSLOG MODE #
             if SysMgr.checkMode('printsys'):
-                LogMgr.printSyslog()
+                LogMgr.printSyslog(console)
 
             # PRINTKMSG MODE #
             elif SysMgr.checkMode('printkmsg'):
-                LogMgr.printKmsg()
+                LogMgr.printKmsg(console)
 
             # PRINTJRL MODE #
             elif SysMgr.checkMode('printjrl'):
-                LogMgr.printJournal()
+                LogMgr.printJournal(console)
 
             # PRINTDLT MODE #
             elif SysMgr.checkMode('printdlt'):
@@ -27714,7 +27752,7 @@ Copyright:
             # get argument #
             if SysMgr.hasMainArg():
                 filterGroup = SysMgr.getMainArg().split(',')
-            elif SysMgr.filterGroup:
+            else:
                 filterGroup = SysMgr.filterGroup
 
             if SysMgr.checkMode('limitcpu'):
@@ -28648,9 +28686,9 @@ Copyright:
             try:
                 statPath = "%s/%s/stat" % (SysMgr.procPath, pid)
                 with open(statPath, 'r') as fd:
-                    statList = fd.readlines()[0].split()
+                    statList = fd.read().split()
 
-                statList = SysMgr.updateStatList(statList, commIdx)
+                statList = SysMgr.mergeCommStat(statList, commIdx)
 
                 # runtime #
                 procStart = \
@@ -35242,7 +35280,7 @@ Copyright:
 
 
     @staticmethod
-    def updateStatList(statList, commIdx=None):
+    def mergeCommStat(statList, commIdx=None):
         if not commIdx:
             commIdx = ConfigMgr.STAT_ATTR.index("COMM")
 
@@ -35277,8 +35315,7 @@ Copyright:
 
         def _openStatFd(tid, isProcess):
             if isProcess:
-                statPath = "%s/%s/stat" % \
-                    (SysMgr.procPath, tid)
+                statPath = "%s/%s/stat" % (SysMgr.procPath, tid)
             else:
                 statPath = "%s/%s/task/%s/stat" % \
                     (SysMgr.procPath, tid, tid)
@@ -35291,7 +35328,7 @@ Copyright:
         def _getTaskStat(fd):
             try:
                 fd.seek(0)
-                statBuf = fd.readlines()[0]
+                statBuf = fd.read()
             except:
                 return None
 
@@ -35299,7 +35336,7 @@ Copyright:
             statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            statList = SysMgr.updateStatList(statList, COMM_IDX)
+            statList = SysMgr.mergeCommStat(statList, COMM_IDX)
 
             comm = statList[COMM_IDX][1:-1]
             cputime = long(statList[UTIME_IDX]) + long(statList[STIME_IDX])
@@ -36756,7 +36793,7 @@ Copyright:
                 func(*args)
             except SystemExit:
                 sys.exit(0)
-            except ProcessLookupError:
+            except OSError:
                 pass
             except:
                 SysMgr.printErr(
@@ -36955,7 +36992,9 @@ Copyright:
         self.cmdList["binder/binder_set_priority"] = binderFlag
 
         # workqueue #
-        self.cmdList["workqueue"] = sm.wqEnable
+        self.cmdList["workqueue/workqueue_queue_work"] = sm.wqEnable
+        self.cmdList["workqueue/workqueue_execute_start"] = sm.wqEnable
+        self.cmdList["workqueue/workqueue_execute_end"] = sm.wqEnable
 
         # i2c #
         self.cmdList["i2c"] = sm.i2cEnable
@@ -42667,14 +42706,17 @@ class DltAnalyzer(object):
         if SysMgr.hasMainArg():
             flist = SysMgr.getMainArg().split(',')
             flist = UtilMgr.cleanItem(flist)
+            if not flist:
+                SysMgr.printErr("no path for DLT file")
+                sys.exit(0)
         elif SysMgr.inputParam:
             for item in SysMgr.inputParam.split(','):
                 ret = UtilMgr.convPath(item.strip())
                 flist += ret
-            flist = list(set(flist))
-        else:
-            SysMgr.printErr("no path for DLT file")
-            sys.exit(0)
+            flist = UtilMgr.cleanItem(flist)
+            if not flist:
+                SysMgr.printErr("no path for DLT file")
+                sys.exit(0)
 
         # check sort option #
         if SysMgr.findOption('S'):
@@ -44489,15 +44531,14 @@ struct cmsghdr {
                 SysMgr.addPrint("\n[%s]\n" % (cmdstr))
                 _flushPrint(newline=False)
 
-                # remove filters #
-                SysMgr.customCmd = None
+                # update status flag #
+                self.startProfTime = self.current - self.dstart
 
                 # inject breakpoints #
                 self.loadSymbols()
                 self.updateBpList()
 
-                # update status flag #
-                self.startProfTime = self.current - self.dstart
+                repeat = False
 
             elif cmd == 'repeat':
                 if sym in self.repeatCntList:
@@ -45134,8 +45175,25 @@ struct cmsghdr {
                 else:
                     symlist.append(sym)
 
-        addrList = []
         cmdList = []
+        newlist = []
+        addrList = []
+
+        # check start command #
+        if self.startProfTime:
+            for value in symlist:
+                valueList = value.split('|')
+                if len(valueList) > 1 and valueList[1].startswith('start'):
+                    pass
+                else:
+                    newlist.append(value)
+        else:
+            for value in symlist:
+                valueList = value.split('|')
+                if len(valueList) > 1 and valueList[1].startswith('start'):
+                    newlist.append(value)
+        if newlist:
+            symlist = newlist
 
         # add breakpoints requested by user #
         for value in symlist:
@@ -46602,7 +46660,7 @@ struct cmsghdr {
         fileList = self.updateFileList()
 
         # update symbol list #
-        if SysMgr.customCmd is None:
+        if not SysMgr.customCmd:
             funcFilter = []
         else:
             funcFilter = list(set(SysMgr.customCmd))
@@ -48024,7 +48082,7 @@ struct cmsghdr {
                 if sym in self.callTable:
                     self.callTable[sym]['backtrace'][btStr] = 1
 
-        # calculate elapesd time #
+        # calculate elapsed time #
         if elapsed:
             self.callTable[sym]['elapsed'] += elapsed
             if self.callTable[sym]['min'] == 0 or \
@@ -48746,7 +48804,7 @@ struct cmsghdr {
 
         # build backtrace #
         if SysMgr.funcDepth > 0:
-            if SysMgr.showAll and not SysMgr.outPath:
+            if SysMgr.showAll:
                 cont = False
             else:
                 cont = True
@@ -49916,7 +49974,7 @@ struct cmsghdr {
     def getStatList(self, retstr=False, status=False):
         try:
             self.statFd.seek(0)
-            stat = self.statFd.readlines()[0]
+            stat = self.statFd.read()
         except SystemExit:
             sys.exit(0)
         except:
@@ -49924,7 +49982,7 @@ struct cmsghdr {
                 statPath = "%s/%s/task/%s/stat" % \
                     (SysMgr.procPath, self.pid, self.pid)
                 self.statFd = open(statPath, 'r')
-                stat = self.statFd.readlines()[0]
+                stat = self.statFd.read()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -51031,20 +51089,24 @@ struct cmsghdr {
 
         # update register set #
         cnt = 5
-        while 1:
-            ret = instance.updateRegs()
-            if ret:
-                break
-            elif not instance.isAlive():
-                return
+        try:
+            while 1:
+                ret = instance.updateRegs()
+                if ret:
+                    break
+                elif not instance.isAlive():
+                    return
 
-            # check count #
-            cnt -= 1
-            if cnt <= 0:
-                instance.__del__(stop=True)
-                return
+                # check count #
+                cnt -= 1
+                if cnt <= 0:
+                    instance.__del__(stop=True)
+                    return
 
-            time.sleep(SysMgr.waitDelay)
+                time.sleep(SysMgr.waitDelay)
+        except:
+            Debugger.printSummary(instance)
+            SysMgr.outPath = None
 
         # rewind IP from trap status #
         addr = instance.pc - instance.prevInstOffset
@@ -58336,6 +58398,13 @@ class ThreadAnalyzer(object):
             self.init_preemptData = \
                 {'usage': float(0), 'count': long(0), 'max': float(0)}
 
+            self.init_wqData = \
+                {'name': None, 'usage': float(0), 'start': float(0),
+                'max': float(-1), 'min': float(-1), 'maxPeriod': float(-1),
+                'minPeriod': float(-1), 'avgPeriod': float(0),
+                'scount': long(0), 'rcount': long(0), 'avg': float(0),
+                'task': None}
+
             self.finishTime = '0'
             self.lastTidPerCore = {}
             self.lastCore = '0'
@@ -62868,12 +62937,88 @@ class ThreadAnalyzer(object):
                 SysMgr.printPipe('\tNone')
             SysMgr.printPipe(oneLine)
 
+        # print workqueue information #
+        if len(self.wqData) > 0:
+            totalCnt = long(0)
+            totalUsage = float(0)
+
+            SysMgr.printPipe((
+                '\n[Thread Workqueue Info] [Elapsed: %.3f] '
+                '(Unit: Sec/NR)') % float(self.totalTime))
+            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe((
+                "{0:^24} {1:^12} {2:^10} {3:^10} "
+                "{4:^10} {5:^10} {6:^10} {7:^10} {8:^6}").\
+                format("Name", "Count", "Usage", "ProcAvg", "ProcMax",
+                "ProcMin", "InterMax", "InterMin", "NrTask"))
+            SysMgr.printPipe(twoLine)
+
+            SysMgr.clearPrint()
+
+            # merge by name #
+            wqData = {}
+            for struct, item in self.wqData.items():
+                name = item['name']
+
+                # change default stat value -1 to 0 #
+                for key in list(item.keys()):
+                    if item[key] == -1:
+                        item[key] = 0
+
+                if not name in wqData:
+                    wqData[name] = deepcopy(item)
+                    continue
+
+                target = wqData[name]
+
+                # change default stat value -1 to 0 #
+                for key in list(target.keys()):
+                    if target[key] == -1:
+                        target[key] = 0
+
+                target['scount'] += item['scount']
+                target['rcount'] += item['rcount']
+                target['usage'] += item['usage']
+                target['task'].update(item['task'])
+
+                if target['max'] < item['max']:
+                    target['max'] = item['max']
+                if target['min'] > item['min']:
+                    target['min'] = item['min']
+                if target['maxPeriod'] < item['maxPeriod']:
+                    target['maxPeriod'] = item['maxPeriod']
+                if target['minPeriod'] > item['minPeriod']:
+                    target['minPeriod'] = item['minPeriod']
+
+            # print summary #
+            for struct, item in sorted(wqData.items(),
+                key=lambda e:e[1]['usage'], reverse=True):
+                totalCnt += item['scount']
+                totalUsage += item['usage']
+                avg = item['usage'] / item['rcount']
+                tasks = convertNum(len(item['task']))
+                SysMgr.addPrint(
+                    ("{0:<24} {1:>12} {2:^10.6f} {3:^10.6f} "
+                    "{4:^10.6f} {5:^10.6f} {6:^10.6f} {7:^10.6f} {8:>6}\n").\
+                    format(item['name'], convertNum(item['scount']),
+                    item['usage'], avg, item['max'], item['min'],
+                    item['maxPeriod'], item['minPeriod'], tasks))
+
+            SysMgr.printPipe(
+                "%s# WORKQUEUE(%s) / Total(%6.3f) / Cnt(%s)\n\n" % \
+                    ('', convertNum(len(wqData)),
+                    totalUsage, convertNum(totalCnt)))
+            SysMgr.doPrint()
+            SysMgr.printPipe(oneLine)
+
         # print interrupt information #
         if len(self.irqData) > 0:
             totalCnt = long(0)
             totalUsage = float(0)
 
-            SysMgr.printPipe('\n[Thread IRQ Info]')
+            SysMgr.printPipe((
+                '\n[Thread IRQ Info] [Elapsed: %.3f] '
+                '(Unit: Sec/NR)') % float(self.totalTime))
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
                 "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} "
@@ -64049,7 +64194,7 @@ class ThreadAnalyzer(object):
 
         outputCnt = long(0)
         SysMgr.printPipe(
-            '\n[Thread Futex Lock Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
+            '\n[Thread Futex Lock Info] [Elapsed: %.3f] (Unit: Sec/NR)' % \
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
@@ -64331,7 +64476,7 @@ class ThreadAnalyzer(object):
 
         outputCnt = long(0)
         SysMgr.printPipe(
-            '\n[Thread Syscall Info] [ Elapsed : %.3f ] (Unit: Sec/NR)' % \
+            '\n[Thread Syscall Info] [Elapsed: %.3f] (Unit: Sec/NR)' % \
                 float(self.totalTime))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
@@ -68641,6 +68786,7 @@ class ThreadAnalyzer(object):
     def initThreadData(self):
         self.threadData = {}
         self.irqData = {}
+        self.wqData = {}
         self.ioData = {}
         self.reclaimData = {}
         self.pageTable = {}
@@ -69268,7 +69414,7 @@ class ThreadAnalyzer(object):
                 irqId, dict(self.init_irqData))
             threadData['irqList'][irqId]['name'] = d['name']
 
-            # save irq period per thread #
+            # update period per thread #
             if threadData['irqList'][irqId]['start'] > 0:
                 diff = ftime - threadData['irqList'][irqId]['start']
                 if diff > threadData['irqList'][irqId]['maxPeriod'] or \
@@ -69278,7 +69424,7 @@ class ThreadAnalyzer(object):
                     threadData['irqList'][irqId]['minPeriod'] <= 0:
                     threadData['irqList'][irqId]['minPeriod'] = diff
 
-            # save irq period #
+            # update period #
             if self.irqData[irqId]['start'] > 0:
                 diff = ftime - self.irqData[irqId]['start']
                 if diff > self.irqData[irqId]['maxPeriod'] or \
@@ -69310,8 +69456,8 @@ class ThreadAnalyzer(object):
             except:
                 return time
 
+            # update usage #
             if threadData['irqList'][irqId]['start'] > 0:
-                # save softirq usage #
                 diff = ftime - \
                     threadData['irqList'][irqId]['start']
                 threadData['irqList'][irqId]['usage'] += diff
@@ -69322,7 +69468,7 @@ class ThreadAnalyzer(object):
                 if coreId != thread:
                     self.threadData[coreId]['irq'] += diff
 
-                # save softirq period per thread #
+                # update period per thread #
                 if diff > threadData['irqList'][irqId]['max'] or \
                     threadData['irqList'][irqId]['max'] <= 0:
                     threadData['irqList'][irqId]['max'] = diff
@@ -69332,9 +69478,9 @@ class ThreadAnalyzer(object):
 
                 threadData['irqList'][irqId]['start'] = long(0)
 
+            # update period #
             if self.irqData[irqId]['start'] > 0:
                 diff = ftime - self.irqData[irqId]['start']
-                # save softirq period #
                 if diff > self.irqData[irqId]['max'] or \
                     self.irqData[irqId]['max'] <= 0:
                     self.irqData[irqId]['max'] = diff
@@ -69375,7 +69521,7 @@ class ThreadAnalyzer(object):
                 threadData['irqList'][irqId] = dict(self.init_irqData)
                 threadData['irqList'][irqId]['name'] = d['action']
 
-            # save softirq period per thread #
+            # update period per thread #
             if threadData['irqList'][irqId]['start'] > 0:
                 diff = ftime - \
                     threadData['irqList'][irqId]['start']
@@ -69386,7 +69532,7 @@ class ThreadAnalyzer(object):
                     threadData['irqList'][irqId]['minPeriod'] <= 0:
                     threadData['irqList'][irqId]['minPeriod'] = diff
 
-            # save softirq period #
+            # update period #
             if self.irqData[irqId]['start'] > 0:
                 diff = ftime - self.irqData[irqId]['start']
                 if diff > self.irqData[irqId]['maxPeriod'] or \
@@ -69419,8 +69565,8 @@ class ThreadAnalyzer(object):
             except:
                 return time
 
+            # update usage #
             if threadData['irqList'][irqId]['start'] > 0:
-                # save softirq usage #
                 diff = ftime - \
                     threadData['irqList'][irqId]['start']
                 threadData['irqList'][irqId]['usage'] += diff
@@ -69431,7 +69577,7 @@ class ThreadAnalyzer(object):
                 if coreId != thread:
                     self.threadData[coreId]['irq'] += diff
 
-                # save softirq period per thread #
+                # update period per thread #
                 if diff > threadData['irqList'][irqId]['max'] or \
                     threadData['irqList'][irqId]['max'] <= 0:
                     threadData['irqList'][irqId]['max'] = diff
@@ -69441,9 +69587,9 @@ class ThreadAnalyzer(object):
 
                 threadData['irqList'][irqId]['start'] = long(0)
 
+            # update period #
             if self.irqData[irqId]['start'] > 0:
                 diff = ftime - self.irqData[irqId]['start']
-                # save softirq period #
                 if diff > self.irqData[irqId]['max'] or \
                     self.irqData[irqId]['max'] <= 0:
                     self.irqData[irqId]['max'] = diff
@@ -70794,6 +70940,90 @@ class ThreadAnalyzer(object):
             # toDo: calculate power consumption for DVFS system #
             SysMgr.powerEnable = True
             return time
+
+        elif func == "workqueue_queue_work":
+            m = re.match((
+                r'^\s*work struct=(?P<struct>.+) '
+                r'function=(?P<function>.+) workqueue=(?P<wq>.+) '
+                r'req_cpu=(?P<rcpu>.+) cpu=(?P<ecpu>.+)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+            struct = d['struct']
+            function = d['function']
+            wq = d['wq']
+            rcpu = d['rcpu']
+            ecpu =  d['ecpu']
+
+
+            # register workqueue #
+            try:
+                self.wqData[struct]
+            except:
+                self.wqData[struct] = dict(self.init_wqData)
+                self.wqData[struct]['name'] = function
+                self.wqData[struct]['task'] = dict()
+
+        elif func == "workqueue_execute_start":
+            m = re.match((
+                r'^\s*work struct (?P<struct>.+): '
+                r'function (?P<function>.+)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+            struct = d['struct']
+            function = d['function']
+
+            if not struct in self.wqData:
+                return time
+
+            # update period #
+            if self.wqData[struct]['start'] > 0:
+                diff = ftime - self.wqData[struct]['start']
+                if diff > self.wqData[struct]['maxPeriod'] or \
+                    self.wqData[struct]['maxPeriod'] < 0:
+                    self.wqData[struct]['maxPeriod'] = diff
+                if diff < self.wqData[struct]['minPeriod'] or \
+                    self.wqData[struct]['minPeriod'] < 0:
+                    self.wqData[struct]['minPeriod'] = diff
+
+            self.wqData[struct]['start'] = ftime
+            self.wqData[struct]['scount'] += 1
+            self.wqData[struct]['task'].setdefault(thread, None)
+
+        elif func == "workqueue_execute_end":
+            m = re.match(
+                r'^\s*work struct (?P<struct>.+)', etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+            struct = d['struct']
+
+            if not struct in self.wqData:
+                return time
+            elif self.wqData[struct]['start'] == 0:
+                return
+
+            # update usage #
+            diff = ftime - self.wqData[struct]['start']
+            self.wqData[struct]['usage'] += diff
+
+            # update stat #
+            diff = ftime - self.wqData[struct]['start']
+            if diff > self.wqData[struct]['max'] or \
+                self.wqData[struct]['max'] < 0:
+                self.wqData[struct]['max'] = diff
+            if diff < self.wqData[struct]['min'] or \
+                self.wqData[struct]['min'] < 0:
+                self.wqData[struct]['min'] = diff
+
+            self.wqData[struct]['rcount'] += 1
 
         elif func == "console":
             m = re.match(
@@ -72481,7 +72711,7 @@ class ThreadAnalyzer(object):
     def saveProcData(self, path, tid, pid=None):
         def _getStatBuf(self, path, tid):
             self.procData[tid]['statFd'] = open(path, 'rb')
-            statBuf = self.procData[tid]['statFd'].readlines()[0].decode()
+            statBuf = self.procData[tid]['statFd'].read().decode()
 
             if tid in self.prevProcData:
                 self.prevProcData[tid]['alive'] = True
@@ -72516,7 +72746,7 @@ class ThreadAnalyzer(object):
                 self.prevProcData[tid]['statFd']:
                 self.prevProcData[tid]['statFd'].seek(0)
                 self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-                statBuf = self.procData[tid]['statFd'].readlines()[0].decode()
+                statBuf = self.procData[tid]['statFd'].read().decode()
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = _getStatBuf(self, statPath, tid)
@@ -72541,7 +72771,7 @@ class ThreadAnalyzer(object):
             statList = statBuf.split()
 
             # merge comm parts that splited by space #
-            statList = SysMgr.updateStatList(statList, self.commIdx)
+            statList = SysMgr.mergeCommStat(statList, self.commIdx)
 
             # convert type of values #
             self.procData[tid]['stat'] = statList
