@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210217"
+__revision__ = "210218"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15647,6 +15647,7 @@ class SysMgr(object):
     taskEnable = True
     exceptCommFilter = False
     processEnable = True
+    totalEnable = False
     groupProcEnable = False
     rankProcEnable = True
     inotifyEnable = False
@@ -17818,7 +17819,7 @@ class SysMgr(object):
         if not options:
             return False
 
-        optionList = 'BCDEFGHILNPRSWYabcdfghijklmnopqrrstuvwxy'
+        optionList = 'BCDEFGHILNPRSTWYabcdfghijklmnopqrrstuvwxy'
         for opt in options:
             if not opt in optionList:
                 return False
@@ -18503,7 +18504,8 @@ Options:
             m:mem | n:net | N:namespace | o:oomScore
             O:color | p:pipe | P:perf | q:quit | r:report
             R:fileReport | s:stack | S:pss | t:thread
-            u:uss | w:wss | W:wchan | x:fixTarget | Y:delay ]
+            T:total | u:uss | w:wss | W:wchan
+            x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
@@ -18539,8 +18541,11 @@ Options:
 
                 topExamStr = '''
 Examples:
-    - Monitor status of {2:2} used CPU resource more than 1%%
+    - Monitor status of {2:2} used CPU resource more than 1%% every interval
         # {0:1} {1:1}
+
+    - Monitor status of {2:2} used CPU resource totally
+        # {0:1} {1:1} -e T
 
     - Monitor status of all {2:2} with bar graphs for cores
         # {0:1} {1:1} -a -e B
@@ -23810,6 +23815,11 @@ Copyright:
                 else:
                     disableStat += 'REPORT '
 
+                if SysMgr.totalEnable:
+                    enableStat += 'TOTAL '
+                else:
+                    disableStat += 'TOTAL '
+
                 if SysMgr.barGraphEnable:
                     enableStat += 'BAR '
                 else:
@@ -26561,6 +26571,9 @@ Copyright:
                 if not SysMgr.isTopMode():
                     continue
 
+                if 'T' in options:
+                    SysMgr.totalEnable = True
+
                 if 'c' in options:
                     SysMgr.cpuEnable = True
 
@@ -27129,7 +27142,7 @@ Copyright:
 
                 if not SysMgr.isEffectiveEnableOption(options):
                     SysMgr.printErr(
-                        "unrecognized option -%s to enable" % options)
+                        "unrecognized option '%s' to enable" % options)
                     sys.exit(0)
 
             elif option == 'g':
@@ -49971,6 +49984,30 @@ struct cmsghdr {
 
 
 
+    def getKernelStack(self, retstr=False):
+        try:
+            self.kernelFd.seek(0)
+            stat = self.kernelFd.readlines()
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                kernelPath = "%s/%s/task/%s/stack" % \
+                    (SysMgr.procPath, self.pid, self.pid)
+                self.kernelFd = open(kernelPath, 'r')
+                stat = self.kernelFd.readlines()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(kernelPath)
+                return None
+
+        # return full data #
+        if retstr:
+            return stat
+
+
+
     def getStatList(self, retstr=False, status=False):
         try:
             self.statFd.seek(0)
@@ -50386,6 +50423,7 @@ struct cmsghdr {
         self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
         self.statFd = None
+        self.kernelFd = None
         self.prevStat = None
         self.prevCpuStat = None
         self.pyLibPath = None
@@ -62881,7 +62919,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread Signal Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^6} {1:^16} {2:>10}({3:>7}) {4:^10} {5:>16}({6:>6})".\
+                "{0:^6} {1:>10} {2:>32}({3:>7}) {4:^10} {5:>32}({6:>7})".\
                 format('TYPE', 'TIME', 'SENDER',
                 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SysMgr.printPipe(twoLine)
@@ -62920,16 +62958,16 @@ class ThreadAnalyzer(object):
                         stid = long(0)
 
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16}({3:>7}) "
-                        "{4:^10} {5:>16}({6:>7})").\
+                        "{0:^6} {1:>10.6f} {2:>32}({3:>7}) "
+                        "{4:^10} {5:>32}({6:>7})").\
                         format(stype, stime, scomm, stid,
                         signal, rcomm, rtid))
 
                     cnt += 1
                 elif val[0] == 'RECV':
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>16} {3:>7}  "
-                        "{4:^10} {5:>16}({6:>7})").\
+                        "{0:^6} {1:>10.6f} {2:>32} {3:>7}  "
+                        "{4:^10} {5:>32}({6:>7})").\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
 
                     cnt += 1
@@ -62947,8 +62985,8 @@ class ThreadAnalyzer(object):
                 '(Unit: Sec/NR)') % float(self.totalTime))
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^24} {1:^12} {2:^10} {3:^10} "
-                "{4:^10} {5:^10} {6:^10} {7:^10} {8:^6}").\
+                "{0:^32} {1:>12} {2:>10} {3:>10} "
+                "{4:>10} {5:>10} {6:>10} {7:>10} {8:>6}").\
                 format("Name", "Count", "Usage", "ProcAvg", "ProcMax",
                 "ProcMin", "InterMax", "InterMin", "NrTask"))
             SysMgr.printPipe(twoLine)
@@ -62998,8 +63036,8 @@ class ThreadAnalyzer(object):
                 avg = item['usage'] / item['rcount']
                 tasks = convertNum(len(item['task']))
                 SysMgr.addPrint(
-                    ("{0:<24} {1:>12} {2:^10.6f} {3:^10.6f} "
-                    "{4:^10.6f} {5:^10.6f} {6:^10.6f} {7:^10.6f} {8:>6}\n").\
+                    ("{0:<32} {1:>12} {2:>10.6f} {3:>10.6f} "
+                    "{4:>10.6f} {5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>6}\n").\
                     format(item['name'], convertNum(item['scount']),
                     item['usage'], avg, item['max'], item['min'],
                     item['maxPeriod'], item['minPeriod'], tasks))
@@ -63021,8 +63059,8 @@ class ThreadAnalyzer(object):
                 '(Unit: Sec/NR)') % float(self.totalTime))
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^16}({1:^62}): {2:^12} {3:^10} {4:^10} "
-                "{5:^10} {6:^10} {7:^10}").\
+                "{0:^16} {1:<62} {2:>12} {3:>10} {4:>10} "
+                "{5:>10} {6:>10} {7:>10}").\
                 format("IRQ", "Name", "Count", "Usage", "ProcMax",
                 "ProcMin", "InterMax", "InterMin"))
             SysMgr.printPipe(twoLine)
@@ -63036,8 +63074,8 @@ class ThreadAnalyzer(object):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SysMgr.addPrint(
-                    ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
-                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").\
+                    ("{0:>16} {1:<62} {2:>12} {3:>10.6f} {4:>10.6f} "
+                    "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").\
                     format(key,
                     ' | '.join(list(self.irqData[key]['name'].keys())),
                     convertNum(self.irqData[key]['count']),
@@ -63053,8 +63091,8 @@ class ThreadAnalyzer(object):
                 totalCnt += self.irqData[key]['count']
                 totalUsage += self.irqData[key]['usage']
                 SysMgr.addPrint(
-                    ("{0:>16}({1:^62}): {2:>12} {3:^10.6f} {4:^10.6f} "
-                    "{5:^10.6f} {6:^10.6f} {7:^10.6f}\n").format(
+                    ("{0:>16} {1:<62} {2:>12} {3:>10.6f} {4:>10.6f} "
+                    "{5:>10.6f} {6:>10.6f} {7:>10.6f}\n").format(
                     key, ' | '.join(list(self.irqData[key]['name'].keys())),
                     convertNum(self.irqData[key]['count']),
                     self.irqData[key]['usage'],
@@ -63063,7 +63101,7 @@ class ThreadAnalyzer(object):
                     self.irqData[key]['minPeriod']))
 
             SysMgr.printPipe(
-                "%s# IRQ(%s) / Total(%6.3f) / Cnt(%s)\n" % \
+                "%s# IRQ(%s) / Total(%6.3f) / Cnt(%s)\n\n" % \
                     ('', convertNum(len(self.irqData)),
                     totalUsage, convertNum(totalCnt)))
             SysMgr.doPrint()
@@ -74282,6 +74320,10 @@ class ThreadAnalyzer(object):
                     long(SysMgr.uptime - \
                     (float(nowData[self.starttimeIdx]) / 100))
 
+                # use total stat #
+                if SysMgr.totalEnable:
+                    raise Exception()
+
                 # define prev data #
                 prevData = self.prevProcData[pid]['stat']
                 if self.prevProcData[pid]['created']:
@@ -74374,11 +74416,18 @@ class ThreadAnalyzer(object):
                 sys.exit(0)
             except:
                 # set flags for new task #
-                value['new'] = True
-                value['created'] = True
+                if SysMgr.totalEnable and \
+                    pid in self.prevProcData:
+                    pass
+                else:
+                    value['new'] = True
+                    value['created'] = True
 
-                # update comm #
-                value['comm'] = '*%s' % value['comm']
+                    # update comm #
+                    value['comm'] = '*%s' % value['comm']
+
+                if SysMgr.totalEnable:
+                    interval = 1
 
                 value['majflt'] = nowData[self.majfltIdx]
 
@@ -75835,26 +75884,39 @@ class ThreadAnalyzer(object):
                 except:
                     prtd = '-'
             else:
+                # yield #
                 try:
-                    prevStatus = self.prevProcData[idx]['status']
-                    yld = long(value['yield']) - \
-                        long(prevStatus['voluntary_ctxt_switches'])
+                    if SysMgr.totalEnable:
+                        yld = long(value['yield'])
+                    else:
+                        prevStatus = self.prevProcData[idx]['status']
+                        yld = long(value['yield']) - \
+                            long(prevStatus['voluntary_ctxt_switches'])
                 except:
                     yld = '-'
 
+                # preempted #
                 try:
-                    prevStatus = self.prevProcData[idx]['status']
-                    prtd = long(value['preempted']) - \
-                        long(prevStatus['nonvoluntary_ctxt_switches'])
+                    if SysMgr.totalEnable:
+                        prtd = long(value['preempted'])
+                    else:
+                        prevStatus = self.prevProcData[idx]['status']
+                        prtd = long(value['preempted']) - \
+                            long(prevStatus['nonvoluntary_ctxt_switches'])
                 except:
                     prtd = '-'
 
             # calculate delayed time in runqueue #
             try:
-                execTime = \
-                    value['execTime'] - self.prevProcData[idx]['execTime']
-                waitTime = \
-                    value['waitTime'] - self.prevProcData[idx]['waitTime']
+                if SysMgr.totalEnable:
+                    prevExecTime = 0
+                    prevWaitTime = 0
+                else:
+                    prevExecTime = self.prevProcData[idx]['execTime']
+                    prevWaitTime = self.prevProcData[idx]['waitTime']
+
+                execTime = value['execTime'] - prevExecTime
+                waitTime = value['waitTime'] - prevWaitTime
                 execPer = (execTime / (execTime + waitTime)) * 100
                 totalTime = value['ttime'] * (100 / execPer)
                 dtime = long(totalTime - value['ttime'])
@@ -76197,13 +76259,33 @@ class ThreadAnalyzer(object):
                 SysMgr.addPrint("%s\n" % oneLine)
 
         if procCnt > 0:
-            totalTime = '%.1f' % totalStats['ttime']
-            totalBtime = '%.1f' % totalStats['btime']
+            # total CPU #
+            totalTime = '%6.1f' % totalStats['ttime']
+            if totalStats['ttime'] == 0:
+                pass
+            elif totalStats['ttime'] >= SysMgr.cpuPerHighThreshold:
+                totalTime = UtilMgr.convColor(totalTime, 'RED')
+            else:
+                totalTime = UtilMgr.convColor(totalTime, 'YELLOW')
 
-            if totalStats['read'] != '-':
-                totalStats['read'] = totalStats['read'] >> 20
-            if totalStats['write'] != '-':
-                totalStats['write'] = totalStats['write'] >> 20
+            # total BLOCK #
+            totalBtime = '%4s' % totalStats['btime']
+            if totalStats['btime'] > 0:
+                totalBtime = UtilMgr.convColor(totalBtime, 'RED')
+
+            # total READ #
+            readsize = totalStats['read']
+            if readsize != '-':
+                readsize = readsize >> 20
+                if readsize > 0:
+                    readsize = UtilMgr.convColor('%4s' % readsize, 'RED')
+
+            # total WRITE #
+            writesize = totalStats['write']
+            if writesize != '-':
+                writesize = writesize >> 20
+                if writesize > 0:
+                    writesize = UtilMgr.convColor('%4s' % writesize, 'RED')
 
             # print total stats #
             SysMgr.addPrint(
@@ -76216,8 +76298,7 @@ class ThreadAnalyzer(object):
                 totalStats['utime'], totalStats['stime'], mem,
                 convertFunc(totalStats['mem'] << 20, True),
                 'Swp', convertFunc(totalStats['swap'], True),
-                totalBtime, totalStats['read'],
-                totalStats['write'], totalStats['majflt'],
+                totalBtime, readsize, writesize, totalStats['majflt'],
                 'Yld: %s' % convertNum(totalStats['yld']),
                 'Prmt: %s' % convertNum(totalStats['prtd']),
                 'Task: %s' % convertNum(totalStats['task']),
