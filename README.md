@@ -1145,7 +1145,7 @@ COMMAND:
                     bgtop           <Background>
                     btop            <Function>
                     cgtop           <Cgroup>
-                    ctop            <Condition>
+                    ctop            <Threshold>
                     dbustop         <D-Bus>
                     disktop         <Storage>
                     dlttop          <DLT>
@@ -1190,6 +1190,7 @@ COMMAND:
                     kill/tkill      <Signal>
                     leaktrace       <Leak>
                     limitcpu        <CPU>
+                    mkcache         <Cache>
                     pause           <Thread>
                     printcg         <Cgroup>
                     printdbus       <D-Bus>
@@ -1198,12 +1199,12 @@ COMMAND:
                     printinfo       <System>
                     printns         <Namespace>
                     printsig        <Signal>
-                    printsubsc      <D-Bus>
+                    printsub        <D-Bus>
                     printsvc        <systemd>
                     pstree          <Process>
                     readelf         <File>
                     remote          <Command>
-                    request         <URL>
+                    req             <URL>
                     setafnt         <Affinity>
                     setcpu          <Clock>
                     setsched        <Priority>
@@ -1219,6 +1220,7 @@ COMMAND:
                     drawavg         <Average>
                     drawcpu         <CPU>
                     drawcpuavg      <CPU>
+                    drawdelay       <Delay>
                     drawio          <I/O>
                     drawleak        <Leak>
                     drawmem         <Memory>

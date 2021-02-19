@@ -13639,6 +13639,7 @@ class FileAnalyzer(object):
         self.procData = {}
         self.fileData = {}
         self.inodeData = {}
+        self.target = ['']
 
         self.procList = {}
         self.fileList = {}
@@ -13652,8 +13653,8 @@ class FileAnalyzer(object):
         self.init_inodeData = {}
 
         # handle no target case #
-        if not SysMgr.filterGroup:
-            SysMgr.filterGroup.insert(0, '')
+        if SysMgr.filterGroup:
+            self.target = SysMgr.filterGroup
 
         if not SysMgr.guiderObj:
             if not SysMgr.loadLibcObj():
@@ -14286,7 +14287,7 @@ class FileAnalyzer(object):
             SysMgr.printOpenErr(SysMgr.procPath)
             sys.exit(0)
 
-        # scan comms include words in SysMgr.filterGroup #
+        # scan comms include words in target list #
         for pid in pids:
             try:
                 long(pid)
@@ -14347,7 +14348,7 @@ class FileAnalyzer(object):
                     continue
 
                 # save process info #
-                for val in SysMgr.filterGroup:
+                for val in self.target:
                     if val in comm or tid == val:
                         # access procData #
                         try:
@@ -16126,6 +16127,8 @@ class SysMgr(object):
         # start analyzing files #
         try:
             pi = FileAnalyzer()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "fail to analyze memory-mapped files", reason=True)
@@ -16568,7 +16571,7 @@ class SysMgr(object):
                     targetList = list(map(long, targetList))
                     if not targetList:
                         SysMgr.printErr(
-                            "no threads related to %s" % tid)
+                            "no thread related to '%s'" % tid)
                         sys.exit(0)
                     SysMgr.setAffinity(mask, targetList)
 
@@ -16844,7 +16847,7 @@ class SysMgr(object):
 
             if not targetList:
                 SysMgr.printErr(
-                    "no threads related to %s" % item)
+                    "no thread related to '%s'" % item)
                 sys.exit(0)
 
             targetList = list(set(targetList))
@@ -19019,7 +19022,7 @@ Usage:
     # {0:1} {1:1}
 
 Description:
-    Print messages in real-time
+    Print logs in real-time
 
 Options:
     -v                          verbose
@@ -19030,13 +19033,10 @@ Options:
     -o  <DIR|FILE>              set output path
 
 Examples:
-    - Print messages in real-time
+    - Print logs in real-time
         # {0:1} {1:1}
 
-    - Print messages including specific words in real-time
-        # {0:1} {1:1} -g test
-
-    - Print messages to the sepcific file
+    - Print logs to the sepcific file
         # {0:1} {1:1} -o log.out
                     '''.format(cmd, mode)
 
@@ -19170,6 +19170,9 @@ Options:
 Examples:
     - report all analysis results of files mapped to all processes to ./guider.out
         # {0:1} {1:1} -o . -a
+
+    - report all analysis results of files mapped to specific processes
+        # {0:1} {1:1} -g a.out
 
     - report analysis result on each intervals of files mapped to all processes to ./guider.out
         # {0:1} {1:1} -o . -i
@@ -20610,10 +20613,20 @@ Examples:
 
                     '''.format(cmd, mode)
 
+                    if SysMgr.checkMode('printkmsg') or \
+                        SysMgr.checkMode('printsys'):
+                        helpStr += '''
+    - Print logs including specific words
+        # {0:1} {1:1} -g test
+                    '''.format(cmd, mode)
+
                     if SysMgr.checkMode('printjrl'):
                         helpStr += '''
     - Print all journals
         # {0:1} {1:1} -a
+
+    - Print journals including specific words in real-time
+        # {0:1} {1:1} -g test
 
     - Print journals with all fields in real-time
         # {0:1} {1:1} -I
@@ -20627,6 +20640,9 @@ Examples:
     - Print DLT messages from specific files
         # {0:1} {1:1} "./*.dlt"
         # {0:1} {1:1} -I "./*.dlt"
+
+    - Print DLT messages including specific words
+        # {0:1} {1:1} -g test
 
     - Change default log level to be printed
         # {0:1} {1:1} -c INFO
@@ -21277,19 +21293,19 @@ Options:
                     helpStr += '''
 Examples:
     - Set the clock speed to 10000000HZ and the governor to userspace for CPU1
-        # {0:1} {1:1} -g 1:10000000:userspace
+        # {0:1} {1:1} 1:10000000:userspace
 
     - Set the clock speed to 10000000HZ and the governor to userspace for All CPUs
-        # {0:1} {1:1} -g :10000000:userspace
+        # {0:1} {1:1} :10000000:userspace
 
     - Set the clock speed to 10000000HZ for CPU0
-        # {0:1} {1:1} -g 0:10000000
+        # {0:1} {1:1} 0:10000000
 
     - Set the governor to performance for CPU2
-        # {0:1} {1:1} -g 2:0:performance
+        # {0:1} {1:1} 2:0:performance
 
     - Set the governor to performance for CPU2
-        # {0:1} {1:1} -g 2:0:performance
+        # {0:1} {1:1} 2:0:performance
                     '''.format(cmd, mode)
 
                 # convert #
@@ -21363,17 +21379,17 @@ Options:
                     helpStr += '''
 Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
-        # {0:1} {1:1} -g -20:a.out
-        # {0:1} {1:1} -g c:-20:1234
+        # {0:1} {1:1} "-20:a.out"
+        # {0:1} {1:1} "c:-20:1234"
 
     - Set CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
-        # {0:1} {1:1} -g -20:a.out -P
+        # {0:1} {1:1} "-20:a.out -P"
 
     - Set CPU scheduler policy(FIFO), priority(90) for a specific thread
-        # {0:1} {1:1} -g f:90:a.out
+        # {0:1} {1:1} "f:90:a.out"
 
     - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
-        # {0:1} {1:1} -g d:1000000/10000000/10000000:a.out
+        # {0:1} {1:1} "d:1000000/10000000/10000000:a.out"
                     '''.format(cmd, mode)
 
                 # getaffinity #
@@ -26459,7 +26475,7 @@ Copyright:
             elif option == 'Y':
                 SysMgr.checkOptVal(option, value)
                 if not SysMgr.prio:
-                    SysMgr.parsePriorityOption(value)
+                    SysMgr.applyPriority(value)
 
             elif option == 'J':
                 SysMgr.jsonEnable = True
@@ -27104,7 +27120,7 @@ Copyright:
                     sys.exit(0)
 
             elif option == 'Y':
-                SysMgr.parsePriorityOption(value)
+                SysMgr.applyPriority(value)
 
             elif option == 'y':
                 SysMgr.systemEnable = True
@@ -28925,7 +28941,7 @@ Copyright:
         elif ulist[0].upper() == 'SCHED' or \
             ulist[0] == 's':
             if len(ulist) > 1:
-                SysMgr.parsePriorityOption((' '.join(ulist[1:])))
+                SysMgr.applyPriority((' '.join(ulist[1:])))
             else:
                 _printHelp()
         # sort #
@@ -31011,7 +31027,7 @@ Copyright:
 
         value = ','.join(value)
 
-        SysMgr.parsePriorityOption(value)
+        SysMgr.applyPriority(value)
 
 
 
@@ -31818,7 +31834,7 @@ Copyright:
             if SysMgr.filterGroup:
                 flist = ', '.join(SysMgr.filterGroup)
                 SysMgr.printErr(
-                    "no thread related to %s" % flist)
+                    "no thread related to '%s'" % flist)
             elif not inputParam:
                 SysMgr.printErr(
                     "no TID with -g option or command with -I option")
@@ -35240,6 +35256,8 @@ Copyright:
     def doSystat(isProcess=True):
         SysMgr.printLogo(big=True, onlyFile=True)
 
+        SysMgr.checkRootPerm()
+
         # enable default attributes #
         SysMgr.showAll = True
         SysMgr.memEnable = True
@@ -35249,16 +35267,10 @@ Copyright:
         SysMgr.perfEnable = True
         SysMgr.nsEnable = True
         SysMgr.ttyRows = sys.maxsize
-
-        if SysMgr.isRoot():
-            SysMgr.diskEnable = True
-            SysMgr.blockEnable = True
-            SysMgr.networkEnable = True
-            SysMgr.delayEnable = True
-        else:
-            SysMgr.printWarn(
-                "fail to get disk, network, delay stats "
-                "because no root permission", True)
+        SysMgr.diskEnable = True
+        SysMgr.blockEnable = True
+        SysMgr.networkEnable = True
+        SysMgr.delayEnable = True
 
         # initialize perf events #
         SysMgr.initSystemPerfEvents()
@@ -35798,7 +35810,7 @@ Copyright:
 
 
     @staticmethod
-    def parsePriorityOption(value):
+    def applyPriority(value):
         if not value:
             SysMgr.printErr((
                 "wrong value '%s' to apply new priority, "
@@ -35848,7 +35860,7 @@ Copyright:
 
                 if not targetList:
                     SysMgr.printErr(
-                        "no threads related to '%s'" % task)
+                        "no thread related to '%s'" % task)
                     sys.exit(0)
 
                 for task in targetList:
