@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210218"
+__revision__ = "210219"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -40067,25 +40067,31 @@ class DbusAnalyzer(object):
                     (name.decode(), DbusAnalyzer.getErrInfo()))
         '''
 
-        # check connection #
-        if dbusObj.dbus_connection_get_is_connected(conn) == 0:
-            SysMgr.printWarn(
-                'D-bus bus is not connected yet')
-
-        # send a message for method call #
-        if dbusObj.dbus_connection_get_is_authenticated(conn) == 0:
-            path = '/org/freedesktop/DBus'
-            des = iface = 'org.freedesktop.DBus'
-            method = 'Hello'
-            DbusAnalyzer.callMethod(conn, des, path, iface, method)
-
-        # recover EUID #
         try:
-            os.seteuid(euidOrig)
-        except:
-            pass
+            ret = conn
 
-        return conn
+            # check connection #
+            if dbusObj.dbus_connection_get_is_connected(conn) == 0:
+                SysMgr.printWarn(
+                    'D-Bus bus is not connected yet')
+                ret = None
+            # send a message for method call #
+            elif dbusObj.dbus_connection_get_is_authenticated(conn) == 0:
+                path = '/org/freedesktop/DBus'
+                des = iface = 'org.freedesktop.DBus'
+                method = 'Hello'
+                msg, reply = DbusAnalyzer.callMethod(
+                    conn, des, path, iface, method)
+                if not msg or not reply:
+                    ret = None
+        finally:
+            # recover EUID #
+            try:
+                os.seteuid(euidOrig)
+            except:
+                pass
+
+            return ret
 
 
 
@@ -41419,8 +41425,15 @@ class DbusAnalyzer(object):
                         if type(src) is bytes:
                             src = src.decode()
                         srcInfo = src
-                    if service and src in service:
-                        srcInfo = service[src]
+
+                        if service:
+                            if src in service:
+                                srcInfo = service[src]
+                            else:
+                                service[src] = src
+                                _updateServiceProc(bus, tid, None, service)
+                                if src in service:
+                                    srcInfo = service[src]
 
                     # get receiver #
                     desInfo = '??'
@@ -41429,8 +41442,15 @@ class DbusAnalyzer(object):
                         if type(des) is bytes:
                             des = des.decode()
                         desInfo = des
-                    if service and des in service:
-                        desInfo = service[des]
+
+                        if service:
+                            if des in service:
+                                desInfo = service[des]
+                            else:
+                                service[des] = des
+                                _updateServiceProc(bus, tid, None, service)
+                                if des in service:
+                                    desInfo = service[des]
 
                     # get message type #
                     try:
@@ -41671,6 +41691,21 @@ class DbusAnalyzer(object):
             except:
                 SysMgr.printWarn('fail to read data from pipe', reason=True)
                 return
+
+        def _updateServiceProc(bus, tid, addr, serviceList):
+            if not bus:
+                return
+
+            services = DbusAnalyzer.getBusService(
+                bus, tid=tid, addr=None)
+            if not services:
+                return
+
+            # register process #
+            for idx, svc in enumerate(services):
+                pinfo = DbusAnalyzer.getServiceProc(bus, svc)
+                if pinfo:
+                    serviceList[svc] = pinfo
 
         def _getDefaultTasks(comm, sibling=True):
             taskList = []
@@ -74713,14 +74748,14 @@ class ThreadAnalyzer(object):
             if oomstr:
                 jsonData['oomKill'] = oom_kill
 
-        SysMgr.addPrint(
+        SysMgr.addPrint(UtilMgr.convColor(
             ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %s] [Swap: %s]\n") % \
             (title, SysMgr.uptime, SysMgr.uptimeDiff,
             nrCtxt, nrNewThreads, nrTermThreads, oomstr, nrIrq,
             SysMgr.nrCore, self.nrProcess, self.nrThread, loadavg,
-            memTotal, swapTotal))
+            memTotal, swapTotal), 'BOLD'))
 
 
 
@@ -75906,20 +75941,27 @@ class ThreadAnalyzer(object):
                 except:
                     prtd = '-'
 
-            # calculate delayed time in runqueue #
             try:
-                if SysMgr.totalEnable:
-                    prevExecTime = 0
-                    prevWaitTime = 0
+                # get blocked time of parent process waits for its children #
+                if SysMgr.wfcEnable:
+                    dtime = long(value['cttime'])
+                # calculate delayed time in runqueue #
                 else:
-                    prevExecTime = self.prevProcData[idx]['execTime']
-                    prevWaitTime = self.prevProcData[idx]['waitTime']
+                    if SysMgr.totalEnable:
+                        prevExecTime = 0
+                        prevWaitTime = 0
+                    else:
+                        prevExecTime = self.prevProcData[idx]['execTime']
+                        prevWaitTime = self.prevProcData[idx]['waitTime']
 
-                execTime = value['execTime'] - prevExecTime
-                waitTime = value['waitTime'] - prevWaitTime
-                execPer = (execTime / (execTime + waitTime)) * 100
-                totalTime = value['ttime'] * (100 / execPer)
-                dtime = long(totalTime - value['ttime'])
+                    execTime = value['execTime'] - prevExecTime
+                    waitTime = value['waitTime'] - prevWaitTime
+                    execPer = (execTime / (execTime + waitTime)) * 100
+                    totalTime = value['ttime'] * (100 / execPer)
+                    dtime = long(totalTime - value['ttime'])
+
+                if dtime > 0:
+                    dtime = UtilMgr.convColor('%3s' % dtime, 'RED')
             except SystemExit:
                 sys.exit(0)
             except:
@@ -75928,14 +75970,15 @@ class ThreadAnalyzer(object):
             # get io size #
             try:
                 readSize = value['read'] >> 20
+                if readSize > 0:
+                    readSize = UtilMgr.convColor('%4s' % readSize, 'RED')
+
                 writeSize = value['write'] >> 20
+                if writeSize > 0:
+                    writeSize = UtilMgr.convColor('%4s' % writeSize, 'RED')
             except:
                 readSize = '-'
                 writeSize = '-'
-
-            # get blocked time of parent process waits for its children #
-            if SysMgr.wfcEnable:
-                dtime = long(value['cttime'])
 
             # set last field info #
             try:
