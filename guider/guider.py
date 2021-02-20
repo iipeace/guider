@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210219"
+__revision__ = "210220"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5617,6 +5617,12 @@ class NetworkMgr(object):
             # set REUSEADDR #
             self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
+            # set REUSEPORT #
+            '''
+            from socket import SO_REUSEPORT
+            self.socket.setsockopt(SOL_SOCKET, SO_REUSEPORT, 0)
+            '''
+
             # set SENDTIMEOUT #
             '''
             sec = 1
@@ -6493,7 +6499,7 @@ class NetworkMgr(object):
         # print available IP list #
         try:
             iplist = sorted(NetworkMgr.getUsingIps())
-            if len(iplist) > 0:
+            if iplist:
                 SysMgr.printWarn(
                     'available IP list [ %s ]' % ', '.join(iplist))
         except:
@@ -16364,9 +16370,15 @@ class SysMgr(object):
             if not SysMgr.checkBgTopCond():
                 sys.exit(0)
 
-            SysMgr.blockEnable = True
+            if SysMgr.isRoot():
+                SysMgr.blockEnable = True
+            else:
+                SysMgr.printWarn(
+                    'block is disabled because of no root permission')
+
             SysMgr.diskEnable = True
             SysMgr.networkEnable = True
+
             SysMgr.runBackgroundMode()
 
         # report #
@@ -21593,6 +21605,8 @@ Description:
     Send the event signal to all running Guider processes
 
 Options:
+    -I  <EVENT>                 set event name
+    -g  <PID>                   set target
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21600,6 +21614,10 @@ Options:
 Examples:
     - Send scene1 event to running Guider processes
         # {0:1} {1:1} scene1
+        # {0:1} {1:1} -I scene1
+
+    - Send scene1 event to specific Guider processes
+        # {0:1} {1:1} scene1 -g 1234, 1237
                     '''.format(cmd, mode)
 
                 # server #
@@ -28240,25 +28258,33 @@ Copyright:
 
     @staticmethod
     def handleEventInput():
-        # check root permission #
-        if not SysMgr.isRoot():
-            SysMgr.printErr(
-                "fail to get root permission to generate event")
-            sys.exit(0)
-
-        pids = []
-
         # mount debug fs #
         SysMgr.mountPath = SysMgr.getDebugfsPath()
         if not SysMgr.mountPath:
             SysMgr.printWarn(
                 "fail to get debugfs mount point", True)
 
+        # get event #
+        if SysMgr.hasMainArg():
+            event = SysMgr.getMainArg()
+        elif SysMgr.inputParam:
+            event = SysMgr.inputParam
+        else:
+            event = None
+
+        # convert pid #
+        try:
+            target = list(set(list(map(long, SysMgr.filterGroup))))
+        except:
+            SysMgr.printErr(
+                "fail to get pid '%s'" % \
+                    ', '.join(SysMgr.filterGroup), True)
+            sys.exit(0)
+
         # oneshot #
-        if len(sys.argv) > 2:
-            event = ' '.join(sys.argv[2:])
+        if event:
             SysMgr.writeEvent("EVENT_%s" % event)
-            SysMgr.broadcastEvent(event)
+            SysMgr.broadcastEvent(event, target)
             return
 
         while 1:
@@ -28274,10 +28300,10 @@ Copyright:
 
             if not event.strip():
                 SysMgr.writeEvent("EVENT_USER")
-                pids = SysMgr.broadcastEvent('EVENT', pids)
+                SysMgr.broadcastEvent('EVENT', target)
             else:
                 SysMgr.writeEvent("EVENT_%s" % event[:-1])
-                pids = SysMgr.broadcastEvent(event[:-1], pids)
+                SysMgr.broadcastEvent(event[:-1], target)
 
 
 
