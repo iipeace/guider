@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210220"
+__revision__ = "210221"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5558,8 +5558,9 @@ class NetworkMgr(object):
     """ Manager for remote communication """
 
     def __init__(
-        self, mode, ip, port, blocking=True,
-        tcp=False, anyPort=False, bind=True, netlink=False):
+        self, mode, ip, port, blocking=True, tcp=False,
+        anyPort=False, bind=True, netlink=False, reuse=True):
+
         self.mode = mode
         self.ip = None
         self.port = None
@@ -5615,7 +5616,8 @@ class NetworkMgr(object):
             self.recvSize = self.socket.getsockopt(SOL_SOCKET, SO_RCVBUF)
 
             # set REUSEADDR #
-            self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+            if reuse:
+                self.socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 
             # set REUSEPORT #
             '''
@@ -5655,6 +5657,12 @@ class NetworkMgr(object):
                 if bind:
                     try:
                         self.socket.bind((self.ip, self.port))
+                    except OSError as e:
+                        if e.errno == errno.EADDRINUSE:
+                            self.port = long(0)
+                            self.socket.bind((self.ip, self.port))
+                        else:
+                            raise e
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -6486,7 +6494,9 @@ class NetworkMgr(object):
 
     @staticmethod
     def setServerNetwork(
-        ip, port, force=False, blocking=False, tcp=False, anyPort=False):
+        ip, port, force=False, blocking=False,
+        tcp=False, anyPort=False, reuse=True):
+
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(
                 "ignored to set server network because it is already set")
@@ -6518,7 +6528,7 @@ class NetworkMgr(object):
 
         # create a new server setting #
         networkObject = NetworkMgr(
-            'server', ip, port, blocking, tcp, anyPort)
+            'server', ip, port, blocking, tcp, anyPort, reuse=reuse)
         if not networkObject.ip:
             SysMgr.printWarn("fail to set server IP")
             return
@@ -8038,14 +8048,9 @@ class PageAnalyzer(object):
             elif type(pid) is not list or len(pid) != 1:
                 raise Exception('wrong pid')
 
-            pid = SysMgr.getPids(pid[0], isThread=False)
+            pids = SysMgr.getPids(pid[0], isThread=False)
             if not pid:
                 raise Exception('no task')
-            elif len(pid) > 1:
-                err = "found multiple pids [ %s ]" % ', '.join(pid)
-                raise Exception(err)
-            else:
-                pid = pid[0]
         except SystemExit:
             sys.exit(0)
         except:
@@ -8053,101 +8058,102 @@ class PageAnalyzer(object):
                 "fail to recognize target", reason=True)
             sys.exit(0)
 
-        comm = SysMgr.getComm(pid)
+        for pid in pids:
+            comm = SysMgr.getComm(pid)
 
-        if not vaddr:
-            PageAnalyzer.printMemoryArea(pid, comm=comm)
-            SysMgr.printPipe(oneLine)
-            sys.exit(0)
+            if not vaddr:
+                PageAnalyzer.printMemoryArea(pid, comm=comm)
+                SysMgr.printPipe(oneLine)
+                continue
 
-        vrange = vaddr.split('-')
-        rangeCnt = len(vrange)
+            vrange = vaddr.split('-')
+            rangeCnt = len(vrange)
 
-        if rangeCnt > 2:
-            SysMgr.printErr(
-                "fail to recognize address, "
-                "input address such as 102400 or 0x1234a-0x123ff")
-            sys.exit(0)
-        else:
-            try:
-                if vrange[0].startswith("0x"):
-                    addrs = long(vrange[0], base=16)
-                    addre = addrs
-                else:
-                    addrs = long(vrange[0])
-                    addre = addrs
-            except SystemExit:
-                sys.exit(0)
-            except:
+            if rangeCnt > 2:
                 SysMgr.printErr(
                     "fail to recognize address, "
-                    "input address such as 0xabcd or 78901234")
+                    "input address such as 102400 or 0x1234a-0x123ff")
                 sys.exit(0)
-
-            try:
-                if rangeCnt == 2:
-                    if vrange[1].startswith("0x"):
-                        addre = long(vrange[1], base=16)
+            else:
+                try:
+                    if vrange[0].startswith("0x"):
+                        addrs = long(vrange[0], base=16)
+                        addre = addrs
                     else:
-                        addre = long(vrange[1])
-
-                    offset = long(0)
-                else:
-                    offset = SysMgr.pageSize
-
-                if addrs > addre:
+                        addrs = long(vrange[0])
+                        addre = addrs
+                except SystemExit:
+                    sys.exit(0)
+                except:
                     SysMgr.printErr(
                         "fail to recognize address, "
-                        "input bigger second address than first address")
+                        "input address such as 0xabcd or 78901234")
                     sys.exit(0)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printErr(
-                    "fail to recognize address, "
-                    "input address such as 0x1234-0x4444")
-                sys.exit(0)
 
-        SysMgr.printPipe(
-            "\n[ TASK: %s(%s) ] [ AREA: %s ] [ HELP: %s ]" % \
-                (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
+                try:
+                    if rangeCnt == 2:
+                        if vrange[1].startswith("0x"):
+                            addre = long(vrange[1], base=16)
+                        else:
+                            addre = long(vrange[1])
 
-        PageAnalyzer.printMemoryArea(pid, addrs, addre)
-        SysMgr.printPipe(twoLine)
+                        offset = long(0)
+                    else:
+                        offset = SysMgr.pageSize
 
-        SysMgr.printPipe((
-            "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
-            "{6:^8}|{7:^7}| {8}({9})\n{10}").\
-            format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",
-            "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
+                    if addrs > addre:
+                        SysMgr.printErr(
+                            "fail to recognize address, "
+                            "input bigger second address than first address")
+                        sys.exit(0)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to recognize address, "
+                        "input address such as 0x1234-0x4444")
+                    sys.exit(0)
 
-        for addr in range(addrs, addre + offset, SysMgr.pageSize):
-            entry = PageAnalyzer.getPagemapEntry(pid, addr)
+            SysMgr.printPipe(
+                "\n[ TASK: %s(%s) ] [ AREA: %s ] [ HELP: %s ]" % \
+                    (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
 
-            pfn = PageAnalyzer.getPfn(entry)
-
-            isPresent = PageAnalyzer.isPresent(entry)
-
-            isSwapped = PageAnalyzer.isSwapped(entry)
-
-            isSoftdirty = PageAnalyzer.isSoftdirty(entry)
-
-            isExmapped = PageAnalyzer.isExmapped(entry)
-
-            isFile = PageAnalyzer.isFilePage(entry)
-
-            bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip('L')
-
-            sflags = PageAnalyzer.getFlagTypes(bflags)
+            PageAnalyzer.printMemoryArea(pid, addrs, addre)
+            SysMgr.printPipe(twoLine)
 
             SysMgr.printPipe((
-                "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"\
-                "{6:^8}|{7:^7}| {8}({9} )").format(
-                hex(addr).rstrip('L'), hex(pfn).rstrip('L'), isPresent,
-                isSwapped, isFile,PageAnalyzer.getPagecount(pfn),
-                isSoftdirty, isExmapped, bflags, sflags))
+                "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"
+                "{6:^8}|{7:^7}| {8}({9})\n{10}").\
+                format("VADDR", "PFN", "PRESENT", "SWAP", "FILE", "REF",
+                "SDRT", "EXMAP", "FLAG", "FLAGS", oneLine))
 
-        SysMgr.printPipe("%s\n" % oneLine)
+            for addr in range(addrs, addre + offset, SysMgr.pageSize):
+                entry = PageAnalyzer.getPagemapEntry(pid, addr)
+
+                pfn = PageAnalyzer.getPfn(entry)
+
+                isPresent = PageAnalyzer.isPresent(entry)
+
+                isSwapped = PageAnalyzer.isSwapped(entry)
+
+                isSoftdirty = PageAnalyzer.isSoftdirty(entry)
+
+                isExmapped = PageAnalyzer.isExmapped(entry)
+
+                isFile = PageAnalyzer.isFilePage(entry)
+
+                bflags = hex(PageAnalyzer.getPageFlags(pfn)).rstrip('L')
+
+                sflags = PageAnalyzer.getFlagTypes(bflags)
+
+                SysMgr.printPipe((
+                    "{0:^18}|{1:^16}|{2:^9}|{3:^6}|{4:^6}|{5:^5}|"\
+                    "{6:^8}|{7:^7}| {8}({9} )").format(
+                    hex(addr).rstrip('L'), hex(pfn).rstrip('L'), isPresent,
+                    isSwapped, isFile,PageAnalyzer.getPagecount(pfn),
+                    isSoftdirty, isExmapped, bflags, sflags))
+
+            SysMgr.printPipe("%s\n" % oneLine)
 
 
 
@@ -11268,7 +11274,7 @@ class FunctionAnalyzer(object):
                 (("{0:>16}|{1:>7}|{2:>7}|{3:^6}|{4:^6}|"
                 "{5:>7}|{6:>9}({7:>8}/{8:>8}/{9:>8})|{10:>7}|{11:>8}|"
                 "{12:>8}|{13:>8}|{14:>9}|{15:>6}|{16:>8}|")).\
-                format(comm, idx, value['tgid'], targetMark, life,
+                format(comm[:16], idx, value['tgid'], targetMark, life,
                 cpuPer, allocMem, userMem, cacheMem,  kernelMem,
                 knownFreeMem, unknownFreeMem, cval,
                 readBlock, writeBlock, nrLock, nrCustom))
@@ -15968,11 +15974,11 @@ class SysMgr(object):
         # parse all options and make output file path #
         SysMgr.parseAnalOption()
 
-        # wait for user input #
-        SysMgr.waitEvent()
-
         SysMgr.printStat(
             r'start recording... [ STOP(Ctrl+c), MARK(Ctrl+\) ]')
+
+        # wait for user input #
+        SysMgr.waitEvent()
 
         # save system info #
         SysMgr.sysInstance.saveSysStat()
@@ -16374,7 +16380,7 @@ class SysMgr(object):
                 SysMgr.blockEnable = True
             else:
                 SysMgr.printWarn(
-                    'block is disabled because of no root permission')
+                    'block stat is disabled because of no root permission')
 
             SysMgr.diskEnable = True
             SysMgr.networkEnable = True
@@ -16511,7 +16517,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def parseKillOption(value):
+    def applyKillVal(value):
         if not value:
             SysMgr.printErr("wrong value %s with -k option")
             sys.exit(0)
@@ -20238,7 +20244,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Analyze page attributes
+    Analyze page attributes for tasks
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20252,7 +20258,7 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Analyze page attributes in specific area for a specific process
+    - Analyze page attributes in specific area for specific processes
         # {0:1} {1:1} -g a.out -I 0x0-0x4000
                     '''.format(cmd, mode)
 
@@ -20719,7 +20725,7 @@ Examples:
                 elif SysMgr.checkMode('watch'):
                     helpStr = '''
 Usage:
-    # {0:1} {1:1} -g <OFFSET> [OPTIONS] [--help]
+    # {0:1} {1:1} <PATH> [OPTIONS] [--help]
 
 Description:
     Watch specific files or directories
@@ -20734,14 +20740,17 @@ Examples:
     - Watch the current directory
         # {0:1} {1:1}
 
+    - Watch multiple directories
+        # {0:1} {1:1} "/home/iipeace/test","/home/iipeace/test/sub"
+
     - Watch specific events for a.out in the current directory
-        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out
+        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out"
 
     - Watch specific events in the current directory and terminate if the events occur
-        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out:exit
+        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:exit"
 
     - Watch specific events in the current directory and execute specific commands if the events occur
-        # {0:1} {1:1} -g .:IN_CREATE|IN_CLOSE:a.out:"ls -lha"
+        # {0:1} {1:1} ".:IN_CREATE|IN_CLOSE:a.out:ls -lha"
                     '''.format(cmd, mode)
 
                 # addr2sym #
@@ -26501,7 +26510,7 @@ Copyright:
             elif option == 'k':
                 SysMgr.checkOptVal(option, value)
                 if not SysMgr.isKillMode():
-                    SysMgr.parseKillOption(value)
+                    SysMgr.applyKillVal(value)
 
             elif option == 'd':
                 SysMgr.checkOptVal(option, value)
@@ -27139,9 +27148,6 @@ Copyright:
 
             elif option == 'Y':
                 SysMgr.applyPriority(value)
-
-            elif option == 'y':
-                SysMgr.systemEnable = True
 
             elif option == 'e':
                 options = value
@@ -29790,16 +29796,15 @@ Copyright:
 
     @staticmethod
     def pendingSignal(sig):
-        if not SysMgr.libcObj:
-            if not SysMgr.loadLibcObj():
-                return False
-
-        if not SysMgr.sigsetObj:
+        if not SysMgr.libcObj and not SysMgr.loadLibcObj():
+            return False
+        elif not SysMgr.sigsetObj:
             return False
 
         sigset = SysMgr.sigsetObj
 
-        #pendingList = SysMgr.libcObj.sigpending(byref(sigset))
+        # get pending list #
+        SysMgr.libcObj.sigpending(byref(sigset))
 
         if type(sig) is not list:
             sig = [sig]
@@ -31553,14 +31558,19 @@ Copyright:
         SysMgr.setStream()
 
         # check target path #
-        if not SysMgr.filterGroup:
-            SysMgr.filterGroup = ["."]
+        if SysMgr.hasMainArg():
+            opList = SysMgr.getMainArg().split(',')
+            opList = UtilMgr.cleanItem(opList, False)
+        elif SysMgr.filterGroup:
+            opList = SysMgr.filterGroup
+        else:
+            opList = ["."]
 
         targetList = []
         targetInfo = {}
 
         # parse items #
-        for item in SysMgr.filterGroup:
+        for item in opList:
             args = item.split(':')
             path = args[0]
             targetList.append(path)
@@ -34498,11 +34508,13 @@ Copyright:
                         SysMgr.getErrMsg())
             sys.exit(0)
 
+        # check target type #
         if SysMgr.processEnable:
             taskType = 'process'
         else:
             taskType = 'thread'
 
+        # check target number #
         if nrTask > 1:
             taskstr = '%s %s' % (UtilMgr.convNum(nrTask), taskType)
         else:
@@ -35431,6 +35443,12 @@ Copyright:
                 # get current time #
                 nowTime = time.time()
 
+                # check task #
+                if not taskList:
+                    SysMgr.printErr(
+                        "fail to find task to limit CPU usage")
+                    return
+
                 for tid in list(taskList.keys()):
                     val = taskList[tid]
                     val['prevTick'] = val['nowTick']
@@ -35443,11 +35461,6 @@ Copyright:
                         taskList.pop(tid, None)
                     else:
                         val['comm'], val['nowTick'] = stat
-
-                if not taskList:
-                    SysMgr.printErr(
-                        "fail to find task to limit CPU usage")
-                    return
 
                 if not prevTime:
                     continue
@@ -38533,7 +38546,7 @@ Copyright:
                 # set IP addr #
                 try:
                     if not SysMgr.localServObj:
-                        NetworkMgr.setServerNetwork(None, None)
+                        NetworkMgr.setServerNetwork(None, None, reuse=False)
 
                     sockObj = SysMgr.localServObj
 
@@ -49462,7 +49475,7 @@ struct cmsghdr {
 
         # get top-level frame for target task #
         if self.pthreadid == -1:
-            framep = frameList.values()[0]
+            framep = list(frameList.values())[0]
         elif not self.pthreadid in frameList:
             return
         else:
@@ -58648,7 +58661,7 @@ class ThreadAnalyzer(object):
 
             # set network config #
             if not SysMgr.findOption('x'):
-                NetworkMgr.setServerNetwork(None, None)
+                NetworkMgr.setServerNetwork(None, None, reuse=False)
 
             # set threshold config #
             SysMgr.applyThreshold()
@@ -62992,7 +63005,7 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n[Thread Signal Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^6} {1:>10} {2:>32}({3:>7}) {4:^10} {5:>32}({6:>7})".\
+                "{0:^6} {1:>10} {2:>40}({3:>7}) {4:^10} {5:>40}({6:>7})".\
                 format('TYPE', 'TIME', 'SENDER',
                 'TID', 'SIGNAL', 'RECEIVER', 'TID'))
             SysMgr.printPipe(twoLine)
@@ -63031,16 +63044,16 @@ class ThreadAnalyzer(object):
                         stid = long(0)
 
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>32}({3:>7}) "
-                        "{4:^10} {5:>32}({6:>7})").\
+                        "{0:^6} {1:>10.6f} {2:>40}({3:>7}) "
+                        "{4:^10} {5:>40}({6:>7})").\
                         format(stype, stime, scomm, stid,
                         signal, rcomm, rtid))
 
                     cnt += 1
                 elif val[0] == 'RECV':
                     SysMgr.printPipe((
-                        "{0:^6} {1:>10.6f} {2:>32} {3:>7}  "
-                        "{4:^10} {5:>32}({6:>7})").\
+                        "{0:^6} {1:>10.6f} {2:>40} {3:>7}  "
+                        "{4:^10} {5:>40}({6:>7})").\
                         format(stype, stime, ' ', ' ', signal, rcomm, rtid))
 
                     cnt += 1
