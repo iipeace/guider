@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210221"
+__revision__ = "210222"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18089,20 +18089,11 @@ class SysMgr(object):
         elif value == 'e':
             SysMgr.printInfo("sorted by EXECTIME")
             SysMgr.schedEnable = True
-            try:
-                cond = UtilMgr.convUnit2Time(cond)
-            except:
-                SysMgr.printErr(
-                    "fail to convert time '%s'" % cond)
-                sys.exit(0)
+        elif value == 'd':
+            SysMgr.printInfo("sorted by DELAY")
+            SysMgr.schedEnable = True
         elif value == 'r':
             SysMgr.printInfo("sorted by RUNTIME")
-            try:
-                cond = UtilMgr.convUnit2Time(cond)
-            except:
-                SysMgr.printErr(
-                    "fail to convert time '%s'" % cond)
-                sys.exit(0)
         elif value == 'o':
             SysMgr.printInfo("sorted by OOMSCORE")
             ThreadAnalyzer.setLastField('oom')
@@ -18487,8 +18478,8 @@ Usage:
     -X  <REQ@IP:PORT>           set request address
     -N  <REQ@IP:PORT>           set report address
     -S  <CHARACTER{:VALUE}>     sort by key
-          [ c:cpu / m:mem / p:pid / N:name / b:block
-            w:wfc / n:new / f:file / r:runtime / e:exectime
+          [ c:cpu / m:mem / p:pid / N:name / b:block / w:wfc
+            n:new / f:file / r:runtime:TIME / e:exectime:TIME
             P:prio / C:contextswitch / o:oomscore ]
     -P                          group threads in a same process
     -I  <DIR|FILE>              set input file
@@ -18574,6 +18565,10 @@ Examples:
     - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
+
+    - Monitor status of all {2:2} sorted by execution time
+        # {0:1} {1:1} -S e
+        # {0:1} {1:1} -S e:2h
 
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
@@ -23268,16 +23263,27 @@ Copyright:
 
 
     @staticmethod
+    def getLine(idx=1):
+        try:
+            inspect = SysMgr.getPkg('inspect')
+            return inspect.getframeinfo(inspect.stack()[idx][0]).lineno
+        except:
+            return None
+
+
+
+    @staticmethod
     def getErrMsg():
         et, err, to = sys.exc_info()
+        lineno = SysMgr.getLine(idx=2)
 
         try:
             if not err.args or err.args[0] == 0:
-                return '%s at %s' % \
-                    (sys.exc_info()[0].__name__, to.tb_lineno)
+                return '%s at %s line' % \
+                    (sys.exc_info()[0].__name__, lineno)
         except:
             if to:
-                return 'N/A at %s' % to.tb_lineno
+                return 'N/A at %s line' % lineno
             else:
                 return 'N/A'
 
@@ -23287,7 +23293,7 @@ Copyright:
             code = ''
 
         errstr = ' '.join(list(map(str, err.args)))
-        return '%s%s at %s' % (code, errstr, to.tb_lineno)
+        return '%s%s at %s line' % (code, errstr, lineno)
 
 
 
@@ -40074,7 +40080,7 @@ class DbusAnalyzer(object):
                 address = c_char_p(address.encode())
                 conn = dbusObj.dbus_connection_open(
                     address, DbusAnalyzer.getErrP())
-            else:
+            elif tid:
                 # recover EUID #
                 os.seteuid(euidOrig)
 
@@ -40275,8 +40281,8 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "fail to call a D-Bus remote method because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                "fail to call a D-Bus remote method because %s at %s line" % \
+                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
             return
 
         while 1:
@@ -40307,8 +40313,8 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "fail to call a D-Bus remote method because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                "fail to call a D-Bus remote method because %s at %s line" % \
+                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
             return msg, reply
 
         return msg, reply
@@ -40316,15 +40322,25 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getStats(bus, request, des=None):
+    def getStats(bus, request, des=None, tid=None):
+        def _printWarn(procStr, line, err):
+            SysMgr.printWarn((
+                'fail to parse from D-Bus message for %s at %s line '
+                'because %s') % \
+                    (procStr, line, err), True)
+
         if not bus:
             return
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus)
+        conn = DbusAnalyzer.getBus(bus, tid)
         if not conn:
             return
+
+        procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
+        getLine = SysMgr.getLine
+        getErr = DbusAnalyzer.getErrInfo
 
         # prepare method args #
         path = '/'
@@ -40334,9 +40350,7 @@ class DbusAnalyzer(object):
             path += des.replace('.', '/')
         if dbusObj.dbus_validate_path(
             c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
-            SysMgr.printWarn(
-                "fail to create a D-Bus message because %s" % \
-                    DbusAnalyzer.getErrInfo())
+            _printWarn(procStr, getLine(), getErr())
             return
 
         # set interface, method, timeout #
@@ -40349,7 +40363,7 @@ class DbusAnalyzer(object):
             method = 'GetAllMatchRules'
             timeout = c_int(-1)
         else:
-            SysMgr.printErr('unknown request %s' % request)
+            SysMgr.printErr('unknown request %s for %s' % (request, procStr))
             sys.exit(0)
 
         # send a message for method call #
@@ -40378,9 +40392,7 @@ class DbusAnalyzer(object):
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
                 dbusObj.dbus_connection_unref(conn)
-                SysMgr.printWarn(
-                    "fail to parse D-Bus message args because %s" % \
-                        DbusAnalyzer.getErrInfo())
+                _printWarn(procStr, getLine(), getErr())
                 return
 
             # parse args #
@@ -40389,9 +40401,7 @@ class DbusAnalyzer(object):
                     reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING,
                     byref(strRes), DBUS_TYPE_INVALID)
             if not res:
-                SysMgr.printWarn(
-                    "fail to parse D-Bus message args because %s" % \
-                        DbusAnalyzer.getErrInfo())
+                _printWarn(procStr, getLine(), getErr())
                 return
 
             # convert value #
@@ -40442,7 +40452,7 @@ class DbusAnalyzer(object):
         # initialize iteration #
         ret = dbusObj.dbus_message_iter_init(reply, rootIterP)
         if not ret:
-            SysMgr.printWarn("fail to initialize D-Bus message iteration")
+            _printWarn(procStr, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
@@ -40450,7 +40460,7 @@ class DbusAnalyzer(object):
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
         if ret != DBUS_TYPE_ARRAY.value:
-            SysMgr.printWarn("fail to parse array in D-Bus message")
+            _printWarn(procStr, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
             dbusObj.dbus_connection_unref(conn)
@@ -40460,13 +40470,14 @@ class DbusAnalyzer(object):
         cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
-        SysMgr.printStat('start collecting signals for %s bus' % bus)
+        SysMgr.printStat(
+            'start collecting signals for %s bus for %s' % (bus, procStr))
 
         # array item loop #
         while 1:
             ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
             if ret != DBUS_TYPE_DICT_ENTRY.value:
-                SysMgr.printWarn("fail to parse dict in D-Bus message")
+                _printWarn(procStr, getLine(), getErr())
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
                 dbusObj.dbus_connection_unref(conn)
@@ -40478,8 +40489,7 @@ class DbusAnalyzer(object):
             while 1:
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != DBUS_TYPE_STRING.value:
-                    SysMgr.printWarn(
-                        "fail to parse 1st string in D-Bus message")
+                    _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -40488,8 +40498,7 @@ class DbusAnalyzer(object):
                 # get process id #
                 dbusObj.dbus_message_iter_get_basic(dictIterP, byref(procInfo))
                 if not procInfo.value:
-                    SysMgr.printWarn(
-                        "fail to parse process info in D-Bus message")
+                    _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -40500,7 +40509,7 @@ class DbusAnalyzer(object):
 
                 ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
                 if ret != DBUS_TYPE_ARRAY.value:
-                    SysMgr.printWarn("fail to parse array in D-Bus message")
+                    _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
                     dbusObj.dbus_connection_unref(conn)
@@ -40523,8 +40532,7 @@ class DbusAnalyzer(object):
                 while 1:
                     ret = dbusObj.dbus_message_iter_get_arg_type(arraySigIterP)
                     if ret != DBUS_TYPE_STRING.value:
-                        SysMgr.printWarn(
-                            "fail to parse 2nd string in D-Bus message")
+                        _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
                         dbusObj.dbus_connection_unref(conn)
@@ -40534,8 +40542,7 @@ class DbusAnalyzer(object):
                     dbusObj.dbus_message_iter_get_basic(
                         arraySigIterP, byref(sigInfo))
                     if not sigInfo.value:
-                        SysMgr.printWarn(
-                            "fail to parse signal info in D-Bus message")
+                        _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
                         dbusObj.dbus_connection_unref(conn)
@@ -40641,8 +40648,8 @@ class DbusAnalyzer(object):
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
-                "fail to call a D-Bus remote method because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                "fail to call a D-Bus remote method because %s at %s line" % \
+                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
             return
 
         # parse args #
@@ -40844,8 +40851,29 @@ class DbusAnalyzer(object):
         dbusObj.dbus_bus_get_private.argtypes = [c_uint, c_void_p]
         dbusObj.dbus_bus_get_private.restype = c_void_p
 
+        dbusObj.dbus_message_iter_init.restype = c_bool
+        dbusObj.dbus_message_iter_init.argtypes = [c_void_p, c_void_p]
+
+        dbusObj.dbus_error_init.restype = None
+        dbusObj.dbus_error_init.argtypes = [c_void_p,]
+
+        dbusObj.dbus_message_iter_next.restype = c_bool
+        dbusObj.dbus_message_iter_next.argtypes = [c_void_p,]
+
+        dbusObj.dbus_message_iter_get_basic.restype = None
+        dbusObj.dbus_message_iter_get_basic.argtypes = [c_void_p, c_void_p]
+
         dbusObj.dbus_connection_ref.argtypes = [c_void_p,]
         dbusObj.dbus_connection_ref.restype = c_void_p
+
+        dbusObj.dbus_message_iter_get_arg_type.restype = c_int
+        dbusObj.dbus_message_iter_get_arg_type.argtypes = [c_void_p,]
+
+        dbusObj.dbus_message_iter_recurse.restype = None
+        dbusObj.dbus_message_iter_recurse.argtypes = [c_void_p, c_void_p]
+
+        dbusObj.dbus_message_iter_get_element_count.restype = c_int
+        dbusObj.dbus_message_iter_get_element_count.argtypes = [c_void_p,]
 
         dbusObj.dbus_bus_get_unique_name.argtypes = [c_void_p]
         dbusObj.dbus_bus_get_unique_name.restype = c_char_p
@@ -41921,7 +41949,8 @@ class DbusAnalyzer(object):
                     # register methods and properties #
                     if False and not service.startswith(':'):
                         interfaceList[service] = \
-                            DbusAnalyzer.getStats(bus, 'introspect', service)
+                            DbusAnalyzer.getStats(
+                                bus, 'introspect', service)
 
                 busServiceList[tid].append(busProcList)
             else:
@@ -75269,13 +75298,18 @@ class ThreadAnalyzer(object):
                 key=lambda e: long(e[1]['stat'][self.prioIdx]), reverse=False)
             checkCond = False
         # exectime #
-        elif SysMgr.sort == 'e':
+        elif SysMgr.sort == 'e' or SysMgr.sort == 'd':
+            if SysMgr.sort == 'e':
+                statName = 'execTime'
+            elif SysMgr.sort == 'd':
+                statName = 'waitTime'
+
             try:
                 for idx, value in self.procData.items():
                     self.saveProcSchedData(value['taskPath'], idx)
 
                 sortedProcData = sorted(self.procData.items(),
-                    key=lambda e: e[1]['execTime'], reverse=True)
+                    key=lambda e: e[1][statName], reverse=True)
             except:
                 sortedProcData = self.procData.items()
         # contextswitch #
@@ -75468,9 +75502,11 @@ class ThreadAnalyzer(object):
             elif SysMgr.sort == 'o':
                 target = value['oomScore']
             elif SysMgr.sort == 'r':
-                target = value['runtime']
+                target = value['runtime'] / 1000000000
             elif SysMgr.sort == 'e':
-                target = value['execTime']
+                target = value['execTime'] / 1000000000
+            elif SysMgr.sort == 'd':
+                target = value['waitTime']
             elif SysMgr.sort == 'C':
                 try:
                     prevStat = self.prevProcData[idx]['status']
@@ -76296,7 +76332,7 @@ class ThreadAnalyzer(object):
 
             # print sched #
             if SysMgr.schedEnable and \
-                'execTime' in value:
+                ('execTime' in value or 'waitTime' in value):
                 execTime = float(long(value['execTime'] / 1000000000))
                 if value['runtime'] > 0:
                     execPer = execTime / value['runtime'] * 100
