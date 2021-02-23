@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210222"
+__revision__ = "210223"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -13777,6 +13777,7 @@ class FileAnalyzer(object):
         # define alias #
         pageSize = SysMgr.pageSize
         convert = UtilMgr.convSize2Unit
+        convColor = UtilMgr.convColor
 
         # Print process list #
         SysMgr.printPipe((
@@ -13798,9 +13799,19 @@ class FileAnalyzer(object):
 
         for pid, val in sorted(self.procList.items(),
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
+            try:
+                rsize = val['pageCnt'] * pageSize
+            except:
+                SysMgr.printWarn(
+                    'fail to get total mapped size for %s' % val['comm'],
+                    reason=True)
+                continue
+
+            if rsize > 0:
+                rsize = convColor('%11s' % convert(rsize), 'YELLOW')
+
             printMsg = "{0:>16}({1:>6})|{2:>11} |".\
-                format(val['comm'][:SysMgr.commLen], pid,
-                convert(val['pageCnt'] * pageSize))
+                format(val['comm'][:SysMgr.commLen], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -13855,6 +13866,7 @@ class FileAnalyzer(object):
                     self.intervalFileData[0][fileName]['pageCnt'] * pageSize
             except:
                 memSize = long(0)
+
             try:
                 idx = val['totalSize'] + pageSize - 1
                 fileSize = long(idx / pageSize) * pageSize
@@ -13864,8 +13876,15 @@ class FileAnalyzer(object):
             # set percentage #
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
+                if per >= SysMgr.cpuPerHighThreshold:
+                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                else:
+                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
             else:
                 per = long(0)
+
+            if memSize > 0:
+                memSize = convColor('%10s' % convert(memSize), 'YELLOW')
 
             # check whether this file was profiled or not #
             isRep = False
@@ -13873,7 +13892,7 @@ class FileAnalyzer(object):
                 if fileName in fileData and fileData[fileName]['isRep']:
                     printMsg = \
                         "{0:>10} |{1:>7} |{2:>3}|".format(
-                            convert(memSize), convert(fileSize), per)
+                            memSize, convert(fileSize), per)
                     isRep = True
                     break
 
@@ -13913,21 +13932,39 @@ class FileAnalyzer(object):
                                     elif nowFileMap[i] < prevFileMap[i]:
                                         diffDel += 1
 
-                    diffNew = convert(diffNew * pageSize)
-                    diffDel = convert(diffDel * pageSize)
+                    if diffNew > 0:
+                        diffNew = convColor(
+                            '%6s' % convert(diffNew * pageSize), 'RED')
+                    else:
+                        diffNew = ' '
+
+                    if diffDel > 0:
+                        diffDel = convColor(
+                            '%6s' % convert(diffDel * pageSize), 'RED')
+                    else:
+                        diffDel = ' '
+
                     printMsg += "+%6s/-%6s|" % (diffNew, diffDel)
 
             finalData = self.intervalFileData[-1][fileName]
+
             totalMemSize = finalData['pageCnt'] * pageSize
 
             if fileSize != 0:
                 per = long(long(totalMemSize) / float(fileSize) * 100)
+                if per >= SysMgr.cpuPerHighThreshold:
+                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                else:
+                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
             else:
                 per = long(0)
 
+            if totalMemSize > 0:
+                totalMemSize = convColor(
+                    '%11s' % convert(totalMemSize), 'YELLOW')
+
             printMsg += \
-                "{0:11}|{1:3}| {2:1}".format(
-                    convert(totalMemSize), per, fileName)
+                "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
 
             SysMgr.printPipe(printMsg)
 
@@ -14177,6 +14214,7 @@ class FileAnalyzer(object):
 
         # define alias #
         convert = UtilMgr.convSize2Unit
+        convColor = UtilMgr.convColor
         pageSize = SysMgr.pageSize
 
         # Print process list #
@@ -14202,10 +14240,16 @@ class FileAnalyzer(object):
             try:
                 rsize = val['pageCnt'] * pageSize
             except:
-                pass
+                SysMgr.printWarn(
+                    'fail to get total mapped size for %s' % val['comm'],
+                    reason=True)
+                continue
+
+            if rsize > 0:
+                rsize = convColor('%12s' % convert(rsize), 'YELLOW')
 
             printMsg = "{0:>16}({1:>6})|{2:>12} |".\
-                format(val['comm'][:SysMgr.commLen], pid, convert(rsize))
+                format(val['comm'][:SysMgr.commLen], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
@@ -14245,23 +14289,30 @@ class FileAnalyzer(object):
 
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
+                if per >= SysMgr.cpuPerHighThreshold:
+                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                else:
+                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
             else:
                 per = long(0)
+
+            if memSize > 0:
+                memSize = convColor('%11s' % convert(memSize), 'YELLOW')
 
             if not val['isRep']:
                 continue
             else:
                 SysMgr.printPipe((
-                    "{0:>11} |{1:>9} |{2:>6} | {3:1} "
+                    "{0:>11} |{1:>9} |{2:>5} | {3:1} "
                     "[Proc: {4:1}] [Link: {5:1}]").\
-                    format(convert(memSize), convert(fileSize), per,
-                    fileName, len(val['pids']), val['hardLink']))
+                    format(memSize, convert(fileSize), per, fileName,
+                    len(val['pids']), val['hardLink']))
 
             # prepare for printing process list #
             pidInfo = ''
             lineLength = SysMgr.lineLength
             pidLength = len(" %16s (%6s) |" % ('', ''))
-            indentLength = len("{0:>11} |{1:>9} |{2:>6} ".format('','',''))
+            indentLength = len("{0:>11} |{1:>9} |{2:>5} ".format('','',''))
             linePos = indentLength + pidLength
 
             # print hard-linked list #
@@ -18438,11 +18489,11 @@ class SysMgr(object):
 
 
     @staticmethod
-    def printHelp():
+    def printHelp(force=False):
         printPipe = SysMgr.printPipe
 
         # help #
-        if len(sys.argv) <= 1 or SysMgr.isHelpMode():
+        if force or len(sys.argv) <= 1 or SysMgr.isHelpMode():
             # get environment variable from launcher #
             if 'CMDLINE' in os.environ:
                 cmd = os.environ['CMDLINE']
@@ -18462,7 +18513,8 @@ Usage:
                 '''.format(cmd)
 
             # command help #
-            if len(sys.argv) > 1 and SysMgr.isHelpMode():
+            if force or \
+                (len(sys.argv) > 1 and SysMgr.isHelpMode()):
                 # get command #
                 mode = sys.argv[1]
 
@@ -18810,6 +18862,9 @@ Examples:
     - Print all call contexts from a specific binary
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
+
+    - Print all call contexts and target output from a specific binary
+        # {0:1} {1:1} "ls" -q NOMUTE
 
     - Print all call contexts except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
@@ -19558,6 +19613,9 @@ Examples:
     - Monitor function calls from a specific binary
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
+
+    - Monitor function calls and target output from a specific binary
+        # {0:1} {1:1} a.out -q NOMUTE
 
     - Monitor function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
@@ -23263,19 +23321,22 @@ Copyright:
 
 
     @staticmethod
-    def getLine(idx=1):
+    def getLine(start=1):
         try:
             inspect = SysMgr.getPkg('inspect')
-            return inspect.getframeinfo(inspect.stack()[idx][0]).lineno
+            lines = ''
+            for stack in inspect.stack()[start:-1]:
+                lines += '%s<' % inspect.getframeinfo(stack[0]).lineno
+            return lines.rstrip('<')
         except:
             return None
 
 
 
     @staticmethod
-    def getErrMsg():
+    def getErrMsg(start=2):
         et, err, to = sys.exc_info()
-        lineno = SysMgr.getLine(idx=2)
+        lineno = SysMgr.getLine(start=start)
 
         try:
             if not err.args or err.args[0] == 0:
@@ -24116,10 +24177,14 @@ Copyright:
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
                     fsize = UtilMgr.getFileSize(SysMgr.inputFile)
+                    if fsize and fsize != '0':
+                        fsize = ' [%s]' % fsize
+                    else:
+                        fsize = ''
 
                     SysMgr.printInfo(
                         "saved results based monitoring into "
-                        "'%s' [%s] successfully" % \
+                        "'%s'%s successfully" % \
                         (SysMgr.inputFile, fsize))
 
             SysMgr.releaseResource()
@@ -24207,10 +24272,14 @@ Copyright:
 
             # print output info #
             fsize = UtilMgr.getFileSize(SysMgr.inputFile)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
 
             SysMgr.printInfo(
                 "saved results based monitoring into "
-                "'%s' [%s] successfully" % \
+                "'%s'%s successfully" % \
                     (SysMgr.inputFile, fsize))
 
             # enable signal again #
@@ -24396,9 +24465,13 @@ Copyright:
 
             # get output size #
             fsize = UtilMgr.getFileSize(outputFile)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
 
             SysMgr.printInfo(
-                "finish saving trace data into '%s' [%s] successfully" % \
+                "finish saving trace data into '%s'%s successfully" % \
                 (outputFile, fsize))
         except SystemExit:
             sys.exit(0)
@@ -24512,7 +24585,7 @@ Copyright:
             else:
                 try:
                     fd = SysMgr.cmdFileCache[target]
-                    fd.seek(0, 0)
+                    fd.seek(0)
                 except:
                     pass
 
@@ -24543,17 +24616,11 @@ Copyright:
         # apply command #
         try:
             if append:
-                try:
-                    os.write(fd, bytes(UtilMgr.encodeStr(val)))
-                    os.fsync(fd)
-                except:
-                    pass
+                os.write(fd, bytes(UtilMgr.encodeStr(val)))
+                os.fsync(fd)
             else:
-                try:
-                    fd.write(val)
-                    fd.flush()
-                except:
-                    pass
+                fd.write(val)
+                fd.flush()
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -24566,6 +24633,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
+            SysMgr.cmdFileCache.pop(target, None)
             SysMgr.printWarn(
                 "fail to apply command '%s' to %s" % \
                     (val, path), reason=True)
@@ -25326,9 +25394,13 @@ Copyright:
 
         # get output size #
         fsize = UtilMgr.getFileSize(outputPath)
+        if fsize and fsize != '0':
+            fsize = ' [%s]' % fsize
+        else:
+            fsize = ''
 
         SysMgr.printStat(
-            "wrote timeline chart into '%s' [%s]" %
+            "wrote timeline chart into '%s'%s" %
                 (outputPath, fsize))
 
 
@@ -25445,9 +25517,13 @@ Copyright:
 
         # get output size #
         fsize = UtilMgr.getFileSize(SysMgr.imagePath)
+        if fsize and fsize != '0':
+            fsize = ' [%s]' % fsize
+        else:
+            fsize = ''
 
         SysMgr.printStat(
-            "saved image into %s [%s] successfully" % \
+            "saved image into %s%s successfully" % \
                 (SysMgr.imagePath, fsize))
 
 
@@ -25922,7 +25998,7 @@ Copyright:
         SysMgr.flushAllForPrint()
 
         if reason:
-            rstring = ' because %s' % SysMgr.getErrMsg()
+            rstring = ' because %s' % SysMgr.getErrMsg(start=3)
         else:
             rstring = ''
 
@@ -26824,7 +26900,7 @@ Copyright:
                     UtilMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
                     SysMgr.printErr(
-                        "Input value for filter with -%s option" % option)
+                        "input value for filter with -%s option" % option)
                     sys.exit(0)
 
                 for item in SysMgr.perCoreList:
@@ -27196,7 +27272,7 @@ Copyright:
                 SysMgr.filterGroup = UtilMgr.cleanItem(itemList)
                 if not SysMgr.filterGroup:
                     SysMgr.printErr(
-                        "Input value for filter with -g option")
+                        "input value for filter with -g option")
                     sys.exit(0)
 
                 SysMgr.printInfo(
@@ -27681,7 +27757,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "fail to analyze %s" % path, True)
+                    "fail to analyze '%s'" % path, True)
 
         # LEAKTRACE MODE #
         elif SysMgr.checkMode('leaktrace'):
@@ -31820,7 +31896,7 @@ Copyright:
         # check input #
         if not SysMgr.filterGroup and not inputParam:
             SysMgr.printErr(
-                "Input value for target with -g or -I option")
+                "input value for target")
             sys.exit(0)
 
         # check condition #
@@ -31947,8 +32023,9 @@ Copyright:
                     sig=signal.SIGINT, wait=True, group=True)
 
                 # continue processes #
-                SysMgr.sendSignalProcs(
-                    signal.SIGCONT, list(procList.keys()), verbose=False)
+                if SysMgr.isAlive(tid):
+                    SysMgr.sendSignalProcs(
+                        signal.SIGCONT, list(procList.keys()), verbose=False)
 
                 # remove temporary files #
                 if mode == 'breakcall':
@@ -36928,9 +37005,13 @@ Copyright:
 
             fsize = UtilMgr.convSize2Unit(
                 long(os.fstat(SysMgr.printFd.fileno()).st_size))
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
 
             SysMgr.printInfo(
-                "finish saving all results into '%s' [%s] successfully" % \
+                "finish saving all results into '%s'%s successfully" % \
                 (SysMgr.printFd.name, fsize))
 
             SysMgr.printFd.close()
@@ -43587,7 +43668,13 @@ struct cmsghdr {
                     sys.exit(0)
         # execute #
         elif self.execCmd:
-            self.execute(self.execCmd)
+            # check mute #
+            if 'NOMUTE' in SysMgr.environList:
+                mute = False
+            else:
+                mute = True
+
+            self.execute(self.execCmd, mute=mute)
             if mode == 'signal':
                 self.attach()
         # ready #
@@ -43689,7 +43776,7 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr("fail to analyze %s" % procInfo)
+            SysMgr.printErr("fail to hook for %s" % procInfo, True)
             sys.exit(0)
 
         # load libraries in advance #
@@ -55572,6 +55659,10 @@ class ElfAnalyzer(object):
                 self.attr['symTable'] = deepcopy(dobj.attr['symTable'])
                 self.attr['dynsymTable'] = deepcopy(dobj.attr['dynsymTable'])
 
+            # check file #
+            if not os.path.exists(path):
+                raise Exception('no file')
+
             # open file #
             try:
                 fd = open(path, 'rb')
@@ -55600,7 +55691,7 @@ class ElfAnalyzer(object):
         EI_NIDENT = 16
 
         # define err string #
-        errStr = "fail to recognize %s as an ELF object because %s"
+        errStr = "fail to recognize '%s' as an ELF object because %s"
 
         # check size #
         if self.fileSize < EI_NIDENT:
@@ -62882,9 +62973,13 @@ class ThreadAnalyzer(object):
 
             # get output size #
             fsize = UtilMgr.getFileSize(outputFile)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
 
             SysMgr.printStat(
-                "wrote resource %s into '%s' [%s]" %
+                "wrote resource %s into '%s'%s" %
                     (itype, outputFile, fsize))
         except SystemExit:
             sys.exit(0)
@@ -77610,10 +77705,14 @@ class ThreadAnalyzer(object):
 
                 # get output size #
                 fsize = UtilMgr.getFileSize(filePath)
+                if fsize and fsize != '0':
+                    fsize = ' [%s]' % fsize
+                else:
+                    fsize = ''
 
                 SysMgr.printStat((
                     "saved results based monitoring into "
-                    "'%s' [%s] successfully") % \
+                    "'%s'%s successfully") % \
                     (filePath, fsize))
             except SystemExit:
                 sys.exit(0)
