@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210223"
+__revision__ = "210224"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4421,15 +4421,16 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convColor(string, color='LIGHT'):
+    def convColor(string, color='LIGHT', size=1):
         if not SysMgr.colorEnable or \
             SysMgr.outPath or SysMgr.outputFile or \
             not SysMgr.isLinux or SysMgr.remoteRun:
             return string
 
+        string = '{0:>{size}}'.format(str(string), size=size)
+
         try:
-            return r'%s%s%s' % \
-                (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
+            return (ConfigMgr.COLOR_LIST[color] + string + ConfigMgr.ENDC)
         except SystemExit:
             sys.exit(0)
         except:
@@ -6418,7 +6419,7 @@ class NetworkMgr(object):
             SysMgr.localServObj.ip == ip and \
             SysMgr.localServObj.port == port:
             SysMgr.printErr((
-                "wrong value with -X option, "
+                "wrong value for remote connection, "
                 "local address and remote address are same "
                 "with %s:%s") % (ip, port))
             sys.exit(0)
@@ -6430,7 +6431,7 @@ class NetworkMgr(object):
                 reqList += req + '|'
 
             SysMgr.printErr(
-                ("wrong value with -X option, "
+                ("wrong input address, "
                  "input [%s]@IP:PORT as remote address") % \
                     reqList[:-1])
             sys.exit(0)
@@ -8058,7 +8059,7 @@ class PageAnalyzer(object):
                 "fail to recognize target", reason=True)
             sys.exit(0)
 
-        for pid in pids:
+        for pid in sorted(pids):
             comm = SysMgr.getComm(pid)
 
             if not vaddr:
@@ -9330,7 +9331,7 @@ class FunctionAnalyzer(object):
     def getBinFromServer(self, remoteObj, src, des):
         if not remoteObj or remoteObj == 'NONE':
             SysMgr.printErr(
-                "wrong remote address with -X option, "
+                "wrong remote address, "
                 "input in the format {IP:PORT}")
             sys.exit(0)
 
@@ -11287,7 +11288,7 @@ class FunctionAnalyzer(object):
         # Exit because of no target #
         if not self.target:
             SysMgr.printWarn(
-                "no specific thread targeted, input TID with -g option")
+                "no specific thread targeted, input value for TID")
 
         # Print syscall usage of threads #
         self.printSyscallSummary()
@@ -13808,7 +13809,7 @@ class FileAnalyzer(object):
                 continue
 
             if rsize > 0:
-                rsize = convColor('%11s' % convert(rsize), 'YELLOW')
+                rsize = convColor(convert(rsize), 'YELLOW', 11)
 
             printMsg = "{0:>16}({1:>6})|{2:>11} |".\
                 format(val['comm'][:SysMgr.commLen], pid, rsize)
@@ -13877,14 +13878,14 @@ class FileAnalyzer(object):
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
                 if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                    per = UtilMgr.convColor(per, 'RED', 3)
                 else:
-                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
+                    per = UtilMgr.convColor(per, 'YELLOW', 3)
             else:
                 per = long(0)
 
             if memSize > 0:
-                memSize = convColor('%10s' % convert(memSize), 'YELLOW')
+                memSize = convColor(convert(memSize), 'YELLOW', 10)
 
             # check whether this file was profiled or not #
             isRep = False
@@ -13934,13 +13935,13 @@ class FileAnalyzer(object):
 
                     if diffNew > 0:
                         diffNew = convColor(
-                            '%6s' % convert(diffNew * pageSize), 'RED')
+                            convert(diffNew * pageSize), 'RED', 6)
                     else:
                         diffNew = ' '
 
                     if diffDel > 0:
                         diffDel = convColor(
-                            '%6s' % convert(diffDel * pageSize), 'RED')
+                            convert(diffDel * pageSize), 'RED', 6)
                     else:
                         diffDel = ' '
 
@@ -13953,15 +13954,15 @@ class FileAnalyzer(object):
             if fileSize != 0:
                 per = long(long(totalMemSize) / float(fileSize) * 100)
                 if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                    per = UtilMgr.convColor(per, 'RED', 3)
                 else:
-                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
+                    per = UtilMgr.convColor(per, 'YELLOW', 3)
             else:
                 per = long(0)
 
             if totalMemSize > 0:
                 totalMemSize = convColor(
-                    '%11s' % convert(totalMemSize), 'YELLOW')
+                    convert(totalMemSize), 'YELLOW', 11)
 
             printMsg += \
                 "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
@@ -14246,7 +14247,7 @@ class FileAnalyzer(object):
                 continue
 
             if rsize > 0:
-                rsize = convColor('%12s' % convert(rsize), 'YELLOW')
+                rsize = convColor(convert(rsize), 'YELLOW', 12)
 
             printMsg = "{0:>16}({1:>6})|{2:>12} |".\
                 format(val['comm'][:SysMgr.commLen], pid, rsize)
@@ -14290,14 +14291,14 @@ class FileAnalyzer(object):
             if fileSize != 0:
                 per = long(long(memSize) / float(fileSize) * 100)
                 if per >= SysMgr.cpuPerHighThreshold:
-                    per = UtilMgr.convColor('%3s' % per, 'RED')
+                    per = UtilMgr.convColor(per, 'RED', 5)
                 else:
-                    per = UtilMgr.convColor('%3s' % per, 'YELLOW')
+                    per = UtilMgr.convColor(per, 'YELLOW', 5)
             else:
                 per = long(0)
 
             if memSize > 0:
-                memSize = convColor('%11s' % convert(memSize), 'YELLOW')
+                memSize = convColor(convert(memSize), 'YELLOW', 11)
 
             if not val['isRep']:
                 continue
@@ -15897,9 +15898,7 @@ class SysMgr(object):
         elif SysMgr.inputParam:
             msg = SysMgr.inputParam
         else:
-            SysMgr.printErr((
-                "wrong value with -I option, "
-                "input a %s message") % mtype)
+            SysMgr.printErr("no input message for %s" % mtype)
             sys.exit(0)
 
         # set alarm #
@@ -16570,7 +16569,7 @@ class SysMgr(object):
     @staticmethod
     def applyKillVal(value):
         if not value:
-            SysMgr.printErr("wrong value %s with -k option")
+            SysMgr.printErr("no value to send signal")
             sys.exit(0)
 
         SysMgr.checkRootPerm()
@@ -16667,17 +16666,14 @@ class SysMgr(object):
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
         else:
-            SysMgr.printErr(
-                "no COMM or PID with -g option")
+            SysMgr.printErr("no input for COMM or PID")
             sys.exit(0)
 
         if not inputParam:
-            SysMgr.printErr(
-                "no memory info with -I option")
+            SysMgr.printErr("no input for memory info")
             sys.exit(0)
         elif not SysMgr.outPath:
-            SysMgr.printErr(
-                "no path with -o option")
+            SysMgr.printErr("no input for path")
             sys.exit(0)
 
         # convert comm to pid #
@@ -16712,8 +16708,7 @@ class SysMgr(object):
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
-            SysMgr.printErr(
-                "no path with -I option")
+            SysMgr.printErr("no input for path")
             sys.exit(0)
 
         SysMgr.setStream()
@@ -19099,6 +19094,7 @@ Options:
     -I  <FILE|FIELD>            set path / field
     -J                          print in JSON format
     -o  <DIR|FILE>              set output path
+    -X  <REQ@IP:PORT>           set request address
 
 Examples:
     - Print logs in real-time
@@ -19896,6 +19892,9 @@ Examples:
     - Monitor DLT logs including specific string
         # {0:1} {1:1} -g test
 
+    - Monitor DLT logs from specific address for dlt-daemon
+        # {0:1} {1:1} -X 127.0.0.1:12345
+
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
 
@@ -20297,7 +20296,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Analyze page attributes for tasks
+    Print page attributes for tasks
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20311,8 +20310,11 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Analyze page attributes in specific area for specific processes
-        # {0:1} {1:1} -g a.out -I 0x0-0x4000
+    - Print memory map for specific processes
+        # {0:1} {1:1} a.out
+
+    - Print page attributes in specific area for specific processes
+        # {0:1} {1:1} a.out -I 0x0-0x4000
                     '''.format(cmd, mode)
 
                 # CPU average draw #
@@ -20657,7 +20659,7 @@ Examples:
                     SysMgr.checkMode('logjrl'):
                     helpStr = logCommonStr
 
-                # printdlt #
+                # printlog #
                 elif SysMgr.checkMode('printdlt') or \
                     SysMgr.checkMode('printdbus') or \
                     SysMgr.checkMode('printkmsg') or \
@@ -20665,6 +20667,7 @@ Examples:
                     SysMgr.checkMode('printsys'):
                     helpStr = printCommonStr
 
+                    # printdbus #
                     if SysMgr.checkMode('printdbus'):
                         helpStr += '''
     - Print D-Bus messages with detailed information in real-time
@@ -20684,6 +20687,7 @@ Examples:
 
                     '''.format(cmd, mode)
 
+                    # printkmsg / printsys #
                     if SysMgr.checkMode('printkmsg') or \
                         SysMgr.checkMode('printsys'):
                         helpStr += '''
@@ -20691,6 +20695,7 @@ Examples:
         # {0:1} {1:1} -g test
                     '''.format(cmd, mode)
 
+                    # printjrl #
                     if SysMgr.checkMode('printjrl'):
                         helpStr += '''
     - Print all journals
@@ -20706,6 +20711,7 @@ Examples:
         # {0:1} {1:1} -I _TIME, _COMM, _PID
                     '''.format(cmd, mode)
 
+                    # printdlt #
                     if SysMgr.checkMode('printdlt'):
                         helpStr += '''
     - Print DLT messages from specific files
@@ -20724,6 +20730,9 @@ Examples:
     - Print DLT messages sorted by line from specific files
         # {0:1} {1:1} "./*.dlt" -S
         # {0:1} {1:1} -I "./*.dlt" -S
+
+    - Print DLT messages from specific address for dlt-daemon
+        # {0:1} {1:1} -X 127.0.0.1:12345
                     '''.format(cmd, mode)
 
                 # printsig #
@@ -21282,7 +21291,7 @@ Examples:
     - Request GET / URL to specific server
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
-        # {0:1} {1:1} GET#http://127.0.0.1:5000\|GET#http://10.25.123.123:5000
+        # {0:1} {1:1} "GET#http://127.0.0.1:5000|GET#http://10.25.123.123:5000"
 
     - Request GET / URL to specific server and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
@@ -22956,7 +22965,7 @@ Copyright:
             return
         elif not SysMgr.kernelCmd:
             SysMgr.printErr(
-                "wrong format used with -K option, NAME:FUNC|ADDR{:ARGS:RET}")
+                "wrong format for kernel command [NAME:FUNC|ADDR{:ARGS:RET}]")
             sys.exit(0)
         elif not os.path.isfile(
             SysMgr.mountPath + '../kprobe_events'):
@@ -22971,8 +22980,8 @@ Copyright:
             cmdCnt = len(cmdFormat)
             if not (2 <= cmdCnt <= 4):
                 SysMgr.printErr(
-                    "wrong format used with -K option, "
-                    "NAME:FUNC|ADDR{:ARGS:RET}")
+                    "wrong format for kernel command "
+                    "[NAME:FUNC|ADDR{:ARGS:RET}]")
                 sys.exit(0)
 
             for item in effectiveCmd:
@@ -22993,7 +23002,7 @@ Copyright:
             if SysMgr.userCmd and \
                 cmd[0] in [ucmd.split(':')[0] for ucmd in SysMgr.userCmd]:
                 SysMgr.printErr(
-                    "redundant event name '%s' as user event and kernel event" % \
+                    "redundant name '%s' for user event and kernel event" % \
                     cmd[0])
                 sys.exit(0)
 
@@ -23021,7 +23030,7 @@ Copyright:
                         continue
                     elif len(rVal) > 2:
                         SysMgr.printErr(
-                            "wrong command '%s' with -K option" % rCmd)
+                            "wrong command '%s'" % rCmd)
                         sys.exit(0)
                     tVal = rVal[1]
 
@@ -23048,8 +23057,7 @@ Copyright:
                 pCmd = '%s %s' % (pCmd, sCmd)
                 if SysMgr.writeCmd(
                         '../kprobe_events', pCmd, append=True) < 0:
-                    SysMgr.printErr(
-                        "wrong command '%s' with -K option" % pCmd)
+                    SysMgr.printErr("wrong command '%s'" % pCmd)
                     sys.exit(0)
 
             # make return commands #
@@ -23065,8 +23073,7 @@ Copyright:
                 else:
                     rVal = tCmd.split('/')
                     if len(rVal) > 2:
-                        SysMgr.printErr(
-                            "wrong command '%s' with -K option" % tCmd)
+                        SysMgr.printErr("wrong command '%s'" % tCmd)
                         sys.exit(0)
                     tVal = rVal[0]
 
@@ -23093,8 +23100,7 @@ Copyright:
                 rCmd = '%s %s' % (rCmd, sCmd)
                 if SysMgr.writeCmd(
                     '../kprobe_events', rCmd, append=True) < 0:
-                    SysMgr.printErr(
-                        "wrong command '%s' with -K option" % rCmd)
+                    SysMgr.printErr("wrong command '%s'" % rCmd)
                     sys.exit(0)
 
         # apply filter #
@@ -23121,7 +23127,7 @@ Copyright:
             return
         elif not SysMgr.userCmd:
             SysMgr.printErr(
-                "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+                "wrong format for user command [NAME:FUNC|ADDR:FILE]")
             sys.exit(0)
         elif not os.path.isfile(
             SysMgr.mountPath + '../uprobe_events'):
@@ -23139,7 +23145,7 @@ Copyright:
 
             if len(cmdFormat) != 3:
                 SysMgr.printErr(
-                    "wrong format used with -U option, NAME:FUNC|ADDR:FILE")
+                    "wrong format for user command [NAME:FUNC|ADDR:FILE]")
                 sys.exit(0)
 
             # check redundant event name #
@@ -23220,14 +23226,14 @@ Copyright:
             pCmd = 'p:%s_enter %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SysMgr.writeCmd('../uprobe_events', pCmd, append=True) < 0:
                 SysMgr.printErr(
-                    "wrong command '%s' with -U option" % pCmd)
+                    "wrong command '%s'" % pCmd)
                 sys.exit(0)
 
             # apply return events #
             rCmd = 'r:%s_exit %s:%s' % (cmd[0], cmd[2], cmd[1])
             if SysMgr.writeCmd('../uprobe_events', rCmd, append=True) < 0:
                 SysMgr.printErr(
-                    "wrong command '%s' with -U option" % rCmd)
+                    "wrong command '%s'" % rCmd)
                 sys.exit(0)
 
         # apply filter #
@@ -25576,8 +25582,8 @@ Copyright:
                 SysMgr.printWarn((
                     "new data is going to be overwritten to the buffer"
                     " because of buffer overflow\n"
-                    "\tincrease buffer size (%s) with -b option"
-                    " if you want to prevent data loss") % \
+                    "\tincrease buffer size (%s) "
+                    "if you want to prevent data loss") % \
                         UtilMgr.convSize2Unit(SysMgr.bufferSize), True)
                 SysMgr.bufferOverflowed = True
 
@@ -26438,7 +26444,7 @@ Copyright:
     def checkOptVal(option, value):
         if not value:
             SysMgr.printErr(
-                'no value with -%s option' % option)
+                'no input value with -%s option' % option)
             sys.exit(0)
 
 
@@ -26461,7 +26467,7 @@ Copyright:
                 raise Exception('not writable')
         except:
             SysMgr.printErr(
-                "wrong path '%s' with -s option because of permission" % value)
+                "wrong path '%s' because of permission" % value)
             sys.exit(0)
 
         # remove double slashs #
@@ -26544,14 +26550,14 @@ Copyright:
 
                     if SysMgr.intervalEnable <= 0:
                         SysMgr.printErr((
-                            "wrong value with -%s option, "
+                            "wrong value for interval, "
                             "input number bigger than 0") % option)
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr((
-                        "wrong value with -%s option, "
+                        "wrong value for interval, "
                         "input number in integer format") % option)
                     sys.exit(0)
 
@@ -26883,7 +26889,7 @@ Copyright:
                         SysMgr.nrTop = long(value)
                     except:
                         SysMgr.printErr((
-                            "wrong value with -%s option, "
+                            "wrong value for the number of task, "
                             "input number in integer format") % option)
                         sys.exit(0)
                 # this value will be used in various mode #
@@ -26900,13 +26906,13 @@ Copyright:
                     UtilMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
                     SysMgr.printErr(
-                        "input value for filter with -%s option" % option)
+                        "no input value for filter" % option)
                     sys.exit(0)
 
                 for item in SysMgr.perCoreList:
                     if not item.isdigit():
                         SysMgr.printErr((
-                            "wrong value with -%s option, "
+                            "wrong value for core list, "
                             "input number in integer format") % option)
                         sys.exit(0)
 
@@ -26986,7 +26992,7 @@ Copyright:
                     sys.exit(0)
                 except:
                     SysMgr.printErr((
-                        "wrong value with -%s option, "
+                        "wrong value for screen size, "
                         "input number in COLS:ROWS format") % option,
                         reason=True)
                     sys.exit(0)
@@ -27013,14 +27019,14 @@ Copyright:
                                     UtilMgr.convSize2Unit(osize))
                     else:
                         SysMgr.printErr((
-                            "wrong value with -%s option, "
+                            "wrong value for buffer size, "
                             "input number bigger than 0") % option)
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr((
-                            "wrong value with -%s option, "
+                            "wrong value for buffer size, "
                             "input number in integer format") % option)
                     sys.exit(0)
 
@@ -27073,7 +27079,7 @@ Copyright:
         elif option == 'L':
             if not value:
                 SysMgr.printErr(
-                    "no option value with -%s option" % option)
+                    "no input value with -%s option" % option)
                 sys.exit(0)
             elif SysMgr.isDrawMode():
                 SysMgr.layout = value
@@ -27091,7 +27097,7 @@ Copyright:
             # check writable access #
             if not SysMgr.isWritable(value):
                 SysMgr.printErr((
-                    "wrong path '%s' with -o option "
+                    "wrong path '%s' for output "
                     "because of permission") % value)
                 sys.exit(0)
 
@@ -27111,7 +27117,7 @@ Copyright:
                     raise Exception('wrong depth')
             except:
                 SysMgr.printErr(
-                    "wrong value with -H option, "
+                    "wrong input value for depth, "
                     "input an unsigned integer value")
                 sys.exit(0)
 
@@ -27217,14 +27223,14 @@ Copyright:
                                 UtilMgr.convSize2Unit(osize))
                     else:
                         SysMgr.printErr(
-                            "wrong value with -b option, "
+                            "wrong value for buffer size, "
                             "input number bigger than 0")
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr(
-                        "wrong value with -b option, "
+                        "wrong value for buffer size, "
                         "input number in integer format")
                     sys.exit(0)
 
@@ -27272,7 +27278,7 @@ Copyright:
                 SysMgr.filterGroup = UtilMgr.cleanItem(itemList)
                 if not SysMgr.filterGroup:
                     SysMgr.printErr(
-                        "input value for filter with -g option")
+                        "no input value for filter")
                     sys.exit(0)
 
                 SysMgr.printInfo(
@@ -27322,7 +27328,7 @@ Copyright:
                         raise Exception('not writable')
                 except:
                     SysMgr.printErr(
-                        "wrong value %s with -B option" % value)
+                        "wrong value for command script path" % value)
                     sys.exit(0)
 
                 # remove double slashs #
@@ -27707,7 +27713,7 @@ Copyright:
 
             if not targets:
                 SysMgr.printErr(
-                    "no COMM or TID with -g option")
+                    "no input value for COMM or TID")
                 sys.exit(0)
 
             # convert comm to pid #
@@ -27734,7 +27740,7 @@ Copyright:
             elif SysMgr.inputParam:
                 path = SysMgr.inputParam
             else:
-                SysMgr.printErr("no path with -I option")
+                SysMgr.printErr("no input value for path")
                 sys.exit(0)
 
             # set debug flag #
@@ -28209,7 +28215,7 @@ Copyright:
             if upDirPos > 0 and \
                 not os.path.isdir(reportPath[:upDirPos]):
                 SysMgr.printErr(
-                    "wrong path '%s' with -j option to report stats" % \
+                    "wrong path '%s' to report stats" % \
                     reportPath)
                 return False
         # file path #
@@ -29131,10 +29137,10 @@ Copyright:
 
     @staticmethod
     def getLimitCpuInfo(limitInfo):
+        errMsg = ("fail to get task info to limit cpu, "
+                "input value in {tid:percentage} format")
         if not limitInfo:
-            SysMgr.printErr(
-                "fail to get task info to limit cpu, "
-                "input {tid:percentage} with -g option")
+            SysMgr.printErr(errMsg)
             sys.exit(0)
 
         SysMgr.checkRootPerm()
@@ -29151,10 +29157,10 @@ Copyright:
                     tidList = SysMgr.getPids(tid)
                     for tid in tidList:
                         limitList[tid] = long(per)
+        except SystemExit:
+            sys.exit(0)
         except:
-            SysMgr.printErr(
-                "fail to get task info to limit cpu, "
-                "input {tid:percentage} with -g option")
+            SysMgr.printErr(errMsg)
             sys.exit(0)
 
         return limitList
@@ -30942,8 +30948,7 @@ Copyright:
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
         else:
-            SysMgr.printErr(
-                "no core value with -g option")
+            SysMgr.printErr("no input for core info")
             sys.exit(0)
 
         # parse values #
@@ -31896,7 +31901,7 @@ Copyright:
         # check input #
         if not SysMgr.filterGroup and not inputParam:
             SysMgr.printErr(
-                "input value for target")
+                "no input value for target")
             sys.exit(0)
 
         # check condition #
@@ -31954,10 +31959,9 @@ Copyright:
                 SysMgr.printErr(
                     "no thread related to '%s'" % flist)
             elif not inputParam:
-                SysMgr.printErr(
-                    "no TID with -g option or command with -I option")
+                SysMgr.printErr("no input for TID or command")
             else:
-                SysMgr.printErr("no TID with -g option")
+                SysMgr.printErr("no input for TID")
 
             SysMgr.outPath = SysMgr.printFd = None
 
@@ -32120,12 +32124,12 @@ Copyright:
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam)
         else:
-            SysMgr.printErr("no path with -I option")
+            SysMgr.printErr("no input for path")
             sys.exit(0)
 
         # check symbol #
         if not SysMgr.filterGroup:
-            SysMgr.printErr("no offset with -g option")
+            SysMgr.printErr("no input for offset")
             sys.exit(0)
         else:
             addrList = list()
@@ -32624,7 +32628,7 @@ Copyright:
             inputArg = UtilMgr.cleanItem(inputArg, True)
         else:
             SysMgr.printErr(
-                "no PATH or COMM or PID with -I option")
+                "no input for PATH or COMM or PID")
             sys.exit(0)
 
         # get pid list #
@@ -32700,7 +32704,7 @@ Copyright:
             inputArg = str(SysMgr.inputParam)
         else:
             SysMgr.printErr(
-                "no PATH or COMM or PID with -I option")
+                "no input for PATH or COMM or PID")
             sys.exit(0)
 
         # check symbol #
@@ -32912,8 +32916,7 @@ Copyright:
         # check target id #
         targetList = SysMgr.filterGroup
         if not targetList:
-            SysMgr.printErr(
-                "no PID or COMM with -g option")
+            SysMgr.printErr("no input for PID or COMM")
             sys.exit(0)
 
         # convert comm to pid #
@@ -33051,7 +33054,7 @@ Copyright:
                     fname = '%s/leaks.out' % current
             else:
                 SysMgr.printErr(
-                    "no path for temporary input with -I option")
+                    "no input for temporary file path")
                 sys.exit(0)
 
             # set output file path #
@@ -34252,7 +34255,7 @@ Copyright:
                     cnt += errcnt
                     err = UtilMgr.convNum(errcnt)
                     if errcnt > 0:
-                        err = UtilMgr.convColor('%7s' % err, 'RED')
+                        err = UtilMgr.convColor(err, 'RED', 7)
                 else:
                     err = 0
 
@@ -34266,7 +34269,7 @@ Copyright:
             # print only errors #
             for idx, value in stats['perReqErr'].items():
                 if not idx in stats['perReqTime']:
-                    err = UtilMgr.convColor('%7s' % value, 'RED')
+                    err = UtilMgr.convColor(value, 'RED', 7)
                     SysMgr.printPipe((
                         '{0:>7} | {1:>7.3f} | {2:>7.3f} | {3:>10.6f} | '
                         '{4:>10.6f} | {5:>10.6f} | {6:>7} | {7:1}').format(
@@ -34296,8 +34299,7 @@ Copyright:
         elif SysMgr.inputParam:
             reqstr = SysMgr.inputParam
         else:
-            SysMgr.printErr(
-                "no request with -I option")
+            SysMgr.printErr("no input for request")
             sys.exit(0)
 
         # split requests #
@@ -34471,8 +34473,7 @@ Copyright:
         elif SysMgr.inputParam:
             cmd = SysMgr.inputParam
         else:
-            SysMgr.printErr(
-                "no command with -I option")
+            SysMgr.printErr("no input for command")
             sys.exit(0)
 
         # convert variables #
@@ -35320,8 +35321,7 @@ Copyright:
 
         # check target #
         if not SysMgr.filterGroup:
-            SysMgr.printErr(
-                "no PID or COMM with -g option")
+            SysMgr.printErr("no input for PID or COMM")
             sys.exit(0)
 
         # get pid list #
@@ -44227,7 +44227,7 @@ struct cmsghdr {
             convColor = UtilMgr.convColor
 
             # pick a command #
-            cmdstr = convColor('%8s' % cmd, 'BOLD')
+            cmdstr = convColor(cmd, 'BOLD', 8)
 
             if cmd == 'print':
                 if SysMgr.showAll:
@@ -73946,15 +73946,14 @@ class ThreadAnalyzer(object):
                     percoreStats[idx]['idle'] = idleCoreUsage
                     percoreStats[idx]['total'] = totalCoreUsage
 
-                    totalCoreUsageStr = r'%3s' % totalCoreUsage
                     if totalCoreUsage == 0:
-                        pass
+                        totalCoreUsageStr = totalCoreUsage
                     elif totalCoreUsage >= SysMgr.cpuPerHighThreshold:
                         totalCoreUsageStr = UtilMgr.convColor(
-                            totalCoreUsageStr, 'RED')
+                            totalCoreUsage, 'RED', 3)
                     else:
                         totalCoreUsageStr = UtilMgr.convColor(
-                            totalCoreUsageStr, 'YELLOW')
+                            totalCoreUsage, 'YELLOW', 3)
 
                     coreStat = "{0:<7}|{1:>5}({2:^3}/{3:^3}/{4:^3}/{5:^3})|".\
                         format("Core/%s" % idx, '%s %%' % totalCoreUsageStr,
@@ -76230,36 +76229,32 @@ class ThreadAnalyzer(object):
             if value['ttime'] < SysMgr.cpuPerLowThreshold:
                 pass
             else:
-                ttime = r'%4s' % ttime
                 if value['ttime'] >= SysMgr.cpuPerHighThreshold:
-                    ttime = UtilMgr.convColor(ttime, 'RED')
+                    ttime = UtilMgr.convColor(ttime, 'RED', 4)
                 else:
-                    ttime = UtilMgr.convColor(ttime, 'YELLOW')
+                    ttime = UtilMgr.convColor(ttime, 'YELLOW', 4)
 
             # convert color for RSS #
             if mems < SysMgr.memLowThreshold:
                 memstr = mems
             else:
-                memstr = r'%4s' % mems
                 if mems >= SysMgr.memHighThreshold:
-                    memstr = UtilMgr.convColor(memstr, 'RED')
+                    memstr = UtilMgr.convColor(mems, 'RED', 4)
                 else:
-                    memstr = UtilMgr.convColor(memstr, 'YELLOW')
+                    memstr = UtilMgr.convColor(mems, 'YELLOW', 4)
 
             # convert color for BTIME #
             if float(btime) > 0:
-                btimestr = r'%4s' % btime
-                btimestr = UtilMgr.convColor(btimestr, 'RED')
+                btimestr = UtilMgr.convColor(btime, 'RED', 4)
             else:
                 btimestr = btime
 
             try:
                 if nrPrio < 20:
-                    sched = r'%4s' % sched
                     if nrPrio >= 0:
-                        sched = UtilMgr.convColor(sched, 'YELLOW')
+                        sched = UtilMgr.convColor(sched, 'YELLOW', 4)
                     else:
-                        sched = UtilMgr.convColor(sched, 'RED')
+                        sched = UtilMgr.convColor(sched, 'RED', 4)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -76494,23 +76489,23 @@ class ThreadAnalyzer(object):
                 totalTime = UtilMgr.convColor(totalTime, 'YELLOW')
 
             # total BLOCK #
-            totalBtime = '%4s' % totalStats['btime']
+            totalBtime = totalStats['btime']
             if totalStats['btime'] > 0:
-                totalBtime = UtilMgr.convColor(totalBtime, 'RED')
+                totalBtime = UtilMgr.convColor(totalBtime, 'RED', 4)
 
             # total READ #
             readsize = totalStats['read']
             if readsize != '-':
                 readsize = readsize >> 20
                 if readsize > 0:
-                    readsize = UtilMgr.convColor('%4s' % readsize, 'RED')
+                    readsize = UtilMgr.convColor(readsize, 'RED', 4)
 
             # total WRITE #
             writesize = totalStats['write']
             if writesize != '-':
                 writesize = writesize >> 20
                 if writesize > 0:
-                    writesize = UtilMgr.convColor('%4s' % writesize, 'RED')
+                    writesize = UtilMgr.convColor(writesize, 'RED', 4)
 
             # print total stats #
             SysMgr.addPrint(
