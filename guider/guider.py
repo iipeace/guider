@@ -8041,8 +8041,6 @@ class PageAnalyzer(object):
 
     @staticmethod
     def getPageInfo(pid, vaddr):
-        SysMgr.checkRootPerm()
-
         try:
             if not pid:
                 raise Exception('no pid')
@@ -8066,6 +8064,8 @@ class PageAnalyzer(object):
                 PageAnalyzer.printMemoryArea(pid, comm=comm)
                 SysMgr.printPipe(oneLine)
                 continue
+
+            SysMgr.checkRootPerm()
 
             vrange = vaddr.split('-')
             rangeCnt = len(vrange)
@@ -16369,9 +16369,14 @@ class SysMgr(object):
             SysMgr.memEnable = True
             SysMgr.irqEnable = True
             SysMgr.diskEnable = True
-            SysMgr.blockEnable = True
             SysMgr.networkEnable = True
-            SysMgr.perfEnable = True
+
+            if SysMgr.isRoot():
+                SysMgr.blockEnable = True
+                SysMgr.perfEnable = True
+            else:
+                SysMgr.printWarn(
+                    'block stat is disabled because of no root permission')
 
         # condition #
         elif SysMgr.checkMode('ctop'):
@@ -20535,16 +20540,16 @@ Options:
                     helpStr += '''
 Examples:
     - Diff top report files
-        # {0:1} {1:1} tc1.out tc2.out
+        # {0:1} {1:1} "tc1.out, tc2.out"
 
     - Diff top report files
-        # {0:1} {1:1} tc*.out
+        # {0:1} {1:1} "tc*.out"
 
     - Diff top report files by total usage
-        # {0:1} {1:1} tc*.out -dA
+        # {0:1} {1:1} "tc*.out" -dA
 
     - Diff top report files within specific interval range in second unit
-        # {0:1} {1:1} tc*.out -q TRIM:9:15
+        # {0:1} {1:1} "tc*.out" -q TRIM:9:15
                     '''
 
                 # topsum #
@@ -21514,6 +21519,7 @@ Options:
                     helpStr += '''
 Examples:
     - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
+        # {0:1} {1:1} a.out:3
         # {0:1} {1:1} -g a.out:3
                     '''.format(cmd, mode)
 
@@ -27677,9 +27683,10 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            # make list of arguments #
-            if len(sys.argv) > 2:
-                argList = sys.argv[2:]
+            # get file list #
+            if SysMgr.hasMainArg():
+                argList = SysMgr.getMainArg().split(',')
+                argList = UtilMgr.cleanItem(argList)
             else:
                 argList = None
 
@@ -27692,9 +27699,9 @@ Copyright:
             # remove option args #
             SysMgr.removeOptionArgs()
 
-            # make list of arguments #
-            if len(sys.argv) > 2:
-                fname = sys.argv[2]
+            # get file path #
+            if SysMgr.hasMainArg():
+                fname = SysMgr.getMainArg()
             else:
                 fname = SysMgr.outFilePath
 
@@ -29137,13 +29144,11 @@ Copyright:
 
     @staticmethod
     def getLimitCpuInfo(limitInfo):
-        errMsg = ("fail to get task info to limit cpu, "
-                "input value in {tid:percentage} format")
-        if not limitInfo:
-            SysMgr.printErr(errMsg)
-            sys.exit(0)
-
         SysMgr.checkRootPerm()
+
+        if not limitInfo:
+            SysMgr.printErr("no input value for task limit info")
+            sys.exit(0)
 
         limitList = {}
         try:
@@ -29160,7 +29165,7 @@ Copyright:
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr(errMsg)
+            SysMgr.printErr("wrong input value for task limit info", True)
             sys.exit(0)
 
         return limitList
@@ -45843,6 +45848,9 @@ struct cmsghdr {
         if not pid:
             pid = self.pid
 
+        if not self.comm:
+            self.comm = SysMgr.getComm(self.pid, cache=True)
+
         if self.checkPid(pid) < 0:
             SysMgr.printWarn(
                 'fail to attach %s(%s) to guider(%s) because of wrong pid' % \
@@ -57942,7 +57950,6 @@ class ThreadAnalyzer(object):
         flist = UtilMgr.getFileList(flist)
         if len(flist) < 2:
             SysMgr.printErr(
-                "fail to get file list to diff, "
                 "input at least more than one effective path")
             sys.exit(0)
 
