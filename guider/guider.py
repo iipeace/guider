@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210224"
+__revision__ = "210225"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16619,8 +16619,6 @@ class SysMgr(object):
             SysMgr.printErr("wrong option value")
             sys.exit(0)
 
-        SysMgr.checkRootPerm()
-
         for origVal in jobs:
             try:
                 value = origVal.split(':')
@@ -16642,18 +16640,18 @@ class SysMgr(object):
                     sibling = SysMgr.groupProcEnable
                     targetList = SysMgr.getPids(tid, sibling=sibling)
                     targetList = list(map(long, targetList))
-                    if not targetList:
-                        SysMgr.printErr(
+                    if targetList:
+                        SysMgr.setAffinity(mask, targetList)
+                    else:
+                        SysMgr.printWarn(
                             "no thread related to '%s'" % tid)
-                        sys.exit(0)
-                    SysMgr.setAffinity(mask, targetList)
 
                 if len(value) == 3 and value[2].upper() == 'CONT':
                     flag = 'CONT'
                 else:
                     flag = 'ONCE'
 
-                SysMgr.affinityFilter.append([mask, tid, flag])
+                SysMgr.affinityFilter.append([tid, mask, flag])
             except SystemExit:
                 sys.exit(0)
             except:
@@ -16750,9 +16748,12 @@ class SysMgr(object):
                 "fail to set CPU affinity of task because of no target")
             sys.exit(0)
 
-        SysMgr.checkRootPerm()
-
-        SysMgr.parseAffinityOption(value, launch=True)
+        while 1:
+            SysMgr.parseAffinityOption(value, launch=True)
+            if SysMgr.intervalEnable:
+                time.sleep(SysMgr.intervalEnable)
+            else:
+                break
 
         sys.exit(0)
 
@@ -16959,9 +16960,8 @@ class SysMgr(object):
             SysMgr.pid == long(pids[0]):
             pass
         elif not SysMgr.isRoot():
-            SysMgr.printErr(
-                "fail to get root permission to set affinity")
-            return
+            SysMgr.printWarn(
+                "no root permission to set affinity")
 
         # check pid list #
         if UtilMgr.isNumber(pids):
@@ -18551,8 +18551,8 @@ Usage:
     -E  <DIR>                   set cache dir
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
-    -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
+    -k  <COMM|TID:SIG{:CONT}>   set signal
+    -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -18630,6 +18630,12 @@ Examples:
 
     - Report analysis results of {2:2} with the fixed task list to save CPU resource for monitoring
         # {0:1} {1:1} -g a.out -e x
+
+    - Monitor status and change priority for all {2:2} every second
+        # {0:1} {1:1} -Y "c:-20::CONT" -a
+
+    - Monitor status and change priority for specific {2:2} having name including a.out every second
+        # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
@@ -19160,8 +19166,8 @@ Options:
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
     -H  <LEVEL>                 set function depth level
-    -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
+    -k  <COMM|TID:SIG{:CONT}>   set signal
+    -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -19410,8 +19416,8 @@ Options:
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
-    -k  <COMM|TID:SIG{:CONT}>   set signal list
-    -z  <MASK:TID|ALL{:CONT}>   set CPU affinity list
+    -k  <COMM|TID:SIG{:CONT}>   set signal
+    -z  <COMM|TID:MASK{:CONT}>  set CPU affinity
     -Y  <POLICY:PRIO|TIME       set sched
          {:TID|COMM:CONT}>
     -v                          verbose
@@ -20582,6 +20588,7 @@ Description:
 
 Options:
     -g  <TID|COMM>              set filter
+    -i  <SEC>                   set interval
     -l                          print signal list
     -W                          wait for task
     -v                          verbose
@@ -20603,6 +20610,10 @@ Examples:
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
         # {0:1} {1:1} -kill 1234
+
+    - Send 9th signal SIGKILL to specific tasks every 2 seconds
+        # {0:1} {1:1} -9 1234 -i 2
+        # {0:1} {1:1} -kill 1234 -i 2
                     '''.format(cmd, mode)
 
                 # pause #
@@ -21461,6 +21472,7 @@ Policy:
 Options:
     -g <POLICY:PRIORITY|TIME:TID|COMM> set value
     -P                                 group threads in a same process
+    -i  <SEC>                          set interval
     -v                                 verbose
                         '''.format(cmd, mode)
 
@@ -21469,6 +21481,9 @@ Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
+
+    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread every 2 seconds
+        # {0:1} {1:1} "-20:a.out" -i 2
 
     - Set CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
         # {0:1} {1:1} "-20:a.out -P"
@@ -21513,6 +21528,7 @@ Description:
 Options:
     -g  <TID|COMM:MASK>         set values
     -P                          group threads in a same process
+    -i  <SEC>                   set interval
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21521,6 +21537,9 @@ Examples:
     - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
         # {0:1} {1:1} a.out:3
         # {0:1} {1:1} -g a.out:3
+
+    - Set CPU affinity of a specific thread to use only CPU 1 every 2 seconds
+        # {0:1} {1:1} a.out:1 -i 2
                     '''.format(cmd, mode)
 
                 # cputest #
@@ -27655,6 +27674,18 @@ Copyright:
             else:
                 argList = [' ']
 
+            # remove additional options #
+            if len(argList) > 1:
+                idx = 0
+                for idx, item in enumerate(argList[1:]):
+                    if item.strip().startswith('-'):
+                        break
+
+                if argList[-1].strip().startswith('-'):
+                    argList = argList[:idx+1]
+                else:
+                    argList = argList[:idx+2]
+
             # print signal list #
             if SysMgr.findOption('l'):
                 for idx, sig in enumerate(ConfigMgr.SIG_LIST):
@@ -27672,11 +27703,18 @@ Copyright:
 
             waitFlag = SysMgr.waitEnable
 
-            # send signal #
-            if SysMgr.checkMode('tkill'):
-                SysMgr.sendSignalArgs(argList, isThread=True, wait=waitFlag)
-            else:
-                SysMgr.sendSignalArgs(argList, wait=waitFlag)
+            while 1:
+                # send signal #
+                if SysMgr.checkMode('tkill'):
+                    SysMgr.sendSignalArgs(
+                        argList, isThread=True, wait=waitFlag)
+                else:
+                    SysMgr.sendSignalArgs(argList, wait=waitFlag)
+
+                if SysMgr.intervalEnable:
+                    time.sleep(SysMgr.intervalEnable)
+                else:
+                    break
 
         # TOPDIFF MODE #
         elif SysMgr.checkMode('topdiff'):
@@ -31150,7 +31188,13 @@ Copyright:
 
         value = ','.join(value)
 
-        SysMgr.applyPriority(value)
+        while 1:
+            SysMgr.applyPriority(value)
+
+            if SysMgr.intervalEnable:
+                time.sleep(SysMgr.intervalEnable)
+            else:
+                break
 
 
 
@@ -34648,7 +34692,7 @@ Copyright:
         # set affinity #
         for pid in list(limitInfo.keys()):
             for item in SysMgr.affinityFilter:
-                SysMgr.setAffinity(item[0], [pid])
+                SysMgr.setAffinity(item[1], [pid])
 
         # set alarm #
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
@@ -35808,10 +35852,10 @@ Copyright:
 
                 # send signal to a process #
                 try:
-                    _kill(pid, nrSig)
-
                     # get comm #
                     comm = SysMgr.getComm(pid)
+
+                    _kill(pid, nrSig)
 
                     if verbose:
                         SysMgr.printInfo(
@@ -35949,6 +35993,7 @@ Copyright:
         schedGroup = value.split(',')
         schedGroup = UtilMgr.cleanItem(schedGroup)
         for item in schedGroup:
+            lastIdx = 4
             schedSet = item.split(':')
 
             try:
@@ -35964,6 +36009,10 @@ Copyright:
                     # change others #
                     else:
                         task = schedSet[1]
+
+                    lastIdx = 3
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     policy = schedSet[0].upper()
                     ConfigMgr.SCHED_POLICY.index(policy)
@@ -35984,12 +36033,11 @@ Copyright:
                 sibling = SysMgr.groupProcEnable
                 targetList = SysMgr.getPids(task, sibling=sibling)
                 targetList = list(map(long, targetList))
-
                 if not targetList:
-                    SysMgr.printErr(
+                    SysMgr.printWarn(
                         "no thread related to '%s'" % task)
-                    sys.exit(0)
 
+                # change priority for tasks #
                 for task in targetList:
                     if schedSet[0].upper() == 'D':
                         # parse deadline arguments #
@@ -36003,8 +36051,8 @@ Copyright:
                         SysMgr.setPriority(task, policy, pri)
 
                 # change others continually #
-                if len(schedSet) == 4:
-                    if schedSet[3] != 'CONT':
+                if len(schedSet) == lastIdx:
+                    if schedSet[lastIdx-1] != 'CONT':
                         raise Exception("wrong last value")
 
                     # add sched item to list #
@@ -73049,10 +73097,9 @@ class ThreadAnalyzer(object):
         # change sched priority #
         for item in SysMgr.schedFilter:
             target = str(item[2])
-            if target == '':
+            if not target:
                 target = tid
-            elif tid != target and \
-                not target in comm:
+            elif tid != target and not target in comm:
                 continue
 
             # set deadline sched #
@@ -73070,12 +73117,14 @@ class ThreadAnalyzer(object):
         if len(SysMgr.affinityFilter) > 0:
             alist = list(SysMgr.affinityFilter)
             for idx, item in enumerate(alist):
-                val = item[1]
-                if tid != val and not val in comm:
+                val = item[0]
+                if not val:
+                    target = tid
+                elif tid != val and not val in comm:
                     continue
 
                 try:
-                    mask = item[0]
+                    mask = item[1]
                     if val == tid or val in comm:
                         SysMgr.setAffinity(mask, [tid])
 
