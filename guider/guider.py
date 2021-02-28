@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210225"
+__revision__ = "210228"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18436,6 +18436,7 @@ class SysMgr(object):
                 'limitcpu': 'CPU',
                 'mkcache': 'Cache',
                 'pause': 'Thread',
+                'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
                 'printdir': 'Dir',
@@ -18537,7 +18538,7 @@ Usage:
     -I  <DIR|FILE>              set input file
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -i  <SEC>                   set interval
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -C  <PATH>                  set config file
@@ -18583,7 +18584,7 @@ Options:
           [ d:disk | n:network ]
     -d  <CHARACTER>             disable options
           [ A:average ]
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -o  <DIR>                   set output path
     -a                          show all stats and events
     -T  <NUM>                   set top number
@@ -19158,7 +19159,7 @@ Options:
   [common]
     -a                          show all stats and events
     -C  <PATH>                  set config path
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
     -q  <NAME:VALUE>            set environment variables
@@ -19234,7 +19235,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -Q                          print all rows in a stream
     -q  <NAME:VALUE>            set environment variables
     -E  <DIR>                   set cache dir path
@@ -19278,7 +19279,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19311,7 +19312,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -I  <DIR|FILE>              set input path
     -E  <DIR>                   set cache dir path
     -v                          verbose
@@ -19411,7 +19412,7 @@ Options:
     -q  <NAME:VALUE>            set environment variables
 
   [common]
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -C  <PATH>                  set config path
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
@@ -20016,7 +20017,7 @@ Description:
 Options:
     -u                          run in the background
     -a                          show all stats including registers
-    -g  <COMM|TID>              set filter
+    -g  <COMM|TID>              set task filter
     -I  <RANGE>                 set memory address
     -R  <TIME>                  set timer
     -o  <DIR|FILE>              set output path
@@ -20057,7 +20058,7 @@ Options:
           [ C:clone | e:encode | E:exec | g:generalInfo | O:color ]
     -u                          run in the background
     -a                          show all stats including registers
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
@@ -20123,7 +20124,7 @@ Options:
           [ C:clone | e:encode | D:DWARF | E:exec | g:generalInfo ]
     -u                          run in the background
     -a                          show all stats including registers
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
@@ -20189,7 +20190,7 @@ Options:
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set target file
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <SYM|ADDR{:CMD}>        set breakpoint
@@ -20217,7 +20218,7 @@ Description:
 Options:
     -u                          run in the background
     -a                          show all stats including registers
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -R  <TIME>                  set timer
     -i  <REPEAT>                set repeat count
     -c  <SYM|ADDR{:CMD}>        set command
@@ -20247,7 +20248,7 @@ Description:
 
 Options:
     -u                          run in the background
-    -g  <COMM|TID>              set filter
+    -g  <COMM|TID>              set task filter
     -c  <TARGET#BIN#HOOK>       set command
     -H  <LEVEL>                 set function depth level
     -o  <DIR|FILE>              set output path
@@ -20259,6 +20260,33 @@ Options:
 Examples:
     - Replace standard malloc function calls with customized malloc function calls in libhook.so for a.out process
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc
+                    '''.format(cmd, mode)
+
+                # printbind #
+                elif SysMgr.checkMode('printbind'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> -c <COMMAND> [OPTIONS] [--help]
+
+Description:
+    Print bind status of functions
+
+Options:
+    -u                          run in the background
+    -g  <COMM|TID>              set task filter
+    -c  <FUNC|FILE>             set function filter
+    -o  <DIR|FILE>              set output path
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -E  <DIR>                   set cache dir path
+    -q  <NAME:VALUE>            set environment variables
+    -v                          verbose
+
+Examples:
+    - Print bind status of all functions for a specific process
+        # {0:1} {1:1} -g a.out
+
+    - Print bind status of specific functions for a specific process
+        # {0:1} {1:1} -g a.out -c write
                     '''.format(cmd, mode)
 
                 # sigtrace #
@@ -20278,7 +20306,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | e:encode | E:exec | g:generalInfo ]
     -u                          run in the background
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -H  <LEVEL>                 set function depth level
@@ -20312,7 +20340,7 @@ Description:
 
                     helpStr += '''
 Options:
-    -g  <COMM|TID{:FILE}>       set filter
+    -g  <COMM|TID{:FILE}>       set task filter
     -o  <DIR|FILE>              set output path
     -I  <ADDR>                  set address area
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -20587,7 +20615,7 @@ Description:
     Send specific signal to specific tasks or all running Guiders
 
 Options:
-    -g  <TID|COMM>              set filter
+    -g  <TID|COMM>              set task filter
     -i  <SEC>                   set interval
     -l                          print signal list
     -W                          wait for task
@@ -20626,7 +20654,7 @@ Description:
     Pause specific running threads
 
 Options:
-    -g  <TID|COMM>              set filter
+    -g  <TID|COMM>              set task filter
     -R  <TIME>                  set timer
     -u                          run in the background
     -P                          group threads in a same process
@@ -20655,7 +20683,7 @@ Options:
         -e  <CHARACTER>             enable options
               [ p:pipe | D:DWARF | e:encode ]
         -I  <FILE>                  set input path
-        -g  <ADDR|SYMBOL>           set filter
+        -g  <ADDR|SYMBOL>           set function filter
         -v                          verbose
                         '''.format(cmd, mode)
 
@@ -20762,7 +20790,7 @@ Description:
 
 Options:
     -o  <DIR|FILE>              set output path
-    -g  <TID|COMM>              set filter
+    -g  <TID|COMM>              set task filter
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -20925,7 +20953,7 @@ Description:
 Options:
     -v                          verbose
     -a                          show all processes
-    -g  <COMM>                  set filter
+    -g  <COMM>                  set task filter
     -H  <LEVEL>                 set depth level
     -o  <DIR|FILE>              set output path
                         '''.format(cmd, mode)
@@ -21363,7 +21391,7 @@ Description:
     Limit CPU usage of threads / processes
 
 Options:
-    -g  <TID|COMM>              set filter
+    -g  <TID|COMM>              set task filter
     -R  <TIME>                  set timer
     -P                          group threads in a same process
     -v                          verbose
@@ -28072,6 +28100,10 @@ Copyright:
         elif SysMgr.checkMode('hook'):
             SysMgr.doTrace('hook')
 
+        # HOOK MODE #
+        elif SysMgr.checkMode('printbind'):
+            SysMgr.doTrace('bind')
+
         # BTRACE MODE #
         elif SysMgr.checkMode('btrace'):
             SysMgr.doTrace('breakcall')
@@ -31973,7 +32005,7 @@ Copyright:
         needSymbol = (
             mode == 'usercall' or mode == 'sample' or \
             mode == 'breakcall' or mode == 'hook' or \
-            SysMgr.funcDepth > 0)
+            mode == 'bind' or SysMgr.funcDepth > 0)
 
         # set dwarf flag #
         SysMgr.setDwarfFlag()
@@ -32145,6 +32177,8 @@ Copyright:
                         exceptBpFileList=exceptBpFileList)
             elif mode == 'hook':
                 Debugger.hookFunc(pid, SysMgr.customCmd)
+            elif mode == 'bind':
+                Debugger.hookFunc(pid, SysMgr.customCmd, mode='print')
             elif mode == 'pycall':
                 dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
                 dobj.trace(mode='pycall', wait=wait, multi=multi)
@@ -43819,7 +43853,7 @@ struct cmsghdr {
 
 
     @staticmethod
-    def hookFunc(pid, hookList):
+    def hookFunc(pid, hookList=[], mode='hook'):
         # attach to target #
         try:
             comm = SysMgr.getComm(pid)
@@ -43842,6 +43876,13 @@ struct cmsghdr {
 
         SysMgr.printInfo(
             "start gathering symbols for %s" % procInfo)
+
+        # convert filter for print mode #
+        if mode == 'print':
+            filterList = hookList
+            hookList = []
+        else:
+            filterList = []
 
         # get symbol info #
         loadBin = {}
@@ -43920,6 +43961,10 @@ struct cmsghdr {
         # print context #
         dobj.printContext(regs=SysMgr.showAll, newline=True)
 
+        # define link list #
+        linkList = {}
+        convColor = UtilMgr.convColor
+
         for fpath, mapInfo in dobj.pmap.items():
             # skip same binary to prevent infinite recursive call #
             if not fpath.startswith('/'):
@@ -43939,9 +43984,54 @@ struct cmsghdr {
             # get mapping info #
             for sym, attr in sorted(fcache.attr['dynsymTable'].items(),
                 key=lambda x:x[1]['size'], reverse=False):
-                if attr['size'] > 0:
+                if mode == 'hook' and attr['size'] > 0:
                     break
 
+                # save link info #
+                if mode == 'print' and sym and not hookHash:
+                    if attr['size'] > 0:
+                        linkInfo = convColor('ORIGIN', 'CYAN')
+                    elif attr['value'] > 0:
+                        slotAddr = vstart + attr['value']
+
+                        # get reference address #
+                        linkAddr = dobj.readWord(slotAddr)
+                        if type(linkAddr) is not long:
+                            linkAddr = UtilMgr.convWord2Str(linkAddr)
+
+                        # get dereference address #
+                        if fcache.isInPlt(linkAddr):
+                            linkInfo = 'PLT(%s)' % hex(linkAddr)
+                        else:
+                            linkData = dobj.getSymbolInfo(
+                                linkAddr, onlyFunc=False, onlyExec=False)
+                            if linkData:
+                                if UtilMgr.isNumber(linkData[2]) and \
+                                    fcache.isInPlt(long(linkData[2],16)):
+                                    linkInfo = convColor(
+                                        'PLT(%s)' % linkData[2], 'RED')
+                                else:
+                                    linkSym = linkData[0]
+                                    if linkData[0] != '??':
+                                        linkSym = convColor(linkSym, 'GREEN')
+                                    linkInfo = '%s/%s[%s/%s]' % \
+                                        (linkSym, hex(linkAddr).rstrip('L'),
+                                        convColor(linkData[1], 'WARNING'),
+                                        linkData[2])
+                            else:
+                                linkInfo = convColor('ORIGIN', 'CYAN')
+                    else:
+                        linkInfo = 'NONE'
+
+                    # add link info to list #
+                    linkList.setdefault(fpath, list())
+                    linkList[fpath].append((
+                        convColor(sym, 'YELLOW'), attr['bind'], attr['vis'],
+                        attr['type'], linkInfo))
+
+                    continue
+
+                # check target symbol #
                 pureSymbol = sym.split('@')[0]
                 if not pureSymbol in hookHash:
                     continue
@@ -43999,6 +44089,40 @@ struct cmsghdr {
 
         # continue target #
         SysMgr.sendSignalProcs(signal.SIGCONT, [pid], verbose=False)
+
+        if not linkList:
+            return
+
+        # set pager #
+        if not SysMgr.findOption('Q'):
+            SysMgr.printStreamEnable = False
+
+        # print title for bind info #
+        SysMgr.printPipe(
+            '\n[Function Bind Info] [Target: %s]\n%s' % \
+                (procInfo, twoLine))
+
+        SysMgr.printPipe(
+            '{0:6} {1:>7} {2:1} => {3:1}'.format(
+                'Path', 'Type', 'Sym[Bind/Vis]', 'Link'))
+
+        path = None
+        direct = convColor('=>', 'BLUE')
+        for path, links in linkList.items():
+            SysMgr.printPipe('%s\n[%s]' % (oneLine, path))
+
+            for item in sorted(links):
+                source = '%s[%s/%s]' % (item[0], item[1], item[2])
+
+                string = '{0:6} {1:>7} {2:1} {3:1} {4:1}'.format(
+                        ' ', item[3], source, direct, item[4])
+
+                if filterList:
+                    if UtilMgr.isEffectiveStr(string, filterList):
+                        SysMgr.printPipe(string)
+                else:
+                    SysMgr.printPipe(string)
+        SysMgr.printPipe(oneLine)
 
 
 
@@ -48117,6 +48241,10 @@ struct cmsghdr {
 
         isPrinted = False
 
+        # update regs #
+        if self.pc is None:
+            self.updateRegs()
+
         # print register #
         if regs:
             # set regsdict #
@@ -48180,9 +48308,13 @@ struct cmsghdr {
                     '\tBacktrace Info [%s]\n%s\n' % (taskInfo, oneLine))
 
                 for item in backtrace:
+                    if item[0]:
+                        addr = hex(item[0]).rstrip('L')
+                    else:
+                        addr = item[0]
+
                     SysMgr.addPrint(
-                        '%s(%s)[%s]\n' % \
-                            (hex(item[0]).rstrip('L'), item[1], item[2]))
+                        '%s(%s)[%s]\n' % (addr, item[1], item[2]))
 
                 SysMgr.addPrint('%s\n' % twoLine)
 
@@ -48559,8 +48691,13 @@ struct cmsghdr {
         except SystemExit:
             sys.exit(0)
         except:
+            if self.pc:
+                addr = ' from %x' % self.pc
+            else:
+                addr = ''
+
             SysMgr.printWarn(
-                'fail to get backtrace from %x' % self.pc, reason=True)
+                'fail to get backtrace%s' % addr, reason=True)
 
             if SysMgr.dwarfEnable and not restored:
                 # restore registers #
@@ -48571,7 +48708,9 @@ struct cmsghdr {
 
 
     def readWord(self, targetAddr):
-        if targetAddr % ConfigMgr.wordSize == 0:
+        if not targetAddr:
+            return None
+        elif targetAddr % ConfigMgr.wordSize == 0:
             return self.accessMem(self.peekIdx, targetAddr)
         else:
             return self.readMem(targetAddr, retWord=True)
@@ -55285,6 +55424,27 @@ class ElfAnalyzer(object):
                 symbol = strtable[start:idx]
 
         return symbol
+
+
+
+    def isInSection(self, section, addr):
+        try:
+            attr = self.attr['sectionHeader'][section]
+            if attr['addr'] <= addr <= attr['addr']+attr['size']:
+                return True
+            else:
+                return False
+        except:
+            SysMgr.printWarn('fail to check %s area' % section, reason=True)
+            return None
+
+
+
+    def isInPlt(self, addr):
+        try:
+            return self.isInSection('.plt', addr)
+        except:
+            return None
 
 
 
@@ -72082,8 +72242,8 @@ class ThreadAnalyzer(object):
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        SysMgr.printErr(
-                            'fail to read stat from %s' % subfile, True)
+                        SysMgr.printWarn(
+                            'fail to read stat from %s' % subfile, True, True)
 
         # reset and save cgroup instance #
         self.saveCgroupInstance()

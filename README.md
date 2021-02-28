@@ -703,7 +703,34 @@ Output
     [Info] sent signal SIGSTOP to yes(10594)
 
 >>>
-           
+
+    # guider/guider.py printbind -g yes
+
+    [Function Bind Info] [Target: yes(410113)]
+    ==========================================================================================================================================================
+    Path      Type Sym[Bind/Vis] => Link
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+    [/usr/bin/yes]
+    	NOTYPE _ITM_deregisterTMCloneTable@GLIBC_2.2.5[WEAK/DEFAULT] => NONE
+    	NOTYPE _ITM_registerTMCloneTable@GLIBC_2.2.5[WEAK/DEFAULT] => NONE
+    	  FUNC __ctype_b_loc@GLIBC_2.2.5[GLOBAL/DEFAULT] => __ctype_b_loc/0x7f474b600400[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x37400]
+    	  FUNC __cxa_atexit@GLIBC_2.2.5[GLOBAL/DEFAULT] => __cxa_atexit@GLIBC_2.2.5/0x7f474b612f60[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x49f60]
+    	  FUNC __cxa_finalize@GLIBC_2.2.5[WEAK/DEFAULT] => __cxa_finalize@GLIBC_2.2.5/0x7f474b613090[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x4a090]
+    	  FUNC __fpending@GLIBC_2.2.5[GLOBAL/DEFAULT] => __fpending@GLIBC_2.2.5/0x7f474b658f80[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x8ff80]
+    	  FUNC __fprintf_chk[GLOBAL/DEFAULT] => __fprintf_chk@GLIBC_2.14/0x7f474b6fa110[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x131110]
+    	  FUNC __freading@GLIBC_2.2.5[GLOBAL/DEFAULT] => __freading@GLIBC_2.2.5/0x7f474b658e90[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x8fe90]
+    	NOTYPE __gmon_start__@GLIBC_2.14[WEAK/DEFAULT] => NONE
+    	  FUNC __libc_start_main@GLIBC_2.2.5[GLOBAL/DEFAULT] => __libc_start_main@GLIBC_2.2.5/0x7f474b5effc0[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x26fc0]
+    	  FUNC __printf_chk@GLIBC_2.2.5[GLOBAL/DEFAULT] => __printf_chk@GLIBC_2.2.5/0x7f474b6fa040[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x131040]
+    	  FUNC __stack_chk_fail@GLIBC_2.2.5[GLOBAL/DEFAULT] => __stack_chk_fail@GLIBC_2.2.5/0x7f474b6fbb00[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x132b00]
+    	  FUNC _exit@GLIBC_2.2.5[GLOBAL/DEFAULT] => _Exit@GLIBC_2.3/0x7f474b6af290[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0xe6290]
+    	  FUNC abort@GLIBC_2.2.5[GLOBAL/DEFAULT] => abort@GLIBC_2.2.5/0x7f474b5ee72e[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x2572e]
+    	  FUNC bindtextdomain@GLIBC_2.2.5[GLOBAL/DEFAULT] => bindtextdomain@GLIBC_2.2.5/0x7f474b600920[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x37920]
+    	  FUNC calloc[GLOBAL/DEFAULT] => calloc@GLIBC_2.2.5/0x7f474b667c90[/usr/lib/x86_64-linux-gnu/libc-2.31.so/0x9ec90]
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+>>>
+
     # guider/guider.py rec -a -e m,b
 
     [Thread Info] [ Elapsed: 2.050 ] [ Start: 2849868.198 ] [ Running: 112 ] [ CtxSwc: 3357 ] [ LogSize: 4054 KB ] [ Unit: Sec/MB/NR ]
@@ -1192,6 +1219,7 @@ COMMAND:
                     limitcpu        <CPU>
                     mkcache         <Cache>
                     pause           <Thread>
+                    printbind       <Function>
                     printcg         <Cgroup>
                     printdbus       <D-Bus>
                     printdir        <Dir>
