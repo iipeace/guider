@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210228"
+__revision__ = "210302"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17891,7 +17891,7 @@ class SysMgr(object):
         if not options:
             return False
 
-        optionList = 'BCDEFGHILNPRSTWYabcdfghijklmnopqrrstuvwxy'
+        optionList = 'BCDEFGHILNPRSTWYabcdefghijklmnopqrrstuvwxy'
         for opt in options:
             if not opt in optionList:
                 return False
@@ -18288,9 +18288,13 @@ class SysMgr(object):
 
         # check locale #
         try:
-            lang = os.getenv('LANG')
-            if not lang or not 'UTF' in lang:
-                SysMgr.encodeEnable = False
+            if SysMgr.encodeEnable:
+                if 'NOENCODE' in os.environ:
+                    SysMgr.encodeEnable = False
+                else:
+                    lang = os.getenv('LANG')
+                    if not lang or not 'UTF' in lang:
+                        SysMgr.encodeEnable = False
         except:
             pass
 
@@ -18705,6 +18709,10 @@ Examples:
 
     - Monitor status of {2:2} after setting config from guider.conf
         # {0:1} {1:1} -C guider.conf
+
+    - Monitor status of {2:2} with no encoding lines
+        # {0:1} {1:1} -d e
+        # NOENCODE=1 {0:1} {1:1} -d e
                 '''.format(cmd, mode, target)
 
                 drawExamStr = '''
@@ -18771,96 +18779,39 @@ Examples:
 
                 brkExamStr = '''
 Commands:
-    acc      print accumulation stat
-             [NAME:VAR|REG|VAL]
-
-    check    check values
-             [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
-
+    acc      print accumulation stat [NAME:VAR|REG|VAL]
+    check    check values [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE:EVENT]
     condexit exit if tracing was started
-
-    dist     print distribution stat
-             [NAME:VAR|REG|VAL]
-
-    dump     dump specific memory range to a file
-             [NAME|ADDR:FILE]
-
-    exec     execute command
-             [CMD]
-
+    dist     print distribution stat [NAME:VAR|REG|VAL]
+    dump     dump specific memory range to a file [NAME|ADDR:FILE]
+    exec     execute command [CMD]
     exit     exit
-
-    filter   print only filtered context
-             [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
-
-    getarg   print specific registers
-             [REGS]
-
-    getenv   print specific environment variable
-             [VAR]
-
-    getret   print return value
-             [CMD]
-
-    jump     jump to specific function with specific arguments
-             [FUNC#ARGS]
-
+    filter   print only filtered context [VAR|ADDR|REG:OP(EQ/DF/INC/BT/LT):VAR|VAL:SIZE]
+    getarg   print specific registers [REGS]
+    getenv   print specific environment variable [VAR]
+    getret   print return value [CMD]
+    jump     jump to specific function with specific arguments [FUNC#ARGS]
     kill     terminate target
-
-    load     load specific library
-             [PATH]
-
-    log      print specific message
-             [MESSAGE]
-
+    load     load specific library [PATH]
+    log      print specific message [MESSAGE]
     map      print memory map
-
     print    print context
-
-    pyfile   execute specific python file
-             [PATH:SYNC]
-
-    pystr    execute python code
-             [CODE:SYNC]
-
-    rdmem    print specific memory or register
-             [VAR|ADDR|REG:SIZE]
-
-    repeat   call again repeatedly
-             [CNT]
-
-    ret      return specific value immediately
-             [VAL]
-
-    save     save previous value
-             [VAR]
-
-    setarg   change value for specific register
-             [REG#VAR|VAL]
-
-    setenv   change specific environment variable
-             [VAR:VAR|VAL]
-
-    setret   change return value
-             [VAL:CMD]
-
-    sleep    sleep for seconds
-             [SEC]
-
+    pyfile   execute specific python file [PATH:SYNC]
+    pystr    execute python code [CODE:SYNC]
+    rdmem    print specific memory or register [VAR|ADDR|REG:SIZE]
+    repeat   call again repeatedly [CNT]
+    ret      return specific value immediately [VAL]
+    save     save previous value [VAR]
+    setarg   change value for specific register [REG#VAR|VAL]
+    setenv   change specific environment variable [VAR:VAR|VAL]
+    setret   change return value [VAL:CMD]
+    sleep    sleep for seconds [SEC]
     start    start printing all functions
-
     stop     pause tracing
-
-    syscall  call a syscall
-             [FUNC#ARGS]
-
+    syscall  call a syscall [FUNC#ARGS]
     thread   create a new thread
-
-    usercall call a specific function
-             [FUNC#ARGS]
-
-    wrmem    change specific memory or register
-             [VAR|ADDR|REG:VAL:SIZE]
+    usercall call a specific function [FUNC#ARGS]
+    wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
 
 Examples:
     - Print all call contexts for a specific thread
@@ -43984,13 +43935,38 @@ struct cmsghdr {
             # get mapping info #
             for sym, attr in sorted(fcache.attr['dynsymTable'].items(),
                 key=lambda x:x[1]['size'], reverse=False):
+                # ignore original symbols #
                 if mode == 'hook' and attr['size'] > 0:
                     break
-
                 # save link info #
-                if mode == 'print' and sym and not hookHash:
+                elif mode == 'print' and sym and not hookHash:
+                    # get relative type #
+                    try:
+                        rtype = ElfAnalyzer.RELOC_TYPE[attr['rtype']]
+                    except:
+                        rtype = None
+
+                    # original symbols #
                     if attr['size'] > 0:
-                        linkInfo = convColor('ORIGIN', 'CYAN')
+                        origAddr = hex(vstart + attr['value']).rstrip('L')
+                        linkInfo = convColor(
+                            'ORIGIN(%s)' % origAddr, 'CYAN')
+
+                        # add copy flag for reference variable #
+                        '''
+                        When using dlopen() to load shared objects,
+                        The address of variables with the same name
+                        declared using the extern keyword can be different.
+                        The default operation is to search the previously
+                        defined symbol in the global area first.
+                        But if the RTLD_DEEPBIND flag is set,
+                        The shared objects with dependencies are searched first.
+                        RTLD_DEEPBIND flag changes the search order for symbol
+                        lookup in shared objects.
+                        '''
+                        if rtype and rtype.endswith('_COPY'):
+                            linkInfo += convColor('[COPY]', 'RED')
+                    # linked symbols #
                     elif attr['value'] > 0:
                         slotAddr = vstart + attr['value']
 
@@ -44023,7 +43999,7 @@ struct cmsghdr {
                     else:
                         linkInfo = 'NONE'
 
-                    # add link info to list #
+                    # register link info to list #
                     linkList.setdefault(fpath, list())
                     linkList[fpath].append((
                         convColor(sym, 'YELLOW'), attr['bind'], attr['vis'],
@@ -47114,10 +47090,14 @@ struct cmsghdr {
 
                 # do syscall #
                 ret = process_vm_readv(pid, liov, 1, riov, 1, 0)
-                if ret > 0:
-                    return memoryview(lbuf).tobytes()
-                else:
+                if ret == 0:
                     return None
+
+                data = memoryview(lbuf).tobytes()
+                if retWord:
+                    return UtilMgr.convStr2Word(data)
+                else:
+                    return data
             except SystemExit:
                 sys.exit(0)
             except:
@@ -47143,7 +47123,7 @@ struct cmsghdr {
                             (hex(addr).rstrip('L'), self.comm, self.pid))
                 return None
 
-            if retWord:
+            if retWord and offset == 0:
                 return word
 
             # convert a word to a byte string #
@@ -47159,7 +47139,12 @@ struct cmsghdr {
             size -= wordSize
             addr += wordSize
 
-        return data[offset:]
+        # return data #
+        ret = data[offset:]
+        if retWord:
+            return UtilMgr.convStr2Word(ret)
+        else:
+            return ret
 
 
 
@@ -48825,8 +48810,7 @@ struct cmsghdr {
                 offset = value[argIdx]
                 if offset is None:
                     continue
-                rval = self.readMem(cfa+offset)
-                rval = struct.unpack(self.decodeChar, rval)[0]
+                rval = self.readWord(cfa+offset)
                 setattr(self.regs, reg, rval)
             except SystemExit:
                 sys.exit(0)
@@ -48855,12 +48839,13 @@ struct cmsghdr {
         else:
             raddr = self.fp + ConfigMgr.wordSize
 
-        # get return address #
-        raddr = self.readMem(raddr)
-        if not raddr:
+        # return next IP from stack #
+        try:
+            return self.readWord(raddr)
+        except SystemExit:
+            sys.exit(0)
+        except:
             return None
-
-        return struct.unpack(self.decodeChar, raddr)[0]
 
 
 
@@ -56787,6 +56772,8 @@ Section header string table index: %d
                     if self.attr['dynsymTable'][symbol]['value'] == 0:
                         self.attr['dynsymTable'][symbol]['value'] = sh_offset
 
+                    self.attr['dynsymTable'][symbol]['rtype'] = rtype
+
                     if symbol:
                         symbol = '%s + ' % symbol
                 if debug:
@@ -57010,6 +56997,14 @@ Section header string table index: %d
                 return augdict, adstr.strip(), augdata
 
             def _decodeCFI(self, entry, cfi, cie, offset):
+                def _add2Order(regnum):
+                    '''
+                    DW_CFA_restore and others remove registers from curLine,
+                    but they stay in reg_order. Avoid duplicates.
+                    '''
+                    if regnum not in regOrder:
+                        regOrder.append(regnum)
+
                 CFARule = ElfAnalyzer.CFARule
                 RegisterRule = ElfAnalyzer.RegisterRule
                 regIdx = ElfAnalyzer.CFARule.REG
@@ -57039,14 +57034,6 @@ Section header string table index: %d
 
                 # stack for DW_CFA_{remember|restore}_state instructions #
                 lineStack = []
-
-                def _add2Order(regnum):
-                    '''
-                    DW_CFA_restore and others remove registers from curLine,
-                    but they stay in reg_order. Avoid duplicates.
-                    '''
-                    if regnum not in regOrder:
-                        regOrder.append(regnum)
 
                 '''
                 Throughout this loop, curLine is the current line.
@@ -57133,7 +57120,9 @@ Section header string table index: %d
                     elif name == 'DW_CFA_nop':
                         pass
                     else:
-                        SysMgr.printWarn('fail to decode %s' % name)
+                        SysMgr.printWarn(
+                            'skipped to update current line by %s' % name)
+                        self.nrSkipUpdate += 1
 
                 '''
                 The current line is appended to the table after
@@ -57356,6 +57345,9 @@ Section header string table index: %d
                     fd.write(decompSect)
             else:
                 isCompressed = False
+
+            # initialize the number of decode error #
+            self.nrSkipUpdate = 0
 
             while 1:
                 # offset #
@@ -57659,6 +57651,13 @@ Section header string table index: %d
 
                 # make CFA table #
                 _makeCFATable(self, entry, offset, regList, prt=debug)
+
+            # print the number of instructions for skip-update-current-line #
+            if self.nrSkipUpdate > 0:
+                SysMgr.printWarn((
+                    'skipped to update current line '
+                    'by %s DWARF instructions for %s') % \
+                        (UtilMgr.convNum(self.nrSkipUpdate), self.path), True)
 
             # sort address list for CFA #
             self.attr['dwarf']['CFAIndex'].sort()
