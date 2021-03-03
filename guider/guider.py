@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210302"
+__revision__ = "210303"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18703,7 +18703,7 @@ Examples:
         # {0:1} {1:1} -c "{0:1} utop -g PID"
         # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret"
 
-    - Monitor status of {2:2} and execute specific commands for them
+    - Monitor status of {2:2} and execute specific commands for all tasks shown automatically
         # {0:1} {1:1} -c "{0:1} utop -g PID" -e E
         # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
@@ -18835,6 +18835,9 @@ Examples:
 
     - Print all call contexts except for ld for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTLD
+
+    - Print all call contexts and injection info for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q TRACEINJECTION
 
     - Print all call contexts for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
@@ -29044,7 +29047,7 @@ Copyright:
   exam) k -stop 123, a.out
 
 [Affinity] {MASK} {COMM|PID}
-  exam) a f 123, a.out
+  exam) a 1f 123, a.out
 
 [Sort]     {VAL}
   exam) S p
@@ -29053,7 +29056,8 @@ Copyright:
   exam) o -e bs -g task
 
 [Run]      {COMMAND}
-  exam) r utop -g task
+  exam) r utop a.out
+  exam) r btrace a.out
             ''')
 
             # wait for enter #
@@ -34527,13 +34531,15 @@ Copyright:
     @staticmethod
     def doDrawTimeline():
         # get output file name #
-        if SysMgr.inputParam:
-            inputList = UtilMgr.getFileList(SysMgr.inputParam.split(','))
+        if SysMgr.hasMainArg():
+            inputList = SysMgr.getMainArg().split(',')
+            inputList = UtilMgr.cleanItem(inputList)
+        elif SysMgr.inputParam:
+            inputList = SysMgr.inputParam.split(',')
+            inputList = UtilMgr.cleanItem(inputList)
         else:
-            if len(sys.argv) <= 2:
-                sys.argv.append(SysMgr.outFilePath)
-
-            inputList = UtilMgr.convPath(sys.argv[2])
+            SysMgr.printErr("no input for path")
+            sys.exit(0)
 
         # get config path #
         if SysMgr.getOption('C'):
@@ -43271,6 +43277,7 @@ class Debugger(object):
     targetNum = -1
     exceptWait = False
     exceptNoSymbol = False
+    traceInjection = False
     exceptLD = False
 
     def getSigStruct(self):
@@ -43752,6 +43759,11 @@ struct cmsghdr {
         # apply color for return string #
         if not Debugger.RETSTR:
             Debugger.RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
+
+        # enable injection trace #
+        if not Debugger.traceInjection and \
+            'TRACEINJECTION' in SysMgr.environList:
+            Debugger.traceInjection = True
 
         # ignore wait function #
         if not Debugger.exceptWait and \
@@ -45453,10 +45465,10 @@ struct cmsghdr {
         filename = data['filename']
         reins = data['reins']
 
-        if SysMgr.warnEnable:
+        if Debugger.traceInjection:
             SysMgr.printWarn(
                 'removed the breakpoint %s(%s) by %s(%s)' % \
-                    (hex(addr).rstrip('L'), symbol, self.comm, self.pid))
+                    (hex(addr).rstrip('L'), symbol, self.comm, self.pid), True)
 
         return (symbol, filename, reins)
 
@@ -45871,13 +45883,13 @@ struct cmsghdr {
 
         # get original instruction #
         if addr in self.bpList:
-            if self.bpList[addr]['set']:
+            if self.bpList[addr]['set'] and Debugger.traceInjection:
                 if not sym:
                     sym = self.bpList[addr]['symbol']
                 SysMgr.printWarn((
                     'fail to inject a breakpoint to %s(%s) for %s '
                     'because it is already injected by this task') % \
-                        (hex(addr).rstrip('L'), sym, procInfo))
+                        (hex(addr).rstrip('L'), sym, procInfo), True)
                 return False
 
             origWord = self.bpList[addr]['data']
@@ -45983,10 +45995,10 @@ struct cmsghdr {
                     (hex(addr).rstrip('L'), sym, procInfo, reason))
 
             return False
-        elif ret == 0 and SysMgr.warnEnable:
+        elif ret == 0 and Debugger.traceInjection:
             SysMgr.printWarn(
                 'added the new breakpoint %s(%s)[%s] by %s' % \
-                    (hex(addr).rstrip('L'), sym, fname, procInfo))
+                    (hex(addr).rstrip('L'), sym, fname, procInfo), True)
 
         return True
 
@@ -46063,6 +46075,7 @@ struct cmsghdr {
         except:
             SysMgr.printWarn(
                 "fail to stop %s(%s)" % (self.comm, pid), reason=True)
+            return -1
 
         # send signal to a process #
         try:
@@ -65729,7 +65742,7 @@ class ThreadAnalyzer(object):
                     timeLineLen += 4
 
             SysMgr.addPrint("%16s(%7s/%7s): " % \
-                (value['comm'], '-', '-') + timeLine + '\n')
+                (value['comm'][:16], '-', '-') + timeLine + '\n')
 
             # make CPU usage list for graph #
             if SysMgr.graphEnable and SysMgr.cpuEnable:
@@ -65956,6 +65969,11 @@ class ThreadAnalyzer(object):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
+            timeline = \
+                list(range(intervalEnable,
+                    (timelen+1)*intervalEnable, intervalEnable))
+            timeline[-1] = self.totalTime
+
             for idx, item in enumerate(ioUsageList):
                 minIdx = item.index(min(item))
                 maxIdx = item.index(max(item))
@@ -65967,9 +65985,7 @@ class ThreadAnalyzer(object):
                 else:
                     color = 'green'
 
-                plot(range(intervalEnable,
-                        (timelen+1)*intervalEnable, intervalEnable),
-                    item, '-', c=color)
+                plot(timeline, item, '-', c=color)
 
                 margin = self.getMargin()
 
@@ -65984,7 +66000,7 @@ class ThreadAnalyzer(object):
 
             # draw label #
             ThreadAnalyzer.drawLabel(
-                labelList, draw=True, anchor=(1.1, 1))
+                ioLabelList, draw=True, anchor=(1.1, 1))
 
             # add % unit to each value #
             try:
@@ -66063,8 +66079,13 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + cpuPer + dieFlag)
 
+            try:
+                pid = SysMgr.savedProcTree[key]
+            except:
+                pid = value['tgid']
+
             SysMgr.addPrint("%16s(%7s/%7s): " % \
-                (value['comm'], key, value['tgid']) + timeLine + '\n')
+                (value['comm'][:16], key, pid) + timeLine + '\n')
 
             if SysMgr.graphEnable and SysMgr.cpuEnable:
                 timeLine = timeLine.replace('N', '')
@@ -66095,17 +66116,20 @@ class ThreadAnalyzer(object):
                 totalCpuUsage = list(map(int.__add__, totalCpuUsage, item))
 
             avgCpuUsage = [x / len(cpuUsageList) for x in totalCpuUsage]
-            plot(range(intervalEnable,
-                    (timelen+1)*intervalEnable, intervalEnable),
-                avgCpuUsage, '.-', linewidth=3, solid_capstyle='round')
+
+            timeline = \
+                list(range(intervalEnable,
+                    (timelen+1)*intervalEnable, intervalEnable))
+            timeline[-1] = self.totalTime
+
+            plot(timeline, avgCpuUsage, '.-',
+                linewidth=3, solid_capstyle='round')
 
             # CPU usage of threads #
             for idx, item in enumerate(cpuThrUsageList):
                 maxIdx = item.index(max(item))
 
-                color = plot(range(intervalEnable,
-                    (timelen+1)*intervalEnable,
-                    intervalEnable), item, '-')[0].get_color()
+                color = plot(timeline, item, '-')[0].get_color()
 
                 margin = self.getMargin()
 
@@ -66206,8 +66230,13 @@ class ThreadAnalyzer(object):
 
                 timeLine += '%4s' % (newFlag + prtPer + dieFlag)
 
+            try:
+                pid = SysMgr.savedProcTree[key]
+            except:
+                pid = value['tgid']
+
             SysMgr.addPrint("%16s(%7s/%7s): " % \
-                (value['comm'], key, value['tgid']) + timeLine + '\n')
+                (value['comm'][:16], key, pid) + timeLine + '\n')
 
         if len(SysMgr.bufferString) > 0:
             SysMgr.printPipe("%s# %s\n" % ('', 'Delay(%)'))
@@ -66272,8 +66301,14 @@ class ThreadAnalyzer(object):
                     kmemUsage = self.intData[icount][key]['kmemUsage'] >> 20
                     timeLine += '%4s' % \
                         (newFlag + str(memUsage + kmemUsage) + dieFlag)
+
+                try:
+                    pid = SysMgr.savedProcTree[key]
+                except:
+                    pid = value['tgid']
+
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
-                    (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    (value['comm'][:16], key, pid) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
                 SysMgr.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
@@ -66336,8 +66371,13 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['brUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
+                try:
+                    pid = SysMgr.savedProcTree[key]
+                except:
+                    pid = value['tgid']
+
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
-                    (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    (value['comm'][:16], key, pid) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
                 SysMgr.printPipe("%s# %s\n" % ('', 'BLK_RD(MB)'))
@@ -66402,8 +66442,13 @@ class ThreadAnalyzer(object):
                         str(long((self.intData[icount][key]['bwUsage'] * \
                         SysMgr.blockSize) >> 20)) + dieFlag)
 
+                try:
+                    pid = SysMgr.savedProcTree[key]
+                except:
+                    pid = value['tgid']
+
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
-                    (value['comm'], key, value['tgid']) + timeLine + '\n')
+                    (value['comm'][:16], key, value['tgid']) + timeLine + '\n')
 
             if len(SysMgr.bufferString) > 0:
                 SysMgr.printPipe("%s# %s\n" % ('', 'BLK_WR(MB)'))
@@ -76426,7 +76471,7 @@ class ThreadAnalyzer(object):
                 if idIndex:
                     SysMgr.idList.append(idx)
                     idStr = '%s>' % (len(SysMgr.idList)-1)
-                    spaces = ' ' * (SysMgr.commLen - len(idStr) - len(comm))
+                    spaces = ' ' * (cl - len(idStr) - len(comm))
                     comm = '%s%s%s' % (idStr, spaces, comm)
 
             # remove unshown field in lifetime #
