@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210303"
+__revision__ = "210307"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3825,7 +3825,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def isEffectiveStr(string, key=None, inc=True, ignCap=False):
+    def isValidStr(string, key=None, inc=True, ignCap=False):
         if not key:
             key = SysMgr.filterGroup
 
@@ -5583,7 +5583,7 @@ class NetworkMgr(object):
         try:
             from socket import socket, AF_INET, SOCK_DGRAM,\
                 SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_SNDBUF, SO_RCVBUF,\
-                SOL_TCP, TCP_NODELAY, SO_RCVTIMEO, SO_SNDTIMEO, SOCK_RAW
+                SOL_TCP, SO_RCVTIMEO, SO_SNDTIMEO, SOCK_RAW
         except:
             SysMgr.printWarn(
                 "fail to import socket", True, reason=True)
@@ -5626,17 +5626,17 @@ class NetworkMgr(object):
             self.socket.setsockopt(SOL_SOCKET, SO_REUSEPORT, 0)
             '''
 
+            # set NODELAY #
+            '''
+            self.setNoDelay()
+            '''
+
             # set SENDTIMEOUT #
             '''
             sec = 1
             usec = long(0)
             timeval = struct.pack('ll', sec, usec)
             self.socket.setsockopt(SOL_SOCKET, SO_SNDTIMEO, timeval)
-            '''
-
-            # set NODELAY #
-            '''
-            self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
             '''
 
             # set IP & PORT #
@@ -5725,8 +5725,13 @@ class NetworkMgr(object):
 
 
     def close(self):
-        ret = self.socket.close()
+        if self.socket:
+            ret = self.socket.close()
+        else:
+            ret = False
+
         self.socket = None
+
         return ret
 
 
@@ -5737,6 +5742,14 @@ class NetworkMgr(object):
 
 
     def timeout(self, time=3):
+        if 'TIMEOUT' in SysMgr.environList:
+            try:
+                time = float(SysMgr.environList['TIMEOUT'][0])
+            except:
+                SysMgr.printErr(
+                    'fail to get TIMEOUT variable', True)
+                sys.exit(0)
+
         self.socket.settimeout(time)
 
 
@@ -5912,7 +5925,11 @@ class NetworkMgr(object):
             # get select object #
             selectObj = SysMgr.getPkg('select')
 
-            print(oneLine)
+            # set print flag #
+            printFlag = SysMgr.getPrintFlag()
+
+            if printFlag:
+                print(oneLine)
 
             # run mainloop #
             isPrint = False
@@ -5926,7 +5943,8 @@ class NetworkMgr(object):
                     if not output:
                         break
 
-                    print(output[:-1])
+                    if printFlag:
+                        print(output[:-1])
                     isPrint = True
                 except:
                     break
@@ -5935,7 +5953,8 @@ class NetworkMgr(object):
             if not isPrint:
                 print('no response')
 
-            print(oneLine)
+            if printFlag:
+                print(oneLine)
 
             # close connection #
             try:
@@ -5955,22 +5974,26 @@ class NetworkMgr(object):
             except:
                 req = req[0]
 
-            # handle request #
+            # check request #
             if not req:
                 return
 
-            elif req.upper().startswith('DOWNLOAD'):
+            # handle request #
+            reqUpper = req.upper()
+
+            if reqUpper.startswith('DOWNLOAD'):
                 return _onDownload(req)
 
-            elif req.upper().startswith('UPLOAD'):
+            elif reqUpper.startswith('UPLOAD'):
                 return _onUpload(req)
 
-            elif req.upper().startswith('RUN'):
+            elif reqUpper.startswith('RUN'):
                 return _onRun(req, onlySocket)
 
-            elif req.startswith('ERROR'):
+            elif reqUpper.startswith('ERROR'):
                 err = req.split('|', 1)[1]
-                errMsg = err.split(':', 1)[0]
+                errToken = err.find("':")
+                errMsg = "%s' from %s" % (err[:errToken], err[errToken+2:])
                 SysMgr.printErr(errMsg)
 
             else:
@@ -6135,6 +6158,14 @@ class NetworkMgr(object):
 
 
 
+    def setNoDelay(self):
+        from socket import socket, SOL_TCP, TCP_NODELAY
+
+        # set NODELAY for NAGLE #
+        self.socket.setsockopt(SOL_TCP, TCP_NODELAY, 1)
+
+
+
     def recvfrom(self, size=0, noTimeout=False, verbose=True):
         if self.ip is None or self.port is None:
             SysMgr.printWarn(
@@ -6215,8 +6246,8 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def requestPing():
-        return NetworkMgr.execRemoteCmd("PING:PING")
+    def requestPing(addr=None):
+        return NetworkMgr.execRemoteCmd("PING:PING", addr=addr)
 
 
 
@@ -6225,10 +6256,18 @@ class NetworkMgr(object):
         if not cmd:
             return None
 
+        # define valid request list #
+        requestList = {
+            'DOWNLOAD': None,
+            'UPLOAD': None,
+            'RUN': None,
+            'BROADCAST': None,
+            'NEW': None,
+            'PING': None,
+        }
+
         # add command prefix #
-        if cmd.upper().startswith('PING') or \
-            cmd.upper().startswith('UPLOAD') or \
-            cmd.upper().startswith('DOWNLOAD'):
+        if cmd.upper().split(':')[0] in requestList:
             pass
         elif not cmd.startswith('run:'):
             cmd = 'run:%s' % cmd
@@ -6239,8 +6278,27 @@ class NetworkMgr(object):
         # receive reply from server #
         reply = connObj.recvfrom()
         try:
-            if reply and reply[0].decode() == 'PONG':
+            if not reply:
+                raise Exception()
+
+            msg = reply[0].decode()
+            if not msg:
+                pass
+            elif msg == 'PONG':
                 return True
+            elif msg == 'NO_SERV_NODE':
+                SysMgr.printErr(
+                    'no service node to %s:%s' % (connObj.ip, connObj.port))
+                return True
+            elif msg.startswith('MSG:'):
+                # print message in the packet #
+                SysMgr.printInfo(msg.strip('MSG:'))
+
+                # send ACK to prevent receiving two packegs at once #
+                connObj.send('ACK')
+
+                # wait for a request again #
+                reply = connObj.recvfrom()
         except:
             pass
 
@@ -6310,8 +6368,7 @@ class NetworkMgr(object):
 
         # bind local socket for UDP #
         try:
-            if not SysMgr.remoteServObj.tcp and \
-                SysMgr.localServObj:
+            if not SysMgr.remoteServObj.tcp and SysMgr.localServObj:
                 lip = SysMgr.localServObj.ip
                 lport = SysMgr.localServObj.port
                 SysMgr.remoteServObj.socket.bind((lip, lport))
@@ -6324,7 +6381,8 @@ class NetworkMgr(object):
         try:
             connObj = SysMgr.remoteServObj
 
-            connObj.timeout()
+            if not 'NOTIMEOUT' in SysMgr.environList:
+                connObj.timeout()
 
             # connect with handling CLOSE_WAIT #
             while 1:
@@ -6425,7 +6483,7 @@ class NetworkMgr(object):
             sys.exit(0)
 
         if not ip or not port or \
-            not SysMgr.isEffectiveRequest(service):
+            not SysMgr.isValidRequest(service):
             reqList = ''
             for req in ThreadAnalyzer.requestType:
                 reqList += req + '|'
@@ -6444,6 +6502,7 @@ class NetworkMgr(object):
             networkObject.request = service
             SysMgr.remoteServObj = networkObject
 
+        # set protocol #
         if tcp:
             proto = 'TCP'
         else:
@@ -6451,6 +6510,8 @@ class NetworkMgr(object):
 
         SysMgr.printInfo(
             "use %s:%d(%s) as remote address" % (ip, port, proto))
+
+        return SysMgr.remoteServObj
 
 
 
@@ -6464,7 +6525,7 @@ class NetworkMgr(object):
                   "input in the format [%s]@IP:PORT") % \
                     '|'.join(ThreadAnalyzer.requestType)
 
-        if not ip or not SysMgr.isEffectiveRequest(service):
+        if not ip or not SysMgr.isValidRequest(service):
             SysMgr.printErr(errMsg)
             sys.exit(0)
 
@@ -14861,7 +14922,7 @@ class LogMgr(object):
         while 1:
             log = SysMgr.syslogFd.readline()
 
-            if not UtilMgr.isEffectiveStr(log):
+            if not UtilMgr.isValidStr(log):
                 continue
 
             if SysMgr.outPath and console:
@@ -15075,7 +15136,7 @@ class LogMgr(object):
                     try:
                         decstr = jrlStr.decode('latin-1')
 
-                        if not UtilMgr.isEffectiveStr(decstr):
+                        if not UtilMgr.isValidStr(decstr):
                             raise Exception()
 
                         if SysMgr.outPath and console:
@@ -15204,7 +15265,7 @@ class LogMgr(object):
             if ret > 0:
                 logBuf = memoryview(buf).tobytes().decode()
                 for line in logBuf.split('\n'):
-                    if not UtilMgr.isEffectiveStr(line):
+                    if not UtilMgr.isValidStr(line):
                         continue
                     SysMgr.printPipe(line)
 
@@ -15216,7 +15277,7 @@ class LogMgr(object):
                     continue
 
                 logBuf = memoryview(buf).tobytes().decode()
-                if not UtilMgr.isEffectiveStr(line):
+                if not UtilMgr.isValidStr(line):
                     continue
 
                 if SysMgr.outPath and console:
@@ -15237,7 +15298,7 @@ class LogMgr(object):
             jsonResult = dict()
             log = SysMgr.kmsgFd.readline()
 
-            if not UtilMgr.isEffectiveStr(log):
+            if not UtilMgr.isValidStr(log):
                 continue
 
             # parse log #
@@ -15457,6 +15518,7 @@ class SysMgr(object):
     cmdFileName = 'guider.cmd'
     tmpPath = '/tmp'
     kmsgPath = '/dev/kmsg'
+    nullPath = '/dev/null'
     syslogPath = '/var/log/syslog'
     lmkPath = '/sys/module/lowmemorykiller/parameters/minfree'
     pythonPath = sys.executable
@@ -16389,7 +16451,7 @@ class SysMgr(object):
 
             # ignore output #
             if not SysMgr.outPath:
-                SysMgr.outPath = '/dev/null'
+                SysMgr.outPath = SysMgr.nullPath
                 SysMgr.bufferSize = -1
 
         # DLT #
@@ -16526,6 +16588,15 @@ class SysMgr(object):
                 return val
 
         return None
+
+
+
+    @staticmethod
+    def getPrintFlag():
+        if 'QUIET' in SysMgr.environList:
+            return False
+        else:
+            return True
 
 
 
@@ -17832,7 +17903,7 @@ class SysMgr(object):
             if item == tid or \
                 item in comm or \
                 item == '' or \
-                SysMgr.isEffectiveTid(tid, item):
+                SysMgr.isValidTid(tid, item):
                 return False
 
         # check all threads in a same process #
@@ -17847,7 +17918,7 @@ class SysMgr(object):
             for item in tlist:
                 try:
                     if item == tgid or \
-                        SysMgr.isEffectiveTid(tgid, item):
+                        SysMgr.isValidTid(tgid, item):
                         return False
                     elif tgid == tdata[item]['tgid'] or \
                         tgid == SysMgr.savedProcTree[item]:
@@ -17887,7 +17958,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def isEffectiveEnableOption(options):
+    def isValidEnableOption(options):
         if not options:
             return False
 
@@ -17901,7 +17972,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def isEffectiveOption(option):
+    def isValidOption(option):
         optionList = 'ABCDEFGHIJKLMNOPQRSTUWXYZabcdefgijklmnopqrstuvwxy'
         if option in optionList:
             return True
@@ -17913,7 +17984,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def isEffectiveTid(tid, cond):
+    def isValidTid(tid, cond):
         try:
             tid = long(tid)
 
@@ -18548,7 +18619,7 @@ Usage:
     -C  <PATH>                  set config file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
@@ -18599,7 +18670,7 @@ Options:
     -E  <DIR>                   set cache dir path
     -C  <PATH>                  set config file
     -O  <CORE>                  set core filter
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                     '''
 
@@ -19116,7 +19187,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set task filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -19191,7 +19262,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set task filter
     -Q                          print all rows in a stream
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19305,7 +19376,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19363,7 +19434,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
 
   [common]
     -g  <COMM|TID{:FILE}>       set task filter
@@ -20020,7 +20091,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                     '''
 
@@ -20152,7 +20223,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                     '''
 
@@ -20180,7 +20251,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                     '''
 
@@ -20208,7 +20279,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
 
 Examples:
@@ -20232,7 +20303,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
 
 Examples:
@@ -20944,7 +21015,7 @@ Options:
     -v                          verbose
     -I  <COMMAND>               set commands
     -c  <VARIABLE>              set variables
-    -q  <NAME:VALUE>            set environment variables
+    -q  <NAME{{:VALUE}}>          set environment variables
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -21705,15 +21776,41 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Run server process
+    Run server
 
 Options:
     -x  <IP:PORT>               set local address
+    -X  <IP:PORT>               set agent address
     -u                          run in the background
     -C  <PATH>                  set config path
     -E  <DIR>                   set cache dir path
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Run server in background
+        # {0:1} {1:1} -u
+
+    - Run server with specific local address
+        # {0:1} {1:1} -x 127.0.0.1:5556
+
+    - Run server and register to agent node as a service node
+        # {0:1} {1:1} -X 127.0.0.1:3456
+
+    - Run server with no timeout
+        # {0:1} {1:1} -q NOTIMEOUT
+
+    - Run server with specific timeout
+        # {0:1} {1:1} -q TIMEOUT:1.5
+
+    - Run server with specific read chunk size for command process
+        # {0:1} {1:1} -q READCHUNK:4096
+
+    - Run server with no output for remote reqeust
+        # {0:1} {1:1} -q QUIET
+                    '''.format(cmd, mode)
 
                 # client #
                 elif SysMgr.checkMode('cli'):
@@ -21722,13 +21819,14 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Run client process
+    Execute remote command
 
 Options:
     -x  <IP:PORT>               set local address
     -X  <IP:PORT>               set request address
     -E  <DIR>                   set cache dir path
     -c  <COMMAND>               set command
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21738,16 +21836,28 @@ Examples:
         # {0:1} {1:1}
 
     - Download a.out from server to ./a.out
-        # {0:1} {1:1} -c download:a.out:./a.out
+        # {0:1} {1:1} -c download:a.out@./a.out
         # {0:1} {1:1} -c download:a.out
 
     - Upload ./a.out to a.out in server
-        # {0:1} {1:1} -c upload:./a.out:a.out
+        # {0:1} {1:1} -c upload:./a.out@a.out
         # {0:1} {1:1} -c upload:./a.out
 
     - Execute remote commands in parallel
         # {0:1} {1:1} -c "ls -lha", "date"
         # {0:1} {1:1} -c 192.168.0.100:5050\|"vmstat 1", 192.168.0.101:1234\|"find /"
+
+    - Execute remote command by service nodes
+        # {0:1} {1:1} -c "b:ls -lha"
+
+    - Execute a remote command with no timeout
+        # {0:1} {1:1} -c "ls -lha" -q NOTIMEOUT
+
+    - Execute a remote command with specific timeout
+        # {0:1} {1:1} -c "ls -lha" -q TIMEOUT:1.5
+
+    - Execute a remote command with no output
+        # {0:1} {1:1} -q QUIET
 
     - Execute remote Guider commands in fixed-line-output
         # {0:1} {1:1} -c 192.168.0.100:5050\|"GUIDER top -m 15:", 192.168.0.101:1234\|"GUIDER ttop -m 15:"
@@ -24562,8 +24672,8 @@ Copyright:
                 try:
                     SysMgr.cmdFd = open(SysMgr.cmdEnable, perm)
                     SysMgr.cmdFd.write(
-                        'mount -t debugfs nodev %s 2>/dev/null\n' % \
-                        SysMgr.debugfsPath)
+                        'mount -t debugfs nodev %s 2>%s\n' % \
+                        (SysMgr.debugfsPath, SysMgr.nullPath))
                     SysMgr.cmdFd.write(
                         'echo "\nstart recording... [ STOP(Ctrl+c) ]\n"\n')
                 except SystemExit:
@@ -24574,8 +24684,8 @@ Copyright:
 
             if SysMgr.cmdFd:
                 try:
-                    cmd = 'echo "%s" > %s%s 2>/dev/null\n' % \
-                        (str(val), SysMgr.mountPath, path)
+                    cmd = 'echo "%s" > %s%s 2>%s\n' % \
+                        (str(val), SysMgr.mountPath, path, SysMgr.nullPath)
                     SysMgr.cmdFd.write(cmd)
                 except SystemExit:
                     sys.exit(0)
@@ -26172,7 +26282,7 @@ Copyright:
 
 
     @staticmethod
-    def isEffectiveRequest(request):
+    def isValidRequest(request):
         try:
             if request.startswith('EVENT_') or \
                 ThreadAnalyzer.requestType.index(request):
@@ -26835,7 +26945,7 @@ Copyright:
                 if 'x' in options:
                     SysMgr.fixTargetEnable = True
 
-                if not SysMgr.isEffectiveEnableOption(options):
+                if not SysMgr.isValidEnableOption(options):
                     SysMgr.printErr(
                         "unrecognized option -%s to enable" % options)
                     sys.exit(0)
@@ -27065,7 +27175,7 @@ Copyright:
                     sys.exit(0)
 
             # Ignore options #
-            elif SysMgr.isEffectiveOption(option):
+            elif SysMgr.isValidOption(option):
                 continue
 
             else:
@@ -27275,7 +27385,7 @@ Copyright:
                 if 'c' in options:
                     SysMgr.cgroupEnable = True
 
-                if not SysMgr.isEffectiveEnableOption(options):
+                if not SysMgr.isValidEnableOption(options):
                     SysMgr.printErr(
                         "unrecognized option '%s' to enable" % options)
                     sys.exit(0)
@@ -27424,7 +27534,7 @@ Copyright:
                     SysMgr.generalInfoEnable = False
 
             # Ignore options #
-            elif SysMgr.isEffectiveOption(option):
+            elif SysMgr.isValidOption(option):
                 continue
 
             else:
@@ -28728,7 +28838,7 @@ Copyright:
         procList = SysMgr.bgProcList
 
         bgStr = '\n[Running Process] [TOTAL: %s]\n' % procList.count('\n')
-        bgStr = '%s%s\n%7s\t%7s\t%16s\t%8s\t%5s\t%14s\t%s\n%s\n' % \
+        bgStr = '%s%s\n%7s %7s %7s %8s %5s %12s %s\n%s\n' % \
             (bgStr, twoLine, "PID", "PPID", "COMM",
                 "STATE", "RSS", "RUNTIME", "COMMAND", oneLine)
         bgStr = '%s%s%s' % (bgStr, procList, oneLine)
@@ -28948,7 +29058,7 @@ Copyright:
                     'network': network
                 }
             else:
-                printBuf = '%s%7s\t%7s\t%16s\t%8s\t%5s\t%14s\t%s %s\n' % \
+                printBuf = '%s%7s %7s %7s %8s %5s %12s %s %s\n' % \
                     (printBuf, pid, ppid, comm,
                         state, rss, runtime, cmdline, network)
 
@@ -29725,7 +29835,7 @@ Copyright:
     @staticmethod
     def closeStdFd(stdin=False, stdout=True, stderr=True):
         if not SysMgr.nullFd:
-            SysMgr.nullFd = open('/dev/null', 'w')
+            SysMgr.nullFd = open(SysMgr.nullPath, 'w')
 
         # get null fd #
         nullFd = SysMgr.nullFd.fileno()
@@ -29952,6 +30062,8 @@ Copyright:
 
     @staticmethod
     def runServerMode():
+        nodeList = {}
+
         def _sendErrMsg(netObj, message):
             message = 'ERROR|%s:%s:%s' % \
                 (message, netObj.ip, netObj.port)
@@ -30095,6 +30207,43 @@ Copyright:
             finally:
                 netObj.close()
 
+        def _onNew(connObj, value, response):
+            try:
+                # reply message #
+                connObj.send('PONG')
+
+                # register node info #
+                nodeList.setdefault(value, connObj)
+
+                SysMgr.printInfo(
+                    "registered the service node(%s) successfully" %  value)
+
+                # update service node list #
+                for addr in list(nodeList.keys()):
+                    ret = NetworkMgr.requestPing(value)
+                    if not ret:
+                        nodeList.pop(addr, None)
+
+                # print node list #
+                listStr = '[Service Node List]\n%s\n' % twoLine
+                for idx, addr in enumerate(list(nodeList.keys())):
+                    listStr += '[%3s] %s\n' % (idx, addr)
+                if nodeList:
+                    listStr += '%s\n' % oneLine
+                else:
+                    listStr += '\tNone\n%s\n' % oneLine
+                SysMgr.printWarn(listStr, True)
+            except:
+                SysMgr.printWarn(
+                    'fail to register the service node(%s)' % value,
+                    reason=True)
+
+        def _onPing(connObj, value, response):
+            try:
+                connObj.send('PONG')
+            except:
+                pass
+
         def _onRun(connObj, value, response):
             def _enableSigPipe():
                 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
@@ -30123,10 +30272,17 @@ Copyright:
                 # set SIGCHLD #
                 signal.signal(signal.SIGCHLD, signal.SIG_DFL)
 
+                # set print flag #
+                printFlag = SysMgr.getPrintFlag()
+                if printFlag:
+                    procOut = subprocess.PIPE
+                else:
+                    procOut = open(SysMgr.nullPath, 'wb')
+
                 # create process to communicate #
                 procObj = subprocess.Popen(
-                    value, shell=True, stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE, env=myEnv, bufsize=0,
+                    value, shell=True, stdout=procOut,
+                    stderr=procOut, env=myEnv, bufsize=0,
                     preexec_fn=os.setsid)
 
                 SysMgr.printInfo(
@@ -30135,13 +30291,28 @@ Copyright:
                 # get select object #
                 selectObj = SysMgr.getPkg('select')
 
+                # set fds #
+                listenFds = []
+                if procObj.stdout:
+                    listenFds.append(procObj.stdout)
+                if procObj.stderr:
+                    listenFds.append(procObj.stderr)
+                if connObj.socket:
+                    listenFds.append(connObj.socket)
+
+                # get io buffer size #
+                if 'READCHUNK' in SysMgr.environList:
+                    try:
+                        readChunkSize = \
+                            long(SysMgr.environList['READCHUNK'][0])
+                    except:
+                        pass
+                else:
+                    readChunkSize = None
+
                 # run mainloop #
                 while 1:
                     try:
-                        # set fds #
-                        listenFds = \
-                            [procObj.stdout, procObj.stderr, connObj.socket]
-
                         # wait for event #
                         [read, write, error] = \
                             selectObj.select(listenFds, [], [], 1)
@@ -30153,7 +30324,13 @@ Copyright:
 
                             # handle data arrived #
                             while 1:
-                                output = robj.readline()
+                                # read output from pipe #
+                                if readChunkSize:
+                                    output = robj.read(readChunkSize)
+                                else:
+                                    output = robj.readline()
+
+                                # check and transfer output #
                                 if output == '\n':
                                     continue
                                 elif output and len(output) > 0:
@@ -30174,7 +30351,7 @@ Copyright:
                     "fail to execute '%s' from %s" % (value, addr), True)
             finally:
                 try:
-                    connObj.shutdown(socket.SHUT_RDWR)
+                    connObj.socket.shutdown(socket.SHUT_RDWR)
                     connObj.close()
 
                     # send TERM signal first #
@@ -30186,6 +30363,123 @@ Copyright:
                     os.killpg(procObj.pid, signal.SIGKILL)
                 except:
                     pass
+
+        def _onBroadcast(connObj, value, response):
+            cmd = 'run:' + value
+            for addr in list(nodeList.keys()):
+                # check alive #
+                ret = NetworkMgr.requestPing(addr)
+                if not ret:
+                    try:
+                        nodeList[addr].close()
+                    except:
+                        pass
+                    finally:
+                        # remove dead node #
+                        nodeList.pop(addr, None)
+
+            # reply message #
+            if nodeList:
+                # send message packet #
+                connObj.send(
+                    'MSG:"%s" is executed by %s node' % \
+                        (cmd, len(nodeList)))
+
+                '''
+                receive an ACK packet
+                to prevent receiving two packets at once
+                '''
+                connObj.recv()
+
+                # send reply  packet for command #
+                connObj.send('run|%s' % value)
+            else:
+                connObj.send('NO_SERV_NODE')
+                return
+
+            # execute remote commands #
+            for addr in list(nodeList.keys()):
+                # create worker process #
+                pid = SysMgr.createProcess()
+                if pid > 0:
+                    continue
+
+                # execute a command from a remote node #
+                try:
+                    SysMgr.printInfo(
+                        "execute '%s' at %s for %s:%s" % \
+                            (cmd, addr, connObj.ip, connObj.port))
+
+                    # disable log #
+                    SysMgr.logEnable = False
+
+                    rcmd = '%s|%s' % (addr, cmd)
+                    SysMgr.runClientMode(rcmd, connObj)
+                except SystemExit:
+                    pass
+                except:
+                    SysMgr.logEnable = True
+                    SysMgr.printErr(
+                        "fail to execute '%s' at %s for %s:%s" % \
+                            (cmd, addr, connObj.ip, connObj.port))
+
+                sys.exit(0)
+
+            # wait for termination for remote commands #
+            if pid > 0:
+                SysMgr.waitChild()
+
+        def _register(connObj):
+            # create a new socket for TCP #
+            rip = SysMgr.remoteServObj.ip
+            rport = SysMgr.remoteServObj.port
+            raddr = '%s:%s' % (rip, rport)
+            caddr = '%s:%s' % (connObj.ip, connObj.port)
+            cliObj = NetworkMgr.setRemoteServer(raddr, tcp=True)
+            errMsg = None
+
+            while 1:
+                try:
+                    # create a new socket for TCP #
+                    if not cliObj.socket:
+                        cliObj = NetworkMgr.setRemoteServer(raddr, tcp=True)
+
+                    SysMgr.printWarn(
+                        'try to connect to the agent node(%s)' % raddr)
+
+                    # connect to an agent node #
+                    cliObj.connect()
+                    cliObj.connected = True
+                    errMsg = None
+                    SysMgr.printInfo(
+                        'connected to the agent node(%s)' % raddr)
+
+                    # register to another server #
+                    pipe = NetworkMgr.getCmdPipe(cliObj, 'new:%s' % caddr)
+
+                    # monitor connection #
+                    cliObj.recv()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    # print error message #
+                    curErrMsg = SysMgr.getErrMsg()
+                    if errMsg != curErrMsg:
+                        SysMgr.printErr((
+                            'fail to keep connection with the agent node '
+                            'to %s') % raddr, True)
+                        SysMgr.printInfo(
+                            'start trying to connect to the agent node(%s)' % \
+                                raddr)
+
+                    # update latest error message #
+                    errMsg = curErrMsg
+
+                    # close invalid socket #
+                    if cliObj.connected:
+                        cliObj.close()
+
+                    time.sleep(1)
 
         def _handleConn(connObj, connMan):
             # read command #
@@ -30237,15 +30531,26 @@ Copyright:
             # convert request to capital #
             request = request.upper()
 
+            # define valid request list #
+            requestList = {
+                'DOWNLOAD': _onDownload,
+                'UPLOAD': _onUpload,
+                'RUN': _onRun,
+                'BROADCAST': _onBroadcast,
+                'NEW': _onNew,
+                'PING': _onPing,
+            }
+
             # check request type #
-            if request != 'DOWNLOAD' and \
-                request != 'UPLOAD' and \
-                request != 'RUN' and \
-                request != 'PING':
+            if not request in requestList:
                 SysMgr.printWarn(
                     "fail to recognize the request '%s'" % message, True)
-                _sendErrMsg(connObj, "no support request '%s'" % message)
 
+                _sendErrMsg(connObj, "no support the request '%s'" % message)
+
+                return False
+            elif request == 'NEW':
+                requestList[request](connObj, value, None)
                 return False
 
             # build response data #
@@ -30262,20 +30567,7 @@ Copyright:
             before = time.time()
 
             # handle request #
-            if request == 'DOWNLOAD':
-                _onDownload(connObj, value, response)
-
-            elif request == 'UPLOAD':
-                _onUpload(connObj, value, response)
-
-            elif request == 'RUN':
-                _onRun(connObj, value, response)
-
-            elif request == 'PING':
-                try:
-                    connObj.send('PONG')
-                except:
-                    pass
+            requestList[request](connObj, value, response)
 
             elapsed = time.time() - before
             SysMgr.printInfo(
@@ -30301,11 +30593,19 @@ Copyright:
         else:
             ip = port = None
 
-        # set address #
+        # set local address #
         connMan = NetworkMgr.setServerNetwork(
             ip, port, force=True, blocking=True, tcp=True)
         if not connMan:
             return
+
+        # register to anoter server as a service node #
+        if SysMgr.remoteServObj:
+            # create a new thread to manage socket #
+            threadObj = SysMgr.getPkg('threading')
+            tobj = threadObj.Thread(target=_register, args=[connMan])
+            tobj.daemon = True
+            tobj.start()
 
         SysMgr.printStat(
             "run %s(%s) as a server" % \
@@ -30318,6 +30618,8 @@ Copyright:
         try:
             connMan.listen()
             connMan.timeout()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 'fail to listen to prepare for connection', True)
@@ -30338,7 +30640,7 @@ Copyright:
                 continue
 
             SysMgr.printInfo(
-                "connected to client %s:%s" % (addr[0], addr[1]))
+                "connected to the client(%s:%s)" % (addr[0], addr[1]))
 
             # create a TCP socket #
             connObj = NetworkMgr(
@@ -30359,13 +30661,14 @@ Copyright:
 
 
     @staticmethod
-    def runClientMode():
+    def runClientMode(cmds=None, writer=None):
         def _printMenu():
             sys.stdout.write(
                 '\n[Command List]\n'
                 '- DOWNLOAD:RemotePath@LocalPath\n'
                 '- UPLOAD:LocalPath@RemotePath\n'
                 '- RUN:Command\n'
+                '- BROADCAST:Command\n'
                 '- HISTORY\n'
                 '- PING\n'
                 '- QUIT\n'
@@ -30398,46 +30701,57 @@ Copyright:
 
         def _getUserInput():
             _printMenu()
-            sys.stdout.write('input command to request service...\n=> ')
+            sys.stdout.write('input command for request...\n=> ')
             sys.stdout.flush()
 
             return sys.stdin.readline()[:-1]
 
         def _convUserCmd(uinput):
-            if uinput.upper().startswith('D:'):
+            uinputUpper = uinput.upper()
+            if uinputUpper.startswith('D:'):
                 uinput = 'download' + uinput[1:]
-            elif uinput.upper().startswith('U:'):
+            elif uinputUpper.startswith('U:'):
                 uinput = 'upload' + uinput[1:]
-            elif uinput.upper().startswith('R:'):
+            elif uinputUpper.startswith('R:'):
                 uinput = 'run' + uinput[1:]
-            elif uinput.upper() == 'H':
+            elif uinputUpper.startswith('B:'):
+                uinput = 'broadcast' + uinput[1:]
+            elif uinputUpper == 'H':
                 uinput = 'history'
-            elif uinput.upper() == 'P':
+            elif uinputUpper == 'P':
                 uinput = 'ping'
-            elif uinput.upper() == 'Q':
+            elif uinputUpper == 'Q':
                 uinput = 'quit'
 
             return uinput
 
-        def _unsetAlarm():
-            if SysMgr.isLinux:
+        def _execUserCmd(uinput, addr=None, retPipe=False):
+            def _unsetAlarm():
+                if not SysMgr.isLinux:
+                    return
                 signal.signal(signal.SIGALRM, SysMgr.defaultHandler)
 
-        def _setAlarm():
-            if SysMgr.isLinux:
+            def _setAlarm():
+                if not SysMgr.isLinux:
+                    return
+
                 signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
                 SysMgr.intervalEnable = 1
                 SysMgr.repeatCount = sys.maxsize
 
-        def _execUserCmd(uinput, addr=None, retPipe=False):
             # launch remote command #
             pipe = NetworkMgr.execRemoteCmd(uinput, addr)
             if not pipe:
+                if addr:
+                    addrstr = ' at %s' % addr
+                else:
+                    addrstr = ''
                 SysMgr.printErr(
-                    "fail to execute '%s'" % uinput)
+                    "fail to execute '%s'%s" % (uinput, addrstr))
                 return
 
-            if retPipe:
+            # return pipe or True #
+            if retPipe or pipe is True:
                 return pipe
 
             # set alarm #
@@ -30445,6 +30759,9 @@ Copyright:
 
             # block signal #
             SysMgr.blockSignal(act='block')
+
+            # set print flag #
+            printFlag = SysMgr.getPrintFlag()
 
             while 1:
                 try:
@@ -30456,7 +30773,8 @@ Copyright:
 
                     dataType = pipe.getDataType(output)
 
-                    print(output[:-1])
+                    if printFlag:
+                        print(output[:-1])
                 except SystemExit:
                     if SysMgr.isLinux:
                         pass
@@ -30482,19 +30800,15 @@ Copyright:
         # start client mode #
         SysMgr.printInfo("CLIENT MODE")
 
-        '''
-        # get address info #
-        localAddr = SysMgr.getOption('x')
-        remoteAddr = SysMgr.getOption('X')
-        local, remote = \
-            NetworkMgr.prepareServerConn(localAddr, remoteAddr)
-        '''
-
+        # disable SIGINT #
         if SysMgr.loadLibcObj():
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         # get argument #
-        if SysMgr.hasMainArg():
+        if cmds:
+            cmdList = cmds.split(',')
+            cmdList = UtilMgr.cleanItem(cmdList, False)
+        elif SysMgr.hasMainArg():
             cmdList = SysMgr.getMainArg().split(',')
             cmdList = UtilMgr.cleanItem(cmdList, False)
         elif SysMgr.customCmd:
@@ -30514,6 +30828,13 @@ Copyright:
             # print window size for commands #
             windowSize = long(SysMgr.ttyRows / len(cmdList))
             SysMgr.printInfo("set each window height to %s" % (windowSize+2))
+
+            # get print flag #
+            printFlag = SysMgr.getPrintFlag()
+
+            # set default writer #
+            if not writer:
+                writer = sys.stdout
 
         # run parallel commands #
         cmdPipeList = {}
@@ -30540,10 +30861,12 @@ Copyright:
             elif pipe is True:
                 continue
 
-            # set timeout and register socket to command list #
+            # set timeout #
+            pipe.timeout(0.1)
+
+            # register socket to command list #
             cmdPipeList[pipe.socket] = \
                 [fullInput, pipe, [''] * SysMgr.ttyRows]
-            pipe.timeout(0.1)
 
         # run mainloop for parallel commands #
         while 1:
@@ -30588,7 +30911,8 @@ Copyright:
 
                         # handle output #
                         if len(cmdPipeList) == 1:
-                            sys.stdout.write(output)
+                            if printFlag:
+                                writer.write(output)
                             if isMulti:
                                 break
                             else:
@@ -30622,7 +30946,10 @@ Copyright:
                                 fullSurface += '\n'
 
                         # update screen in 20 FPS #
-                        sys.stdout.write(fullSurface)
+                        if printFlag:
+                            writer.write(fullSurface)
+
+                        # delay for overhead #
                         time.sleep(0.05)
 
                         if isMulti:
@@ -30652,17 +30979,18 @@ Copyright:
 
                 # convert command shortcut #
                 uinput = _convUserCmd(uinput)
+                uinputUpper = uinput.upper()
 
                 # handle local command #
                 if not uinput or \
                     uinput == '!' or \
-                    uinput.upper() == 'HISTORY':
+                    uinputUpper == 'HISTORY':
                     _printHistory(hlist)
                     continue
-                elif uinput.upper().startswith('PING'):
+                elif uinputUpper.startswith('PING'):
                     _doPing(uinput)
                     continue
-                elif uinput.upper() == 'QUIT':
+                elif uinputUpper == 'QUIT':
                     break
 
                 # backup command #
@@ -30866,7 +31194,7 @@ Copyright:
                 req, times = line.split('|', 1)
 
                 if SysMgr.filterGroup:
-                    if not UtilMgr.isEffectiveStr(req):
+                    if not UtilMgr.isValidStr(req):
                         continue
 
                 reqtimeList = []
@@ -31245,7 +31573,7 @@ Copyright:
             if filters:
                 filteredList = []
                 for env in envs:
-                    if UtilMgr.isEffectiveStr(env, key=filters, inc=True):
+                    if UtilMgr.isValidStr(env, key=filters, inc=True):
                         filteredList.append(env)
                 envs = filteredList
 
@@ -31541,7 +31869,7 @@ Copyright:
                         continue
                     elif node in busServiceList:
                         continue
-                    elif not UtilMgr.isEffectiveStr(node, ignCap=True):
+                    elif not UtilMgr.isValidStr(node, ignCap=True):
                         continue
 
                     fpath = os.path.join(items[0], node)
@@ -31571,9 +31899,9 @@ Copyright:
                 busServiceList.items(), key=lambda e:e[0]):
                 cnt = 0
                 for attr, val in sorted(value.items()):
-                    if not UtilMgr.isEffectiveStr(attr, attrList, ignCap=True):
+                    if not UtilMgr.isValidStr(attr, attrList, ignCap=True):
                         continue
-                    elif not UtilMgr.isEffectiveStr(val, valList, ignCap=True):
+                    elif not UtilMgr.isValidStr(val, valList, ignCap=True):
                         continue
 
                     SysMgr.addPrint(
@@ -32408,7 +32736,7 @@ Copyright:
 
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if UtilMgr.isEffectiveStr(subPath, inc=False):
+                        if UtilMgr.isValidStr(subPath, inc=False):
                             isEffective = True
                             SysMgr.printPipe('[%s]' % fullPath)
                     else:
@@ -32449,7 +32777,7 @@ Copyright:
 
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(subPath, inc=False):
+                        if not UtilMgr.isValidStr(subPath, inc=False):
                             continue
 
                         # get size #
@@ -36379,8 +36707,8 @@ Copyright:
             if not UtilMgr.which('stty'):
                 return
 
-            os.system('stty rows %d 2> /dev/null' % (long(rows)))
-            os.system('stty cols %d 2> /dev/null' % (long(cols)))
+            os.system('stty rows %d 2> %s' % (long(rows), SysMgr.nullPath))
+            os.system('stty cols %d 2> %s' % (long(cols), SysMgr.nullPath))
             SysMgr.ttyRows = rows
             SysMgr.ttyCols = cols
         except:
@@ -39138,7 +39466,7 @@ Copyright:
                             SysMgr.getComm(curdir, save=True)
 
                     # filter process #
-                    if UtilMgr.isEffectiveStr(comm, inc=True, ignCap=True):
+                    if UtilMgr.isValidStr(comm, inc=True, ignCap=True):
                         SysMgr.infoBufferPrint(
                             '%s- %s(%s)' % \
                             (indent, comm, curdir))
@@ -39179,7 +39507,7 @@ Copyright:
 
             # remove subsystems from tree #
             for subsystem in list(cgroupTree.keys()):
-                if not UtilMgr.isEffectiveStr(
+                if not UtilMgr.isValidStr(
                     subsystem, key=items, inc=True, ignCap=True):
                     cgroupTree.pop(subsystem, None)
 
@@ -41718,7 +42046,7 @@ class DbusAnalyzer(object):
                         if effectiveReply:
                             pass
                         elif SysMgr.customCmd and \
-                            not UtilMgr.isEffectiveStr(
+                            not UtilMgr.isValidStr(
                                 msgStr, SysMgr.customCmd, ignCap=True):
                             continue
 
@@ -43480,8 +43808,9 @@ class Debugger(object):
 
     def updateCurrent(self):
         self.current = time.time()
-        time.time()
-        self.timeDelay = time.time() - self.current
+        if self.timeDelay == 0:
+            time.time()
+            self.timeDelay = time.time() - self.current
 
 
 
@@ -43517,6 +43846,8 @@ class Debugger(object):
         self.targetNum = 0
         self.childNum = 0
         self.startProfTime = False
+        self.current = 0
+        self.timeDelay = 0
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -44106,7 +44437,7 @@ struct cmsghdr {
                         ' ', item[3], source, direct, item[4])
 
                 if filterList:
-                    if UtilMgr.isEffectiveStr(string, filterList):
+                    if UtilMgr.isValidStr(string, filterList):
                         SysMgr.printPipe(string)
                 else:
                     SysMgr.printPipe(string)
@@ -47661,7 +47992,7 @@ struct cmsghdr {
 
         # check comm filter for child #
         if (self.execCmd and SysMgr.filterGroup) or Debugger.targetNum > -1:
-            if UtilMgr.isEffectiveStr(self.comm, inc=True):
+            if UtilMgr.isValidStr(self.comm, inc=True):
                 pass
             elif Debugger.targetNum == self.targetNum:
                 pass
@@ -50273,7 +50604,7 @@ struct cmsghdr {
 
             # get diff time #
             if self.isRealtime:
-                # apply diff #
+                # apply diff and update maximum diff #
                 try:
                     ttotal, tmax = self.syscallStat[name]
                     ttotal += diff
@@ -56508,7 +56839,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol, inc=True):
                             continue
 
                     SysMgr.printPipe(
@@ -56616,7 +56947,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol, inc=True):
                             continue
 
                     SysMgr.printPipe(
@@ -56707,7 +57038,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol, inc=True):
                             continue
 
                     SysMgr.printPipe(
@@ -56792,7 +57123,7 @@ Section header string table index: %d
                 if debug:
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                        if not UtilMgr.isValidStr(symbol, inc=True):
                             continue
 
                     SysMgr.printPipe(
@@ -57630,7 +57961,7 @@ Section header string table index: %d
                     if debug:
                         # apply filter #
                         if SysMgr.filterGroup:
-                            if not UtilMgr.isEffectiveStr(symbol, inc=True):
+                            if not UtilMgr.isValidStr(symbol, inc=True):
                                 continue
 
                         # type info #
@@ -57765,7 +58096,7 @@ Section header string table index: %d
 
                     # apply filter #
                     if SysMgr.filterGroup:
-                        if not UtilMgr.isEffectiveStr(output, inc=True):
+                        if not UtilMgr.isValidStr(output, inc=True):
                             continue
 
                     SysMgr.printPipe(output)
@@ -63611,7 +63942,7 @@ class ThreadAnalyzer(object):
             for val in self.customEventData:
                 skipFlag = False
                 for fval in SysMgr.filterGroup:
-                    if SysMgr.isEffectiveTid(val[2], fval) or \
+                    if SysMgr.isValidTid(val[2], fval) or \
                         fval in val[1]:
                         skipFlag = False
                         break
@@ -63691,7 +64022,7 @@ class ThreadAnalyzer(object):
 
                 skipFlag = False
                 for fval in SysMgr.filterGroup:
-                    if SysMgr.isEffectiveTid(val[3], fval) or \
+                    if SysMgr.isValidTid(val[3], fval) or \
                         fval in val[2]:
                         skipFlag = False
                         break
@@ -63786,7 +64117,7 @@ class ThreadAnalyzer(object):
 
             skipFlag = False
             for fval in SysMgr.filterGroup:
-                if SysMgr.isEffectiveTid(val[4], fval) or \
+                if SysMgr.isValidTid(val[4], fval) or \
                     fval in val[3]:
                     skipFlag = False
                     break
@@ -68366,7 +68697,7 @@ class ThreadAnalyzer(object):
                 try:
                     comm = instance[pid]['comm']
                     if SysMgr.filterGroup and \
-                        UtilMgr.isEffectiveStr(comm, inc=True, ignCap=True):
+                        UtilMgr.isValidStr(comm, inc=True, ignCap=True):
                         comm = UtilMgr.convColor(comm, 'RED')
                 except:
                     comm = '?'
@@ -69756,7 +70087,7 @@ class ThreadAnalyzer(object):
             if not prev_id.startswith('0[') and \
                 (not SysMgr.filterGroup or \
                     prev_id in SysMgr.filterGroup or \
-                    UtilMgr.isEffectiveStr(prev_comm)):
+                    UtilMgr.isValidStr(prev_comm)):
 
                 # add runtime to list for histogram #
                 self.statData.setdefault('runtime', list())
@@ -75730,7 +76061,7 @@ class ThreadAnalyzer(object):
             for group, values in groups.items():
                 # filter group #
                 if SysMgr.filterGroup:
-                    if not UtilMgr.isEffectiveStr(
+                    if not UtilMgr.isValidStr(
                         group, inc=True, ignCap=True):
                         continue
 
