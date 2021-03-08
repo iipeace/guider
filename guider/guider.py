@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210307"
+__revision__ = "210308"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10650,7 +10650,7 @@ class FunctionAnalyzer(object):
 
                     try:
                         pid = self.threadData[tid]['tgid']
-                        if pid == '-----':
+                        if pid.startswith('-'):
                             pid = SysMgr.savedProcTree[tid]
                         self.threadData[pid]
                     except:
@@ -10919,6 +10919,8 @@ class FunctionAnalyzer(object):
 
             # set tgid #
             try:
+                if d['tgid'].startswith('-'):
+                    raise Exception('no tgid')
                 self.threadData[thread]['tgid'] = d['tgid']
             except:
                 try:
@@ -18619,7 +18621,7 @@ Usage:
     -C  <PATH>                  set config file
     -c  <CMD>                   set hot command
     -Q                          print all rows in a stream
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
@@ -18663,14 +18665,14 @@ Options:
     -o  <DIR>                   set output path
     -a                          show all stats and events
     -T  <NUM>                   set top number
-    -L  <RES:PER>               set graph layout (sum of PER: 6)
+    -L  <RES:PER>               set graph layout (TOTAL PER: 6)
           [ C:CPU | D:delay | M:memory | I:io ]
     -l  <BOUNDARY>              set boundary lines
     -F  [svg/png/pdf/ps/eps]    set image format
     -E  <DIR>                   set cache dir path
     -C  <PATH>                  set config file
     -O  <CORE>                  set core filter
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                     '''
 
@@ -18866,7 +18868,7 @@ Commands:
     load     load specific library [PATH]
     log      print specific message [MESSAGE]
     map      print memory map
-    print    print context
+    print    print context [VAR]
     pyfile   execute specific python file [PATH:SYNC]
     pystr    execute python code [CODE:SYNC]
     rdmem    print specific memory or register [VAR|ADDR|REG:SIZE]
@@ -19046,6 +19048,7 @@ Examples:
 
     - Print specific call contexts and all call contexts within a specific range
         # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
+        # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *"
         # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
     - Print write call contexts and call specific functions
@@ -19187,7 +19190,7 @@ Options:
     -g  <COMM|TID{:FILE}>       set task filter
     -R  <INTERVAL:TIME:TERM>    set repeat count
     -Q                          print all rows in a stream
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -A  <ARCH>                  set CPU type
     -c  <EVENT:COND>            set custom event
     -E  <DIR>                   set cache dir path
@@ -19262,7 +19265,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set task filter
     -Q                          print all rows in a stream
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19376,7 +19379,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19430,11 +19433,11 @@ Options:
     -P                          group threads in a same process
     -p  <TID>                   show preemption info
     -O  <CORE>                  set core filter
-    -L  <RES:PER>               set graph layout (sum of PER: 6)
+    -L  <RES:PER>               set graph layout (TOTAL PER: 6)
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -i  <SEC>                   set interval
     -Q                          print all rows in a stream
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
 
   [common]
     -g  <COMM|TID{:FILE}>       set task filter
@@ -20091,7 +20094,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                     '''
 
@@ -20223,7 +20226,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                     '''
 
@@ -20251,7 +20254,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -E  <DIR>                   set cache dir path
-    -q  <NAME{{:VALUE}}>          set environment variables
+    -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                     '''
 
@@ -37320,6 +37323,7 @@ Copyright:
 
         # destroy objects registered #
         del SysMgr.exitFuncList
+        SysMgr.exitFuncList = []
 
         # release all resources #
         SysMgr.releaseResource()
@@ -40593,6 +40597,10 @@ class DbusAnalyzer(object):
                 msg, reply = DbusAnalyzer.callMethod(
                     conn, des, path, iface, method)
                 if not msg or not reply:
+                    if bustype == DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']:
+                        SysMgr.printWarn(
+                            'check DBUS_SESSION_BUS_ADDRESS '
+                            'environment variable for session bus')
                     ret = None
         finally:
             # recover EUID #
@@ -42448,7 +42456,7 @@ class DbusAnalyzer(object):
                 # set SIGPIPE handler for termination of parent #
                 SysMgr.setPipeHandler()
 
-                # set options #
+                # set environment for workers #
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
                 SysMgr.optStrace = True
@@ -43809,7 +43817,6 @@ class Debugger(object):
     def updateCurrent(self):
         self.current = time.time()
         if self.timeDelay == 0:
-            time.time()
             self.timeDelay = time.time() - self.current
 
 
@@ -43846,8 +43853,6 @@ class Debugger(object):
         self.targetNum = 0
         self.childNum = 0
         self.startProfTime = False
-        self.current = 0
-        self.timeDelay = 0
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -43856,6 +43861,10 @@ class Debugger(object):
             self.decodeChar = 'Q'
 
         # timestamp variables #
+        self.current = 0
+        self.timeDelay = 0
+        self.dstart = 0
+        self.vdiff = 0
         self.updateCurrent()
 
         self.args = []
@@ -45243,7 +45252,7 @@ struct cmsghdr {
                 _flushPrint(newline=False)
 
                 # update status flag #
-                self.startProfTime = self.current - self.dstart
+                self.startProfTime = self.vdiff
 
                 # inject breakpoints #
                 self.loadSymbols()
@@ -45626,7 +45635,7 @@ struct cmsghdr {
 
             elif cmd == 'condexit':
                 if self.startProfTime:
-                    diff = self.current - self.dstart - self.startProfTime
+                    diff = self.vdiff - self.startProfTime
                     diff = convColor('%.6f' % diff, 'RED')
                     SysMgr.addPrint("\n[%s] %s\n" % (cmdstr, diff))
                     sys.exit(0)
@@ -49533,7 +49542,7 @@ struct cmsghdr {
             tinfo = ''
 
         # get diff time #
-        diffstr = '%3.6f' % (self.current - self.dstart)
+        diffstr = '%3.6f' % self.vdiff
 
         # check return type #
         if sym.endswith(Debugger.RETSTR):
@@ -49872,7 +49881,7 @@ struct cmsghdr {
                 return
 
         # get diff time #
-        diff = self.current - self.dstart
+        diff = self.vdiff
 
         if self.multi:
             tinfo = '%s(%s) ' % (self.comm, self.pid)
@@ -50256,7 +50265,7 @@ struct cmsghdr {
             symstr = '%s%s' % (' ' * 4 * len(self.callstack), sym)
 
             # get time diff #
-            diff = self.current - self.dstart
+            diff = self.vdiff
 
             # build call string #
             callString = '%3.6f %s %s [%s + %s] [%s]' % \
@@ -50343,7 +50352,10 @@ struct cmsghdr {
                     text = arg[2]
             elif arg[0].endswith('int') or arg[0].endswith('long'):
                 try:
-                    text = long(arg[2])
+                    if arg[2].isdigit():
+                        text = long(arg[2])
+                    else:
+                        text = arg[2]
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -50384,7 +50396,7 @@ struct cmsghdr {
 
     def handleSyscallOutput(self, args, deferrable=False):
         # get diff time #
-        diff = self.current - self.dstart
+        diff = self.vdiff
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
@@ -50440,9 +50452,8 @@ struct cmsghdr {
             if deferrable:
                 callString = '%s)%s' % (argText, bts)
             else:
-                callString = \
-                    '%3.6f %s(%s) %s(%s)%s' % \
-                        (diff, self.comm, self.pid, self.syscall, argText, bts)
+                callString = '%3.6f %s(%s) %s(%s)%s' % \
+                    (diff, self.comm, self.pid, self.syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -50540,7 +50551,7 @@ struct cmsghdr {
             return
 
         # get diff time #
-        diff = self.current - self.dstart
+        diff = self.vdiff
 
         # enter #
         if self.status == 'enter':
@@ -50559,7 +50570,7 @@ struct cmsghdr {
 
             args = []
 
-            self.syscallTime[name] = self.current
+            self.syscallTime[name] = self.vdiff
 
             # convert args except for top mode #
             if not self.isRealtime:
@@ -50598,7 +50609,9 @@ struct cmsghdr {
 
             # get diff #
             try:
-                diff = self.current - self.syscallTime[name]
+                diff = self.vdiff - self.syscallTime[name]
+            except SystemExit:
+                sys.exit(0)
             except:
                 diff = long(0)
 
@@ -51249,7 +51262,7 @@ struct cmsghdr {
         skip = False
         hasRetFilter = False
         entry = self.entryTime[origSym]
-        etime = self.current - entry
+        etime = self.vdiff - entry
         elapsed = '/%.6f' % etime
 
         # remove entry timestamp from list #
@@ -51367,7 +51380,7 @@ struct cmsghdr {
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
-        self.entryTime[sym] = self.current
+        self.entryTime[sym] = self.vdiff
 
         # set command list #
         if cmd:
@@ -51456,18 +51469,18 @@ struct cmsghdr {
                     self.ptrace(self.cmd)
 
             try:
-                # apply tracing overhead time #
+                # add tracing overhead to start time #
                 if updateTime:
                     overhead = time.time() - self.current + self.timeDelay
                     self.dstart += overhead
-                    for item in self.entryTime.keys():
-                        self.entryTime[item] += overhead
 
-                # wait process #
+                # wait for target to be stopped #
                 rid, ostat = self.waitpid()
 
                 # update time #
-                self.current = time.time()
+                self.updateCurrent()
+                if updateTime:
+                    self.vdiff = self.current - self.dstart
 
                 # handle clone event #
                 if not SysMgr.optStrace and SysMgr.cloneEnable:
@@ -51818,7 +51831,7 @@ struct cmsghdr {
             self.waitForClone()
 
         # set timer #
-        if SysMgr.printEnable:
+        if SysMgr.masterPid == 0 or SysMgr.printEnable:
             signal.alarm(SysMgr.intervalEnable)
 
         # run loop #
@@ -64620,10 +64633,7 @@ class ThreadAnalyzer(object):
 
             # set last field #
             if SysMgr.savedProcComm:
-                if key in SysMgr.savedProcComm:
-                    lastField = "{0:>16}".format(
-                        SysMgr.savedProcComm[key])
-                elif value['tgid'] in SysMgr.savedProcComm:
+                if value['tgid'] in SysMgr.savedProcComm:
                     lastField = "{0:>16}".format(
                         SysMgr.savedProcComm[value['tgid']])
                 elif key == value['tgid']:
@@ -69825,7 +69835,8 @@ class ThreadAnalyzer(object):
 
         # set tgid #
         try:
-            assert d['tgid'] != '-----', 'no tgid'
+            if d['tgid'].startswith('-'):
+                raise Exception('no tgid')
             threadData['tgid'] = d['tgid']
         except:
             try:
