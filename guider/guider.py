@@ -31,7 +31,7 @@ try:
     #from ctypes import *
 except ImportError:
     err = sys.exc_info()[1]
-    print("[Error] fail to import essential packages: %s" % err.args[0])
+    print("[ERROR] fail to import essential packages: %s" % err.args[0])
     sys.exit(0)
 
 # convert types not supported #
@@ -6178,6 +6178,8 @@ class NetworkMgr(object):
 
         # get socket object #
         socket = SysMgr.getPkg('socket', False)
+        if not socket:
+            return
 
         # set recv size #
         if size == 0:
@@ -13733,8 +13735,8 @@ class FileAnalyzer(object):
             self.target = SysMgr.filterGroup
 
         if not SysMgr.guiderObj:
-            if not SysMgr.loadLibcObj():
-                sys.exit(0)
+            # load libc #
+            SysMgr.loadLibcObj(exit=True)
 
             # define mmap types #
             SysMgr.libcObj.mmap.argtypes = \
@@ -14884,7 +14886,8 @@ class LogMgr(object):
         except:
             name = fd.name if fd else 'logger'
             reason = SysMgr.getErrMsg()
-            print('fail to get lock for %s because %s' % (name, reason))
+            print('\n[ERROR] fail to get lock for %s because %s' % \
+                (name, reason))
 
 
 
@@ -14901,7 +14904,8 @@ class LogMgr(object):
         except:
             name = fd.name if fd else 'logger'
             reason = SysMgr.getErrMsg()
-            print('fail to free lock for %s because %s' % (name, reason))
+            print('\n[ERROR] fail to free lock for %s because %s' % \
+                (name, reason))
 
 
 
@@ -15388,8 +15392,8 @@ class LogMgr(object):
         if not msg:
             return
 
-        if not SysMgr.loadLibcObj():
-            sys.exit(0)
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         if level is None:
             level = LogMgr.LOG_NOTICE
@@ -15903,7 +15907,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def loadLibcObj():
+    def loadLibcObj(exit=False):
         if SysMgr.libcObj:
             return True
 
@@ -15913,7 +15917,11 @@ class SysMgr(object):
                 SysMgr.libcObj = ret
                 return True
             else:
-                return False
+                SysMgr.printErr('fail to load libc')
+                if exit:
+                    sys.exit(0)
+                else:
+                    return False
         except SystemExit:
             sys.exit(0)
         except:
@@ -15926,6 +15934,7 @@ class SysMgr(object):
         if not SysMgr.isLinux:
             return
 
+        # load libc #
         if not SysMgr.loadLibcObj():
             return
 
@@ -16042,6 +16051,7 @@ class SysMgr(object):
 
         # try to get maxFd by standard library call #
         try:
+            # load libc #
             SysMgr.loadLibcObj()
 
             SysMgr.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
@@ -17059,9 +17069,8 @@ class SysMgr(object):
             SysMgr.printErr('fail to recognize mask type')
             return
 
-        # get ctypes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         for pid in pids:
             if isProcess:
@@ -17080,8 +17089,6 @@ class SysMgr(object):
                     pass
 
                 try:
-                    SysMgr.loadLibcObj()
-
                     nrCore = SysMgr.getNrCore()
 
                     SysMgr.libcObj.sched_setaffinity.argtypes = \
@@ -17124,6 +17131,7 @@ class SysMgr(object):
             return
 
         try:
+            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
 
@@ -17535,12 +17543,9 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getSelfBacktrace():
-        # get ctypes object #
-        SysMgr.importPkgItems('ctypes')
-
-        if not SysMgr.loadLibcObj():
-            sys.exit(0)
+    def getMyBacktrace():
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         # define functions #
         libcObj = SysMgr.libcObj
@@ -17575,6 +17580,7 @@ class SysMgr(object):
 
     @staticmethod
     def dlopen(path):
+        # load libc #
         if not SysMgr.loadLibcObj():
             return
 
@@ -17609,10 +17615,7 @@ class SysMgr(object):
         except:
             pass
 
-        # get cyptes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
-
+        # load libc #
         if not SysMgr.loadLibcObj():
             return
 
@@ -22043,8 +22046,8 @@ Copyright:
         if not path:
             return False
 
-        if not SysMgr.loadLibcObj():
-            sys.exit(0)
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         # convert path type to list #
         if type(path) is str:
@@ -22169,6 +22172,7 @@ Copyright:
             return None
 
         try:
+            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
 
@@ -22300,12 +22304,7 @@ Copyright:
             else:
                 return fd
 
-        # import ctypes #
-        if not SysMgr.importPkgItems('ctypes', False):
-            SysMgr.perfEnable = False
-            SysMgr.perfGroupEnable = False
-            return
-
+        # load libc #
         if not SysMgr.loadLibcObj():
             SysMgr.perfEnable = False
             SysMgr.perfGroupEnable = False
@@ -22668,10 +22667,7 @@ Copyright:
 
             return retList
 
-        # get ctypes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
-
+        # load libc #
         if not SysMgr.loadLibcObj():
             return
 
@@ -23836,9 +23832,7 @@ Copyright:
                 "fail to get entry type %s" % attype, True)
             return
 
-        # import ctypes #
-        SysMgr.importPkgItems('ctypes')
-
+        # load libc #
         if not SysMgr.loadLibcObj():
             return
 
@@ -29973,6 +29967,7 @@ Copyright:
 
     @staticmethod
     def blockSignal(sig=None, act='block', wait=False):
+        # load libc #
         if not SysMgr.libcObj:
             if not SysMgr.loadLibcObj():
                 return False
@@ -30027,6 +30022,7 @@ Copyright:
 
     @staticmethod
     def pendingSignal(sig):
+        # load libc #
         if not SysMgr.libcObj and not SysMgr.loadLibcObj():
             return False
         elif not SysMgr.sigsetObj:
@@ -30803,8 +30799,9 @@ Copyright:
         # start client mode #
         SysMgr.printInfo("CLIENT MODE")
 
-        # disable SIGINT #
+        # load libc #
         if SysMgr.loadLibcObj():
+            # disable SIGINT #
             signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         # get argument #
@@ -33794,6 +33791,7 @@ Copyright:
 
     @staticmethod
     def statvfs(path):
+        # load libc #
         if not SysMgr.loadLibcObj():
             return None
 
@@ -36414,11 +36412,8 @@ Copyright:
                 "to set deadline priority") % err.args[0], True)
             return -1
 
-        # get ctypes object #
-        SysMgr.importPkgItems('ctypes')
-
-        if not SysMgr.loadLibcObj():
-            sys.exit(0)
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         # define struct sched_attr #
         class struct_sched_attr(Structure):
@@ -36544,18 +36539,13 @@ Copyright:
     @staticmethod
     def setPriority(
         pid, policy, pri, runtime=0, deadline=0, period=0, verb=True):
-
-        if not SysMgr.guiderObj:
-            # get ctypes object #
-            if not SysMgr.importPkgItems('ctypes', False):
-                return
-
         try:
             # get args #
             pri = long(pri)
             comm = SysMgr.getComm(pid)
             upolicy = policy.upper()
 
+            # load libc #
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
 
@@ -43956,8 +43946,8 @@ class Debugger(object):
         if Debugger.checkPtraceScope() < 0:
             raise Exception('no ptrace permission')
 
-        if not SysMgr.loadLibcObj():
-            raise Exception('no libc')
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         # define member classes #
         '''
@@ -54804,8 +54794,8 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def iteratePhdr():
-        if not SysMgr.loadLibcObj():
-            sys.exit(0)
+        # load libc #
+        SysMgr.loadLibcObj(exit=True)
 
         # define word size #
         if ConfigMgr.wordSize == 4:
@@ -55079,6 +55069,7 @@ class ElfAnalyzer(object):
 
         # try to demangle symbol #
         try:
+            # load libc #
             SysMgr.loadLibcObj()
 
             # load demangle library #
