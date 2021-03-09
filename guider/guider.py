@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210308"
+__revision__ = "210309"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -2099,7 +2099,7 @@ class ConfigMgr(object):
             ("void *", "buf"),
             ("size_t", "len"),
             ("unsigned", "flags"),
-            ("struct sockaddr *", "dest_addr"),
+            ("struct sockaddr *", "destAddr"),
             ("int", "addrlen"),
         )),
         "set_mempolicy": ("long", (
@@ -17198,6 +17198,202 @@ class SysMgr(object):
 
 
     @staticmethod
+    def ping(url=[], timeout=None, count=None):
+        ICMP_ECHO_REQUEST = 8
+
+        def _checksum(source):
+            sum = 0
+            countTo = (len(source)/2)*2
+            count = 0
+            while count < countTo:
+                if type(source[count+1]) is long:
+                    data1 = source[count+1]
+                else:
+                    data1 = ord(source[count+1])
+
+                if type(source[count]) is long:
+                    data2 = source[count]
+                else:
+                    data2 = ord(source[count])
+
+                thisVal = data1*256 + data2
+                sum = sum + thisVal
+                sum = sum & 0xffffffff # Necessary?
+                count = count + 2
+
+            if countTo < len(source):
+                sum = sum + ord(source[len(source) - 1])
+                sum = sum & 0xffffffff # Necessary?
+
+            sum = (sum >> 16)  +  (sum & 0xffff)
+            sum = sum + (sum >> 16)
+            answer = ~sum
+            answer = answer & 0xffff
+
+            # Swap bytes. Bugger me if I know why #
+            answer = answer >> 8 | (answer << 8 & 0xff00)
+
+            return answer
+
+        def _receivePing(sock, ID, timeout):
+            select = SysMgr.getPkg('select')
+
+            timeLeft = timeout
+            while True:
+                startedSelect = time.time()
+                whatReady = select.select([sock], [], [], timeLeft)
+                howLongInSelect = (time.time() - startedSelect)
+                # check timeout #
+                if whatReady[0] == []:
+                    return
+
+                timeReceived = time.time()
+                recPacket, addr = sock.recvfrom(1024)
+                icmpHeader = recPacket[20:28]
+                type, code, checksum, packetID, sequence = \
+                    struct.unpack("bbHHh", icmpHeader)
+
+                if packetID == ID:
+                    bytesInDouble = struct.calcsize("d")
+                    timeSent = struct.unpack(
+                        "d", recPacket[28:28 + bytesInDouble])[0]
+                    return timeReceived - timeSent
+
+                timeLeft = timeLeft - howLongInSelect
+                if timeLeft <= 0:
+                    return
+
+        def _sendPing(sock, destAddr, ID):
+            socket = SysMgr.getPkg('socket')
+
+            # Header: type(8), code(8), checksum(16), id(16), sequence(16) #
+            checksumData = 0
+
+            # Make a dummy heder with a 0 checksum #
+            header = struct.pack(
+                "bbHHh", ICMP_ECHO_REQUEST, 0, checksumData, ID, 1)
+            bytesInDouble = struct.calcsize("d")
+            data = (192 - bytesInDouble) * "Q".encode()
+            data = struct.pack("d", time.time()) + data
+
+            # Calculate the checksum on the data and the dummy header. #
+            checksumData = _checksum(header + data)
+
+            '''
+            Now that we have the right checksum,
+            we put that in. It's just easier
+            to make up a new header than to stuff it into the dummy.
+            '''
+            header = struct.pack(
+                "bbHHh", ICMP_ECHO_REQUEST, 0,
+                socket.htons(checksumData), ID, 1)
+            packet = header + data
+            sock.sendto(packet, (destAddr, 0))
+
+        def _doPing(destAddr, timeout, seq=None, verb=True):
+            socket = SysMgr.getPkg('socket')
+
+            destIPAddr = socket.gethostbyname(destAddr)
+
+            try:
+                ttl = 64
+                icmp = socket.getprotobyname("icmp")
+                sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+                sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+            except:
+                SysMgr.printErr('fail to ping', True)
+                return 0
+
+            ICMP_ID = os.getpid() & 0xFFFF
+
+            if destAddr == destIPAddr:
+                addrInfo = destAddr
+            else:
+                addrInfo = '%s(%s)' % (destAddr, destIPAddr)
+
+            # send packet #
+            _sendPing(sock, destIPAddr, ICMP_ID)
+
+            # receive packet #
+            delay = _receivePing(sock, ICMP_ID, timeout)
+            if delay and verb:
+                delaystr = UtilMgr.convColor('%.6f' % delay, 'RED')
+
+                if seq is not None:
+                    seqstr = '[%s] ' % seq
+                else:
+                    seqstr = ''
+
+                SysMgr.printPipe(
+                    '%selapsed %s sec for %s' % (seqstr, delaystr, addrInfo))
+            elif not delay:
+                SysMgr.printErr(
+                    'timed out waiting for %s' % addrInfo)
+
+            sock.close()
+
+            return delay
+
+
+
+        # check root permission for Linux #
+        if SysMgr.isLinux and not SysMgr.isRoot():
+            SysMgr.printErr(
+                'fail to ping because of no root permission')
+            return
+
+        # get address list #
+        if url:
+            urlList = url
+        elif SysMgr.hasMainArg():
+            urlList = SysMgr.getMainArg().split(',')
+            urlList = UtilMgr.cleanItem(urlList)
+        else:
+            SysMgr.printErr('no input for address')
+            sys.exit(0)
+
+        # set repeat count #
+        if not count:
+            if SysMgr.repeatInterval == 0:
+                count = 1
+            else:
+                count = SysMgr.repeatInterval
+        SysMgr.printInfo(
+            'set repeat count to %s' % count)
+
+        # set timeout #
+        if not timeout:
+            if SysMgr.inputParam:
+                try:
+                    timeout = float(SysMgr.inputParam)
+                except:
+                    SysMgr.printErr(
+                        "fail to set timeout '%s'" % SysMgr.inputParam, True)
+                    sys.exit(0)
+            else:
+                timeout = 3
+
+        # print timeout info #
+        timeoutstr = '%f' % timeout
+        timeoutstr = timeoutstr.rstrip('0')
+        if timeoutstr.endswith('.'):
+            timeoutstr = timeoutstr[:-1]
+        SysMgr.printInfo(
+            'set timeout to %s sec\n' % timeoutstr)
+
+        for seq in range(0, count):
+            for url in urlList:
+                try:
+                    delay = _doPing(url, timeout, seq=seq)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        'fail to ping to %s', True)
+
+
+
+    @staticmethod
     def getExeCmd(pid):
         cmd = SysMgr.getCmdline(pid, retList=True)[:2]
         if cmd[1][0] != '/':
@@ -18347,6 +18543,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('comp') and \
                 not SysMgr.checkMode('decomp') and \
                 not SysMgr.checkMode('req') and \
+                not SysMgr.checkMode('ping') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -18516,6 +18713,7 @@ class SysMgr(object):
                 'limitcpu': 'CPU',
                 'mkcache': 'Cache',
                 'pause': 'Thread',
+                'ping': 'PING',
                 'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
@@ -21363,6 +21561,9 @@ Options:
 
                     helpStr += '''
 Examples:
+    - Run client with interaction menu
+        # {0:1} {1:1}
+
     - Request GET / URL to specific server
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
@@ -21389,6 +21590,9 @@ Examples:
 
     - Request POST / URL to specific server with data from data file
         # {0:1} {1:1} POST#DATAFILE:data#http://127.0.0.1:5000
+
+    - Request GET / URL to specific server infinitely
+        # {0:1} {1:1} GET#http://127.0.0.1:5000 -R
 
     - Request GET / URL to specific server 10 times with 500ms delay
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 500:10
@@ -21599,6 +21803,37 @@ Examples:
 
     - Set CPU affinity of a specific thread to use only CPU 1 every 2 seconds
         # {0:1} {1:1} a.out:1 -i 2
+                    '''.format(cmd, mode)
+
+                # ping #
+                elif SysMgr.checkMode('ping'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <IP|URL> [OPTIONS] [--help]
+
+Description:
+    Send ICMP ECHO_REQUEST to network hosts
+
+Options:
+    -R  <COUNT>                 set repeat count
+    -I  <TIMEOUT>               set timeout
+    -v                          verbose
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Send ICMP ECHO_REQUEST to network hosts
+        # {0:1} {1:1} www.google.com
+        # {0:1} {1:1} "www.google.com, www.naver.com"
+
+    - Send ICMP ECHO_REQUEST to network hosts infinitely
+        # {0:1} {1:1} www.google.com -R
+
+    - Send ICMP ECHO_REQUEST to network hosts 3 times
+        # {0:1} {1:1} www.google.com -R 3
+
+    - Send ICMP ECHO_REQUEST to network hosts with 2.5 second timeout
+        # {0:1} {1:1} www.google.com -I 2.5
                     '''.format(cmd, mode)
 
                 # cputest #
@@ -21838,7 +22073,7 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Execute remote commands in interaction menu
+    - Run client with interaction menu
         # {0:1} {1:1}
 
     - Download a.out from server to ./a.out
@@ -27245,7 +27480,9 @@ Copyright:
                 SysMgr.environList = UtilMgr.convList2Dict(itemList)
 
         elif option == 'R':
-            SysMgr.checkOptVal(option, value)
+            # set maximum count #
+            if not value:
+                value = str(sys.maxsize)
             SysMgr.parseRuntimeOption(value)
 
         elif option == 'z':
@@ -28197,8 +28434,13 @@ Copyright:
         elif SysMgr.checkMode('setafnt'):
             SysMgr.doSetAffinity()
 
+        # AFFINITY MODE #
         elif SysMgr.checkMode('getafnt'):
             SysMgr.doGetAffinity()
+
+        # PING MODE #
+        elif SysMgr.checkMode('ping'):
+            SysMgr.ping()
 
         # EVENT MODE #
         elif SysMgr.checkMode('event'):
@@ -30663,7 +30905,7 @@ Copyright:
     def runClientMode(cmds=None, writer=None):
         def _printMenu():
             sys.stdout.write(
-                '\n[Command List]\n'
+                '\n<Command List>\n'
                 '- DOWNLOAD:RemotePath@LocalPath\n'
                 '- UPLOAD:LocalPath@RemotePath\n'
                 '- RUN:Command\n'
@@ -30676,7 +30918,8 @@ Copyright:
 
         def _doPing(uinput):
             # get addrs from string #
-            addrs = uinput[4:].strip()
+            cmd = 'ping'
+            addrs = uinput.strip(cmd).strip(cmd.upper())
             if addrs and not addrs[0].isdigit():
                 addrs = addrs[1:]
 
@@ -30695,6 +30938,7 @@ Copyright:
                 SysMgr.printInfo('server is alive')
 
         def _printHistory(hlist):
+            print('\n<History>')
             for idx, cmd in enumerate(hlist):
                 print('[%0d] %s' % (idx, cmd))
 
@@ -34521,6 +34765,9 @@ Copyright:
                 'perCycleTime': list(),
             }
 
+
+            convNum = UtilMgr.convNum
+
             # save task stat #
             tobj = SysMgr.initTaskMon(SysMgr.pid)
 
@@ -34528,14 +34775,19 @@ Copyright:
 
             try:
                 lastReqTime = [0]
+                idx = 1
                 for idx in range(1, repeat+1):
                     before = time.time()
+
                     for req in reqs:
                         try:
                             stats['perReqTimeAll'].setdefault(req, list())
                             stats['perReqErr'].setdefault(req, 0)
 
+                            # do request #
                             _request(req, cache, stats, idx, lastReqTime)
+
+                            # make a delay #
                             time.sleep(delay)
                         except SystemExit:
                             sys.exit(0)
@@ -34545,8 +34797,11 @@ Copyright:
                             stats['perReqErr'][req] += 1
                             SysMgr.printErr(
                                 "fail to request '%s'" % req, reason=True)
-                    elapsed = time.time() - before
 
+                            # reset signal and exit flag #
+                            SysMgr.setSimpleSignal()
+
+                    elapsed = time.time() - before
                     stats['perCycleTime'].append(elapsed)
             except:
                 pass
@@ -34559,8 +34814,8 @@ Copyright:
                 tcpu = SysMgr.getTaskMon(tobj, SysMgr.pid, 'ttime')
                 acpu = tcpu / totalElapsed
                 if tcpu <= totalElapsed:
-                    tcpu = UtilMgr.convNum(tcpu)
-                    acpu = UtilMgr.convNum(acpu)
+                    tcpu = convNum(tcpu)
+                    acpu = convNum(acpu)
                 else:
                     tcpu = acpu = 0
             except SystemExit:
@@ -34573,33 +34828,33 @@ Copyright:
             if SysMgr.outPath:
                 SysMgr.printPipe((
                     '\n[Response Time] [Task: %s(%s)] [Elapsed: %.6f] '
-                    '[NrReq: %s] [ReqCnt: %s] [Delay: %s] '
+                    '[NrReq: %s] [ReqCnt: %s/%s] [Delay: %s] '
                     '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                         (SysMgr.comm, SysMgr.pid,
-                        totalElapsed, UtilMgr.convNum(len(reqs)),
-                        UtilMgr.convNum(len(reqs) * repeat), delay,
+                        totalElapsed, convNum(len(reqs)),
+                        convNum(idx), convNum(len(reqs)*repeat), delay,
                         tcpu, acpu, twoLine))
 
                 SysMgr.printPipe(
                     '{0:^50} | {1:^80}\n{2:1}'.format(
                         'Reqest', 'Response Times', oneLine))
 
-                for idx, value in stats['perReqTimeAll'].items():
+                for ridx, value in stats['perReqTimeAll'].items():
                     interval = ', '.join(list(
                         map(lambda x: '%s/%s' % (x[0], x[1]), value)))
 
                     SysMgr.printPipe(
                         '{0:>20} | {1:1}\n{2:1}'.format(
-                            idx, interval, oneLine))
+                            ridx, interval, oneLine))
 
             # summarize per-request response time #
             SysMgr.printPipe((
                 '\n[Response Summary] [Task: %s(%s)] [Elapsed: %.6f] '
-                '[NrReq: %s] [ReqCnt: %s] [Delay: %s] '
+                '[NrReq: %s] [ReqCnt: %s/%s] [Delay: %s] '
                 '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                     (SysMgr.comm, SysMgr.pid,
-                    totalElapsed, UtilMgr.convNum(len(reqs)),
-                    UtilMgr.convNum(len(reqs) * repeat), delay,
+                    totalElapsed, convNum(len(reqs)),
+                    convNum(idx), convNum(len(reqs)*repeat), delay,
                     tcpu, acpu, twoLine))
 
             SysMgr.printPipe((
@@ -34620,13 +34875,13 @@ Copyright:
                 if idx in stats['perReqErr']:
                     errcnt = stats['perReqErr'][idx]
                     cnt += errcnt
-                    err = UtilMgr.convNum(errcnt)
+                    err = convNum(errcnt)
                     if errcnt > 0:
                         err = UtilMgr.convColor(err, 'RED', 7)
                 else:
                     err = 0
 
-                cnt = UtilMgr.convNum(cnt)
+                cnt = convNum(cnt)
 
                 SysMgr.printPipe((
                     '{0:>7} | {1:>7.3f} | {2:>7.3f} | {3:>10.6f} | '
@@ -34643,6 +34898,115 @@ Copyright:
                             value, 0, 0, 0, 0, 0, err, idx))
 
             SysMgr.printPipe(oneLine)
+
+        def _runCLIMode():
+            hlist = list()
+
+            def __printMenu():
+                sys.stdout.write(
+                    '\n<Command List>\n'
+                    '- HISTORY\n'
+                    '- PING\n'
+                    '- REPEAT\n'
+                    '- QUIT\n'
+                    '\n'
+                )
+
+            def __printHistory(hlist):
+                print('\n<History>')
+                for idx, cmd in enumerate(hlist):
+                    print('[%0d] %s' % (idx, cmd))
+
+            def __getUserInput():
+                __printMenu()
+                sys.stdout.write('input command for request...\n=> ')
+                sys.stdout.flush()
+
+                return sys.stdin.readline()[:-1]
+
+            def __doPing(uinput):
+                pass
+
+            def __convUserCmd(uinput):
+                uinputUpper = uinput.upper()
+                if uinputUpper == 'H':
+                    uinput = 'history'
+                elif uinputUpper == 'P':
+                    uinput = 'ping'
+                elif uinputUpper == 'Q':
+                    uinput = 'quit'
+                elif uinputUpper.startswith('R:'):
+                    uinput = 'repeat' + uinput[1:]
+
+                return uinput
+
+            def __setRepeat(uinput):
+                try:
+                    cmd = 'repeat:'
+                    count = uinput.strip(cmd).strip(cmd.upper())
+
+                    # set repeat count #
+                    SysMgr.repeatCount = long(count)
+                    if SysMgr.repeatCount == 0:
+                        SysMgr.repeatCount = sys.maxsize
+
+                    SysMgr.printInfo(
+                        'set repeat count to %s' % \
+                            UtilMgr.convNum(SysMgr.repeatCount))
+                except:
+                    SysMgr.printErr(
+                        "fail to set repeat count to '%s'", True)
+
+
+
+            # run mainloop for user interaction #
+            while 1:
+                try:
+                    isHistory = False
+
+                    # get input #
+                    uinput = __getUserInput()
+                    if uinput.startswith('!') and \
+                        len(uinput) > 1 and \
+                        uinput[1:].isdigit() and \
+                        long(uinput[1:]) < len(hlist):
+                        uinput = hlist[long(uinput[1:])]
+                        isHistory = True
+
+                    # convert command shortcut #
+                    uinput = __convUserCmd(uinput)
+                    uinputUpper = uinput.upper()
+
+                    # handle local command #
+                    if not uinput or \
+                        uinput == '!' or \
+                        uinputUpper == 'HISTORY':
+                        __printHistory(hlist)
+                        continue
+                    elif uinputUpper.startswith('PING'):
+                        __doPing(uinput)
+                        continue
+                    elif uinputUpper == 'QUIT':
+                        break
+                    elif uinputUpper.startswith('REPEAT'):
+                        __setRepeat(uinput)
+                        continue
+
+                    # backup command #
+                    if not isHistory and \
+                        (not hlist or hlist[-1] != uinput):
+                        hlist.append(uinput)
+
+                    # request #
+                    SysMgr.doRequest(uinput)
+                except SystemExit:
+                    return
+                except:
+                    SysMgr.printErr(
+                        'fail to request URL', True)
+                finally:
+                    # reset signal and exit flag #
+                    SysMgr.setSimpleSignal()
 
 
 
@@ -34666,7 +35030,7 @@ Copyright:
         elif SysMgr.inputParam:
             reqstr = SysMgr.inputParam
         else:
-            SysMgr.printErr("no input for request")
+            _runCLIMode()
             sys.exit(0)
 
         # split requests #
@@ -37311,9 +37675,8 @@ Copyright:
                 SysMgr.printErr(
                     "fail to execute %s" % func, True)
 
-        # destroy objects registered #
+        # destroy termination hooks #
         del SysMgr.exitFuncList
-        SysMgr.exitFuncList = []
 
         # release all resources #
         SysMgr.releaseResource()

@@ -1219,6 +1219,7 @@ COMMAND:
                     limitcpu        <CPU>
                     mkcache         <Cache>
                     pause           <Thread>
+                    ping            <PING>
                     printbind       <Function>
                     printcg         <Cgroup>
                     printdbus       <D-Bus>
