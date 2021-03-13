@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210309"
+__revision__ = "210313"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4421,13 +4421,16 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convColor(string, color='LIGHT', size=1):
-        if not SysMgr.colorEnable or \
+    def convColor(string, color='LIGHT', size=1, align='right'):
+        if not SysMgr.colorEnable or not color or \
             SysMgr.outPath or SysMgr.outputFile or \
             not SysMgr.isLinux or SysMgr.remoteRun:
             return string
 
-        string = '{0:>{size}}'.format(str(string), size=size)
+        if align == 'right':
+            string = '{0:>{size}}'.format(str(string), size=size)
+        else:
+            string = '{0:<{size}}'.format(str(string), size=size)
 
         try:
             return (ConfigMgr.COLOR_LIST[color] + string + ConfigMgr.ENDC)
@@ -6333,7 +6336,7 @@ class NetworkMgr(object):
 
         # set server address in local #
         if addr:
-            # classify ip and port #
+            # classify IP and PORT #
             service, ip, port = NetworkMgr.parseAddr(addr)
             if service == ip == port == None:
                 _printErr()
@@ -6349,7 +6352,7 @@ class NetworkMgr(object):
             if not addr:
                 return None
 
-            # classify ip and port #
+            # classify IP and PORT #
             service, ip, port = NetworkMgr.parseAddr(addr)
             if service == ip == port == None:
                 _printErr()
@@ -6431,7 +6434,7 @@ class NetworkMgr(object):
         else:
             addr = value
 
-        # get ip and port #
+        # get IP and PORT #
         addrList = addr.split(':')
         if len(addrList) >= 2:
             try:
@@ -8124,7 +8127,8 @@ class PageAnalyzer(object):
             comm = SysMgr.getComm(pid)
 
             if not vaddr:
-                PageAnalyzer.printMemoryArea(pid, comm=comm)
+                PageAnalyzer.printMemoryArea(
+                    pid, comm=comm, showall=SysMgr.showAll)
                 SysMgr.printPipe(oneLine)
                 continue
 
@@ -8222,14 +8226,26 @@ class PageAnalyzer(object):
 
 
     @staticmethod
-    def printMemoryArea(pid, start=-1, end=-1, comm=None, lastLine=False):
+    def printMemoryArea(
+        pid, start=-1, end=-1, comm=None, lastLine=False, showall=True):
+
         count = long(0)
         switch = long(0)
         fpath = '%s/%s/maps' % (SysMgr.procPath, pid)
 
+        if start == end == -1 and not showall:
+            printSummary = True
+        else:
+            printSummary = False
+
+        # read all map info #
         try:
-            with open(fpath, 'r') as fd:
-                buf = fd.readlines()
+            # summary #
+            if printSummary:
+                buf = FileAnalyzer.getProcMapInfo(pid, saveAll=True)
+            else:
+                with open(fpath, 'r') as fd:
+                    buf = fd.readlines()
         except SystemExit:
             sys.exit(0)
         except:
@@ -8257,8 +8273,14 @@ class PageAnalyzer(object):
 
         # print menu #
         menuStr = ''
-        menuList = ['AREA', 'PERM', 'OFFSET', 'DEV', '%12s' % 'INODE']
-        menuBuf = str(buf[-1]).split()
+        if printSummary:
+            menuList = \
+                ['AREA', 'PERM', '%8s' % 'OFFSET', '%6s' % 'DEV', '%7s' % 'INODE']
+            menuBuf = menuList
+        else:
+            menuList = ['AREA', 'PERM', 'OFFSET', 'DEV', '%12s' % 'INODE']
+            menuBuf = str(buf[-1]).split()
+
         for idx, value in enumerate(menuBuf):
             if idx < 5:
                 if idx == 0:
@@ -8271,14 +8293,32 @@ class PageAnalyzer(object):
             value = ' ' * (len(value) - len(text) + 1)
             menuStr = '%s%s%s' % (menuStr, text, value)
 
-        menuStr = '%s %s' % (menuStr, 'PROPERTY')
+        menuStr = '%s %s' % (menuStr, 'TARGET')
         SysMgr.printPipe('%s\n%s\n%s' % (twoLine, menuStr, oneLine))
 
         # set text position #
         tstr = menuStr.split()
         pstr = tstr[1]
 
-        # print maps info #
+        # print summarized map info #
+        if printSummary:
+            for fname, info in sorted(buf.items(),
+                key=lambda e: e[1]['vstart']):
+                try:
+                    soffset = hex(info['vstart']).rstrip('L')
+                    eoffset = hex(info['vend']).rstrip('L')
+                    if not fname.startswith('/'):
+                        fname = '[%s]' % fname
+                    SysMgr.printPipe('%18s %18s %4s %8s %6s %7s %s' % \
+                        (soffset, eoffset, info['perm'], info['offset'],\
+                        info['devid'], info['inode'], fname))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+            return
+
+        # print all map info #
         for line in buf:
             tmplist = line.split()
             soffset, eoffset = tmplist[0].split('-')
@@ -13702,9 +13742,9 @@ class FileAnalyzer(object):
 
     init_mapData = \
         {'offset': long(0), 'size': long(0), 'pageCnt': long(0),
-        'fd': None, 'totalSize': long(0), 'fileMap': None,
-        'pids': None, 'linkCnt': long(0), 'inode': None,
-        'accessTime': None, 'devid': None, 'isRep': True,
+        'fd': None, 'totalSize': long(0), 'fileMap': None, 'pids': None,
+        'linkCnt': long(0), 'inode': None, 'accessTime': None,
+        'devid': None, 'isRep': True, 'perm': None,
         'repFile': None, 'hardLink': long(1), 'linkList': None,
         'vstart': long(0), 'vend': long(0), 'elfInfo': None}
 
@@ -14115,7 +14155,7 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def getMapFd(pid):
+    def getMapFd(pid, verb=False):
         # open maps #
         try:
             path = '%s/%s/maps' % (SysMgr.procPath, pid)
@@ -14123,20 +14163,19 @@ class FileAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printOpenWarn(path)
+            SysMgr.printOpenWarn(path, verb)
             return None
 
 
 
     @staticmethod
-    def getProcMapInfo(pid, fd=None, onlyExec=False):
+    def getProcMapInfo(pid, fd=None, onlyExec=False, saveAll=False):
         if not fd:
-            fd = FileAnalyzer.getMapFd(pid)
+            fd = FileAnalyzer.getMapFd(pid, True)
             if not fd:
                 comm = SysMgr.getComm(pid)
                 SysMgr.printErr(
-                    'fail to get memory map for %s(%s)' % \
-                        (comm, pid), reason=True)
+                    'fail to get memory map for %s(%s)' % (comm, pid))
                 sys.exit(0)
 
         # read maps #
@@ -14146,7 +14185,7 @@ class FileAnalyzer(object):
         # parse and merge lines in maps #
         fileMap = dict()
         for val in mapBuf:
-            FileAnalyzer.mergeMapLine(val, fileMap)
+            FileAnalyzer.mergeMapLine(val, fileMap, saveAll=saveAll)
 
         # remove non-executable files #
         if onlyExec:
@@ -14207,7 +14246,7 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def mergeMapLine(string, procMap, onlyExec=False):
+    def mergeMapLine(string, procMap, onlyExec=False, saveAll=False):
         d = FileAnalyzer.parseMapLine(string)
         if not d:
             return
@@ -14251,6 +14290,13 @@ class FileAnalyzer(object):
 
         # merge map line #
         FileAnalyzer.addMapLine(procMap, fileName, newOffset, newSize)
+
+        # apply attributes #
+        if saveAll:
+            procMap[fileName]['perm'] = d['perm']
+            procMap[fileName]['devid'] = d['devid']
+            procMap[fileName]['inode'] = d['inode']
+            procMap[fileName]['offset'] = d['offset']
 
         # set mapped addr #
         if procMap[fileName]['vstart'] == 0:
@@ -20572,14 +20618,18 @@ Options:
     -g  <COMM|TID{:FILE}>       set task filter
     -o  <DIR|FILE>              set output path
     -I  <ADDR>                  set address area
+    -a                          show all memory info
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
                     '''
 
                     helpStr += '''
 Examples:
-    - Print memory map for specific processes
+    - Print memory map summary for specific processes
         # {0:1} {1:1} a.out
+
+    - Print memory map details for specific processes
+        # {0:1} {1:1} a.out -a
 
     - Print page attributes in specific area for specific processes
         # {0:1} {1:1} a.out -I 0x0-0x4000
@@ -28201,13 +28251,13 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            DbusAnalyzer.runDbusSnooper(mode='print')
+            DbusMgr.runDbusSnooper(mode='print')
 
         # PRINTSUB MODE #
         elif SysMgr.checkMode('printsub'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            DbusAnalyzer.runDbusSnooper(mode='signal')
+            DbusMgr.runDbusSnooper(mode='signal')
 
         elif SysMgr.isPrintLogMode():
             # set console info #
@@ -29797,7 +29847,7 @@ Copyright:
         if pid > 0:
             if pipe:
                 os.close(wr)
-                rdFd = os.fdopen(rd)
+                rdFd = os.fdopen(rd, 'r')
             else:
                 rdFd = None
 
@@ -29905,7 +29955,7 @@ Copyright:
         # parent #
         if pid > 0:
             os.close(wr)
-            rdFd = os.fdopen(rd)
+            rdFd = os.fdopen(rd, 'r')
             output = []
 
             while 1:
@@ -30826,7 +30876,7 @@ Copyright:
         SysMgr.getPkg('select')
         socket = SysMgr.getPkg('socket')
 
-        # get ip and port #
+        # get IP and PORT #
         if SysMgr.localServObj:
             ip = SysMgr.localServObj.ip
             port = SysMgr.localServObj.port
@@ -30923,7 +30973,7 @@ Copyright:
             if addrs and not addrs[0].isdigit():
                 addrs = addrs[1:]
 
-            # classify ip and port #
+            # classify IP and PORT #
             if addrs:
                 service, ip, port = NetworkMgr.parseAddr(addrs)
                 if service == ip == port == None:
@@ -32134,7 +32184,7 @@ Copyright:
                 valList.append(args[1])
 
         # print service files #
-        if len(busServiceList) > 0:
+        if busServiceList:
             SysMgr.printPipe(
                 'Target Service [ NrItems: %s ]\n%s' % \
                     (cv(len(busServiceList)), twoLine))
@@ -40724,7 +40774,7 @@ Copyright:
 
 
 
-class DbusAnalyzer(object):
+class DbusMgr(object):
     """ Analyzer for D-Bus """
 
     errObj = None
@@ -40734,6 +40784,8 @@ class DbusAnalyzer(object):
     prevData = {}
     msgSentTable = {}
     msgRecvTable = {}
+    msgColorList = {}
+    connCache = {}
     dbgObj = None
 
     G_IO_ERROR_TYPE = [
@@ -40812,8 +40864,8 @@ class DbusAnalyzer(object):
 
     @staticmethod
     def getErrInfo():
-        if DbusAnalyzer.dbusErrObj:
-            errObj = DbusAnalyzer.dbusErrObj
+        if DbusMgr.dbusErrObj:
+            errObj = DbusMgr.dbusErrObj
             return "%s: %s" % (errObj.name, errObj.message)
         else:
             return "N/A"
@@ -40822,8 +40874,8 @@ class DbusAnalyzer(object):
 
     @staticmethod
     def getErrP():
-        if DbusAnalyzer.dbusErrObj:
-            dbusErrP = byref(DbusAnalyzer.dbusErrObj)
+        if DbusMgr.dbusErrObj:
+            dbusErrP = byref(DbusMgr.dbusErrObj)
             SysMgr.libdbusObj.dbus_error_init(dbusErrP)
             return dbusErrP
 
@@ -40835,7 +40887,7 @@ class DbusAnalyzer(object):
                 ("padding2", c_void_p * 2),
             )
 
-        DbusAnalyzer.dbusErrObj = dbusErr = DBusError()
+        DbusMgr.dbusErrObj = dbusErr = DBusError()
         dbusErrP = byref(dbusErr)
         SysMgr.libdbusObj.dbus_error_init(dbusErrP)
         return dbusErrP
@@ -40863,14 +40915,18 @@ class DbusAnalyzer(object):
 
 
 
+        # reuse connection from cache #
+        if bus in DbusMgr.connCache:
+            return DbusMgr.connCache[bus]
+
         dbusObj = SysMgr.libdbusObj
         name = "guider.method.caller".encode()
 
         # get bus type #
         if bus == 'system':
-            bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SYSTEM']
+            bustype = DbusMgr.DBusBusType['DBUS_BUS_SYSTEM']
         elif bus == 'session' or bus == 'user':
-            bustype = DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']
+            bustype = DbusMgr.DBusBusType['DBUS_BUS_SESSION']
         else:
             SysMgr.printWarn("fail to recognize %s bus" % bus)
             return None
@@ -40879,7 +40935,7 @@ class DbusAnalyzer(object):
         euidOrig = setEuid()
 
         # get connection #
-        conn = dbusObj.dbus_bus_get_private(bustype, DbusAnalyzer.getErrP())
+        conn = dbusObj.dbus_bus_get_private(bustype, DbusMgr.getErrP())
         if conn:
             conn = dbusObj.dbus_connection_ref(conn)
         else:
@@ -40889,7 +40945,7 @@ class DbusAnalyzer(object):
                 address = os.environ[ADDRENV]
                 address = c_char_p(address.encode())
                 conn = dbusObj.dbus_connection_open(
-                    address, DbusAnalyzer.getErrP())
+                    address, DbusMgr.getErrP())
             elif tid:
                 # recover EUID #
                 os.seteuid(euidOrig)
@@ -40899,7 +40955,7 @@ class DbusAnalyzer(object):
                     if env.startswith(ADDRENV):
                         address = c_char_p(env.lstrip(ADDRENV)[1:].encode())
                         conn = dbusObj.dbus_connection_open(
-                            address, DbusAnalyzer.getErrP())
+                            address, DbusMgr.getErrP())
                         break
 
             # check error #
@@ -40909,16 +40965,16 @@ class DbusAnalyzer(object):
                     c_void_p(conn), c_char_p(name))
                 ret = dbusObj.dbus_bus_get_unique_name(c_void_p(conn))
                 ret = dbusObj.dbus_bus_register(
-                    c_void_p(conn), DbusAnalyzer.getErrP())
+                    c_void_p(conn), DbusMgr.getErrP())
                 if not ret:
                     SysMgr.printWarn(
                         "fail to register D-Bus %s bus because %s" % \
-                            (bus, DbusAnalyzer.getErrInfo()))
+                            (bus, DbusMgr.getErrInfo()))
                     return None
             else:
                 SysMgr.printWarn(
                     "fail to get D-Bus %s bus because %s" % \
-                        (bus, DbusAnalyzer.getErrInfo()))
+                        (bus, DbusMgr.getErrInfo()))
                 return None
 
         '''
@@ -40927,11 +40983,11 @@ class DbusAnalyzer(object):
         DBUS_NAME_FLAG_REPLACE_EXISTING = c_uint(0x2)
         ret = dbusObj.dbus_bus_request_name(
             conn, c_char_p(name), DBUS_NAME_FLAG_REPLACE_EXISTING,
-            DbusAnalyzer.getErrP())
+            DbusMgr.getErrP())
         if ret < 0:
             SysMgr.printWarn(
                 "fail to request D-Bus bus name to %s because %s" % \
-                    (name.decode(), DbusAnalyzer.getErrInfo()))
+                    (name.decode(), DbusMgr.getErrInfo()))
         '''
 
         try:
@@ -40947,10 +41003,10 @@ class DbusAnalyzer(object):
                 path = '/org/freedesktop/DBus'
                 des = iface = 'org.freedesktop.DBus'
                 method = 'Hello'
-                msg, reply = DbusAnalyzer.callMethod(
+                msg, reply = DbusMgr.callMethod(
                     conn, des, path, iface, method)
                 if not msg or not reply:
-                    if bustype == DbusAnalyzer.DBusBusType['DBUS_BUS_SESSION']:
+                    if bustype == DbusMgr.DBusBusType['DBUS_BUS_SESSION']:
                         SysMgr.printWarn(
                             'check DBUS_SESSION_BUS_ADDRESS '
                             'environment variable for session bus')
@@ -40961,6 +41017,10 @@ class DbusAnalyzer(object):
                 os.seteuid(euidOrig)
             except:
                 pass
+
+            # save connection cache #
+            if ret:
+                DbusMgr.connCache[bus] = ret
 
             return ret
 
@@ -40973,7 +41033,7 @@ class DbusAnalyzer(object):
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus)
+        conn = DbusMgr.getBus(bus)
         if not conn:
             return
 
@@ -40984,10 +41044,10 @@ class DbusAnalyzer(object):
         if not des.startswith(':'):
             path += des.replace('.', '/')
         if dbusObj.dbus_validate_path(
-            c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
+            c_char_p(path.encode()), DbusMgr.getErrP()) == 0:
             SysMgr.printWarn(
                 "fail to create a D-Bus message because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                    DbusMgr.getErrInfo())
             return
 
 
@@ -41001,7 +41061,7 @@ class DbusAnalyzer(object):
             des.encode(), path.encode(),
             iface.encode(), method.encode())
         if not msg:
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn("fail to create a D-Bus message")
             return
 
@@ -41047,7 +41107,7 @@ class DbusAnalyzer(object):
         if not ret:
             SysMgr.printWarn("fail to initialize D-Bus message iteration")
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         # append container #
@@ -41056,7 +41116,7 @@ class DbusAnalyzer(object):
         if not ret:
             SysMgr.printWarn("fail to initialize D-Bus message container")
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         '''
@@ -41066,7 +41126,7 @@ class DbusAnalyzer(object):
         if not ret:
             SysMgr.printWarn("fail to initialize D-Bus message iteration")
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
         '''
 
@@ -41076,7 +41136,7 @@ class DbusAnalyzer(object):
         if not ret:
             SysMgr.printWarn("fail to close D-Bus message container")
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         # append zero to container #
@@ -41085,18 +41145,18 @@ class DbusAnalyzer(object):
         if not ret:
             SysMgr.printWarn("fail to initialize D-Bus message iteration")
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(
-            conn, msg, timeout, DbusAnalyzer.getErrP())
+            conn, msg, timeout, DbusMgr.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
                 "fail to call a D-Bus remote method because %s at %s line" % \
-                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
+                    (DbusMgr.getErrInfo(), SysMgr.getLine()))
             return
 
         while 1:
@@ -41116,19 +41176,19 @@ class DbusAnalyzer(object):
             des.encode(), path.encode(),
             iface.encode(), method.encode())
         if not msg:
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn("fail to create a D-Bus message")
             return msg, None
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(
-            conn, msg, timeout, DbusAnalyzer.getErrP())
+            conn, msg, timeout, DbusMgr.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
                 "fail to call a D-Bus remote method because %s at %s line" % \
-                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
+                    (DbusMgr.getErrInfo(), SysMgr.getLine()))
             return msg, reply
 
         return msg, reply
@@ -41136,7 +41196,7 @@ class DbusAnalyzer(object):
 
 
     @staticmethod
-    def getStats(bus, request, des=None, tid=None):
+    def getStats(bus, request, des=None, tid=None, procStr=None):
         def _printWarn(procStr, line, err):
             SysMgr.printWarn((
                 'fail to parse from D-Bus message for %s at %s line '
@@ -41148,13 +41208,12 @@ class DbusAnalyzer(object):
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus, tid)
+        conn = DbusMgr.getBus(bus, tid)
         if not conn:
             return
 
-        procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
         getLine = SysMgr.getLine
-        getErr = DbusAnalyzer.getErrInfo
+        getErr = DbusMgr.getErrInfo
 
         # prepare method args #
         path = '/'
@@ -41163,7 +41222,7 @@ class DbusAnalyzer(object):
         if not des.startswith(':'):
             path += des.replace('.', '/')
         if dbusObj.dbus_validate_path(
-            c_char_p(path.encode()), DbusAnalyzer.getErrP()) == 0:
+            c_char_p(path.encode()), DbusMgr.getErrP()) == 0:
             _printWarn(procStr, getLine(), getErr())
             return
 
@@ -41181,7 +41240,7 @@ class DbusAnalyzer(object):
             sys.exit(0)
 
         # send a message for method call #
-        msg, reply = DbusAnalyzer.callMethod(
+        msg, reply = DbusMgr.callMethod(
             conn, des, path, iface, method, timeout)
         if not msg or not reply:
             return
@@ -41200,19 +41259,19 @@ class DbusAnalyzer(object):
         if request == 'introspect':
             strRes = c_char_p(''.encode())
             res = dbusObj.dbus_message_get_args(
-                reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING,
+                reply, DbusMgr.getErrP(), DBUS_TYPE_STRING,
                 byref(strRes), DBUS_TYPE_INVALID)
             if not res:
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
-                dbusObj.dbus_connection_unref(conn)
+                #dbusObj.dbus_connection_unref(conn)
                 _printWarn(procStr, getLine(), getErr())
                 return
 
             # parse args #
             strRes = c_char_p(''.encode())
             res = dbusObj.dbus_message_get_args(
-                    reply, DbusAnalyzer.getErrP(), DBUS_TYPE_STRING,
+                    reply, DbusMgr.getErrP(), DBUS_TYPE_STRING,
                     byref(strRes), DBUS_TYPE_INVALID)
             if not res:
                 _printWarn(procStr, getLine(), getErr())
@@ -41224,7 +41283,7 @@ class DbusAnalyzer(object):
             # clean up #
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
 
             return buf
 
@@ -41269,7 +41328,7 @@ class DbusAnalyzer(object):
             _printWarn(procStr, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         ret = dbusObj.dbus_message_iter_get_arg_type(rootIterP)
@@ -41277,7 +41336,7 @@ class DbusAnalyzer(object):
             _printWarn(procStr, getLine(), getErr())
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             return
 
         # get item count #
@@ -41294,7 +41353,7 @@ class DbusAnalyzer(object):
                 _printWarn(procStr, getLine(), getErr())
                 dbusObj.dbus_message_unref(msg)
                 dbusObj.dbus_message_unref(reply)
-                dbusObj.dbus_connection_unref(conn)
+                #dbusObj.dbus_connection_unref(conn)
                 return
 
             dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
@@ -41306,7 +41365,7 @@ class DbusAnalyzer(object):
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
-                    dbusObj.dbus_connection_unref(conn)
+                    #dbusObj.dbus_connection_unref(conn)
                     return
 
                 # get process id #
@@ -41315,7 +41374,7 @@ class DbusAnalyzer(object):
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
-                    dbusObj.dbus_connection_unref(conn)
+                    #dbusObj.dbus_connection_unref(conn)
                     return
 
                 if not dbusObj.dbus_message_iter_next(dictIterP):
@@ -41326,7 +41385,7 @@ class DbusAnalyzer(object):
                     _printWarn(procStr, getLine(), getErr())
                     dbusObj.dbus_message_unref(msg)
                     dbusObj.dbus_message_unref(reply)
-                    dbusObj.dbus_connection_unref(conn)
+                    #dbusObj.dbus_connection_unref(conn)
                     return
 
                 # check array size #
@@ -41349,7 +41408,7 @@ class DbusAnalyzer(object):
                         _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
-                        dbusObj.dbus_connection_unref(conn)
+                        #dbusObj.dbus_connection_unref(conn)
                         return
 
                     # get signal info #
@@ -41359,7 +41418,7 @@ class DbusAnalyzer(object):
                         _printWarn(procStr, getLine(), getErr())
                         dbusObj.dbus_message_unref(msg)
                         dbusObj.dbus_message_unref(reply)
-                        dbusObj.dbus_connection_unref(conn)
+                        #dbusObj.dbus_connection_unref(conn)
                         return
 
                     # parse items #
@@ -41409,7 +41468,7 @@ class DbusAnalyzer(object):
         # clean up #
         dbusObj.dbus_message_unref(msg)
         dbusObj.dbus_message_unref(reply)
-        dbusObj.dbus_connection_unref(conn)
+        #dbusObj.dbus_connection_unref(conn)
 
         return perProcList, perSigList
 
@@ -41422,7 +41481,7 @@ class DbusAnalyzer(object):
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus)
+        conn = DbusMgr.getBus(bus)
         if not conn:
             return
 
@@ -41435,7 +41494,7 @@ class DbusAnalyzer(object):
             des.encode(), path.encode(),
             iface.encode(), method.encode())
         if not msg:
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn("fail to create a D-Bus message")
             return
 
@@ -41451,19 +41510,19 @@ class DbusAnalyzer(object):
             msg, DBUS_TYPE_STRING, byref(item), DBUS_TYPE_INVALID)
         if not res:
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn("fail to append D-Bus message args")
             return
 
         # call a remote method #
         reply = dbusObj.dbus_connection_send_with_reply_and_block(
-            conn, msg, -1, DbusAnalyzer.getErrP())
+            conn, msg, -1, DbusMgr.getErrP())
         if not reply:
             dbusObj.dbus_message_unref(msg)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
                 "fail to call a D-Bus remote method because %s at %s line" % \
-                    (DbusAnalyzer.getErrInfo(), SysMgr.getLine()))
+                    (DbusMgr.getErrInfo(), SysMgr.getLine()))
             return
 
         # parse args #
@@ -41471,21 +41530,21 @@ class DbusAnalyzer(object):
         uint32 = c_char('u'.encode())
         DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         res = dbusObj.dbus_message_get_args(
-            reply, DbusAnalyzer.getErrP(), DBUS_TYPE_UINT32,
+            reply, DbusMgr.getErrP(), DBUS_TYPE_UINT32,
             byref(pid), DBUS_TYPE_INVALID)
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
                 "fail to parse D-Bus message args because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                    DbusMgr.getErrInfo())
             return
 
         # clean up #
         dbusObj.dbus_message_unref(msg)
         dbusObj.dbus_message_unref(reply)
-        dbusObj.dbus_connection_unref(conn)
+        #dbusObj.dbus_connection_unref(conn)
 
         # get comm #
         comm = SysMgr.getComm(pid.value)
@@ -41508,7 +41567,7 @@ class DbusAnalyzer(object):
 
         dbusObj = SysMgr.libdbusObj
 
-        conn = DbusAnalyzer.getBus(bus, tid, addr)
+        conn = DbusMgr.getBus(bus, tid, addr)
         if not conn:
             return
 
@@ -41519,7 +41578,8 @@ class DbusAnalyzer(object):
         method = 'ListNames'
 
         # send a message for method call #
-        msg, reply = DbusAnalyzer.callMethod(conn, des, path, iface, method)
+        msg, reply = DbusMgr.callMethod(
+            conn, des, path, iface, method, c_int(3))
         if not msg or not reply:
             return
 
@@ -41535,16 +41595,16 @@ class DbusAnalyzer(object):
         cntRes = c_int(0)
         arrayRes = (POINTER(c_char_p))()
         res = dbusObj.dbus_message_get_args(
-            reply, DbusAnalyzer.getErrP(), DBUS_TYPE_ARRAY,
+            reply, DbusMgr.getErrP(), DBUS_TYPE_ARRAY,
             DBUS_TYPE_STRING, byref(arrayRes),
             byref(cntRes), DBUS_TYPE_INVALID)
         if not res:
             dbusObj.dbus_message_unref(msg)
             dbusObj.dbus_message_unref(reply)
-            dbusObj.dbus_connection_unref(conn)
+            #dbusObj.dbus_connection_unref(conn)
             SysMgr.printWarn(
                 "fail to parse D-Bus message args because %s" % \
-                    DbusAnalyzer.getErrInfo())
+                    DbusMgr.getErrInfo())
             return
 
         slist = []
@@ -41556,7 +41616,7 @@ class DbusAnalyzer(object):
         # clean up #
         dbusObj.dbus_message_unref(msg)
         dbusObj.dbus_message_unref(reply)
-        dbusObj.dbus_connection_unref(conn)
+        #dbusObj.dbus_connection_unref(conn)
 
         return slist
 
@@ -41594,7 +41654,7 @@ class DbusAnalyzer(object):
                 ("code", c_int),
                 ("message", c_char_p),
             )
-        DbusAnalyzer.errObj = GError
+        DbusMgr.errObj = GError
 
         # define gobject methods #
         gObj = SysMgr.libgObj
@@ -41691,6 +41751,9 @@ class DbusAnalyzer(object):
 
         dbusObj.dbus_bus_get_unique_name.argtypes = [c_void_p]
         dbusObj.dbus_bus_get_unique_name.restype = c_char_p
+
+        dbusObj.dbus_connection_close.argtypes = [c_void_p]
+        dbusObj.dbus_connection_close.restype = None
 
         dbusObj.dbus_bus_set_unique_name.argtypes = [c_void_p, c_char_p]
         dbusObj.dbus_bus_set_unique_name.restype = c_bool
@@ -42025,12 +42088,12 @@ class DbusAnalyzer(object):
                 lock.acquire()
 
             # initialize data #
-            prevRecvData = DbusAnalyzer.recvData
-            prevSentData = DbusAnalyzer.sentData
-            DbusAnalyzer.sentData = {}
-            DbusAnalyzer.recvData = {}
-            DbusAnalyzer.msgSentTable = {}
-            DbusAnalyzer.msgRecvTable = {}
+            prevRecvData = DbusMgr.recvData
+            prevSentData = DbusMgr.sentData
+            DbusMgr.sentData = {}
+            DbusMgr.recvData = {}
+            DbusMgr.msgSentTable = {}
+            DbusMgr.msgRecvTable = {}
             prevDbusData = ThreadAnalyzer.dbusData
             ThreadAnalyzer.dbusData = \
                 {'totalCnt': long(0), 'totalErr': long(0)}
@@ -42048,8 +42111,8 @@ class DbusAnalyzer(object):
             # update CPU usage of tasks #
             _updateTaskInfo(prevDbusData, prevSentData, prevRecvData)
 
-            if DbusAnalyzer.dbgObj:
-                cpuUsage = DbusAnalyzer.dbgObj.getCpuUsage()
+            if DbusMgr.dbgObj:
+                cpuUsage = DbusMgr.dbgObj.getCpuUsage()
                 ttime = cpuUsage[0] / SysMgr.uptimeDiff
                 utime = cpuUsage[1] / SysMgr.uptimeDiff
                 stime = cpuUsage[2] / SysMgr.uptimeDiff
@@ -42092,8 +42155,8 @@ class DbusAnalyzer(object):
                 # update stats #
                 _updateTaskInfo(
                     ThreadAnalyzer.dbusData,
-                    DbusAnalyzer.sentData,
-                    DbusAnalyzer.recvData)
+                    DbusMgr.sentData,
+                    DbusMgr.recvData)
 
                 # save initial stat of tasks #
                 taskManager.reinitStats()
@@ -42176,7 +42239,7 @@ class DbusAnalyzer(object):
                 if type(msgList) is not dict:
                     return
 
-                G_IO_ERROR_TYPE = DbusAnalyzer.G_IO_ERROR_TYPE
+                G_IO_ERROR_TYPE = DbusMgr.G_IO_ERROR_TYPE
 
                 msgs = []
                 for key, msg in sorted(msgList.items()):
@@ -42220,43 +42283,43 @@ class DbusAnalyzer(object):
                         call = call + ('\0' * (length - len(call)))
 
                     # check previous data #
-                    if not tid in DbusAnalyzer.prevData:
-                        DbusAnalyzer.prevData[tid] = dict()
-                        DbusAnalyzer.prevData[tid]['recvmsg'] = ''
-                        DbusAnalyzer.prevData[tid]['sendmsg'] = ''
+                    if not tid in DbusMgr.prevData:
+                        DbusMgr.prevData[tid] = dict()
+                        DbusMgr.prevData[tid]['recvmsg'] = ''
+                        DbusMgr.prevData[tid]['sendmsg'] = ''
 
                     try:
-                        prevData = DbusAnalyzer.prevData[tid][ctype]
+                        prevData = DbusMgr.prevData[tid][ctype]
                     except:
                         prevData = ''
 
                     # check direction #
                     if ctype.startswith('sendm'):
                         direction = 'OUT'
-                        data = DbusAnalyzer.sentData
-                        msgTable = DbusAnalyzer.msgSentTable
+                        data = DbusMgr.sentData
+                        msgTable = DbusMgr.msgSentTable
                     else:
                         direction = 'IN'
-                        data = DbusAnalyzer.recvData
-                        msgTable = DbusAnalyzer.msgRecvTable
+                        data = DbusMgr.recvData
+                        msgTable = DbusMgr.msgRecvTable
 
                     # composite data #
                     if isLast:
-                        if DbusAnalyzer.prevData[tid][ctype]:
-                            call = DbusAnalyzer.prevData[tid][ctype] + call
+                        if DbusMgr.prevData[tid][ctype]:
+                            call = DbusMgr.prevData[tid][ctype] + call
 
                         if direction == 'OUT':
-                            DbusAnalyzer.prevData[tid][ctype] = ''
+                            DbusMgr.prevData[tid][ctype] = ''
                         else:
-                            DbusAnalyzer.prevData[tid][ctype] = call
+                            DbusMgr.prevData[tid][ctype] = call
                     else:
                         if isFirst:
                             if direction == 'OUT':
-                                DbusAnalyzer.prevData[tid][ctype] = call
+                                DbusMgr.prevData[tid][ctype] = call
                             else:
-                                DbusAnalyzer.prevData[tid][ctype] += call
+                                DbusMgr.prevData[tid][ctype] += call
                         else:
-                            DbusAnalyzer.prevData[tid][ctype] += call
+                            DbusMgr.prevData[tid][ctype] += call
 
                         continue
 
@@ -42267,7 +42330,7 @@ class DbusAnalyzer(object):
                     # cast bytes to void_p #
                     buf = c_char_p(call.encode('latin-1'))
 
-                    errp = POINTER(DbusAnalyzer.errObj)()
+                    errp = POINTER(DbusMgr.errObj)()
 
                     # check message size in header #
                     hsize = libgioObj.g_dbus_message_bytes_needed(
@@ -42290,7 +42353,7 @@ class DbusAnalyzer(object):
                         if hsize > len(call):
                             continue
                         else:
-                            DbusAnalyzer.prevData[tid][ctype] = ''
+                            DbusMgr.prevData[tid][ctype] = ''
 
                     # create GDBusMessage from bytes #
                     gdmsg = libgioObj.g_dbus_message_new_from_blob(
@@ -42324,7 +42387,7 @@ class DbusAnalyzer(object):
                                 srcInfo = service[src]
                             else:
                                 service[src] = src
-                                _updateServiceProc(bus, tid, None, service)
+                                ret = _updateServiceProc(bus, tid, None, service)
                                 if src in service:
                                     srcInfo = service[src]
 
@@ -42341,14 +42404,14 @@ class DbusAnalyzer(object):
                                 desInfo = service[des]
                             else:
                                 service[des] = des
-                                _updateServiceProc(bus, tid, None, service)
+                                ret = _updateServiceProc(bus, tid, None, service)
                                 if des in service:
                                     desInfo = service[des]
 
                     # get message type #
                     try:
                         nrType = libgioObj.g_dbus_message_get_message_type(addr)
-                        mtype = DbusAnalyzer.GDBusMessageType[nrType]
+                        mtype = DbusMgr.GDBusMessageType[nrType]
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -42400,7 +42463,8 @@ class DbusAnalyzer(object):
 
                         msgStr = \
                             "[%s] %.6f %s(%s) %s->%s %s %g %s%s" % \
-                            (mtype, mtime, jsonData['comm'], tid, srcInfo,
+                            (DbusMgr.msgColorList[mtype],
+                                mtime, jsonData['comm'], tid, srcInfo,
                                 desInfo, direction, jsonData['timediff'],
                                 UtilMgr.convSize2Unit(hsize), addInfo)
 
@@ -42416,8 +42480,8 @@ class DbusAnalyzer(object):
                             continue
 
                     # set task default dict #
-                    DbusAnalyzer.sentData.setdefault(tid, dict())
-                    DbusAnalyzer.recvData.setdefault(tid, dict())
+                    DbusMgr.sentData.setdefault(tid, dict())
+                    DbusMgr.recvData.setdefault(tid, dict())
 
                     # return check #
                     if mtype == 'RETURN':
@@ -42459,7 +42523,7 @@ class DbusAnalyzer(object):
 
                         mname = '[%6s] %3s %s: %s' % \
                             (mtype, direction, ename.decode(), arg0.decode())
-                        data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
+                        data[tid].setdefault(mname, dict(DbusMgr.taskInfo))
                         data[tid][mname]['cnt'] += 1
                         data[tid][mname]['err'] += 1
                         ThreadAnalyzer.dbusData['totalErr'] += 1
@@ -42474,7 +42538,7 @@ class DbusAnalyzer(object):
                         msgTable[serial] = (mname, jsonData['time'])
 
                     # initialize new interface #
-                    data[tid].setdefault(mname, dict(DbusAnalyzer.taskInfo))
+                    data[tid].setdefault(mname, dict(DbusMgr.taskInfo))
 
                     # increase count #
                     cnt += 1
@@ -42541,27 +42605,28 @@ class DbusAnalyzer(object):
         def _updateDataFromPipe(rdPipeList):
             # merge dbus data #
             try:
+                tid = comm = None
+
                 # wait for event #
                 [read, write, error] = \
                     selectObj.select(rdPipeList, [], [])
 
                 # read messages through pipe connected to child processes #
                 for robj in read:
+                    tid = None
+                    bus = None
+                    service = None
+
                     # get tid of target #
                     try:
                         index = pipeList.index(robj)
                         tid = taskList[index]
                         bus = busList[index]
-                        try:
-                            service = busServiceList[tid][index]
-                        except:
-                            service = None
+                        service = busServiceList[tid][bus]
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        tid = '?'
-                        bus = None
-                        service = None
+                        pass
 
                     # handle data arrived #
                     while 1:
@@ -42582,23 +42647,48 @@ class DbusAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printWarn('fail to read data from pipe', reason=True)
+                try:
+                    if tid:
+                        comm = SysMgr.getComm(tid, cache=True)
+                except:
+                    pass
+
+                if tid:
+                    procInfo = ' for %s(%s)' % (comm, tid)
+                else:
+                    procInfo = ''
+
+                SysMgr.printWarn(
+                    'fail to read data from pipe%s' % procInfo, reason=True)
+
                 return
 
         def _updateServiceProc(bus, tid, addr, serviceList):
-            if not bus:
-                return
+            '''
+            some case, hang up for remote call with below error message.
+            so disable this feature.
 
-            services = DbusAnalyzer.getBusService(
+            "the remote application did not send a reply,
+            the message bus security policy blocked the reply,
+            the reply timeout expired, or the network connection was broken"
+            '''
+            return False
+
+            if not bus:
+                return False
+
+            services = DbusMgr.getBusService(
                 bus, tid=tid, addr=None)
             if not services:
-                return
+                return False
 
             # register process #
             for idx, svc in enumerate(services):
-                pinfo = DbusAnalyzer.getServiceProc(bus, svc)
+                pinfo = DbusMgr.getServiceProc(bus, svc)
                 if pinfo:
                     serviceList[svc] = pinfo
+
+            return True
 
         def _getDefaultTasks(comm, sibling=True):
             taskList = []
@@ -42606,7 +42696,7 @@ class DbusAnalyzer(object):
             for tid in tempList:
                 taskList.append(SysMgr.getTgid(tid))
 
-                comm = SysMgr.getComm(tid)
+                comm = SysMgr.getComm(tid, cache=True)
                 if comm == 'gdbus':
                     taskList.append(tid)
 
@@ -42645,7 +42735,7 @@ class DbusAnalyzer(object):
                     SysMgr.getCommList(taskList))
 
         # prepare D-Bus methods to analyze BLOB data #
-        DbusAnalyzer.prepareDbusMethods()
+        DbusMgr.prepareDbusMethods()
 
         # get select object #
         selectObj = SysMgr.getPkg('select')
@@ -42658,9 +42748,9 @@ class DbusAnalyzer(object):
             lock = None
 
         # initialize task stat #
-        DbusAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
-        DbusAnalyzer.dbgObj.initValues()
-        DbusAnalyzer.dbgObj.getCpuUsage()
+        DbusMgr.dbgObj = Debugger(SysMgr.pid, attach=False)
+        DbusMgr.dbgObj.initValues()
+        DbusMgr.dbgObj.getCpuUsage()
 
         # define common list #
         busList = []
@@ -42690,7 +42780,16 @@ class DbusAnalyzer(object):
         SysMgr.syscallList.append(
             ConfigMgr.sysList.index('sys_sendmmsg'))
 
-        # create child processes to attach each targets #
+        # set colors for each message types #
+        DbusMgr.msgColorList = {
+            'INVALID': UtilMgr.convColor('INVALID', 'RED'),
+            'ERROR': UtilMgr.convColor('ERROR', 'RED'),
+            'METHOD': UtilMgr.convColor('METHOD', 'CYAN'),
+            'RETURN': UtilMgr.convColor('RETURN', 'BLUE'),
+            'SIGNAL': UtilMgr.convColor('SIGNAL', 'PINK'),
+        }
+
+        # create child processes to monitor each targets #
         for tid in taskList:
             # create pipe #
             rd, wr = os.pipe()
@@ -42744,53 +42843,60 @@ class DbusAnalyzer(object):
 
             # get servce list #
             if bus:
-                services = DbusAnalyzer.getBusService(
+                services = DbusMgr.getBusService(
                     bus, tid=tid, addr=listen)
             else:
                 services = None
 
             # register services #
-            busServiceList[tid] = []
+            busServiceList.setdefault(tid, dict())
             if services:
                 busProcList = {}
 
                 # register process #
                 for idx, service in enumerate(services):
-                    pinfo = DbusAnalyzer.getServiceProc(bus, service)
+                    pinfo = DbusMgr.getServiceProc(bus, service)
                     busProcList[service] = pinfo
                     gBusServiceList.setdefault(service, pinfo)
 
                     # register methods and properties #
                     if False and not service.startswith(':'):
-                        interfaceList[service] = \
-                            DbusAnalyzer.getStats(
-                                bus, 'introspect', service)
+                        # get service tid #
+                        if pinfo:
+                            ptid = pinfo[pinfo.rfind('(')+1:-1]
+                        else:
+                            ptid = None
 
-                busServiceList[tid].append(busProcList)
+                        interfaceList[service] = \
+                            DbusMgr.getStats(
+                                bus, 'introspect', service, procStr=pinfo)
+
+                busServiceList[tid].setdefault(bus, busProcList)
             else:
-                busServiceList[tid].append(dict())
+                busServiceList[tid].setdefault(bus, dict())
 
             # monitor messages #
             if mode == 'monitor':
-                ret = DbusAnalyzer.runMonitor(bus)
+                ret = DbusMgr.runMonitor(bus)
                 continue
 
             # print signals #
+            procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
             if mode == 'signal':
-                ret = DbusAnalyzer.getStats(bus, 'allmatch')
+                ret = DbusMgr.getStats(bus, 'allmatch', procStr=procStr)
                 if ret:
                     perProc, perSig = ret
-                    DbusAnalyzer.printSignalInfo(
+                    DbusMgr.printSignalInfo(
                         tid, perProc, perSig, busProcList)
                 continue
 
             # create a new process #
-            pid = SysMgr.createProcess(chPgid=False)
+            pid = SysMgr.createProcess()
 
             # parent #
             if pid > 0:
                 os.close(wr)
-                rdPipe = os.fdopen(rd)
+                rdPipe = os.fdopen(rd, 'r')
                 pipeList.append(rdPipe)
 
                 # create a new worker thread #
@@ -42802,9 +42908,8 @@ class DbusAnalyzer(object):
             # child #
             elif pid == 0:
                 # redirect stdout to pipe #
-                os.dup2(wr,1)
-                os.close(wr)
                 os.close(rd)
+                os.dup2(wr,1)
 
                 # set SIGPIPE handler for termination of parent #
                 SysMgr.setPipeHandler()
@@ -42860,6 +42965,7 @@ class DltAnalyzer(object):
         ["log", "app_trace", "nw_trace", "control"]
     LOGINFO = \
         ["", "fatal", "error", "warn", "info", "debug", "verb"]
+    msgColorList = []
 
     # define log level #
     LOGLEVEL = {
@@ -43114,16 +43220,16 @@ class DltAnalyzer(object):
                 (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
                     >> DLT_MSIN_MTIN_SHIFT
             try:
-                info = DltAnalyzer.LOGINFO[subtype]
+                level = DltAnalyzer.msgColorList[subtype]
             except:
-                info = ''
+                level = ''
 
             # get date time #
             ntime = time.strftime(
                 '%Y-%m-%d %H:%M:%S', time.localtime(timeSec))
 
             output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}".format(
-                ntime, timeUs, uptime, ecuId, apId, ctxId, info, string)
+                ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
 
             if buffered:
                 SysMgr.addPrint(output, force=True, listBuf=True)
@@ -43666,6 +43772,22 @@ class DltAnalyzer(object):
             SysMgr.printStreamEnable = False
         else:
             buffered = False
+
+        # set colors for each message types #
+        for item in DltAnalyzer.LOGINFO:
+            if item == 'fatal' or item == 'error':
+                color = 'RED'
+            elif item == 'info':
+                color = 'CYAN'
+            elif item == 'debug':
+                color = 'BLUE'
+            elif item == 'warn':
+                color = 'PINK'
+            else:
+                color = None
+
+            DltAnalyzer.msgColorList.append(
+                UtilMgr.convColor(item, color, 5, 'left'))
 
         # messages from file #
         if mode == 'print' and flist:
@@ -51795,6 +51917,9 @@ struct cmsghdr {
         else:
             updateTime = False
 
+        # define trap flag for syscall #
+        syscallTrapFlag = signal.SIGTRAP | 0x80
+
         # enter trace loop #
         while 1:
             # save backtrace info #
@@ -51895,12 +52020,19 @@ struct cmsghdr {
                     elif self.mode == 'break' or self.mode == 'inst':
                         self.handleTrapEvent(ostat)
 
+                    # wrong status for syscall #
+                    elif self.mode == 'syscall' and self.status == 'enter':
+                        self.status = 'skip'
+                        self.ptraceEvent(self.traceEventList)
+                        self.ptrace(self.cmd)
+                        continue
+
                 # breakpoint for ARM #
                 elif stat == signal.SIGILL and self.mode == 'break':
                     self.handleTrapEvent(ostat)
 
                 # syscall #
-                elif stat == signal.SIGTRAP | 0x80:
+                elif stat == syscallTrapFlag:
                     # interprete syscall context #
                     if self.mode == 'syscall':
                         self.handleSyscall()
@@ -59747,7 +59879,7 @@ class ThreadAnalyzer(object):
                 DltAnalyzer.runDltReceiver(mode='top')
             # D-Bus mode #
             elif SysMgr.dbusTopEnable:
-                DbusAnalyzer.runDbusSnooper(mode='top')
+                DbusMgr.runDbusSnooper(mode='top')
             # cgroup  mode #
             elif SysMgr.cgTopEnable:
                 try:
