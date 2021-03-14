@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210313"
+__revision__ = "210314"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17281,30 +17281,54 @@ class SysMgr(object):
 
             return answer
 
-        def _receivePing(sock, ID, timeout):
+        def _receivePing(sockList, timeout, sockInfo):
             select = SysMgr.getPkg('select')
 
             timeLeft = timeout
             while True:
                 startedSelect = time.time()
-                whatReady = select.select([sock], [], [], timeLeft)
-                howLongInSelect = (time.time() - startedSelect)
+
+                # wait for event #
+                whatReady = select.select(sockList, [], [], timeLeft)
+
                 # check timeout #
-                if whatReady[0] == []:
+                if not whatReady[0]:
                     return
 
+                # get current time #
                 timeReceived = time.time()
-                recPacket, addr = sock.recvfrom(1024)
-                icmpHeader = recPacket[20:28]
-                type, code, checksum, packetID, sequence = \
-                    struct.unpack("bbHHh", icmpHeader)
 
-                if packetID == ID:
+                howLongInSelect = (timeReceived - startedSelect)
+
+                # check received packets #
+                for sock in whatReady[0]:
+                    recPacket, addr = sock.recvfrom(1024)
+                    icmpHeader = recPacket[20:28]
+                    ptype, code, checksum, packetID, sequence = \
+                        struct.unpack("bbHHh", icmpHeader)
+
+                    # get sent ID #
+                    ID = sockInfo[sock.fileno()][2]
+
+                    # check sent ID #
+                    if packetID != ID:
+                        continue
+
+                    # decode packet #
                     bytesInDouble = struct.calcsize("d")
                     timeSent = struct.unpack(
                         "d", recPacket[28:28 + bytesInDouble])[0]
-                    return timeReceived - timeSent
 
+                    # save times #
+                    delay = timeReceived - timeSent
+                    sockInfo[sock.fileno()].append(delay)
+                    sockList.pop(sockList.index(sock))
+
+                # finished #
+                if not sockList:
+                    return
+
+                # timeout #
                 timeLeft = timeLeft - howLongInSelect
                 if timeLeft <= 0:
                     return
@@ -17336,49 +17360,97 @@ class SysMgr(object):
             packet = header + data
             sock.sendto(packet, (destAddr, 0))
 
-        def _doPing(destAddr, timeout, seq=None, verb=True):
+        def _doPing(addrList, timeout, seq=None, verb=True):
             socket = SysMgr.getPkg('socket')
 
-            destIPAddr = socket.gethostbyname(destAddr)
-
+            # set attributes #
             try:
                 ttl = 64
                 icmp = socket.getprotobyname("icmp")
-                sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
             except:
                 SysMgr.printErr('fail to ping', True)
                 return 0
 
-            ICMP_ID = os.getpid() & 0xFFFF
+            # define socket list #
+            sockList = list()
+            sockInfo = dict()
 
-            if destAddr == destIPAddr:
-                addrInfo = destAddr
-            else:
-                addrInfo = '%s(%s)' % (destAddr, destIPAddr)
+            # send packets #
+            for idx, destAddr in enumerate(addrList):
+                destIPAddr = socket.gethostbyname(destAddr)
 
-            # send packet #
-            _sendPing(sock, destIPAddr, ICMP_ID)
+                # create a socket #
+                try:
+                    sock = socket.socket(
+                        socket.AF_INET, socket.SOCK_RAW, icmp)
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+                except:
+                    SysMgr.printErr('fail to ping', True)
+                    return 0
+
+                # create an unique ID #
+                ICMP_ID = (os.getpid()+idx) & 0xFFFF
+
+                # send packet #
+                _sendPing(sock, destIPAddr, ICMP_ID)
+
+                # get address details #
+                if destAddr == destIPAddr:
+                    addrInfo = destAddr
+                else:
+                    addrInfo = '%s(%s)' % (destAddr, destIPAddr)
+
+                # save sock info #
+                sockList.append(sock)
+                sockInfo[sock.fileno()] = [sock, addrInfo, ICMP_ID]
 
             # receive packet #
-            delay = _receivePing(sock, ICMP_ID, timeout)
-            if delay and verb:
-                delaystr = UtilMgr.convColor('%.6f' % delay, 'RED')
+            _receivePing(sockList, timeout, sockInfo)
 
-                if seq is not None:
-                    seqstr = '[%s] ' % seq
+            # add timed out info and close all sockets #
+            for name, attr in sockInfo.items():
+                if len(attr) <= 3:
+                    sockInfo[name].append(timeout)
+                try:
+                    attr[0].close()
+                except:
+                    pass
+
+            # check return condition #
+            if not verb:
+                return
+
+            # set sequence string #
+            if seq is not None:
+                seqstr = '[%s] ' % seq
+            else:
+                seqstr = ''
+
+            # print results #
+            for attr in sorted(sockInfo.values(), key=lambda x:x[3]):
+                name = attr[1]
+                elapsed = attr[3]
+
+                # success #
+                if elapsed < timeout:
+                    delay = attr[3] * 1000
+
+                    delaystr = UtilMgr.convColor('%.3f' % delay, 'GREEN')
+
+                    SysMgr.printPipe(
+                        '%selapsed %s ms for %s' % (seqstr, delaystr, name))
+                # timeout #
                 else:
-                    seqstr = ''
+                    timeoutstr = '%f' % timeout
+                    timeoutstr = timeoutstr.rstrip('0')
+                    if timeoutstr.endswith('.'):
+                        timeoutstr = timeoutstr[:-1]
 
-                SysMgr.printPipe(
-                    '%selapsed %s sec for %s' % (seqstr, delaystr, addrInfo))
-            elif not delay:
-                SysMgr.printErr(
-                    'timed out waiting for %s' % addrInfo)
+                    name = UtilMgr.convColor(name, 'RED')
 
-            sock.close()
-
-            return delay
+                    SysMgr.printPipe(
+                        '%stimed out for waiting for %s for %s sec' % \
+                            (seqstr, name, timeoutstr))
 
 
 
@@ -17394,7 +17466,23 @@ class SysMgr(object):
         elif SysMgr.hasMainArg():
             urlList = SysMgr.getMainArg().split(',')
             urlList = UtilMgr.cleanItem(urlList)
-        else:
+        elif SysMgr.inputParam:
+            try:
+                urlList = []
+                files = SysMgr.inputParam.split(',')
+                files = UtilMgr.cleanItem(files)
+                for fname in files:
+                    with open(fname, 'r') as fd:
+                        urlList += fd.readlines()
+                urlList = UtilMgr.cleanItem(urlList)
+            except:
+                SysMgr.printErr(
+                    "fail to read addresses from '%s'" % \
+                        ','.join(files), True)
+                sys.exit(0)
+
+        # check input #
+        if not urlList:
             SysMgr.printErr('no input for address')
             sys.exit(0)
 
@@ -17409,12 +17497,13 @@ class SysMgr(object):
 
         # set timeout #
         if not timeout:
-            if SysMgr.inputParam:
+            timeout = SysMgr.getOption('T')
+            if timeout:
                 try:
-                    timeout = float(SysMgr.inputParam)
+                    timeout = float(timeout)
                 except:
                     SysMgr.printErr(
-                        "fail to set timeout '%s'" % SysMgr.inputParam, True)
+                        "fail to set timeout '%s'" % timeout, True)
                     sys.exit(0)
             else:
                 timeout = 3
@@ -17427,15 +17516,17 @@ class SysMgr(object):
         SysMgr.printInfo(
             'set timeout to %s sec\n' % timeoutstr)
 
+        # ping #
         for seq in range(0, count):
-            for url in urlList:
-                try:
-                    delay = _doPing(url, timeout, seq=seq)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printErr(
-                        'fail to ping to %s', True)
+            try:
+                _doPing(urlList, timeout, seq=seq)
+                if SysMgr.intervalEnable:
+                    time.sleep(SysMgr.intervalEnable)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to ping to %s', True)
 
 
 
@@ -21866,7 +21957,9 @@ Description:
 
 Options:
     -R  <COUNT>                 set repeat count
-    -I  <TIMEOUT>               set timeout
+    -T  <TIMEOUT>               set timeout
+    -I  <FILE>                  set input path
+    -i  <SEC>                   set interval
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21876,14 +21969,20 @@ Examples:
         # {0:1} {1:1} www.google.com
         # {0:1} {1:1} "www.google.com, www.naver.com"
 
+    - Send ICMP ECHO_REQUEST to network hosts in a specific file
+        # {0:1} {1:1} -I ip.txt
+
     - Send ICMP ECHO_REQUEST to network hosts infinitely
         # {0:1} {1:1} www.google.com -R
+
+    - Send ICMP ECHO_REQUEST to network hosts with 3 second interval infinitely
+        # {0:1} {1:1} www.google.com -R -i 3
 
     - Send ICMP ECHO_REQUEST to network hosts 3 times
         # {0:1} {1:1} www.google.com -R 3
 
     - Send ICMP ECHO_REQUEST to network hosts with 2.5 second timeout
-        # {0:1} {1:1} www.google.com -I 2.5
+        # {0:1} {1:1} www.google.com -T 2.5
                     '''.format(cmd, mode)
 
                 # cputest #
@@ -28490,6 +28589,7 @@ Copyright:
 
         # PING MODE #
         elif SysMgr.checkMode('ping'):
+            SysMgr.setStream()
             SysMgr.ping()
 
         # EVENT MODE #
