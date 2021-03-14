@@ -17360,6 +17360,75 @@ class SysMgr(object):
             packet = header + data
             sock.sendto(packet, (destAddr, 0))
 
+        def _convAddrs(addrList):
+            def __expandAddrs(addrs, item):
+                newAddrs = []
+                if item.isdigit():
+                    if not addrs:
+                        newAddrs.append(item)
+                    else:
+                        for word in addrs:
+                            newAddrs.append('%s.%s' % (word, item))
+                elif item.count('-') == 1:
+                    start, end = item.split('-')
+                    if start.strip().isdigit() and end.strip().isdigit():
+                        for idx in range(long(start), long(end)+1):
+                            if not addrs:
+                                newAddrs.append(idx)
+                                continue
+
+                            for word in addrs:
+                                newAddrs.append('%s.%s' % (word, idx))
+                    else:
+                        if not addrs:
+                            newAddrs.append(item)
+                        else:
+                            for word in addrs:
+                                newAddrs.append('%s.%s' % (word, idx))
+                elif item == '*':
+                    for idx in range(1, 255):
+                        if not addrs:
+                            newAddrs.append(idx)
+                        else:
+                            for word in addrs:
+                                newAddrs.append('%s.%s' % (word, idx))
+                else:
+                    if not addrs:
+                        newAddrs.append(item)
+                    else:
+                        for word in addrs:
+                            newAddrs.append('%s.%s' % (word, item))
+
+                return newAddrs
+
+            if not addrList:
+                return addrList
+
+            newAddrList = []
+            for addr in addrList:
+                # digit address #
+                checkAddr = addr.replace('.', '')
+                if checkAddr.isdigit():
+                    newAddrList.append(addr)
+                    continue
+
+                # name address #
+                checkAddr = checkAddr.replace('-', '').replace('*', '')
+                if not checkAddr.isdigit():
+                    newAddrList.append(addr)
+                    continue
+
+                # convert addresses #
+                addrs = []
+                fields = addr.split('.')
+                for item in fields:
+                    addrs = __expandAddrs(addrs, item)
+
+                # add addresses #
+                newAddrList += addrs
+
+            return newAddrList
+
         def _doPing(addrList, timeout, seq=None, verb=True):
             socket = SysMgr.getPkg('socket')
 
@@ -17486,6 +17555,9 @@ class SysMgr(object):
             SysMgr.printErr('no input for address')
             sys.exit(0)
 
+        # convert addresses #
+        urlList = _convAddrs(urlList)
+
         # set repeat count #
         if not count:
             if SysMgr.repeatInterval == 0:
@@ -17508,6 +17580,13 @@ class SysMgr(object):
             else:
                 timeout = 3
 
+        # set interval #
+        interval = SysMgr.getOption('i')
+        try:
+            interval = float(interval)
+        except:
+            interval = 0
+
         # print timeout info #
         timeoutstr = '%f' % timeout
         timeoutstr = timeoutstr.rstrip('0')
@@ -17520,13 +17599,12 @@ class SysMgr(object):
         for seq in range(0, count):
             try:
                 _doPing(urlList, timeout, seq=seq)
-                if SysMgr.intervalEnable:
-                    time.sleep(SysMgr.intervalEnable)
+                time.sleep(interval)
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    'fail to ping to %s', True)
+                    'fail to send ping to %s', True)
 
 
 
@@ -21968,6 +22046,8 @@ Examples:
     - Send ICMP ECHO_REQUEST to network hosts
         # {0:1} {1:1} www.google.com
         # {0:1} {1:1} "www.google.com, www.naver.com"
+        # {0:1} {1:1} "192.168.100.*"
+        # {0:1} {1:1} "192.168.100.10-250"
 
     - Send ICMP ECHO_REQUEST to network hosts in a specific file
         # {0:1} {1:1} -I ip.txt
