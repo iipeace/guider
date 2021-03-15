@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210314"
+__revision__ = "210315"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -17495,6 +17495,10 @@ class SysMgr(object):
             else:
                 seqstr = ''
 
+            # define json variable #
+            if SysMgr.jsonEnable:
+                jsonData = {'seq': seq, 'success': dict(), 'fail': dict()}
+
             # print results #
             for attr in sorted(sockInfo.values(), key=lambda x:x[3]):
                 name = attr[1]
@@ -17504,12 +17508,22 @@ class SysMgr(object):
                 if elapsed < timeout:
                     delay = attr[3] * 1000
 
+                    if SysMgr.jsonEnable:
+                        jsonData['success'].setdefault(name, dict())
+                        jsonData['success'][name]['time'] = delay
+                        continue
+
                     delaystr = UtilMgr.convColor('%.3f' % delay, 'GREEN')
 
                     SysMgr.printPipe(
                         '%selapsed %s ms for %s' % (seqstr, delaystr, name))
                 # timeout #
                 else:
+                    if SysMgr.jsonEnable:
+                        jsonData['fail'].setdefault(name, dict())
+                        jsonData['fail'][name]['time'] = timeout
+                        continue
+
                     timeoutstr = '%f' % timeout
                     timeoutstr = timeoutstr.rstrip('0')
                     if timeoutstr.endswith('.'):
@@ -17521,6 +17535,10 @@ class SysMgr(object):
                         '%stimed out for waiting for %s for %s sec' % \
                             (seqstr, name, timeoutstr))
 
+            # print results in JSON format #
+            if SysMgr.jsonEnable:
+                SysMgr.printPipe(UtilMgr.convDict2Str(jsonData))
+
 
 
         # check root permission for Linux #
@@ -17530,6 +17548,7 @@ class SysMgr(object):
             return
 
         # get address list #
+        urlList = []
         if url:
             urlList = url
         elif SysMgr.hasMainArg():
@@ -17537,7 +17556,6 @@ class SysMgr(object):
             urlList = UtilMgr.cleanItem(urlList)
         elif SysMgr.inputParam:
             try:
-                urlList = []
                 files = SysMgr.inputParam.split(',')
                 files = UtilMgr.cleanItem(files)
                 for fname in files:
@@ -22038,6 +22056,7 @@ Options:
     -T  <TIMEOUT>               set timeout
     -I  <FILE>                  set input path
     -i  <SEC>                   set interval
+    -J                          print in JSON format
     -v                          verbose
                         '''.format(cmd, mode)
 
