@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210315"
+__revision__ = "210316"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18950,6 +18950,7 @@ class SysMgr(object):
                 'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
+                'printdbusinfo': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
                 'printinfo': 'System',
@@ -21405,6 +21406,27 @@ Examples:
 
     - Print infomation of specific symbols in a process memory map
         # {0:1} {1:1} -I yes -g testFunc
+                    '''.format(cmd, mode)
+
+                # printdbusinfo #
+                elif SysMgr.checkMode('printdbusinfo'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Print D-Bus stats
+
+Options:
+    -v                          verbose
+    -g  <COMM>                  set task filter
+    -o  <DIR|FILE>              set output path
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print D-Bus stats
+        # {0:1} {1:1}
                     '''.format(cmd, mode)
 
                 # printcgroup #
@@ -28450,6 +28472,12 @@ Copyright:
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusMgr.runDbusSnooper(mode='print')
+
+        # PRINTDBUSINFO MODE #
+        elif SysMgr.checkMode('printdbusinfo'):
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            DbusMgr.runDbusSnooper(mode='printstat')
 
         # PRINTSUB MODE #
         elif SysMgr.checkMode('printsub'):
@@ -41105,7 +41133,7 @@ class DbusMgr(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                comm = SysMgr.getComm(tid)
+                comm = SysMgr.getComm(tid, cache=True)
                 SysMgr.printErr(
                     "fail to set EUID for %s(%s)'s one" % \
                         (comm, tid), reason=True)
@@ -41120,18 +41148,24 @@ class DbusMgr(object):
 
         dbusObj = SysMgr.libdbusObj
         name = "guider.method.caller".encode()
+        procInfo = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
 
         # get bus type #
         if bus == 'system':
             bustype = DbusMgr.DBusBusType['DBUS_BUS_SYSTEM']
+
+            # save EUID #
+            euidOrig = os.geteuid()
         elif bus == 'session' or bus == 'user':
             bustype = DbusMgr.DBusBusType['DBUS_BUS_SESSION']
-        else:
-            SysMgr.printWarn("fail to recognize %s bus" % bus)
-            return None
 
-        # set EUID #
-        euidOrig = setEuid()
+            # set EUID #
+            euidOrig = setEuid()
+        else:
+            comm = SysMgr.getComm(tid, cache=True)
+            SysMgr.printWarn("fail to recognize %s bus for %s" % \
+                (bus, procInfo))
+            return None
 
         # get connection #
         conn = dbusObj.dbus_bus_get_private(bustype, DbusMgr.getErrP())
@@ -41167,13 +41201,13 @@ class DbusMgr(object):
                     c_void_p(conn), DbusMgr.getErrP())
                 if not ret:
                     SysMgr.printWarn(
-                        "fail to register D-Bus %s bus because %s" % \
-                            (bus, DbusMgr.getErrInfo()))
+                        "fail to register D-Bus %s bus for %s because %s" % \
+                            (bus, procInfo, DbusMgr.getErrInfo()))
                     return None
             else:
                 SysMgr.printWarn(
-                    "fail to get D-Bus %s bus because %s" % \
-                        (bus, DbusMgr.getErrInfo()))
+                    "fail to get D-Bus %s bus for %s because %s" % \
+                        (bus, procInfo, DbusMgr.getErrInfo()))
                 return None
 
         '''
@@ -41185,8 +41219,8 @@ class DbusMgr(object):
             DbusMgr.getErrP())
         if ret < 0:
             SysMgr.printWarn(
-                "fail to request D-Bus bus name to %s because %s" % \
-                    (name.decode(), DbusMgr.getErrInfo()))
+                "fail to request D-Bus bus name to %s for %s because %s" % \
+                    (name.decode(), procInfo, DbusMgr.getErrInfo()))
         '''
 
         try:
@@ -41195,7 +41229,8 @@ class DbusMgr(object):
             # check connection #
             if dbusObj.dbus_connection_get_is_connected(conn) == 0:
                 SysMgr.printWarn(
-                    'D-Bus bus is not connected yet')
+                    'D-Bus %s bus is not connected yet for %s' % \
+                        (bus, procInfo))
                 ret = None
             # send a message for method call #
             elif dbusObj.dbus_connection_get_is_authenticated(conn) == 0:
@@ -41206,9 +41241,9 @@ class DbusMgr(object):
                     conn, des, path, iface, method)
                 if not msg or not reply:
                     if bustype == DbusMgr.DBusBusType['DBUS_BUS_SESSION']:
-                        SysMgr.printWarn(
+                        SysMgr.printWarn((
                             'check DBUS_SESSION_BUS_ADDRESS '
-                            'environment variable for session bus')
+                            'for %s bus for %s') % (bus, procInfo), True)
                     ret = None
         finally:
             # recover EUID #
@@ -41267,13 +41302,13 @@ class DbusMgr(object):
         # prepare args #
         array = c_char('a'.encode())
         DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
-        uint32 = c_char('u'.encode())
-        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         dicte = c_char('e'.encode())
         DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
         char = c_char('s'.encode())
         char2 = c_char('s'.encode())
         DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        uint32 = c_char('u'.encode())
+        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         null = c_char('\0'.encode())
         DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
         zero = c_uint32(0)
@@ -41434,6 +41469,10 @@ class DbusMgr(object):
             iface = 'org.freedesktop.DBus.Debug.Stats'
             method = 'GetAllMatchRules'
             timeout = c_int(-1)
+        elif request == 'stats':
+            iface = 'org.freedesktop.DBus.Debug.Stats'
+            method = 'GetStats'
+            timeout = c_int(-1)
         else:
             SysMgr.printErr('unknown request %s for %s' % (request, procStr))
             sys.exit(0)
@@ -41445,12 +41484,15 @@ class DbusMgr(object):
             return
 
         # prepare args #
+        # refer to https://dbus.freedesktop.org/doc/api/html/group__DBusProtocol.html #
         array = c_char('a'.encode())
         DBUS_TYPE_ARRAY = cast(byref(array), POINTER(c_int)).contents
         dicte = c_char('e'.encode())
         DBUS_TYPE_DICT_ENTRY = cast(byref(dicte), POINTER(c_int)).contents
         char = c_char('s'.encode())
         DBUS_TYPE_STRING = cast(byref(char), POINTER(c_int)).contents
+        uint32 = c_char('u'.encode())
+        DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
         null = c_char('\0'.encode())
         DBUS_TYPE_INVALID = cast(byref(null), POINTER(c_int)).contents
 
@@ -41542,8 +41584,106 @@ class DbusMgr(object):
         cnt = dbusObj.dbus_message_iter_get_element_count(rootIterP)
         dbusObj.dbus_message_iter_recurse(rootIterP, arrayIterP)
 
+        # stats #
+        if request == 'stats':
+            SysMgr.printStat(
+                'start collecting stats for %s bus for %s' % \
+                    (bus, procStr))
+
+            variant = c_char('v'.encode())
+            DBUS_TYPE_VARIANT = cast(byref(variant), POINTER(c_int)).contents
+            uint32 = c_char('u'.encode())
+            DBUS_TYPE_UINT32 = cast(byref(uint32), POINTER(c_int)).contents
+
+            varIter = DBusMessageIter()
+            varIterP = byref(varIter)
+
+            name = c_char_p(''.encode())
+            value = c_uint32(0)
+            statList = dict()
+
+            # array item loop #
+            while 1:
+                ret = dbusObj.dbus_message_iter_get_arg_type(arrayIterP)
+                if ret != DBUS_TYPE_DICT_ENTRY.value:
+                    _printWarn(procStr, getLine(), getErr())
+                    dbusObj.dbus_message_unref(msg)
+                    dbusObj.dbus_message_unref(reply)
+                    #dbusObj.dbus_connection_unref(conn)
+                    return statList
+
+                dbusObj.dbus_message_iter_recurse(arrayIterP, dictIterP)
+
+                # dictionary item loop #
+                while 1:
+                    ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                    if ret != DBUS_TYPE_STRING.value:
+                        _printWarn(procStr, getLine(), getErr())
+                        dbusObj.dbus_message_unref(msg)
+                        dbusObj.dbus_message_unref(reply)
+                        #dbusObj.dbus_connection_unref(conn)
+                        return statList
+
+                    # get name #
+                    dbusObj.dbus_message_iter_get_basic(dictIterP, byref(name))
+                    if not name.value:
+                        return statList
+
+                    # decode name #
+                    sname = name.value.decode()
+
+                    # register stat name #
+                    statList.setdefault(sname, list())
+
+                    # next stat value #
+                    if not dbusObj.dbus_message_iter_next(dictIterP):
+                        break
+
+                    # get stat values as a variant-type value #
+                    ret = dbusObj.dbus_message_iter_get_arg_type(dictIterP)
+                    if ret != DBUS_TYPE_VARIANT.value:
+                        _printWarn(procStr, getLine(), getErr())
+                        dbusObj.dbus_message_unref(msg)
+                        dbusObj.dbus_message_unref(reply)
+                        #dbusObj.dbus_connection_unref(conn)
+                        break
+
+                    # parse variant #
+                    dbusObj.dbus_message_iter_recurse(dictIterP, varIterP)
+
+                    # variant item loop #
+                    while 1:
+                        ret = dbusObj.dbus_message_iter_get_arg_type(varIterP)
+                        if ret != DBUS_TYPE_UINT32.value:
+                            _printWarn(procStr, getLine(), getErr())
+                            dbusObj.dbus_message_unref(msg)
+                            dbusObj.dbus_message_unref(reply)
+                            #dbusObj.dbus_connection_unref(conn)
+                            return statList
+
+                        # get value #
+                        dbusObj.dbus_message_iter_get_basic(
+                            varIterP, byref(value))
+                        if value.value:
+                            statList[sname].append(value.value)
+
+                        # next value #
+                        if not dbusObj.dbus_message_iter_next(varIterP):
+                            break
+
+                    # next stat #
+                    if not dbusObj.dbus_message_iter_next(dictIterP):
+                        break
+
+                # next item #
+                if not dbusObj.dbus_message_iter_next(arrayIterP):
+                    break
+
+            return statList
+
         SysMgr.printStat(
-            'start collecting signals for %s bus for %s' % (bus, procStr))
+            'start collecting subscription info for %s bus for %s' % \
+                (bus, procStr))
 
         # array item loop #
         while 1:
@@ -42015,11 +42155,45 @@ class DbusMgr(object):
 
 
     @staticmethod
+    def printStatInfo(tid, statList):
+        conv = UtilMgr.convNum
+        totalSubscription = 0
+        procId = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
+
+        if not statList:
+            SysMgr.printErr('no stat for %s' % procId)
+            return
+
+        # print title #
+        SysMgr.printPipe(
+            '\nD-Bus Stat Info [Target: %s]\n%s' % (procId, twoLine))
+        SysMgr.printPipe(
+            "{0:^32} {1:<16}\n{2:1}".format('Name', 'Value', oneLine))
+
+        # print stats #
+        for name, value in statList.items():
+            if value:
+                value = ' '.join(list(map(conv, value)))
+            else:
+                value = 'N/A'
+
+            SysMgr.printPipe(
+                "{0:<32} {1:>16}".format(name, value))
+
+        SysMgr.printPipe(oneLine)
+
+
+
+    @staticmethod
     def printSignalInfo(tid, perProc, perSig, procInfo):
         conv = UtilMgr.convNum
-
         totalSubscription = 0
-        procId = '%s(%s)' % (SysMgr.getComm(tid), tid)
+        procId = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
+
+        if not perProc and not perSig:
+            SysMgr.printErr(
+                'no subscription info for %s' % procId)
+            return
 
         # create a table for perProc signals #
         nrPerProcSignals = {}
@@ -43087,6 +43261,10 @@ class DbusMgr(object):
                     perProc, perSig = ret
                     DbusMgr.printSignalInfo(
                         tid, perProc, perSig, busProcList)
+                continue
+            elif mode == 'printstat':
+                ret = DbusMgr.getStats(bus, 'stats', procStr=procStr)
+                DbusMgr.printStatInfo(tid, ret)
                 continue
 
             # create a new process #

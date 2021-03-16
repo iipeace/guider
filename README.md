@@ -1223,6 +1223,7 @@ COMMAND:
                     printbind       <Function>
                     printcg         <Cgroup>
                     printdbus       <D-Bus>
+                    printdbusinfo   <D-Bus>
                     printdir        <Dir>
                     printenv        <Env>
                     printinfo       <System>
