@@ -19329,7 +19329,7 @@ Examples:
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} -I "ls"
 
-    - Print all call contexts and target output from a specific binary
+    - Print all call contexts and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
     - Print all call contexts except for wait status for a specific thread
@@ -20085,7 +20085,7 @@ Examples:
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
 
-    - Monitor function calls and target output from a specific binary
+    - Monitor function calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
     - Monitor function calls for specific threads from a specific binary
@@ -20544,6 +20544,9 @@ Examples:
     - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
+    - Trace all write syscalls with specific command and print standard output
+        # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
+
     - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
@@ -20616,6 +20619,9 @@ Examples:
 
     - Trace usercalls for a specific thread in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
+
+    - Trace usercalls for a specific thread and print standard output
+        # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
 
     - Trace usercalls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g a.out -H 10
@@ -20789,6 +20795,9 @@ Examples:
 
     - Trace the SIGINT signal for a specific thread
         # {0:1} {1:1} -g 1234 -c SIGINT
+
+    - Trace the SIGINT signal for a specific thread and print standard output
+        # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
                     '''.format(cmd, mode)
 
                 # mem #
@@ -44463,10 +44472,12 @@ class Debugger(object):
     selfInstance = None
     RETSTR = None
     targetNum = -1
+
     exceptWait = False
     exceptNoSymbol = False
     traceInjection = False
     exceptLD = False
+    noMute = False
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -44885,6 +44896,9 @@ struct cmsghdr {
 
 
 
+        # apply environment variables #
+        self.applyEnviron()
+
         # running #
         self.isRunning = False
         if self.checkPid(pid) >= 0:
@@ -44905,13 +44919,7 @@ struct cmsghdr {
                     sys.exit(0)
         # execute #
         elif self.execCmd:
-            # check mute #
-            if 'NOMUTE' in SysMgr.environList:
-                mute = False
-            else:
-                mute = True
-
-            self.execute(self.execCmd, mute=mute)
+            self.execute(self.execCmd)
             if mode == 'signal':
                 self.attach()
         # ready #
@@ -44935,6 +44943,9 @@ struct cmsghdr {
         if self.pid != SysMgr.pid:
             Debugger.dbgInstance = self
 
+
+
+    def applyEnviron(self):
         # set return time condition #
         self.retTime = 0.1
         if 'ELAPSED' in SysMgr.environList:
@@ -44971,6 +44982,11 @@ struct cmsghdr {
         if not Debugger.exceptLD and \
             'EXCEPTLD' in SysMgr.environList:
             Debugger.exceptLD = True
+
+        # ignore mute #
+        if not Debugger.noMute and \
+            'NOMUTE' in SysMgr.environList:
+            Debugger.noMute = True
 
 
 
@@ -46568,6 +46584,10 @@ struct cmsghdr {
 
 
     def execute(self, execCmd, mute=True):
+        # check mute flag #
+        if Debugger.noMute:
+            mute = False
+
         pid = SysMgr.createProcess()
         if pid == 0:
             self.pid = os.getpid()
