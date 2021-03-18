@@ -30754,27 +30754,41 @@ Copyright:
             finally:
                 netObj.close()
 
+        def _updateNodeList():
+            for addr in list(nodeList.keys()):
+                ret = NetworkMgr.requestPing(addr)
+                if not ret:
+                    nodeList.pop(addr, None)
+
         def _onNew(connObj, value, response):
             try:
                 # reply message #
                 connObj.send('PONG')
 
                 # register node info #
-                nodeList.setdefault(value, connObj)
+                if not value in nodeList or \
+                    nodeList[value]['sock'] != connObj:
+                    nodeList[value] = \
+                        {'sock': connObj, 'time': time.time()}
 
                 SysMgr.printInfo(
                     "registered the service node(%s) successfully" %  value)
 
                 # update service node list #
-                for addr in list(nodeList.keys()):
-                    ret = NetworkMgr.requestPing(value)
-                    if not ret:
-                        nodeList.pop(addr, None)
+                _updateNodeList()
 
                 # print node list #
+                idx = 0
+                current = time.time()
                 listStr = '[Service Node List]\n%s\n' % twoLine
-                for idx, addr in enumerate(list(nodeList.keys())):
-                    listStr += '[%3s] %s\n' % (idx, addr)
+                listStr += '{0:^5} {1:^25} {2:^10}\n{3:1}\n'.format(
+                    'Idx', 'Addr', 'Time', oneLine)
+                for addr, value in sorted(
+                    nodeList.items(), key=lambda e:e[1]['time']):
+                    diff = current - value['time']
+                    listStr += '[{0:>3}] {1:>25} {2:>10}\n'.format(
+                        idx, addr, UtilMgr.convTime(diff))
+                    idx += 1
                 if nodeList:
                     listStr += '%s\n' % oneLine
                 else:
@@ -30918,7 +30932,7 @@ Copyright:
                 ret = NetworkMgr.requestPing(addr)
                 if not ret:
                     try:
-                        nodeList[addr].close()
+                        nodeList[addr]['sock'].close()
                     except:
                         pass
                     finally:
