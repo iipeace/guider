@@ -6257,8 +6257,8 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def requestPing(addr=None):
-        return NetworkMgr.execRemoteCmd("PING:PING", addr=addr)
+    def requestPing(addr=None, verb=True):
+        return NetworkMgr.execRemoteCmd("PING:PING", addr=addr, verb=verb)
 
 
 
@@ -6322,9 +6322,9 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def execRemoteCmd(command, addr=None):
+    def execRemoteCmd(command, addr=None, verb=True):
         # get new connection #
-        connObj = NetworkMgr.getServerConn(addr)
+        connObj = NetworkMgr.getServerConn(addr, verb)
         if not connObj:
             return None
 
@@ -6335,7 +6335,7 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def getServerConn(addr=None):
+    def getServerConn(addr=None, verb=True):
         def _printErr():
             SysMgr.printErr(
                 "no running server or wrong server address")
@@ -6405,7 +6405,7 @@ class NetworkMgr(object):
                 except:
                     SysMgr.printWarn(
                         "fail to connect to %s:%s" % (ip, port),
-                            reason=True, always=True)
+                            reason=True, always=verb)
                     et, err, to = sys.exc_info()
                     if err.args and err.args[0] == 99:
                         time.sleep(0.1)
@@ -6417,8 +6417,9 @@ class NetworkMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr(
-                "fail to set socket for connection", True)
+            if verb:
+                SysMgr.printErr(
+                    "fail to set socket for connection", True)
             return None
 
 
@@ -19793,6 +19794,7 @@ Options:
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <DIR|FILE>              set input path
+    -q  <NAME{:VALUE}>          set environment variables
     -E  <DIR>                   set cache dir path
     -v                          verbose
                     '''
@@ -19804,6 +19806,9 @@ Examples:
 
     - report all analysis result based on guider.dat for a specific thread to ./guider.out
         # {0:1} {1:1} -g 1234 -a
+
+    - report analysis result based on guider.dat to ./guider.out with high time resolution
+        # {0:1} {1:1} -q PRECISE
                     '''.format(cmd, mode)
 
                     helpStr += reportStr
@@ -21844,6 +21849,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -R  <DELAY:COUNT>           set repeat count
     -T  <PROC>                  set process number
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21859,6 +21865,9 @@ Examples:
 
     - Request GET / URL to specific server and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
+
+    - Request GET / URL to specific server and print only summary for requests
+        # {0:1} {1:1} http://127.0.0.1:5000 -q MUTE
 
     - Request POST / URL to specific server
         # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
@@ -30756,9 +30765,32 @@ Copyright:
 
         def _updateNodeList():
             for addr in list(nodeList.keys()):
-                ret = NetworkMgr.requestPing(addr)
+                ret = NetworkMgr.requestPing(addr, verb=False)
                 if not ret:
-                    nodeList.pop(addr, None)
+                    try:
+                        nodeList[addr]['sock'].close()
+                    except:
+                        pass
+                    finally:
+                        nodeList.pop(addr, None)
+
+            # print node list #
+            idx = 0
+            current = time.time()
+            listStr = '[Service Node List]\n%s\n' % twoLine
+            listStr += '{0:^5} {1:^25} {2:^10}\n{3:1}\n'.format(
+                'Idx', 'Addr', 'Time', oneLine)
+            for addr, value in sorted(
+                nodeList.items(), key=lambda e:e[1]['time']):
+                diff = current - value['time']
+                listStr += '[{0:>3}] {1:>25} {2:>10}\n'.format(
+                    idx, addr, UtilMgr.convTime(diff))
+                idx += 1
+            if nodeList:
+                listStr += '%s\n' % oneLine
+            else:
+                listStr += '\tNone\n%s\n' % oneLine
+            SysMgr.printWarn(listStr, True)
 
         def _onNew(connObj, value, response):
             try:
@@ -30776,24 +30808,6 @@ Copyright:
 
                 # update service node list #
                 _updateNodeList()
-
-                # print node list #
-                idx = 0
-                current = time.time()
-                listStr = '[Service Node List]\n%s\n' % twoLine
-                listStr += '{0:^5} {1:^25} {2:^10}\n{3:1}\n'.format(
-                    'Idx', 'Addr', 'Time', oneLine)
-                for addr, value in sorted(
-                    nodeList.items(), key=lambda e:e[1]['time']):
-                    diff = current - value['time']
-                    listStr += '[{0:>3}] {1:>25} {2:>10}\n'.format(
-                        idx, addr, UtilMgr.convTime(diff))
-                    idx += 1
-                if nodeList:
-                    listStr += '%s\n' % oneLine
-                else:
-                    listStr += '\tNone\n%s\n' % oneLine
-                SysMgr.printWarn(listStr, True)
             except:
                 SysMgr.printWarn(
                     'fail to register the service node(%s)' % value,
@@ -30927,17 +30941,6 @@ Copyright:
 
         def _onBroadcast(connObj, value, response):
             cmd = 'run:' + value
-            for addr in list(nodeList.keys()):
-                # check alive #
-                ret = NetworkMgr.requestPing(addr)
-                if not ret:
-                    try:
-                        nodeList[addr]['sock'].close()
-                    except:
-                        pass
-                    finally:
-                        # remove dead node #
-                        nodeList.pop(addr, None)
 
             # reply message #
             if nodeList:
@@ -31113,6 +31116,9 @@ Copyright:
             elif request == 'NEW':
                 requestList[request](connObj, value, None)
                 return False
+            elif request == 'BROADCAST':
+                # update service node list #
+                _updateNodeList()
 
             # build response data #
             response = '%s|%s' % (request, value)
@@ -31400,6 +31406,9 @@ Copyright:
             if not writer:
                 writer = sys.stdout
 
+        # save timestamp for start #
+        start = time.time()
+
         # run parallel commands #
         cmdPipeList = {}
         for idx, uinput in enumerate(cmdList):
@@ -31436,6 +31445,7 @@ Copyright:
         while 1:
             if not cmdPipeList:
                 if cmdList:
+                    SysMgr.printInfo('elapsed %.6f' % (time.time()-start))
                     sys.exit(0)
                 break
 
@@ -34839,7 +34849,8 @@ Copyright:
 
             return obj
 
-        def _request(req, cache, stats, idx, lastReqTime):
+        def _request(
+            req, cache, stats, idx, lastReqTime, verb=False, mute=False):
             cmd = None
             arg = None
             json = None
@@ -35015,9 +35026,11 @@ Copyright:
             # convert sequence #
             idx = UtilMgr.convNum(idx)
 
-            SysMgr.printPipe(
-                "\n%s(%s) <%s> [%.6f] -> %s" % \
-                    (SysMgr.comm, SysMgr.pid, idx, time.time(), reqstr))
+            # print request #
+            if not mute:
+                SysMgr.printPipe(
+                    "\n%s(%s) <%s> [%.6f] -> %s" % \
+                        (SysMgr.comm, SysMgr.pid, idx, time.time(), reqstr))
 
             before = time.time()
             lastReqTime[0] = before
@@ -35037,7 +35050,7 @@ Copyright:
                     headers=headers, files=files)
 
             # print request #
-            if 'PRINTREQ' in SysMgr.environList:
+            if verb:
                 data = res.request.headers
                 data['Body'] = res.request.body
                 data = str(data).replace('\\n', '\n')
@@ -35071,6 +35084,11 @@ Copyright:
             # round elapsd time #
             elapsed = '%.6f' % elapsed
 
+            # check mute flag #
+            if mute:
+                return
+
+            # print response #
             SysMgr.printPipe(
                 '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
                     (SysMgr.comm, SysMgr.pid, idx, after, code,
@@ -35087,6 +35105,18 @@ Copyright:
 
 
             convNum = UtilMgr.convNum
+
+            # set mute flag #
+            if 'MUTE' in SysMgr.environList:
+                mute = True
+            else:
+                mute = False
+
+            # set verb flag #
+            if 'PRINTREQ' in SysMgr.environList:
+                verb = True
+            else:
+                verb = False
 
             # save task stat #
             tobj = SysMgr.initTaskMon(SysMgr.pid)
@@ -35105,7 +35135,8 @@ Copyright:
                             stats['perReqErr'].setdefault(req, 0)
 
                             # do request #
-                            _request(req, cache, stats, idx, lastReqTime)
+                            _request(req, cache, stats,
+                                idx, lastReqTime, verb, mute)
 
                             # make a delay #
                             time.sleep(delay)
@@ -65220,6 +65251,12 @@ class ThreadAnalyzer(object):
                 value['awriteBlock'] = \
                     (value['awriteBlock'] * SysMgr.pageSize) >> 20
 
+        # set precise flag #
+        if 'PRECISE' in SysMgr.environList:
+            precise = True
+        else:
+            precise = False
+
         # print total information after sorting by CPU usage #
         count = long(0)
         SysMgr.clearPrint()
@@ -65260,16 +65297,28 @@ class ThreadAnalyzer(object):
                 value['offTime'] += float(self.finishTime) - value['lastOff']
 
             if SysMgr.powerEnable:
-                offTime = '%5.2f' % value['offTime']
+                if precise:
+                    offTime = '%5.6f' % value['offTime']
+                else:
+                    offTime = '%5.2f' % value['offTime']
                 offCnt = str(value['offCnt'])
             else:
                 offTime = '-'
                 offCnt = '-'
 
             if SysMgr.cpuEnable:
-                cpuTime = '%5.2f' % (self.totalTime - value['usage'])
+                if precise:
+                    cpuTime = '%5.6f' % (self.totalTime - value['usage'])
+                else:
+                    cpuTime = '%5.2f' % (self.totalTime - value['usage'])
+
                 cpuPer = '%5.1f' % usagePercent
-                schedLatency = '%5.2f' % value['schedLatency']
+
+                if precise:
+                    schedLatency = '%5.6f' % value['schedLatency']
+                else:
+                    schedLatency = '%5.2f' % value['schedLatency']
+
                 yieldCnt = '%5s' % convertFunc(value['yield'])
                 preemptedCnt = '%5s' % convertFunc(value['preempted'])
                 preemptionCnt = '%5s' % convertFunc(value['preemption'])
@@ -65284,15 +65333,24 @@ class ThreadAnalyzer(object):
                 migrateCnt = '-'
 
             if SysMgr.irqEnable:
-                irqTime = '%5.2f' % value['irq']
+                if precise:
+                    irqTime = '%5.6f' % value['irq']
+                else:
+                    irqTime = '%5.2f' % value['irq']
             else:
                 irqTime = '-'
 
             if SysMgr.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
+                if precise:
+                    ioRdWait = '%5.6f' % value['ioRdWait']
+                else:
+                    ioRdWait = '%5.2f' % value['ioRdWait']
                 readBlock = '%3d' % value['readBlock']
                 readBlockCnt = '%4d' % value['readBlockCnt']
-                ioWrWait = '%5.2f' % value['ioWrWait']
+                if precise:
+                    ioWrWait = '%5.6f' % value['ioWrWait']
+                else:
+                    ioWrWait = '%5.2f' % value['ioWrWait']
                 writeBlock = '%3d' % \
                     (value['writeBlock'] + value['awriteBlock'])
             else:
@@ -65312,7 +65370,10 @@ class ThreadAnalyzer(object):
                     (value['remainKmem'] >> 20))
                 reclaimedMem = '%3d' % (value['reclaimedPages'] >> 8)
                 wastedMem = '%3d' % (value['wasteKmem'] >> 20)
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                if precise:
+                    dreclaimedTime = '%4.6f' % value['dReclaimWait']
+                else:
+                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
                 dreclaimedCnt = '%2d' % value['dReclaimCnt']
             else:
                 usedMem = '-'
@@ -65421,15 +65482,24 @@ class ThreadAnalyzer(object):
                 break
 
             if SysMgr.cpuEnable:
-                cpuTime = '%5.2f' % value['usage']
+                if precise:
+                    cpuTime = '%5.6f' % value['usage']
+                else:
+                    cpuTime = '%5.2f' % value['usage']
                 totalCpuTime += value['usage']
 
                 cpuPer = '%5.1f' % usagePercent
 
-                prtTime = '%5.2f' % value['cpuWait']
+                if precise:
+                    prtTime = '%5.6f' % value['cpuWait']
+                else:
+                    prtTime = '%5.2f' % value['cpuWait']
                 totalPrtTime += value['cpuWait']
 
-                schedLatency = '%5.2f' % value['schedLatency']
+                if precise:
+                    schedLatency = '%5.6f' % value['schedLatency']
+                else:
+                    schedLatency = '%5.2f' % value['schedLatency']
                 totalSchedLatency += value['schedLatency']
 
                 pri = value['pri']
@@ -65466,14 +65536,20 @@ class ThreadAnalyzer(object):
                 totalMigrateCnt = '-'
 
             if SysMgr.irqEnable:
-                irqTime = '%5.2f' % value['irq']
+                if precise:
+                    irqTime = '%5.6f' % value['irq']
+                else:
+                    irqTime = '%5.2f' % value['irq']
                 totalIrqTime += value['irq']
             else:
                 irqTime = '-'
                 totalIrqTime = '-'
 
             if SysMgr.blockEnable:
-                ioRdWait = '%5.2f' % value['ioRdWait']
+                if precise:
+                    ioRdWait = '%5.6f' % value['ioRdWait']
+                else:
+                    ioRdWait = '%5.2f' % value['ioRdWait']
                 totalIoRdWait += value['ioRdWait']
 
                 readBlock = '%3d' % value['readBlock']
@@ -65482,7 +65558,10 @@ class ThreadAnalyzer(object):
                 readBlockCnt = '%4d' % value['readBlockCnt']
                 totalReadBlockCnt += value['readBlockCnt']
 
-                ioWrWait = '%5.2f' % value['ioWrWait']
+                if precise:
+                    ioWrWait = '%5.6f' % value['ioWrWait']
+                else:
+                    ioWrWait = '%5.2f' % value['ioWrWait']
                 totalIoWrWait += value['ioWrWait']
 
                 writeBlock = '%3d' % \
@@ -65524,7 +65603,10 @@ class ThreadAnalyzer(object):
                 wastedMem = '%3d' % (value['wasteKmem'] >> 20)
                 totalWastedMem += (value['wasteKmem'] >> 20)
 
-                dreclaimedTime = '%4.2f' % value['dReclaimWait']
+                if precise:
+                    dreclaimedTime = '%4.6f' % value['dReclaimWait']
+                else:
+                    dreclaimedTime = '%4.2f' % value['dReclaimWait']
                 totalDreclaimedTime += value['dReclaimWait']
 
                 dreclaimedCnt = '%2d' % value['dReclaimCnt']
@@ -65606,9 +65688,14 @@ class ThreadAnalyzer(object):
         try:
             totalCpuPer = \
                 '%5.1f' % (totalCpuTime / float(self.totalTime) * 100)
-            totalCpuTime = '%5.2f' % totalCpuTime
-            totalPrtTime = '%5.2f' % totalPrtTime
-            totalSchedLatency = '%5.2f' % totalSchedLatency
+            if precise:
+                totalCpuTime = '%5.6f' % totalCpuTime
+                totalPrtTime = '%5.6f' % totalPrtTime
+                totalSchedLatency = '%5.6f' % totalSchedLatency
+            else:
+                totalCpuTime = '%5.2f' % totalCpuTime
+                totalPrtTime = '%5.2f' % totalPrtTime
+                totalSchedLatency = '%5.2f' % totalSchedLatency
             totalYieldCnt = '%5s' % convertFunc(totalYieldCnt)
             totalPreemptedCnt = '%5s' % convertFunc(totalPreemptedCnt)
             totalPreemptionCnt = '%5s' % convertFunc(totalPreemptionCnt)
@@ -65617,15 +65704,24 @@ class ThreadAnalyzer(object):
             pass
 
         try:
-            totalIrqTime = '%5.2f' % totalIrqTime
+            if precise:
+                totalIrqTime = '%5.6f' % totalIrqTime
+            else:
+                totalIrqTime = '%5.2f' % totalIrqTime
         except:
             pass
 
         try:
-            totalIoRdWait = '%5.2f' % totalIoRdWait
+            if precise:
+                totalIoRdWait = '%5.6f' % totalIoRdWait
+            else:
+                totalIoRdWait = '%5.2f' % totalIoRdWait
             totalReadBlock = '%3d' % totalReadBlock
             totalReadBlockCnt = '%4d' % totalReadBlockCnt
-            totalIoWrWait = '%5.2f' % totalIoWrWait
+            if precise:
+                totalIoWrWait = '%5.6f' % totalIoWrWait
+            else:
+                totalIoWrWait = '%5.2f' % totalIoWrWait
             totalWriteBlock = '%3d' % totalWriteBlock
         except:
             pass
@@ -65637,8 +65733,11 @@ class ThreadAnalyzer(object):
             totalKernelMem = '%3d' % totalKernelMem
             totalReclaimedMem = '%3d' % totalReclaimedMem
             totalWastedMem = '%3d' % totalWastedMem
-            totalDreclaimedTime = '%4.2f' % totalDreclaimedTime
             totalDreclaimedCnt = '%2d' % totalDreclaimedCnt
+            if precise:
+                totalDreclaimedTime = '%4.6f' % totalDreclaimedTime
+            else:
+                totalDreclaimedTime = '%4.2f' % totalDreclaimedTime
         except:
             pass
 
@@ -65700,11 +65799,18 @@ class ThreadAnalyzer(object):
                 if float(stats[4]) == 0:
                     break
 
-                SysMgr.addPrint("%16s(%6s/%6s)|%s%s|%5.2f(%5s)\n"
-                    % (self.threadData[key]['comm'], key, '0',
-                    self.threadData[key]['new'],
-                    self.threadData[key]['die'], value['usage'],
-                    '%.2f' % (value['usage'] / stats[4] * 100)))
+                if precise:
+                    SysMgr.addPrint("%16s(%6s/%6s)|%s%s|%5.2f(%5s)\n"
+                        % (self.threadData[key]['comm'], key, '0',
+                        self.threadData[key]['new'],
+                        self.threadData[key]['die'], value['usage'],
+                        '%.2f' % (value['usage'] / stats[4] * 100)))
+                else:
+                    SysMgr.addPrint("%16s(%6s/%6s)|%s%s|%5.6f(%5s)\n"
+                        % (self.threadData[key]['comm'], key, '0',
+                        self.threadData[key]['new'],
+                        self.threadData[key]['die'], value['usage'],
+                        '%.6f' % (value['usage'] / stats[4] * 100)))
 
             SysMgr.printPipe(
                 "# %s: Target> %s(%s) / Total> %6.3f / Competitors> %d\n" % \
