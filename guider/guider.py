@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210316"
+__revision__ = "210318"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -34,11 +34,17 @@ except ImportError:
     print("[ERROR] fail to import essential packages: %s" % err.args[0])
     sys.exit(0)
 
-# convert types not supported #
+# to convert an unsupported type #
 try:
     long
 except:
     long = int
+
+# to prevent MemoryError in python2 #
+try:
+    xrange
+except:
+    xrange = range
 
 
 
@@ -17499,6 +17505,9 @@ class SysMgr(object):
             if SysMgr.jsonEnable:
                 jsonData = {'seq': seq, 'success': dict(), 'fail': dict()}
 
+            timeoutstr = ''
+            timeoutlinestr = ''
+
             # print results #
             for attr in sorted(sockInfo.values(), key=lambda x:x[3]):
                 name = attr[1]
@@ -17513,10 +17522,11 @@ class SysMgr(object):
                         jsonData['success'][name]['time'] = delay
                         continue
 
-                    delaystr = UtilMgr.convColor('%.3f' % delay, 'GREEN')
+                    name = UtilMgr.convColor(name, 'GREEN', 15, 'left')
+                    delaystr = UtilMgr.convColor('%.3f' % delay, 'YELLOW')
 
                     SysMgr.printPipe(
-                        '%selapsed %s ms for %s' % (seqstr, delaystr, name))
+                        '%s%s: %s ms' % (seqstr, name, delaystr))
                 # timeout #
                 else:
                     if SysMgr.jsonEnable:
@@ -17524,20 +17534,26 @@ class SysMgr(object):
                         jsonData['fail'][name]['time'] = timeout
                         continue
 
-                    timeoutstr = '%f' % timeout
-                    timeoutstr = timeoutstr.rstrip('0')
-                    if timeoutstr.endswith('.'):
-                        timeoutstr = timeoutstr[:-1]
+                    name = UtilMgr.convColor(name, 'RED', 15, 'left')
 
-                    name = UtilMgr.convColor(name, 'RED')
-
-                    SysMgr.printPipe(
-                        '%stimed out for waiting for %s for %s sec' % \
-                            (seqstr, name, timeoutstr))
+                    if len(timeoutlinestr) + len(name) >= SysMgr.ttyCols:
+                        timeoutstr = '%s %s\n' % \
+                            (timeoutstr, timeoutlinestr.lstrip())
+                        timeoutlinestr = name
+                    else:
+                        timeoutlinestr = '%s %s' % (timeoutlinestr, name)
 
             # print results in JSON format #
             if SysMgr.jsonEnable:
                 SysMgr.printPipe(UtilMgr.convDict2Str(jsonData))
+            elif timeoutlinestr:
+                timeoutstr = '%s %s\n' % \
+                    (timeoutstr, timeoutlinestr.lstrip())
+
+            # print timeout info #
+            if timeoutstr:
+                SysMgr.printPipe(
+                    '%stimeout:\n%s' % (seqstr, timeoutstr))
 
 
 
@@ -17583,7 +17599,7 @@ class SysMgr(object):
             else:
                 count = SysMgr.repeatInterval
         SysMgr.printInfo(
-            'set repeat count to %s' % count)
+            'set repeat count to %s' % UtilMgr.convNum(count))
 
         # set timeout #
         if not timeout:
@@ -17603,7 +17619,7 @@ class SysMgr(object):
         try:
             interval = float(interval)
         except:
-            interval = 0
+            interval = 1
 
         # print timeout info #
         timeoutstr = '%f' % timeout
@@ -17614,7 +17630,7 @@ class SysMgr(object):
             'set timeout to %s sec\n' % timeoutstr)
 
         # ping #
-        for seq in range(0, count):
+        for seq in xrange(0, count):
             try:
                 _doPing(urlList, timeout, seq=seq)
                 time.sleep(interval)
@@ -21488,12 +21504,16 @@ Options:
     -I  <COMMAND>               set commands
     -c  <VARIABLE>              set variables
     -q  <NAME{{:VALUE}}>          set environment variables
+    -u                          run in the background
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
     - Execute a command
         # {0:1} {1:1} -I "ls -lha"
+
+    - Execute a command in background
+        # {0:1} {1:1} -I "ls -lha" -u
 
     - Execute commands with range variables
         # {0:1} {1:1} -I "touch FILE" -c FILE:1:100:0.1
