@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210318"
+__revision__ = "210320"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4798,10 +4798,9 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def writeFlamegraph(path):
+    def writeFlamegraph(path, samples):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
-        flameCode = '''
-<?xml version="1.0" standalone="no"?>
+        flameCode = '''<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="1200" height="230" onload="init(evt)" viewBox="0 0 1200 230"
         xmlns="http://www.w3.org/2000/svg"
@@ -5435,8 +5434,28 @@ function format_percent(n) {
                         <text x="96.2366%" y="174.50">addP..</text>
                 </g>
         </svg>
-</svg>
-        '''
+</svg>'''
+
+        # write flamegraph to file #
+        try:
+            with open(path, 'w') as fd:
+                fd.write(flameCode)
+
+            # get output size #
+            fsize = UtilMgr.getFileSize(path)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
+
+            SysMgr.printInfo(
+                "saved flamegraph into '%s'%s successfully" % (path, fsize))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to write flamegraph to %s' % path, True)
+            sys.exit(0)
 
 
 
@@ -15759,6 +15778,7 @@ class SysMgr(object):
     syslogFd = None
 
     # flags #
+    realtimeEnable = None
     fixTargetEnable = False
     irqEnable = False
     cpuEnable = True
@@ -26363,7 +26383,7 @@ Copyright:
                 LogMgr.doLogJournal(msg=line)
 
         # socket output #
-        if line and len(SysMgr.addrListForPrint) > 0:
+        if SysMgr.addrListForPrint and line:
             addrListForPrint = dict(SysMgr.addrListForPrint)
             for addr, cli in addrListForPrint.items():
                 udpSeg = 65507 # maxium UDP diagram size
@@ -26391,7 +26411,7 @@ Copyright:
                     start = end
                     end += udpSeg
 
-        # check print status #
+        # check print flag #
         if not SysMgr.printEnable:
             return
 
@@ -28218,6 +28238,11 @@ Copyright:
 
     @staticmethod
     def isTopMode():
+        if SysMgr.realtimeEnable:
+            return True
+        elif SysMgr.realtimeEnable is False:
+            return False
+
         if SysMgr.checkMode('top') or \
             SysMgr.checkMode('ttop') or \
             SysMgr.checkMode('utop') or \
@@ -28238,17 +28263,17 @@ Copyright:
             SysMgr.checkMode('cgtop') or \
             SysMgr.checkMode('dbustop') or \
             SysMgr.checkMode('disktop'):
+            SysMgr.realtimeEnable = True
             return True
         else:
+            SysMgr.realtimeEnable = False
             return False
 
 
 
     @staticmethod
     def isTraceMode():
-        if len(sys.argv) > 1 and sys.argv[1] == 'trace':
-            return True
-        elif SysMgr.checkMode('strace') or \
+        if SysMgr.checkMode('strace') or \
             SysMgr.checkMode('utrace') or \
             SysMgr.checkMode('btrace') or \
             SysMgr.checkMode('remote') or \
@@ -28290,8 +28315,7 @@ Copyright:
             SysMgr.runClientMode()
 
         # START / STOP MODE #
-        elif SysMgr.checkMode('start') or \
-            SysMgr.checkMode('stop'):
+        elif SysMgr.checkMode('start') or SysMgr.checkMode('stop'):
             # make list of arguments #
             if len(sys.argv) > 2:
                 argList = sys.argv[2:]
@@ -49041,7 +49065,7 @@ struct cmsghdr {
         if not ret:
             _finishPrint()
 
-        cnt = long(0)
+        totalCnt = long(0)
         isBtPrinted = False
         for sym, value in sorted(self.callTable.items(),
             key=lambda x:x[1]['cnt'], reverse=True):
@@ -49056,7 +49080,7 @@ struct cmsghdr {
             except:
                 break
 
-            # stat #
+            # get stat #
             if self.mode == 'syscall':
                 try:
                     total, tmax = self.syscallStat[sym]
@@ -49092,7 +49116,7 @@ struct cmsghdr {
             if not ret:
                 break
 
-            cnt += 1
+            totalCnt += 1
 
             # backtrace #
             if value['backtrace']:
@@ -49121,8 +49145,8 @@ struct cmsghdr {
                         return
 
                     ret = SysMgr.addPrint(
-                        '{0:>17} | {1:<1}\n'.format(
-                            '%.1f%%' % bper, bt), newline=nline)
+                        '{0:>17} | {1:<1} <Cnt: {2:1}>\n'.format(
+                            '%.1f%%' % bper, bt, convert(cnt)), newline=nline)
                     if not ret:
                         break
 
@@ -49132,7 +49156,7 @@ struct cmsghdr {
                 if not ret:
                     break
 
-        if cnt == 0:
+        if totalCnt == 0:
             SysMgr.addPrint('\tNone\n')
 
         if not isBtPrinted:
@@ -52653,8 +52677,8 @@ struct cmsghdr {
                         'do sampling every %g second' % self.sampleTime)
 
             # set default interval #
-            if not SysMgr.findOption('R') or \
-                not SysMgr.intervalEnable:
+            if not SysMgr.findOption('R') and \
+                SysMgr.intervalEnable == 0:
                 SysMgr.intervalEnable = 1
         else:
             # set timer handler #
@@ -52907,7 +52931,12 @@ struct cmsghdr {
         if not SysMgr.outPath:
             return
 
-        instance.last = time.time()
+        # summarize samples after last tick #
+        if SysMgr.repeatCount == 0 or \
+            SysMgr.progressCnt < SysMgr.repeatCount:
+            instance.printIntervalSummary()
+        else:
+            instance.last = time.time()
 
         callTable = dict()
         fileTable = dict()
@@ -53085,7 +53114,8 @@ struct cmsghdr {
 
                 addVal = '%s>' % addVal
             else:
-                addVal = '[%s]' % value['path']
+                addVal = '[%s] <Cnt: %s>' % \
+                    (value['path'], convert(value['cnt']))
 
             SysMgr.printPipe(
                 '{0:>7} | {1:<144}{2:1}'.format(
@@ -53098,7 +53128,8 @@ struct cmsghdr {
 
                     bper = btcnt / float(value['cnt']) * 100
                     ret = SysMgr.printPipe(
-                        '{0:>17} | {1:<1}'.format('%.1f%%' % bper, bt))
+                        '{0:>17} | {1:<1} <Cnt: {2:1}>'.format(
+                            '%.1f%%' % bper, bt, convert(btcnt)))
 
             cnt += 1
 
@@ -60796,7 +60827,7 @@ class ThreadAnalyzer(object):
                 if SysMgr.elasticEnable:
                     # report system status for elastic stack
                     self.reportSystemStatElastic()
-                else:
+                elif SysMgr.reportEnable:
                     # report system status #
                     self.reportSystemStat()
 
@@ -79177,9 +79208,6 @@ class ThreadAnalyzer(object):
 
 
     def reportSystemStat(self):
-        if not SysMgr.reportEnable:
-            return
-
         # initialize report event list #
         '''
         CPU
@@ -79198,99 +79226,100 @@ class ThreadAnalyzer(object):
             self.reportData['event']['IMAGE_CREATED'] = SysMgr.imagePath
             SysMgr.imagePath = None
 
-        # add CPU status #
-        if SysMgr.rankProcEnable and 'cpu' in self.reportData:
-            rank = 1
-            self.reportData['cpu']['procs'] = {}
-            sortedProcData = sorted(self.procData.items(),
-                key=lambda e: e[1]['ttime'], reverse=True)
+        if SysMgr.rankProcEnable:
+            # add CPU status #
+            if 'cpu' in self.reportData:
+                rank = 1
+                self.reportData['cpu']['procs'] = {}
+                sortedProcData = sorted(self.procData.items(),
+                    key=lambda e: e[1]['ttime'], reverse=True)
 
-            for pid, data in sortedProcData:
-                if not (SysMgr.showAll or data['ttime'] > 0):
-                    break
+                for pid, data in sortedProcData:
+                    if not (SysMgr.showAll or data['ttime'] > 0):
+                        break
 
-                evtdata = self.reportData['cpu']['procs']
+                    evtdata = self.reportData['cpu']['procs']
 
-                pid = long(pid)
-                evtdata[rank] = {}
-                evtdata[rank]['pid'] = pid
-                evtdata[rank]['rank'] = rank
-                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                evtdata[rank]['total'] = data['ttime']
-                evtdata[rank]['user'] = data['utime']
-                evtdata[rank]['kernel'] = data['stime']
-                evtdata[rank]['runtime'] = \
-                    UtilMgr.convTime(data['runtime'])
+                    pid = long(pid)
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['total'] = data['ttime']
+                    evtdata[rank]['user'] = data['utime']
+                    evtdata[rank]['kernel'] = data['stime']
+                    evtdata[rank]['runtime'] = \
+                        UtilMgr.convTime(data['runtime'])
 
-                rank += 1
+                    rank += 1
 
-        # add memory & swap status #
-        if SysMgr.rankProcEnable and 'mem' in self.reportData:
-            rank = 1
-            self.reportData['mem']['procs'] = {}
-            sortedProcData = sorted(self.procData.items(),
-                key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
+            # add memory & swap status #
+            if 'mem' in self.reportData:
+                rank = 1
+                self.reportData['mem']['procs'] = {}
+                sortedProcData = sorted(self.procData.items(),
+                    key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
 
-            for pid, data in sortedProcData:
-                rss = long(data['stat'][self.rssIdx]) >> 8
+                for pid, data in sortedProcData:
+                    rss = long(data['stat'][self.rssIdx]) >> 8
 
-                if not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
-                    break
+                    if not (SysMgr.showAll or rank <= SysMgr.nrTopRank):
+                        break
 
-                text = (long(data['stat'][self.ecodeIdx]) - \
-                    long(data['stat'][self.scodeIdx])) >> 20
+                    text = (long(data['stat'][self.ecodeIdx]) - \
+                        long(data['stat'][self.scodeIdx])) >> 20
 
-                evtdata = self.reportData['mem']['procs']
+                    evtdata = self.reportData['mem']['procs']
 
-                pid = long(pid)
-                evtdata[rank] = {}
-                evtdata[rank]['pid'] = pid
-                evtdata[rank]['rank'] = rank
-                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                evtdata[rank]['rss'] = rss
-                evtdata[rank]['text'] = text
-                evtdata[rank]['runtime'] = \
-                    UtilMgr.convTime(data['runtime'])
+                    pid = long(pid)
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = pid
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['rss'] = rss
+                    evtdata[rank]['text'] = text
+                    evtdata[rank]['runtime'] = \
+                        UtilMgr.convTime(data['runtime'])
 
-                # swap #
-                try:
-                    self.reportData['mem']['procs'][pid]['swap'] = \
-                        long(data['status']['VmSwap'].split()[0]) >> 10
-                except:
-                    pass
+                    # swap #
+                    try:
+                        self.reportData['mem']['procs'][pid]['swap'] = \
+                            long(data['status']['VmSwap'].split()[0]) >> 10
+                    except:
+                        pass
 
-                # shared #
-                try:
-                    self.reportData['mem']['procs'][pid]['shared'] = \
-                        long(data['statm'][self.shrIdx]) >> 8
-                except:
-                    pass
+                    # shared #
+                    try:
+                        self.reportData['mem']['procs'][pid]['shared'] = \
+                            long(data['statm'][self.shrIdx]) >> 8
+                    except:
+                        pass
 
-                rank += 1
+                    rank += 1
 
-        # add block status #
-        if SysMgr.rankProcEnable and 'block' in self.reportData:
-            rank = 1
-            self.reportData['block']['procs'] = {}
-            sortedProcData = sorted(self.procData.items(),
-                key=lambda e: e[1]['btime'], reverse=True)
+            # add block status #
+            if 'block' in self.reportData:
+                rank = 1
+                self.reportData['block']['procs'] = {}
+                sortedProcData = sorted(self.procData.items(),
+                    key=lambda e: e[1]['btime'], reverse=True)
 
-            for pid, data in sortedProcData:
-                if data['btime'] == 0:
-                    break
+                for pid, data in sortedProcData:
+                    if data['btime'] == 0:
+                        break
 
-                evtdata = self.reportData['block']['procs']
+                    evtdata = self.reportData['block']['procs']
 
-                pid = long(pid)
-                evtdata[rank] = {}
-                evtdata[rank]['pid'] = long(pid)
-                evtdata[rank]['rank'] = rank
-                evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
-                evtdata[rank]['iowait'] = data['btime']
-                evtdata[rank]['runtime'] = \
-                    UtilMgr.convTime(data['runtime'])
+                    pid = long(pid)
+                    evtdata[rank] = {}
+                    evtdata[rank]['pid'] = long(pid)
+                    evtdata[rank]['rank'] = rank
+                    evtdata[rank]['comm'] = data['stat'][self.commIdx][1:-1]
+                    evtdata[rank]['iowait'] = data['btime']
+                    evtdata[rank]['runtime'] = \
+                        UtilMgr.convTime(data['runtime'])
 
-                rank += 1
+                    rank += 1
 
         # check resource threshold #
         self.checkResourceThreshold()
