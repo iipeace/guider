@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210320"
+__revision__ = "210322"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5935,6 +5935,10 @@ class NetworkMgr(object):
                 sender.close()
                 return res
 
+        def _onList(req):
+            SysMgr.printInfo(req.lstrip('LIST:'))
+            return True
+
         def _onRun(req, onlySocket):
             # parse command #
             command = req.split('|', 1)[1]
@@ -5992,7 +5996,7 @@ class NetworkMgr(object):
 
 
 
-        # get select object to check #
+        # get select object to check reply #
         SysMgr.getPkg('select')
 
         # unmarshalling #
@@ -6017,6 +6021,9 @@ class NetworkMgr(object):
 
             elif reqUpper.startswith('RUN'):
                 return _onRun(req, onlySocket)
+
+            elif reqUpper.startswith('LIST:'):
+                return _onList(req)
 
             elif reqUpper.startswith('ERROR'):
                 err = req.split('|', 1)[1]
@@ -6294,10 +6301,12 @@ class NetworkMgr(object):
             'BROADCAST': None,
             'NEW': None,
             'PING': None,
+            'LIST': None,
         }
 
         # add command prefix #
-        if cmd.upper().split(':')[0] in requestList:
+        reqList = cmd.upper().split(':')
+        if reqList[0] in requestList:
             pass
         elif not cmd.startswith('run:'):
             cmd = 'run:%s' % cmd
@@ -6329,6 +6338,8 @@ class NetworkMgr(object):
 
                 # wait for a request again #
                 reply = connObj.recvfrom()
+            elif msg.startswith('LIST:'):
+                reply = (msg,)
         except:
             pass
 
@@ -22405,12 +22416,22 @@ Examples:
         # {0:1} {1:1}
 
     - Download a.out from server to ./a.out
+        # {0:1} {1:1} -c d:a.out@./a.out
         # {0:1} {1:1} -c download:a.out@./a.out
         # {0:1} {1:1} -c download:a.out
 
     - Upload ./a.out to a.out in server
+        # {0:1} {1:1} -c u:./a.out@a.out
         # {0:1} {1:1} -c upload:./a.out@a.out
         # {0:1} {1:1} -c upload:./a.out
+
+    - Ping to the server
+        # {0:1} {1:1} -c "p"
+        # {0:1} {1:1} -c "ping"
+
+    - Print node list registered in server
+        # {0:1} {1:1} -c "l"
+        # {0:1} {1:1} -c "list"
 
     - Execute remote commands in parallel
         # {0:1} {1:1} -c "ls -lha", "date"
@@ -22418,6 +22439,7 @@ Examples:
 
     - Execute remote command by service nodes
         # {0:1} {1:1} -c "b:ls -lha"
+        # {0:1} {1:1} -c "broadcast:ls -lha"
 
     - Execute a remote command with no timeout
         # {0:1} {1:1} -c "ls -lha" -q NOTIMEOUT
@@ -30787,7 +30809,7 @@ Copyright:
             finally:
                 netObj.close()
 
-        def _updateNodeList():
+        def _updateNodeList(ret=False):
             for addr in list(nodeList.keys()):
                 ret = NetworkMgr.requestPing(addr, verb=False)
                 if not ret:
@@ -30816,6 +30838,9 @@ Copyright:
                 listStr += '\tNone\n%s\n' % oneLine
             SysMgr.printWarn(listStr, True)
 
+            if ret:
+                return listStr
+
         def _onNew(connObj, value, response):
             try:
                 # reply message #
@@ -30836,6 +30861,14 @@ Copyright:
                 SysMgr.printWarn(
                     'fail to register the service node(%s)' % value,
                     reason=True)
+
+        def _onList(connObj, value, response):
+            try:
+                # update service node list #
+                ret = _updateNodeList(ret=True)
+                connObj.send('LIST:' + ret.strip())
+            except:
+                pass
 
         def _onPing(connObj, value, response):
             try:
@@ -31109,12 +31142,7 @@ Copyright:
                 request, value = message.split(':', 1)
             except:
                 request = value = None
-
-            # handle request #
-            if not request:
-                SysMgr.printWarn(
-                    'fail to recognize the request', True)
-                return False
+                request = message
 
             # convert request to capital #
             request = request.upper()
@@ -31127,6 +31155,7 @@ Copyright:
                 'BROADCAST': _onBroadcast,
                 'NEW': _onNew,
                 'PING': _onPing,
+                'LIST': _onList,
             }
 
             # check request type #
@@ -31260,8 +31289,9 @@ Copyright:
                 '- UPLOAD:LocalPath@RemotePath\n'
                 '- RUN:Command\n'
                 '- BROADCAST:Command\n'
-                '- HISTORY\n'
                 '- PING\n'
+                '- LIST\n'
+                '- HISTORY\n'
                 '- QUIT\n'
                 '\n'
             )
@@ -31313,6 +31343,8 @@ Copyright:
                 uinput = 'history'
             elif uinputUpper == 'P':
                 uinput = 'ping'
+            elif uinputUpper == 'L':
+                uinput = 'list'
             elif uinputUpper == 'Q':
                 uinput = 'quit'
 
@@ -31331,6 +31363,12 @@ Copyright:
                 signal.signal(signal.SIGALRM, SysMgr.onAlarmExit)
                 SysMgr.intervalEnable = 1
                 SysMgr.repeatCount = sys.maxsize
+
+            # check short command #
+            uinputUpper = uinput.upper()
+            if uinputUpper.startswith('PING'):
+                _doPing(uinput)
+                return
 
             # launch remote command #
             pipe = NetworkMgr.execRemoteCmd(uinput, addr)
@@ -48831,6 +48869,93 @@ struct cmsghdr {
             return value
 
         return value
+
+
+
+    @staticmethod
+    def getCallStatsFile(logFile):
+        # get file handle #
+        try:
+            fd = UtilMgr.getTextLines(logFile, retfd=True)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr("fail to read %s\n" % logFile)
+            sys.exit(0)
+
+        stack = ''
+        main = ''
+        mainCnt = 0
+        context = None
+        samples = {}
+
+        for line in fd:
+            # get start keyword #
+            if line.startswith('[Top '):
+                if not ' Summary]' in line or context:
+                    return samples
+
+                context = 'start'
+                continue
+            elif context is None:
+                continue
+
+            # split line #
+            sline = line.split('|')
+            slen = len(sline)
+
+            if slen == 2:
+                per = sline[0].strip()
+                if not per[0].isdigit():
+                    continue
+
+                string = sline[1].lstrip()
+                # backtraces #
+                if string.startswith('<-'):
+                    # parse backtraces #
+                    last = string.split('<Cnt: ')
+                    if not stack:
+                        stack = main
+                    if len(last) == 2:
+                        stack = '%s %s' % (stack, last[0].strip())
+                        count = long(last[1].strip().replace(',', '')[:-1])
+                        samples.setdefault(stack, 0)
+                        samples[stack] += count
+                        stack = ''
+                    else:
+                        stack = '%s %s' % (stack, last[0].strip())
+                # PC #
+                else:
+                    # no backtrace call #
+                    if stack:
+                        samples.setdefault(stack, 0)
+                        samples[stack] += mainCnt
+
+                    last = string.split('<Cnt: ')
+                    stack = last[0].strip()
+                    mainCnt = long(last[1].strip().replace(',', '')[:-1])
+                    main = stack
+
+            elif line.lstrip().startswith('<-'):
+                # parse backtraces #
+                last = line.split('<Cnt: ')
+                if len(last) == 2:
+                    stack = '%s %s' % (stack, last[0].strip())
+                    count = long(last[1].strip().replace(',', '')[:-1])
+                    samples.setdefault(stack, 0)
+                    samples[stack] += count
+                    stack = ''
+                else:
+                    stack = '%s %s' % (stack, last[0].strip())
+
+            else:
+                # no backtrace call #
+                if stack:
+                    samples.setdefault(stack, 0)
+                    samples[stack] += mainCnt
+                    stack = ''
+
+        return samples
 
 
 
