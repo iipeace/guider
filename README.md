@@ -1050,7 +1050,10 @@ Output
 ![guider-graph](https://user-images.githubusercontent.com/15862689/67160607-9b1fc680-f38d-11e9-988e-5d90729d983e.png)
 ![guider-chart](https://user-images.githubusercontent.com/15862689/67160609-9bb85d00-f38d-11e9-9280-9ab649bb56b1.png)
 ![guider-web-dashboard](https://user-images.githubusercontent.com/15862689/67160178-0024ed80-f389-11e9-9a09-6a8eb96e2785.png)
-![guider-web-commandtab](https://user-images.githubusercontent.com/15862689/67160180-03b87480-f389-11e9-8a91-033f74d103dc.png)
+![guider-timeline](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_timeline.png)
+![guider-flamegraph](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_flamegraph.png)
+![guider-average](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawavg.svg)
+![guider-request](https://github.com/iipeace/iipeace.github.io/blob/master/samples/guider_drawreq.svg)
 
 How to use
 =======
@@ -1220,10 +1223,10 @@ COMMAND:
                     mkcache         <Cache>
                     pause           <Thread>
                     ping            <PING>
-                    printbind       <Function>
+                    printbind       <Funcion>
                     printcg         <Cgroup>
                     printdbus       <D-Bus>
-                    printdbusinfo   <D-Bus>
+                    printdbusinfo    <D-Bus>
                     printdir        <Dir>
                     printenv        <Env>
                     printinfo       <System>
@@ -1251,6 +1254,7 @@ COMMAND:
                     drawcpu         <CPU>
                     drawcpuavg      <CPU>
                     drawdelay       <Delay>
+                    drawflame       <Function>
                     drawio          <I/O>
                     drawleak        <Leak>
                     drawmem         <Memory>

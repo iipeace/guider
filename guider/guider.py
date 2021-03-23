@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.7"
-__revision__ = "210322"
+__revision__ = "210323"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3573,6 +3573,21 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def convHtmlChar(string):
+        chars = {
+            '<': '&lt;',
+            '>': '&gt;',
+            '&': '&amp;',
+        }
+
+        for key, val in chars.items():
+            string = string.replace(key, val)
+
+        return string
+
+
+
+    @staticmethod
     def printTime():
         diff = time.time() - UtilMgr.curTime
         print('\n[Elapsed: %f]' % diff)
@@ -3815,6 +3830,26 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def getDrawOutputPath(inputPath, name):
+        # set output path #
+        if SysMgr.outPath:
+            outputPath = SysMgr.outPath
+
+            # check dir #
+            if os.path.isdir(outputPath):
+                outputFileName = '%s.svg' % \
+                    os.path.splitext(os.path.basename(inputPath))[0]
+                outputPath = \
+                    os.path.join(outputPath, outputFileName)
+        else:
+            outputPath = UtilMgr.prepareForImageFile(
+                inputPath, 'flamegraph')
+
+        return outputPath
+
+
+
+    @staticmethod
     def printSyscalls(systable):
         bufstring = ''
         for idx, syscall in enumerate(systable):
@@ -3870,14 +3905,14 @@ class UtilMgr(object):
 
     @staticmethod
     def drawGraph(inFile, outFile=None):
-        instance = ThreadAnalyzer(onlyInstance=True)
+        instance = TaskAnalyzer(onlyInstance=True)
         instance.drawStats(inFile, outFile=outFile, onlyGraph=True)
 
 
 
     @staticmethod
     def drawChart(inFile, outFile=None):
-        instance = ThreadAnalyzer(onlyInstance=True)
+        instance = TaskAnalyzer(onlyInstance=True)
         instance.drawStats(inFile, outFile=outFile, onlyChart=True)
 
 
@@ -4798,7 +4833,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def writeFlamegraph(path, samples):
+    def writeFlamegraph(path, samples, title):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
         flameCode = '''<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -4818,7 +4853,7 @@ text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
 #title { text-anchor:middle; font-size:17px; }
 #search { opacity:0.1; cursor:pointer; }
 #search:hover, #search.show { opacity:1; }
-#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#subtitle { text-anchor:left; font-color:rgb(160,160,160); }
 #unzoom { cursor:pointer; }
 #frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
 .hide { display:none; }
@@ -5236,210 +5271,25 @@ function format_percent(n) {
 }
 ]]>
         </script>
-        <rect x="0" y="0" width="100%" height="230" fill="url(#background)"/>
-        <text id="title" x="50.0000%" y="24.00">Guider Flamegraph</text>
-        <text id="details" x="10" y="213.00"></text>
-        <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
-        <text id="search" x="1090" y="24.00">Search</text>
-        <text id="matched" x="1090" y="213.00"></text>
-        <svg id="frames" x="10" width="1180">
-                <g>
-                        <title>printSystemUsage (./guider.py:67307) (3 samples, 1.00%)</title>
-                        <rect x="0.3344%" y="148" width="1.0033%" height="15" fill="rgb(227,0,7)"/>
-                        <text x="0.5844%" y="158.50"></text>
-                </g>
-                <g>
-                        <title>printSystemStat (./guider.py:70940) (10 samples, 3.34%)</title>
-                        <rect x="0.3344%" y="132" width="3.3445%" height="15" fill="rgb(217,0,24)"/>
-                        <text x="0.5844%" y="142.50">pri..</text>
-                </g>
-                <g>
-                        <title>saveTaskData (./guider.py:66310) (5 samples, 1.67%)</title>
-                        <rect x="4.3478%" y="180" width="1.6722%" height="15" fill="rgb(221,193,54)"/>
-                        <text x="4.5978%" y="190.50"></text>
-                </g>
-                <g>
-                        <title>saveProcStatusData (./guider.py:66357) (8 samples, 2.68%)</title>
-                        <rect x="4.3478%" y="164" width="2.6756%" height="15" fill="rgb(248,212,6)"/>
-                        <text x="4.5978%" y="174.50">sa..</text>
-                </g>
-                <g>
-                        <title>saveTaskData (./guider.py:66329) (3 samples, 1.00%)</title>
-                        <rect x="6.0201%" y="180" width="1.0033%" height="15" fill="rgb(208,68,35)"/>
-                        <text x="6.2701%" y="190.50"></text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69057) (11 samples, 3.68%)</title>
-                        <rect x="4.3478%" y="148" width="3.6789%" height="15" fill="rgb(232,128,0)"/>
-                        <text x="4.5978%" y="158.50">prin..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66029) (5 samples, 1.67%)</title>
-                        <rect x="9.0301%" y="164" width="1.6722%" height="15" fill="rgb(207,160,47)"/>
-                        <text x="9.2801%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66030) (50 samples, 16.72%)</title>
-                        <rect x="10.7023%" y="164" width="16.7224%" height="15" fill="rgb(228,23,34)"/>
-                        <text x="10.9523%" y="174.50">saveProcSmapsData (./guide..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66040) (6 samples, 2.01%)</title>
-                        <rect x="27.4247%" y="164" width="2.0067%" height="15" fill="rgb(218,30,26)"/>
-                        <text x="27.6747%" y="174.50">s..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66041) (5 samples, 1.67%)</title>
-                        <rect x="29.4314%" y="164" width="1.6722%" height="15" fill="rgb(220,122,19)"/>
-                        <text x="29.6814%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66042) (28 samples, 9.36%)</title>
-                        <rect x="31.1037%" y="164" width="9.3645%" height="15" fill="rgb(250,228,42)"/>
-                        <text x="31.3537%" y="174.50">saveProcSmaps..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66045) (15 samples, 5.02%)</title>
-                        <rect x="40.4682%" y="164" width="5.0167%" height="15" fill="rgb(240,193,28)"/>
-                        <text x="40.7182%" y="174.50">savePr..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66064) (3 samples, 1.00%)</title>
-                        <rect x="46.1538%" y="164" width="1.0033%" height="15" fill="rgb(216,20,37)"/>
-                        <text x="46.4038%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66079) (3 samples, 1.00%)</title>
-                        <rect x="47.8261%" y="164" width="1.0033%" height="15" fill="rgb(206,188,39)"/>
-                        <text x="48.0761%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66087) (4 samples, 1.34%)</title>
-                        <rect x="49.1639%" y="164" width="1.3378%" height="15" fill="rgb(217,207,13)"/>
-                        <text x="49.4139%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66088) (4 samples, 1.34%)</title>
-                        <rect x="50.5017%" y="164" width="1.3378%" height="15" fill="rgb(231,73,38)"/>
-                        <text x="50.7517%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66091) (5 samples, 1.67%)</title>
-                        <rect x="52.1739%" y="164" width="1.6722%" height="15" fill="rgb(225,20,46)"/>
-                        <text x="52.4239%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66094) (6 samples, 2.01%)</title>
-                        <rect x="54.5151%" y="164" width="2.0067%" height="15" fill="rgb(210,31,41)"/>
-                        <text x="54.7651%" y="174.50">s..</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66096) (19 samples, 6.35%)</title>
-                        <rect x="56.5217%" y="164" width="6.3545%" height="15" fill="rgb(221,200,47)"/>
-                        <text x="56.7717%" y="174.50">saveProc..</text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69075) (173 samples, 57.86%)</title>
-                        <rect x="8.0268%" y="148" width="57.8595%" height="15" fill="rgb(226,26,5)"/>
-                        <text x="8.2768%" y="158.50">printProcUsage (./guider.py:69075)</text>
-                </g>
-                <g>
-                        <title>saveProcSmapsData (./guider.py:66108) (3 samples, 1.00%)</title>
-                        <rect x="64.8829%" y="164" width="1.0033%" height="15" fill="rgb(249,33,26)"/>
-                        <text x="65.1329%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>getMemDetails (./guider.py:67970) (3 samples, 1.00%)</title>
-                        <rect x="68.5619%" y="164" width="1.0033%" height="15" fill="rgb(235,183,28)"/>
-                        <text x="68.8119%" y="174.50"></text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69204) (8 samples, 2.68%)</title>
-                        <rect x="67.5585%" y="148" width="2.6756%" height="15" fill="rgb(221,5,38)"/>
-                        <text x="67.8085%" y="158.50">pr..</text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69235) (18 samples, 6.02%)</title>
-                        <rect x="70.2341%" y="148" width="6.0201%" height="15" fill="rgb(247,18,42)"/>
-                        <text x="70.4841%" y="158.50">printPro..</text>
-                </g>
-                <g>
-                        <title>addPrint (./guider.py:22200) (18 samples, 6.02%)</title>
-                        <rect x="70.2341%" y="164" width="6.0201%" height="15" fill="rgb(241,131,45)"/>
-                        <text x="70.4841%" y="174.50">addPrint..</text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69320) (43 samples, 14.38%)</title>
-                        <rect x="76.5886%" y="148" width="14.3813%" height="15" fill="rgb(249,31,29)"/>
-                        <text x="76.8386%" y="158.50">printProcUsage (./guid..</text>
-                </g>
-                <g>
-                        <title>addPrint (./guider.py:22200) (40 samples, 13.38%)</title>
-                        <rect x="77.5920%" y="164" width="13.3779%" height="15" fill="rgb(225,111,53)"/>
-                        <text x="77.8420%" y="174.50">addPrint (./guider.p..</text>
-                </g>
-                <g>
-                        <title>addPrint (./guider.py:22200) (11 samples, 3.68%)</title>
-                        <rect x="91.9732%" y="164" width="3.6789%" height="15" fill="rgb(238,160,17)"/>
-                        <text x="92.2232%" y="174.50">addP..</text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69379) (12 samples, 4.01%)</title>
-                        <rect x="91.9732%" y="148" width="4.0134%" height="15" fill="rgb(214,148,48)"/>
-                        <text x="92.2232%" y="158.50">prin..</text>
-                </g>
-                <g>
-                        <title>all (299 samples, 100%)</title>
-                        <rect x="0.0000%" y="36" width="100.0000%" height="15" fill="rgb(232,36,49)"/>
-                        <text x="0.2500%" y="46.50"></text>
-                </g>
-                <g>
-                        <title>&lt;module&gt; (./guider.py:71084) (299 samples, 100.00%)</title>
-                        <rect x="0.0000%" y="52" width="100.0000%" height="15" fill="rgb(209,103,24)"/>
-                        <text x="0.2500%" y="62.50">&lt;module&gt; (./guider.py:71084)</text>
-                </g>
-                <g>
-                        <title>main (./guider.py:71034) (299 samples, 100.00%)</title>
-                        <rect x="0.0000%" y="68" width="100.0000%" height="15" fill="rgb(229,88,8)"/>
-                        <text x="0.2500%" y="78.50">main (./guider.py:71034)</text>
-                </g>
-                <g>
-                        <title>execTopCmd (./guider.py:14684) (299 samples, 100.00%)</title>
-                        <rect x="0.0000%" y="84" width="100.0000%" height="15" fill="rgb(213,181,19)"/>
-                        <text x="0.2500%" y="94.50">execTopCmd (./guider.py:14684)</text>
-                </g>
-                <g>
-                        <title>__init__ (./guider.py:53453) (299 samples, 100.00%)</title>
-                        <rect x="0.0000%" y="100" width="100.0000%" height="15" fill="rgb(254,191,54)"/>
-                        <text x="0.2500%" y="110.50">__init__ (./guider.py:53453)</text>
-                </g>
-                <g>
-                        <title>runTaskTop (./guider.py:53770) (298 samples, 99.67%)</title>
-                        <rect x="0.3344%" y="116" width="99.6656%" height="15" fill="rgb(241,83,37)"/>
-                        <text x="0.5844%" y="126.50">runTaskTop (./guider.py:53770)</text>
-                </g>
-                <g>
-                        <title>printSystemStat (./guider.py:70949) (288 samples, 96.32%)</title>
-                        <rect x="3.6789%" y="132" width="96.3211%" height="15" fill="rgb(233,36,39)"/>
-                        <text x="3.9289%" y="142.50">printSystemStat (./guider.py:70949)</text>
-                </g>
-                <g>
-                        <title>printProcUsage (./guider.py:69450) (12 samples, 4.01%)</title>
-                        <rect x="95.9866%" y="148" width="4.0134%" height="15" fill="rgb(226,3,54)"/>
-                        <text x="96.2366%" y="158.50">prin..</text>
-                </g>
-                <g>
-                        <title>addPrint (./guider.py:22200) (12 samples, 4.01%)</title>
-                        <rect x="95.9866%" y="164" width="4.0134%" height="15" fill="rgb(245,192,40)"/>
-                        <text x="96.2366%" y="174.50">addP..</text>
-                </g>
-        </svg>
-</svg>'''
+'''
+        attrCode = '''
+    <rect x="0" y="0" width="100%%" height="230" fill="url(#background)"/>
+    <text id="title" x="50.0000%%" y="24.00">Guider Flamegraph</text>
+    <text id="subtitle" x="0.0000%%" y="50.00">%s</text>
+    <text id="details" x="10" y="213.00"></text>
+    <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
+    <text id="search" x="1090" y="24.00">Search</text>
+    <text id="matched" x="1090" y="213.00"></text>
+    <svg id="frames" x="10" y="20" width="1180">
+''' % ('\r\n%s' % title if title else '')
+
+        # complete code for flamegraph #
+        finalCode = flameCode + attrCode + samples + '\n</svg></svg>'
 
         # write flamegraph to file #
         try:
             with open(path, 'w') as fd:
-                fd.write(flameCode)
+                fd.write(finalCode)
 
             # get output size #
             fsize = UtilMgr.getFileSize(path)
@@ -6527,7 +6377,7 @@ class NetworkMgr(object):
         if not ip or not port or \
             not SysMgr.isValidRequest(service):
             reqList = ''
-            for req in ThreadAnalyzer.requestType:
+            for req in TaskAnalyzer.requestType:
                 reqList += req + '|'
 
             SysMgr.printErr(
@@ -6565,7 +6415,7 @@ class NetworkMgr(object):
 
         errMsg = ("wrong value for remote server, "
                   "input in the format [%s]@IP:PORT") % \
-                    '|'.join(ThreadAnalyzer.requestType)
+                    '|'.join(TaskAnalyzer.requestType)
 
         if not ip or not SysMgr.isValidRequest(service):
             SysMgr.printErr(errMsg)
@@ -6900,8 +6750,19 @@ class Timeline(object):
             self.HEIGHT = 770
             self.TIME_AXIS_HEIGHT = 1
             self.TICKS = 100
-            self.FONT_SIZE = 3
             self.LABEL_SIZE_MIN = 0
+
+            # set font size #
+            if 'FONTSIZE' in SysMgr.environList:
+                try:
+                    val = SysMgr.environList['FONTSIZE'][0]
+                    self.FONT_SIZE = long(val)
+                except:
+                    SysMgr.printErr(
+                        "fail to set font size to '%s'" % val, True)
+                    sys.exit(0)
+            else:
+                self.FONT_SIZE = 3
 
             palette = [
                 "(0,150,136)", "(0,188,212)", "(0,0,128)",
@@ -8650,7 +8511,7 @@ class FunctionAnalyzer(object):
         # subStackPageInfo = [userPageCnt, cachePageCnt, kernelPageCnt]
 
         # read trace data #
-        lines = ThreadAnalyzer.readTraceData(logFile)
+        lines = TaskAnalyzer.readTraceData(logFile)
 
         # save trace data and stop analysis #
         if SysMgr.outputFile:
@@ -15789,7 +15650,6 @@ class SysMgr(object):
     syslogFd = None
 
     # flags #
-    realtimeEnable = None
     fixTargetEnable = False
     irqEnable = False
     cpuEnable = True
@@ -16256,7 +16116,8 @@ class SysMgr(object):
 
     @staticmethod
     def setVisualAttr():
-        if not SysMgr.hasMainArg():
+        # set default input path #
+        if len(sys.argv) <= 2:
             sys.argv.insert(2, SysMgr.outFilePath)
 
         SysMgr.graphEnable = True
@@ -16270,7 +16131,7 @@ class SysMgr(object):
             sys.argv = sys.argv[:2] + flist + sys.argv[3:]
 
         # thread draw mode #
-        if ThreadAnalyzer.getInitTime(sys.argv[2]) > 0:
+        if TaskAnalyzer.getInitTime(sys.argv[2]) > 0:
             # apply launch option #
             SysMgr.applyLaunchOption()
 
@@ -16376,7 +16237,7 @@ class SysMgr(object):
             signal.alarm(SysMgr.repeatInterval)
 
             # get init time in buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
+            initTime = TaskAnalyzer.getInitTime(SysMgr.inputFile)
 
             # wait for timer #
             try:
@@ -16407,7 +16268,7 @@ class SysMgr(object):
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
-            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
+            if initTime < TaskAnalyzer.getInitTime(SysMgr.inputFile):
                 SysMgr.printErr(
                     "buffer size is not enough (%sKB)" % \
                     SysMgr.getBufferSize())
@@ -16428,7 +16289,7 @@ class SysMgr(object):
 
         if not SysMgr.graphEnable:
             # get init time from buffer for verification #
-            initTime = ThreadAnalyzer.getInitTime(SysMgr.inputFile)
+            initTime = TaskAnalyzer.getInitTime(SysMgr.inputFile)
 
         # wait for user input #
         while 1:
@@ -16443,7 +16304,7 @@ class SysMgr(object):
 
         if not SysMgr.graphEnable:
             # compare init time with now time for buffer verification #
-            if initTime < ThreadAnalyzer.getInitTime(SysMgr.inputFile):
+            if initTime < TaskAnalyzer.getInitTime(SysMgr.inputFile):
                 SysMgr.printErr("buffer size %sKB is not enough" % \
                     SysMgr.getBufferSize())
                 sys.exit(0)
@@ -16631,7 +16492,7 @@ class SysMgr(object):
         SysMgr.setNormalSignal()
 
         # run process / file monitoring #
-        ThreadAnalyzer()
+        TaskAnalyzer()
 
 
 
@@ -18700,7 +18561,7 @@ class SysMgr(object):
             SysMgr.printInfo("sorted by RUNTIME")
         elif value == 'o':
             SysMgr.printInfo("sorted by OOMSCORE")
-            ThreadAnalyzer.setLastField('oom')
+            TaskAnalyzer.setLastField('oom')
         elif value == 'P':
             SysMgr.printInfo("sorted by PRIORITY")
         elif value == 'f':
@@ -18971,6 +18832,7 @@ class SysMgr(object):
                 'drawcpu': 'CPU',
                 'drawcpuavg': 'CPU',
                 'drawdelay': 'Delay',
+                'drawflame': 'Function',
                 'drawio': 'I/O',
                 'drawleak': 'Leak',
                 'drawmem': 'Memory',
@@ -19311,6 +19173,9 @@ Examples:
 
     - Draw resource graph with y range 1-100
         # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
+
+    - Draw resource graph with specific font size
+        # {0:1} {1:1} guider.out worstcase.out -q FONTSIZE:15
 
     - Draw resource graph of top 5 processes
         # {0:1} {1:1} guider.out worstcase.out -T 5
@@ -20951,7 +20816,19 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw CPU Delay graphs
+    Draw CPU delay graphs
+                        '''.format(cmd, mode)
+
+                    helpStr += drawSubStr + drawExamStr
+
+                # flamegraph draw #
+                elif SysMgr.checkMode('drawflame'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} <FILE> [OPTIONS] [--help]
+
+Description:
+    Draw flame graph
                         '''.format(cmd, mode)
 
                     helpStr += drawSubStr + drawExamStr
@@ -24877,7 +24754,7 @@ Copyright:
                 SysMgr.printInfoBuffer()
 
                 # submit summarized report and details #
-                ThreadAnalyzer.printIntervalUsage()
+                TaskAnalyzer.printIntervalUsage()
 
                 if os.path.exists(SysMgr.inputFile):
                     # get output size #
@@ -24965,7 +24842,7 @@ Copyright:
             SysMgr.printInfoBuffer()
 
             # submit summarized report and details #
-            ThreadAnalyzer.printIntervalUsage()
+            TaskAnalyzer.printIntervalUsage()
 
             # close an output file to sync #
             try:
@@ -26867,7 +26744,7 @@ Copyright:
     def isValidRequest(request):
         try:
             if request.startswith('EVENT_') or \
-                ThreadAnalyzer.requestType.index(request):
+                TaskAnalyzer.requestType.index(request):
                 pass
             else:
                 raise Exception('wrong request')
@@ -27448,13 +27325,13 @@ Copyright:
 
                 # check last field #
                 if 'a' in options:
-                    ThreadAnalyzer.setLastField('affinity')
+                    TaskAnalyzer.setLastField('affinity')
                 elif 'o' in options:
-                    ThreadAnalyzer.setLastField('oom')
+                    TaskAnalyzer.setLastField('oom')
                 elif 'W' in options:
-                    ThreadAnalyzer.setLastField('wchan')
+                    TaskAnalyzer.setLastField('wchan')
                 elif 'h' in options:
-                    ThreadAnalyzer.setLastField('signal')
+                    TaskAnalyzer.setLastField('signal')
 
                 if 'f' in options:
                     SysMgr.floatEnable = True
@@ -28260,11 +28137,6 @@ Copyright:
 
     @staticmethod
     def isTopMode():
-        if SysMgr.realtimeEnable:
-            return True
-        elif SysMgr.realtimeEnable is False:
-            return False
-
         if SysMgr.checkMode('top') or \
             SysMgr.checkMode('ttop') or \
             SysMgr.checkMode('utop') or \
@@ -28285,10 +28157,8 @@ Copyright:
             SysMgr.checkMode('cgtop') or \
             SysMgr.checkMode('dbustop') or \
             SysMgr.checkMode('disktop'):
-            SysMgr.realtimeEnable = True
             return True
         else:
-            SysMgr.realtimeEnable = False
             return False
 
 
@@ -28410,7 +28280,7 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            ThreadAnalyzer.doDiffReports(argList)
+            TaskAnalyzer.doDiffReports(argList)
 
         # TOPSUM MODE #
         elif SysMgr.checkMode('topsum'):
@@ -28425,7 +28295,7 @@ Copyright:
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
-            ThreadAnalyzer.doSumReport(fname)
+            TaskAnalyzer.doSumReport(fname)
 
         # PAUSE MODE #
         elif SysMgr.checkMode('pause'):
@@ -28592,7 +28462,7 @@ Copyright:
             # PRINTDLT MODE #
             elif SysMgr.checkMode('printdlt'):
                 # to prevent segmentation fault from python3.8 #
-                ThreadAnalyzer(onlyInstance=True)
+                TaskAnalyzer(onlyInstance=True)
 
                 DltAnalyzer.runDltReceiver(mode='print')
 
@@ -28848,6 +28718,8 @@ Copyright:
         elif SysMgr.checkMode('drawcpu', True):
             return True
         elif SysMgr.checkMode('drawdelay', True):
+            return True
+        elif SysMgr.checkMode('drawflame', True):
             return True
         elif SysMgr.checkMode('drawmem', True):
             return True
@@ -31686,11 +31558,11 @@ Copyright:
             def _drawMeta(labelList=None):
                 # pylint: disable=undefined-variable
                 # draw label #
-                ThreadAnalyzer.drawLabel(
+                TaskAnalyzer.drawLabel(
                     labelList, draw=True, anchor=(1.12, 1))
 
                 # update yticks #
-                ThreadAnalyzer.drawYticks(ax, ymax=None, adjust=False)
+                TaskAnalyzer.drawYticks(ax, ymax=None, adjust=False)
 
                 # draw grid #
                 xticks(fontsize=4)
@@ -31699,7 +31571,7 @@ Copyright:
                 tick_params(axis='y', direction='in')
 
             # draw base #
-            figObj = ThreadAnalyzer.drawFigure()
+            figObj = TaskAnalyzer.drawFigure()
 
             # draw title #
             ax = subplot2grid((6,1), (0,0), rowspan=3, colspan=1)
@@ -31787,7 +31659,7 @@ Copyright:
             _drawMeta(None)
 
             # save to file #
-            ThreadAnalyzer.saveImage(SysMgr.inputFile, 'graph')
+            TaskAnalyzer.saveImage(SysMgr.inputFile, 'graph')
 
         def _getDrawStat(path):
             try:
@@ -31853,7 +31725,7 @@ Copyright:
             return resTable
 
         # initialize environment for drawing #
-        ThreadAnalyzer.initDrawEnv()
+        TaskAnalyzer.initDrawEnv()
 
         # get argument #
         if SysMgr.hasMainArg():
@@ -32494,7 +32366,7 @@ Copyright:
         filteredList = {}
 
         SysMgr.cmdlineEnable = True
-        obj = ThreadAnalyzer(onlyInstance=True)
+        obj = TaskAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
         # parse service files #
@@ -32581,7 +32453,7 @@ Copyright:
 
         SysMgr.nsEnable = True
 
-        obj = ThreadAnalyzer(onlyInstance=True)
+        obj = TaskAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
         cv = UtilMgr.convNum
@@ -33814,7 +33686,7 @@ Copyright:
 
     @staticmethod
     def initTaskMon(pid, update=True):
-        tobj = ThreadAnalyzer(None, onlyInstance=True)
+        tobj = TaskAnalyzer(None, onlyInstance=True)
         path = '%s/%s' % (SysMgr.procPath, pid)
         tobj.saveProcData(path, pid)
         SysMgr.updateUptime()
@@ -35655,18 +35527,8 @@ Copyright:
 
         # draw files #
         for inputPath in inputList:
-            if SysMgr.outPath:
-                outputPath = SysMgr.outPath
-
-                # check dir #
-                if os.path.isdir(outputPath):
-                    outputFileName = '%s.svg' % \
-                        os.path.splitext(os.path.basename(inputPath))[0]
-                    outputPath = \
-                        os.path.join(outputPath, outputFileName)
-            else:
-                outputPath = UtilMgr.prepareForImageFile(
-                    inputPath, 'timeline')
+            # set output path #
+            outputPath = UtilMgr.getDrawOutputPath(inputPath, 'timeline')
 
             # backup #
             SysMgr.backupFile(outputPath)
@@ -36161,7 +36023,7 @@ Copyright:
         signal.alarm(SysMgr.intervalEnable)
 
         # create task object #
-        obj = ThreadAnalyzer(onlyInstance=True)
+        obj = TaskAnalyzer(onlyInstance=True)
         obj.saveProcStat()
         pid = SysMgr.pid
 
@@ -36287,11 +36149,11 @@ Copyright:
     def doPstree(isProcess=True):
         SysMgr.printLogo(big=True, onlyFile=True)
 
-        obj = ThreadAnalyzer(onlyInstance=True)
+        obj = TaskAnalyzer(onlyInstance=True)
 
         obj.saveSystemStat()
 
-        ThreadAnalyzer.printProcTree(obj.procData, title=True)
+        TaskAnalyzer.printProcTree(obj.procData, title=True)
 
 
 
@@ -36477,7 +36339,7 @@ Copyright:
         if not pids:
             SysMgr.printErr("no target thread")
 
-        tobj = ThreadAnalyzer(onlyInstance=True)
+        tobj = TaskAnalyzer(onlyInstance=True)
         for pid in pids:
             proc = '%s(%s)' % (SysMgr.getComm(pid), pid)
 
@@ -36544,7 +36406,7 @@ Copyright:
 
         # snapshot system info #
         SysMgr()
-        obj = ThreadAnalyzer(onlyInstance=True)
+        obj = TaskAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
         if SysMgr.intervalEnable:
@@ -38949,7 +38811,7 @@ Copyright:
         self.printLimitInfo()
 
         if SysMgr.isRecordMode():
-            ThreadAnalyzer.printThreadTree()
+            TaskAnalyzer.printThreadTree()
 
         # keep last position for parser #
         self.printProcTreeInfo()
@@ -42603,8 +42465,8 @@ class DbusMgr(object):
             DbusMgr.recvData = {}
             DbusMgr.msgSentTable = {}
             DbusMgr.msgRecvTable = {}
-            prevDbusData = ThreadAnalyzer.dbusData
-            ThreadAnalyzer.dbusData = \
+            prevDbusData = TaskAnalyzer.dbusData
+            TaskAnalyzer.dbusData = \
                 {'totalCnt': long(0), 'totalErr': long(0)}
 
             if lock and lock.locked():
@@ -42663,7 +42525,7 @@ class DbusMgr(object):
 
                 # update stats #
                 _updateTaskInfo(
-                    ThreadAnalyzer.dbusData,
+                    TaskAnalyzer.dbusData,
                     DbusMgr.sentData,
                     DbusMgr.recvData)
 
@@ -42782,7 +42644,7 @@ class DbusMgr(object):
 
                     # check message size #
                     if length == 0:
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # recover data #
@@ -42852,7 +42714,7 @@ class DbusMgr(object):
                                 G_IO_ERROR_TYPE[errp.contents.code],
                                 errp.contents.message))
                         libgioObj.g_error_free(byref(errp.contents))
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
                     elif direction == 'OUT' and hsize > len(call):
                         continue
@@ -42877,7 +42739,7 @@ class DbusMgr(object):
                                 G_IO_ERROR_TYPE[errp.contents.code],
                                 errp.contents.message))
                         libgioObj.g_error_free(byref(errp.contents))
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     # get address of the message #
@@ -42926,7 +42788,7 @@ class DbusMgr(object):
                     except:
                         SysMgr.printWarn(
                             "fail to get type of GDbusMessage", reason=True)
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
 
                     effectiveReply = False
@@ -43035,7 +42897,7 @@ class DbusMgr(object):
                         data[tid].setdefault(mname, dict(DbusMgr.taskInfo))
                         data[tid][mname]['cnt'] += 1
                         data[tid][mname]['err'] += 1
-                        ThreadAnalyzer.dbusData['totalErr'] += 1
+                        TaskAnalyzer.dbusData['totalErr'] += 1
                     # handle normal message #
                     else:
                         mname = '[%6s] %3s %s.%s' % \
@@ -43074,23 +42936,23 @@ class DbusMgr(object):
                     lock.acquire()
 
                 # increase count #
-                if tid not in ThreadAnalyzer.dbusData:
-                    ThreadAnalyzer.dbusData[tid] = {'totalCnt': cnt}
+                if tid not in TaskAnalyzer.dbusData:
+                    TaskAnalyzer.dbusData[tid] = {'totalCnt': cnt}
                 else:
-                    ThreadAnalyzer.dbusData[tid]['totalCnt'] += cnt
+                    TaskAnalyzer.dbusData[tid]['totalCnt'] += cnt
 
-                ThreadAnalyzer.dbusData['totalCnt'] += cnt
+                TaskAnalyzer.dbusData['totalCnt'] += cnt
 
                 # merge D-Bus interface #
                 for name, value in mlist.items():
                     try:
-                        ThreadAnalyzer.dbusData[tid][name]['cnt'] += \
+                        TaskAnalyzer.dbusData[tid][name]['cnt'] += \
                             value['count']
                     except SystemExit:
                         sys.exit(0)
                     except:
-                        ThreadAnalyzer.dbusData[tid][name] = dict()
-                        ThreadAnalyzer.dbusData[tid][name]['cnt'] = \
+                        TaskAnalyzer.dbusData[tid][name] = dict()
+                        TaskAnalyzer.dbusData[tid][name]['cnt'] = \
                             value['count']
             except SystemExit:
                 sys.exit(0)
@@ -43272,7 +43134,7 @@ class DbusMgr(object):
 
         # initialize system stat #
         SysMgr.exceptCommFilter = True
-        taskManager = ThreadAnalyzer(onlyInstance=True)
+        taskManager = TaskAnalyzer(onlyInstance=True)
         taskManager.saveSystemStat()
         SysMgr.sort = 'd'
         SysMgr.processEnable = False
@@ -44498,7 +44360,7 @@ class DltAnalyzer(object):
         # initialize dlt-daemon info #
         SysMgr.showAll = True
         SysMgr.cmdlineEnable = True
-        procInfo = DltAnalyzer.procInfo = ThreadAnalyzer(onlyInstance=True)
+        procInfo = DltAnalyzer.procInfo = TaskAnalyzer(onlyInstance=True)
         for pid in DltAnalyzer.pids:
             procInfo.saveProcData(None, pid)
             procInfo.saveCmdlineData(None, pid)
@@ -48873,6 +48735,131 @@ struct cmsghdr {
 
 
     @staticmethod
+    def makeSvgString(callTree, callCnt):
+        # create palette for colors #
+        palette = Timeline.Config().PALETTE
+
+        def _iterNode(array, target, callCnt, depth=0, pos=0, height=36):
+            for node, value in target.items():
+                # get stats #
+                totalCnt = callCnt[0]
+                cnt = value['cnt']
+                per = cnt / float(totalCnt) * 100
+
+                # iterate childs #
+                if value['child']:
+                    _iterNode(
+                        array, value['child'], callCnt,
+                        depth+1, pos, height+16)
+
+                # build tags #
+                indent = '    '
+                tagStr = '<g>\n'
+                name = UtilMgr.convHtmlChar(node)
+                color = palette[len(array)%len(palette)]
+                tagStr += '%s<title>%s (%s samples, %.1f%%)</title>\n' % \
+                    (indent, name, UtilMgr.convNum(cnt), per)
+                tagStr += (
+                    '%s<rect x="%.4f%%" y="%s" width="%.4f%%" '
+                    'height="%s" fill="%s"/>\n') % \
+                        (indent, pos, height, per, 15, color)
+                tagStr += '%s<text x="%.4f%%" y="%.2f"></text>\n' % \
+                    (indent, pos+0.25, height+10.5)
+                tagStr += '</g>'
+
+                # append tag #
+                array.append(tagStr)
+
+                pos += per
+
+        tagList = list()
+        _iterNode(tagList, callTree, callCnt)
+        return '\n'.join(tagList)
+
+
+
+    @staticmethod
+    def drawFlame(inputFile):
+        # set output path #
+        outputPath = UtilMgr.getDrawOutputPath(inputFile, 'flamegraph')
+
+        # get list for call samples #
+        try:
+            callList, title = Debugger.getCallStatsFile(inputFile)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to get call samples from '%s'" % inputFile, True)
+            sys.exit(0)
+
+        # convert list to tree for call samples #
+        try:
+            callTree, callCnt = Debugger.convCallList2Tree(callList)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to convert call samples from '%s'" % inputFile, True)
+            sys.exit(0)
+
+        # make svg string #
+        try:
+            svgStr = Debugger.makeSvgString(callTree, callCnt)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to make flamegraph from '%s'" % inputFile, True)
+            sys.exit(0)
+
+        # write svg code to the file #
+        try:
+            UtilMgr.writeFlamegraph(outputPath, svgStr, title)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                "fail to save flamegraph from '%s' to '%s'" % \
+                    (inputFile, SysMgr.outPath), True)
+            sys.exit(0)
+
+
+
+    @staticmethod
+    def convCallList2Tree(callList):
+        def _getObj():
+            return dict(cnt=0, child=dict())
+
+        tree = {}
+        totals = {}
+        pos = None
+
+        # iterate calls #
+        for sample, count in callList.items():
+            level = 0
+            pos = tree
+            calls = reversed(sample.split(' <- '))
+
+            # iterate functions #
+            for call in calls:
+                # remove multiple info #
+                items = call.split('] * ')
+                if len(items) > 1:
+                    call = '%s]' % items[0]
+
+                pos.setdefault(call, _getObj())
+                pos[call]['cnt'] += count
+                pos = pos[call]['child']
+                totals.setdefault(level, 0)
+                totals[level] += count
+                level += 1
+
+        return tree, totals
+
+
+
+    @staticmethod
     def getCallStatsFile(logFile):
         # get file handle #
         try:
@@ -48888,13 +48875,15 @@ struct cmsghdr {
         mainCnt = 0
         context = None
         samples = {}
+        title = None
 
         for line in fd:
             # get start keyword #
             if line.startswith('[Top '):
                 if not ' Summary]' in line or context:
-                    return samples
+                    return samples, title
 
+                title = line.strip()
                 context = 'start'
                 continue
             elif context is None:
@@ -48955,7 +48944,7 @@ struct cmsghdr {
                     samples[stack] += mainCnt
                     stack = ''
 
-        return samples
+        return samples, title
 
 
 
@@ -59494,7 +59483,7 @@ Section header string table index: %d
 
 
 
-class ThreadAnalyzer(object):
+class TaskAnalyzer(object):
     """ Analyzer for thread profiling """
 
     reportData = {}
@@ -59591,7 +59580,7 @@ class ThreadAnalyzer(object):
 
         # print summary #
         try:
-            ThreadAnalyzer.printIntervalUsage()
+            TaskAnalyzer.printIntervalUsage()
         except SystemExit:
             sys.exit(0)
         except:
@@ -59640,7 +59629,7 @@ class ThreadAnalyzer(object):
         for idx, lfile in enumerate(flist):
             try:
                 gstats, cstats = \
-                    ThreadAnalyzer.getStatsFile(lfile, applyOpt=False)
+                    TaskAnalyzer.getStatsFile(lfile, applyOpt=False)
             except:
                 sys.exit(0)
 
@@ -60409,7 +60398,13 @@ class ThreadAnalyzer(object):
             if SysMgr.graphEnable:
                 # draw images based on statistics #
                 if SysMgr.inputParam:
-                    self.drawStats(SysMgr.inputParam)
+                    # FLAME GRAPH MODE #
+                    if SysMgr.checkMode('drawflame', True):
+                        for fpath in list(SysMgr.inputParam):
+                            Debugger.drawFlame(fpath)
+                    # OTHER DRAW MODE #
+                    else:
+                        self.drawStats(SysMgr.inputParam)
                 # no path for statistics #
                 else:
                     SysMgr.printErr((
@@ -60553,7 +60548,7 @@ class ThreadAnalyzer(object):
                 self.preemptData.append([False, {}, float(0), 0, float(0)])
 
         # read trace data #
-        lines = ThreadAnalyzer.readTraceData(fpath)
+        lines = TaskAnalyzer.readTraceData(fpath)
 
         # save trace data and stop analysis #
         if SysMgr.outputFile:
@@ -60859,9 +60854,9 @@ class ThreadAnalyzer(object):
         prevFilter = []
 
         # initialize task stat #
-        ThreadAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
-        ThreadAnalyzer.dbgObj.initValues()
-        ThreadAnalyzer.dbgObj.getCpuUsage()
+        TaskAnalyzer.dbgObj = Debugger(SysMgr.pid, attach=False)
+        TaskAnalyzer.dbgObj.initValues()
+        TaskAnalyzer.dbgObj.getCpuUsage()
 
         while 1:
             # save timestamp #
@@ -61271,7 +61266,7 @@ class ThreadAnalyzer(object):
                     comm = d['comm'].strip()
 
                     if SysMgr.filterGroup:
-                        if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                        if not TaskAnalyzer.checkFilter(comm, d['pid']):
                             intervalList = None
                         else:
                             pid = d['pid']
@@ -61313,7 +61308,7 @@ class ThreadAnalyzer(object):
                     intervalList = None
 
                     # calculate total usage of tasks filtered #
-                    if ThreadAnalyzer.checkFilter(comm, pid):
+                    if TaskAnalyzer.checkFilter(comm, pid):
                         if not "[ TOTAL ]" in cpuProcUsage:
                             cpuProcUsage["[ TOTAL ]"] = dict()
 
@@ -61373,7 +61368,7 @@ class ThreadAnalyzer(object):
                     comm = d['comm'].strip()
 
                     if SysMgr.filterGroup:
-                        if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                        if not TaskAnalyzer.checkFilter(comm, d['pid']):
                             intervalList = None
                         else:
                             pid = d['pid']
@@ -61415,7 +61410,7 @@ class ThreadAnalyzer(object):
                     intervalList = None
 
                     # calculate total usage of tasks filtered #
-                    if ThreadAnalyzer.checkFilter(comm, pid):
+                    if TaskAnalyzer.checkFilter(comm, pid):
                         if not "[ TOTAL ]" in cpuProcDelay:
                             cpuProcDelay["[ TOTAL ]"] = dict()
 
@@ -61511,7 +61506,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                    if not TaskAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -61555,7 +61550,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                    if not TaskAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -61599,7 +61594,7 @@ class ThreadAnalyzer(object):
                         intervalList = sline[2]
                         continue
 
-                    if not ThreadAnalyzer.checkFilter(comm, d['pid']):
+                    if not TaskAnalyzer.checkFilter(comm, d['pid']):
                         intervalList = None
                     else:
                         pid = d['pid']
@@ -61719,7 +61714,7 @@ class ThreadAnalyzer(object):
                     comm = sline[0].strip()
 
                     if SysMgr.filterGroup:
-                        if not ThreadAnalyzer.checkFilter(comm, pid):
+                        if not TaskAnalyzer.checkFilter(comm, pid):
                             intervalList = None
                         else:
                             pname = '%s' % comm
@@ -62103,7 +62098,7 @@ class ThreadAnalyzer(object):
             logFile = flist[0]
 
             # parse stats #
-            graphStats, chartStats = ThreadAnalyzer.getStatsFile(logFile)
+            graphStats, chartStats = TaskAnalyzer.getStatsFile(logFile)
         # get stats from multiple files for comparison #
         else:
             logFile = SysMgr.outFilePath
@@ -62115,7 +62110,7 @@ class ThreadAnalyzer(object):
             # parse stats from multiple files #
             for lfile in flist:
                 try:
-                    gstats, cstats = ThreadAnalyzer.getStatsFile(lfile)
+                    gstats, cstats = TaskAnalyzer.getStatsFile(lfile)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -62130,7 +62125,7 @@ class ThreadAnalyzer(object):
                         graphStats['%s:%s' % (fname, key)] = val
 
         # initialize environment for drawing #
-        ThreadAnalyzer.initDrawEnv()
+        TaskAnalyzer.initDrawEnv()
 
         # draw avreage graphs #
         if SysMgr.avgEnable:
@@ -62338,7 +62333,7 @@ class ThreadAnalyzer(object):
                 left=0, top=0.9, bottom=0.02, hspace=0.1, wspace=0.1)
 
         # save to file #
-        ThreadAnalyzer.saveImage(logFile, 'chart', outFile=outFile)
+        TaskAnalyzer.saveImage(logFile, 'chart', outFile=outFile)
 
 
 
@@ -62994,7 +62989,7 @@ class ThreadAnalyzer(object):
             '''
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 labelList, draw=True, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -63007,7 +63002,7 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # update yticks #
-            ThreadAnalyzer.drawYticks(ax, ymax)
+            TaskAnalyzer.drawYticks(ax, ymax)
 
             # add % unit to each value #
             try:
@@ -63031,10 +63026,10 @@ class ThreadAnalyzer(object):
                 name = 'CPU'
 
             # draw name #
-            ThreadAnalyzer.drawName(ax, name)
+            TaskAnalyzer.drawName(ax, name)
 
             # draw base #
-            self.figure = ThreadAnalyzer.drawFigure()
+            self.figure = TaskAnalyzer.drawFigure()
 
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
@@ -63464,7 +63459,7 @@ class ThreadAnalyzer(object):
             '''
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 labelList, draw=False, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -63472,7 +63467,7 @@ class ThreadAnalyzer(object):
             tick_params(axis='y', direction='in')
 
             # update yticks #
-            ThreadAnalyzer.drawYticks(ax, ymax)
+            TaskAnalyzer.drawYticks(ax, ymax)
 
             # update xticks #
             xticks(fontsize=4)
@@ -63485,10 +63480,10 @@ class ThreadAnalyzer(object):
                 pass
 
             # draw name #
-            ThreadAnalyzer.drawName(ax, 'I/O')
+            TaskAnalyzer.drawName(ax, 'I/O')
 
             # draw base #
-            self.figure = ThreadAnalyzer.drawFigure()
+            self.figure = TaskAnalyzer.drawFigure()
 
             # convert tick type to integer #
             try:
@@ -63926,7 +63921,7 @@ class ThreadAnalyzer(object):
             '''
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 labelList, draw=True, anchor=(1.12, 0.75))
 
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -63947,7 +63942,7 @@ class ThreadAnalyzer(object):
                     pass
 
             # update yticks #
-            ThreadAnalyzer.drawYticks(ax, ymax)
+            TaskAnalyzer.drawYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -63978,10 +63973,10 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # draw name #
-            ThreadAnalyzer.drawName(ax, 'MEM')
+            TaskAnalyzer.drawName(ax, 'MEM')
 
             # draw base #
-            self.figure = ThreadAnalyzer.drawFigure()
+            self.figure = TaskAnalyzer.drawFigure()
 
             self.drawBottom(xtype, ax, timeline, nrTask, effectProcList)
 
@@ -64060,7 +64055,7 @@ class ThreadAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        ThreadAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
+        TaskAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
 
 
 
@@ -64326,7 +64321,7 @@ class ThreadAnalyzer(object):
             cpuProcUsage.pop("[ TOTAL ]", None)
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 labelList, draw=True, anchor=(1.12, 1.05))
 
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -64344,7 +64339,7 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # update yticks #
-            ThreadAnalyzer.drawYticks(ax, ymax)
+            TaskAnalyzer.drawYticks(ax, ymax)
 
             # add % unit to each value #
             try:
@@ -64364,10 +64359,10 @@ class ThreadAnalyzer(object):
                 pass
 
             # draw name #
-            ThreadAnalyzer.drawName(ax, 'CPU')
+            TaskAnalyzer.drawName(ax, 'CPU')
 
             # draw base #
-            self.figure = ThreadAnalyzer.drawFigure()
+            self.figure = TaskAnalyzer.drawFigure()
 
         def _drawAvgMem(graphStats, xtype, pos, size):
             # pylint: disable=undefined-variable
@@ -64555,7 +64550,7 @@ class ThreadAnalyzer(object):
             '''
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 labelList, draw=True, anchor=(1.12, 0.75))
 
             grid(which='both', linestyle=':', linewidth=0.2)
@@ -64566,7 +64561,7 @@ class ThreadAnalyzer(object):
             ylist = ax.get_yticks().tolist()
 
             # update yticks #
-            ThreadAnalyzer.drawYticks(ax, ymax)
+            TaskAnalyzer.drawYticks(ax, ymax)
 
             try:
                 #ax.get_xaxis().set_visible(False)
@@ -64602,10 +64597,10 @@ class ThreadAnalyzer(object):
                 xlim([timeline[0], timeline[-1]])
 
             # draw name #
-            ThreadAnalyzer.drawName(ax, 'MEM')
+            TaskAnalyzer.drawName(ax, 'MEM')
 
             # draw base #
-            self.figure = ThreadAnalyzer.drawFigure()
+            self.figure = TaskAnalyzer.drawFigure()
 
         SysMgr.printStat(r"start drawing average graphs...")
 
@@ -64629,7 +64624,7 @@ class ThreadAnalyzer(object):
         graphStats.clear()
 
         # save to file #
-        ThreadAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
+        TaskAnalyzer.saveImage(logFile, 'graph', outFile=outFile)
 
 
 
@@ -65417,7 +65412,7 @@ class ThreadAnalyzer(object):
         count = long(0)
         SysMgr.clearPrint()
         for key, value in sorted(self.threadData.items(),
-            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']),
+            key=lambda e: TaskAnalyzer.getCoreId(e[1]['comm']),
             reverse=False):
 
             if key[0:2] != '0[':
@@ -67231,7 +67226,7 @@ class ThreadAnalyzer(object):
 
         # total CPU usage on timeline #
         for key, value in sorted(self.threadData.items(),
-            key=lambda e: ThreadAnalyzer.getCoreId(e[1]['comm']),
+            key=lambda e: TaskAnalyzer.getCoreId(e[1]['comm']),
             reverse=False):
 
             if not SysMgr.cpuEnable:
@@ -67519,7 +67514,7 @@ class ThreadAnalyzer(object):
                         color=color, fontweight='bold')
 
             # draw label #
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 ioLabelList, draw=True, anchor=(1.1, 1))
 
             # add % unit to each value #
@@ -67541,7 +67536,7 @@ class ThreadAnalyzer(object):
             xticks(fontsize=4)
 
             # draw base #
-            ThreadAnalyzer.drawFigure()
+            TaskAnalyzer.drawFigure()
 
         # CPU usage on timeline #
         for key, value in sorted(self.threadData.items(),
@@ -67661,7 +67656,7 @@ class ThreadAnalyzer(object):
 
             # draw label #
             totalLabel = [' CPU Average '] + cpuThrLabelList
-            ThreadAnalyzer.drawLabel(
+            TaskAnalyzer.drawLabel(
                 totalLabel, draw=True, anchor=(1.12, 1))
 
             # add % unit to each value #
@@ -67683,7 +67678,7 @@ class ThreadAnalyzer(object):
             xticks(fontsize=4)
 
             # draw base #
-            ThreadAnalyzer.drawFigure()
+            TaskAnalyzer.drawFigure()
 
         if SysMgr.cpuEnable:
             SysMgr.printPipe("%s# %s\n" % ('', 'CPU(%)'))
@@ -67981,7 +67976,7 @@ class ThreadAnalyzer(object):
         # save graph #
         if SysMgr.graphEnable and\
             (len(cpuUsageList) > 0 or len(ioUsageList) > 0):
-            ThreadAnalyzer.saveImage(SysMgr.inputFile, 'graph')
+            TaskAnalyzer.saveImage(SysMgr.inputFile, 'graph')
 
 
 
@@ -68030,9 +68025,9 @@ class ThreadAnalyzer(object):
         try:
             orig = SysMgr.processEnable
             SysMgr.processEnable = False
-            obj = ThreadAnalyzer(onlyInstance=True)
+            obj = TaskAnalyzer(onlyInstance=True)
             obj.saveProcStat()
-            ThreadAnalyzer.printProcTree(
+            TaskAnalyzer.printProcTree(
                 instance=obj.procData, printFunc=SysMgr.infoBufferPrint)
             SysMgr.infoBufferPrint('%s\n' % oneLine)
         except SystemExit:
@@ -68097,7 +68092,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def parseProcLine(index, procLine):
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # Get time info #
         if 'time' not in TA.procIntData[index]:
@@ -68594,19 +68589,19 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def summarizeInterval():
-        if 'total' not in ThreadAnalyzer.procTotData:
-            ThreadAnalyzer.procTotData['total'] = \
-                dict(ThreadAnalyzer.init_procTotData)
+        if 'total' not in TaskAnalyzer.procTotData:
+            TaskAnalyzer.procTotData['total'] = \
+                dict(TaskAnalyzer.init_procTotData)
 
         idx = long(0)
         for val in reversed(SysMgr.procBuffer):
-            if len(ThreadAnalyzer.procIntData) < idx + 1:
-                ThreadAnalyzer.procIntData.append({})
+            if len(TaskAnalyzer.procIntData) < idx + 1:
+                TaskAnalyzer.procIntData.append({})
 
             procData = val.split('\n')
 
             for line in procData:
-                ThreadAnalyzer.parseProcLine(idx, line)
+                TaskAnalyzer.parseProcLine(idx, line)
 
             idx += 1
             UtilMgr.printProgress(idx, len(SysMgr.procBuffer))
@@ -68617,7 +68612,7 @@ class ThreadAnalyzer(object):
             return
 
         # calculate final stat #
-        for pid, val in ThreadAnalyzer.procTotData.items():
+        for pid, val in TaskAnalyzer.procTotData.items():
             val['cpuAvg'] = round(val['cpu'] / float(idx), 1)
             val['memDiff'] = val['lastMem'] - val['initMem']
 
@@ -68689,11 +68684,11 @@ class ThreadAnalyzer(object):
         SysMgr.printPipe("%s\n" % twoLine)
 
         pCnt = long(0)
-        for idx, val in list(enumerate(ThreadAnalyzer.procIntData)):
+        for idx, val in list(enumerate(TaskAnalyzer.procIntData)):
             if idx == 0:
                 before = 'START'
-            elif 'time' in ThreadAnalyzer.procIntData[idx - 1]:
-                before = ThreadAnalyzer.procIntData[idx - 1]['time']
+            elif 'time' in TaskAnalyzer.procIntData[idx - 1]:
+                before = TaskAnalyzer.procIntData[idx - 1]['time']
             else:
                 continue
 
@@ -68715,7 +68710,7 @@ class ThreadAnalyzer(object):
                 val['nrCore'], val['total']['netIO']))
             pCnt += 1
 
-        if not ThreadAnalyzer.procIntData or pCnt == 0:
+        if not TaskAnalyzer.procIntData or pCnt == 0:
             SysMgr.printPipe('\tNone\n')
 
         SysMgr.printPipe("%s\n" % oneLine)
@@ -68724,24 +68719,24 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printEventInterval():
-        if not ThreadAnalyzer.procEventData:
+        if not TaskAnalyzer.procEventData:
             return
 
         # remove invalid events #
         try:
-            initTime = ThreadAnalyzer.procIntData[0]['time']
+            initTime = TaskAnalyzer.procIntData[0]['time']
 
-            eventList = list(ThreadAnalyzer.procEventData)
+            eventList = list(TaskAnalyzer.procEventData)
             for event in eventList:
                 time = event[0]
 
                 # skip unbounded events #
                 if float(initTime) > time:
-                    del ThreadAnalyzer.procEventData[0]
+                    del TaskAnalyzer.procEventData[0]
         except:
             return
 
-        if not ThreadAnalyzer.procEventData:
+        if not TaskAnalyzer.procEventData:
             return
 
         SysMgr.printPipe('\n[Top Event Info] (Unit: %)\n')
@@ -68750,8 +68745,8 @@ class ThreadAnalyzer(object):
             format('Timeline', 'Realtime', 'Duration', 'Event'))
         SysMgr.printPipe("%s\n" % twoLine)
 
-        procIntData = ThreadAnalyzer.procIntData
-        procEventData = ThreadAnalyzer.procEventData
+        procIntData = TaskAnalyzer.procIntData
+        procEventData = TaskAnalyzer.procEventData
         for idx, event in enumerate(procEventData):
             time = '%.2f' % float(event[0])
             name = event[1]
@@ -68773,7 +68768,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printCpuInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
@@ -68891,7 +68886,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printDlyInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
@@ -68970,7 +68965,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printGpuInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # Check gpu data #
         if 'gpu' not in TA.procTotData['total']:
@@ -69029,7 +69024,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printRssInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
@@ -69167,7 +69162,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printVssInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
@@ -69296,7 +69291,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printBlkInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         # set comm and pid size #
         pd = SysMgr.pidDigit
@@ -69377,7 +69372,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printStorageInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
 
@@ -69445,7 +69440,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printNetworkInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
 
@@ -69517,7 +69512,7 @@ class ThreadAnalyzer(object):
         else:
             spaces = more
 
-        for i in range(1,len(ThreadAnalyzer.procIntData) + 1):
+        for i in range(1,len(TaskAnalyzer.procIntData) + 1):
             if lineLen + margin > maxLineLen:
                 timeLine += ('\n' + (' ' * (length - 1)) + '| ')
                 lineLen = length
@@ -69533,7 +69528,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printCgCpuInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
 
@@ -69561,7 +69556,7 @@ class ThreadAnalyzer(object):
             maxval = long(val['max'])
 
             try:
-                avg = total / len(ThreadAnalyzer.procIntData)
+                avg = total / len(TaskAnalyzer.procIntData)
             except:
                 avg = long(0)
 
@@ -69594,7 +69589,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printCgMemInterval():
-        TA = ThreadAnalyzer
+        TA = TaskAnalyzer
 
         convSize2Unit = UtilMgr.convSize2Unit
 
@@ -69654,31 +69649,31 @@ class ThreadAnalyzer(object):
             SysMgr.printPipe('\n\n\n\n%s%s%s\n\n' % (stars, title, stars))
 
         if SysMgr.fileTopEnable:
-            ThreadAnalyzer.printFileTable()
+            TaskAnalyzer.printFileTable()
         elif SysMgr.jsonEnable or \
             SysMgr.dltTopEnable or \
             SysMgr.dbusTopEnable:
             pass
         else:
             # build summary interval table #
-            ThreadAnalyzer.summarizeInterval()
+            TaskAnalyzer.summarizeInterval()
 
             # print interval info #
-            ThreadAnalyzer.printTimeline()
-            ThreadAnalyzer.printEventInterval()
-            ThreadAnalyzer.printCpuInterval()
-            ThreadAnalyzer.printDlyInterval()
-            ThreadAnalyzer.printGpuInterval()
-            ThreadAnalyzer.printVssInterval()
-            ThreadAnalyzer.printRssInterval()
-            ThreadAnalyzer.printBlkInterval()
-            ThreadAnalyzer.printStorageInterval()
-            ThreadAnalyzer.printNetworkInterval()
-            ThreadAnalyzer.printCgCpuInterval()
-            ThreadAnalyzer.printCgMemInterval()
+            TaskAnalyzer.printTimeline()
+            TaskAnalyzer.printEventInterval()
+            TaskAnalyzer.printCpuInterval()
+            TaskAnalyzer.printDlyInterval()
+            TaskAnalyzer.printGpuInterval()
+            TaskAnalyzer.printVssInterval()
+            TaskAnalyzer.printRssInterval()
+            TaskAnalyzer.printBlkInterval()
+            TaskAnalyzer.printStorageInterval()
+            TaskAnalyzer.printNetworkInterval()
+            TaskAnalyzer.printCgCpuInterval()
+            TaskAnalyzer.printCgMemInterval()
 
         # print interval info #
-        ThreadAnalyzer.printMemAnalysis()
+        TaskAnalyzer.printMemAnalysis()
 
         # print detailed statistics #
         _printMenu(' Detailed Statistics ')
@@ -69693,7 +69688,7 @@ class ThreadAnalyzer(object):
         else:
             msg = ' Thread Lifecycle '
         _printMenu(msg)
-        ThreadAnalyzer.printProcLifecycle()
+        TaskAnalyzer.printProcLifecycle()
 
         # print process tree #
         if SysMgr.processEnable:
@@ -69701,11 +69696,11 @@ class ThreadAnalyzer(object):
         else:
             msg = ' Thread Tree '
         _printMenu(msg)
-        ThreadAnalyzer.printProcTree()
+        TaskAnalyzer.printProcTree()
 
         # print Leak hint #
         _printMenu(' Leak Hint ')
-        ThreadAnalyzer.printLeakHint()
+        TaskAnalyzer.printLeakHint()
 
         # print kernel messages #
         try:
@@ -69718,10 +69713,10 @@ class ThreadAnalyzer(object):
                 'fail to save kernel message', reason=True)
 
         # initialize parse buffer #
-        ThreadAnalyzer.lifeIntData = {}
-        ThreadAnalyzer.lifecycleData = {}
-        ThreadAnalyzer.procTotData = {}
-        ThreadAnalyzer.procIntData = []
+        TaskAnalyzer.lifeIntData = {}
+        TaskAnalyzer.lifecycleData = {}
+        TaskAnalyzer.procTotData = {}
+        TaskAnalyzer.procIntData = []
 
 
 
@@ -69803,7 +69798,7 @@ class ThreadAnalyzer(object):
 
     @staticmethod
     def printProcLifecycle():
-        if not ThreadAnalyzer.lifecycleData:
+        if not TaskAnalyzer.lifecycleData:
             SysMgr.printPipe("\n\tNone")
             return
 
@@ -69814,7 +69809,7 @@ class ThreadAnalyzer(object):
                     "Zombie", "Stopped", "Traced", "Waiting",
                     "Waking", "Parked", oneLine))
 
-        for comm, event in sorted(ThreadAnalyzer.lifecycleData.items(),
+        for comm, event in sorted(TaskAnalyzer.lifecycleData.items(),
             key=lambda e: e[1][0] + e[1][1], reverse=True):
             if comm == '^START' or comm == '^FINISH':
                 continue
@@ -69853,7 +69848,7 @@ class ThreadAnalyzer(object):
 
         # get task tree #
         try:
-            procTree = ThreadAnalyzer.getProcTreeFromList(instance)
+            procTree = TaskAnalyzer.getProcTreeFromList(instance)
         except:
             printFunc("\n\tNone")
             return
@@ -70020,7 +70015,7 @@ class ThreadAnalyzer(object):
 
             # get memory details #
             if not value['maps']:
-                ThreadAnalyzer.saveProcSmapsData(value['taskPath'], key)
+                TaskAnalyzer.saveProcSmapsData(value['taskPath'], key)
 
             if not value['maps']:
                 continue
@@ -70857,7 +70852,7 @@ class ThreadAnalyzer(object):
 
 
     def handleUserEvent(self, event, time):
-        # initialize ThreadAnalyzer data #
+        # initialize TaskAnalyzer data #
         if event == 'START':
             self.initThreadData()
 
@@ -73383,7 +73378,7 @@ class ThreadAnalyzer(object):
         convNum = UtilMgr.convNum
 
         # print cpu usage #
-        cpuUsage = ThreadAnalyzer.dbgObj.getCpuUsage()
+        cpuUsage = TaskAnalyzer.dbgObj.getCpuUsage()
         diff = SysMgr.uptimeDiff
         if diff == 0:
             diff = 0.1
@@ -77827,7 +77822,7 @@ class ThreadAnalyzer(object):
 
             # save memory map info to get memory details #
             if SysMgr.memEnable or SysMgr.pssEnable or SysMgr.ussEnable:
-                ThreadAnalyzer.saveProcSmapsData(value['taskPath'], idx)
+                TaskAnalyzer.saveProcSmapsData(value['taskPath'], idx)
 
             # swap #
             try:
@@ -78592,7 +78587,7 @@ class ThreadAnalyzer(object):
 
         # wrong request from client #
         if SysMgr.remoteServObj == 'NONE' and \
-            data in ThreadAnalyzer.requestType:
+            data in TaskAnalyzer.requestType:
             SysMgr.printErr(
                 "fail to handle %s request from client" % data)
             return
@@ -78743,7 +78738,7 @@ class ThreadAnalyzer(object):
                     rtime = SysMgr.uptime
 
                 # append event to list #
-                ThreadAnalyzer.procEventData.append(
+                TaskAnalyzer.procEventData.append(
                     [SysMgr.uptime, event, rtime])
 
                 SysMgr.printInfo(
@@ -79455,7 +79450,7 @@ class ThreadAnalyzer(object):
             SysMgr.outPath:
 
             # submit summarized report and details #
-            ThreadAnalyzer.printIntervalUsage()
+            TaskAnalyzer.printIntervalUsage()
 
             # sync and close output file #
             if SysMgr.printFd:
@@ -79876,7 +79871,7 @@ def main(args=None):
     if SysMgr.isTopMode():
         SysMgr.execTopCmd()
         sys.exit(0)
-    # FUNCTION_GRAPH MODE #
+    # FUNCTION GRAPH MODE #
     elif SysMgr.graphEnable and \
         SysMgr.isRecordMode() and \
         SysMgr.isFuncMode():
@@ -79886,7 +79881,7 @@ def main(args=None):
     signal.signal(signal.SIGINT, SysMgr.exitHandler)
 
     # check log file is recoginizable #
-    ThreadAnalyzer.getInitTime(SysMgr.inputFile)
+    TaskAnalyzer.getInitTime(SysMgr.inputFile)
 
     # apply launch option from data file #
     if not SysMgr.isRecordMode():
@@ -79913,7 +79908,7 @@ def main(args=None):
             # prepare for timeline chart #
             SysMgr.graphEnable = False
             SysMgr.intervalEnable = 0
-            tobj = ThreadAnalyzer(origInputFile)
+            tobj = TaskAnalyzer(origInputFile)
             outputPath = UtilMgr.prepareForImageFile(
                 SysMgr.inputFile, 'timeline')
 
@@ -79926,9 +79921,9 @@ def main(args=None):
             # draw resource graph #
             SysMgr.graphEnable = True
             SysMgr.intervalEnable = origInterval
-            ThreadAnalyzer(origInputFile).printUsage()
+            TaskAnalyzer(origInputFile).printUsage()
         else:
-            ThreadAnalyzer(SysMgr.inputFile).printUsage()
+            TaskAnalyzer(SysMgr.inputFile).printUsage()
 
     # print event info #
     EventAnalyzer.printEventInfo()
