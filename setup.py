@@ -3,7 +3,7 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.7b',
+    version = '3.9.8',
     license = 'GPL2',
     description = 'A system-wide analyzer of performance',
     author = 'Peace Lee',
@@ -37,6 +37,7 @@ build & install command
     # python3 setup.py install
 pypi upload command
     # python3 -m pip install twine
+    # rm dist/*
     # python3 setup.py sdist bdist_wheel
     # python3 -m twine upload --repository pypi dist/*
     # python3 -m twine upload --repository pypitest dist/*

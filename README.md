@@ -1092,8 +1092,9 @@ Build & Installation
 =======
 
 ```
-If you can run 'pip' on your system then just enter the following command:
+If you can run 'pip' on your system then just enter the following commands:
     # pip install guider
+    # pip3 install guider
 and just run the following commands:
     # python -m guider
     # guider
