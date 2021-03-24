@@ -48116,14 +48116,16 @@ struct cmsghdr {
 
         if addr < wordSize:
             SysMgr.printWarn((
-                "fail to access %s memory "
-                "because of wrong address") % hex(addr).rstrip('L'))
+                "fail to access memory address %s for %s(%s) "
+                "because of wrong address") % \
+                    (hex(addr).rstrip('L'), self.comm, self.pid))
             return -1
 
         if addr % wordSize:
             SysMgr.printWarn((
-                "fail to access %s memory "
-                "because of unaligned address") % hex(addr).rstrip('L'))
+                "fail to access memory address %s for %s(%s) "
+                "because of unaligned address") % \
+                    (hex(addr).rstrip('L'), self.comm, self.pid))
             return -1
 
         return self.ptrace(cmd, addr, data)
@@ -48303,8 +48305,9 @@ struct cmsghdr {
 
         if addr < wordSize:
             SysMgr.printWarn((
-                "fail to read from %s memory "
-                "because of wrong address") % hex(addr).rstrip('L'))
+                "fail to read memory address %s for %s(%s) "
+                "because of wrong address") % \
+                    (hex(addr).rstrip('L'), self.comm, self.pid))
             return None
 
         # check size #
@@ -48371,7 +48374,7 @@ struct cmsghdr {
             if word == -1:
                 if verb:
                     SysMgr.printErr(
-                        "fail to read memory %s from %s(%s)" % \
+                        "fail to read memory address %s for %s(%s)" % \
                             (hex(addr).rstrip('L'), self.comm, self.pid))
                 return None
 
@@ -54171,6 +54174,26 @@ class ElfAnalyzer(object):
 
     DT_VERSIONTAGNUM = 16
 
+    rustChars = [
+	[",",  "$C$"],
+        ["@",  "$SP$"],
+        ["*",  "$BP$"],
+        ["&",  "$RF$"],
+        ["<",  "$LT$"],
+        [">",  "$GT$"],
+        ["(",  "$LP$"],
+        [")",  "$RP$"],
+        [" ",  "$u20$"],
+        ["'",  "$u27$"],
+        ["[",  "$u5b$"],
+        ["]",  "$u5d$"],
+        ["~",  "$u7e$"],
+        ["{",  "$u7b$"],
+        ["}",  "$u7d$"],
+        ["::", ".."],
+        ["-",  "."],
+    ]
+
     PT_FLAGS = {
         0:"None",
         1:"E",
@@ -56176,6 +56199,48 @@ class ElfAnalyzer(object):
 
 
     @staticmethod
+    def demangleJavaSym(symbol):
+        return symbol
+
+
+    @staticmethod
+    def demangleRustSym(symbol):
+        '''
+        refer to https://elixir.bootlin.com/linux/latest/source/tools/perf/util/demangle-rust.c #
+
+        Legacy Rust symbols always end with E.
+        Legacy Rust symbols also always end with a path segment
+        that encodes a 16 hex digit hash, i.e. '17h[a-f0-9]{16}'.
+        This early check, before any parse_ident calls, should
+        quickly filter out most C++ symbols unrelated to Rust.
+        '''
+
+        hash_prefix = "::h";
+        hash_prefix_len = 3;
+        hash_len = 16;
+        hashTotal = hash_prefix_len + hash_len
+
+        # check symbol #
+        if len(symbol) <= hashTotal:
+            return symbol
+
+        # convert chars #
+        origSym = symbol
+        for char in ElfAnalyzer.rustChars:
+            symbol = symbol.replace(char[1], char[0])
+
+        # check symbol #
+        if len(symbol) <= hashTotal:
+            return symbol
+
+        if symbol[:-hash_len].endswith('::h'):
+            symbol = symbol[:-hashTotal]
+
+        return symbol
+
+
+
+    @staticmethod
     def demangleSymbol(symbol, incArg=True):
         origSym = symbol
         symbol = symbol.replace('@@', '@')
@@ -56191,7 +56256,11 @@ class ElfAnalyzer(object):
         if symbol in ElfAnalyzer.cachedDemangleTable:
             return ElfAnalyzer.cachedDemangleTable[symbol]
 
-        # check including version #
+        # strip llvm info #
+        if '.llvm.' in symbol:
+            symbol = symbol[:symbol.find('.llvm.')]
+
+        # check version #
         if '@' in symbol:
             symbol, version = symbol.split('@')
             version = '@%s' % version
@@ -56264,6 +56333,15 @@ class ElfAnalyzer(object):
                     dmSymbol = dmSymbol.split('(', 1)[0]
                 except:
                     pass
+
+            # demangle symbols for rust #
+            dmSymbol = ElfAnalyzer.demangleRustSym(dmSymbol)
+
+            # demangle symbols for java #
+            '''
+            toDo: implement demangleJavaSym()
+            dmSymbol = ElfAnalyzer.demangleJavaSym(dmSymbol)
+            '''
 
             demangledSym = '%s%s' % (dmSymbol, version)
             ElfAnalyzer.cachedDemangleTable[origSym] = demangledSym
@@ -57671,6 +57749,7 @@ Section header string table index: %d
         e_shdbgframe = -1
         e_shehframehdr = -1
         e_sharmidx = -1
+        e_shframe = -1
 
         # define section info #
         self.attr.setdefault('sectionHeader', dict())
@@ -58614,8 +58693,10 @@ Section header string table index: %d
                     elif name == 'DW_CFA_nop':
                         pass
                     else:
+                        '''
                         SysMgr.printWarn(
                             'skipped to update current line by %s' % name)
+                        '''
                         self.nrSkipUpdate += 1
 
                 '''
