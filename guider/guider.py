@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210323"
+__revision__ = "210324"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -10252,7 +10252,7 @@ class FunctionAnalyzer(object):
 
     def parseEventInfo(self, tid, func, args, time, core):
         # check core filter #
-        if len(SysMgr.perCoreList) > 0 and \
+        if SysMgr.perCoreList and \
             long(core) not in SysMgr.perCoreList and \
             func[0] != '<':
             self.saveEventParam('IGNORE', 0, func[:-1])
@@ -10888,7 +10888,7 @@ class FunctionAnalyzer(object):
             self.nowCtx = self.coreCtx[self.lastCore]
 
             # Check core filter #
-            if len(SysMgr.perCoreList) > 0 and \
+            if SysMgr.perCoreList and \
                 long(d['core']) not in SysMgr.perCoreList and \
                 not d['func'].startswith("tracing_mark_write") and \
                 d['func'] != '0:':
@@ -17017,6 +17017,9 @@ class SysMgr(object):
         # load libc #
         SysMgr.loadLibcObj(exit=True)
 
+        # get the number of core #
+        nrCore = SysMgr.getNrCore()
+
         for pid in pids:
             if isProcess:
                 threadList = SysMgr.getThreadList(pid)
@@ -17034,8 +17037,6 @@ class SysMgr(object):
                     pass
 
                 try:
-                    nrCore = SysMgr.getNrCore()
-
                     SysMgr.libcObj.sched_setaffinity.argtypes = \
                         [c_int, c_ulong, POINTER(c_ulong)]
 
@@ -21653,7 +21654,7 @@ Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
 
 Description:
-    Print process tree
+    Show the tree of tasks
 
 Options:
     -e  <CHARACTER>             enable options
@@ -21666,16 +21667,16 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print tree of processes
+    - Print the tree of processes
         # {0:1} {1:1}
 
-    - Print tree of threads
+    - Print the tree of threads
         # {0:1} {1:1} -e t
 
-    - Print highlighting processes having specific name
+    - Print the highlighted processes having specific name
         # {0:1} {1:1} -g kworker
 
-    - Print tree of processes with depth 3
+    - Print the tree of processes with depth 3
         # {0:1} {1:1} -H 3
                     '''.format(cmd, mode)
 
@@ -23855,7 +23856,7 @@ Copyright:
         if enable:
             sfilter = ""
             pfilter = SysMgr.getPidFilter()
-            if len(SysMgr.syscallList) > 0:
+            if SysMgr.syscallList:
                 sfilter = "("
                 for val in SysMgr.syscallList:
                     sfilter += " id == %s ||" % val
@@ -25690,7 +25691,7 @@ Copyright:
                 ', '.join(SysMgr.filterGroup))
 
         # check filter list #
-        if len(SysMgr.filterGroup) > 0:
+        if SysMgr.filterGroup:
             if not SysMgr.groupProcEnable:
                 SysMgr.printInfo(
                     "only specific threads [ %s ] are shown" % \
@@ -26163,7 +26164,7 @@ Copyright:
                         UtilMgr.convSize2Unit(SysMgr.bufferSize), True)
                 SysMgr.bufferOverflowed = True
 
-            if len(SysMgr.procBuffer) <= 1:
+            if not SysMgr.procBuffer:
                 break
 
             SysMgr.procBufferSize -= len(SysMgr.procBuffer[-1])
@@ -29100,6 +29101,22 @@ Copyright:
 
         # get pids #
         pids = SysMgr.getProcPids(name)
+
+        # get only Guider server processes #
+        if len(pids) > 1 and name == __module__:
+            servers = []
+            for pid in pids:
+                try:
+                    cmdline = SysMgr.getCmdline(pid).split()
+                    if len(cmdline) > 2 and cmdline[2] == 'server':
+                        servers.append(pid)
+                except:
+                    SysMgr.printWarn(
+                        'fail to get cmdline for %s(%s)' % \
+                            (pid, SysMgr.getComm(pid, cache=True)), True)
+            pids = servers
+
+        # get target network info #
         if len(pids) == 1:
             # get socket objects #
             objs = SysMgr.getProcSocketObjs(pids[0])
@@ -29115,10 +29132,10 @@ Copyright:
             addr = addrs[0]
 
             return addr[addr.find(':')+1:]
-
-        if len(pids) > 1:
+        elif len(pids) > 1:
             SysMgr.printWarn(
                 "Found multiple running %s processes" % name, True)
+            SysMgr.printBgProcs(cache=True)
         else:
             SysMgr.printWarn(
                 "fail to find %s process" % name, True)
@@ -29272,7 +29289,7 @@ Copyright:
 
         SysMgr.updateBgProcs()
 
-        if len(SysMgr.bgProcList) > 0:
+        if SysMgr.bgProcList:
             ppid = os.getppid()
             myComm = SysMgr.getComm(SysMgr.pid)
             parentComm = SysMgr.getComm(ppid)
@@ -29287,7 +29304,7 @@ Copyright:
                         bgList.pop(idx)
                 SysMgr.bgProcList = '\n'.join(bgList)
 
-        if len(SysMgr.bgProcList) > 0:
+        if SysMgr.bgProcList:
             SysMgr.printWarn(
                 SysMgr.getBgProcString(), True)
 
@@ -31191,8 +31208,12 @@ Copyright:
 
         def _printHistory(hlist):
             print('\n<History>')
-            for idx, cmd in enumerate(hlist):
-                print('[%0d] %s' % (idx, cmd))
+            if hlist:
+                for idx, cmd in enumerate(hlist):
+                    print('[%0d] %s' % (idx, cmd))
+                print('input "! + index" to execute the above commands')
+            else:
+                print('no history')
 
         def _getUserInput():
             _printMenu()
@@ -31291,6 +31312,12 @@ Copyright:
 
                 if SysMgr.pendingSignal(signal.SIGINT):
                     break
+
+            # close running remote task #
+            try:
+                pipe.close()
+            except:
+                pass
 
             # disable alarm handler #
             _unsetAlarm()
@@ -31478,12 +31505,16 @@ Copyright:
 
                 # get input #
                 uinput = _getUserInput()
-                if uinput.startswith('!') and \
-                    len(uinput) > 1 and \
-                    uinput[1:].isdigit() and \
-                    long(uinput[1:]) < len(hlist):
-                    uinput = hlist[long(uinput[1:])]
-                    isHistory = True
+
+                # check input for history #
+                if uinput.startswith('!') and len(uinput) > 1:
+                    try:
+                        uinput = hlist[long(uinput[1:])]
+                        isHistory = True
+                    except:
+                        SysMgr.printErr(
+                            "wrong history index for '%s'" % uinput[1:])
+                        continue
 
                 # convert command shortcut #
                 uinput = _convUserCmd(uinput)
@@ -35185,8 +35216,6 @@ Copyright:
             SysMgr.printPipe(oneLine)
 
         def _runCLIMode():
-            hlist = list()
-
             def __printMenu():
                 sys.stdout.write(
                     '\n<Command List>\n'
@@ -35199,8 +35228,12 @@ Copyright:
 
             def __printHistory(hlist):
                 print('\n<History>')
-                for idx, cmd in enumerate(hlist):
-                    print('[%0d] %s' % (idx, cmd))
+                if hlist:
+                    for idx, cmd in enumerate(hlist):
+                        print('[%0d] %s' % (idx, cmd))
+                    print('input "! + index" to execute the above commands')
+                else:
+                    print('no history')
 
             def __getUserInput():
                 __printMenu()
@@ -35245,18 +35278,23 @@ Copyright:
 
 
             # run mainloop for user interaction #
+            hlist = list()
             while 1:
                 try:
                     isHistory = False
 
                     # get input #
                     uinput = __getUserInput()
-                    if uinput.startswith('!') and \
-                        len(uinput) > 1 and \
-                        uinput[1:].isdigit() and \
-                        long(uinput[1:]) < len(hlist):
-                        uinput = hlist[long(uinput[1:])]
-                        isHistory = True
+
+                    # check input for history #
+                    if uinput.startswith('!') and len(uinput) > 1:
+                        try:
+                            uinput = hlist[long(uinput[1:])]
+                            isHistory = True
+                        except:
+                            SysMgr.printErr(
+                                "wrong history index for '%s'" % uinput[1:])
+                            continue
 
                     # convert command shortcut #
                     uinput = __convUserCmd(uinput)
@@ -51610,7 +51648,7 @@ struct cmsghdr {
         nrSyscall = self.getNrSyscall()
 
         # check syscall condition #
-        if len(SysMgr.syscallList) > 0 and \
+        if SysMgr.syscallList and \
             not nrSyscall in SysMgr.syscallList:
             #self.cmd = self.sysemuCmd
             self.status = 'skip'
@@ -51672,7 +51710,7 @@ struct cmsghdr {
             self.handleSyscallOutput(args)
 
             # check syscall condition #
-            if len(SysMgr.syscallList) > 0:
+            if SysMgr.syscallList:
                 self.clearArgs()
 
             return
@@ -61879,8 +61917,9 @@ class TaskAnalyzer(object):
         avgList = {}
 
         for name, value in stats.items():
+            # set graph title #
             if name == 'graphTitle':
-                avgList.setdefault(name, value)
+                avgList.setdefault(name, 'Guider Average Graph')
                 continue
 
             try:
@@ -65377,7 +65416,7 @@ class TaskAnalyzer(object):
         # initialize swapper thread per core #
         for n in range(0, SysMgr.maxCore + 1):
             try:
-                if len(SysMgr.perCoreList) > 0 and \
+                if SysMgr.perCoreList and \
                     n not in SysMgr.perCoreList:
                     continue
 
@@ -66503,7 +66542,7 @@ class TaskAnalyzer(object):
                     continue
 
                 # apply syscall filter #
-                if len(SysMgr.syscallList) > 0 and \
+                if SysMgr.syscallList and \
                     long(sysId) not in SysMgr.syscallList:
                     continue
 
@@ -66947,7 +66986,7 @@ class TaskAnalyzer(object):
 
         # custom event usage on timeline #
         SysMgr.clearPrint()
-        if len(SysMgr.customEventList) > 0:
+        if SysMgr.customEventList:
             for idx, val in sorted(self.customEventInfo.items(),
                 key=lambda e: e[1]['count'], reverse=True):
 
@@ -67014,7 +67053,7 @@ class TaskAnalyzer(object):
 
         # user event usage on timeline #
         SysMgr.clearPrint()
-        if len(SysMgr.userEventList) > 0:
+        if SysMgr.userEventList:
             for idx, val in sorted(self.userEventInfo.items(),
                 key=lambda e: e[1]['count'], reverse=True):
 
@@ -67086,7 +67125,7 @@ class TaskAnalyzer(object):
 
         # kernel event usage on timeline #
         SysMgr.clearPrint()
-        if len(SysMgr.kernelEventList) > 0:
+        if SysMgr.kernelEventList:
             for idx, val in sorted(self.kernelEventInfo.items(),
                 key=lambda e: e[1]['count'], reverse=True):
 
@@ -67753,7 +67792,7 @@ class TaskAnalyzer(object):
             SysMgr.addPrint("%16s(%7s/%7s): " % \
                 (value['comm'][:16], key, pid) + timeLine + '\n')
 
-        if len(SysMgr.bufferString) > 0:
+        if SysMgr.bufferString:
             SysMgr.printPipe("%s# %s\n" % ('', 'Delay(%)'))
             SysMgr.doPrint()
             SysMgr.printPipe(oneLine)
@@ -67825,7 +67864,7 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'][:16], key, pid) + timeLine + '\n')
 
-            if len(SysMgr.bufferString) > 0:
+            if SysMgr.bufferString:
                 SysMgr.printPipe("%s# %s\n" % ('', 'MEM(MB)'))
                 SysMgr.doPrint()
                 SysMgr.printPipe(oneLine)
@@ -67894,7 +67933,7 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'][:16], key, pid) + timeLine + '\n')
 
-            if len(SysMgr.bufferString) > 0:
+            if SysMgr.bufferString:
                 SysMgr.printPipe("%s# %s\n" % ('', 'BLK_RD(MB)'))
                 SysMgr.doPrint()
                 SysMgr.printPipe(oneLine)
@@ -67965,7 +68004,7 @@ class TaskAnalyzer(object):
                 SysMgr.addPrint("%16s(%7s/%7s): " % \
                     (value['comm'][:16], key, value['tgid']) + timeLine + '\n')
 
-            if len(SysMgr.bufferString) > 0:
+            if SysMgr.bufferString:
                 SysMgr.printPipe("%s# %s\n" % ('', 'BLK_WR(MB)'))
                 SysMgr.doPrint()
                 SysMgr.printPipe(oneLine)
@@ -70400,21 +70439,21 @@ class TaskAnalyzer(object):
                     'totalMem': long(0), 'totalKmem': long(0)}
 
                 # make total custom event list #
-                if len(SysMgr.customEventList) > 0:
+                if SysMgr.customEventList:
                     self.intData[index]['toTal']['customEvent'] = {}
                     for evt in SysMgr.customEventList:
                         self.intData[index]['toTal']['customEvent'][evt] = \
                             dict(self.init_eventData)
 
                 # make user event list #
-                if len(SysMgr.userEventList) > 0:
+                if SysMgr.userEventList:
                     self.intData[index]['toTal']['userEvent'] = {}
                     for evt in SysMgr.userEventList:
                         self.intData[index]['toTal']['userEvent'][evt] = \
                             dict(self.init_eventData)
 
                 # make kernel event list #
-                if len(SysMgr.kernelEventList) > 0:
+                if SysMgr.kernelEventList:
                     self.intData[index]['toTal']['kernelEvent'] = {}
                     for evt in SysMgr.kernelEventList:
                         self.intData[index]['toTal']['kernelEvent'][evt] = \
@@ -70481,7 +70520,7 @@ class TaskAnalyzer(object):
                 curIntval['die'] = self.threadData[key]['die']
 
             # initialize custom event list #
-            if len(SysMgr.customEventList) > 0:
+            if SysMgr.customEventList:
                 curIntval['customEvent'] = {}
                 curIntval['totalCustomEvent'] = {}
                 for evt in SysMgr.customEventList:
@@ -70498,7 +70537,7 @@ class TaskAnalyzer(object):
                         pass
 
             # initialize user event list #
-            if len(SysMgr.userEventList) > 0:
+            if SysMgr.userEventList:
                 curIntval['userEvent'] = {}
                 curIntval['totalUserEvent'] = {}
                 for evt in SysMgr.userEventList:
@@ -70518,7 +70557,7 @@ class TaskAnalyzer(object):
                         pass
 
             # initialize kernel event list #
-            if len(SysMgr.kernelEventList) > 0:
+            if SysMgr.kernelEventList:
                 curIntval['kernelEvent'] = {}
                 curIntval['totalKernelEvent'] = {}
                 for evt in SysMgr.kernelEventList:
@@ -70958,7 +70997,7 @@ class TaskAnalyzer(object):
             return time
 
         # check skip condition #
-        if len(SysMgr.perCoreList) > 0 and \
+        if SysMgr.perCoreList and \
             long(core) not in SysMgr.perCoreList and \
             (func != "console" and \
             func != "tracing_mark_write"):
@@ -72038,7 +72077,7 @@ class TaskAnalyzer(object):
             threadData['syscallInfo'][nrstr]['last'] = ftime
 
             # save syscall history #
-            if len(SysMgr.syscallList) > 0:
+            if SysMgr.syscallList:
                 try:
                     idx = SysMgr.syscallList.index(nr)
 
@@ -74044,8 +74083,7 @@ class TaskAnalyzer(object):
 
             # set the number of core #
             SysMgr.nrCore = long(0)
-            for idx, val in sorted(self.cpuData.items(),
-                key=lambda x:str(x[0]), reverse=False):
+            for idx in list(self.cpuData.keys()):
                 try:
                     SysMgr.maxCore = long(idx)
                     SysMgr.nrCore += 1
@@ -74070,6 +74108,7 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(memPath)
 
+        # parse meminfo data #
         if memBuf:
             self.prevMemData = self.memData
 
@@ -74105,6 +74144,7 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(vmstatPath)
 
+        # parse vmstat data #
         if vmBuf:
             self.prevVmData = self.vmData
             self.vmData = {}
@@ -74834,7 +74874,7 @@ class TaskAnalyzer(object):
                 SysMgr.setPriority(long(tid), item[0], long(item[1]))
 
         # change CPU affinity #
-        if len(SysMgr.affinityFilter) > 0:
+        if SysMgr.affinityFilter:
             alist = list(SysMgr.affinityFilter)
             for idx, item in enumerate(alist):
                 val = item[0]
@@ -74857,7 +74897,7 @@ class TaskAnalyzer(object):
                     pass
 
         # send signal #
-        if len(SysMgr.killFilter) > 0:
+        if SysMgr.killFilter:
             slist = list(SysMgr.killFilter)
             for idx, item in enumerate(slist):
                 val = item[0]
@@ -75385,6 +75425,7 @@ class TaskAnalyzer(object):
                 "fail to get system CPU stat")
             return
 
+        # set maximum CPU usage #
         if SysMgr.cpuAvgEnable:
             nrCore = SysMgr.nrCore
             maxUsage = 100
@@ -75396,9 +75437,7 @@ class TaskAnalyzer(object):
         userUsage = kerUsage = ioUsage = irqUsage = idleUsage = long(0)
         coreStats = dict()
 
-        for idx, value in sorted(self.cpuData.items(),
-            key=lambda x:int(x[0]) if str(x[0]).isdigit() else 0,
-            reverse=False):
+        for idx in list(self.cpuData.keys()):
             try:
                 nowData = self.cpuData[int(idx)]
 
@@ -75685,9 +75724,8 @@ class TaskAnalyzer(object):
             else:
                 maxCols = SysMgr.ttyCols
 
-            for idx, value in sorted(self.cpuData.items(),
-                key=lambda x:long(x[0]) if str(x[0]).isdigit() else 0,
-                reverse=False):
+            # traverse core files #
+            for idx in list(self.cpuData.keys()):
                 try:
                     curCore = long(idx)
                     percoreStats[curCore] = dict()
@@ -75743,6 +75781,10 @@ class TaskAnalyzer(object):
                 defPath = '%s%s/cpufreq' % (freqPath, idx)
 
                 # get current CPU frequency #
+                '''
+                if the core has been suspended,
+                reading current frequency will take quite some time.
+                '''
                 try:
                     self.prevCpuData[idx]['curFd'].seek(0)
                     curFreq = self.prevCpuData[idx]['curFd'].readline()[:-1]
