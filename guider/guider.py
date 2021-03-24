@@ -57668,6 +57668,7 @@ Section header string table index: %d
         e_shrellist = []
         e_shrelalist = []
         e_shehframe = -1
+        e_shdbgframe = -1
         e_shehframehdr = -1
         e_sharmidx = -1
 
@@ -57738,10 +57739,11 @@ Section header string table index: %d
                 e_shdynstr = i
             elif symbol == '.dynamic':
                 e_shdynamic = i
-            elif symbol == '.eh_frame' or \
-                symbol == '.debug_frame' or \
-                symbol == '.zdebug_frame':
+            elif symbol == '.eh_frame':
                 e_shehframe = i
+            elif symbol == '.debug_frame' or \
+                symbol == '.zdebug_frame':
+                e_shdbgframe = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
             elif stype == 'GNU_versym':
@@ -58289,21 +58291,25 @@ Section header string table index: %d
             self.attr['dwarfEnabled'] = False
 
         # check frame section #
-        if '.debug_frame' in self.attr['sectionHeader'] and \
+        if '.eh_frame' in self.attr['sectionHeader'] and \
+            self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
+            frameSectName = 'eh_frame'
+            e_shframe = e_shehframe
+        elif '.debug_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.debug_frame']['type'] != 'NOBITS':
+            # toDo: need to implement more for DWARF v4 #
             frameSectName = 'debug_frame'
+            e_shframe = e_shdbgframe
         elif '.zdebug_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.zdebug_frame']['type'] != 'NOBITS':
             frameSectName = 'debug_frame'
-        elif '.eh_frame' in self.attr['sectionHeader'] and \
-            self.attr['sectionHeader']['.eh_frame']['type'] != 'NOBITS':
-            frameSectName = 'eh_frame'
+            e_shframe = e_shdbgframe
         else:
             frameSectName = ''
 
         # check frame section #
         self.attr['dwarfTable'] = dict()
-        if SysMgr.dwarfEnable and e_shehframe >= 0 and frameSectName:
+        if SysMgr.dwarfEnable and e_shframe >= 0 and frameSectName:
             def _getEncType(encoding):
                 if encoding == ENC_FLAGS['DW_EH_PE_omit']:
                     SysMgr.printErr(
@@ -58800,7 +58806,7 @@ Section header string table index: %d
 
             sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
                 sh_link, sh_info, sh_addralign, sh_entsize = \
-                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shehframe)
+                self.getSectionInfo(fd, e_shoff + e_shentsize * e_shframe)
 
             self.attr.setdefault('dwarf', dict())
             self.attr['dwarf']['CIE'] = dict()
