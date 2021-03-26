@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210324"
+__revision__ = "210326"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3588,9 +3588,24 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def printTime():
-        diff = time.time() - UtilMgr.curTime
-        print('\n[Elapsed: %f]' % diff)
+    def printTime(name=None, update=False):
+        # get current time #
+        now = time.time()
+        diff = now - UtilMgr.curTime
+
+        # update timestamp #
+        if update:
+            UtilMgr.current = now
+
+        # add name #
+        if name:
+            prefix = '[%s]' % name
+        else:
+            prefix = ''
+
+        # print time diff #
+        string = '\n%s[Elapsed: %f]' % (prefix, diff)
+        print(UtilMgr.convColor(string, 'RED'))
 
 
 
@@ -19249,6 +19264,9 @@ Examples:
     - Print all call contexts except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
+    - Print all call contexts except for register info for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+
     - Print all call contexts for a specific thread after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
@@ -20012,6 +20030,9 @@ Examples:
 
     - Monitor function calls except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+
+    - Monitor function calls except for register info for a specific thread
+        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
     - Monitor function calls except for no symbol functions for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
@@ -44718,6 +44739,7 @@ class Debugger(object):
         self.status = 'enter'
         self.traceStatus = False
         self.runStatus = False
+        self.sampleStatus = True
         self.attached = attach
         self.execCmd = execCmd
         self.arch = arch = SysMgr.getArch()
@@ -48781,7 +48803,8 @@ struct cmsghdr {
         palette = Timeline.Config().PALETTE
 
         def _iterNode(array, target, callCnt, depth=0, pos=0, height=36):
-            for node, value in target.items():
+            for node, value in sorted(target.items(),
+                key=lambda x:x[1]['cnt'], reverse=True):
                 # get stats #
                 totalCnt = callCnt[0]
                 cnt = value['cnt']
@@ -49090,11 +49113,15 @@ struct cmsghdr {
 
         # check samples #
         if not self.callTable:
-            SysMgr.printWarn(
-                "no sample data for %s(%s)" % \
-                    (self.comm, self.pid), True)
+            if not self.sampleStatus:
+                SysMgr.printWarn(
+                    "no sample data for %s(%s)" % \
+                        (self.comm, self.pid), True)
             _resetStats()
             return
+
+        # update status for sample collection #
+        self.sampleStatus = True
 
         # check user input #
         SysMgr.waitUserInput(
@@ -49350,7 +49377,7 @@ struct cmsghdr {
 
 
 
-    def getAnonVrangeByOffset(self, offset, fname=None):
+    def getAnonRangeByOffset(self, offset, fname=None):
         if not fname in self.pmap:
             return
 
@@ -49378,7 +49405,7 @@ struct cmsghdr {
 
 
 
-    def getVrangeBySymbol(self, symbol, fname=None):
+    def getRangeBySym(self, symbol, fname=None):
         if not fname in self.pmap:
             return
 
@@ -49568,10 +49595,10 @@ struct cmsghdr {
             self.needMapScan = True
 
             # print error message and return #
-            procInfo = '%s(%s)' % (self.comm, self.pid)
             SysMgr.printWarn(
-                'fail to get file name via addr %s for %s' % \
-                    (hex(vaddr).rstrip('L'), procInfo))
+                'fail to get symbol via %s for %s(%s)' % \
+                    (hex(vaddr).rstrip('L'), self.comm, self.pid))
+
             return None
 
         # get real offset for memory hole #
@@ -49592,12 +49619,11 @@ struct cmsghdr {
             self.needMapScan = True
 
             # print error message and return #
-            procInfo = '%s(%s)' % (self.comm, self.pid)
-            SysMgr.printWarn((
-                'fail to get offset in %s via %s for %s '
-                'because of wrong memory map') % \
-                    (fname, hex(vaddr).rstrip('L'), procInfo))
-            return ['??', fname, '??', '??', '??', '??']
+            SysMgr.printWarn(
+                'fail to get symbol via %s for %s(%s)' % \
+                    (hex(vaddr).rstrip('L'), self.comm, self.pid))
+
+            return None
 
         # remove suffix in file name #
         fname = fname.rsplit(SysMgr.magicStr, 1)[0]
@@ -49623,10 +49649,12 @@ struct cmsghdr {
             sys.exit(0)
         except:
             SysMgr.printWarn(
-                'fail to get symbol from %s for %s(%s)' % \
+                'fail to get symbol via %s for %s(%s)' % \
                     (hex(offset).rstrip('L'), self.comm, self.pid),
                         reason=True)
-            return ['??', fname, '??', '??', '??', '??']
+
+            # return #
+            return [hex(offset).rstrip('L'), fname, '??', '??', '??', '??']
 
 
 
@@ -49678,9 +49706,12 @@ struct cmsghdr {
         self, regs=True, bt=True, sig=True, deref=True,
         args=None, newline=False):
 
+        # check skip condition #
         if not regs and not bt:
             return
         elif not SysMgr.printEnable:
+            return
+        elif 'NOCONTEXT' in SysMgr.environList:
             return
 
         if newline:
@@ -50028,13 +50059,19 @@ struct cmsghdr {
             indentStr = ' ' * default
 
         for item in bt:
+            if item[1] == item[2] == '??':
+                sym = hex(item[0]).rstrip('L')
+            else:
+                sym = item[1]
+            fname = item[2]
+
             # remove redundant symbols #
-            if prevSym == item[1] and prevFile == item[2]:
+            if prevSym == sym and prevFile == fname:
                 cnt += 1
                 continue
             else:
-                prevSym = item[1]
-                prevFile = item[2]
+                prevSym = sym
+                prevFile = fname
 
             # check redundant symbols #
             if cnt > 0:
@@ -50044,7 +50081,7 @@ struct cmsghdr {
                 cntStr = ''
 
             # build a new string #
-            newStr = ' <- %s[%s]%s' % (item[1], item[2], cntStr)
+            newStr = ' <- %s[%s]%s' % (sym, fname, cntStr)
             if btStr and len(newStr) + pos > maximum:
                 newStr = '\n%s%s' % (indentStr, newStr)
                 pos = len(newStr) - 1
@@ -51323,10 +51360,12 @@ struct cmsghdr {
 
         # print unknown call address #
         if fname == '??':
+            sym = hex(self.pc).rstrip('L')
+
             if self.isRealtime:
-                self.addSample('??', fname, realtime=True, bt=backtrace)
+                self.addSample(sym, fname, realtime=True, bt=backtrace)
             elif SysMgr.outPath:
-                self.addSample('??', fname, bt=backtrace)
+                self.addSample(sym, fname, bt=backtrace)
             return
 
         # check contiguous unknown symbol #
@@ -51351,10 +51390,10 @@ struct cmsghdr {
             try:
                 # symbol range #
                 if sym != '??':
-                    vstart, vend = self.getVrangeBySymbol(sym, fname)
+                    vstart, vend = self.getRangeBySym(sym, fname)
                 # anon range #
                 else:
-                    vstart, vend = self.getAnonVrangeByOffset(offset, fname)
+                    vstart, vend = self.getAnonRangeByOffset(offset, fname)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -52277,6 +52316,7 @@ struct cmsghdr {
         self.comm = SysMgr.getComm(self.pid, cache=True)
         self.exe = SysMgr.getExeName(self.pid)
         self.start = self.last = time.time()
+        self.sampleStatus = True
         self.statFd = None
         self.kernelFd = None
         self.prevStat = None
@@ -52698,28 +52738,30 @@ struct cmsghdr {
                         self.ptraceEvent(self.traceEventList)
                         self.ptrace(self.cmd)
 
-                # KILL / SEGV signal #
+                # KILL / SEGV / ABRT signal #
                 elif SysMgr.isTermSignal(stat):
-                    # print context info #
-                    self.printContext(newline=True)
-
+                    # print status #
                     SysMgr.printErr(
-                        'terminated %s(%s) because of %s' % \
-                            (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
+                        'detected %s for %s(%s)' % \
+                            (ConfigMgr.SIG_LIST[stat], self.comm, self.pid))
+
+                    # print context info #
+                    if SysMgr.showAll:
+                        self.printContext(newline=True)
+
+                    # deliver signal #
+                    if self.cont(check=True, sig=stat) < 0:
+                        sys.exit(0)
 
                     # set fault flag to shared memory #
                     self.setFaultFlag()
-
-                    if SysMgr.isTopMode():
-                        SysMgr.waitEvent()
-
-                    sys.exit(0)
 
                 # exit #
                 elif stat == -1:
                     if self.status == 'exit':
                         SysMgr.printPipe(' ')
 
+                    # print status #
                     SysMgr.printErr(
                         'terminated %s(%s)' % (self.comm, self.pid))
 
@@ -52762,7 +52804,7 @@ struct cmsghdr {
                     'detected %s(%s) with error' % \
                         (self.comm, self.pid), reason=True)
 
-                # continue target #
+                # deliver signal #
                 if self.mode == 'break':
                     if self.cont(check=True) < 0:
                         sys.exit(0)
@@ -58986,10 +59028,14 @@ Section header string table index: %d
                         else:
                             ehdata = fd.read(8)
 
+                    # size for address and segment in DWARF v4 #
                     if ver >= 4:
-                        # address size (uint8) is added in DWARF v4 #
-                        # segment size (uint8) is added in DWARF v4 #
-                        pass
+                        addrSize = struct.unpack('B', table[pos:pos+1])[0]
+                        pos += 1
+                        segmentSize = struct.unpack('B', table[pos:pos+1])[0]
+                        pos += 1
+                    else:
+                        addrSize = segmentSize = -1
 
                     # Call Alignment Factor #
                     data = table[pos:].decode('latin-1')
@@ -59033,6 +59079,8 @@ Section header string table index: %d
                         'length': size,
                         'id': cid,
                         'version': ver,
+                        'addrsize': addrSize,
+                        'segmentsize': segmentSize,
                         'caf': caf,
                         'daf': daf,
                         'rar': rar,
@@ -59051,14 +59099,21 @@ Section header string table index: %d
                             (offset, size, cid)
                         printStr += ' %-22s %s\n' % ('Version:', ver)
                         printStr += ' %-22s "%s"\n' % ('Augmentation:', augstr)
+                        if addrSize >= 0:
+                            printStr += ' %-22s %s\n' % \
+                                ('Pointer Size:', addrSize)
+                        if segmentSize >= 0:
+                            printStr += ' %-22s %s\n' % \
+                                ('Segment Size:', segmentSize)
                         printStr += ' %-22s %x\n' % \
                             ('Code alignment factor:', caf)
                         printStr += ' %-22s %x\n' % \
                             ('Data alignment factor:', daf)
                         printStr += ' %-22s %d\n' % \
                             ('Return address column:', rar)
-                        printStr += ' %-22s %s\n\n' % \
-                            ('Augmentation data: ', augdatastr)
+                        if augdatastr:
+                            printStr += ' %-22s %s\n\n' % \
+                                ('Augmentation data: ', augdatastr)
                         SysMgr.printPipe(printStr)
 
                 #-------------------- FDE --------------------#
