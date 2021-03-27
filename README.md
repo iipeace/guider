@@ -2,6 +2,7 @@
 [![license](http://img.shields.io/badge/license-GNU-blue.svg)](https://raw.githubusercontent.com/iipeace/guider/master/LICENSE)
 [![Coverity](https://scan.coverity.com/projects/15302/badge.svg)](https://scan.coverity.com/projects/iipeace-guider) 
 [![PyPI version](https://badge.fury.io/py/guider.svg)](https://badge.fury.io/py/guider)
+[![Download guider](https://img.shields.io/sourceforge/dt/guider.svg)](https://sourceforge.net/projects/guider/files/latest/download)
 [![Join the chat at https://gitter.im/guiderchat/Lobby](https://badges.gitter.im/guiderchat/Lobby.svg)](https://gitter.im/guiderchat/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ![Guider_Logo_mini](https://user-images.githubusercontent.com/15862689/69008465-3062aa80-098e-11ea-8185-cfb8d7c4aafe.png)

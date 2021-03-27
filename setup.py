@@ -36,9 +36,9 @@ build & install command
     # python3 setup.py build
     # python3 setup.py install
 pypi upload command
-    # python3 -m pip install twine
-    # rm dist/*
-    # python3 setup.py sdist bdist_wheel
+    # sudo python3 -m pip install twine
+    # rm dist/* -rf
+    # sudo python3 setup.py sdist bdist_wheel
     # python3 -m twine upload --repository pypi dist/*
     # python3 -m twine upload --repository pypitest dist/*
 '''
