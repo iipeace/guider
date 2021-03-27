@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210326"
+__revision__ = "210327"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4035,7 +4035,7 @@ class UtilMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printErr('fail to convert %s to strings' % path, True)
+            SysMgr.printErr("fail to convert '%s' to strings" % path, True)
             return False
 
 
@@ -16708,13 +16708,14 @@ class SysMgr(object):
     def doDump():
         # get argument #
         if SysMgr.hasMainArg():
-            inputParam = SysMgr.getMainArg()
-        elif SysMgr.inputParam:
-            inputParam = SysMgr.inputParam
+            inputParam = SysMgr.getMainArg().split(',')
+        elif SysMgr.filterGroup:
+            inputParam = SysMgr.filterGroup
         else:
             SysMgr.printErr("no input for COMM or PID")
             sys.exit(0)
 
+        # check condition #
         if not inputParam:
             SysMgr.printErr("no input for memory info")
             sys.exit(0)
@@ -16738,6 +16739,7 @@ class SysMgr(object):
                     SysMgr.getCommList(targetList))
             sys.exit(0)
 
+        # set args #
         pid = targetList[0]
         meminfo = SysMgr.inputParam
         output = SysMgr.outPath
@@ -16754,12 +16756,25 @@ class SysMgr(object):
             inputParam = SysMgr.getMainArg()
         elif SysMgr.inputParam:
             inputParam = SysMgr.inputParam
+        else:
             SysMgr.printErr("no input for path")
             sys.exit(0)
 
         SysMgr.setStream()
 
-        SysMgr.printStat('start reading %s...' % inputParam)
+        # get file size #
+        if os.path.exists(inputParam):
+            # get output size #
+            fsize = UtilMgr.getFileSize(inputParam)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
+            else:
+                fsize = ''
+        else:
+            SysMgr.printErr('no %s file' % inputParam)
+            sys.exit(0)
+
+        SysMgr.printStat('start reading %s%s...' % (inputParam, fsize))
 
         # convert binary file to string #
         clist = UtilMgr.convBin2Str(inputParam, pos=True)
@@ -18702,6 +18717,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('decomp') and \
                 not SysMgr.checkMode('req') and \
                 not SysMgr.checkMode('ping') and \
+                not SysMgr.checkMode('strings') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -26369,8 +26385,10 @@ Copyright:
                     elif UtilMgr.which('more'):
                         SysMgr.pipeForPager = os.popen('more', 'w')
                 elif sys.platform.startswith('win'):
-                    if UtilMgr.which('more'):
+                    try:
                         SysMgr.pipeForPager = os.popen('more', 'w')
+                    except:
+                        pass
                 else:
                     # no supported OS #
                     SysMgr.pipeForPager = None
@@ -33738,12 +33756,17 @@ Copyright:
 
     @staticmethod
     def initTaskMon(pid, update=True):
+        if not SysMgr.isLinux:
+            return None
+
         tobj = TaskAnalyzer(None, onlyInstance=True)
         path = '%s/%s' % (SysMgr.procPath, pid)
         tobj.saveProcData(path, pid)
+
         SysMgr.updateUptime()
         if update:
             tobj.saveProcInstance()
+
         return tobj
 
 
@@ -33764,6 +33787,9 @@ Copyright:
 
     @staticmethod
     def updateTaskMon(tobj, pid):
+        if not SysMgr.isLinux:
+            raise Exception('N/A')
+
         path = '%s/%s' % (SysMgr.procPath, SysMgr.pid)
         SysMgr.updateUptime()
         tobj.saveProcData(path, pid)
@@ -53866,10 +53892,12 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
 
         if verb:
             SysMgr.printInfo(
-                "start dumping memory %s [%s-%s] from %s(%s)" % \
-                    (UtilMgr.convSize2Unit(size),
-                        hex(start).rstrip('L'), hex(start+size).rstrip('L'),
-                        self.comm, self.pid))
+                "start dumping memory %s-%s [%s] for %s(%s)" % \
+                    (hex(start).rstrip('L'), hex(start+size).rstrip('L'),
+                        UtilMgr.convSize2Unit(size), self.comm, self.pid))
+
+        # backup #
+        SysMgr.backupFile(output)
 
         # open output file #
         try:
@@ -53909,7 +53937,7 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         # close output file for sync #
         if verb:
             SysMgr.printStat(
-                "start syncing %s data to %s" % \
+                "start writing dump data [%s] to %s" % \
                     (UtilMgr.convSize2Unit(total), output))
 
         fd.close()
