@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210328"
+__revision__ = "210329"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4297,12 +4297,20 @@ class UtilMgr(object):
         buf = []
 
         if verbose:
-            if retfd:
-                SysMgr.printStat(
-                    r"start checking '%s'..." % fname)
+            # get output size #
+            fsize = UtilMgr.getFileSize(fname)
+            if fsize and fsize != '0':
+                fsize = ' [%s]' % fsize
             else:
-                SysMgr.printStat(
-                    r"start loading '%s'..." % fname)
+                fsize = ''
+
+            if retfd:
+                job = 'checking'
+            else:
+                job = 'loading'
+
+            SysMgr.printStat(
+                r"start %s '%s'%s..." % (job, fname, fsize))
 
         # check gzip #
         try:
@@ -10641,6 +10649,12 @@ class FunctionAnalyzer(object):
                 r'(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), args)
             if m:
                 b = m.groupdict()
+
+                '''
+                The operation to specific virtual devices such like
+                device-mapper is remapped to another device by block_bio_queue
+                event. It will probably make the workload look multiple times.
+                '''
 
                 opt = b['operation']
 
@@ -38189,6 +38203,10 @@ Copyright:
         # bio #
         bioFlag = sm.blockEnable
         self.cmdList["block/block_bio_queue"] = bioFlag
+        '''
+        ignore block_bio_complete for redundant operations
+        self.cmdList["block/block_bio_complete"] = bioFlag
+        '''
         self.cmdList["block/block_rq_complete"] = bioFlag
         self.cmdList["writeback/writeback_dirty_page"] = bioFlag
         self.cmdList["writeback/wbc_writepage"] = bioFlag
@@ -67090,7 +67108,7 @@ class TaskAnalyzer(object):
                 # print per-operation size statistics #
                 for optSize, cnt in sorted(val[5].items()):
                     start = UtilMgr.convSize2Unit(optSize)
-                    end = UtilMgr.convSize2Unit(optSize << 1)
+                    end = UtilMgr.convSize2Unit((optSize << 1) - 1024)
                     SysMgr.printPipe(
                         "{0:^25} {0:^8} {0:^5} {1:>20} {2:>25} {0:^12} {0:<20}".\
                         format('', '[%7s - %7s]' % (start, end), cnt))
@@ -67136,7 +67154,7 @@ class TaskAnalyzer(object):
         for tid, data in sorted(self.blockTable[2].items(),
             key=lambda e:sorted(e[1][0]), reverse=True):
             tcnt = long(0)
-            comm = self.threadData[tid]['comm']
+            comm = self.threadData[tid]['comm'][:16]
             cid = '%s(%s)' % (comm, tid)
 
             # thread read #
@@ -70406,8 +70424,15 @@ class TaskAnalyzer(object):
 
                 if compressor and fd:
                     if verbose:
+                        # get output size #
+                        fsize = UtilMgr.getFileSize(fname)
+                        if fsize and fsize != '0':
+                            fsize = ' [%s]' % fsize
+                        else:
+                            fsize = ''
+
                         SysMgr.printStat(
-                            r"start checking '%s'..." % fname)
+                            r"start checking '%s'%s..." % (fname, fsize))
                 else:
                     try:
                         fd = UtilMgr.getTextLines(fname, verbose, retfd=True)
@@ -70498,17 +70523,22 @@ class TaskAnalyzer(object):
             return 1 << idx
 
         def _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset):
+            # per-device size stat #
             try:
                 targetTable[did][0] += size
                 targetTable[did][1] += 1
+
+                # sequential operation #
                 if targetTable[did][2] == addr:
                     targetTable[did][3] += size
                     targetTable[did][4] += 1
+
                 targetTable[did][2] = blkOffset
             except:
                 sizeTable = {}
                 targetTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
 
+            # per-operation size stat #
             try:
                 targetTable[did][5][blkSize] += 1
             except:
@@ -70527,6 +70557,7 @@ class TaskAnalyzer(object):
         addr = long(addr)
         size = long(size)
 
+        # get real block size for operation #
         if size > 1:
             blkOffset = addr + (size >> 9)
         else:
@@ -72595,8 +72626,9 @@ class TaskAnalyzer(object):
 
         elif func == "block_rq_complete":
             m = re.match((
-                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*(?P<operation>\S+)'
-                r'\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+(?P<size>[0-9]+)'), etc)
+                r'^\s*(?P<major>[0-9]+),(?P<minor>[0-9]+)\s*'
+                r'(?P<operation>\S+)\s*\(.*\)\s*(?P<address>\S+)\s+\+\s+'
+                r'(?P<size>[0-9]+)'), etc)
             if not m:
                 _printEventWarning(func)
                 return time
