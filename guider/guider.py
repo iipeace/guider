@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210327"
+__revision__ = "210328"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -38568,7 +38568,8 @@ Copyright:
             # block events #
             if SysMgr.blockEnable:
                 blkCmd = cmd + \
-                    " && (rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS)"
+                    (''' && (rwbs == "R" || rwbs == "RA" || '''
+                    '''rwbs == "RM" || rwbs == "WS")''')
                 SysMgr.writeCmd('block/block_bio_queue/filter', blkCmd)
                 SysMgr.writeCmd('block/block_bio_queue/enable', '1')
                 SysMgr.writeCmd(
@@ -38789,7 +38790,7 @@ Copyright:
                 SysMgr.writeCmd('kmem/mm_page_free_direct/enable', '1')
 
         # block events #
-        cmd = "rwbs == R || rwbs == RA || rwbs == RM || rwbs == WS"
+        cmd = '''rwbs == "R" || rwbs == "RA" || rwbs == "RM" || rwbs == "WS"'''
         if self.cmdList["block/block_bio_queue"]:
             SysMgr.writeCmd('block/block_bio_queue/filter', cmd)
         if self.cmdList["block/block_rq_complete"]:
@@ -50558,7 +50559,11 @@ struct cmsghdr {
         for addr in btList:
             res = self.getSymbolInfo(addr)
             if res:
-                clist.append([addr, res[0], res[1]])
+                if res[0] == '??':
+                    sym = res[2]
+                else:
+                    sym = res[0]
+                clist.append([addr, sym, res[1]])
             else:
                 clist.append([addr, '??', '??'])
 
@@ -53202,7 +53207,7 @@ struct cmsghdr {
 
         nrTotal = float(len(instance.callList))
 
-        # iterate the list of call samples #
+        # iterate the call sample list #
         for idx, item in enumerate(instance.callList):
             try:
                 symbol, timestamp, filename = item
@@ -60921,7 +60926,8 @@ class TaskAnalyzer(object):
             # warn uncompleted block request #
             if len(self.ioData) > 0:
                 SysMgr.printWarn(
-                    "fail to handle %s block requests" % len(self.ioData))
+                    "fail to handle %s block requests" % \
+                        UtilMgr.convNum(len(self.ioData)))
 
         # calculate usage of threads in last interval #
         self.handleIntData(self.finishTime)
@@ -72013,7 +72019,7 @@ class TaskAnalyzer(object):
 
         elif func == "kmalloc":
             m = re.match((
-                r'^\s*call_site=(?P<caller>\S+)\s+ptr=(?P<ptr>\S+)\s+'
+                r'^\s*call_site=(?P<caller>\S+).*ptr=(?P<ptr>\S+)\s+'
                 r'bytes_req=(?P<req>[0-9]+)\s+'
                 r'bytes_alloc=(?P<alloc>[0-9]+)\s+'
                 r'gfp_flags=(?P<flags>\S+)'), etc)
