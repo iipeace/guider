@@ -4378,7 +4378,9 @@ class UtilMgr(object):
 
     @staticmethod
     def convPath(value, retStr=False, isExit=False, separator=' '):
+        # strip path #
         value = value.strip()
+
         glob = SysMgr.getPkg('glob', False)
         if glob:
             # check recursive path for specific version(>=python 3.5) #
@@ -18669,10 +18671,11 @@ class SysMgr(object):
     def getMainArg(path=False):
         if len(sys.argv) <= 2:
             return None
+        elif not path:
+            return sys.argv[2]
         else:
-            if not path:
-                return sys.argv[2]
-            return UtilMgr.convPath(sys.argv[2], retStr=True, separator=',')
+            return UtilMgr.convPath(
+                sys.argv[2], retStr=True, separator=',')
 
 
 
@@ -19292,26 +19295,29 @@ Examples:
         # {0:1} {1:1} "ls" -q NOMUTE
 
     - Print all call contexts except for wait status for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+        # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
     - Print all call contexts except for register info for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+        # {0:1} {1:1} -g a.out -q NOCONTEXT
+
+    - Print all call contexts for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
 
     - Print all call contexts for a specific thread after loading all symbols in stop status
-        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+        # {0:1} {1:1} -g a.out -q STOPTARGET
 
     - Print all call contexts except for no symbol functions for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+        # {0:1} {1:1} -g a.out -q EXCEPTNOSYM
 
     - Print all call contexts except for ld for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q EXCEPTLD
+        # {0:1} {1:1} -g a.out -q EXCEPTLD
 
     - Print all call contexts and injection info for a specific thread
-        # {0:1} {1:1} a.out -g a.out -q TRACEINJECTION
+        # {0:1} {1:1} -g a.out -q TRACEINJECTION
 
     - Print all call contexts for 4th new threads in each new processes from a specific binary
-        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
-        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+        # {0:1} {1:1} a.out -q TARGETNUM:4
+        # {0:1} {1:1} -I a.out -q TARGETNUM:4
 
     - Print all call contexts from a specific binary with DWARF info
         # {0:1} {1:1} -I "ls" -eD
@@ -19921,8 +19927,11 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor open files including null of all processes
+    - Monitor open files including null for all processes
         # {0:1} {1:1} -g :null
+
+    - Monitor open files including 8000 or zero for specific processes including a.out or test
+        # {0:1} {1:1} -g a.out,test:8000,zero
 
     - Monitor open files of specific processes including system
         # {0:1} {1:1} -g system
@@ -20057,6 +20066,9 @@ Examples:
     - Monitor function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
+
+    - Monitor function calls for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
     - Monitor function calls except for wait status for a specific thread
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
@@ -20516,6 +20528,9 @@ Examples:
     - Trace all write syscalls with specific command and print standard output
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
 
+    - Trace all write syscalls for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
+
     - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
@@ -20591,6 +20606,9 @@ Examples:
 
     - Trace usercalls for a specific thread and print standard output
         # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
+
+    - Trace usercalls for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
 
     - Trace usercalls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g a.out -H 10
@@ -20767,6 +20785,10 @@ Examples:
 
     - Trace the SIGINT signal for a specific thread and print standard output
         # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
+
+    - Trace all signals for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
+
                     '''.format(cmd, mode)
 
                 # mem #
@@ -21822,6 +21844,9 @@ Examples:
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} "GET#http://127.0.0.1:5000|GET#http://10.25.123.123:5000"
+
+    - Request GET / URL with alias to specific server
+        # {0:1} {1:1} ALIAS:TEST1#http://127.0.0.1:5000
 
     - Request GET / URL to specific server and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
@@ -29532,7 +29557,7 @@ Copyright:
 
                 # state #
                 try:
-                    state = ConfigMgr.PROC_STAT_TYPE[\
+                    state = ConfigMgr.PROC_STAT_TYPE[
                         statList[gstatList.index("STATE")]]
                 except:
                     state = 'N/A'
@@ -31813,9 +31838,11 @@ Copyright:
 
         # get argument #
         if SysMgr.hasMainArg():
-            inputParam = SysMgr.getMainArg(True).split(',')
+            inputParam = SysMgr.getMainArg().split(',')
+            inputParam = UtilMgr.getFileList(inputParam)
         elif SysMgr.inputParam:
-            inputParam = UtilMgr.convPath(SysMgr.inputParam)
+            inputParam = SysMgr.inputParam.split(',')
+            inputParam = UtilMgr.getFileList(inputParam)
         else:
             inputParam = [SysMgr.outFilePath]
 
@@ -32439,7 +32466,7 @@ Copyright:
                         "%s is not an accessable directory" % d)
                     sys.exit(0)
         else:
-            systemdPathList = [\
+            systemdPathList = [
                 '/etc/systemd/system',
                 '/lib/systemd/system',
             ]
@@ -34893,21 +34920,28 @@ Copyright:
                 cookies = None
                 headers = None
 
+                # alias #
+                if req.startswith('ALIAS:'):
+                    alias, remain = req.split('#', 1)
+                    alias = alias.split(':', 1)[1]
+                    stats['name'].setdefault(req, alias)
+                else:
+                    remain = req
+
                 # GET #
-                if req.startswith('GET#'):
+                if remain.startswith('GET#'):
                     method = 'GET'
                     cmd = requests.get
-                    remain = req[len(method)+1:]
+                    remain = remain[len(method)+1:]
                 # POST #
-                elif req.startswith('POST#'):
+                elif remain.startswith('POST#'):
                     method = 'POST'
                     cmd = requests.post
-                    remain = req[len(method)+1:]
+                    remain = remain[len(method)+1:]
                 # default #
                 else:
                     method = 'GET'
                     cmd = requests.get
-                    remain = req
 
                 # check method #
                 if not cmd:
@@ -35021,8 +35055,11 @@ Copyright:
                     SysMgr.printErr(
                         'no protocol such like "http" in %s' % content)
 
+
                 # convert request #
                 reqstr = '%s %s' % (method, content)
+                if req in stats['name']:
+                    reqstr = '(%s) %s' % (stats['name'][req], reqstr)
                 if arg:
                     reqstr += ' DATA:%s' % repr(arg)
                 if json:
@@ -35075,6 +35112,10 @@ Copyright:
                     auth=auth, verify=verify, cookies=cookies,
                     headers=headers, files=files)
 
+            # update time #
+            after = time.time()
+            elapsed = after - before
+
             # print request #
             if verb:
                 data = res.request.headers
@@ -35082,10 +35123,6 @@ Copyright:
                 data = str(data).replace('\\n', '\n')
                 data = str(data).replace('\\r', '')
                 SysMgr.printWarn(data, True)
-
-            # update time #
-            after = time.time()
-            elapsed = after - before
 
             # save statistics #
             stats['perReqTime'].setdefault(req, list())
@@ -35127,6 +35164,7 @@ Copyright:
                 'perReqTimeAll': dict(),
                 'perReqErr': dict(),
                 'perCycleTime': list(),
+                'name': dict()
             }
 
 
@@ -35190,7 +35228,7 @@ Copyright:
                 SysMgr.updateTaskMon(tobj, SysMgr.pid)
                 tcpu = SysMgr.getTaskMon(tobj, SysMgr.pid, 'ttime')
                 acpu = tcpu / totalElapsed
-                if tcpu <= totalElapsed:
+                if tcpu <= totalElapsed * 100:
                     tcpu = convNum(tcpu)
                     acpu = convNum(acpu)
                 else:
@@ -35201,6 +35239,12 @@ Copyright:
                 tcpu = '?'
                 acpu = '?'
 
+            # make repeat string #
+            if repeat == sys.maxsize:
+                repeatStr = 'INFINITE'
+            else:
+                repeatStr = convNum(len(reqs)*repeat)
+
             # list per-request response time #
             if SysMgr.outPath:
                 SysMgr.printPipe((
@@ -35209,7 +35253,7 @@ Copyright:
                     '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                         (SysMgr.comm, SysMgr.pid,
                         totalElapsed, convNum(len(reqs)),
-                        convNum(idx), convNum(len(reqs)*repeat), delay,
+                        convNum(idx), repeatStr, delay,
                         tcpu, acpu, twoLine))
 
                 SysMgr.printPipe(
@@ -35231,7 +35275,7 @@ Copyright:
                 '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                     (SysMgr.comm, SysMgr.pid,
                     totalElapsed, convNum(len(reqs)),
-                    convNum(idx), convNum(len(reqs)*repeat), delay,
+                    convNum(idx), repeatStr, delay,
                     tcpu, acpu, twoLine))
 
             SysMgr.printPipe((
@@ -35258,12 +35302,20 @@ Copyright:
                 else:
                     err = 0
 
+                # get count #
                 cnt = convNum(cnt)
+
+                # apply alias #
+                if idx in stats['name']:
+                    name = '(%s)%s' % \
+                        (stats['name'][idx], idx.split('#', 1)[1])
+                else:
+                    name = idx
 
                 SysMgr.printPipe((
                     '{0:>7} | {1:>7.3f} | {2:>7.3f} | {3:>10.6f} | '
                     '{4:>10.6f} | {5:>10.6f} | {6:>7} | {7:1}').format(
-                        cnt, totval, avgval, minval, maxval, stdval, err, idx))
+                        cnt, totval, avgval, minval, maxval, stdval, err, name))
 
             # print only errors #
             for idx, value in stats['perReqErr'].items():
@@ -35446,9 +35498,15 @@ Copyright:
         else:
             procStr = ''
 
+        # make repeat string #
+        if repeat == sys.maxsize:
+            repeatStr = 'INFINITE'
+        else:
+            repeatStr = UtilMgr.convNum(repeat)
+
         SysMgr.printInfo(
             'request %s times%s%s' % \
-                (UtilMgr.convNum(repeat), delayStr, procStr))
+                (repeatStr, delayStr, procStr))
 
         start = time.time()
 
@@ -44571,6 +44629,7 @@ class Debugger(object):
     traceInjection = False
     exceptLD = False
     noMute = False
+    contAlone = False
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -45081,6 +45140,11 @@ struct cmsghdr {
         if not Debugger.noMute and \
             'NOMUTE' in SysMgr.environList:
             Debugger.noMute = True
+
+        # continue alone without master #
+        if not Debugger.contAlone and \
+            'CONTALONE' in SysMgr.environList:
+            Debugger.contAlone = True
 
 
 
@@ -49165,6 +49229,13 @@ struct cmsghdr {
             _resetStats()
             return
 
+        # check master process #
+        if SysMgr.masterPid > 0 and not Debugger.contAlone and \
+            not SysMgr.isAlive(SysMgr.masterPid):
+            SysMgr.printWarn(
+                "terminated master process for %s" % __module__)
+            sys.exit(0)
+
         # update status for sample collection #
         self.sampleStatus = True
 
@@ -52352,7 +52423,7 @@ struct cmsghdr {
 
     def initValues(self):
         # default info #
-        self.traceEventList = [\
+        self.traceEventList = [
             'PTRACE_O_TRACEEXEC',
             'PTRACE_O_TRACESYSGOOD',
             'PTRACE_O_TRACECLONE',
@@ -53979,20 +54050,21 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         for req in reqList:
             if req == 'PTRACE_O_TRACESYSGOOD':
                 option |= 1
-            elif req == 'PTRACE_O_TRACEFORK':
-                option |= 1 << plist.index('PTRACE_EVENT_FORK')
-            elif req == 'PTRACE_O_TRACEVFORK':
-                option |= 1 << plist.index('PTRACE_EVENT_VFORK')
-            elif req == 'PTRACE_O_TRACECLONE':
-                option |= 1 << plist.index('PTRACE_EVENT_CLONE')
             elif req == 'PTRACE_O_TRACEEXEC':
                 option |= 1 << plist.index('PTRACE_EVENT_EXEC')
-            elif req == 'PTRACE_O_TRACEVFORKDONE':
-                option |= 1 << plist.index('PTRACE_EVENT_VFORK_DONE')
             elif req == 'PTRACE_O_TRACEEXIT':
                 option |= 1 << plist.index('PTRACE_EVENT_EXIT')
             elif req == 'PTRACE_O_TRACESECCOMP':
                 option |= 1 << plist.index('PTRACE_EVENT_SECCOMP')
+            elif SysMgr.cloneEnable:
+                if req == 'PTRACE_O_TRACEFORK':
+                    option |= 1 << plist.index('PTRACE_EVENT_FORK')
+                elif req == 'PTRACE_O_TRACEVFORK':
+                    option |= 1 << plist.index('PTRACE_EVENT_VFORK')
+                elif req == 'PTRACE_O_TRACECLONE':
+                    option |= 1 << plist.index('PTRACE_EVENT_CLONE')
+                elif req == 'PTRACE_O_TRACEVFORKDONE':
+                    option |= 1 << plist.index('PTRACE_EVENT_VFORK_DONE')
 
         return self.ptrace(PTRACE_SETOPTIONS, 0, option)
 
@@ -57780,7 +57852,7 @@ Section header string table index: %d
                 typeval = p_type
 
             # save program info #
-            self.attr['progHeader'].append([\
+            self.attr['progHeader'].append([
                 typeval, p_offset, p_vaddr, p_paddr, \
                     p_filesz, p_memsz, flags])
 
@@ -58133,9 +58205,9 @@ Section header string table index: %d
                     'value': st_value, 'size': st_size,
                     'type': ElfAnalyzer.ST_TYPE[ \
                         ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
+                    'bind': ElfAnalyzer.ST_BIND_TYPE[
                         ElfAnalyzer.ELF_ST_BIND(st_info)],
-                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[
                         ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                     'ndx': st_shndx}
 
@@ -58163,11 +58235,11 @@ Section header string table index: %d
                     SysMgr.printPipe(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
-                        ElfAnalyzer.ST_TYPE[\
+                        ElfAnalyzer.ST_TYPE[
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                        ElfAnalyzer.ST_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[
                             ElfAnalyzer.ELF_ST_BIND(st_info)],
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                         st_shndx, symbol,))
 
@@ -58242,11 +58314,11 @@ Section header string table index: %d
 
                 self.attr['symTable'][symbol] = {\
                     'value': st_value, 'size': st_size,
-                    'type': ElfAnalyzer.ST_TYPE[\
+                    'type': ElfAnalyzer.ST_TYPE[
                     ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                    'bind': ElfAnalyzer.ST_BIND_TYPE[\
+                    'bind': ElfAnalyzer.ST_BIND_TYPE[
                     ElfAnalyzer.ELF_ST_BIND(st_info)],
-                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                    'vis': ElfAnalyzer.ST_VISIBILITY_TYPE[
                     ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                     'ndx': st_shndx}
 
@@ -58271,11 +58343,11 @@ Section header string table index: %d
                     SysMgr.printPipe(
                         "%04d %016x%10d%10s%10s%10s%10s %s" % \
                         (i, st_value, st_size,
-                        ElfAnalyzer.ST_TYPE[\
+                        ElfAnalyzer.ST_TYPE[
                             ElfAnalyzer.ELF_ST_TYPE(st_info)],
-                        ElfAnalyzer.ST_BIND_TYPE[\
+                        ElfAnalyzer.ST_BIND_TYPE[
                             ElfAnalyzer.ELF_ST_BIND(st_info)],
-                        ElfAnalyzer.ST_VISIBILITY_TYPE[\
+                        ElfAnalyzer.ST_VISIBILITY_TYPE[
                             ElfAnalyzer.ELF_ST_VISIBILITY(st_other)],
                         st_shndx, symbol,))
 
@@ -61045,7 +61117,7 @@ class TaskAnalyzer(object):
                 return [procFilter, fileFilter]
 
             newFilter = ','.join(SysMgr.filterGroup)
-            newFilter = newFilter.split(':')
+            newFilter = newFilter.split(':', 1)
 
             for pval in newFilter[0].split(','):
                 if pval != '':
