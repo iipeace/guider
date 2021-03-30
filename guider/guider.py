@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210329"
+__revision__ = "210330"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6474,7 +6474,7 @@ class NetworkMgr(object):
     @staticmethod
     def setServerNetwork(
         ip, port, force=False, blocking=False,
-        tcp=False, anyPort=False, reuse=True):
+        tcp=False, anyPort=False, reuse=True, weakPort=False):
 
         if SysMgr.localServObj and not force:
             SysMgr.printWarn(
@@ -6508,6 +6508,9 @@ class NetworkMgr(object):
         # create a new server setting #
         networkObject = NetworkMgr(
             'server', ip, port, blocking, tcp, anyPort, reuse=reuse)
+        if not networkObject.ip and weakPort:
+            networkObject = NetworkMgr(
+                'server', ip, port, blocking, tcp, True, reuse=reuse)
         if not networkObject.ip:
             SysMgr.printWarn("fail to set server IP")
             return
@@ -8037,13 +8040,13 @@ class PageAnalyzer(object):
                 raise Exception('wrong pid')
 
             pids = SysMgr.getPids(pid[0], isThread=False)
-            if not pid:
+            if not pids:
                 raise Exception('no task')
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to recognize target", reason=True)
+                "fail to find task for '%s'" % ', '.join(pid), reason=True)
             sys.exit(0)
 
         for pid in sorted(pids):
@@ -16904,9 +16907,9 @@ class SysMgr(object):
 
         def _checkPerm(item):
             try:
-                if item['apply'] == 'true' and \
-                    item['perm'] == 'root':
-                    SysMgr.checkRootPerm(msg=item)
+                if item['apply'] == 'true' and item['perm'] == 'root':
+                    SysMgr.checkRootPerm(
+                        msg='check threshold for %s' % item)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -20024,7 +20027,7 @@ Examples:
     - Monitor python methods for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor python methods with backtrace for a specific thread
+    - Monitor python methods with backtrace for a specific thread (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H
 
     - Monitor python methods for a specific thread every 2 second for 1 minute with 1 ms sampling
@@ -27699,7 +27702,11 @@ Copyright:
             elif option == 'x':
                 SysMgr.checkOptVal(option, value)
                 service, ip, port = NetworkMgr.parseAddr(value)
-                NetworkMgr.setServerNetwork(ip, port)
+                SysMgr.warnEnable = True
+                ret = NetworkMgr.setServerNetwork(ip, port)
+                SysMgr.warnEnable = False
+                if not ret:
+                    sys.exit(0)
 
             elif option == 'X':
                 if not SysMgr.findOption('x'):
@@ -39799,7 +39806,8 @@ Copyright:
                 # set IP addr #
                 try:
                     if not SysMgr.localServObj:
-                        NetworkMgr.setServerNetwork(None, None, reuse=False)
+                        NetworkMgr.setServerNetwork(
+                            None, None, reuse=False, weakPort=True)
 
                     sockObj = SysMgr.localServObj
 
@@ -51371,21 +51379,24 @@ struct cmsghdr {
 
 
     def handlePycall(self):
+        # initialize environment #
         if not self.pyAddr:
             self.initPyEnv()
+
+        # read native call stack for version >= 3.7 #
+        nativeStack = None
+        if sys.version_info >= (3, 7):
+            self.updateRegs()
+            curSym = self.getSymbolInfo(self.pc)[0]
+            if not curSym.startswith('_Py') and not curSym.startswith('Py'):
+                nativeStack = self.getBacktrace(SysMgr.funcDepth, cur=True)
 
         # read address for PyThreadState #
         pyThreadStateP = self.readMem(self.pyAddr)
         pyThreadStateP = struct.unpack('Q', pyThreadStateP)[0]
 
-        # read native call info #
-        if sys.version_info >= (3, 7):
-            self.updateRegs()
-            curSym = self.getSymbolInfo(self.pc)[0]
-            if not curSym.startswith('_Py') and not curSym.startswith('Py'):
-                self.handleUsercall(update=False)
-                return
-        elif not pyThreadStateP:
+        # read native call stack for version < 3.7 #
+        if sys.version_info < (3, 7) and not pyThreadStateP:
             self.handleUsercall()
             return
 
@@ -51405,6 +51416,7 @@ struct cmsghdr {
 
         # read frames #
         bt = []
+        lastAddr = None
         lastName = None
         lastFile = None
         while 1:
@@ -51425,7 +51437,9 @@ struct cmsghdr {
             # cache frame #
             self.pyFrameCache[f_code] = [name, filename]
 
+            # handle call info #
             if not lastName:
+                lastAddr = f_lineno
                 lastName = name
                 lastFile = filename
             else:
@@ -51437,6 +51451,21 @@ struct cmsghdr {
 
             framep = f_back
 
+        # add last python call info #
+        if nativeStack:
+            bt.insert(0, [lastAddr, lastName, lastFile])
+
+            # merge native stack and python stack #
+            for idx in range(0, len(nativeStack)):
+                if not bt: break
+                if nativeStack[idx][1] == '_PyEval_EvalFrameDefault':
+                    nativeStack[idx] = bt.pop(0)
+
+            # pick last call info #
+            bt = nativeStack
+            lastAddr, lastName, lastFile = bt.pop(0)
+
+        # add a call stack sample #
         self.addSample(lastName, lastFile, realtime=True, bt=bt)
 
 
@@ -56368,6 +56397,34 @@ class ElfAnalyzer(object):
         return symbol
 
 
+
+    @staticmethod
+    def demangleRustSymPre(symbol):
+        '''
+        refer to https://rust-lang.github.io/rfcs/2603-rust-symbol-name-mangling-v0.html
+
+        Symbols begin with _R from v0.
+        '''
+
+        if not symbol.startswith('_ZN'):
+            return symbol, False
+
+        # remove E. suffix #
+        if 'E.' in symbol:
+            symbol = symbol[:symbol.rfind('E.')]
+
+        hash_prefix_len = 3;
+        hash_len = 16;
+        hashTotal = hash_prefix_len + hash_len
+
+        # remove 17 prefix #
+        if symbol[:-hash_len].endswith('17h'):
+            symbol = '_Z' + symbol[3:-hashTotal]
+
+        return symbol, True
+
+
+
     @staticmethod
     def demangleRustSym(symbol):
         '''
@@ -56390,7 +56447,6 @@ class ElfAnalyzer(object):
             return symbol
 
         # convert chars #
-        origSym = symbol
         for char in ElfAnalyzer.rustChars:
             symbol = symbol.replace(char[1], char[0])
 
@@ -56424,6 +56480,9 @@ class ElfAnalyzer(object):
         # strip llvm info #
         if '.llvm.' in symbol:
             symbol = symbol[:symbol.find('.llvm.')]
+
+        # remove suffixes for rust legacy #
+        symbol, isRust = ElfAnalyzer.demangleRustSymPre(symbol)
 
         # check version #
         if '@' in symbol:
@@ -56500,7 +56559,8 @@ class ElfAnalyzer(object):
                     pass
 
             # demangle symbols for rust #
-            dmSymbol = ElfAnalyzer.demangleRustSym(dmSymbol)
+            if isRust:
+                dmSymbol = ElfAnalyzer.demangleRustSym(dmSymbol)
 
             # demangle symbols for java #
             '''
@@ -60754,7 +60814,8 @@ class TaskAnalyzer(object):
 
             # set network config #
             if not SysMgr.findOption('x'):
-                NetworkMgr.setServerNetwork(None, None, reuse=False)
+                NetworkMgr.setServerNetwork(
+                    None, None, reuse=False, weakPort=True)
 
             # set threshold config #
             SysMgr.applyThreshold()
@@ -68679,6 +68740,8 @@ class TaskAnalyzer(object):
         # Get Cgroup resource usage #
         elif len(tokenList) == 8:
             tokenList = UtilMgr.cleanItem(tokenList, False)
+            if len(tokenList) != 7:
+                return
 
             system, proc, task, cpu, mem, read, write = tokenList
 
@@ -74979,6 +75042,7 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printOpenWarn(newPath)
 
+        # decode data #
         if sys.version_info >= (3, 0):
             buf = list(map(lambda x: x.decode(), buf))
 
