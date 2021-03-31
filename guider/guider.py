@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210330"
+__revision__ = "210331"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19169,18 +19169,21 @@ Examples:
     - Monitor status of {2:2} and report to 192.168.0.5:5555 in real-time
         # {0:1} {1:1} -e r -N REPORT_ALWAYS@192.168.0.5:5555
 
+    - Monitor status of {2:2} with index
+        # {0:1} {1:1} -c index
+
     - Monitor status of {2:2} after setting hot commands in advance
-        # {0:1} {1:1} -c "{0:1} utop -g PID"
-        # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret"
+        # {0:1} {1:1} -c "GUIDER utop -g PID"
+        # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret"
 
     - Monitor status of {2:2} and execute specific commands for all tasks shown automatically
-        # {0:1} {1:1} -c "{0:1} utop -g PID" -e E
-        # {0:1} {1:1} -c "{0:1} btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
+        # {0:1} {1:1} -c "GUIDER utop -g PID" -e E
+        # {0:1} {1:1} -c "GUIDER btrace -g PID *write*|getret\, __write_nocancel|getret" -e E
 
     - Monitor status of {2:2} after setting config from guider.conf
         # {0:1} {1:1} -C guider.conf
 
-    - Monitor status of {2:2} with no encoding lines
+    - Monitor status of {2:2} with no encoding for output
         # {0:1} {1:1} -d e
         # NOENCODE=1 {0:1} {1:1} -d e
                 '''.format(cmd, mode, target)
@@ -22464,9 +22467,6 @@ Copyright:
                 # print help #
                 printPipe(helpStr)
 
-                # reset terminal #
-                SysMgr.resetTTY()
-
             sys.exit(0)
 
 
@@ -24963,9 +24963,6 @@ Copyright:
         SysMgr.setIgnoreSignal()
         signal.alarm(0)
         SysMgr.condExit = True
-
-        # reset terminal #
-        SysMgr.resetTTY()
 
         SysMgr.printWarn('terminated by user\n')
 
@@ -30068,9 +30065,6 @@ Copyright:
         # set default signal #
         SysMgr.setSimpleSignal()
 
-        # reset terminal #
-        SysMgr.resetTTY()
-
         # shrink heap #
         SysMgr.shrinkHeap()
 
@@ -34916,11 +34910,11 @@ Copyright:
             json = None
 
             # get data from cache #
-            if req in cache:
+            try:
                 cmd, method, content, arg, timeout, auth, \
                     verify, cookies, headers, reqstr, files, json = cache[req]
             # parse request #
-            else:
+            except:
                 timeout = None
                 auth = None
                 verify = False
@@ -35061,7 +35055,6 @@ Copyright:
                 if not content.startswith('http'):
                     SysMgr.printErr(
                         'no protocol such like "http" in %s' % content)
-
 
                 # convert request #
                 reqstr = '%s %s' % (method, content)
@@ -35210,7 +35203,8 @@ Copyright:
                                 idx, lastReqTime, verb, mute)
 
                             # make a delay #
-                            time.sleep(delay)
+                            if delay > 0:
+                                time.sleep(delay)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -38119,6 +38113,9 @@ Copyright:
 
         # release all resources #
         SysMgr.releaseResource()
+
+        # reset terminal #
+        SysMgr.resetTTY()
 
         os._exit(0)
 
@@ -47398,6 +47395,7 @@ struct cmsghdr {
         # attach to the thread #
         plist = ConfigMgr.PTRACE_TYPE
         cmd = plist.index('PTRACE_ATTACH')
+        exit = False
 
         while 1:
             ret = self.ptrace(cmd)
@@ -47406,6 +47404,9 @@ struct cmsghdr {
                 if tracer > 0:
                     reason = ' because it is being traced by %s(%s)' % \
                         (SysMgr.getComm(tracer), tracer)
+                elif not SysMgr.isRoot():
+                    reason = ' because of no root permission'
+                    exit = True
                 else:
                     reason = ''
 
@@ -47413,6 +47414,8 @@ struct cmsghdr {
                     (self.comm, pid, SysMgr.pid, reason), verb)
 
                 # check return #
+                if exit:
+                    sys.exit(0)
                 if not cont:
                     return -1
                 elif self.isAlive():
@@ -52147,17 +52150,19 @@ struct cmsghdr {
         stime = long(statList[self.stimeIdx-2])
         ttime = utime + stime
 
-        # get CPU diff #
+        # get previous CPU usage #
         prevUsage = self.prevCpuStat
+
+        # update previous CPU usage #
+        self.prevCpuStat = [ttime, utime, stime]
+
+        # get CPU diff #
         if prevUsage == None:
             ret = [0, 0, 0]
         else:
             ret = [ttime - prevUsage[0],
                 utime - prevUsage[1],
                 stime - prevUsage[2]]
-
-        # save CPU usage #
-        self.prevCpuStat = [ttime, utime, stime]
 
         return ret
 
@@ -52469,7 +52474,6 @@ struct cmsghdr {
         self.statFd = None
         self.kernelFd = None
         self.prevStat = None
-        self.prevCpuStat = None
         self.pyLibPath = None
         self.pyInit = False
         self.prevSym = None
@@ -52479,6 +52483,12 @@ struct cmsghdr {
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+
+        # update previous CPU usage #
+        if hasattr(self, 'prevCpuStat'):
+            self.prevCpuStat = self.getCpuUsage()
+        else:
+            self.prevCpuStat = None
 
         # exec variable #
         if SysMgr.execEnable is None:
@@ -52713,8 +52723,14 @@ struct cmsghdr {
             rid, ostat = self.waitpid()
 
             # handle clone event #
-            if self.isCloned(ostat) or self.isForked(ostat):
-                pid = self.handoverNewTarget()
+            if self.checkCloned(ostat):
+                # check clone/fork event #
+                if self.isForked(ostat):
+                    forked = True
+                else:
+                    forked = False
+
+                pid = self.handoverNewTarget(fork=forked)
                 if pid > 0:
                     continue
                 break
@@ -52790,13 +52806,24 @@ struct cmsghdr {
                 if updateTime:
                     self.vdiff = self.current - self.dstart
 
-                # handle clone event #
-                if not SysMgr.optStrace and SysMgr.cloneEnable:
-                    if self.isCloned(ostat):
-                        self.handoverNewTarget()
-                        continue
-                    elif self.isForked(ostat):
-                        self.handoverNewTarget(fork=True)
+                # check clone event #
+                if not SysMgr.optStrace and \
+                    SysMgr.cloneEnable and \
+                    self.checkCloned(ostat):
+
+                    # check clone/fork event #
+                    if self.isForked(ostat):
+                        forked = True
+                    else:
+                        forked = False
+
+                    # handle clone event #
+                    self.handoverNewTarget(fork=forked)
+
+                    # continue to exit event for clone syscall #
+                    if self.mode == 'syscall':
+                        pass
+                    else:
                         continue
 
                 # handle exec event #
@@ -53142,8 +53169,7 @@ struct cmsghdr {
         SysMgr.addExitFunc(Debugger.printSummary, [self])
 
         # wait for task creation #
-        if SysMgr.waitEnable and \
-            self.mode != 'break':
+        if SysMgr.waitEnable and self.mode != 'break':
             SysMgr.waitEnable = False
             self.waitForClone()
 
@@ -53690,6 +53716,17 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         ret = self.ptrace(
             PTRACE_SETSIGINFO, data=addressof(self.sigObj))
         return ret
+
+
+
+    def checkCloned(self, status):
+        stat = status >> 8
+        if stat == self.sigCloneFlag or \
+            stat == self.sigForkFlag or \
+            stat == self.sigVforkFlag:
+            return True
+        else:
+            return False
 
 
 
