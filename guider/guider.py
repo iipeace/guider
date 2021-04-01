@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210331"
+__revision__ = "210401"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15479,7 +15479,7 @@ class SysMgr(object):
     wordSize = 4
     maxInterval = 0
 
-    # threshold #
+    # watermark threshold #
     cpuPerHighThreshold = 80
     cpuPerLowThreshold = 10
     memAvailPerThreshold = 10
@@ -15487,6 +15487,11 @@ class SysMgr(object):
     memLowThreshold = 100
     swapPerThreshold = 90
     diskPerHighThreshold = 90
+
+    # print condition #
+    cpuCond = -1
+    memFreeCond = sys.maxsize
+    memAvlCond = sys.maxsize
 
     # path #
     procPath = '/proc'
@@ -19148,6 +19153,11 @@ Examples:
     - Monitor status of {2:2} involved in a same process group with specific {2:2} having name including system
         # {0:1} {1:1} -g system -P
 
+    - Monitor status of {2:2} and print stats if only system resource usage exceeds specific threshold
+        # {0:1} {1:1} -q CPUCOND:10
+        # {0:1} {1:1} -q MEMFREECOND:100
+        # {0:1} {1:1} -q MEMAVLCOND:100
+
     - Monitor status of {2:2} on the minimum terminal
         # {0:1} {1:1} -m
 
@@ -19226,6 +19236,9 @@ Examples:
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
 
+    - Draw resource graph within specific interval range in index unit
+        # {0:1} {1:1} guider.out -q TRIMIDX:0:3
+
     - Draw resource graph with y range 1-100
         # {0:1} {1:1} guider.out worstcase.out -q YRANGE:1:100
 
@@ -19290,7 +19303,7 @@ Commands:
     wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
 
 Examples:
-    - Print all call contexts for a specific thread
+    - Print all call contexts for specific thread
         # {0:1} {1:1} -g 1234
 
     - Print all call contexts from a specific binary
@@ -19300,25 +19313,28 @@ Examples:
     - Print all call contexts and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
-    - Print all call contexts except for wait status for a specific thread
+    - Print all call contexts except for wait status for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - Print all call contexts except for register info for a specific thread
+    - Print all call contexts except for register info for specific threads
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - Print all call contexts for a specific thread even if the master tracer is terminated
+    - Print all call contexts for specific threads consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - Print all call contexts for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Print all call contexts for a specific thread after loading all symbols in stop status
+    - Print all call contexts for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - Print all call contexts except for no symbol functions for a specific thread
+    - Print all call contexts except for no symbol functions for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTNOSYM
 
-    - Print all call contexts except for ld for a specific thread
+    - Print all call contexts except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
-    - Print all call contexts and injection info for a specific thread
+    - Print all call contexts and injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEINJECTION
 
     - Print all call contexts for 4th new threads in each new processes from a specific binary
@@ -19332,13 +19348,13 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Print all call contexts with backtrace for a specific thread
+    - Print all call contexts with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Print printPeace call contexts for a specific thread
+    - Print printPeace call contexts for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - Print all call contexts except for printPeace for a specific thread
+    - Print all call contexts except for printPeace for specific threads
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
     - Print a specific call contexts from a specific binary
@@ -19495,7 +19511,7 @@ Examples:
                 '''.format(cmd, mode)
 
                 reportStr = '''
-    - report all analysis results for a specific thread having TID 1234 to ./guider.out
+    - report all analysis results for specific threads having TID 1234 or COMM including 1234 to ./guider.out
         # {0:1} guider.dat -o . -g 1234 -a
 
     - report all analysis results including interval information for all threads to ./guider.out
@@ -19507,7 +19523,7 @@ Examples:
     - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
 
-    - report all function analysis result with maximum 3-depth for a specific thread having TID 1234 to ./guider.out
+    - report all function analysis result with maximum 3-depth for specific thread having TID 1234 or COMM including 1234 to ./guider.out
         # {0:1} guider.dat -o . -g 1234 -H 3
                 '''.format(cmd)
 
@@ -19992,17 +20008,46 @@ Examples:
     - Monitor syscalls
         # {0:1} {1:1} -g a.out
 
-    - Monitor syscalls with backtrace for a specific thread
+    - Monitor syscalls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor syscalls for child tasks created by a specific thread
+    - Monitor syscalls for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor syscalls for a specific thread every 2 second
+    - Monitor syscalls for specific threads every 2 second
         # {0:1} {1:1} -g 1234 -R 2:
 
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
+
+    - Monitor syscalls and standard output from a specific binary
+        # {0:1} {1:1} a.out -q NOMUTE
+
+    - Monitor syscalls for specific threads even if the master tracer is terminated
+        # {0:1} {1:1} a.out -g a.out -q CONTALONE
+
+    - Monitor syscalls except for wait status for specific threads
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+
+    - Monitor syscalls except for register info for specific threads
+        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+
+    - Monitor syscalls for specific threads consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - Monitor syscalls except for no symbol functions for specific threads
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+
+    - Monitor syscalls for specific threads after loading all symbols in stop status
+        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+
+    - Monitor syscalls for 4th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+
+    - Monitor syscalls for a specific binary execution with enviornment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
     - Monitor syscalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g 1234 -c read -a
@@ -20019,27 +20064,56 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor python methods consuming CPU
+    Monitor python calls consuming CPU
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor python methods for a specific thread
+    - Monitor python calls for specific threads
         # {0:1} {1:1} -g a.out
 
-    - Monitor python methods for child tasks created by a specific thread
+    - Monitor python calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor python methods with backtrace for a specific thread (merged native stack and python stack from python 3.7)
+    - Monitor python calls with backtrace for specific threads (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor python methods for a specific thread every 2 second for 1 minute with 1 ms sampling
+    - Monitor python calls for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of python methods for a specific thread
+    - Monitor python calls and standard output from a specific binary
+        # {0:1} {1:1} a.out -q NOMUTE
+
+    - Monitor python calls for specific threads even if the master tracer is terminated
+        # {0:1} {1:1} a.out -g a.out -q CONTALONE
+
+    - Monitor python calls except for wait status for specific threads
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
+
+    - Monitor python calls except for register info for specific threads
+        # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
+
+    - Monitor python calls for specific threads consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - Monitor python calls except for no symbol functions for specific threads
+        # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
+
+    - Monitor python calls for specific threads after loading all symbols in stop status
+        # {0:1} {1:1} a.out -g a.out -q STOPTARGET
+
+    - Monitor python calls for 4th new threads in each new processes from a specific binary
+        # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
+        # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
+
+    - Monitor python calls for a specific binary execution with enviornment variables
+        # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
+        # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
+
+    - Monitor CPU usage on whole system of python calls for specific threads
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor python methods with breakpoint for peace including register info for a specific thread
+    - Monitor python calls with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
@@ -20059,7 +20133,7 @@ Description:
 
                     examStr = '''
 Examples:
-    - Monitor function calls for a specific thread
+    - Monitor function calls for specific threads
         # {0:1} {1:1} -g a.out
 
     - Monitor function calls from a specific binary
@@ -20073,19 +20147,22 @@ Examples:
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
-    - Monitor function calls for a specific thread even if the master tracer is terminated
+    - Monitor function calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - Monitor function calls except for wait status for a specific thread
+    - Monitor function calls except for wait status for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - Monitor function calls except for register info for a specific thread
+    - Monitor function calls except for register info for specific threads
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - Monitor function calls except for no symbol functions for a specific thread
+    - Monitor function calls for specific threads consumed CPU more than 10%
+        # {0:1} {1:1} -g a.out -q CPUCOND:10
+
+    - Monitor function calls except for no symbol functions for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
 
-    - Monitor function calls for a specific thread after loading all symbols in stop status
+    - Monitor function calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
     - Monitor function calls for 4th new threads in each new processes from a specific binary
@@ -20096,22 +20173,22 @@ Examples:
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Monitor function calls for a specific thread with DWARF info
+    - Monitor function calls for specific threads with DWARF info
         # {0:1} {1:1} -g a.out -eD
 
     - Monitor function calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor function calls with backtrace for a specific thread
+    - Monitor function calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor function calls for a specific thread every 2 second for 1 minute with 1 ms sampling
+    - Monitor function calls for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of function calls for a specific thread
+    - Monitor CPU usage on whole system of function calls for specific threads
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor function calls with breakpoint for peace including register info for a specific thread
+    - Monitor function calls with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
@@ -21067,8 +21144,8 @@ Examples:
     - Diff top report files by total usage
         # {0:1} {1:1} "tc*.out" -dA
 
-    - Diff top report files within specific interval range in second unit
-        # {0:1} {1:1} "tc*.out" -q TRIM:9:15
+    - Diff top report files within specific interval range in index unit
+        # {0:1} {1:1} "tc*.out" -q TRIMIDX:1:5
                     '''
 
                 # topsum #
@@ -28357,7 +28434,7 @@ Copyright:
             # get file list #
             if SysMgr.hasMainArg():
                 argList = SysMgr.getMainArg().split(',')
-                argList = UtilMgr.cleanItem(argList)
+                argList = UtilMgr.getFileList(argList)
             else:
                 argList = None
 
@@ -29950,22 +30027,24 @@ Copyright:
         try:
             # copy original variables #
             myEnv = deepcopy(os.environ)
-            if not 'ENV' in SysMgr.environList and \
-                not 'ENVFILE' in SysMgr.environList:
-                return myEnv
 
             # parse new variables #
             if 'ENV' in SysMgr.environList:
                 envList = SysMgr.environList['ENV']
             else:
                 envList = []
-            applyList(myEnv, envList)
 
             # parse new variables from file #
             if 'ENVFILE' in SysMgr.environList:
                 envFileList = SysMgr.environList['ENVFILE']
             else:
                 envFileList = []
+
+            # check return condition #
+            if not envList and envFileList:
+                return myEnv
+
+            applyList(myEnv, envList)
 
             # read variables from files #
             for fname in envFileList:
@@ -31846,6 +31925,11 @@ Copyright:
             inputParam = UtilMgr.getFileList(inputParam)
         else:
             inputParam = [SysMgr.outFilePath]
+
+        # check input path #
+        if not inputParam:
+            SysMgr.printErr("no input for path")
+            sys.exit(0)
 
         # get response time from file #
         stats = {}
@@ -35148,14 +35232,16 @@ Copyright:
             elapsed = '%.6f' % elapsed
 
             # check mute flag #
-            if mute:
-                return
+            if not mute:
+                # print response #
+                SysMgr.printPipe(
+                    '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
+                        (SysMgr.comm, SysMgr.pid, idx, after, code,
+                            UtilMgr.convColor(elapsed, 'CYAN'), success, text))
 
-            # print response #
-            SysMgr.printPipe(
-                '%s(%s) <%s> [%.6f] <- [%s/%s] %s%s' % \
-                    (SysMgr.comm, SysMgr.pid, idx, after, code,
-                        UtilMgr.convColor(elapsed, 'CYAN'), success, text))
+            # raise Exception for error #
+            if not res.ok:
+                raise Exception(res.reason)
 
         def _task(reqs, repeat, delay, cache):
             # initialize statistics #
@@ -44635,6 +44721,7 @@ class Debugger(object):
     exceptLD = False
     noMute = False
     contAlone = False
+    cpuCond = -1
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -45150,6 +45237,17 @@ struct cmsghdr {
         if not Debugger.contAlone and \
             'CONTALONE' in SysMgr.environList:
             Debugger.contAlone = True
+
+        # filter for CPU threshold #
+        if 'CPUCOND' in SysMgr.environList:
+            try:
+                Debugger.cpuCond = \
+                    long(SysMgr.environList['CPUCOND'][0])
+            except:
+                SysMgr.printErr(
+                    "fail to set CPUCOND to '%s'" % \
+                        SysMgr.environList['CPUCOND'][0], True)
+
 
 
 
@@ -49300,6 +49398,18 @@ struct cmsghdr {
                 _resetStats()
                 return
 
+        # get CPU Usage for target #
+        cpuUsage = self.getCpuUsage()
+        ttime = cpuUsage[0] / diff
+        utime = cpuUsage[1] / diff
+        stime = cpuUsage[2] / diff
+        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+
+        # check CPU threshold #
+        if Debugger.cpuCond > -1 and Debugger.cpuCond > ttime:
+            _resetStats()
+            return
+
         # print summary table #
         if self.mode == 'syscall':
             ctype = 'Syscall'
@@ -49322,15 +49432,9 @@ struct cmsghdr {
                 if self.cont(check=True) == 0:
                     needStop = True
 
+        # define variables #
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
-
-        # get CPU Usage for target #
-        cpuUsage = self.getCpuUsage()
-        ttime = cpuUsage[0] / diff
-        utime = cpuUsage[1] / diff
-        stime = cpuUsage[2] / diff
-        cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
 
         # get CPU Usage for myself #
         cpuUsage = Debugger.selfInstance.getCpuUsage()
@@ -49350,6 +49454,7 @@ struct cmsghdr {
             floatUserUsage = 1
             floatSysUsage = 1
 
+        # set comm #
         if self.comm:
             comm = self.comm
         else:
@@ -60365,9 +60470,9 @@ class TaskAnalyzer(object):
         # print CPU diff #
         SysMgr.printPipe('\n[Diff CPU Info]\n%s' % twoLine)
 
-        emptyCpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+        emptyCpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             ('-', '-', '-', '-', '-', '-')
-        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             (diffType, 'Nr', 'Min', 'Avg', 'Max', 'Tot')
         lenCpuStat = len(emptyCpuStat)
 
@@ -60376,10 +60481,10 @@ class TaskAnalyzer(object):
         menuBuf = "{0:^16} | ".format('Task')
         printBuf = "{0:^16} | ".format('File')
         for fname in flist:
-            printBuf = \
-                ('{0:1} {1:^%d}' % len(emptyCpuStat)).format(printBuf, fname)
-            menuBuf = \
-                ('{0:1} {1:^%d}' % len(menuStat)).format(menuBuf, menuStat)
+            printBuf = ('{0:1} {1:^%d}|' % (len(emptyCpuStat)-1)).format(
+                printBuf, fname)
+            menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
+                menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
@@ -60426,7 +60531,7 @@ class TaskAnalyzer(object):
 
                 total = UtilMgr.convNum(cpuProcStat['total'])
 
-                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%)" % \
+                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, cpuProcStat['cnt'],
                         cpuProcStat['minimum'], cpuProcStat['average'],
                         cpuProcStat['maximum'], total)
@@ -60438,7 +60543,8 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.addPrint(printBuf + '\n', force=True)
 
-        SysMgr.printPipe('%s\n%s' % (totalBuf, oneLine))
+        if totalBuf:
+            SysMgr.printPipe('%s\n%s' % (totalBuf, oneLine))
 
         SysMgr.doPrint(newline=False, clear=True)
 
@@ -60450,19 +60556,19 @@ class TaskAnalyzer(object):
         # print GPU diff #
         SysMgr.printPipe('\n[Diff GPU Info]\n%s' % twoLine)
 
-        emptyGpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+        emptyGpuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             ('-', '-', '-', '-', '-', '-')
-        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s)" % \
+        menuStat = "%7s(%2s)(%5s/%7s/%5s/%6s) |" % \
             (diffType, 'Nr', 'Min', 'Avg', 'Max', 'Tot')
         lenGpuStat = len(emptyCpuStat)
 
         menuBuf = "{0:^24} | ".format('Task')
         printBuf = "{0:^24} | ".format('File')
         for fname in flist:
-            printBuf = \
-                ('{0:1} {1:^%d}' % len(emptyGpuStat)).format(printBuf, fname)
-            menuBuf = \
-                ('{0:1} {1:^%d}' % len(menuStat)).format(menuBuf, menuStat)
+            printBuf = ('{0:1} {1:^%d}|' % (len(emptyGpuStat)-1)).format(
+                printBuf, fname)
+            menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
+                menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
@@ -60508,7 +60614,7 @@ class TaskAnalyzer(object):
 
                 total = UtilMgr.convNum(gpuProcStat['total'])
 
-                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%)" % \
+                newStat = "%7s(%2d)(%4s%%/%6.1f%%/%4s%%/%5s%%) |" % \
                     (diff, gpuProcStat['cnt'],
                         gpuProcStat['minimum'], gpuProcStat['average'],
                         gpuProcStat['maximum'], total)
@@ -60536,9 +60642,9 @@ class TaskAnalyzer(object):
         SysMgr.printPipe(
             '\n[Diff %s Info]\n%s' % (mtype, twoLine))
 
-        emptyRssStat = "%7s(%2s)(%7s/%7s/%7s)" % \
+        emptyRssStat = "%7s(%2s)(%7s/%7s/%7s) |" % \
             ('-', '-', '-', '-', '-')
-        menuStat = "%7s(%2s)(%7s/%7s/%7s)" % \
+        menuStat = "%7s(%2s)(%7s/%7s/%7s) |" % \
             ('Diff', 'Nr', 'Min', 'Avg', 'Max')
         lenRssStat = len(emptyRssStat)
 
@@ -60546,10 +60652,10 @@ class TaskAnalyzer(object):
         menuBuf = "{0:^16} | ".format('Task')
         printBuf = "{0:^16} | ".format('File')
         for fname in flist:
-            printBuf = \
-                ('{0:1} {1:^%d}' % len(emptyRssStat)).format(printBuf, fname)
-            menuBuf = \
-                ('{0:1} {1:^%d}' % len(menuStat)).format(menuBuf, menuStat)
+            printBuf = ('{0:1} {1:^%d}|' % (len(emptyRssStat)-1)).format(
+                printBuf, fname)
+            menuBuf = ('{0:1} {1:^%d}' % len(menuStat)).format(
+                menuBuf, menuStat)
         printBuf = "%s\n%s\n%s\n%s" % (printBuf, oneLine, menuBuf, twoLine)
         SysMgr.printPipe(printBuf)
 
@@ -60586,7 +60692,7 @@ class TaskAnalyzer(object):
                 else:
                     diff = '0'
 
-                newStat = "%7s(%2d)(%6dM/%6dM/%6dM)" % \
+                newStat = "%7s(%2d)(%6dM/%6dM/%6dM) |" % \
                     (diff, rssProcStat['cnt'],
                         rssProcStat['minRss'], rssProcStat['avgRss'],
                         rssProcStat['maxRss'])
@@ -60598,7 +60704,8 @@ class TaskAnalyzer(object):
             else:
                 SysMgr.addPrint(printBuf + '\n', force=True)
 
-        SysMgr.printPipe('%s\n%s' % (totalBuf, oneLine))
+        if totalBuf:
+            SysMgr.printPipe('%s\n%s' % (totalBuf, oneLine))
 
         SysMgr.doPrint(newline=False, clear=True)
 
@@ -60879,6 +60986,39 @@ class TaskAnalyzer(object):
                 self.execEnable = False
             else:
                 self.execEnable = True
+
+            # set CPU threshold #
+            if 'CPUCOND' in SysMgr.environList:
+                try:
+                    SysMgr.cpuCond = \
+                        long(SysMgr.environList['CPUCOND'][0])
+                    SysMgr.reportEnable = True
+                except:
+                    SysMgr.printErr(
+                        "fail to set CPUCOND to '%s'" % \
+                            SysMgr.environList['CPUCOND'][0], True)
+
+            # set MEMFREE threshold #
+            if 'MEMFREECOND' in SysMgr.environList:
+                try:
+                    SysMgr.memFreeCond = \
+                        long(SysMgr.environList['MEMFREECOND'][0])
+                    SysMgr.reportEnable = True
+                except:
+                    SysMgr.printErr(
+                        "fail to set MEMFREECOND to '%s'" % \
+                            SysMgr.environList['MEMFREECOND'][0], True)
+
+            # set MEMAVL threshold #
+            if 'MEMAVLCOND' in SysMgr.environList:
+                try:
+                    SysMgr.memAvlCond = \
+                        long(SysMgr.environList['MEMAVLCOND'][0])
+                    SysMgr.reportEnable = True
+                except:
+                    SysMgr.printErr(
+                        "fail to set MEMAVLCOND to '%s'" % \
+                            SysMgr.environList['MEMAVLCOND'][0], True)
 
             # file mode #
             if SysMgr.fileTopEnable:
@@ -62168,8 +62308,13 @@ class TaskAnalyzer(object):
             sys.exit(0)
 
         # get indexes for trim #
-        if 'TRIM' in SysMgr.environList:
-            trim = SysMgr.environList['TRIM'][0].split(':')
+        if 'TRIM' in SysMgr.environList or \
+            'TRIMIDX' in SysMgr.environList:
+            if 'TRIM' in SysMgr.environList:
+                trim = SysMgr.environList['TRIM'][0].split(':')
+            elif 'TRIMIDX' in SysMgr.environList:
+                trim = SysMgr.environList['TRIMIDX'][0].split(':')
+
             try:
                 if len(trim) == 1:
                     condMin = long(trim[0])
@@ -62183,25 +62328,29 @@ class TaskAnalyzer(object):
                         ':'.join(trim))
                 sys.exit(0)
 
-            # define default values #
-            imin = timeline[0]
-            imax = timeline[-1]
+            if 'TRIM' in SysMgr.environList:
+                # define default values #
+                imin = timeline[0]
+                imax = timeline[-1]
 
-            # get min index #
-            for itime in timeline:
-                if itime >= condMin:
-                    imin = itime
-                    break
+                # get min index #
+                for itime in timeline:
+                    if itime >= condMin:
+                        imin = itime
+                        break
 
-            # get max index #
-            for itime in timeline:
-                if itime >= condMax:
-                    imax = itime
-                    break
+                # get max index #
+                for itime in timeline:
+                    if itime >= condMax:
+                        imax = itime
+                        break
 
-            # convert index range #
-            imin = timeline.index(imin)
-            imax = timeline.index(imax)
+                # convert index range #
+                imin = timeline.index(imin)
+                imax = timeline.index(imax)
+            elif 'TRIMIDX' in SysMgr.environList:
+                imin = condMin
+                imax = condMax
 
             # trim intervals #
             for name, value in cpuProcUsage.items():
@@ -76529,7 +76678,7 @@ class TaskAnalyzer(object):
             'percore': percoreStats
             }
 
-        # gpu #
+        # GPU #
         try:
             self.reportData['gpu'] = gpuStats
         except:
@@ -76557,7 +76706,7 @@ class TaskAnalyzer(object):
             'pgMlock': pgMlock
             }
 
-        # cma #
+        # CMA #
         try:
             self.reportData['mem']['cmaTotal'] = cmaTotalMem
             self.reportData['mem']['cmaFree'] = cmaFreeMem
@@ -80167,6 +80316,19 @@ class TaskAnalyzer(object):
 
 
 
+    def checkPrintCond(self):
+        try:
+            if SysMgr.cpuCond < self.reportData['cpu']['total'] and \
+                SysMgr.memFreeCond > self.reportData['mem']['free'] and \
+                SysMgr.memAvlCond > self.reportData['mem']['available']:
+                return True
+            else:
+                return False
+        except:
+            return True
+
+
+
     def printSystemStat(self, idIndex=False, target='task'):
         title = '[Top Info]'
         nrIndent = len(title)
@@ -80206,7 +80368,13 @@ class TaskAnalyzer(object):
         SysMgr.updateSession()
 
         # flush print buffer #
-        SysMgr.printTopStats()
+        if self.reportData:
+            if self.checkPrintCond():
+                SysMgr.printTopStats()
+            else:
+                SysMgr.clearPrint()
+        else:
+            SysMgr.printTopStats()
 
 
 
