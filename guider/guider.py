@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210401"
+__revision__ = "210403"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3585,6 +3585,18 @@ class UtilMgr(object):
 
         return string
 
+
+
+    @staticmethod
+    def convStr2Bytes(string):
+        # build string #
+        res = ''
+        for byte in string:
+            if type(byte) is str:
+                byte = long(repr(struct.unpack('B', byte)[0]))
+            bstr = '%x' % byte
+            res = '{0:s}{1:0>2} '.format(res, bstr)
+        return res
 
 
     @staticmethod
@@ -8201,7 +8213,8 @@ class PageAnalyzer(object):
         menuStr = ''
         if printSummary:
             menuList = \
-                ['AREA', 'PERM', '%8s' % 'OFFSET', '%6s' % 'DEV', '%7s' % 'INODE']
+                ['AREA', 'PERM', '%8s' % 'OFFSET',\
+                    '%6s' % 'DEV', '%12s' % 'INODE']
             menuBuf = menuList
         else:
             menuList = ['AREA', 'PERM', 'OFFSET', 'DEV', '%12s' % 'INODE']
@@ -8235,7 +8248,7 @@ class PageAnalyzer(object):
                     eoffset = hex(info['vend']).rstrip('L')
                     if not fname.startswith('/'):
                         fname = '[%s]' % fname
-                    SysMgr.printPipe('%18s %18s %4s %8s %6s %7s %s' % \
+                    SysMgr.printPipe('%18s %18s %4s %8s %6s %12s %s' % \
                         (soffset, eoffset, info['perm'], info['offset'],\
                         info['devid'], info['inode'], fname))
                 except SystemExit:
@@ -15489,9 +15502,13 @@ class SysMgr(object):
     diskPerHighThreshold = 90
 
     # print condition #
-    cpuCond = -1
-    memFreeCond = sys.maxsize
-    memAvlCond = sys.maxsize
+    printCond = dict(
+        CPUCOND = -1,
+        MEMFREECOND = sys.maxsize,
+        MEMAVLCOND = sys.maxsize,
+        BLKRDCOND = -1,
+        BLKWRCOND = -1,
+    )
 
     # path #
     procPath = '/proc'
@@ -15538,7 +15555,7 @@ class SysMgr(object):
     boundaryLine = None
     demangleEnable = True
     compressEnable = False
-    generalInfoEnable = True
+    generalEnable = True
     nrTop = None
     pipeForPager = None
     printFd = None
@@ -19041,19 +19058,19 @@ Usage:
                 topSubStr = '''
 Options:
     -e  <CHARACTER>             enable options
-          [ a:affinity | b:block | c:cpu | C:compress
-            d:disk | D:DWARF | e:encode | E:exec
-            f:float | F:wfc | G:cgroup | h:sigHandler
-            H:sched | i:irq | I:elastic | L:cmdline
-            m:mem | n:net | N:namespace | o:oomScore
-            O:color | p:pipe | P:perf | q:quit | r:report
-            R:fileReport | s:stack | S:pss | t:thread
-            T:total | u:uss | w:wss | W:wchan
-            x:fixTarget | Y:delay ]
+          [ a:affinity | b:block | B:bar | c:cpu
+            C:compress | d:disk | D:DWARF | e:encode
+            E:exec | f:float | F:wfc | G:cgroup
+            h:sigHandler | H:sched | i:irq | I:elastic
+            L:cmdline | m:mem | n:net | N:namespace
+            o:oomScore | O:color | p:pipe | P:perf
+            q:quit | r:report | R:reportFile | s:stack
+            S:pss| t:thread | T:total | u:uss | w:wss
+            W:wchan | x:fixTarget | Y:delay ]
     -d  <CHARACTER>             disable options
           [ a:memAvailable | A:Average | b:buffer
             c:cpu | C:clone | D:DWARF | e:encode
-            E:exec | g:generalInfo | G:gpu | L:log
+            E:exec | g:general | G:gpu | L:log
             p:print | t:truncate | T:task ]
                 '''
 
@@ -19157,6 +19174,8 @@ Examples:
         # {0:1} {1:1} -q CPUCOND:10
         # {0:1} {1:1} -q MEMFREECOND:100
         # {0:1} {1:1} -q MEMAVLCOND:100
+        # {0:1} {1:1} -q BLKRDCOND:1
+        # {0:1} {1:1} -q BLKWRCOND:1
 
     - Monitor status of {2:2} on the minimum terminal
         # {0:1} {1:1} -m
@@ -19587,7 +19606,7 @@ Options:
             h:heap | L:lock | m:mem | p:pipe ]
     -d  <CHARACTER>             disable options
           [ a:all | c:cpu | C:compress | e:encode
-            g:generalInfo | l:latency | L:log | u:user ]
+            g:general | l:latency | L:log | u:user ]
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -19839,7 +19858,7 @@ Options:
             r:reset | P:power | w:workqueue ]
     -d  <CHARACTER>             disable options
           [ a:all | c:cpu | C:compress | e:encode
-            g:generalInfo ]
+            g:general ]
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
@@ -20582,7 +20601,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | e:encode | E:exec | g:generalInfo | O:color ]
+          [ C:clone | e:encode | E:exec | g:general | O:color ]
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set task filter
@@ -20654,7 +20673,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | e:encode | D:DWARF | E:exec | g:generalInfo ]
+          [ C:clone | e:encode | D:DWARF | E:exec | g:general ]
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set task filter
@@ -20725,7 +20744,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | D:DWARF | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | D:DWARF | e:encode | E:exec | g:generalInfo ]
+          [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
     -u                          run in the background
     -a                          show all stats including registers
     -T  <FILE>                  set target file
@@ -20843,7 +20862,7 @@ Options:
     -e  <CHARACTER>             enable options
           [ p:pipe | e:encode ]
     -d  <CHARACTER>             disable options
-          [ C:clone | e:encode | E:exec | g:generalInfo ]
+          [ C:clone | e:encode | E:exec | g:general ]
     -u                          run in the background
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
@@ -21155,16 +21174,16 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Summary a top output file
+    Summarize a raw data file for task top mode
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Summary a top output file
-        # {0:1} {1:1} output
+    - Summarize a raw data file for task top mode
+        # {0:1} {1:1} output.raw
 
-    - Summary a top output file into summary.out
-        # {0:1} {1:1} output -o guider.out
+    - Summarize a raw data file for task top mode into guider.out
+        # {0:1} {1:1} output.raw -o guider.out
                     '''.format(cmd, mode)
 
                 # kill / send #
@@ -21949,6 +21968,7 @@ Examples:
     - Request POST / URL to specific server with files
         # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:doc:test.txt:doc/txt#http://127.0.0.1:5000
+        # {0:1} {1:1} POST#FILE:test.png:img/png#http://127.0.0.1:5000
 
     - Request POST / URL to specific server with data from data.json file
         # {0:1} {1:1} POST#JSONFILE:data.json#http://127.0.0.1:5000
@@ -22019,20 +22039,20 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set the clock speed to 10000000HZ and the governor to userspace for CPU1
+    - Set the clock speed to 2,000,000HZ and the governor to userspace for CPU1
         # {0:1} {1:1} 1:10000000:userspace
 
-    - Set the clock speed to 10000000HZ and the governor to userspace for All CPUs
+    - Set the clock speed to 2,000,000HZ and the governor to userspace for All CPUs
         # {0:1} {1:1} :10000000:userspace
 
-    - Set the clock speed to 10000000HZ for CPU0
+    - Set the clock speed to 2,000,000HZ for CPU0
         # {0:1} {1:1} 0:10000000
 
     - Set the governor to performance for CPU2
-        # {0:1} {1:1} 2:0:performance
+        # {0:1} {1:1} 2::performance
 
-    - Set the governor to performance for CPU2
-        # {0:1} {1:1} 2:0:performance
+    - Set the governor to performance for all CPUs
+        # {0:1} {1:1} ::performance
                     '''.format(cmd, mode)
 
                 # convert #
@@ -27379,7 +27399,7 @@ Copyright:
                     SysMgr.logEnable = False
 
                 if 'g' in options:
-                    SysMgr.generalInfoEnable = False
+                    SysMgr.generalEnable = False
 
                 if 'D' in options:
                     SysMgr.dwarfEnable = False
@@ -28152,7 +28172,7 @@ Copyright:
                     SysMgr.compressEnable = False
 
                 if 'g' in options:
-                    SysMgr.generalInfoEnable = False
+                    SysMgr.generalEnable = False
 
             # Ignore options #
             elif SysMgr.isValidOption(option):
@@ -32021,7 +32041,7 @@ Copyright:
             # check error #
             if (len(vals) < 2 or len(vals) > 3) or \
                 (vals[0] and not vals[0].isdigit()) or \
-                not vals[1].isdigit():
+                (vals[1] and not vals[1].isdigit()):
                 SysMgr.printErr(
                 ("wrong value to set CPU clock, "
                 "input in the format CORE:CLOCK(HZ){:GOVERNOR}"))
@@ -32101,6 +32121,11 @@ Copyright:
             elif len(vals) == 3:
                 core, clock, gov = vals
 
+            # check values #
+            if not core and not clock and not gov:
+                SysMgr.printErr('no value for CPU')
+                continue
+
             if not core:
                 cpuRange = list(cpulist.keys())
             else:
@@ -32116,7 +32141,8 @@ Copyright:
                 sys.exit(0)
             # check available clock #
             elif ('avail' in cpulist[core] and \
-                long(clock) > 0 and not clock in cpulist[core]['avail']) or \
+                clock and long(clock) > 0 and \
+                not clock in cpulist[core]['avail']) or \
                 (gov and not gov in cpulist[core]['governors']):
 
                 try:
@@ -32143,7 +32169,7 @@ Copyright:
                 try:
                     minres = maxres = govres = False
 
-                    if long(clock) > 0:
+                    if clock and long(clock) > 0:
                         with open(minfreqpath, 'w') as fd:
                             fd.write(clock)
                         with open(maxfreqpath, 'w') as fd:
@@ -32182,10 +32208,14 @@ Copyright:
                 else:
                     affectstring = ''
 
+                if clock:
+                    clockstr = '%shz ' % UtilMgr.convNum(clock)
+                else:
+                    clockstr = ''
+
                 SysMgr.printInfo(
-                    "set CPU(%s)'s clock to %shz in [%s] successfuly %s" %
-                        (core, UtilMgr.convNum(clock),
-                            curgovernor, affectstring))
+                    "set CPU(%s) to %s[%s] successfuly %s" %
+                        (core, clockstr, curgovernor, affectstring))
 
 
 
@@ -35058,7 +35088,11 @@ Copyright:
                             path = '??'
                             path = data.split(':', 1)[1]
                             with open(path, 'rb') as fd:
-                                data = fd.read().decode()
+                                data = fd.read()
+                                try:
+                                    data = data.decode()
+                                except:
+                                    pass
 
                             # convert string to dictionary #
                             if orig.startswith('JSONFILE:'):
@@ -35076,14 +35110,24 @@ Copyright:
                         try:
                             orig = remain
                             data, remain = remain.split('#', 1)
-
-                            # pass file descriptor #
                             path = '??'
+
+                            # define name and path #
                             fileInfo = data.split(':')[1:]
-                            name = fileInfo[0]
-                            path = fileInfo[1]
-                            fileInfo.insert(2, open(path, 'rb'))
-                            fileArgs = tuple(fileInfo[1:])
+                            if len(fileInfo) == 1:
+                                name = path = fileInfo[0]
+                                addinfo = [name]
+                            else:
+                                name = fileInfo[0]
+                                path = fileInfo[1]
+                                addinfo = []
+
+                            # add a file descriptor #
+                            fileInfo.insert(len(fileInfo), open(path, 'rb'))
+
+                            # complete tuple data #
+                            fileArgs = tuple(addinfo + fileInfo[1:])
+
                             files.append((name, fileArgs))
                         except SystemExit:
                             sys.exit(0)
@@ -35276,7 +35320,7 @@ Copyright:
             try:
                 lastReqTime = [0]
                 idx = 1
-                for idx in range(1, repeat+1):
+                for idx in xrange(0, repeat):
                     before = time.time()
 
                     for req in reqs:
@@ -39035,7 +39079,7 @@ Copyright:
 
 
     def printResourceInfo(self):
-        if not SysMgr.generalInfoEnable:
+        if not SysMgr.generalEnable:
             return
 
         self.printSystemInfo()
@@ -58112,6 +58156,7 @@ Section header string table index: %d
         e_shverdef = -1
         e_shrellist = []
         e_shrelalist = []
+        e_notelist = {}
         e_shehframe = -1
         e_shdbgframe = -1
         e_shehframehdr = -1
@@ -58192,6 +58237,8 @@ Section header string table index: %d
                 e_shdbgframe = i
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
+            elif symbol.startswith('.note.'):
+                e_notelist.setdefault(symbol, i)
             elif stype == 'GNU_versym':
                 e_shversym = i
             elif stype == 'GNU_verdef':
@@ -58820,16 +58867,6 @@ Section header string table index: %d
 
                 return val
 
-            def _getAugStr(augdata):
-                # build string #
-                adstr = ''
-                for byte in augdata:
-                    if type(byte) is str:
-                        byte = long(repr(struct.unpack('B', byte)[0]))
-                    bstr = '%x' % byte
-                    adstr = '{0:s}{1:0>2} '.format(adstr, bstr)
-                return adstr
-
             def _getAugData(string, table, pos, size):
                 if size == 0:
                     return dict(), '', ''
@@ -58932,7 +58969,7 @@ Section header string table index: %d
                             'fail to recognize augmentation "%s"' % char)
                         sys.exit(0)
 
-                adstr = _getAugStr(augdata)
+                adstr = UtilMgr.convStr2Bytes(augdata)
 
                 return augdict, adstr.strip(), augdata
 
@@ -59528,7 +59565,7 @@ Section header string table index: %d
 
                         # load data #
                         augdata = fd.read(datasize)
-                        augdatastr = _getAugStr(augdata)
+                        augdatastr = UtilMgr.convStr2Bytes(augdata)
 
                     # read remain part #
                     remain = fd.tell() - startPos
@@ -59917,6 +59954,48 @@ Section header string table index: %d
             if debug:
                 SysMgr.printPipe(oneLine)
 
+        # check note sections #
+        if e_notelist:
+            for name, idx in e_notelist.items():
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
+                    self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
+
+                # get symbol string #
+                shname = self.getString(str_section, sh_name)
+
+                if debug:
+                    SysMgr.printPipe(
+                        '\n[%s Section]\n%s\n%20s %16s %s\n%s' % \
+                            (shname, twoLine, "Owner", "Data size",\
+                                "Description", twoLine))
+
+                # set position #
+                fd.seek(sh_offset)
+
+                # read meta-data #
+                namesz, descsz, ntype = struct.unpack('III', fd.read(12))
+
+                # read name #
+                if namesz > 0:
+                    name = fd.read(namesz).rstrip(b'\x00').decode()
+                else:
+                    name = 'N/A'
+
+                # read description #
+                if descsz > 0:
+                    desc = fd.read(descsz)
+                else:
+                    desc = 'N/A'
+
+                # convert description to bytes #
+                descstr = UtilMgr.convStr2Bytes(desc)
+
+                if debug:
+                    SysMgr.printPipe(
+                        '%20s %16s [type:%x] %s\n%s' % \
+                            (name, hex(descsz), ntype, descstr, oneLine))
+
         # check dynamic section #
         if e_shdynamic < 0:
             return None
@@ -60110,9 +60189,8 @@ class TaskAnalyzer(object):
 
         # get stats from files #
         flist = UtilMgr.getFileList(flist)
-        if len(flist) < 2:
-            SysMgr.printErr(
-                "input at least more than one effective path")
+        if not flist:
+            SysMgr.printErr("no input for path")
             sys.exit(0)
 
         # define variable and table #
@@ -60250,7 +60328,7 @@ class TaskAnalyzer(object):
                         pass
 
             # set diff to the union list if this file is lastest one #
-            if idx == len(flist)-1:
+            if idx == len(flist)-1 and len(flist) > 1:
                 prevProcList = statFileList[flist[-2]]['cpuProcUsage']
                 lastProcList = statFileList[flist[-1]]['cpuProcUsage']
                 for pname, value in unionCpuList.items():
@@ -60445,7 +60523,7 @@ class TaskAnalyzer(object):
                         continue
 
             # set diff to the union list if this file is lastest one #
-            if idx == len(flist)-1:
+            if idx == len(flist)-1 and len(flist) > 1:
                 prevProcList = statFileList[flist[-2]]['memProcUsage']
                 lastProcList = statFileList[flist[-1]]['memProcUsage']
                 for pname, value in unionRssList.items():
@@ -60987,38 +61065,8 @@ class TaskAnalyzer(object):
             else:
                 self.execEnable = True
 
-            # set CPU threshold #
-            if 'CPUCOND' in SysMgr.environList:
-                try:
-                    SysMgr.cpuCond = \
-                        long(SysMgr.environList['CPUCOND'][0])
-                    SysMgr.reportEnable = True
-                except:
-                    SysMgr.printErr(
-                        "fail to set CPUCOND to '%s'" % \
-                            SysMgr.environList['CPUCOND'][0], True)
-
-            # set MEMFREE threshold #
-            if 'MEMFREECOND' in SysMgr.environList:
-                try:
-                    SysMgr.memFreeCond = \
-                        long(SysMgr.environList['MEMFREECOND'][0])
-                    SysMgr.reportEnable = True
-                except:
-                    SysMgr.printErr(
-                        "fail to set MEMFREECOND to '%s'" % \
-                            SysMgr.environList['MEMFREECOND'][0], True)
-
-            # set MEMAVL threshold #
-            if 'MEMAVLCOND' in SysMgr.environList:
-                try:
-                    SysMgr.memAvlCond = \
-                        long(SysMgr.environList['MEMAVLCOND'][0])
-                    SysMgr.reportEnable = True
-                except:
-                    SysMgr.printErr(
-                        "fail to set MEMAVLCOND to '%s'" % \
-                            SysMgr.environList['MEMAVLCOND'][0], True)
+            # apply print condition via resource threshold #
+            TaskAnalyzer.applyPrintCond()
 
             # file mode #
             if SysMgr.fileTopEnable:
@@ -61554,6 +61602,22 @@ class TaskAnalyzer(object):
         self.nrProcess = long(0)
         self.nrFd = long(0)
         SysMgr.jsonData = {}
+
+
+
+    @staticmethod
+    def applyPrintCond():
+        for env in list(SysMgr.printCond.keys()):
+            if not env in SysMgr.environList:
+                continue
+
+            try:
+                SysMgr.printCond[env] = long(SysMgr.environList[env][0])
+                SysMgr.reportEnable = True
+            except:
+                SysMgr.printErr(
+                    "fail to set %s to '%s'" % \
+                        (env, SysMgr.environList[env][0]), True)
 
 
 
@@ -80318,9 +80382,12 @@ class TaskAnalyzer(object):
 
     def checkPrintCond(self):
         try:
-            if SysMgr.cpuCond < self.reportData['cpu']['total'] and \
-                SysMgr.memFreeCond > self.reportData['mem']['free'] and \
-                SysMgr.memAvlCond > self.reportData['mem']['available']:
+            cond = SysMgr.printCond
+            if cond['CPUCOND'] < self.reportData['cpu']['total'] and \
+                cond['MEMFREECOND'] > self.reportData['mem']['free'] and \
+                cond['MEMAVLCOND'] > self.reportData['mem']['available'] and \
+                cond['BLKRDCOND'] < self.reportData['block']['read'] and \
+                cond['BLKWRCOND'] < self.reportData['block']['write']:
                 return True
             else:
                 return False
