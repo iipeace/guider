@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210403"
+__revision__ = "210404"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15563,6 +15563,7 @@ class SysMgr(object):
     parsedAnalOption = False
     optionList = []
     customCmd = []
+    pyFuncFilter = []
     userCmd = []
     kernelCmd = []
     udpListCache = None
@@ -18850,7 +18851,7 @@ class SysMgr(object):
                 else:
                     types = ' '
 
-                cmdbuf = '%s%4s%-12s%4s%-12s%4s<%-s>\n' % \
+                cmdbuf = '%s%4s%-12s%4s%-13s%4s<%-s>\n' % \
                     (cmdbuf, ' ', types, ' ', cmd, ' ', cvalue)
                 prefix = ''
             cmdbuf = '%s\n' % cmdbuf
@@ -18886,6 +18887,7 @@ class SysMgr(object):
                 },
             'trace': {
                 'btrace': 'Breakpoint',
+                'pytrace': 'Python',
                 'sigtrace': 'Signal',
                 'strace': 'Syscall',
                 'utrace': 'Function',
@@ -18934,7 +18936,7 @@ class SysMgr(object):
                 'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
-                'printdbusinfo': 'D-Bus',
+                'printdbusstat': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
                 'printinfo': 'System',
@@ -20147,67 +20149,67 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor function calls consuming CPU
+    Monitor native function calls consuming CPU
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor function calls for specific threads
+    - Monitor native function calls for specific threads
         # {0:1} {1:1} -g a.out
 
-    - Monitor function calls from a specific binary
+    - Monitor native function calls from a specific binary
         # {0:1} {1:1} a.out
         # {0:1} {1:1} -I a.out
 
-    - Monitor function calls and standard output from a specific binary
+    - Monitor native function calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
-    - Monitor function calls for specific threads from a specific binary
+    - Monitor native function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
 
-    - Monitor function calls for specific threads even if the master tracer is terminated
+    - Monitor native function calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
-    - Monitor function calls except for wait status for specific threads
+    - Monitor native function calls except for wait status for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTWAIT
 
-    - Monitor function calls except for register info for specific threads
+    - Monitor native function calls except for register info for specific threads
         # {0:1} {1:1} a.out -g a.out -q NOCONTEXT
 
-    - Monitor function calls for specific threads consumed CPU more than 10%
+    - Monitor native function calls for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Monitor function calls except for no symbol functions for specific threads
+    - Monitor native function calls except for no symbol functions for specific threads
         # {0:1} {1:1} a.out -g a.out -q EXCEPTNOSYM
 
-    - Monitor function calls for specific threads after loading all symbols in stop status
+    - Monitor native function calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} a.out -g a.out -q STOPTARGET
 
-    - Monitor function calls for 4th new threads in each new processes from a specific binary
+    - Monitor native function calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -g a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -g a.out -q TARGETNUM:4
 
-    - Monitor function calls for a specific binary execution with enviornment variables
+    - Monitor native function calls for a specific binary execution with enviornment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Monitor function calls for specific threads with DWARF info
+    - Monitor native function calls for specific threads with DWARF info
         # {0:1} {1:1} -g a.out -eD
 
-    - Monitor function calls for child tasks created by a specific thread
+    - Monitor native function calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -W
 
-    - Monitor function calls with backtrace for specific threads
+    - Monitor native function calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Monitor function calls for specific threads every 2 second for 1 minute with 1 ms sampling
+    - Monitor native function calls for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
-    - Monitor CPU usage on whole system of function calls for specific threads
+    - Monitor CPU usage on whole system of native function calls for specific threads
         # {0:1} {1:1} -g a.out -e c
 
-    - Monitor function calls with breakpoint for peace including register info for specific threads
+    - Monitor native function calls with breakpoint for peace including register info for specific threads
         # {0:1} {1:1} -g 1234 -c peace -a
 
     See the top COMMAND help for more examples.
@@ -20729,6 +20731,37 @@ Examples:
         # {0:1} {1:1} -I "ls -al" -c PLT
                     '''.format(cmd, mode)
 
+                # pytrace #
+                elif SysMgr.checkMode('pytrace'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
+
+Description:
+    Trace python function calls
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Options:
+    -e  <CHARACTER>             enable options
+          [ p:pipe | D:DWARF | e:encode ]
+    -d  <CHARACTER>             disable options
+          [ C:clone | D:DWARF | e:encode | E:exec | g:general ]
+    -u                          run in the background
+    -a                          show all stats including registers
+    -T  <FILE>                  set target file
+    -g  <COMM|TID{:FILE}>       set task filter
+    -I  <COMMAND>               set command
+    -R  <TIME>                  set timer
+    -c  <SYMBOL>                set function filter
+    -H  <LEVEL>                 set function depth level
+    -o  <DIR|FILE>              set output path
+    -m  <ROWS:COLS:SYSTEM>      set terminal size
+    -E  <DIR>                   set cache dir path
+    -q  <NAME{:VALUE}>          set environment variables
+    -v                          verbose
+                    '''
+
                 # btrace #
                 elif SysMgr.checkMode('btrace'):
                     helpStr = '''
@@ -20736,7 +20769,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace function calls
+    Trace native function calls
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -21522,8 +21555,8 @@ Examples:
         # {0:1} {1:1} -I yes -g testFunc
                     '''.format(cmd, mode)
 
-                # printdbusinfo #
-                elif SysMgr.checkMode('printdbusinfo'):
+                # printdbusstat #
+                elif SysMgr.checkMode('printdbusstat'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -28349,6 +28382,7 @@ Copyright:
             SysMgr.checkMode('utrace') or \
             SysMgr.checkMode('btrace') or \
             SysMgr.checkMode('remote') or \
+            SysMgr.checkMode('pytrace') or \
             SysMgr.checkMode('leaktrace') or \
             SysMgr.checkMode('sigtrace'):
             return True
@@ -28607,8 +28641,8 @@ Copyright:
 
             DbusMgr.runDbusSnooper(mode='print')
 
-        # PRINTDBUSINFO MODE #
-        elif SysMgr.checkMode('printdbusinfo'):
+        # PRINTDBUSSTAT MODE #
+        elif SysMgr.checkMode('printdbusstat'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusMgr.runDbusSnooper(mode='printstat')
@@ -28815,6 +28849,10 @@ Copyright:
         # BTRACE MODE #
         elif SysMgr.checkMode('btrace'):
             SysMgr.doTrace('breakcall')
+
+        # PYTRACE MODE #
+        elif SysMgr.checkMode('pytrace'):
+            SysMgr.doTrace('pytrace')
 
         # WATCH MODE #
         elif SysMgr.checkMode('watch'):
@@ -32910,7 +32948,7 @@ Copyright:
             except:
                 pass
 
-            if mode != 'breakcall':
+            if mode != 'breakcall' and mode != 'pytrace':
                 return
 
             # save original data to be injected for multi-threaded process #
@@ -33003,7 +33041,10 @@ Copyright:
             sys.exit(0)
 
         # check condition #
-        if mode == 'remote' or mode == 'hook':
+        if mode == 'pytrace':
+            SysMgr.pyFuncFilter = SysMgr.customCmd
+            SysMgr.customCmd = ['_PyEval_EvalFrameDefault']
+        elif mode == 'remote' or mode == 'hook':
             if not SysMgr.customCmd:
                 SysMgr.printErr("fail to get remote command")
                 sys.exit(0)
@@ -33020,9 +33061,10 @@ Copyright:
 
         # check symbol requirement #
         needSymbol = (
+            SysMgr.funcDepth > 0 or \
             mode == 'usercall' or mode == 'sample' or \
             mode == 'breakcall' or mode == 'hook' or \
-            mode == 'bind' or SysMgr.funcDepth > 0)
+            mode == 'pytrace' or mode == 'bind')
 
         # set dwarf flag #
         SysMgr.setDwarfFlag()
@@ -33035,7 +33077,7 @@ Copyright:
                     sibling=SysMgr.groupProcEnable)
 
             # get pids of process groups #
-            if mode == 'breakcall':
+            if mode == 'breakcall' or mode == 'pytrace':
                 allpids = SysMgr.convPidList(
                     SysMgr.filterGroup, isThread=True, sibling=True)
             else:
@@ -33065,7 +33107,7 @@ Copyright:
 
             sys.exit(0)
         # check targets #
-        elif len(allpids) > 1 or mode == 'breakcall':
+        elif len(allpids) > 1 or mode == 'breakcall' or mode == 'pytrace':
             parent = SysMgr.pid
 
             # set multi-task attributes #
@@ -33130,7 +33172,7 @@ Copyright:
                         signal.SIGCONT, list(procList.keys()), verbose=False)
 
                 # remove temporary files #
-                if mode == 'breakcall':
+                if mode == 'breakcall' or mode == 'pytrace':
                     # remove all lock files #
                     for lockPath in list(lockList.values()):
                         # remove lock file #
@@ -33161,7 +33203,7 @@ Copyright:
                 else:
                     dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                     dobj.trace(mode='sample', wait=wait, multi=multi)
-            elif mode == 'breakcall':
+            elif mode == 'breakcall' or mode == 'pytrace':
                 if pid:
                     try:
                         ppid = long(SysMgr.getTgid(pid))
@@ -33186,8 +33228,14 @@ Copyright:
                 else:
                     ppid = SysMgr.pid
 
+                # set real mode #
+                if mode == 'breakcall':
+                    rmode = 'break'
+                else:
+                    rmode = 'pybreak'
+
                 Debugger(pid=pid, execCmd=execCmd).\
-                    trace(mode='break', wait=wait, multi=multi,
+                    trace(mode=rmode, wait=wait, multi=multi,
                         bpList=bpList, exceptBpList = exceptBpList,
                         lock=lockObj, targetBpList=targetBpList,
                         targetBpFileList=targetBpFileList,
@@ -44965,6 +45013,15 @@ class Debugger(object):
 
 
 
+    def updateBreakMode(self):
+        # set break mode #
+        if self.mode == 'break' or self.mode == 'pybreak':
+            self.isBreakMode = True
+        else:
+            self.isBreakMode = False
+
+
+
     def updateCurrent(self):
         self.current = time.time()
         if self.timeDelay == 0:
@@ -45005,6 +45062,9 @@ class Debugger(object):
         self.targetNum = 0
         self.childNum = 0
         self.startProfTime = False
+
+        # update break mode #
+        self.updateBreakMode()
 
         # set character for word decoding #
         if ConfigMgr.wordSize == 4:
@@ -48562,7 +48622,7 @@ struct cmsghdr {
 
 
     def updateBpList(self, verb=True):
-        if self.mode != 'break':
+        if not self.isBreakMode:
             return
 
         # update file list #
@@ -49463,11 +49523,12 @@ struct cmsghdr {
             ctype = 'Breakcall'
             addInfo = '[PATH] <Interval>'
             sampleStr = ''
+        elif self.mode == 'pycall':
+            ctype = 'Pycall'
+            addInfo = '[PATH] <Sample>'
+            sampleStr = ' [SampleRate: %g]' % self.sampleTime
         else:
-            if self.mode == 'pycall':
-                ctype = 'Pycall'
-            else:
-                ctype = 'Usercall'
+            ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
             sampleStr = ' [SampleRate: %g]' % self.sampleTime
 
@@ -50846,7 +50907,7 @@ struct cmsghdr {
 
 
     def getBacktraceTree(
-        self, diffstr, tinfo, cont=True, cur=False, addBt=[]):
+        self, diffstr, tinfo, cont=True, cur=False, addBt=[], backtrace=[]):
 
         def _getCommonPos(backtrace, cur):
             # check contiguous tree presentation #
@@ -50868,18 +50929,19 @@ struct cmsghdr {
             return commonPos
 
         # get backtrace #
-        backtrace = self.getBacktrace(cur=cur)
-        if addBt:
-            commonIdx = 0
-            for idx, item in enumerate(addBt):
-                if len(backtrace) > idx and item == backtrace[idx][0]:
-                    commonIdx = idx+1
-                    continue
-                else:
-                    break
-            if commonIdx < len(addBt):
-                addBtList = self.convAddrList(addBt[commonIdx:])
-                backtrace = addBtList + backtrace
+        if not backtrace:
+            backtrace = self.getBacktrace(cur=cur)
+            if addBt:
+                commonIdx = 0
+                for idx, item in enumerate(addBt):
+                    if len(backtrace) > idx and item == backtrace[idx][0]:
+                        commonIdx = idx+1
+                        continue
+                    else:
+                        break
+                if commonIdx < len(addBt):
+                    addBtList = self.convAddrList(addBt[commonIdx:])
+                    backtrace = addBtList + backtrace
 
         # get indent info #
         depth = len(backtrace)
@@ -51201,6 +51263,10 @@ struct cmsghdr {
                 ConfigMgr.PRCTL_TYPE[param] == "PR_SET_NAME":
                 Debugger.updateCommFlag()
 
+        # set print flag #
+        if self.mode != 'break':
+            printStat = False
+
         # print context info #
         if printStat and not addr in self.exceptBpList and \
             not fname in self.exceptBpFileList and \
@@ -51258,6 +51324,11 @@ struct cmsghdr {
         # unlock between processes #
         self.unlock(nrLock)
 
+        # handle pycall #
+        if self.mode == 'pybreak' and \
+            sym.strip(Debugger.RETSTR) == '_PyEval_EvalFrameDefault':
+            self.handlePyTrap(sym)
+
 
 
     def handleTrapEvent(self, stat):
@@ -51267,7 +51338,7 @@ struct cmsghdr {
         # interprete user function call #
         if self.mode == 'inst' or self.mode =='sample':
             self.handleUsercall()
-        elif self.mode == 'break':
+        elif self.isBreakMode:
             # block signal #
             SysMgr.blockSignal(act='block')
 
@@ -51530,6 +51601,127 @@ struct cmsghdr {
 
 
 
+    def readPyStack(self, framep):
+        bt = []
+        lastAddr = None
+        lastName = None
+        lastFile = None
+        while 1:
+            # read PyFrameObject #
+            f_back, f_lineno, f_code, co_name, co_filename = \
+                self.readPyFrame(framep)
+
+            # read context #
+            if f_code in self.pyFrameCache:
+                name, filename = self.pyFrameCache[f_code]
+            else:
+                # read name #
+                name = self.readPyStr(co_name)
+
+                # read filename #
+                filename = self.readPyStr(co_filename)
+
+            # cache frame #
+            self.pyFrameCache[f_code] = [name, filename]
+
+            # handle call info #
+            if not lastName:
+                lastAddr = f_lineno
+                lastName = name
+                lastFile = filename
+            else:
+                bt.append([f_lineno, name, filename])
+
+            # check last frame #
+            if SysMgr.funcDepth == 0 or f_back == 0:
+                break
+
+            framep = f_back
+
+        return bt, lastAddr, lastName, lastFile
+
+
+
+    def handlePyTrap(self, sym):
+        '''
+        _PyEval_EvalFrameDefault(
+            PyThreadState *tstate, PyFrameObject *f, int throwflag)
+        '''
+
+        # get pointer to PyFrameObject #
+        framep = self.readArgs()[0]
+
+        # read frames #
+        try:
+            bt, line, call, fname = self.readPyStack(framep)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+
+        # check filter #
+        if SysMgr.pyFuncFilter and \
+            not UtilMgr.isValidStr(call, SysMgr.pyFuncFilter, inc=True):
+            return
+
+        # trace mode #
+        if self.multi:
+            tinfo = '%s(%s) ' % (self.comm, self.pid)
+        else:
+            tinfo = ''
+
+        # get diff time #
+        diffstr = '%3.6f' % self.vdiff
+
+        # check return type #
+        if sym.endswith(Debugger.RETSTR):
+            isRetBp = True
+        else:
+            isRetBp = False
+
+        # build backtrace #
+        if SysMgr.funcDepth > 0:
+            if SysMgr.showAll:
+                cont = False
+            else:
+                cont = True
+
+            # get backtrace tree #
+            btstr, depth = \
+                self.getBacktraceTree(diffstr, tinfo, cont, backtrace=bt)
+
+            indent = '  ' * depth
+        else:
+            btstr = indent = ''
+
+        elapsed = ''
+
+        # build current symbol string #
+        callString = '\n%s %s%s%s%s [%s:%s]' % \
+            (diffstr, tinfo, indent, call, elapsed, fname, line)
+
+        # add backtrace #
+        if btstr:
+            callString = '%s%s' % (btstr, callString)
+
+        # file output #
+        if SysMgr.outPath:
+            self.addSample(
+                call, fname, realtime=True, elapsed=None)
+
+            # print history #
+            if SysMgr.showAll:
+                self.callPrint.append(callString.rstrip())
+
+            # print to stdout #
+            if SysMgr.printStreamEnable:
+                sys.stdout.write(callString)
+        # console output #
+        else:
+            SysMgr.printPipe(callString, newline=False, flush=True)
+
+
+
     def handlePycall(self):
         # initialize environment #
         if not self.pyAddr:
@@ -51567,41 +51759,7 @@ struct cmsghdr {
             framep = frameList[self.pthreadid]
 
         # read frames #
-        bt = []
-        lastAddr = None
-        lastName = None
-        lastFile = None
-        while 1:
-            # read PyFrameObject #
-            f_back, f_lineno, f_code, co_name, co_filename = \
-                self.readPyFrame(framep)
-
-            # read context #
-            if f_code in self.pyFrameCache:
-                name, filename = self.pyFrameCache[f_code]
-            else:
-                # read name #
-                name = self.readPyStr(co_name)
-
-                # read filename #
-                filename = self.readPyStr(co_filename)
-
-            # cache frame #
-            self.pyFrameCache[f_code] = [name, filename]
-
-            # handle call info #
-            if not lastName:
-                lastAddr = f_lineno
-                lastName = name
-                lastFile = filename
-            else:
-                bt.append([f_lineno, name, filename])
-
-            # check last frame #
-            if SysMgr.funcDepth == 0 or f_back == 0:
-                break
-
-            framep = f_back
+        bt, lastAddr, lastName, lastFile = self.readPyStack(framep)
 
         # add last python call info #
         if nativeStack:
@@ -52255,7 +52413,7 @@ struct cmsghdr {
             return None
 
         # check status #
-        if stat == 'T' or stat == 't':
+        if stat == 'T' or stat == 't' or stat == 'D':
             return True
         else:
             return False
@@ -52450,7 +52608,7 @@ struct cmsghdr {
         self.stop(pid=tid)
 
         # check lock #
-        if self.mode == 'break' and not self.lockObj:
+        if self.isBreakMode and not self.lockObj:
             self.lockObj = \
                 Debugger.getGlobalLock(self.pid, len(self.bpList))
 
@@ -52931,7 +53089,7 @@ struct cmsghdr {
                 # wait for sample calls #
                 if self.mode == 'sample' or self.mode == 'pycall':
                     self.checkInterval()
-                elif self.mode == 'break' or self.mode == 'signal':
+                elif self.isBreakMode or self.mode == 'signal':
                     pass
                 # skip instructions for performance #
                 elif self.mode == 'inst' and self.skipInst > 0:
@@ -53006,7 +53164,7 @@ struct cmsghdr {
                         if self.cmd:
                             self.ptrace(self.cmd)
 
-                        if self.mode == 'break':
+                        if self.isBreakMode:
                             # remove all breakpoins for new child process #
                             if self.forked:
                                 self.removeAllBp()
@@ -53023,7 +53181,7 @@ struct cmsghdr {
                         self.status = 'enter'
 
                     # usercall / breakcall #
-                    elif self.mode == 'break' or self.mode == 'inst':
+                    elif self.isBreakMode or self.mode == 'inst':
                         self.handleTrapEvent(ostat)
 
                     # wrong status for syscall #
@@ -53034,7 +53192,7 @@ struct cmsghdr {
                         continue
 
                 # breakpoint for ARM #
-                elif stat == signal.SIGILL and self.mode == 'break':
+                elif stat == signal.SIGILL and self.isBreakMode:
                     self.handleTrapEvent(ostat)
 
                 # syscall #
@@ -53055,7 +53213,7 @@ struct cmsghdr {
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
-                    if self.mode == 'break' or self.mode == 'signal':
+                    if self.isBreakMode or self.mode == 'signal':
                         if self.cont(check=True) < 0:
                             sys.exit(0)
                     # set up trap again #
@@ -53109,7 +53267,7 @@ struct cmsghdr {
                         'detected %s(%s) with %s' % \
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
-                    if self.mode == 'sample':
+                    if self.mode == 'sample' or self.mode == 'pycall':
                         self.handleTrapEvent(ostat)
 
                     # continue target from signal stop #
@@ -53130,7 +53288,7 @@ struct cmsghdr {
                         (self.comm, self.pid), reason=True)
 
                 # deliver signal #
-                if self.mode == 'break':
+                if self.isBreakMode:
                     if self.cont(check=True) < 0:
                         sys.exit(0)
 
@@ -53140,6 +53298,7 @@ struct cmsghdr {
         self, mode, wait=None, multi=False, lock=None, bpList={},
             exceptBpList={}, targetBpList={}, targetBpFileList={},
             exceptBpFileList={}):
+
         # initialize variables #
         self.initValues()
 
@@ -53158,6 +53317,9 @@ struct cmsghdr {
         self.multi = multi
         self.lockObj = lock
         self.pbufsize = SysMgr.ttyCols >> 1
+
+        # update break mode #
+        self.updateBreakMode()
 
         # disable extended ascii #
         SysMgr.encodeEnable = False
@@ -53285,7 +53447,7 @@ struct cmsghdr {
                 sys.exit(0)
         elif self.mode == 'sample' or self.mode == 'pycall':
             self.cmd = None
-        elif self.mode == 'break':
+        elif self.isBreakMode:
             if self.isRunning:
                 # register breakpoint data #
                 if bpList:
@@ -53311,14 +53473,14 @@ struct cmsghdr {
             sys.exit(0)
         else:
             SysMgr.printErr(
-                "fail to recognize trace mode '%s'" % self.mode)
+                "fail to recognize '%s' mode for trace" % self.mode)
             sys.exit(0)
 
         # register summary callback #
         SysMgr.addExitFunc(Debugger.printSummary, [self])
 
         # wait for task creation #
-        if SysMgr.waitEnable and self.mode != 'break':
+        if SysMgr.waitEnable and self.isBreakMode:
             SysMgr.waitEnable = False
             self.waitForClone()
 
@@ -53473,12 +53635,15 @@ struct cmsghdr {
         elif instance.mode == 'break':
             ctype = 'Breakcall'
             addInfo = '[PATH] <Elapsed>'
+        elif instance.mode == 'pybreak':
+            ctype = 'Pycall'
+            addInfo = '[PATH] <Elapsed>'
         else:
+            addInfo = '[Path]'
             if instance.mode == 'pycall':
                 ctype = 'Pycall'
             else:
                 ctype = 'Usercall'
-            addInfo = '[Path]'
 
             # continue target to prevent too long freezing #
             if instance.traceStatus and instance.isAlive():
@@ -53616,7 +53781,7 @@ struct cmsghdr {
             # add stats #
             if instance.mode == 'syscall':
                 addVal = '<Cnt: %s>' % convert(value['cnt'])
-            elif instance.mode == 'break':
+            elif instance.isBreakMode:
                 addVal = '[%s] <Cnt: %s' % (
                     value['path'], convert(value['cnt']))
 
