@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210404"
+__revision__ = "210411"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3791,6 +3791,36 @@ class UtilMgr(object):
             (k, v) for v, k in reversed(sorted(signal.__dict__.items()))
             if v.startswith('SIG') and not v.startswith('SIG_'))
         return sigList
+
+
+
+    @staticmethod
+    def parseCommand(option):
+        stringList = {}
+
+        # process strings in "" #
+        strings = re.findall("\"(.*?)\"", option)
+        if strings:
+            # create an dictionary for strings #
+            for idx, item in enumerate(strings):
+                if not item:
+                    continue
+
+                val = '#%s#' % idx
+                stringList.setdefault(item.strip('"'), val)
+
+            # replace strings #
+            for string, value in stringList.items():
+                option = option.replace('"%s"' % string, value)
+
+        # split the option string #
+        option = option.split(' ')
+        for string, value in stringList.items():
+            for idx, item in enumerate(deepcopy(option)):
+                if value in item:
+                    option[idx] = item.replace(value, string)
+
+        return option
 
 
 
@@ -13685,6 +13715,9 @@ class LeakAnalyzer(object):
 class FileAnalyzer(object):
     """ Analyzer for file profiling """
 
+    procMapCache = {}
+    procMapStrCache = {}
+
     init_mapData = \
         {'offset': long(0), 'size': long(0), 'pageCnt': long(0),
         'fd': None, 'totalSize': long(0), 'fileMap': None, 'pids': None,
@@ -14114,8 +14147,11 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def getProcMapInfo(pid, fd=None, onlyExec=False, saveAll=False):
-        if not fd:
+    def getAnonMapInfo(pid, fd=None, onlyExec=True):
+        # set file descriptor #
+        if fd:
+            fd.seek(0, 0)
+        else:
             fd = FileAnalyzer.getMapFd(pid, True)
             if not fd:
                 comm = SysMgr.getComm(pid)
@@ -14124,11 +14160,63 @@ class FileAnalyzer(object):
                 sys.exit(0)
 
         # read maps #
-        fd.seek(0, 0)
         mapBuf = fd.readlines()
 
-        # parse and merge lines in maps #
+        # define map dictionary #
+        anonMap = []
+
+        # parse lines #
+        for string in mapBuf:
+            m = re.match((
+                r'^(?P<startAddr>.\S+)-(?P<endAddr>.\S+) (?P<perm>.\S+) '
+                r'(?P<offset>.\S+) (?P<devid>.\S+) 0'), string)
+            if not m:
+                continue
+
+            # get execution permission #
+            if onlyExec and m['perm'][-2] == '-':
+                continue
+
+            # get size info #
+            startAddr = long(m['startAddr'], 16)
+            endAddr = long(m['endAddr'], 16)
+            size = endAddr - startAddr
+
+            anonMap.append([startAddr, endAddr])
+
+        return anonMap
+
+
+
+    @staticmethod
+    def getProcMapInfo(pid, fd=None, onlyExec=False, saveAll=False):
+        # set file descriptor #
+        if fd:
+            fd.seek(0, 0)
+        else:
+            fd = FileAnalyzer.getMapFd(pid, True)
+            if not fd:
+                comm = SysMgr.getComm(pid)
+                SysMgr.printErr(
+                    'fail to get memory map for %s(%s)' % (comm, pid))
+                sys.exit(0)
+
+        # read maps #
+        mapBuf = fd.readlines()
+
+        # check map cache #
+        try:
+            if FileAnalyzer.procMapStrCache[pid] == mapBuf:
+                return FileAnalyzer.procMapCache[pid]
+        except:
+            pass
+        finally:
+            FileAnalyzer.procMapStrCache[pid] = mapBuf
+
+        # define map dictionary #
         fileMap = dict()
+
+        # parse and merge lines in maps #
         for val in mapBuf:
             FileAnalyzer.mergeMapLine(val, fileMap, saveAll=saveAll)
 
@@ -14137,6 +14225,9 @@ class FileAnalyzer(object):
             for fname in list(fileMap.keys()):
                 if fname != 'stack' and not fileMap[fname]['exec']:
                     fileMap.pop(fname, None)
+
+        # save map cache #
+        FileAnalyzer.procMapCache[pid] = fileMap
 
         return fileMap
 
@@ -15454,6 +15545,12 @@ class SysMgr(object):
     except:
         TICK = long((1 / float(HZ)) * 1000)
 
+    # python call function #
+    if sys.version_info < (3, 6):
+        pyCallFunc = 'PyEval_EvalFrameEx'
+    else:
+        pyCallFunc = '_PyEval_EvalFrameDefault'
+
     startTime = long(0)
     startRunTime = long(0)
     blockSize = 512
@@ -15566,8 +15663,8 @@ class SysMgr(object):
     pyFuncFilter = []
     userCmd = []
     kernelCmd = []
-    udpListCache = None
-    tcpListCache = None
+    udpListCache = []
+    tcpListCache = []
     customEventList = []
     userEventList = []
     kernelEventList = []
@@ -17561,11 +17658,18 @@ class SysMgr(object):
         # set repeat count #
         if not count:
             if SysMgr.repeatInterval == 0:
-                count = 1
+                count = sys.maxsize
             else:
                 count = SysMgr.repeatInterval
+
+        # set count string #
+        if count == sys.maxsize:
+            countStr = 'INFINITE'
+        else:
+            countStr = '%s' % UtilMgr.convNum(count)
+
         SysMgr.printInfo(
-            'set repeat count to %s' % UtilMgr.convNum(count))
+            'set repeat count to %s' % countStr)
 
         # set timeout #
         if not timeout:
@@ -19329,6 +19433,7 @@ Examples:
 
     - Print all call contexts from a specific binary
         # {0:1} {1:1} "ls"
+        # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
     - Print all call contexts and standard output from a specific binary
@@ -19356,7 +19461,7 @@ Examples:
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
     - Print all call contexts and injection info for specific threads
-        # {0:1} {1:1} -g a.out -q TRACEINJECTION
+        # {0:1} {1:1} -g a.out -q TRACEBP
 
     - Print all call contexts for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -q TARGETNUM:4
@@ -20099,11 +20204,15 @@ Examples:
     - Monitor python calls with backtrace for specific threads (merged native stack and python stack from python 3.7)
         # {0:1} {1:1} -g a.out -H
 
+    - Monitor python calls with backtrace including native symbols for specific threads (merged native stack and python stack from python 3.7)
+        # {0:1} {1:1} -g a.out -H -q INCNATIVE
+
     - Monitor python calls for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
 
     - Monitor python calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
+        # {0:1} {1:1} "python -c \"while 1: print('OK')\""
 
     - Monitor python calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -20159,6 +20268,7 @@ Examples:
 
     - Monitor native function calls from a specific binary
         # {0:1} {1:1} a.out
+        # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
 
     - Monitor native function calls and standard output from a specific binary
@@ -20738,7 +20848,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Trace python function calls
+    Trace python calls
                         '''.format(cmd, mode)
 
                     helpStr += '''
@@ -20761,6 +20871,50 @@ Options:
     -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                     '''
+
+                    examStr = '''
+Examples:
+    - Trace python calls for a specific thread in 100us cycles
+        # {0:1} {1:1} -g a.out
+
+    - Trace python calls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -W
+
+    - Trace python calls from a specific binary
+        # {0:1} {1:1} "ls -al"
+        # {0:1} {1:1} "python -c \"while 1: print('OK')\""
+        # {0:1} {1:1} -I "ls -al"
+
+    - Trace python calls for specific threads from a specific binary
+        # {0:1} {1:1} "ls -al" -g a.out
+        # {0:1} {1:1} -I "ls -al" -g a.out
+
+    - Trace python calls for a specific thread in 10ms cycles
+        # {0:1} {1:1} -g a.out -i 10000
+
+    - Trace python calls for a specific thread and print standard output
+        # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
+
+    - Trace python calls  with colorful elapsed time when the elapsed time exceed 0 second
+        # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
+
+    - Trace python calls for a specific thread even if the master tracer is terminated
+        # {0:1} {1:1} -g a.out -q CONTALONE
+
+    - Trace python calls with 1/10 instructions for a specific thread
+        # {0:1} {1:1} -g a.out -H 10
+
+    - Trace python calls for a specific thread and save summary tables, call history to ./guider.out
+        # {0:1} {1:1} -g a.out -o . -a
+
+    - Trace python calls with breakpoint for peace including register info for a specific thread
+        # {0:1} {1:1} -g a.out -c peace -a
+
+    - Trace python calls for a specific thread only for 2 seconds
+        # {0:1} {1:1} -g a.out -R 2s
+                    '''.format(cmd, mode)
+
+                    helpStr += topSubStr + topCommonStr + examStr
 
                 # btrace #
                 elif SysMgr.checkMode('btrace'):
@@ -21975,62 +22129,65 @@ Examples:
     - Run client with interaction menu
         # {0:1} {1:1}
 
-    - Request GET / URL to specific server
+    - Request GET/URL to specific server
         # {0:1} {1:1} http://127.0.0.1:5000
         # {0:1} {1:1} GET#http://127.0.0.1:5000
         # {0:1} {1:1} "GET#http://127.0.0.1:5000|GET#http://10.25.123.123:5000"
 
-    - Request GET / URL with alias to specific server
+    - Request GET/URL with alias to specific server
         # {0:1} {1:1} ALIAS:TEST1#http://127.0.0.1:5000
 
-    - Request GET / URL to specific server and print contents for the request
+    - Request GET/URL to specific server and print contents for the request
         # {0:1} {1:1} http://127.0.0.1:5000 -q PRINTREQ
 
-    - Request GET / URL to specific server and print only summary for requests
+    - Request GET/URL to specific server and print only summary for requests
         # {0:1} {1:1} http://127.0.0.1:5000 -q MUTE
 
-    - Request POST / URL to specific server
+    - Request POST/URL to specific server
         # {0:1} {1:1} POST#DATA:"data"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{'key':'value'}}"#http://127.0.0.1:5000
 
-    - Request POST / URL to specific server after base64 encoding specific file data from specific path string "@@@FILE:PATH@@@"
+    - Request POST/URL to specific server after base64 encoding specific file data from specific string "@@@FILE:PATH@@@"
         # {0:1} {1:1} POST#DATA:"@@@FILE:a.out@@@"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONDATA:"{{'date':'123', 'image': {{'name': 'good', 'data':'@@@FILE:a.out@@@'}}}}"#http://127.0.0.1:5000
         # {0:1} {1:1} POST#JSONFILE:input.json#http://127.0.0.1:5000
 
-    - Request POST / URL to specific server with files
+    - Request POST/URL to specific server with base64 encoded data from specific string "@@@BIN:SIZE@@@"
+        # {0:1} {1:1} POST#DATA:"@@@BIN:4MB@@@"#http://127.0.0.1:5000
+
+    - Request POST/URL to specific server with files
         # {0:1} {1:1} POST#FILE:image:test.png:img/png#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:doc:test.txt:doc/txt#http://127.0.0.1:5000
         # {0:1} {1:1} POST#FILE:test.png:img/png#http://127.0.0.1:5000
 
-    - Request POST / URL to specific server with data from data.json file
+    - Request POST/URL to specific server with data from data.json file
         # {0:1} {1:1} POST#JSONFILE:data.json#http://127.0.0.1:5000
 
-    - Request POST / URL to specific server with data from data file
+    - Request POST/URL to specific server with data from data file
         # {0:1} {1:1} POST#DATAFILE:data#http://127.0.0.1:5000
 
-    - Request GET / URL to specific server infinitely
+    - Request GET/URL to specific server infinitely
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R
 
-    - Request GET / URL to specific server 10 times with 500ms delay
+    - Request GET/URL to specific server 10 times with 500ms delay
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 500:10
 
-    - Request GET / URL to specific server 10 times by 10 processes
+    - Request GET/URL to specific server 10 times by 10 processes
         # {0:1} {1:1} GET#http://127.0.0.1:5000 -R 10 -T 10
 
-    - Request GET / URL to specific server with 5 second timeout
+    - Request GET/URL to specific server with 5 second timeout
         # {0:1} {1:1} GET#TIMEOUT:5#http://127.0.0.1:5000
 
-    - Request GET / URL to specific server with no verification for SSL
+    - Request GET/URL to specific server with no verification for SSL
         # {0:1} {1:1} GET#VERIFY:false#https://127.0.0.1:5000
 
-    - Request GET / URL to specific server with auth
+    - Request GET/URL to specific server with auth
         # {0:1} {1:1} GET#AUTH:id,passwd#https://127.0.0.1:5000
 
-    - Request GET / URL to specific server with cookies
+    - Request GET/URL to specific server with cookies
         # {0:1} {1:1} GET#COOKIES:sessionKey:sessionValue#https://127.0.0.1:5000
 
-    - Request GET / URL to specific server with headers
+    - Request GET/URL to specific server with headers
         # {0:1} {1:1} GET#HEADERS:Content-Type:application/json;charset=utf-8#https://127.0.0.1:5000
                     '''.format(cmd, mode)
 
@@ -22252,11 +22409,8 @@ Examples:
     - Send ICMP ECHO_REQUEST to network hosts in a specific file
         # {0:1} {1:1} -I ip.txt
 
-    - Send ICMP ECHO_REQUEST to network hosts infinitely
-        # {0:1} {1:1} www.google.com -R
-
     - Send ICMP ECHO_REQUEST to network hosts with 3 second interval infinitely
-        # {0:1} {1:1} www.google.com -R -i 3
+        # {0:1} {1:1} www.google.com -i 3
 
     - Send ICMP ECHO_REQUEST to network hosts 3 times
         # {0:1} {1:1} www.google.com -R 3
@@ -24400,27 +24554,32 @@ Copyright:
             return SysMgr.udpListCache
 
         udpBuf = []
-        udpPath = '%s/net/udp' % SysMgr.procPath
 
-        try:
-            with open(udpPath, 'r') as fd:
-                udpBuf = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(udpPath)
-            return udpBuf
+        udpFileList = [
+            '%s/net/udp' % SysMgr.procPath,
+            '%s/net/udp6' % SysMgr.procPath,
+        ]
 
-        udpList = []
-        for line in udpBuf:
-            udpList.append(line.split())
+        for udpPath in udpFileList:
+            try:
+                with open(udpPath, 'r') as fd:
+                    udpBuf = fd.readlines()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(udpPath)
+                return udpBuf
 
-        # remove title #
-        udpList.pop(0)
+            udpList = []
+            for line in udpBuf:
+                udpList.append(line.split())
 
-        SysMgr.udpListCache = udpList
+            # remove title #
+            udpList.pop(0)
 
-        return udpList
+            SysMgr.udpListCache += udpList
+
+        return SysMgr.udpListCache
 
 
 
@@ -24430,27 +24589,32 @@ Copyright:
             return SysMgr.tcpListCache
 
         tcpBuf = []
-        tcpPath = '%s/net/tcp' % SysMgr.procPath
 
-        try:
-            with open(tcpPath, 'r') as fd:
-                tcpBuf = fd.readlines()
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printOpenErr(tcpPath)
-            return tcpBuf
+        tcpFileList = [
+            '%s/net/tcp' % SysMgr.procPath,
+            '%s/net/tcp6' % SysMgr.procPath,
+        ]
 
-        tcpList = []
-        for line in tcpBuf:
-            tcpList.append(line.split())
+        for tcpPath in tcpFileList:
+            try:
+                with open(tcpPath, 'r') as fd:
+                    tcpBuf = fd.readlines()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenErr(tcpPath)
+                return tcpBuf
 
-        # remove title #
-        tcpList.pop(0)
+            tcpList = []
+            for line in tcpBuf:
+                tcpList.append(line.split())
 
-        SysMgr.tcpListCache = tcpList
+            # remove title #
+            tcpList.pop(0)
 
-        return tcpList
+            SysMgr.tcpListCache += tcpList
+
+        return SysMgr.tcpListCache
 
 
 
@@ -25578,6 +25742,9 @@ Copyright:
             SysMgr.printPipe(
                 ' %s\n%s\n%s' % (underline, title, overline))
 
+        # append new line #
+        if onlyFile:
+            SysMgr.printPipe('\n\n')
 
 
     @staticmethod
@@ -26452,12 +26619,16 @@ Copyright:
     @staticmethod
     def updateOutPath():
         # dir #
-        if os.path.isdir(SysMgr.outPath):
+        if SysMgr.outPath and os.path.isdir(SysMgr.outPath):
             SysMgr.inputFile = \
                 os.path.join(SysMgr.outPath, SysMgr.outFilePath)
         # file #
         else:
             SysMgr.inputFile = SysMgr.outPath
+
+        # check output path #
+        if not SysMgr.inputFile:
+            return
 
         # append suffix to output file #
         if SysMgr.fileSuffix:
@@ -26977,36 +27148,6 @@ Copyright:
     def printOpenWarn(path, always=False):
         SysMgr.printWarn(
             'fail to open %s' % path, always, reason=True)
-
-
-
-    @staticmethod
-    def splitOptionString(option):
-        stringList = {}
-
-        # process strings in "" #
-        strings = re.findall("\"(.*?)\"", option)
-        if strings:
-            # create an dictionary for strings #
-            for idx, item in enumerate(strings):
-                if not item:
-                    continue
-
-                val = '#%s#' % idx
-                stringList.setdefault(item.strip('"'), val)
-
-            # replace strings #
-            for string, value in stringList.items():
-                option = option.replace('"%s"' % string, value)
-
-        # split the option string #
-        option = option.split(' ')
-        for string, value in stringList.items():
-            for idx, item in enumerate(deepcopy(option)):
-                if value in item:
-                    option[idx] = item.replace(value, string)
-
-        return option
 
 
 
@@ -28541,8 +28682,6 @@ Copyright:
 
         # READELF MODE #
         elif SysMgr.checkMode('readelf'):
-            SysMgr.printLogo(big=True, onlyFile=True)
-
             # get path #
             if SysMgr.hasMainArg():
                 path = SysMgr.getMainArg()
@@ -28551,6 +28690,8 @@ Copyright:
             else:
                 SysMgr.printErr("no input value for path")
                 sys.exit(0)
+
+            SysMgr.printLogo(big=True, onlyFile=True)
 
             # set debug flag #
             if SysMgr.jsonEnable:
@@ -28682,8 +28823,6 @@ Copyright:
 
         # PRINTSIG MODE #
         elif SysMgr.checkMode('printsig'):
-            SysMgr.printLogo(big=True, onlyFile=True)
-
             SysMgr.doPrintSig()
 
         # PAGE MODE #
@@ -29243,13 +29382,17 @@ Copyright:
         udpList = SysMgr.getUdpList()
         for udp in udpList:
             try:
-                if udp[inodeIdx] in addrList:
-                    ip, port = udp[addrIdx].split(':')
+                if not udp[inodeIdx] in addrList:
+                    continue
 
-                    # convert ip address and port #
-                    ip = SysMgr.convertCIDR(ip)
+                ip, port = udp[addrIdx].split(':')
 
-                    portList["UDP:%s:%s" % (ip, long(port, base=16))] = None
+                # convert ip address and port #
+                ip = SysMgr.convertCIDR(ip)
+
+                portList["UDP:%s:%s" % (ip, long(port, base=16))] = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -29257,20 +29400,24 @@ Copyright:
         tcpList = SysMgr.getTcpList()
         for tcp in tcpList:
             try:
-                if tcp[inodeIdx] in addrList:
-                    ip, port = tcp[addrIdx].split(':')
+                if not tcp[inodeIdx] in addrList:
+                    continue
 
-                    # convert ip address and port #
-                    ip = SysMgr.convertCIDR(ip)
+                ip, port = tcp[addrIdx].split(':')
 
-                    try:
-                        stat = '/%s' % \
-                            ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
-                    except:
-                        stat = ''
+                # convert ip address and port #
+                ip = SysMgr.convertCIDR(ip)
 
-                    item = "TCP:%s:%s%s" % (ip, long(port, base=16), stat)
-                    portList[item] = None
+                try:
+                    stat = '/%s' % \
+                        ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
+                except:
+                    stat = ''
+
+                item = "TCP:%s:%s%s" % (ip, long(port, base=16), stat)
+                portList[item] = None
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -30046,7 +30193,7 @@ Copyright:
             # launch Guider #
             if cmd.startswith('GUIDER '):
                 # build command list #
-                cmdList = SysMgr.splitOptionString(cmd.lstrip('GUIDER '))
+                cmdList = UtilMgr.parseCommand(cmd.lstrip('GUIDER '))
 
                 # launch command #
                 try:
@@ -30512,6 +30659,7 @@ Copyright:
                 # update pid #
                 SysMgr.fileSuffix = SysMgr.pid = os.getpid()
 
+                # set mute #
                 if mute:
                     SysMgr.closeStdFd(stderr=False)
 
@@ -32305,8 +32453,7 @@ Copyright:
                 ', '.join(filterGroup))
             sys.exit(0)
 
-        # print empty for initialization #
-        SysMgr.printPipe()
+        # set line length #
         lenLine = long(len(oneLine)/2)
 
         # check filter #
@@ -32664,7 +32811,7 @@ Copyright:
         # print service files #
         if busServiceList:
             SysMgr.printPipe(
-                'Target Service [ NrItems: %s ]\n%s' % \
+                '[Systemd Target Service] (NrItems: %s)\n%s' % \
                     (cv(len(busServiceList)), twoLine))
             nrItems = 0
             for node, value in sorted(
@@ -32695,7 +32842,7 @@ Copyright:
         # print filtered list #
         if len(filteredList) > 0:
             SysMgr.printPipe(
-                'Exceptional Service [ NrItems: %s ]\n%s' % \
+                '[Systemd Exceptional Service] (NrItems: %s)\n%s' % \
                     (cv(len(filteredList)), twoLine))
             for node, value in sorted(filteredList.items()):
                 SysMgr.printPipe('[ %s ]' % node)
@@ -32716,14 +32863,15 @@ Copyright:
         SysMgr.checkRootPerm()
 
         SysMgr.nsEnable = True
+        cv = UtilMgr.convNum
 
         obj = TaskAnalyzer(onlyInstance=True)
         obj.saveSystemStat()
 
-        cv = UtilMgr.convNum
         for ns, val in sorted(obj.nsData.items(), key=lambda e: e[0]):
             SysMgr.printPipe(
-                '[%s] (Total: %s)\n%s' % (ns, cv(len(val)), twoLine))
+                '\n[%s] (Total: %s)\n%s' % (ns, cv(len(val)), twoLine))
+
             cnt = 1
             for key, tids in sorted(val.items(), key=lambda e:e[0]):
                 tid = sorted(list(tids.keys()), key=lambda e:long(e))[0]
@@ -32746,6 +32894,7 @@ Copyright:
                 for tid in sorted(tids.keys(), key=lambda e:long(e)):
                     comm = obj.procData[tid]['stat'][obj.commIdx][1:-1]
                     SysMgr.printPipe('%s - %s(%s)' % (indentStr, comm, tid))
+
             SysMgr.printPipe('%s\n' % oneLine)
 
         sys.exit(0)
@@ -32969,8 +33118,9 @@ Copyright:
                 exceptBpFileList.setdefault(pid, dict())
 
                 # create object #
-                procObj = Debugger(pid=pid, execCmd=execCmd, mode='break')
-                if not procObj:
+                procObj = Debugger(pid=pid, mode='break')
+                if not procObj or not procObj.checkPyVer():
+                    os.kill(pid, signal.SIGCONT)
                     continue
 
                 # register signal sender for resume #
@@ -33007,6 +33157,7 @@ Copyright:
                     SysMgr.sendSignalProcs,
                     [signal.SIGCONT, [pid], False, False])
 
+        # print title #
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # no use pager #
@@ -33043,7 +33194,10 @@ Copyright:
         # check condition #
         if mode == 'pytrace':
             SysMgr.pyFuncFilter = SysMgr.customCmd
-            SysMgr.customCmd = ['_PyEval_EvalFrameDefault']
+            if 'GETRET' in SysMgr.environList:
+                SysMgr.customCmd = ["%s|getret" % SysMgr.pyCallFunc]
+            else:
+                SysMgr.customCmd = [SysMgr.pyCallFunc]
         elif mode == 'remote' or mode == 'hook':
             if not SysMgr.customCmd:
                 SysMgr.printErr("fail to get remote command")
@@ -33086,7 +33240,7 @@ Copyright:
         # check command #
         if inputParam:
             pid = None
-            execCmd = inputParam.split()
+            execCmd = UtilMgr.parseCommand(inputParam)
         # check permission #
         elif not SysMgr.isRoot():
             SysMgr.printErr(
@@ -33203,6 +33357,9 @@ Copyright:
                 else:
                     dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
                     dobj.trace(mode='sample', wait=wait, multi=multi)
+            elif mode == 'pycall':
+                dobj = Debugger(pid=pid, execCmd=execCmd, attach=True)
+                dobj.trace(mode='pycall', wait=wait, multi=multi)
             elif mode == 'breakcall' or mode == 'pytrace':
                 if pid:
                     try:
@@ -33244,9 +33401,6 @@ Copyright:
                 Debugger.hookFunc(pid, SysMgr.customCmd)
             elif mode == 'bind':
                 Debugger.hookFunc(pid, SysMgr.customCmd, mode='print')
-            elif mode == 'pycall':
-                dobj = Debugger(pid=pid, execCmd=execCmd, attach=False)
-                dobj.trace(mode='pycall', wait=wait, multi=multi)
             else:
                 # syscall / signal / remote #
                 dobj = Debugger(
@@ -33345,7 +33499,7 @@ Copyright:
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((
-                "fail to find a unique process because "
+                "fail to select a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
@@ -33907,7 +34061,7 @@ Copyright:
         # multiple process #
         elif len(pids) > 1:
             SysMgr.printErr((
-                "fail to find a unique process because "
+                "fail to select a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
         # single process #
@@ -35008,6 +35162,29 @@ Copyright:
 
     @staticmethod
     def doRequest(reqstr=None):
+        def _convStr2Data(string, enc=False):
+            # define keys #
+            skey = '@@@BIN:'
+            ekey = '@@@'
+
+            # get pos #
+            start = string.find(skey)
+            if start < 0:
+                return string
+            secStart = start+len(skey)
+            end = string[secStart:].find(ekey)
+            if end < 0:
+                return string
+
+            # get real size #
+            size = string[secStart:secStart+end]
+            rsize = UtilMgr.convUnit2Size(size)
+
+            # allocate byte array #
+            data = bytes(rsize)
+
+            return data
+
         def _convPath2Data(path, enc=False):
             if not path or not isinstance(path, str):
                 return path
@@ -35016,14 +35193,14 @@ Copyright:
             skey = '@@@FILE:'
             ekey = '@@@'
 
-            # get start pos #
+            # get pos #
             start = path.find(skey)
             if start < 0:
-                return path
+                return _convStr2Data(path, enc=enc)
             secStart = start+len(skey)
             end = path[secStart:].find(ekey)
             if end < 0:
-                return path
+                return _convStr2Data(path, enc=enc)
 
             # get real path #
             rpath = path[secStart:secStart+end]
@@ -35432,7 +35609,7 @@ Copyright:
                     '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                         (SysMgr.comm, SysMgr.pid,
                         totalElapsed, convNum(len(reqs)),
-                        convNum(idx), repeatStr, delay,
+                        convNum(idx+1), repeatStr, delay,
                         tcpu, acpu, twoLine))
 
                 SysMgr.printPipe(
@@ -35454,7 +35631,7 @@ Copyright:
                 '[TotalCPU: %s%%] [AvgCPU: %s%%]\n%s') % \
                     (SysMgr.comm, SysMgr.pid,
                     totalElapsed, convNum(len(reqs)),
-                    convNum(idx), repeatStr, delay,
+                    convNum(idx+1), repeatStr, delay,
                     tcpu, acpu, twoLine))
 
             SysMgr.printPipe((
@@ -36661,12 +36838,12 @@ Copyright:
 
     @staticmethod
     def doPrintSig():
-        SysMgr.printLogo(big=True, onlyFile=True)
-
         # check target #
         if not SysMgr.filterGroup:
             SysMgr.printErr("no input for PID or COMM")
             sys.exit(0)
+
+        SysMgr.printLogo(big=True, onlyFile=True)
 
         # get pid list #
         pids = []
@@ -37060,6 +37237,11 @@ Copyright:
         if not isFound:
             sig = signal.SIGINT
 
+        # check signal #
+        if sig is None:
+            SysMgr.printErr('fail to recognize signal to be sent')
+            return
+
         # convert pid list #
         if SysMgr.filterGroup:
             argList = SysMgr.filterGroup
@@ -37159,7 +37341,12 @@ Copyright:
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printSigError(pid, SIG_LIST[nrSig], False)
+                    if nrSig in SIG_LIST:
+                        signame = SIG_LIST[nrSig]
+                    else:
+                        signame = nrSig
+
+                    SysMgr.printSigError(pid, signame, False)
 
             if isSent:
                 return
@@ -42509,7 +42696,7 @@ class DbusMgr(object):
 
         # print title #
         SysMgr.printPipe(
-            '\nD-Bus Stat Info [Target: %s]\n%s' % (procId, twoLine))
+            '\n[D-Bus Stat Info] <Target: %s>\n%s' % (procId, twoLine))
         SysMgr.printPipe(
             "{0:^32} {1:<16}\n{2:1}".format('Name', 'Value', oneLine))
 
@@ -43640,7 +43827,7 @@ class DbusMgr(object):
                 SysMgr.optStrace = True
                 SysMgr.encodeB64Enable = True
                 SysMgr.intervalEnable = long(0)
-                SysMgr.outPath = SysMgr.printFd = None
+                SysMgr.outPath = SysMgr.inputFile = SysMgr.printFd = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonEnable = True
@@ -44805,15 +44992,19 @@ class Debugger(object):
     dbgInstance = None
     selfInstance = None
     RETSTR = None
-    targetNum = -1
 
-    exceptWait = False
-    exceptNoSymbol = False
-    traceInjection = False
-    exceptLD = False
-    noMute = False
-    contAlone = False
+    targetNum = -1
     cpuCond = -1
+    pyElapsed = -1
+    envFlags = {
+        'TRACEBP': False,
+        'EXCEPTWAIT': False,
+        'EXCEPTNOSYM': False,
+        'EXCEPTLD': False,
+        'NOMUTE': False,
+        'CONTALONE': False,
+        'INCNATIVE': False,
+    }
 
     def getSigStruct(self):
         class _sifields_sigfault_t(Union):
@@ -45045,6 +45236,7 @@ class Debugger(object):
         self.bufferedStr = ''
         self.mapFd = None
         self.pmap = None
+        self.amap = None
         self.prevPmap = None
         self.needMapScan = True
         self.initPtrace = False
@@ -45243,8 +45435,6 @@ struct cmsghdr {
         self.cmsghdr = cmsghdr
         self.cmsghdr_ptr = cmsghdr_ptr = POINTER(cmsghdr)
 
-
-
         # apply environment variables #
         self.applyEnviron()
 
@@ -45297,6 +45487,7 @@ struct cmsghdr {
     def applyEnviron(self):
         # set return time condition #
         self.retTime = 0.1
+
         if 'ELAPSED' in SysMgr.environList:
             self.retTime = float(SysMgr.environList['ELAPSED'][0])
 
@@ -45312,35 +45503,20 @@ struct cmsghdr {
         if not Debugger.RETSTR:
             Debugger.RETSTR = UtilMgr.convColor('[RET]', 'OKBLUE')
 
-        # enable injection trace #
-        if not Debugger.traceInjection and \
-            'TRACEINJECTION' in SysMgr.environList:
-            Debugger.traceInjection = True
+        # update flags by environment variable #
+        for item in list(Debugger.envFlags.keys()):
+            if item in SysMgr.environList and not Debugger.envFlags[item]:
+                Debugger.envFlags[item] = True
 
-        # ignore wait function #
-        if not Debugger.exceptWait and \
-            'EXCEPTWAIT' in SysMgr.environList:
-            Debugger.exceptWait = True
-
-        # ignore non-symbol function #
-        if not Debugger.exceptNoSymbol and \
-            'EXCEPTNOSYM' in SysMgr.environList:
-            Debugger.exceptNoSymbol= True
-
-        # ignore ld function #
-        if not Debugger.exceptLD and \
-            'EXCEPTLD' in SysMgr.environList:
-            Debugger.exceptLD = True
-
-        # ignore mute #
-        if not Debugger.noMute and \
-            'NOMUTE' in SysMgr.environList:
-            Debugger.noMute = True
-
-        # continue alone without master #
-        if not Debugger.contAlone and \
-            'CONTALONE' in SysMgr.environList:
-            Debugger.contAlone = True
+        # print elapsed time for python #
+        if 'PYELAPSED' in SysMgr.environList:
+            try:
+                Debugger.pyElapsed = \
+                    float(SysMgr.environList['PYELAPSED'][0])
+            except:
+                SysMgr.printErr(
+                    "fail to set PYELAPSED '%s'" % \
+                        SysMgr.environList['PYELAPSED'][0], True)
 
         # filter for CPU threshold #
         if 'CPUCOND' in SysMgr.environList:
@@ -45351,7 +45527,6 @@ struct cmsghdr {
                 SysMgr.printErr(
                     "fail to set CPUCOND to '%s'" % \
                         SysMgr.environList['CPUCOND'][0], True)
-
 
 
 
@@ -46074,12 +46249,14 @@ struct cmsghdr {
 
                 # register a return value #
                 newSym = '%s%s' % (sym, Debugger.RETSTR)
-                val = memset[0]
                 try:
+                    val = memset[0]
                     num = long(val, 16)
                 except:
                     num = long(val)
-                self.setRetList[newSym] = num
+                finally:
+                    self.setRetList.setdefault(newSym, list())
+                    self.setRetList[newSym].append(num)
 
                 # print return value #
                 SysMgr.addPrint("\n[%s] %s" % (cmdstr, val))
@@ -46950,7 +47127,7 @@ struct cmsghdr {
 
     def execute(self, execCmd, mute=True):
         # check mute flag #
-        if Debugger.noMute:
+        if Debugger.envFlags['NOMUTE']:
             mute = False
 
         pid = SysMgr.createProcess()
@@ -47042,7 +47219,7 @@ struct cmsghdr {
         filename = data['filename']
         reins = data['reins']
 
-        if Debugger.traceInjection:
+        if Debugger.envFlags['TRACEBP']:
             SysMgr.printWarn(
                 'removed the breakpoint %s(%s) by %s(%s)' % \
                     (hex(addr).rstrip('L'), symbol, self.comm, self.pid), True)
@@ -47453,21 +47630,27 @@ struct cmsghdr {
         procInfo = '%s(%s)' % (self.comm, self.pid)
 
         # skip no symbol function #
-        if Debugger.exceptNoSymbol and sym and sym.startswith('0x'):
+        if sym and Debugger.envFlags['EXCEPTNOSYM'] and sym.startswith('0x'):
             SysMgr.printWarn(
                 'skip injecting breakpoint for no symbol function %s' % sym)
             return False
 
         # get original instruction #
         if addr in self.bpList:
-            if self.bpList[addr]['set'] and Debugger.traceInjection:
-                if not sym:
-                    sym = self.bpList[addr]['symbol']
-                SysMgr.printWarn((
-                    'fail to inject a breakpoint to %s(%s) for %s '
-                    'because it is already injected by this task') % \
-                        (hex(addr).rstrip('L'), sym, procInfo), True)
-                return False
+            if self.bpList[addr]['set']:
+                # update symbol for the breakpoint address #
+                if sym:
+                    self.bpList[addr]['symbol'] = sym
+
+                # print fail message #
+                if Debugger.envFlags['TRACEBP']:
+                    if not sym:
+                        sym = self.bpList[addr]['symbol']
+                    SysMgr.printWarn((
+                        'fail to inject a breakpoint to %s(%s) for %s '
+                        'because it is already injected by this task') % \
+                            (hex(addr).rstrip('L'), sym, procInfo), True)
+                    return False
 
             origWord = self.bpList[addr]['data']
             if self.bpList[addr]['reins'] != reins:
@@ -47572,7 +47755,7 @@ struct cmsghdr {
                     (hex(addr).rstrip('L'), sym, procInfo, reason))
 
             return False
-        elif ret == 0 and Debugger.traceInjection:
+        elif ret == 0 and Debugger.envFlags['TRACEBP']:
             SysMgr.printWarn(
                 'added the new breakpoint %s(%s)[%s] by %s' % \
                     (hex(addr).rstrip('L'), sym, fname, procInfo), True)
@@ -49443,7 +49626,7 @@ struct cmsghdr {
             return
 
         # check master process #
-        if SysMgr.masterPid > 0 and not Debugger.contAlone and \
+        if SysMgr.masterPid > 0 and not Debugger.envFlags['CONTALONE'] and \
             not SysMgr.isAlive(SysMgr.masterPid):
             SysMgr.printWarn(
                 "terminated master process for %s" % __module__)
@@ -49771,14 +49954,18 @@ struct cmsghdr {
 
 
     def updateProcMap(self, onlyExec=True):
-        # get list of process mapped files #
+        # get file-mapped memory map #
         self.pmap = FileAnalyzer.getProcMapInfo(
             self.pid, self.mapFd, onlyExec=onlyExec)
-        if not self.pmap or \
-            self.prevPmap == self.pmap:
+
+        # check map change #
+        if not self.pmap or self.prevPmap == self.pmap:
             return False
         else:
             self.prevPmap = self.pmap
+
+        # get anonymous executable memory map #
+        self.amap = FileAnalyzer.getAnonMapInfo(self.pid, self.mapFd)
 
         return True
 
@@ -49932,16 +50119,16 @@ struct cmsghdr {
             self.needMapScan = True
 
             # print error message and return #
-            SysMgr.printWarn(
-                'fail to get symbol via %s for %s(%s)' % \
-                    (hex(vaddr).rstrip('L'), self.comm, self.pid))
+            if SysMgr.warnEnable:
+                SysMgr.printWarn(
+                    'fail to get symbol via %s for %s(%s)' % \
+                        (hex(vaddr).rstrip('L'), self.comm, self.pid))
 
             return None
 
         # get real offset for memory hole #
         totalDiff = 0
-        magicstr = SysMgr.magicStr
-        if magicstr in fname:
+        if SysMgr.magicStr in fname:
             fname, vstart, totalDiff = \
                 Debugger.getRealOffsetInfo(self.pmap, fname)
         else:
@@ -49952,13 +50139,21 @@ struct cmsghdr {
         # get offset in the file #
         offset = vaddr - vstart + totalDiff
         if offset < 0:
+            # check JIT code #
+            for addrs in self.amap:
+                if not addrs[0] <= vaddr <= addrs[1]:
+                    continue
+                # return #
+                return [hex(vaddr).rstrip('L'), 'JIT', '??', '??', '??', '??']
+
             # set variable to rescan process map #
             self.needMapScan = True
 
             # print error message and return #
-            SysMgr.printWarn(
-                'fail to get symbol via %s for %s(%s)' % \
-                    (hex(vaddr).rstrip('L'), self.comm, self.pid))
+            if SysMgr.warnEnable:
+                SysMgr.printWarn(
+                    'fail to get symbol via %s for %s(%s)' % \
+                        (hex(vaddr).rstrip('L'), self.comm, self.pid))
 
             return None
 
@@ -50229,7 +50424,7 @@ struct cmsghdr {
 
     def addSample(
         self, sym, filename, realtime=False, bt=None, err=None, elapsed=None):
-        if not self.runStatus and Debugger.exceptWait:
+        if not self.runStatus and Debugger.envFlags['EXCEPTWAIT']:
             return
 
         if err:
@@ -50873,6 +51068,12 @@ struct cmsghdr {
                     sym = res[2]
                 else:
                     sym = res[0]
+
+                # skip no symbol function #
+                if Debugger.envFlags['EXCEPTNOSYM'] and \
+                    sym and sym.startswith('0x'):
+                    continue
+
                 clist.append([addr, sym, res[1]])
             else:
                 clist.append([addr, '??', '??'])
@@ -50906,8 +51107,9 @@ struct cmsghdr {
 
 
 
-    def getBacktraceTree(
-        self, diffstr, tinfo, cont=True, cur=False, addBt=[], backtrace=[]):
+    def getBtStr(
+        self, diffstr, tinfo, cont=True, cur=False,
+        addBt=[], backtrace=[], python=False):
 
         def _getCommonPos(backtrace, cur):
             # check contiguous tree presentation #
@@ -50960,10 +51162,16 @@ struct cmsghdr {
 
         btStr = ''
         for sidx, item in enumerate(reversed(stack)):
-            btStr += '\n%s %s%s%s/%s [%s]' % \
-                (diffindent, tinfoindent,
-                    (sidx-(commonPos)) * '  ',
-                    item[1], hex(item[0]).rstrip('L'), item[2])
+            if python:
+                btStr += '\n%s %s%s%s [%s:%s]' % \
+                    (diffindent, tinfoindent,
+                        (sidx-(commonPos)) * '  ',
+                        item[1], item[2], item[0])
+            else:
+                btStr += '\n%s %s%s%s/%s [%s]' % \
+                    (diffindent, tinfoindent,
+                        (sidx-(commonPos)) * '  ',
+                        item[1], hex(item[0]).rstrip('L'), item[2])
         return btStr, depth
 
 
@@ -50993,7 +51201,7 @@ struct cmsghdr {
 
     def printBpContext(self, sym, addr, fname, checkArg, origPC):
         # skip ld functions #
-        if Debugger.exceptLD and fname and \
+        if Debugger.envFlags['EXCEPTLD'] and fname and \
             os.path.basename(fname).startswith('ld-'):
             SysMgr.printWarn(
                 'skip printing %s in %s' % (sym, fname))
@@ -51059,8 +51267,8 @@ struct cmsghdr {
                 addBt = []
 
             # get backtrace tree #
-            btstr, depth = \
-                self.getBacktraceTree(diffstr, tinfo, cont, addBt=addBt)
+            btstr, depth = self.getBtStr(
+                diffstr, tinfo, cont, addBt=addBt)
 
             indent = '  ' * depth
         else:
@@ -51295,11 +51503,16 @@ struct cmsghdr {
             self.unlock(nrLock)
             return
 
-        # check reinstall option #
+        # check reinstall flag #
         reins = ret[2]
-        if isRetBp or not reins:
+        if not reins:
             self.unlock(nrLock)
             return
+        # check recursive call #
+        elif isRetBp:
+            if sym.endswith(Debugger.RETSTR) in self.entryTime:
+                self.unlock(nrLock)
+                return
 
         if self.pc == origPC:
             # continue processing an instruction #
@@ -51312,7 +51525,7 @@ struct cmsghdr {
 
             # check process #
             ret = self.waitpid()
-            self.checkStat(ret, reason="injection is failed")
+            self.checkStat(ret, reason="injection failed")
 
         # register this breakpoint again #
         ret = self.injectBp(
@@ -51326,8 +51539,8 @@ struct cmsghdr {
 
         # handle pycall #
         if self.mode == 'pybreak' and \
-            sym.strip(Debugger.RETSTR) == '_PyEval_EvalFrameDefault':
-            self.handlePyTrap(sym)
+            sym.rstrip(Debugger.RETSTR) == SysMgr.pyCallFunc:
+            self.handlePyTrap(sym, fname, addr)
 
 
 
@@ -51413,6 +51626,11 @@ struct cmsghdr {
 
 
     def initPyEnv(self):
+        # check python version for target #
+        if not self.checkPyVer():
+            sys.exit(0)
+
+        # set target info #
         procInfo = '%s(%s)' % (self.comm, self.pid)
 
         # get memory map by binary type #
@@ -51424,12 +51642,13 @@ struct cmsghdr {
                     "fail to find python binary for %s" % procInfo)
                 sys.exit(0)
 
-        # set pthread ID for target task #
-        threadList = SysMgr.getThreadList(self.pid)
-        if len(threadList) == 1:
-            self.pthreadid = -1
-        else:
-            self.pthreadid = self.remoteUsercall('pthread_self')
+        # remove anonymous symbol #
+        Debugger.envFlags['EXCEPTNOSYM'] = True
+
+        # check native function for python call #
+        addr = self.getAddrBySymbol(SysMgr.pyCallFunc)
+        if not addr:
+            return False
 
         # get symbol for interpreter #
         pySym = ['_PyThreadState_Current', '_PyRuntime']
@@ -51445,6 +51664,13 @@ struct cmsghdr {
                  (', '.join(list(symbolInfo.keys())), procInfo))
             sys.exit(0)
 
+        # set pthread ID for target task #
+        threadList = SysMgr.getThreadList(self.pid)
+        if len(threadList) == 1:
+            self.pthreadid = -1
+        else:
+            self.pthreadid = self.remoteUsercall('pthread_self')
+
         # get address for interpreter #
         pySymbol = list(symbolInfo.values())[0]
         self.pyAddr = long(pySymbol[2], 16)
@@ -51459,6 +51685,15 @@ struct cmsghdr {
             else:
                 self.pyAddr += 32
 
+        return True
+
+
+
+    def checkPyVer(self):
+        # check exe #
+        if not hasattr(self, 'exe'):
+            self.exe = SysMgr.getExeName(self.pid)
+
         # compare python binary #
         myExe = SysMgr.getExeName(SysMgr.pid)
         if myExe != self.exe:
@@ -51467,7 +51702,9 @@ struct cmsghdr {
                 "and '%s' for %s(%s)") % \
                     (myExe, SysMgr.comm, SysMgr.pid, \
                         self.exe, self.comm, self.pid))
-            sys.exit(0)
+            return False
+        else:
+            return True
 
 
 
@@ -51484,7 +51721,9 @@ struct cmsghdr {
             if sys.version_info >= (3, 7):
                 tstate_head = self.readMem(addr+8)
                 PyThreadState = struct.unpack('Q', tstate_head)[0]
+                if not PyThreadState: break
                 PyThreadState = self.readMem(PyThreadState, 216)
+                if not PyThreadState: break
                 prevp, nextp, interp, framep, recursion_depth, \
                     overflowed, recursion_critical, stackcheck_counter, \
                     tracing, use_tracing, c_profilefunc, c_tracefunc, \
@@ -51496,6 +51735,8 @@ struct cmsghdr {
                     struct.unpack('QQQQibbiiiQQQQQQQQQQQQQiQLiQQQ', PyThreadState)
             elif sys.version_info >= (3, 0):
                 PyThreadState = self.readMem(addr, 192)
+                if not PyThreadState:
+                    break
                 prevp, nextp, interp, framep, recursion_depth, \
                     overflowed, recursion_critical, tracing, use_tracing, \
                     c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
@@ -51507,6 +51748,8 @@ struct cmsghdr {
                     struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
             else:
                 PyThreadState = self.readMem(addr, 168)
+                if not PyThreadState:
+                    break
                 nextp, interp, framep, recursion_depth, tracing, use_tracing, \
                     c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
                     curexc_type, curexc_value, curexc_traceback, \
@@ -51642,27 +51885,58 @@ struct cmsghdr {
 
 
 
-    def handlePyTrap(self, sym):
+    def handlePyTrap(self, sym, fname, addr):
         '''
-        _PyEval_EvalFrameDefault(
+        PyObject* _Py_HOT_FUNCTION_PyEval_EvalFrameDefault(
             PyThreadState *tstate, PyFrameObject *f, int throwflag)
+
+        PyObject* PyEval_EvalFrame(PyFrameObject *f)
         '''
 
-        # get pointer to PyFrameObject #
-        framep = self.readArgs()[0]
+        # set context flag #
+        if Debugger.pyElapsed >= 0 and sym.endswith(Debugger.RETSTR):
+            isRet = True
+        else:
+            isRet = False
 
-        # read frames #
-        try:
-            bt, line, call, fname = self.readPyStack(framep)
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
+        # return context #
+        if isRet:
+            self.handleRetBp(sym, fname, addr)
+            if not self.prevPySym:
+                return
 
-        # check filter #
-        if SysMgr.pyFuncFilter and \
-            not UtilMgr.isValidStr(call, SysMgr.pyFuncFilter, inc=True):
-            return
+            sym = sym.rstrip(Debugger.RETSTR)
+            if not sym in self.entryTime:
+                return
+        # entry context #
+        else:
+            # get pointer to PyFrameObject #
+            framep = self.readArgs()[0]
+
+            # read frames #
+            try:
+                bt, line, call, fname = self.readPyStack(framep)
+
+                # save context #
+                self.prevPySym = call
+                self.prevPyFile = fname
+                self.prevPyLine = line
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to get python stack for %s(%s)' % \
+                        (self.comm, self.pid), True)
+                return
+
+            # check filter #
+            if SysMgr.pyFuncFilter and \
+                not UtilMgr.isValidStr(call, SysMgr.pyFuncFilter, inc=True):
+                return
+
+            # set the breakpoint for return #
+            if Debugger.pyElapsed >= 0:
+                self.setRetBp(sym, fname, ['getret'])
 
         # trace mode #
         if self.multi:
@@ -51673,32 +51947,59 @@ struct cmsghdr {
         # get diff time #
         diffstr = '%3.6f' % self.vdiff
 
-        # check return type #
-        if sym.endswith(Debugger.RETSTR):
-            isRetBp = True
-        else:
-            isRetBp = False
-
         # build backtrace #
-        if SysMgr.funcDepth > 0:
-            if SysMgr.showAll:
-                cont = False
+        if isRet:
+            btstr = ''
+            entry = self.entryTime[sym].pop()
+            etime = self.vdiff - entry
+            elapsed = '/%.6f' % etime
+            if etime >= Debugger.pyElapsed:
+                elapsed = UtilMgr.convColor(elapsed, 'CYAN')
+
+            if self.prevPySym in self.prevPyIndent:
+                indent = self.prevPyIndent[self.prevPySym].pop()
+                if not self.prevPyIndent[self.prevPySym]:
+                    self.prevPyIndent.pop(self.prevPySym, None)
             else:
-                cont = True
+                indent = ''
 
-            # get backtrace tree #
-            btstr, depth = \
-                self.getBacktraceTree(diffstr, tinfo, cont, backtrace=bt)
+            # remove entry timestamp from list #
+            if not self.entryTime[sym]:
+                self.entryTime.pop(sym, None)
 
-            indent = '  ' * depth
+            sym = '%s%s' % (sym, Debugger.RETSTR)
+
+            # build current symbol string #
+            callString = '\n%s %s%s%s%s [%s:%s]' % \
+                (diffstr, tinfo, indent, self.prevPySym,
+                    elapsed, self.prevPyFile, self.prevPyLine)
+
+            # initialize previous symbol #
+            self.prevPySym = None
         else:
-            btstr = indent = ''
+            if bt and SysMgr.funcDepth > 0:
+                if SysMgr.showAll:
+                    cont = False
+                else:
+                    cont = True
 
-        elapsed = ''
+                # get backtrace tree #
+                btstr, depth = self.getBtStr(
+                    diffstr, tinfo, cont, backtrace=bt, python=True)
 
-        # build current symbol string #
-        callString = '\n%s %s%s%s%s [%s:%s]' % \
-            (diffstr, tinfo, indent, call, elapsed, fname, line)
+                indent = '  ' * depth
+
+                # save indent #
+                self.prevPyIndent.setdefault(call, list())
+                self.prevPyIndent[call].append(indent)
+            else:
+                btstr = indent = ''
+
+            elapsed = ''
+
+            # build current symbol string #
+            callString = '\n%s %s%s%s%s [%s:%s]' % \
+                (diffstr, tinfo, indent, call, elapsed, fname, line)
 
         # add backtrace #
         if btstr:
@@ -51723,9 +52024,9 @@ struct cmsghdr {
 
 
     def handlePycall(self):
-        # initialize environment #
-        if not self.pyAddr:
-            self.initPyEnv()
+        # check init status #
+        if not self.pyAddr and not self.initPyEnv():
+            return
 
         # read native call stack for version >= 3.7 #
         nativeStack = None
@@ -51737,7 +52038,10 @@ struct cmsghdr {
 
         # read address for PyThreadState #
         pyThreadStateP = self.readMem(self.pyAddr)
-        pyThreadStateP = struct.unpack('Q', pyThreadStateP)[0]
+        if not pyThreadStateP:
+            return
+        else:
+            pyThreadStateP = struct.unpack('Q', pyThreadStateP)[0]
 
         # read native call stack for version < 3.7 #
         if sys.version_info < (3, 7) and not pyThreadStateP:
@@ -51754,22 +52058,48 @@ struct cmsghdr {
         if self.pthreadid == -1:
             framep = list(frameList.values())[0]
         elif not self.pthreadid in frameList:
+            self.handleUsercall()
             return
         else:
             framep = frameList[self.pthreadid]
 
+        # check frame pointer #
+        if not framep:
+            return
+
         # read frames #
         bt, lastAddr, lastName, lastFile = self.readPyStack(framep)
+
+        # check filter #
+        if SysMgr.pyFuncFilter and \
+            not UtilMgr.isValidStr(lastName, SysMgr.pyFuncFilter, inc=True):
+            return
 
         # add last python call info #
         if nativeStack:
             bt.insert(0, [lastAddr, lastName, lastFile])
 
-            # merge native stack and python stack #
-            for idx in range(0, len(nativeStack)):
-                if not bt: break
-                if nativeStack[idx][1] == '_PyEval_EvalFrameDefault':
-                    nativeStack[idx] = bt.pop(0)
+            # merge only native stack except for interpreter and python stack #
+            if not Debugger.envFlags['INCNATIVE']:
+                lastIdx = 0
+                for idx in range(0, len(nativeStack)):
+                    lastIdx = idx
+                    if nativeStack[idx][1] == SysMgr.pyCallFunc:
+                        break
+                nativeStack = nativeStack[:lastIdx]
+                newStack = []
+                for item in nativeStack:
+                    sym = item[1]
+                    if sym.startswith('_Py') or sym.startswith('Py'):
+                        continue
+                    newStack.append(item)
+                nativeStack = newStack + bt
+            # merge all native stack and python stack #
+            else:
+                for idx in range(0, len(nativeStack)):
+                    if not bt: break
+                    if nativeStack[idx][1] == SysMgr.pyCallFunc:
+                        nativeStack[idx] = bt.pop(0)
 
             # pick last call info #
             bt = nativeStack
@@ -51867,7 +52197,7 @@ struct cmsghdr {
             if not self.sp or not self.prevSp:
                 direction = '(??)'
                 self.addCall(sym)
-            elif sym == 'PLT':
+            elif sym.startswith('.plt'):
                 direction = '(--)'
                 self.addCall(sym)
             elif self.sp > self.prevSp:
@@ -52784,12 +53114,19 @@ struct cmsghdr {
         self.pyLibPath = None
         self.pyInit = False
         self.prevSym = None
+        self.prevPySym = None
+        self.prevPyIndent = {}
         self.arch = SysMgr.getArch()
         self.sysreg = ConfigMgr.SYSREG_LIST[self.arch]
         self.retreg = ConfigMgr.RET_LIST[self.arch]
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+
+        # check python version for target #
+        if self.mode == 'pybreak' or self.mode == 'pycall':
+            if not self.checkPyVer():
+                sys.exit(0)
 
         # update previous CPU usage #
         if hasattr(self, 'prevCpuStat'):
@@ -52883,12 +53220,13 @@ struct cmsghdr {
         # calculate elapsed time #
         skip = False
         hasRetFilter = False
-        entry = self.entryTime[origSym]
+        entry = self.entryTime[origSym].pop()
         etime = self.vdiff - entry
         elapsed = '/%.6f' % etime
 
         # remove entry timestamp from list #
-        self.entryTime.pop(origSym, None)
+        if not self.entryTime[origSym]:
+            self.entryTime.pop(origSym, None)
 
         # check return filter #
         if not origSym in self.retFilterList:
@@ -52939,8 +53277,9 @@ struct cmsghdr {
         try:
             # change return value #
             if sym in self.setRetList:
-                newval = self.setRetList[sym]
-                self.setRetList.pop(sym, None)
+                newval = self.setRetList[sym].pop()
+                if not self.setRetList[sym]:
+                    self.setRetList.pop(sym, None)
                 self.setRet(newval)
                 self.setRegs()
                 self.updateRegs()
@@ -52954,6 +53293,7 @@ struct cmsghdr {
             except:
                 origSym = sym
 
+            # update context #
             if origSym in self.regList:
                 newObj = self.regList.pop(origSym, None)
                 self.setRegs(newObj=newObj)
@@ -52964,7 +53304,8 @@ struct cmsghdr {
             self.prevReturn = str(retval)
 
             # remove breakpoint #
-            ret = self.removeBp(addr, lock=True)
+            if not origSym in self.entryTime:
+                ret = self.removeBp(addr, lock=True)
 
             return "=%s(%s)" % (hex(retval).rstrip('L'), retval)
         except SystemExit:
@@ -53002,7 +53343,9 @@ struct cmsghdr {
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
-        self.entryTime[sym] = self.vdiff
+        # toDo: handle stack for no return procesure such like plt #
+        self.entryTime.setdefault(sym, list())
+        self.entryTime[sym].append(self.vdiff)
 
         # set command list #
         if cmd:
@@ -53615,8 +53958,9 @@ struct cmsghdr {
             return
 
         # summarize samples after last tick #
-        if SysMgr.repeatCount == 0 or \
-            SysMgr.progressCnt < SysMgr.repeatCount:
+        if instance.isRealtime and \
+            (SysMgr.repeatCount == 0 or \
+                SysMgr.progressCnt < SysMgr.repeatCount):
             instance.printIntervalSummary()
         else:
             instance.last = time.time()
@@ -57114,14 +57458,21 @@ class ElfAnalyzer(object):
         tempSymTable.update(self.attr['dwarfTable'])
         self.mergedSymTable = tempSymTable
 
-        # add PLT symbol #
-        if not ElfAnalyzer.isRelocFile(self.path):
-            pltinfo = self.getSectionHeader('.plt')
-            if pltinfo:
-                tempSymTable['PLT'] = {
-                        'vis': 'DEFAULT', 'bind': 'GLOBAL',
-                        'value': pltinfo['addr'], 'ndx': 17,
-                        'type': 'OBJECT', 'size': pltinfo['size']}
+        # add section symbols #
+        for name, item in self.attr['sectionHeader'].items():
+            if item['addr'] == 0:
+                continue
+
+            name = '[%s]' % name
+            addr = hex(item['addr'])
+
+            if addr in tempSymTable:
+                tempSymTable[name] = tempSymTable[addr]
+            else:
+                tempSymTable[name] = {
+                    'vis': 'DEFAULT', 'bind': 'GLOBAL',
+                    'value': item['addr'], 'ndx': 0,
+                    'type': 'SECTION', 'size': item['size']}
 
         mainSym = '?'
         prevAddr = None
@@ -58221,6 +58572,7 @@ Section header string table index: %d
 
         # define program info #
         self.attr['progHeader'] = list()
+        e_notelist = {}
 
         # print program header title #
         if debug:
@@ -58280,6 +58632,8 @@ Section header string table index: %d
             # save load address #
             if typestr == 'LOAD' and flags == 'RE':
                 self.loadAddr = p_vaddr
+            elif typestr == 'NOTE':
+                e_notelist.setdefault(p_offset, p_filesz)
 
             if not debug:
                 continue
@@ -58321,7 +58675,7 @@ Section header string table index: %d
         e_shverdef = -1
         e_shrellist = []
         e_shrelalist = []
-        e_notelist = {}
+        e_shnotelist = {}
         e_shehframe = -1
         e_shdbgframe = -1
         e_shehframehdr = -1
@@ -58332,7 +58686,7 @@ Section header string table index: %d
         self.attr.setdefault('sectionHeader', dict())
 
         # print section header title #
-        if debug:
+        if debug and e_shnum > 0:
             SysMgr.printPipe(
                 ("\n[Section Headers]\n%s\n"
                 "[NR] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s\n%s") % \
@@ -58403,7 +58757,7 @@ Section header string table index: %d
             elif symbol == '.eh_frame_hdr':
                 e_shehframehdr = i
             elif symbol.startswith('.note.'):
-                e_notelist.setdefault(symbol, i)
+                e_shnotelist.setdefault(symbol, i)
             elif stype == 'GNU_versym':
                 e_shversym = i
             elif stype == 'GNU_verdef':
@@ -58421,7 +58775,7 @@ Section header string table index: %d
             elif stype == 'JMPREL':
                 pass
 
-        if debug:
+        if debug and e_shnum > 0:
             SysMgr.printPipe(oneLine)
 
         # define versym info #
@@ -60119,25 +60473,11 @@ Section header string table index: %d
             if debug:
                 SysMgr.printPipe(oneLine)
 
-        # check note sections #
-        if e_notelist:
-            for name, idx in e_notelist.items():
-                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
-                    sh_link, sh_info, sh_addralign, sh_entsize = \
-                    self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
+        def _readNoteSection(fd, offset, size):
+            # set position #
+            fd.seek(sh_offset)
 
-                # get symbol string #
-                shname = self.getString(str_section, sh_name)
-
-                if debug:
-                    SysMgr.printPipe(
-                        '\n[%s Section]\n%s\n%20s %16s %s\n%s' % \
-                            (shname, twoLine, "Owner", "Data size",\
-                                "Description", twoLine))
-
-                # set position #
-                fd.seek(sh_offset)
-
+            while 1:
                 # read meta-data #
                 namesz, descsz, ntype = struct.unpack('III', fd.read(12))
 
@@ -60150,16 +60490,54 @@ Section header string table index: %d
                 # read description #
                 if descsz > 0:
                     desc = fd.read(descsz)
+
+                    # convert description to bytes #
+                    descstr = UtilMgr.convStr2Bytes(desc)
                 else:
-                    desc = 'N/A'
+                    descstr = 'N/A'
 
-                # convert description to bytes #
-                descstr = UtilMgr.convStr2Bytes(desc)
+                SysMgr.printPipe(
+                    '%20s %16s [type:%x] %s' % \
+                        (name, hex(descsz), ntype, descstr))
 
-                if debug:
-                    SysMgr.printPipe(
-                        '%20s %16s [type:%x] %s\n%s' % \
-                            (name, hex(descsz), ntype, descstr, oneLine))
+                # align pos by 4 byte #
+                pos = fd.tell()
+                posRemain = pos % 4
+                if posRemain > 0:
+                    fd.seek(pos + 4 - posRemain)
+
+                if sh_offset+size <= fd.tell():
+                    break
+
+            SysMgr.printPipe(oneLine)
+
+        # check note sections #
+        if debug:
+            for sh_offset, size in e_notelist.items():
+                # print note section title #
+                SysMgr.printPipe(
+                    '\n[Note %s Section]\n%s\n%20s %16s %s\n%s' % \
+                        (hex(sh_offset).rstrip('L'), twoLine, "Owner", "Data size",\
+                            "Description", twoLine))
+
+                _readNoteSection(fd, sh_offset, size)
+
+            # check .note sections #
+            for name, idx in e_shnotelist.items():
+                sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size,\
+                    sh_link, sh_info, sh_addralign, sh_entsize = \
+                    self.getSectionInfo(fd, e_shoff + e_shentsize * idx)
+
+                # get symbol string #
+                shname = self.getString(str_section, sh_name)
+
+                # print .note section title #
+                SysMgr.printPipe(
+                    '\n[%s Section]\n%s\n%20s %16s %s\n%s' % \
+                        (shname, twoLine, "Owner", "Data size",\
+                            "Description", twoLine))
+
+                _readNoteSection(fd, sh_offset, sh_size)
 
         # check dynamic section #
         if e_shdynamic < 0:
@@ -61631,8 +62009,8 @@ class TaskAnalyzer(object):
             self.printFileStat(nowFilter)
 
             # flush socket cache #
-            SysMgr.udpListCache = \
-                SysMgr.tcpListCache = None
+            SysMgr.udpListCache = []
+            SysMgr.tcpListCache = []
 
             # check repeat count #
             SysMgr.checkProgress()
@@ -79655,7 +80033,7 @@ class TaskAnalyzer(object):
                 # launch Guider #
                 if cmd.startswith('GUIDER '):
                     # build command list #
-                    cmdList = SysMgr.splitOptionString(cmd.lstrip('GUIDER '))
+                    cmdList = UtilMgr.parseCommand(cmd.lstrip('GUIDER '))
 
                     # launch command #
                     try:
