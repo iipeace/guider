@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210411"
+__revision__ = "210412"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -19208,8 +19208,17 @@ Options:
 
                 topExamStr = '''
 Examples:
-    - Monitor status of {2:2} used CPU resource more than 1%% every interval
+    - Monitor status of {2:2} used CPU resource more than 1% every interval
         # {0:1} {1:1}
+
+    - Monitor status of {2:2} having TID 1234 or COMM including 1234
+        # {0:1} {1:1} -g 1234
+
+    - Monitor status of {2:2} that dont' have COMM including "test"
+        # {0:1} {1:1} -g ^test
+
+    - Monitor status of {2:2} that use CPU more than 1% without including "test" in COMM
+        # {0:1} {1:1} -g ^test -S c:1
 
     - Monitor status of {2:2} used CPU resource totally
         # {0:1} {1:1} -e T
@@ -19228,40 +19237,40 @@ Examples:
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Report analysis results of {2:2} to ./guider.out when SIGINT signal arrives
-        # {0:1} {1:1} -o .
-
-    - Report analysis results of {2:2} with the fixed task list to save CPU resource for monitoring
-        # {0:1} {1:1} -g a.out -e x
-
     - Monitor status and change priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
     - Monitor status and change priority for specific {2:2} having name including a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
-    - Report analysis results of {2:2} to ./guider.out with unlimited memory buffer
+    - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
+        # {0:1} {1:1} -g a.out -e x
+
+    - Monitor status of {2:2} and report the result to ./guider.out when SIGINT signal arrives
+        # {0:1} {1:1} -o .
+
+    - Monitor status of {2:2} and report the result to ./guider.out with unlimited memory buffer
         # {0:1} {1:1} -o . -b 0
 
-    - Report analysis results of {2:2} to ./guider.out with limited memory buffer 50MB
+    - Monitor status of {2:2} and report the result to ./guider.out with limited memory buffer 50MB
         # {0:1} {1:1} -o . -b 50m
 
-    - Report analysis results of {2:2} to ./guider.out with limited memory buffer 50MB loss possible
+    - Monitor status of {2:2} and report the result to ./guider.out with limited memory buffer 50MB loss possible
         # {0:1} {1:1} -o . -d b
 
-    - Report analysis results of {2:2} to ./guider.out in real-time until SIGINT signal arrives
+    - Monitor status of {2:2} and report the result to ./guider.out in real-time until SIGINT signal arrives
         # {0:1} {1:1} -o . -e p
 
-    - Report analysis results of {2:2} collected every 3 seconds for total 5 minutes to ./guider.out
+    - Monitor status of {2:2} and report the result collected every 3 seconds for total 5 minutes to ./guider.out
         # {0:1} {1:1} -R 3s:5m -o .
 
-    - Report analysis results of {2:2} collected every 3 seconds for 5 times to ./guider.out
+    - Monitor status of {2:2} and report the result collected every 3 seconds for 5 times to ./guider.out
         # {0:1} {1:1} -R 3s:5 -o .
 
-    - Report analysis results of {2:2} collected every 10 seconds for 60 minutes to ./guider.out
+    - Monitor status of {2:2} and report the result collected every 10 seconds for 60 minutes to ./guider.out
         # {0:1} {1:1} -i 10 -R 60m -o .
 
-    - Report analysis results of {2:2} collected every 3 seconds for 5 minutes to ./guider.out continuously
+    - Monitor status of {2:2} and report the result collected every 3 seconds for 5 minutes to ./guider.out continuously
         # {0:1} {1:1} -R 3s:5m: -o .
 
     - Monitor status of {2:2} with memory(USS)
@@ -19295,7 +19304,7 @@ Examples:
     - Monitor status of {2:2} and report to elastic search
         # {0:1} {1:1} -e I
 
-    - Report analysis results of {2:2} to ./guider.out and console
+    - Monitor status of {2:2} and report to ./guider.out and console
         # {0:1} {1:1} -o . -Q
 
     - Monitor status of {2:2} and execute special commands
@@ -19428,210 +19437,210 @@ Commands:
     wrmem    change specific memory or register [VAR|ADDR|REG:VAL:SIZE]
 
 Examples:
-    - Print all call contexts for specific thread
+    - Trace all native calls for specific thread
         # {0:1} {1:1} -g 1234
 
-    - Print all call contexts from a specific binary
+    - Trace all native calls from a specific binary
         # {0:1} {1:1} "ls"
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I "ls"
 
-    - Print all call contexts and standard output from a specific binary
+    - Trace all native calls and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
-    - Print all call contexts except for wait status for specific threads
+    - Trace all native calls except for wait status for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
-    - Print all call contexts except for register info for specific threads
+    - Trace all native calls except for register info for specific threads
         # {0:1} {1:1} -g a.out -q NOCONTEXT
 
-    - Print all call contexts for specific threads consumed CPU more than 10%
+    - Trace all native calls for specific threads consumed CPU more than 10%
         # {0:1} {1:1} -g a.out -q CPUCOND:10
 
-    - Print all call contexts for specific threads even if the master tracer is terminated
+    - Trace all native calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
-    - Print all call contexts for specific threads after loading all symbols in stop status
+    - Trace all native calls for specific threads after loading all symbols in stop status
         # {0:1} {1:1} -g a.out -q STOPTARGET
 
-    - Print all call contexts except for no symbol functions for specific threads
+    - Trace all native calls except for no symbol functions for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTNOSYM
 
-    - Print all call contexts except for ld for specific threads
+    - Trace all native calls except for ld for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTLD
 
-    - Print all call contexts and injection info for specific threads
+    - Trace all native calls and injection info for specific threads
         # {0:1} {1:1} -g a.out -q TRACEBP
 
-    - Print all call contexts for 4th new threads in each new processes from a specific binary
+    - Trace all native calls for 4th new threads in each new processes from a specific binary
         # {0:1} {1:1} a.out -q TARGETNUM:4
         # {0:1} {1:1} -I a.out -q TARGETNUM:4
 
-    - Print all call contexts from a specific binary with DWARF info
+    - Trace all native calls from a specific binary with DWARF info
         # {0:1} {1:1} -I "ls" -eD
 
-    - Print all call contexts from a specific binary with environment variables
+    - Trace all native calls from a specific binary with environment variables
         # {0:1} {1:1} a.out -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} a.out -q ENVFILE:/data/env.sh
 
-    - Print all call contexts with backtrace for specific threads
+    - Trace all native calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
-    - Print printPeace call contexts for specific threads
+    - Trace specific native calls for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
 
-    - Print all call contexts except for printPeace for specific threads
+    - Trace all native calls except for printPeace for specific threads
         # {0:1} {1:1} -g 1234 -c ^printPeace
 
-    - Print a specific call contexts from a specific binary
+    - Trace a specific native calls from a specific binary
         # {0:1} {1:1} ~/test/mutex -c "std::_Vector_base<unsigned long\, std::allocator<unsigned long> >::~_Vector_base()"
 
-    - Print printPeace call contexts only for 2 seconds
+    - Trace specific native calls only for 2 seconds
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
-    - Print printPeace call contexts and save them to ./guider.out
+    - Trace sepcific native calls and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -c printPeace -o . -a
 
-    - Print specific call contexts including specific word
+    - Trace specific native calls including specific word
         # {0:1} {1:1} -g 1234 -c "*printPeace"
         # {0:1} {1:1} -g 1234 -c "printPeace*"
         # {0:1} {1:1} -g 1234 -c "*printPeace*"
 
-    - Print all call contexts related to specific files
+    - Trace all native calls related to specific files
         # {0:1} {1:1} -g a.out -c -T /usr/bin/yes
 
-    - Print all call contexts except for specific files
+    - Trace all native calls except for specific files
         # {0:1} {1:1} -g a.out -c -T ^/usr/bin/yes
 
-    - Print specific call contexts including specific word and stop tracing
+    - Trace specific native calls including specific word and stop tracing
         # {0:1} {1:1} -g a.out -c "*printPeace|stop"
         # {0:1} {1:1} -g a.out -c "printPeace*|stop"
         # {0:1} {1:1} -g a.out -c "*printPeace*|stop"
 
-    - Print all call contexts with 0.1 second sleep
+    - Trace all native calls with 0.1 second sleep
         # {0:1} {1:1} -g a.out -c "*|sleep:0.1"
 
-    - Print write call contexts with 0.1 second sleep only one time
+    - Trace specific native calls with 0.1 second sleep only one time
         # {0:1} {1:1} -g a.out -c "write|oneshot:sleep:0.1"
 
-    - Print write call contexts and kill the target thread
+    - Trace specific native calls and kill the target thread
         # {0:1} {1:1} -g a.out -c "write|kill"
 
-    - Print write call contexts and modify memory
+    - Trace specific native calls and modify memory
         # {0:1} {1:1} -g a.out -c "write|wrmem:0x1234:aaaa:4"
 
-    - Print write call contexts and modify memory pointed by 1st argument
+    - Trace specific native calls and modify memory pointed by 1st argument
         # {0:1} {1:1} -g a.out -c "write|wrmem:0:aaaa:4"
 
-    - Print printf call contexts with 10-length string that 1st argument point to
+    - Trace printf native calls with 10-length string that 1st argument point to
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0:10"
 
-    - Print printf call contexts with 10-length string from the specific address
+    - Trace printf native calls with 10-length string from the specific address
         # {0:1} {1:1} -g a.out -c "printf|rdmem:0x1234:10"
 
-    - Print write call contexts and return a specific value immediately
+    - Trace specific native calls and return a specific value immediately
         # {0:1} {1:1} -g a.out -c "write|ret:3"
 
-    - Print write call contexts and dump stack to a file
+    - Trace specific native calls and dump stack to a file
         # {0:1} {1:1} -g a.out -c "write|dump:stack:stack.out"
 
-    - Print write call contexts and dump specific memory range to a file
+    - Trace specific native calls and dump specific memory range to a file
         # {0:1} {1:1} -g a.out -c "write|dump:0x1234-0x4567:dump.out"
 
-    - Print write call contexts and return value
+    - Trace specific native calls and return value
         # {0:1} {1:1} -g a.out -c "write|getret"
 
-    - Print write call contexts and stop tracing and save return value to specific variable
+    - Trace specific native calls and stop tracing and save return value to specific variable
         # {0:1} {1:1} -g a.out -c "write|getret:stop$print"
 
-    - Print write call contexts and start tracing all calls
+    - Trace specific native calls and start tracing all calls
         # {0:1} {1:1} -g a.out -c "write|getret:start, *"
 
-    - Print write call contexts with colorful elapsed time when the elapsed time exceed 0.1 second
+    - Trace specific native calls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c "write|getret" -q ELAPSED:0.1
 
-    - Print write call contexts and call again repeatedly
+    - Trace specific native calls and call them again repeatedly
         # {0:1} {1:1} -g a.out -c "write|repeat"
         # {0:1} {1:1} -g a.out -c "write|repeat:5"
 
-    - Print write call contexts and change return value
+    - Trace specific native calls and change return value
         # {0:1} {1:1} -g a.out -c "write|setret:3"
         # {0:1} {1:1} -g a.out -c "write|setret:3:print"
 
-    - Print write call contexts and modify 1st and 2nd arguments
+    - Trace specific native calls and modify 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c "write|setarg:0#2:1#5"
 
-    - Print write call contexts and details
+    - Trace specific native calls and print details
         # {0:1} {1:1} -g a.out -c "write|print"
 
-    - Print write call contexts and save specific values to specific variables
+    - Trace specific native calls and save specific values to specific variables
         # {0:1} {1:1} -g a.out -c "write|save:VAR1|print:VAR1|save:VAR2:123"
         # {0:1} {1:1} -g a.out -c "write|save:ARG1:1:arg|print:VAR1"
 
-    - Print write call contexts if call meets specific conditions
+    - Trace specific native calls if call meets specific conditions
         # {0:1} {1:1} -g a.out -c "write|filter:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|filter:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|filter:*1:INC:HE"
 
-    - Print contexts for write call and return if only the elapsed time exceed 0.0005 second
+    - Trace specific native calls and return if only the elapsed time exceed 0.0005 second
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005"
         # {0:1} {1:1} -g a.out -c "write|filter:RET:BT:0.0005" -H -a
 
-    - Print write call contexts with specific check results
+    - Trace specific native calls with specific check results
         # {0:1} {1:1} -g a.out -c "write|check:2:EQ:4096"
         # {0:1} {1:1} -g a.out -c "write|check:2:BT:0x1000"
         # {0:1} {1:1} -g a.out -c "write|check:*1:EQ:HELLO"
         # {0:1} {1:1} -g a.out -c "write|check:*1:INC:HE"
         # {0:1} {1:1} -g a.out -c "write|check:@RET1:EQ:@RET2:EVENT_CONT"
 
-    - Print write call contexts and 1st and 2nd arguments
+    - Trace specific native calls and print 1st and 2nd arguments
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1"
 
-    - Print write call contexts and 1st and 2nd arguments and save its return value to specific variable
+    - Trace specific native calls and print 1st and 2nd arguments and save its return value to specific variable
         # {0:1} {1:1} -g a.out -c "write|getarg:0:1|save:writeRet"
 
-    - Print a write call contexsts and start tracing all functions
+    - Trace specific native calls and start tracing all functions
         # {0:1} {1:1} -g a.out -c "write|start, *"
 
-    - Print write call context and terminate target thread
+    - Trace specific native calls and terminate target thread
         # {0:1} {1:1} -g a.out -c "write|exit"
 
-    - Print specific call contexts and all call contexts within a specific range
+    - Trace specific native calls within a specific range
         # {0:1} {1:1} -g a.out -c "open|start|getret:stop, *"
         # {0:1} {1:1} -g a.out -c "open|start|getret:exit, *"
         # {0:1} {1:1} -g a.out -c "open|start, *, close|getret:condexit"
 
-    - Print write call contexts and call specific functions
+    - Trace specific native calls and call specific functions every time
         # {0:1} {1:1} -g a.out -c "write|usercall:sleep#3"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#PEACE"
         # {0:1} {1:1} -g a.out -c "write|usercall:printf#12345"
         # {0:1} {1:1} -g a.out -c "write|usercall:getenv#PATH, usercall:write#1#@getenv#1024"
 
-    - Print write call contexts and call specific syscalls
+    - Trace specific native calls and call specific syscalls
         # {0:1} {1:1} -g a.out -c "write|syscall:getpid"
         # {0:1} {1:1} -g a.out -c "write|syscall:open#test.out#1"
 
-    - Print write call contexts and load specific library
+    - Trace specific native calls and load specific library
         # {0:1} {1:1} -g a.out -c "write|load:/usr/lib/preload.so"
 
-    - Print write call contexts and create a thread
+    - Trace specific native calls and create a thread
         # {0:1} {1:1} -g a.out -c "write|thread"
 
-    - Print write call contexts and execute python code
+    - Trace specific native calls and execute python code
         # {0:1} {1:1} -g a.out -c "write|pystr:print('OK')" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
         # {0:1} {1:1} -g a.out -c "write|pyfile:test.py:false" -q LIBPYTHON:/usr/lib/x86_64-linux-gnu/libpython3.8.so.1.0
 
-    - Print malloc call contexts and accumulated stats for specific argument
+    - Trace specific native calls and print accumulated stats for specific argument
         # {0:1} {1:1} -g a.out -c "malloc|acc:CHUNK:0:arg"
 
-    - Print malloc call contexts and distribution stats for specific argument
+    - Trace specific native calls and print distribution stats for specific argument
         # {0:1} {1:1} -g a.out -c "malloc|dist:CHUNK:0:arg"
 
-    - Print write call contexts and jump to specific function with specific arguments
+    - Trace specific native calls and jump to specific function with specific arguments
         # {0:1} {1:1} -g a.out -c "write|jump:sleep#5"
 
-    - Print all call contexts and execute specific commands
+    - Trace all native calls and execute specific commands
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha:sleep 1"
         # {0:1} {1:1} -g a.out -c "*|exec:ls -lha &"
                 '''.format(cmd, mode)
@@ -20149,6 +20158,9 @@ Examples:
     - Monitor syscalls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
+    - Monitor syscalls and report the result to ./guider.out when SIGINT signal arrives
+        # {0:1} {1:1} -o .
+
     - Monitor syscalls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
@@ -20270,6 +20282,9 @@ Examples:
         # {0:1} {1:1} a.out
         # {0:1} {1:1} "sh -c \\"while [ 1 ]; do echo "OK"; done;\\""
         # {0:1} {1:1} -I a.out
+
+    - Monitor native function calls and report the result to ./guider.out when SIGINT signal arrives
+        # {0:1} {1:1} -o .
 
     - Monitor native function calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
@@ -35560,6 +35575,10 @@ Copyright:
                             # make a delay #
                             if delay > 0:
                                 time.sleep(delay)
+
+                            # print progress #
+                            if mute:
+                                UtilMgr.printProgress(idx, repeat)
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -60656,10 +60675,10 @@ class TaskAnalyzer(object):
             if idx.startswith('^'):
                 cond = idx[1:]
                 if cond in comm or pid == cond:
-                    found=False
+                    found = False
                     break
                 else:
-                    found=True
+                    found = True
                     continue
 
             # check inclusion condition #
@@ -78592,61 +78611,56 @@ class TaskAnalyzer(object):
         def _isExceptTask(idx):
             exceptFlag = False
 
-            for item in list(SysMgr.filterGroup):
+            # check comm and id #
+            if not TaskAnalyzer.checkFilter(procData[idx]['comm'], idx):
+                exceptFlag = True
+
+            # single mode #
+            if not SysMgr.groupProcEnable:
+                return exceptFlag
+
+            # group mode #
+            if not exceptFlag:
+                return exceptFlag
+            # check siblings #
+            else:
                 exceptFlag = False
-                # group mode #
-                if SysMgr.groupProcEnable:
-                    # process mode #
-                    if SysMgr.processEnable:
-                        ppid = procData[idx]['stat'][self.ppidIdx]
 
-                        # check current pid #
-                        if idx == item:
-                            break
-                        # check current thread comm #
-                        elif item in stat[self.commIdx]:
-                            break
-                        # check current's parent pid by comm #
-                        elif ppid in plist:
-                            break
-                        # check current's parent comm #
-                        elif ppid in procData and \
-                            item in procData[ppid]['stat'][self.commIdx]:
-                            break
-                        # check current's parent pid #
-                        elif item.isdigit() and \
-                            item in procData and \
-                            procData[item]['stat'][self.ppidIdx] == \
-                                stat[self.ppidIdx]:
-                            break
-                        else:
-                            exceptFlag = True
-                    # thread mode #
-                    else:
-                        pid = procData[idx]['mainID']
+            for item in list(SysMgr.filterGroup):
+                # process mode #
+                if SysMgr.processEnable:
+                    ppid = procData[idx]['stat'][self.ppidIdx]
 
-                        # check current process comm #
-                        if pid in procData and \
-                            item in procData[pid]['stat'][self.commIdx]:
-                            break
-                        # check current pid by comm #
-                        elif pid in plist:
-                            break
-                        # check current's pid #
-                        elif item.isdigit() and \
-                            item in procData and \
-                            procData[item]['mainID'] == value['mainID']:
-                            break
-                        elif idx == item or \
-                            value['mainID'] == item:
-                            break
-                        else:
-                            exceptFlag = True
-                # single mode #
-                else:
-                    if idx == item:
+                    # check current's parent pid by comm #
+                    if ppid in plist:
                         break
-                    elif item in stat[self.commIdx]:
+                    # check current's parent comm #
+                    elif ppid in procData and \
+                        item in procData[ppid]['stat'][self.commIdx]:
+                        break
+                    # check current's parent pid #
+                    elif item in procData and \
+                        procData[item]['stat'][self.ppidIdx] == \
+                            stat[self.ppidIdx]:
+                        break
+                    else:
+                        exceptFlag = True
+                # thread mode #
+                else:
+                    pid = procData[idx]['mainID']
+
+                    # check current process comm #
+                    if pid in procData and \
+                        item in procData[pid]['stat'][self.commIdx]:
+                        break
+                    # check current pid by comm #
+                    elif pid in plist:
+                        break
+                    # check current's pid #
+                    elif item in procData and \
+                        procData[item]['mainID'] == value['mainID']:
+                        break
+                    elif idx == item or value['mainID'] == item:
                         break
                     else:
                         exceptFlag = True
@@ -78924,7 +78938,7 @@ class TaskAnalyzer(object):
             stat = value['stat']
 
             # check exception flag #
-            if _isExceptTask(idx):
+            if SysMgr.filterGroup and _isExceptTask(idx):
                 continue
 
             if SysMgr.fixTargetEnable:
