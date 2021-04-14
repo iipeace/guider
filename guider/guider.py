@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210412"
+__revision__ = "210414"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -61,7 +61,7 @@ class ConfigMgr(object):
  | |  __ _   _ _  __| | ___ _ __
  | | |_ | | | | |/ _` |/ _ \ '__|
  | |__| | |_| | | (_| |  __/ |
-  \_____|\__,_|_|\__,_|\___|_|  ver.%s_%s on python_%s.%s
+  \_____|\__,_|_|\__,_|\___|_|  ver_%s_%s on python_%s.%s
 ''' % (__version__, __revision__, sys.version_info[0], sys.version_info[1])
 
     # Define color #
@@ -128,6 +128,7 @@ class ConfigMgr(object):
         'SPECIAL': '\033[93m',
         'OKBLUE': '\033[94m',
         'WARNING': '\033[95m',
+        'LIGHTGREEN': '\033[1;32m',
     }
 
     # Define cgroup entity #
@@ -19693,6 +19694,7 @@ Options:
     -c  <LEVEL>                 set log level
     -I  <FILE|FIELD>            set path / field
     -J                          print in JSON format
+    -R  <TIME>                  set timer
     -o  <DIR|FILE>              set output path
     -X  <REQ@IP:PORT>           set request address
 
@@ -19702,6 +19704,9 @@ Examples:
 
     - Print logs to the sepcific file
         # {0:1} {1:1} -o log.out
+
+    - Print logs in real-time for 3 seconds
+        # {0:1} {1:1} -R 3s
                     '''.format(cmd, mode)
 
                 # function record #
@@ -25746,10 +25751,11 @@ Copyright:
 
         # print logo #
         if big:
+            logo = UtilMgr.convColor(ConfigMgr.logo, 'GREEN')
             if pager:
-                SysMgr.printPipe(ConfigMgr.logo)
+                SysMgr.printPipe(logo)
             else:
-                print(ConfigMgr.logo)
+                print(logo)
         else:
             title = "/ G.u.i.d.e.r \tver.%s /" % __version__
             underline = '_' * (len(title))
@@ -28811,9 +28817,15 @@ Copyright:
 
         elif SysMgr.isPrintLogMode():
             # set console info #
-            SysMgr.setStream()
+            SysMgr.setStream(cut=False)
 
+            # get console option #
             console = SysMgr.findOption('Q')
+
+            # set alarm handler #
+            if SysMgr.intervalEnable > 0:
+                signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+                signal.alarm(SysMgr.intervalEnable)
 
             SysMgr.printLogo(big=True, onlyFile=True)
 
@@ -31974,6 +31986,19 @@ Copyright:
                 # update yticks #
                 TaskAnalyzer.drawYticks(ax, ymax=None, adjust=False)
 
+                # draw time unit #
+                try:
+                    ytickLabel = ax.get_yticks().tolist()
+                    ytickLabel = list(map(long, ytickLabel))
+                    ytickLabel = [val for val in ytickLabel]
+                    ytickLabel[0] = 'ms'
+
+                    # apply formatter #
+                    ax.set_yticks(ax.get_yticks().tolist())
+                    ax.set_yticklabels(ytickLabel)
+                except:
+                    pass
+
                 # draw grid #
                 xticks(fontsize=4)
                 grid(which='both', linestyle=':', linewidth=0.2)
@@ -32041,13 +32066,13 @@ Copyright:
                 ax.bar(brange, data, width=width,
                     edgecolor='white', label=req[:maxLabelLen])
 
-                # draw text for stat #
+                # draw stat text on the bar #
                 for idx, value in enumerate(data):
-                    text(start + (idx-1)/10, value, '%.3f' % value,
-                        color='black', fontweight='bold', fontsize=2)
+                    text(start + (idx-1)/10, value, UtilMgr.convNum(value),
+                        color='black', fontweight='bold', fontsize=3)
 
-                # draw text for request #
-                text(start-1/2, maxval/2, req[:maxLabelLen],
+                # draw name text over the bar #
+                text(start, maxval/2, req[:maxLabelLen],
                     color='black', fontsize=3, rotation=35)
 
                 start += 1
@@ -32115,13 +32140,14 @@ Copyright:
                     if not UtilMgr.isValidStr(req):
                         continue
 
+                # add timestamps in ms #
                 reqtimeList = []
                 restimeList = []
                 timeList = times.split(',')
                 for item in timeList:
                     reqtime, restime = item.split('/')
-                    reqtimeList.append(float(reqtime))
-                    restimeList.append(float(restime))
+                    reqtimeList.append(float(reqtime)*1000)
+                    restimeList.append(float(restime)*1000)
 
                 # initialize lists #
                 reqid = '%s_%s' % (task, req)
@@ -32156,6 +32182,9 @@ Copyright:
         stats = {}
         for path in inputParam:
             try:
+                if not os.path.exists(path):
+                    raise Exception("not exist")
+
                 SysMgr.printStat(
                     r"start loading '%s'..." % path)
                 stat = _getDrawStat(path)
@@ -44064,10 +44093,16 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
+    def getMsgLogLevel(msg):
         DLT_MSIN_MTIN = 0xf0 # message type info #
         DLT_MSIN_MTIN_SHIFT = 4 # shift right offset to get mtin value #
+        return (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
+                >> DLT_MSIN_MTIN_SHIFT
 
+
+
+    @staticmethod
+    def handleMessage(dltObj, msg, buf, mode, verbose, buffered=False):
         # save and reset global filter #
         filterGroup = SysMgr.filterGroup
 
@@ -44142,11 +44177,11 @@ class DltAnalyzer(object):
             timeSec = msg.storageheader.contents.seconds
             timeUs = msg.storageheader.contents.microseconds
             uptime = '%.6f' % (msg.headerextra.tmsp / float(10000))
-            subtype = \
-                (msg.extendedheader.contents.msin & DLT_MSIN_MTIN) \
-                    >> DLT_MSIN_MTIN_SHIFT
+
+            # get log level #
             try:
-                level = DltAnalyzer.msgColorList[subtype]
+                level = DltAnalyzer.getMsgLogLevel(msg)
+                level = DltAnalyzer.msgColorList[level]
             except:
                 level = ''
 
@@ -44157,6 +44192,7 @@ class DltAnalyzer(object):
             output = "{0:1}.{1:06d} {2:1} {3:4} {4:4} {5:4} {6:5} {7!s:1}".format(
                 ntime, timeUs, uptime, ecuId, apId, ctxId, level, string)
 
+            # print log #
             if buffered:
                 SysMgr.addPrint(output, force=True, listBuf=True)
             else:
@@ -44668,6 +44704,63 @@ class DltAnalyzer(object):
                 "fail to import socket", True)
             sys.exit(0)
 
+        # define dlt functions #
+        dltObj.dlt_file_init.argtypes = [c_void_p, c_int]
+        dltObj.dlt_file_init.restype = c_int
+
+        dltObj.dlt_file_open.argtypes = [c_void_p, c_char_p, c_int]
+        dltObj.dlt_file_open.restype = c_int
+
+        dltObj.dlt_file_read.argtypes = [c_void_p, c_int]
+        dltObj.dlt_file_read.restype = c_int
+
+        dltObj.dlt_file_message.argtypes = [c_void_p, c_int, c_int]
+        dltObj.dlt_file_message.restype = c_int
+
+        dltObj.dlt_file_free.argtypes = [c_void_p, c_int]
+        dltObj.dlt_file_free.restype = c_int
+
+        dltObj.dlt_client_init.argtypes = [c_void_p, c_int]
+        dltObj.dlt_client_init.restype = c_int
+
+        dltObj.dlt_client_cleanup.argtypes = [c_void_p, c_int]
+        dltObj.dlt_client_cleanup.restype = c_int
+
+        dltObj.dlt_client_send_all_log_level.argtypes = [c_void_p, c_int8]
+        dltObj.dlt_client_send_all_log_level.restype = c_int
+
+        dltObj.dlt_client_get_log_info.argtypes = [c_void_p, c_int]
+        dltObj.dlt_client_get_log_info.restype = c_int
+
+        dltObj.dlt_client_main_loop.argtypes = [c_void_p, c_void_p, c_int]
+        dltObj.dlt_client_main_loop.restype = c_int
+
+        dltObj.dlt_receiver_init.argtypes = [c_void_p, c_int, c_int]
+        dltObj.dlt_receiver_init.restype = c_int
+
+        dltObj.dlt_message_init.argtypes = [c_void_p, c_int]
+        dltObj.dlt_message_init.restype = c_int
+
+        dltObj.dlt_message_read.argtypes = \
+            [c_void_p, c_void_p, c_uint, c_int, c_int]
+        dltObj.dlt_message_read.restype = c_int
+
+        dltObj.dlt_receiver_move_to_begin.argtypes = [c_void_p]
+        dltObj.dlt_receiver_move_to_begin.restype = c_int
+
+        dltObj.dlt_receiver_remove.argtypes = [c_void_p, c_int]
+        dltObj.dlt_receiver_remove.restype = c_int
+
+        dltObj.dlt_message_print_ascii.argtypes = \
+            [c_void_p, c_void_p, c_uint32, c_int]
+        dltObj.dlt_message_print_ascii.restype = c_int
+
+        dltObj.dlt_set_storageheader.argtypes = [c_void_p, c_char_p]
+        dltObj.dlt_set_storageheader.restype = c_int
+
+        dltObj.dlt_message_free.argtypes = [c_void_p, c_int]
+        dltObj.dlt_message_free.restype = c_int
+
         # define default variables #
         msg = DLTMessage()
         dltFile = DLTFile()
@@ -44715,9 +44808,24 @@ class DltAnalyzer(object):
             DltAnalyzer.msgColorList.append(
                 UtilMgr.convColor(item, color, 5, 'left'))
 
+        # get log level option #
+        try:
+            if SysMgr.customCmd:
+                val = SysMgr.customCmd[0].upper()
+                level = DltAnalyzer.LOGLEVEL[val]
+            else:
+                level = None
+        except:
+            SysMgr.printErr(
+                'fail to recognize log level', True)
+            sys.exit(0)
+
         # messages from file #
         if mode == 'print' and flist:
             for path in flist:
+                SysMgr.printInfo(
+                    "start printing DLT log from %s...\n" % path)
+
                 # convert path string to utf-8 format #
                 path = UtilMgr.encodeStr(path)
 
@@ -44765,6 +44873,12 @@ class DltAnalyzer(object):
                             "fail to read %s message from %s" %
                                 (index, path), True)
                         continue
+
+                    # check log filter #
+                    if level:
+                        mlevel = DltAnalyzer.getMsgLogLevel(dltFile.msg)
+                        if mlevel > level:
+                            continue
 
                     # print message #
                     DltAnalyzer.handleMessage(
@@ -44840,9 +44954,7 @@ class DltAnalyzer(object):
 
         # change default log level #
         try:
-            if SysMgr.customCmd:
-                val = SysMgr.customCmd[0].upper()
-                level = DltAnalyzer.LOGLEVEL[val]
+            if level:
                 dltObj.dlt_client_send_all_log_level(byref(dltClient), level)
         except:
             SysMgr.printErr(
@@ -44851,7 +44963,7 @@ class DltAnalyzer(object):
 
         # print log level #
         try:
-            ret = dltObj.dlt_client_get_log_info(byref(dltClient))
+            ret = dltObj.dlt_client_get_log_info(byref(dltClient), verbose)
             if ret == 0:
                 resp = DltServiceGetLogInfoResponse()
                 resp.service_id = \
@@ -44894,9 +45006,15 @@ class DltAnalyzer(object):
         # define receiver symbol #
         try:
             if hasattr(dltObj, 'dlt_receiver_receive_socket'):
+                dltObj.dlt_receiver_receive_socket.argtypes = [c_void_p]
+                dltObj.dlt_receiver_receive_socket.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive_socket
+                incVerb = False
             elif hasattr(dltObj, 'dlt_receiver_receive'):
+                dltObj.dlt_receiver_receive.argtypes = [c_void_p, c_int]
+                dltObj.dlt_receiver_receive.restype = c_int
                 dlt_receiver_receive = dltObj.dlt_receiver_receive
+                incVerb = True
             else:
                 raise Exception('no DLT receiver')
         except:
@@ -44938,7 +45056,12 @@ class DltAnalyzer(object):
 
                 # check DLT data to be read #
                 try:
-                    ret = dlt_receiver_receive(byref(dltReceiver), 0)
+                    if incVerb:
+                        ret = dlt_receiver_receive(
+                            byref(dltReceiver), c_int(0))
+                    else:
+                        ret = dlt_receiver_receive(byref(dltReceiver))
+
                     if ret <= 0:
                         continue
                 except:
@@ -44959,6 +45082,12 @@ class DltAnalyzer(object):
                             sys.exit(0)
 
                         break
+
+                    # check log filter #
+                    if level:
+                        mlevel = DltAnalyzer.getMsgLogLevel(msg)
+                        if mlevel > level:
+                            continue
 
                     # get data size to be removed #
                     size = msg.headersize + msg.datasize - \
@@ -53586,9 +53715,9 @@ struct cmsghdr {
                 # KILL / SEGV / ABRT signal #
                 elif SysMgr.isTermSignal(stat):
                     # print status #
-                    SysMgr.printErr(
+                    SysMgr.printWarn(
                         'detected %s for %s(%s)' % \
-                            (ConfigMgr.SIG_LIST[stat], self.comm, self.pid))
+                            (ConfigMgr.SIG_LIST[stat], self.comm, self.pid), True)
 
                     # print context info #
                     if SysMgr.showAll:
@@ -61358,6 +61487,12 @@ class TaskAnalyzer(object):
 
     def __init__(self, fpath=None, onlyInstance=None):
 
+        # exec variable #
+        if SysMgr.execEnable is None:
+            self.execEnable = False
+        else:
+            self.execEnable = True
+
         # thread mode #
         if fpath:
             self.initThreadData()
@@ -61620,12 +61755,6 @@ class TaskAnalyzer(object):
             if SysMgr.waitEnable:
                 SysMgr.waitUserInput(
                     0, msg="\npress enter key...", force=True)
-
-            # exec variable #
-            if SysMgr.execEnable is None:
-                self.execEnable = False
-            else:
-                self.execEnable = True
 
             # apply print condition via resource threshold #
             TaskAnalyzer.applyPrintCond()
@@ -63202,6 +63331,21 @@ class TaskAnalyzer(object):
                 yticks(range(ymin, long(ymax + inc), inc), fontsize=fontsize)
             else:
                 yticks(fontsize=fontsize)
+
+        # apply formatter #
+        try:
+            ytickLabel = ax.get_yticks().tolist()
+            ytickLabel = list(map(long, ytickLabel))
+
+            # convert label units #
+            convertNum = UtilMgr.convNum
+            ytickLabel = [convertNum(val) for val in ytickLabel]
+
+            # apply formatter #
+            ax.set_yticks(ax.get_yticks().tolist())
+            ax.set_yticklabels(ytickLabel)
+        except:
+            pass
 
 
 
