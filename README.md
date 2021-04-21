@@ -961,7 +961,7 @@ Output
        
 >>>
        
-    # guider/guider.py funcrecord -e m -s .
+    # guider/guider.py funcrec -e m -s .
     # guider/guider.py guider.dat -a
     # cat guider.out
 
@@ -1157,116 +1157,118 @@ Usage:
     $ ./guider.py COMMAND|FILE [OPTIONS] [--help]
                 
 COMMAND:
-    [CONTROL]       cli             <Client>
-                    event           <Event>
-                    list            <List>
-                    send            <Signal>
-                    server          <Server>
-                    start           <Signal>
+    [CONTROL]       cli               <Client>
+                    event             <Event>
+                    list              <List>
+                    send              <Signal>
+                    server            <Server>
+                    start             <Signal>
 
-    [LOG]           logdlt          <DLT>
-                    logjrl          <Journal>
-                    logkmsg         <Kernel>
-                    logsys          <Syslog>
-                    printdlt        <DLT>
-                    printjrl        <Journal>
-                    printkmsg       <Kernel>
-                    printsys        <Syslog>
+    [LOG]           logdlt            <DLT>
+                    logjrl            <Journal>
+                    logkmsg           <Kernel>
+                    logsys            <Syslog>
+                    printdlt          <DLT>
+                    printjrl          <Journal>
+                    printkmsg         <Kernel>
+                    printsys          <Syslog>
 
-    [MONITOR]       atop            <System>
-                    bgtop           <Background>
-                    btop            <Function>
-                    cgtop           <Cgroup>
-                    ctop            <Threshold>
-                    dbustop         <D-Bus>
-                    disktop         <Storage>
-                    dlttop          <DLT>
-                    ftop            <File>
-                    mtop            <Memory>
-                    ntop            <Network>
-                    ptop            <PMU>
-                    pytop           <Python>
-                    rtop            <JSON>
-                    stacktop        <Stack>
-                    systop          <Syscall>
-                    top             <Process>
-                    ttop            <Thread>
-                    utop            <Function>
-                    wtop            <WSS>
+    [MONITOR]       atop              <System>
+                    bgtop             <Background>
+                    btop              <Function>
+                    cgtop             <Cgroup>
+                    ctop              <Threshold>
+                    dbustop           <D-Bus>
+                    disktop           <Storage>
+                    dlttop            <DLT>
+                    ftop              <File>
+                    mtop              <Memory>
+                    ntop              <Network>
+                    ptop              <PMU>
+                    pytop             <Python>
+                    rtop              <JSON>
+                    stacktop          <Stack>
+                    systop            <Syscall>
+                    top               <Process>
+                    ttop              <Thread>
+                    utop              <Function>
+                    wtop              <WSS>
 
-    [PROFILE]       filerec         <File>
-                    funcrec         <Function>
-                    genrec          <System>
-                    mem             <Page>
-                    rec             <Thread>
-                    report          <Report>
-                    sysrec          <Syscall>
+    [PROFILE]       filerec           <File>
+                    funcrec           <Function>
+                    genrec            <System>
+                    mem               <Page>
+                    rec               <Thread>
+                    report            <Report>
+                    sysrec            <Syscall>
 
-    [TEST]          cputest         <CPU>
-                    iotest          <Storage>
-                    memtest         <Memory>
-                    nettest         <Network>
+    [TEST]          cputest           <CPU>
+                    iotest            <Storage>
+                    memtest           <Memory>
+                    nettest           <Network>
 
-    [TRACE]         btrace          <Breakpoint>
-                    sigtrace        <Signal>
-                    strace          <Syscall>
-                    utrace          <Function>
+    [TRACE]         btrace            <Breakpoint>
+                    pytrace           <Python>
+                    sigtrace          <Signal>
+                    strace            <Syscall>
+                    utrace            <Function>
 
-    [UTIL]          addr2sym        <Symbol>
-                    comp            <Compress>
-                    decomp          <Decompress>
-                    dump            <Memory>
-                    exec            <Command>
-                    getafnt         <Affinity>
-                    hook            <Function>
-                    kill/tkill      <Signal>
-                    leaktrace       <Leak>
-                    limitcpu        <CPU>
-                    mkcache         <Cache>
-                    pause           <Thread>
-                    ping            <PING>
-                    printbind       <Funcion>
-                    printcg         <Cgroup>
-                    printdbus       <D-Bus>
-                    printdbusinfo    <D-Bus>
-                    printdir        <Dir>
-                    printenv        <Env>
-                    printinfo       <System>
-                    printns         <Namespace>
-                    printsig        <Signal>
-                    printsub        <D-Bus>
-                    printsvc        <systemd>
-                    pstree          <Process>
-                    readelf         <File>
-                    remote          <Command>
-                    req             <URL>
-                    setafnt         <Affinity>
-                    setcpu          <Clock>
-                    setsched        <Priority>
-                    strings         <Text>
-                    sym2addr        <Address>
-                    systat          <Status>
-                    topdiff         <Diff>
-                    topsum          <Summary>
-                    watch           <File>
+    [UTIL]          addr2sym          <Symbol>
+                    comp              <Compress>
+                    decomp            <Decompress>
+                    dump              <Memory>
+                    exec              <Command>
+                    getafnt           <Affinity>
+                    hook              <Function>
+                    kill/tkill        <Signal>
+                    leaktrace         <Leak>
+                    limitcpu          <CPU>
+                    mkcache           <Cache>
+                    pause             <Thread>
+                    ping              <PING>
+                    printbind         <Funcion>
+                    printcg           <Cgroup>
+                    printdbus         <D-Bus>
+                    printdbusintro    <D-Bus>
+                    printdbusstat     <D-Bus>
+                    printdir          <Dir>
+                    printenv          <Env>
+                    printinfo         <System>
+                    printns           <Namespace>
+                    printsig          <Signal>
+                    printsub          <D-Bus>
+                    printsvc          <systemd>
+                    pstree            <Process>
+                    readelf           <File>
+                    remote            <Command>
+                    req               <URL>
+                    setafnt           <Affinity>
+                    setcpu            <Clock>
+                    setsched          <Priority>
+                    strings           <Text>
+                    sym2addr          <Address>
+                    systat            <Status>
+                    topdiff           <Diff>
+                    topsum            <Summary>
+                    watch             <File>
 
-    [VISUAL]        convert         <Text>
-                    draw            <System>
-                    drawavg         <Average>
-                    drawcpu         <CPU>
-                    drawcpuavg      <CPU>
-                    drawdelay       <Delay>
-                    drawflame       <Function>
-                    drawio          <I/O>
-                    drawleak        <Leak>
-                    drawmem         <Memory>
-                    drawmemavg      <Memory>
-                    drawreq         <URL>
-                    drawrss         <RSS>
-                    drawrssavg      <RSS>
-                    drawtime        <Timeline>
-                    drawvss         <VSS>
-                    drawvssavg      <VSS>
+    [VISUAL]        convert           <Text>
+                    draw              <System>
+                    drawavg           <Average>
+                    drawcpu           <CPU>
+                    drawcpuavg        <CPU>
+                    drawdelay         <Delay>
+                    drawflame         <Function>
+                    drawio            <I/O>
+                    drawleak          <Leak>
+                    drawmem           <Memory>
+                    drawmemavg        <Memory>
+                    drawreq           <URL>
+                    drawrss           <RSS>
+                    drawrssavg        <RSS>
+                    drawtime          <Timeline>
+                    drawvss           <VSS>
+                    drawvssavg        <VSS>
 
 FILE:
     Profile file (e.g. guider.dat)

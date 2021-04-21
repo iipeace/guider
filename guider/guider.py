@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210414"
+__revision__ = "210421"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -53,8 +53,7 @@ except:
 class ConfigMgr(object):
     """ Manager for config """
 
-    # Define logo #
-    # made by http://www.figlet.org, consider also jp2a #
+    # logo, made by http://www.figlet.org, consider also jp2a #
     logo = '''
    _____       _     _
   / ____|     (_)   | |
@@ -64,7 +63,7 @@ class ConfigMgr(object):
   \_____|\__,_|_|\__,_|\___|_|  ver_%s_%s on python_%s.%s
 ''' % (__version__, __revision__, sys.version_info[0], sys.version_info[1])
 
-    # Define color #
+    # color #
     if (sys.platform.startswith('linux') or \
         sys.platform.startswith('freebsd')) and \
         not 'REMOTERUN' in os.environ:
@@ -86,10 +85,10 @@ class ConfigMgr(object):
         BOLD = ''
         UNDERLINE = ''
 
-    # Define config info #
+    # config info #
     confData = {}
 
-    # Define support architecture #
+    # support architecture #
     supportArch = [
         'arm',
         'aarch64',
@@ -97,7 +96,7 @@ class ConfigMgr(object):
         'x64'
     ]
 
-    # Define ANSI color #
+    # ANSI color #
     COLOR_LIST = {
         'DEFAULT': '\033[0m',
         'BOLD': '\033[1m',
@@ -131,7 +130,7 @@ class ConfigMgr(object):
         'LIGHTGREEN': '\033[1;32m',
     }
 
-    # Define cgroup entity #
+    # cgroup entity #
     CGROUP_VALUE = [
         'tasks', 'cgroup.procs',
         'cpu.shares', 'cpuset.cpus',
@@ -140,7 +139,7 @@ class ConfigMgr(object):
         'blkio.weight', 'blkio.weight_device',
     ]
 
-    # Define cgroup stat #
+    # cgroup stat #
     CGROUP_STAT = [
         'cpuacct.usage',
         'memory.usage_in_bytes',
@@ -148,7 +147,7 @@ class ConfigMgr(object):
         'cgroup.procs',
     ]
 
-    # Define state of process #
+    # state of process #
     PROC_STAT_TYPE = {
         'R': 'running',
         'S': 'sleep',
@@ -164,7 +163,7 @@ class ConfigMgr(object):
         'I': 'idle',
     }
 
-    # Define diskstat statistics #
+    # diskstat statistics #
     DISKSTAT = [
         'major', 'minor', 'name', 'readComplete', 'readMerge', 'sectorRead',
         'readTime', 'writeComplete', 'writeMerge', 'sectorWrite',
@@ -173,7 +172,7 @@ class ConfigMgr(object):
         'flushComplete', 'flushTime', # 5.5+
     ]
 
-    # Define socketcall attributes #
+    # socketcall attributes #
     SOCKETCALL = {
         1: "socket",
         2: "bind",
@@ -194,7 +193,7 @@ class ConfigMgr(object):
         17: "recvmsg",
     }
 
-    # Define socket family #
+    # socket family #
     SOCKET_FAMILY = {
         0: "AF_UNSPEC",
         1: "AF_FILE",
@@ -224,7 +223,7 @@ class ConfigMgr(object):
         31: "AF_BLUETOOTH",
     }
 
-    # Define DLOPEN type #
+    # DLOPEN type #
     DLOPEN_TYPE = {
         1: "RTLD_LAZY",
         2: "RTLD_NOW",
@@ -233,7 +232,7 @@ class ConfigMgr(object):
         8: "RTLD_DEEPBIND",
     }
 
-    # Define socket type #
+    # socket type #
     SOCKET_TYPE = {
         1: "SOCK_STREAM",
         2: "SOCK_DGRAM",
@@ -243,7 +242,7 @@ class ConfigMgr(object):
         10: "SOCK_PACKET",
     }
 
-    # Define log level #
+    # log level #
     LOG_LEVEL = {
         0: "EMERG",
         1: "ALERT",
@@ -255,7 +254,7 @@ class ConfigMgr(object):
         7: "DEBUG",
     }
 
-    # Define MSG type #
+    # MSG type #
     MSG_TYPE = {
         0x1: "MSG_OOB",
         0x2: "MSG_PEEK",
@@ -277,14 +276,14 @@ class ConfigMgr(object):
         0x80000000: "MSG_CMSG_COMPAT",
     }
 
-    # Define control message type #
+    # control message type #
     CMSG_TYPE = {
         0x01: "SCM_RIGHTS",  # rw: access rights (array of int)
         0x02: "SCM_CREDENTIALS", # rw: struct ucred
         0x03: "SCM_SECURITY"
     }
 
-    # Define mmap prot type #
+    # mmap prot type #
     MAP_TYPE = {
         0x0000: "MAP_FILE",
         0x0001: "MAP_SHARED",
@@ -305,7 +304,7 @@ class ConfigMgr(object):
         0x80000: "MAP_SYNC",
     }
 
-    # Define mmap prot type #
+    # mmap prot type #
     PROT_TYPE = {
         0x0: "PROT_NONE",  # Page can not be accessed
         0x1: "PROT_READ",  # Page can be read
@@ -313,7 +312,7 @@ class ConfigMgr(object):
         0x4: "PROT_EXEC",  # Page can be executed
     }
 
-    # Define perm type #
+    # perm type #
     PERM_TYPE = {
         0x0: "F_OK",
         0x1: "X_OK",
@@ -321,14 +320,14 @@ class ConfigMgr(object):
         0x4: "R_OK",
     }
 
-    # Define seek type #
+    # seek type #
     SEEK_TYPE = {
         0x0: "SEEK_SET",
         0x1: "SEEK_CUR",
         0x2: "SEEK_END",
     }
 
-    # Define prctl flags type #
+    # prctl flags type #
     PRCTL_TYPE = {
         1: "PR_SET_PDEATHSIG",
         2: "PR_GET_PDEATHSIG",
@@ -363,7 +362,7 @@ class ConfigMgr(object):
         33: "PR_MCE_KILL",
     }
 
-    # Define clone flags type #
+    # clone flags type #
     CLONE_TYPE = {
         0x000000ff: "CSIGNAL",
         0x00000100: "CLONE_VM",
@@ -391,30 +390,38 @@ class ConfigMgr(object):
         0x80000000: "CLONE_IO",
     }
 
-    # Define open flags type #
+    # open flags type #
     OPEN_TYPE = {
-        0o0: "O_RDONLY",
-        0o1: "O_WRONLY",
-        0o2: "O_RDWR",
-        0o100: "O_CREAT",
-        0o200: "O_EXCL",
-        0o400: "O_NOCTTY",
-        0o1000: "O_TRUNC",
-        0o2000: "O_APPEND",
-        0o4000: "O_NONBLOCK",
-        0o10000: "O_SYNC",
-        0o20000: "O_ASYNC",
-        0o40000: "O_DIRECT",
-        0o100000: "O_LARGEFILE",
-        0o200000: "O_DIRECTORY",
-        0o400000: "O_NOFOLLOW",
-        0o1000000: "O_NOATIME",
-        0o2000000: "O_CLOEXEC",
-        0o10000000: "O_PATH",
-        0o20200000: "O_TMPFILE",
+        0o0: "RDONLY",
+        0o1: "WRONLY",
+        0o2: "RDWR",
+        0o100: "CREAT",
+        0o200: "EXCL",
+        0o400: "NOCTTY",
+        0o1000: "TRUNC",
+        0o2000: "APPEND",
+        0o4000: "NONBLOCK",
+        0o10000: "SYNC",
+        0o20000: "ASYNC",
+        0o40000: "DIRECT",
+        0o100000: "LARGEFILE",
+        0o200000: "DIRECTORY",
+        0o400000: "NOFOLLOW",
+        0o1000000: "NOATIME",
+        0o2000000: "CLOEXEC",
+        0o10000000: "PATH",
+        0o20200000: "TMPFILE",
     }
 
-    # Define madvise type #
+    # epoll op type #
+    EPOLL_CMD_TYPE = [
+        "EPOLL_CTL_NONE", # None
+        "EPOLL_CTL_ADD",  # Add a file decriptor to the interface
+        "EPOLL_CTL_DEL",  # Remove a file decriptor from the interface
+        "EPOLL_CTL_MOD",  # Change file decriptor epoll_event structure
+    ]
+
+    # madvise type #
     MADV_TYPE = {
         0: "MADV_NORMAL",       # No further special treatment
         1: "MADV_RANDOM",       # Expect random page references
@@ -436,7 +443,7 @@ class ConfigMgr(object):
         100: "MADV_HWPOISON",   # Poison a page for testing
     }
 
-    # Define netlink type #
+    # netlink type #
     NETLINK_TYPE = {
         "NETLINK_ROUTE": 0,
         "NETLINK_UNUSED": 1,
@@ -461,7 +468,7 @@ class ConfigMgr(object):
         "NETLINK_CRYPTO": 21,
      }
 
-    # Define entry type #
+    # entry type #
     INOTIFY_TYPE = {
         "IN_ACCESS": 0x00000001, # File was accessed */
         "IN_MODIFY": 0x00000002, # File was modified */
@@ -489,7 +496,7 @@ class ConfigMgr(object):
         "IN_ONESHOT": 0x80000000, # only send event once */
     }
 
-    # Define entry type #
+    # entry type #
     AT_TYPE = {
         "AT_IGNORE": 1, # Entry should be ignored
         "AT_EXECFD": 2, # File descriptor of program
@@ -535,7 +542,38 @@ class ConfigMgr(object):
         "AT_MINSIGSTKSZ": 51, # Stack needed for signal delivery
     }
 
-    # Define syscall prototypes #
+    # syscall prototypes #
+    SYSCALL_REFBUF = {
+        'write': 0,
+        'read': 0,
+        'send': 0,
+        'sendto': 0,
+        'recv': 0,
+        'recvfrom': 0,
+    }
+
+    # syscall prototypes #
+    SYSCALL_DEFFERABLE = {
+        'read': 0,
+        'recvmsg': 0,
+        'recvmmsg': 0,
+        'recv': 0,
+        'readv': 0,
+        'readlink': 0,
+        'recvfrom': 0,
+        'clock_gettime': 0,
+        'getgroups': 0,
+        'getgroups16': 0,
+        'gethostname': 0,
+        'getitimer': 0,
+        'getpeername': 0,
+        'gettimeofday': 0,
+        'getsockname': 0,
+        'clone': 0,
+        'process_vm_readv': 0,
+    }
+
+    # syscall prototypes #
     SYSCALL_PROTOTYPES = {
         "accept": ("long", (
             ("int", "sockfd"),
@@ -2618,7 +2656,7 @@ class ConfigMgr(object):
     4. call UtilMgr.printSyscalls(ConfigMgr.SYSCALL_X86)
     '''
 
-    # Define common 32bit syscalls from 403 ~ 423 #
+    # common 32bit syscalls from 403 ~ 423 #
     SYSCALL_COMMON32 = [
         'sys_clock_gettime64',
         'sys_clock_settime64',
@@ -2643,7 +2681,7 @@ class ConfigMgr(object):
         'sys_sched_rr_get_interval_time64',
     ]
 
-    # Define common syscalls from 424 ~ 435 #
+    # common syscalls from 424 ~ 435 #
     SYSCALL_COMMON = [
         'sys_pidfd_send_signal',
         'sys_io_uring_setup',
@@ -2659,7 +2697,7 @@ class ConfigMgr(object):
         'sys_clone3',
     ]
 
-    # Define syscall for ARM #
+    # syscall for ARM #
     SYSCALL_ARM = [
         'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read',
         'sys_write', 'sys_open', 'sys_close', 'sys_waitpid',
@@ -2765,7 +2803,7 @@ class ConfigMgr(object):
         'sys_migrate_pages', 'sys_kexec_file_load', 'sys_unused',
     ] + SYSCALL_COMMON32 + SYSCALL_COMMON
 
-    # Define syscall for AARCH64 #
+    # syscall for AARCH64 #
     SYSCALL_AARCH64 = [
         'sys_io_setup', 'sys_io_destroy', 'sys_io_submit', 'sys_io_cancel',
         'sys_io_getevents', 'sys_setxattr', 'sys_lsetxattr', 'sys_fsetxattr',
@@ -2846,7 +2884,7 @@ class ConfigMgr(object):
     ] + ['sys_null' for idx in range(295, 423, 1)] + SYSCALL_COMMON + \
         ['close_range', 'openat2', 'pidfd_getfd', 'pidfd_getfd', 'faccessat2']
 
-    # Define syscall for x86 #
+    # syscall for x86 #
     SYSCALL_X86 = [
         'sys_restart_syscall', 'sys_exit', 'sys_fork', 'sys_read',
         'sys_write', 'sys_open', 'sys_close', 'sys_waitpid',
@@ -2952,7 +2990,7 @@ class ConfigMgr(object):
         'sys_msgsnd', 'sys_msgrcv', 'sys_msgctl',
     ] + SYSCALL_COMMON32 + SYSCALL_COMMON
 
-    # Define syscall for x86_64 #
+    # syscall for x86_64 #
     SYSCALL_X64 = [
         'sys_read', 'sys_write', 'sys_open', 'sys_close',
         'sys_stat', 'sys_fstat', 'sys_lstat', 'sys_poll',
@@ -3041,13 +3079,13 @@ class ConfigMgr(object):
         'sys_statx', 'sys_io_pgetevents', 'sys_rseq',
     ] + ['sys_null' for idx in range(335, 423, 1)] + SYSCALL_COMMON
 
-    # Define default syscall list #
+    # default syscall list #
     sysList = []
 
-    # Define default register list #
+    # default register list #
     regList = []
 
-    # Define registers by number sequence #
+    # registers sorted by number #
     REGS_X86 = [
         'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi',
         'eip', 'eflags', '<none>', 'st0', 'st1', 'st2', 'st3', 'st4',
@@ -3086,7 +3124,7 @@ class ConfigMgr(object):
         'x64': REGS_X64.index('rip'),
     }
 
-    # Define syscall register #
+    # syscall register #
     SYSREG_LIST = {
         "powerpc": "gpr0",
         "arm": "r7",
@@ -3095,7 +3133,7 @@ class ConfigMgr(object):
         "x86": "orig_eax"
     }
 
-    # Define return register #
+    # return register #
     RET_LIST = {
         "powerpc": "result",
         "arm": "r0",
@@ -3104,7 +3142,7 @@ class ConfigMgr(object):
         "x86": "eax"
     }
 
-    # Define signal #
+    # signal #
     SIG_LIST = [
         'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
@@ -3117,7 +3155,7 @@ class ConfigMgr(object):
         ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
 
-    # stat list from http://linux.die.net/man/5/proc #
+    # stat fields from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
         'PID', 'COMM', 'STATE', 'PPID', 'PGRP', 'SESSIONID', #5#
         'NRTTY', 'TPGID', 'FLAGS', 'MINFLT', 'CMINFLT', #10#
@@ -3132,6 +3170,7 @@ class ConfigMgr(object):
         'ENVSTART', 'ENVEND', 'EXITCODE', #51#
     ]
 
+    # sched policy #
     SCHED_POLICY = [
         'C', # 0: CFS #
         'F', # 1: FIFO #
@@ -3142,7 +3181,7 @@ class ConfigMgr(object):
         'D', # 6: DEADLINE #
     ]
 
-    # Define statm of process #
+    # statm fields #
     STATM_TYPE = [
         'TOTAL',    # 0 #
         'RSS',      # 1 #
@@ -3153,6 +3192,7 @@ class ConfigMgr(object):
         'DIRTY',    # 6 #
     ]
 
+    # error types #
     ERR_TYPE = [
         'EPERM',            # Operation not permitted #
         'ENOENT',           # No such file or directory #
@@ -3290,7 +3330,7 @@ class ConfigMgr(object):
         'EHWPOISON',        # Memory page has hardware error #
     ]
 
-    # Define rlimit of process #
+    # rlimit types #
     RLIMIT_TYPE = [
         'RLIMIT_CPU',
         'RLIMIT_FSIZE',
@@ -3311,7 +3351,7 @@ class ConfigMgr(object):
         'RLIMIT_NLIMITS'
     ]
 
-    # Define udp/tcp format of system #
+    # udp/tcp format of system #
     UDP_ATTR = [
         'sl',
         'local_address',
@@ -3328,7 +3368,7 @@ class ConfigMgr(object):
         'drops'
     ]
 
-    # Define uds format of system #
+    # uds format of system #
     UDS_ATTR = [
         'Num',
         'RefCount',
@@ -3355,7 +3395,7 @@ class ConfigMgr(object):
         'CLOSING'
     ]
 
-    # Define futex operation flags #
+    # futex operation flags #
     FUTEX_TYPE = [
         'FUTEX_WAIT',
         'FUTEX_WAKE',
@@ -3372,7 +3412,7 @@ class ConfigMgr(object):
         'FUTEX_CMP_REQUEUE_PI',
     ]
 
-    # Define fcntl command flags #
+    # fcntl command flags #
     FCNTL_TYPE = [
         'F_DUPFD',
         'F_GETFD',
@@ -3386,7 +3426,7 @@ class ConfigMgr(object):
         'F_SETLKW',
     ]
 
-    # Define ipc call flags #
+    # ipc call flags #
     IPC_TYPE = {
         1: "SEMOP",
         2: "SEMGET",
@@ -3402,7 +3442,7 @@ class ConfigMgr(object):
         24: "SHMCTL",
     }
 
-    # Define ptrace request type #
+    # ptrace request type #
     PTRACE_TYPE = [
         'PTRACE_TRACEME',           #0#
         'PTRACE_PEEKTEXT',
@@ -3431,7 +3471,7 @@ class ConfigMgr(object):
         'PTRACE_SYSEMU_SINGLESTEP', #32#
     ]
 
-    # Define ptrace event type #
+    # ptrace event types #
     PTRACE_EVENT_TYPE = [
         'PTRACE_EVENT_NONE',
         'PTRACE_EVENT_FORK',
@@ -3442,8 +3482,6 @@ class ConfigMgr(object):
         'PTRACE_EVENT_EXIT',
         'PTRACE_EVENT_SECCOMP',
     ] + ['NONE' for idx in range(0, 120, 1)] + ['PTRACE_EVENT_STOP']
-
-    # Define perf event types #
     PERF_EVENT_TYPE = [
         'PERF_TYPE_HARDWARE',
         'PERF_TYPE_SOFTWARE',
@@ -3452,7 +3490,6 @@ class ConfigMgr(object):
         'PERF_TYPE_RAW',
         'PERF_TYPE_BREAKPOINT',
     ]
-
     PERF_HW_EVENT_TYPE = [
         'PERF_COUNT_HW_CPU_CYCLES',
         'PERF_COUNT_HW_INSTRUCTIONS',
@@ -3465,7 +3502,6 @@ class ConfigMgr(object):
         'PERF_COUNT_HW_STALLED_CYCLES_BACKEND',
         'PERF_COUNT_HW_REF_CPU_CYCLES',
     ]
-
     PERF_SW_EVENT_TYPE = [
         'PERF_COUNT_SW_CPU_CLOCK',
         'PERF_COUNT_SW_TASK_CLOCK',
@@ -3479,7 +3515,6 @@ class ConfigMgr(object):
         'PERF_COUNT_SW_DUMMY',
         'PERF_COUNT_SW_BPF_OUTPUT',
     ]
-
     PERF_CACHE_EVENT_TYPE = [
         'PERF_COUNT_HW_CACHE_L1D',
         'PERF_COUNT_HW_CACHE_L1I',
@@ -3489,13 +3524,11 @@ class ConfigMgr(object):
         'PERF_COUNT_HW_CACHE_BPU',
         'PERF_COUNT_HW_CACHE_NODE',
     ]
-
     PERF_CACHE_EVENT_OP = [
         'PERF_COUNT_HW_CACHE_OP_READ',
         'PERF_COUNT_HW_CACHE_OP_WRITE',
         'PERF_COUNT_HW_CACHE_OP_PREFETCH',
     ]
-
     PERF_CACHE_EVENT_OPRES = [
         'PERF_COUNT_HW_CACHE_RESULT_ACCESS',
         'PERF_COUNT_HW_CACHE_RESULT_MISS',
@@ -5458,6 +5491,10 @@ function format_percent(n) {
         except SystemExit:
             sys.exit(0)
         except:
+            SysMgr.printWarn("fail to convert dict to string", reason=True)
+            return None
+
+            # for debugging #
             SysMgr.printWarn(
                 "fail to convert %s to string" % [dictObj], reason=True)
             return None
@@ -15563,7 +15600,6 @@ class SysMgr(object):
     ttyCols = 156
     encoding = None
     encodeEnable = True
-    encodeB64Enable = False
     remoteRun = False
     magicStr = '@@@@@'
     launchBuffer = ''
@@ -15769,7 +15805,6 @@ class SysMgr(object):
     avgEnable = False
 
     showAll = False
-    optStrace = False
     disableAll = False
     intervalNow = long(0)
     recordStatus = False
@@ -15900,6 +15935,7 @@ class SysMgr(object):
     affinityFilter = []
     killFilter = []
     syscallList = []
+    syscallExceptList = []
     perCoreList = []
     perCoreDrawList = []
     childList = {}
@@ -16848,7 +16884,7 @@ class SysMgr(object):
     def doDump():
         # get argument #
         if SysMgr.hasMainArg():
-            inputParam = SysMgr.getMainArg().split(',')
+            inputParam = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             inputParam = SysMgr.filterGroup
         else:
@@ -16938,7 +16974,7 @@ class SysMgr(object):
 
         # get argument #
         if SysMgr.hasMainArg():
-            value = SysMgr.getMainArg().split(',')
+            value = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
         else:
@@ -17096,12 +17132,12 @@ class SysMgr(object):
 
         # get argument #
         if SysMgr.hasMainArg():
-            value = SysMgr.getMainArg().split(',')
+            value = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
         else:
             SysMgr.printErr(
-                "fail to get CPU affinity of task because of no target")
+                "fail to get the CPU affinity of task because of no target")
             sys.exit(0)
 
         SysMgr.checkRootPerm()
@@ -17125,17 +17161,17 @@ class SysMgr(object):
                 mask = SysMgr.getAffinity(tid)
                 if not mask:
                     SysMgr.printErr(
-                        "fail to get CPU affinity of %s(%s)" % \
+                        "fail to get the CPU affinity of %s(%s)" % \
                             (SysMgr.getComm(tid), tid))
                 else:
                     SysMgr.printInfo(
-                        'affinity of %s(%s) is %s' % \
+                        'the CPU affinity of %s(%s) is %s' % \
                             (SysMgr.getComm(tid), tid, mask))
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printErr(
-                "fail to get CPU affinity of task", True)
+                "fail to get the CPU affinity of task", True)
             sys.exit(0)
 
 
@@ -17632,8 +17668,7 @@ class SysMgr(object):
         if url:
             urlList = url
         elif SysMgr.hasMainArg():
-            urlList = SysMgr.getMainArg().split(',')
-            urlList = UtilMgr.cleanItem(urlList)
+            urlList = SysMgr.getMainArgs()
         elif SysMgr.inputParam:
             try:
                 files = SysMgr.inputParam.split(',')
@@ -18799,6 +18834,13 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getMainArgs(union=True, token=','):
+        args = SysMgr.getMainArg().split(token)
+        return UtilMgr.cleanItem(args, union)
+
+
+
+    @staticmethod
     def getMainArg(path=False):
         if len(sys.argv) <= 2:
             return None
@@ -18956,7 +18998,7 @@ class SysMgr(object):
                 else:
                     types = ' '
 
-                cmdbuf = '%s%4s%-12s%4s%-13s%4s<%-s>\n' % \
+                cmdbuf = '%s%4s%-12s%4s%-14s%4s<%-s>\n' % \
                     (cmdbuf, ' ', types, ' ', cmd, ' ', cvalue)
                 prefix = ''
             cmdbuf = '%s\n' % cmdbuf
@@ -19041,6 +19083,7 @@ class SysMgr(object):
                 'printbind': 'Funcion',
                 'printcg': 'Cgroup',
                 'printdbus': 'D-Bus',
+                'printdbusintro': 'D-Bus',
                 'printdbusstat': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
@@ -19292,6 +19335,9 @@ Examples:
         # {0:1} {1:1} -q MEMAVLCOND:100
         # {0:1} {1:1} -q BLKRDCOND:1
         # {0:1} {1:1} -q BLKWRCOND:1
+
+    - Monitor status of {2:2} with the specific length for thread name
+        # {0:1} {1:1} -q COMMLEN:16
 
     - Monitor status of {2:2} on the minimum terminal
         # {0:1} {1:1} -m
@@ -20737,6 +20783,7 @@ Options:
     -u                          run in the background
     -a                          show all stats including registers
     -g  <COMM|TID{:FILE}>       set task filter
+    -t  <SYSCALL>               set syscall
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
     -c  <EVENT>                 set breakpoint
@@ -20753,6 +20800,9 @@ Examples:
     - Trace all read syscalls for a specific thread
         # {0:1} {1:1} -g a.out -t read
 
+    - Trace all syscalls except for read for a specific thread
+        # {0:1} {1:1} -g a.out -t ^read
+
     - Trace all read syscalls for child tasks created by a specific thread
         # {0:1} {1:1} -g 1234 -t read -W
 
@@ -20762,11 +20812,17 @@ Examples:
     - Trace all write syscalls with specific command and print standard output
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
 
+    - Trace all write syscalls with specific command with no strip for buffer contents
+        # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
+
     - Trace all write syscalls for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
     - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
+
+    - Trace all write syscalls for a specific thread and print strings in specific maximum size
+        # {0:1} {1:1} -g a.out -q STRSIZE:10
 
     - Trace all read syscalls for a specific thread and save summary tables, call history to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o . -a
@@ -21584,8 +21640,9 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print signal status info for a specific process
-        # {0:1} {1:1} -g a.out
+    - Print signal status info for specific processes
+        # {0:1} {1:1} a.out, java
+        # {0:1} {1:1} -g a.out, java
                     '''.format(cmd, mode)
 
                 # printsub #
@@ -21748,6 +21805,33 @@ Options:
 Examples:
     - Print D-Bus stats
         # {0:1} {1:1}
+
+    - Print D-Bus stats into the specific file
+        # {0:1} {1:1} -o stats.out
+                    '''.format(cmd, mode)
+
+                # printdbusintro #
+                elif SysMgr.checkMode('printdbusintro'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Print D-Bus introspection in XML
+
+Options:
+    -v                          verbose
+    -g  <COMM>                  set task filter
+    -o  <DIR|FILE>              set output path
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print D-Bus introspection
+        # {0:1} {1:1}
+
+    - Print D-Bus introspection into the specific file
+        # {0:1} {1:1} -o intro.out
                     '''.format(cmd, mode)
 
                 # printcgroup #
@@ -22229,6 +22313,9 @@ Options:
 
                     helpStr += '''
 Examples:
+    - Limit CPU usage of the specific thread
+        # {0:1} {1:1} yes:20
+
     - Limit CPU usage of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
                     '''.format(cmd, mode)
@@ -22372,6 +22459,7 @@ Options:
 Examples:
     - Get CPU affinity of specific threads
         # {0:1} {1:1} -g a.out, 1234
+        # {0:1} {1:1} "a.out, 1234"
                     '''.format(cmd, mode)
 
                 # setaffinity #
@@ -27876,21 +27964,33 @@ Copyright:
 
             elif option == 't' and \
                 not SysMgr.isRecordMode():
-                SysMgr.syscallList = \
-                    UtilMgr.cleanItem(value.split(','))
+                syscallList = UtilMgr.cleanItem(value.split(','))
                 enabledSyscall = []
+                disabledSyscall = []
 
-                for val in SysMgr.syscallList:
+                for val in syscallList:
                     try:
+                        if val.startswith('^'):
+                            exceptFlag = True
+                            val = val[1:]
+                        else:
+                            exceptFlag = False
+
                         if val[0:4] == 'sys_':
                             nrSyscall = ConfigMgr.sysList.index(val)
                         else:
                             nrSyscall = \
                                 ConfigMgr.sysList.index('sys_%s' % val)
 
-                        enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
-                        sidx = SysMgr.syscallList.index(val)
-                        SysMgr.syscallList[sidx] = nrSyscall
+                        if exceptFlag:
+                            disabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+                        else:
+                            enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+
+                        if exceptFlag:
+                            SysMgr.syscallExceptList.append(nrSyscall)
+                        else:
+                            SysMgr.syscallList.append(nrSyscall)
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -27905,6 +28005,11 @@ Copyright:
                     SysMgr.printInfo(
                         "enabled syscall list [ %s ]" % \
                         ', '.join(enabledSyscall))
+
+                if disabledSyscall:
+                    SysMgr.printInfo(
+                        "disabled syscall list [ %s ]" % \
+                        ', '.join(disabledSyscall))
 
             elif option == 'm':
                 try:
@@ -28677,8 +28782,7 @@ Copyright:
         elif SysMgr.checkMode('pause'):
             # get target list #
             if SysMgr.hasMainArg():
-                targets = SysMgr.getMainArg().split(',')
-                targets = UtilMgr.cleanItem(targets)
+                targets = SysMgr.getMainArgs()
             else:
                 targets = SysMgr.filterGroup
 
@@ -28809,6 +28913,12 @@ Copyright:
 
             DbusMgr.runDbusSnooper(mode='printstat')
 
+        # PRINTDBUSINTRO MODE #
+        elif SysMgr.checkMode('printdbusintro'):
+            SysMgr.printLogo(big=True, onlyFile=True)
+
+            DbusMgr.runDbusSnooper(mode='printintro')
+
         # PRINTSUB MODE #
         elif SysMgr.checkMode('printsub'):
             SysMgr.printLogo(big=True, onlyFile=True)
@@ -28873,7 +28983,7 @@ Copyright:
 
             # get argument #
             if SysMgr.hasMainArg():
-                filterGroup = SysMgr.getMainArg().split(',')
+                filterGroup = SysMgr.getMainArgs()
             else:
                 filterGroup = SysMgr.filterGroup
 
@@ -29759,8 +29869,7 @@ Copyright:
             os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
             if sibling:
                 path = '%s/%s/task' % (SysMgr.procPath, name)
-                pids = os.listdir(path)
-                for pid in pids:
+                for pid in os.listdir(path):
                     if pid.isdigit():
                         pidList.append(pid)
                 return pidList
@@ -29770,8 +29879,8 @@ Copyright:
                 return [name]
 
         # comm #
-        pids = os.listdir(SysMgr.procPath)
-        for pid in pids:
+        nameList = [name]
+        for pid in os.listdir(SysMgr.procPath):
             if not pid.isdigit():
                 continue
 
@@ -29779,8 +29888,7 @@ Copyright:
             if not isThread:
                 # get comm #
                 comm = SysMgr.getComm(pid, cache)
-                if (not inc and comm == name) or \
-                    (inc and name in comm):
+                if UtilMgr.isValidStr(comm, nameList, inc=inc):
                     pidList.append(pid)
                 continue
 
@@ -29796,9 +29904,8 @@ Copyright:
                     continue
 
                 # get comm #
-                comm = SysMgr.getComm(tid)
-                if (not inc and comm != name) or \
-                    (inc and not name in comm):
+                comm = SysMgr.getComm(tid, cache=cache)
+                if not UtilMgr.isValidStr(comm, nameList, inc=inc):
                     continue
 
                 # include all siblings #
@@ -30058,10 +30165,13 @@ Copyright:
         if not ulist:
             return
 
+        cmd = ulist[0]
+        ucmd = cmd.upper()
+
         # hotkey #
-        if SysMgr.idList and ulist[0].isdigit():
+        if SysMgr.idList and cmd.isdigit():
             try:
-                pid = SysMgr.idList[long(ulist[0])]
+                pid = SysMgr.idList[long(cmd)]
             except:
                 return
 
@@ -30069,33 +30179,28 @@ Copyright:
             return
 
         # help #
-        if ulist[0].upper() == 'HELP' or \
-            ulist[0].upper() == 'H':
+        if ucmd == 'HELP' or ucmd == 'H':
             _printHelp()
         # kill #
-        elif ulist[0].upper() == 'KILL' or \
-            ulist[0] == 'k':
+        elif ucmd == 'KILL' or ucmd == 'K':
             if len(ulist) > 1:
                 SysMgr.sendSignalArgs(ulist[1:])
             else:
                 _printHelp()
         # sched #
-        elif ulist[0].upper() == 'SCHED' or \
-            ulist[0] == 's':
+        elif ucmd == 'SCHED' or cmd == 's':
             if len(ulist) > 1:
                 SysMgr.applyPriority((' '.join(ulist[1:])))
             else:
                 _printHelp()
         # sort #
-        elif ulist[0].upper() == 'SORT' or \
-            ulist[0] == 'S':
+        elif ucmd == 'SORT' or cmd == 'S':
             if len(ulist) > 1:
                 SysMgr.setSortValue(ulist[1])
             else:
                 _printHelp()
         # affinity #
-        elif ulist[0].upper() == 'AFFINITY' or \
-            ulist[0] == 'a':
+        elif ucmd == 'AFFINITY' or cmd == 'a':
             if len(ulist) > 2:
                 pids = (' '.join(ulist[2:])).split(',')
                 pids = SysMgr.convPidList(pids, isThread=True)
@@ -30103,7 +30208,7 @@ Copyright:
             else:
                 _printHelp()
         # filter #
-        elif ulist[0].upper() == 'FILTER' or ulist[0] == 'f':
+        elif ucmd == 'FILTER' or cmd == 'f':
             if len(ulist) == 1:
                 SysMgr.filterGroup = []
             else:
@@ -30121,15 +30226,13 @@ Copyright:
                 "only specific %s [ %s ] are shown" % \
                 (mode, ', '.join(SysMgr.filterGroup)))
         # option #
-        elif ulist[0].upper() == 'OPTION' or \
-            ulist[0] == 'o':
+        elif ucmd == 'OPTION' or cmd == 'o':
             if len(ulist) > 1:
                 SysMgr.parseAnalOption(uinput[1:].strip())
             else:
                 _printHelp()
         # run #
-        elif ulist[0].upper() == 'RUN' or \
-            ulist[0] == 'r':
+        elif ucmd == 'RUN' or cmd == 'r':
             if len(ulist) > 1:
                 cmd = SysMgr.getExeCmd(SysMgr.pid)
                 cmd.extend(ulist[1:])
@@ -30146,8 +30249,7 @@ Copyright:
             else:
                 _printHelp()
         # quit #
-        elif ulist[0].upper() == 'QUIT' or \
-            ulist[0].upper() == 'Q':
+        elif ucmd == 'QUIT' or ucmd == 'Q':
             sys.exit(0)
 
         '''
@@ -31731,8 +31833,7 @@ Copyright:
             cmdList = cmds.split(',')
             cmdList = UtilMgr.cleanItem(cmdList, False)
         elif SysMgr.hasMainArg():
-            cmdList = SysMgr.getMainArg().split(',')
-            cmdList = UtilMgr.cleanItem(cmdList, False)
+            cmdList = SysMgr.getMainArgs(False)
         elif SysMgr.customCmd:
             cmdList = SysMgr.customCmd
         else:
@@ -32256,7 +32357,7 @@ Copyright:
 
         # get argument #
         if SysMgr.hasMainArg():
-            filterGroup = SysMgr.getMainArg().split(',')
+            filterGroup = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
         else:
@@ -32456,7 +32557,7 @@ Copyright:
 
         # get argument #
         if SysMgr.hasMainArg(dash=True):
-            value = SysMgr.getMainArg().split(',')
+            value = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             value = SysMgr.filterGroup
         else:
@@ -32485,7 +32586,7 @@ Copyright:
 
         # get argument #
         if SysMgr.hasMainArg():
-            filterGroup = SysMgr.getMainArg().split(',')
+            filterGroup = SysMgr.getMainArgs()
         elif SysMgr.filterGroup:
             filterGroup = SysMgr.filterGroup
         else:
@@ -32975,8 +33076,7 @@ Copyright:
 
         # check target path #
         if SysMgr.hasMainArg():
-            opList = SysMgr.getMainArg().split(',')
-            opList = UtilMgr.cleanItem(opList, False)
+            opList = SysMgr.getMainArgs(False)
         elif SysMgr.filterGroup:
             opList = SysMgr.filterGroup
         else:
@@ -33967,8 +34067,7 @@ Copyright:
 
         # check input #
         if SysMgr.hasMainArg():
-            inputArg = SysMgr.getMainArg().split(',')
-            inputArg = UtilMgr.cleanItem(inputArg, True)
+            inputArg = SysMgr.getMainArgs()
         elif SysMgr.inputParam:
             inputArg = str(SysMgr.inputParam).split(',')
             inputArg = UtilMgr.cleanItem(inputArg, True)
@@ -34974,8 +35073,7 @@ Copyright:
         # get tasks #
         try:
             if SysMgr.hasMainArg():
-                opList = SysMgr.getMainArg().split(',')
-                opList = UtilMgr.cleanItem(opList, False)
+                opList = SysMgr.getMainArgs(False)
             elif SysMgr.filterGroup:
                 opList = SysMgr.filterGroup
             else:
@@ -35311,6 +35409,14 @@ Copyright:
                     stats['name'].setdefault(req, alias)
                 else:
                     remain = req
+
+                # create a session to improve performance by session reuse #
+                try:
+                    session = requests.Session()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    session = requests
 
                 # GET #
                 if remain.startswith('GET#'):
@@ -36071,8 +36177,7 @@ Copyright:
     def doDrawTimeline():
         # get output file name #
         if SysMgr.hasMainArg():
-            inputList = SysMgr.getMainArg().split(',')
-            inputList = UtilMgr.cleanItem(inputList)
+            inputList = SysMgr.getMainArgs()
         elif SysMgr.inputParam:
             inputList = SysMgr.inputParam.split(',')
             inputList = UtilMgr.cleanItem(inputList)
@@ -36129,7 +36234,7 @@ Copyright:
         # get the number of task and load #
         try:
             if SysMgr.hasMainArg():
-                value = SysMgr.getMainArg().split(':')
+                value = SysMgr.getMainArgs(token=':')
             else:
                 value = [100*SysMgr.getNrCore()]
 
@@ -36543,7 +36648,7 @@ Copyright:
         # convert time #
         try:
             if SysMgr.hasMainArg():
-                value = SysMgr.getMainArg().split(':')
+                value = SysMgr.getMainArgs(token=':')
             else:
                 value = ['100M']
 
@@ -36885,20 +36990,24 @@ Copyright:
 
 
     @staticmethod
-    def doPrintSig():
-        # check target #
-        if not SysMgr.filterGroup:
-            SysMgr.printErr("no input for PID or COMM")
-            sys.exit(0)
-
+    def doPrintSig(target=None):
         SysMgr.printLogo(big=True, onlyFile=True)
 
         # get pid list #
         pids = []
-        for item in SysMgr.filterGroup:
-            pids += SysMgr.getPids(item)
+        if target:
+            pids += SysMgr.getPids(target)
+        elif SysMgr.hasMainArg():
+            items = SysMgr.getMainArgs()
+            for item in items:
+                pids += SysMgr.getPids(item)
+        else:
+            for item in SysMgr.filterGroup:
+                pids += SysMgr.getPids(item)
+
         if not pids:
             SysMgr.printErr("no target thread")
+            sys.exit(0)
 
         tobj = TaskAnalyzer(onlyInstance=True)
         for pid in pids:
@@ -37141,10 +37250,10 @@ Copyright:
 
                         if verbose:
                             SysMgr.printInfo((
-                                "limited CPU usage of %s(%s) %s to %s%%, "
-                                "it used %s%%") % \
+                                "try to limit CPU usage for %s(%s) %s"
+                                " to %s%%, it used %s%%") % \
                                 (val['comm'], tid, tasktype,
-                                val['per'], val['ticks']))
+                                    val['per'], val['ticks']))
 
                         val['ticks'] = long(0)
                     continue
@@ -40714,8 +40823,7 @@ Copyright:
         # filter cgroup subsystem #
         if SysMgr.hasMainArg():
             # get filter for subsystems #
-            items = SysMgr.getMainArg().split(',')
-            items = UtilMgr.cleanItem(items)
+            items = SysMgr.getMainArgs()
 
             # remove subsystems from tree #
             for subsystem in list(cgroupTree.keys()):
@@ -42733,9 +42841,29 @@ class DbusMgr(object):
 
 
     @staticmethod
+    def printIntrospection(tid, introList):
+        procId = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
+
+        if not introList:
+            SysMgr.printErr('no introspection for %s' % procId)
+            return
+
+        # print title #
+        SysMgr.printPipe(
+            '\n[D-Bus Introspection Info] <Target: %s>\n%s' % \
+                (procId, twoLine))
+
+        # print introspection #
+        for name, value in introList.items():
+            if not value: continue
+            SysMgr.printPipe('\n[%s]\n%s%s%s\n' % \
+                (name, oneLine, value, oneLine))
+
+
+
+    @staticmethod
     def printStatInfo(tid, statList):
         conv = UtilMgr.convNum
-        totalSubscription = 0
         procId = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
 
         if not statList:
@@ -42937,6 +43065,7 @@ class DbusMgr(object):
 
             convertNum = UtilMgr.convNum
             convertSize = UtilMgr.convSize2Unit
+            convertColor = UtilMgr.convColor
 
             for pid in taskList:
                 try:
@@ -43002,6 +43131,7 @@ class DbusMgr(object):
 
                         count = convertNum(value['cnt'])
                         size = convertSize(data['size'])
+                        name = convertColor(name, 'CYAN')
 
                         dbusList.append(
                             "{0:>4}({1:>6}/{2:>3}%) {3:1}".format(
@@ -43071,15 +43201,19 @@ class DbusMgr(object):
             else:
                 cpuStr = '?'
 
+            # set error #
+            nrErr = prevDbusData['totalErr']
+            if nrErr > 0:
+                nrErr = UtilMgr.convColor(convertNum(nrErr), 'RED')
+            else:
+                nrErr = convertNum(nrErr)
+
             # print title #
             SysMgr.addPrint(
                 ("[%s] [Time: %7.3f] [Interval: %.1f] "
                 "[NrMsg: %s] [NrErr: %s] [CPU: %s]\n") % \
-                    ('D-Bus Info', SysMgr.uptime,
-                    SysMgr.uptimeDiff,
-                    convertNum(prevDbusData['totalCnt']),
-                    convertNum(prevDbusData['totalErr']),
-                    cpuStr))
+                    ('D-Bus Info', SysMgr.uptime, SysMgr.uptimeDiff,
+                    convertNum(prevDbusData['totalCnt']), nrErr, cpuStr))
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
@@ -43756,6 +43890,7 @@ class DbusMgr(object):
             # get bus type #
             bus = None
             listen = None
+            introList = {}
             cmdline += SysMgr.getCmdline(tid)
             if '--system' in cmdline:
                 bus = 'system'
@@ -43811,20 +43946,25 @@ class DbusMgr(object):
                     gBusServiceList.setdefault(service, pinfo)
 
                     # register methods and properties #
-                    if False and not service.startswith(':'):
+                    if mode == 'printintro':
                         # get service tid #
                         if pinfo:
                             ptid = pinfo[pinfo.rfind('(')+1:-1]
                         else:
                             ptid = None
 
-                        interfaceList[service] = \
-                            DbusMgr.getStats(
+                        introList[service] = DbusMgr.getStats(
                                 bus, 'introspect', service, procStr=pinfo)
 
                 busServiceList[tid].setdefault(bus, busProcList)
             else:
                 busServiceList[tid].setdefault(bus, dict())
+
+            # print introspection #
+            if mode == 'printintro':
+                for service, intro in introList.items():
+                    DbusMgr.printIntrospection(tid, introList)
+                continue
 
             # monitor messages #
             if mode == 'monitor':
@@ -43872,13 +44012,12 @@ class DbusMgr(object):
                 # set environment for workers #
                 sys.argv[1] = 'strace'
                 SysMgr.showAll = True
-                SysMgr.optStrace = True
-                SysMgr.encodeB64Enable = True
                 SysMgr.intervalEnable = long(0)
                 SysMgr.outPath = SysMgr.inputFile = SysMgr.printFd = None
                 SysMgr.logEnable = False
                 SysMgr.filterGroup = [tid]
                 SysMgr.jsonEnable = True
+                Debugger.dbusEnable = True
 
                 # execute strace mode #
                 SysMgr.doTrace('syscall')
@@ -44771,8 +44910,7 @@ class DltAnalyzer(object):
         # initialize input path #
         flist = []
         if SysMgr.hasMainArg():
-            flist = SysMgr.getMainArg().split(',')
-            flist = UtilMgr.cleanItem(flist)
+            flist = SysMgr.getMainArgs()
             if not flist:
                 SysMgr.printErr("no path for DLT file")
                 sys.exit(0)
@@ -45139,17 +45277,20 @@ class Debugger(object):
     gLockPath = None
     dbgInstance = None
     selfInstance = None
+    dbusEnable = False
     RETSTR = None
 
     targetNum = -1
     cpuCond = -1
     pyElapsed = -1
+    strSize = -1
     envFlags = {
         'TRACEBP': False,
         'EXCEPTWAIT': False,
         'EXCEPTNOSYM': False,
         'EXCEPTLD': False,
         'NOMUTE': False,
+        'NOSTRIP': False,
         'CONTALONE': False,
         'INCNATIVE': False,
     }
@@ -45363,8 +45504,6 @@ class Debugger(object):
 
     def updateCurrent(self):
         self.current = time.time()
-        if self.timeDelay == 0:
-            self.timeDelay = time.time() - self.current
 
 
 
@@ -45414,7 +45553,6 @@ class Debugger(object):
 
         # timestamp variables #
         self.current = 0
-        self.timeDelay = 0
         self.dstart = 0
         self.vdiff = 0
         self.updateCurrent()
@@ -45441,6 +45579,7 @@ class Debugger(object):
         self.targetBpFileList = {}
         self.exceptBpFileList = {}
         self.symbolCacheList = dict()
+        self.failedAddrList = dict()
         self.ldInjected = False
         self.libcLoaded = False
         self.dftBpFileList = {}
@@ -45467,6 +45606,7 @@ class Debugger(object):
 
         self.lockObj = None
         self.tempPage = None
+        self.sockObj = None
 
         self.pyAddr = None
         self.pyFrameCache = {}
@@ -45676,6 +45816,16 @@ struct cmsghdr {
                     "fail to set CPUCOND to '%s'" % \
                         SysMgr.environList['CPUCOND'][0], True)
 
+        # set string size #
+        if Debugger.strSize == -1 and \
+            'STRSIZE' in SysMgr.environList:
+            try:
+                Debugger.strSize = long(SysMgr.environList['STRSIZE'][0])
+            except:
+                SysMgr.printErr(
+                    "fail to set STRSIZE to '%s'" % \
+                        SysMgr.environList['STRSIZE'][0], True)
+
 
 
     def getIovec(self, reg):
@@ -45691,7 +45841,7 @@ struct cmsghdr {
         if not self.isAlive():
             return
 
-        # kill childs #
+        # kill target childs #
         if hasattr(self, 'childList'):
             SysMgr.killChilds(sig=signal.SIGINT, childs=self.childList)
             del self.childList
@@ -47979,10 +48129,13 @@ struct cmsghdr {
         try:
             if thread:
                 ret = SysMgr.syscall(self.tkillIdx, pid, signal.SIGSTOP)
-                if check:
-                    while 1:
-                        if self.isStopped():
-                            break
+                if not check:
+                    return ret
+
+                # wait for stop status #
+                if not self.isStopped():
+                    SysMgr.waitChild(self.pid)
+
                 return ret
         except SystemExit:
             sys.exit(0)
@@ -48706,7 +48859,7 @@ struct cmsghdr {
 
 
 
-    def doDetach(self, pid, cont=False):
+    def doDetach(self, pid, check=False):
         if not pid:
             pid = self.pid
 
@@ -48723,7 +48876,7 @@ struct cmsghdr {
                         (self.comm, pid, SysMgr.pid))
 
                 # check return #
-                if not cont:
+                if not check:
                     return -1
                 elif self.isAlive():
                     time.sleep(SysMgr.waitDelay)
@@ -48738,17 +48891,17 @@ struct cmsghdr {
 
 
 
-    def detach(self, only=False, pid=None, cont=False):
+    def detach(self, only=False, pid=None, check=False):
         if only:
-            return self.doDetach(pid, cont=cont)
+            return self.doDetach(pid, check=check)
 
         if not self.attached:
-            return
+            return 0
 
         if hasattr(self, 'pid'):
             pid = self.pid
         else:
-            return
+            return 0
 
         # kill target process executed #
         if self.execCmd:
@@ -48770,7 +48923,7 @@ struct cmsghdr {
         except:
             return -1
 
-        return self.doDetach(pid, cont=cont)
+        return self.doDetach(pid, check=check)
 
 
 
@@ -49149,6 +49302,44 @@ struct cmsghdr {
 
 
 
+    def readIoVec(self, addr, cnt):
+        iov = {}
+
+        # get iov header info #
+        iovaddr = cast(addr, c_void_p).value
+
+        # get iov info #
+        for idx in range(0, cnt):
+            offset = idx * sizeof(self.iovec)
+
+            iov[idx] = {}
+
+            # get iov object #
+            iovobj = self.readMem(
+                iovaddr+offset, sizeof(self.iovec))
+            iovobj = cast(iovobj, self.iovec_ptr)
+
+            # get iov size #
+            iovobjlen = long(iovobj.contents.iov_len)
+            iov[idx]['iov_len'] = iovobjlen
+            if iovobjlen == 0:
+                iov[idx]['iov_base'] = ''
+                continue
+
+            # strip data #
+            if not SysMgr.outPath and not Debugger.envFlags['NOSTRIP']:
+                iovobjdata = 'STRIP'
+            else:
+                # get iov data #
+                iovobjbase = iovobj.contents.iov_base
+                iovobjdata = self.readMem(iovobjbase, iovobjlen)
+
+            iov[idx]['iov_base'] = iovobjdata
+
+        return iov
+
+
+
     def readMsgHdr(self, addr=None, obj=None):
         if not addr and not obj:
             return None
@@ -49168,7 +49359,7 @@ struct cmsghdr {
         # get msg info #
         namelen = long(header.contents.msg_namelen)
         msginfo['msg_namelen'] = namelen
-        if SysMgr.optStrace or namelen == 0:
+        if Debugger.dbusEnable or namelen == 0:
             msginfo['msg_name'] = 'NULL'
         else:
             msginfo['msg_name'] = \
@@ -49192,7 +49383,6 @@ struct cmsghdr {
                 # get iov object #
                 iovobj = self.readMem(
                     iovaddr+offset, sizeof(self.iovec))
-                iovobjOrig = iovobj
                 iovobj = cast(iovobj, self.iovec_ptr)
 
                 # get iov size #
@@ -49221,10 +49411,13 @@ struct cmsghdr {
                     continue
 
                 # encode to base64 #
-                if SysMgr.encodeB64Enable:
+                if Debugger.dbusEnable:
                     iovobjdata = UtilMgr.encodeBase64(iovobjdata)
                     if sys.version_info >= (3, 0):
                         iovobjdata = iovobjdata.decode('latin-1')
+                # strip data #
+                elif not SysMgr.outPath and not Debugger.envFlags['NOSTRIP']:
+                    iovobjdata = 'STRIP'
 
                 # save size and data #
                 msginfo['msg_iov'][idx]['len'] = iovobjlen
@@ -49235,12 +49428,16 @@ struct cmsghdr {
         msginfo['msg_flags'] = flag
 
         # ignore cmsg info #
-        return msginfo
+        if Debugger.dbusEnable:
+            return msginfo
 
         # get socket object #
-        socket = SysMgr.getPkg('socket', False)
-        if not socket:
-            return msginfo
+        if not self.sockObj:
+            socket = SysMgr.getPkg('socket', False)
+            if not socket:
+                return msginfo
+            else:
+                self.sockObj = socket
 
         # get control info #
         control = header.contents.msg_control
@@ -49251,39 +49448,66 @@ struct cmsghdr {
         if not SysMgr.showAll:
             msginfo['msg_control']['addr'] = control
         elif controllen >= sizeof(self.cmsghdr):
+            # read cmsghdr #
             control = self.readMem(header.contents.msg_control, controllen)
             controlobj = cast(control, self.cmsghdr_ptr)
 
+            # cmsg_len #
             cmsglen = long(controlobj.contents.cmsg_len)
-            cmsglevel = controlobj.contents.cmsg_level
-            cmsgtype = controlobj.contents.cmsg_type
-
             msginfo['msg_control']['cmsglen'] = cmsglen
-            if socket and cmsglevel == socket.SOL_SOCKET:
-                msginfo['msg_control']['cmsglevel'] = 'SOL_SOCKET'
+
+            # cmsg_level #
+            cmsglevel = controlobj.contents.cmsg_level
+            if cmsglevel == self.sockObj.SOL_SOCKET:
+                msginfo['msg_control']['cmsg_level'] = 'SOL_SOCKET'
             else:
-                msginfo['msg_control']['cmsglevel'] = cmsglevel
+                msginfo['msg_control']['cmsg_level'] = cmsglevel
+
+            # cmsg_type #
             try:
-                msginfo['msg_control']['cmsgtype'] = \
+                cmsgtype = controlobj.contents.cmsg_type
+                msginfo['msg_control']['cmsg_type'] = \
                     ConfigMgr.CMSG_TYPE[cmsgtype]
             except:
-                msginfo['msg_control']['cmsgtype'] = cmsgtype
+                msginfo['msg_control']['cmsg_type'] = cmsgtype
+
+            # cmsg_data #
+            datasize = controllen-cmsglen
+            if datasize > 0:
+                try:
+                    cmsgdata = bytes()
+                    cmsgdata = self.readMem(
+                        header.contents.msg_control+sizeof(self.cmsghdr),
+                        datasize)
+
+                    if len(cmsgdata) == 4:
+                        cmsgdata = struct.unpack('I', cmsgdata)[0]
+                    elif len(cmsgdata) == 8:
+                        cmsgdata = struct.unpack('Q', cmsgdata)[0]
+                    else:
+                        raise Exception()
+                except:
+                    pass
+                finally:
+                    msginfo['msg_control']['cmsg_data'] = cmsgdata
 
         return msginfo
 
 
 
     def convSyscallParam(
-        self, argtype, argname, value, seq=0, ref=True, argset={}, buf=False):
+        self, argtype, argname, value, seq=0,
+        ref=True, argset={}, buf=False, retval=None):
 
         syscall = self.syscall
 
-        # toDo: convert a integer or mask values #
+        '''
+        toDo:
+        1. convert a integer or mask values
+        2. process_vm_readv
+        '''
 
-        # handle process_vm_readv #
-        pass
-
-        # handle sendmsg / recvmsg #
+        # handle syscalls #
         if syscall == "sendmsg" or syscall == "recvmsg":
             if ref and argname == "msg":
                 try:
@@ -49294,9 +49518,8 @@ struct cmsghdr {
                     SysMgr.printWarn(
                         "fail to get msghdr for %s" % \
                             syscall, True, reason=True)
-
-        # handle sendmmsg / recvmmsg #
-        if syscall == "sendmmsg" or syscall == "recvmmsg":
+                    return value
+        elif syscall == "sendmmsg" or syscall == "recvmmsg":
             if ref and argname == 'vlen':
                 try:
                     if 'msg' in argset:
@@ -49310,9 +49533,79 @@ struct cmsghdr {
                     SysMgr.printWarn(
                         "fail to get mmsghdr for %s" % \
                             syscall, True, reason=True)
+                    return value
+        elif syscall == "epoll_ctl":
+            if argname == "op":
+                try:
+                    return ConfigMgr.EPOLL_CMD_TYPE[value]
+                except:
+                    return value
+        elif syscall == "execve":
+            if argname in ("argv", "envp"):
+                # toDo: handle double pointer values #
+                return value
+        elif syscall == "ptrace" and argname == "request":
+            try:
+                return ConfigMgr.PTRACE_TYPE[value]
+            except:
+                return value
+        elif syscall == "socketcall":
+            if argname == "call":
+                try:
+                    return ConfigMgr.SOCKETCALL[value]
+                except:
+                    return value
+            elif argname == "args":
+                # toDo: handle socket call args #
+                return value
+        elif syscall == 'open' or syscall == 'accept4':
+            if argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.OPEN_TYPE, num='oct')
+        elif syscall == 'access':
+            if argname == 'mode':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.PERM_TYPE)
+        elif syscall == 'clone':
+            if argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.CLONE_TYPE)
+        elif syscall == 'prctl':
+            if argname == 'option':
+                try:
+                    return ConfigMgr.PRCTL_TYPE[value]
+                except:
+                    return value
+        elif syscall.startswith('mmap') or syscall == 'mprotect':
+            if argname == 'prot':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.PROT_TYPE)
+            elif argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.MAP_TYPE)
+        elif syscall.startswith('fcntl'):
+            if argname == 'cmd':
+                return ConfigMgr.FCNTL_TYPE[value]
+        elif syscall.startswith('futex'):
+            if argname == 'op':
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value]
+
+                # check _PRIVATE FLAG #
+                value = value & 0x16
+                if value < len(ConfigMgr.FUTEX_TYPE):
+                    return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
+        elif syscall.startswith('madvise'):
+            if argname == 'behavior':
+                try:
+                    return ConfigMgr.MADV_TYPE[int(value)]
+                except:
+                    return value
+
+
 
         # convert fd to name #
-        if argname == "fd" and ref:
+        if ref and (argname == "fd" or argname == "sockfd"):
             try:
                 path = os.readlink('%s/%s/fd/%s' % \
                     (SysMgr.procPath, self.pid, value))
@@ -49322,18 +49615,7 @@ struct cmsghdr {
             except:
                 return value
 
-        # handle special syscalls #
-        if syscall == "execve":
-            if argname in ("argv", "envp"):
-                # toDo: handle double pointer values #
-                return value
-
-        if syscall == "ptrace" and argname == "request":
-            try:
-                return ConfigMgr.PTRACE_TYPE[value]
-            except:
-                return value
-
+        # convert pointer to string #
         if ref and argtype == "const char *" and \
             (argname.endswith("name") or argname.endswith("path")):
             addr = self.values[seq]
@@ -49343,76 +49625,48 @@ struct cmsghdr {
             else:
                 return self.readString(addr)
 
-        if syscall == "socketcall":
-            if argname == "call":
-                try:
-                    return ConfigMgr.SOCKETCALL[value]
-                except:
-                    return value
-            elif argname == "args":
-                # toDo: handle socket call args #
+        # convert iov #
+        if ref and argname == 'vlen' and 'vec' in argset:
+            vaddr = argset['vec']
+            cnt = value
+            try:
+                ret = self.readIoVec(vaddr, cnt)
+                if ret != argset['vec']:
+                    self.changeArg('vec', ret)
+                return value
+            except:
+                SysMgr.printWarn(
+                    "fail to read iovector for %s" % \
+                        syscall, True, reason=True)
                 return value
 
-        if syscall.startswith('mmap') or syscall == 'mprotect':
-            if argname == 'prot':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.PROT_TYPE)
-            elif argname == 'flags':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.MAP_TYPE)
-
-        if syscall.startswith('fcntl'):
-            if argname == 'cmd':
-                return ConfigMgr.FCNTL_TYPE[value]
-
-        if syscall.startswith('futex'):
-            if argname == 'op':
-                if value < len(ConfigMgr.FUTEX_TYPE):
-                    return ConfigMgr.FUTEX_TYPE[value]
-
-                # check _PRIVATE FLAG #
-                value = value & 0x16
-                if value < len(ConfigMgr.FUTEX_TYPE):
-                    return ConfigMgr.FUTEX_TYPE[value] + '_PRIVATE'
-
-        if syscall == 'open':
-            if argname == 'flags':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.OPEN_TYPE, num='oct')
-
+        # convert position #
         if argname == 'whence':
             return ConfigMgr.SEEK_TYPE[int(value)]
 
-        if syscall == 'access':
-            if argname == 'mode':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.PERM_TYPE)
+        # convert pointer to buffer #
+        if buf and argname == "buf" and syscall in ConfigMgr.SYSCALL_REFBUF:
+            # set try size #
+            size = self.values[2]
 
-        if syscall == 'clone':
-            if argname == 'flags':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.CLONE_TYPE)
+            # handle read buffer #
+            if syscall in ConfigMgr.SYSCALL_DEFFERABLE:
+                if retval == 0:
+                    return ''
+                elif retval:
+                    size = retval
 
-        if syscall == 'prctl':
-            if argname == 'option':
-                try:
-                    return ConfigMgr.PRCTL_TYPE[value]
-                except:
-                    return value
-
-        if argname == 'behavior' and \
-            syscall.startswith('madvise'):
-            try:
-                return ConfigMgr.MADV_TYPE[int(value)]
-            except:
-                return value
-
-        if buf and argname == "buf" and \
-            (syscall == "write" or syscall == "read"):
-            if self.values[2] > self.pbufsize:
+            # set op length #
+            if size > self.pbufsize:
                 length = self.pbufsize
             else:
-                length = self.values[2]
+                length = size
+
+            # set print length #
+            if SysMgr.outPath:
+                cutLen = sys.maxsize
+            else:
+                cutLen = length
 
             # read string from address #
             ret = self.readMem(value, length)
@@ -49420,18 +49674,19 @@ struct cmsghdr {
                 value = ret
 
             try:
-                return repr(value)[1:-1]
+                return repr(value)[1:-1][:cutLen]
             except SystemExit:
                 sys.exit(0)
             except:
                 return repr(value)
 
+        # convert socket flag #
         if argname == "flags" and value:
-            if syscall.startswith('send') or \
-                syscall.startswith('recv'):
+            if syscall.startswith('send') or syscall.startswith('recv'):
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.MSG_TYPE)
 
+        # convert signal #
         if argname == "signum" or argname == "sig":
             return ConfigMgr.SIG_LIST[int(value)]
 
@@ -49764,6 +50019,14 @@ struct cmsghdr {
 
             _resetStats()
 
+        # check master process #
+        if SysMgr.masterPid > 0 and \
+            not Debugger.envFlags['CONTALONE'] and \
+            not SysMgr.isAlive(SysMgr.masterPid):
+            SysMgr.printWarn(
+                "terminated the master process for %s" % __module__)
+            sys.exit(0)
+
         # check samples #
         if not self.callTable:
             if not self.sampleStatus:
@@ -49772,13 +50035,6 @@ struct cmsghdr {
                         (self.comm, self.pid), True)
             _resetStats()
             return
-
-        # check master process #
-        if SysMgr.masterPid > 0 and not Debugger.envFlags['CONTALONE'] and \
-            not SysMgr.isAlive(SysMgr.masterPid):
-            SysMgr.printWarn(
-                "terminated master process for %s" % __module__)
-            sys.exit(0)
 
         # update status for sample collection #
         self.sampleStatus = True
@@ -49871,6 +50127,7 @@ struct cmsghdr {
         # define variables #
         nrTotal = float(self.totalCall)
         convert = UtilMgr.convNum
+        convColor = UtilMgr.convColor
 
         # get CPU Usage for myself #
         cpuUsage = Debugger.selfInstance.getCpuUsage()
@@ -49938,10 +50195,17 @@ struct cmsghdr {
                 except:
                     total = average = tmax = long(0)
 
+                # color err #
+                err = value['err']
+                if err > 0:
+                    errstr = UtilMgr.convColor(convert(err), 'RED')
+                else:
+                    errstr = convert(err)
+
                 addVal = \
                     "<Cnt: %s, Tot: %.6f, Avg: %.6f, Max: %.6f, Err: %s>" % \
                         (convert(value['cnt']),
-                            total, average, tmax, convert(value['err']))
+                            total, average, tmax, errstr)
             elif self.mode == 'break':
                 try:
                     prev, total, tmin, tmax = self.brkcallStat[sym]
@@ -49962,7 +50226,8 @@ struct cmsghdr {
 
             ret = SysMgr.addPrint(
                 '{0:>7} | {1:<144}\n'.format(
-                    '%.1f%%' % per, '%s %s' % (sym, addVal)))
+                    '%.1f%%' % per, '%s %s' % \
+                        (convColor(sym, 'CYAN'), addVal)))
             if not ret:
                 break
 
@@ -50247,6 +50512,8 @@ struct cmsghdr {
         elif not self.pid:
             SysMgr.printErr("fail to get PID to get symbol")
             return None
+        elif vaddr in self.failedAddrList and self.failedAddrList[vaddr]:
+            return None
 
         # open memory map file #
         if not self.mapFd:
@@ -50268,8 +50535,9 @@ struct cmsghdr {
 
             # print error message and return #
             if SysMgr.warnEnable:
-                SysMgr.printWarn(
-                    'fail to get symbol via %s for %s(%s)' % \
+                SysMgr.printWarn((
+                    'fail to get symbol via %s for %s(%s) '
+                    'because of no file mapped to') % \
                         (hex(vaddr).rstrip('L'), self.comm, self.pid))
 
             return None
@@ -50297,10 +50565,16 @@ struct cmsghdr {
             # set variable to rescan process map #
             self.needMapScan = True
 
+            if vaddr in self.failedAddrList:
+                self.failedAddrList[vaddr] = True
+            else:
+                self.failedAddrList.setdefault(vaddr, False)
+
             # print error message and return #
             if SysMgr.warnEnable:
-                SysMgr.printWarn(
-                    'fail to get symbol via %s for %s(%s)' % \
+                SysMgr.printWarn((
+                    'fail to get symbol via %s for %s(%s) '
+                    'because of wrong offset') % \
                         (hex(vaddr).rstrip('L'), self.comm, self.pid))
 
             return None
@@ -51358,10 +51632,12 @@ struct cmsghdr {
         # read args #
         args = self.readArgs()
 
+        # define proto list #
+        proto = ConfigMgr.SYSCALL_PROTOTYPES
+
         # strip syscall args #
-        if sym in ConfigMgr.SYSCALL_PROTOTYPES and \
-            len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1]) < len(args):
-            args = args[:len(ConfigMgr.SYSCALL_PROTOTYPES[sym][1])]
+        if sym in proto and len(proto[sym][1]) < len(args):
+            args = args[:len(proto[sym][1])]
 
         # check filter #
         filterCmd = self.bpList[addr]['filter']
@@ -51868,10 +52144,15 @@ struct cmsghdr {
         while 1:
             if sys.version_info >= (3, 7):
                 tstate_head = self.readMem(addr+8)
+
                 PyThreadState = struct.unpack('Q', tstate_head)[0]
-                if not PyThreadState: break
+                if PyThreadState == 0:
+                    addr += 8
+                    continue
+
                 PyThreadState = self.readMem(PyThreadState, 216)
                 if not PyThreadState: break
+
                 prevp, nextp, interp, framep, recursion_depth, \
                     overflowed, recursion_critical, stackcheck_counter, \
                     tracing, use_tracing, c_profilefunc, c_tracefunc, \
@@ -51881,10 +52162,11 @@ struct cmsghdr {
                     async_exc, thread_id, trash_delete_nesting, \
                     trash_delete_later, on_delete, on_delete_data = \
                     struct.unpack('QQQQibbiiiQQQQQQQQQQQQQiQLiQQQ', PyThreadState)
+
             elif sys.version_info >= (3, 0):
                 PyThreadState = self.readMem(addr, 192)
-                if not PyThreadState:
-                    break
+                if not PyThreadState: break
+
                 prevp, nextp, interp, framep, recursion_depth, \
                     overflowed, recursion_critical, tracing, use_tracing, \
                     c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
@@ -51894,10 +52176,11 @@ struct cmsghdr {
                     trash_delete_nesting, trash_delete_later, \
                     on_delete, on_delete_data  = \
                     struct.unpack('QQQQibbiiQQQQQQQQQQQiQliQQQ', PyThreadState)
+
             else:
                 PyThreadState = self.readMem(addr, 168)
-                if not PyThreadState:
-                    break
+                if not PyThreadState: break
+
                 nextp, interp, framep, recursion_depth, tracing, use_tracing, \
                     c_profilefunc, c_tracefunc, c_profileobj, c_traceobj, \
                     curexc_type, curexc_value, curexc_traceback, \
@@ -52386,7 +52669,7 @@ struct cmsghdr {
 
 
 
-    def updateSyscallArgs(self, ref=True):
+    def updateSyscallArgs(self, ref=True, retval=None):
         proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get argument values from register #
@@ -52401,6 +52684,7 @@ struct cmsghdr {
 
         seq = long(0)
         argset = {}
+        showAll = SysMgr.showAll
         for value, format in zip(regstr, formats):
             # get type and name of a argument #
             argtype, argname = format
@@ -52408,7 +52692,7 @@ struct cmsghdr {
 
             # convert argument value #
             value = self.convSyscallParam(
-                argtype, argname, value, seq, ref, argset, SysMgr.showAll)
+                argtype, argname, value, seq, ref, argset, showAll, retval)
             if value is not None:
                 self.addArg(argtype, argname, value)
 
@@ -52416,7 +52700,7 @@ struct cmsghdr {
 
 
 
-    def convSyscallArgs(self):
+    def convSyscallArgs(self, retval=None):
         args = []
 
         if self.isRealtime and not SysMgr.showAll:
@@ -52425,7 +52709,7 @@ struct cmsghdr {
             ref = True
 
         # converting arguments #
-        self.updateSyscallArgs(ref)
+        self.updateSyscallArgs(ref, retval=retval)
 
         # pick values from argument list #
         for idx, arg in enumerate(self.args):
@@ -52463,23 +52747,7 @@ struct cmsghdr {
 
 
     def isDeferrableCall(self, name):
-        if name == 'read' or \
-            name == 'recvmsg' or \
-            name == 'recvmmsg' or \
-            name == 'recv' or \
-            name == 'readv' or \
-            name == 'readlink' or \
-            name == 'recvfrom' or \
-            name == 'clock_gettime' or \
-            name == 'getgroups' or \
-            name == 'getgroups16' or \
-            name == 'gethostname' or \
-            name == 'getitimer' or \
-            name == 'getpeername' or \
-            name == 'gettimeofday' or \
-            name == 'getsockname' or \
-            name == 'clone' or \
-            name == 'process_vm_readv':
+        if name in ConfigMgr.SYSCALL_DEFFERABLE:
             return True
         else:
             return False
@@ -52533,7 +52801,7 @@ struct cmsghdr {
 
         if not self.isRealtime or SysMgr.showAll:
             # convert args to string ##
-            if len(args) > 0:
+            if args:
                 argText = ', '.join(\
                     hex(arg).rstrip('L') if type(arg) is long else str(arg) \
                         for arg in args)
@@ -52596,9 +52864,13 @@ struct cmsghdr {
             # get arguments from previous register set #
             self.updateSyscallArgs(ref=False)
         else:
+            # clear args #
             self.clearArgs()
-            args = self.convSyscallArgs()
 
+            # convert args #
+            args = self.convSyscallArgs(retval)
+
+        # print output #
         self.handleSyscallOutput(args, deferrable=True)
 
 
@@ -52614,7 +52886,7 @@ struct cmsghdr {
             self.handleDefSyscall()
 
         # ignore return #
-        if SysMgr.optStrace and self.status == 'exit':
+        if Debugger.dbusEnable and self.status == 'exit':
             self.status = 'enter'
             self.clearArgs()
             return
@@ -52632,15 +52904,22 @@ struct cmsghdr {
             #self.cmd = self.sysemuCmd
             self.status = 'skip'
             return
+        elif SysMgr.syscallExceptList and \
+            nrSyscall in SysMgr.syscallExceptList:
+            #self.cmd = self.sysemuCmd
+            self.status = 'skip'
+            return
 
         # get syscall name #
         try:
-            proto = ConfigMgr.SYSCALL_PROTOTYPES
             self.syscall = name = ConfigMgr.sysList[nrSyscall][4:]
         except SystemExit:
             sys.exit(0)
         except:
             return
+
+        # define proto list #
+        proto = ConfigMgr.SYSCALL_PROTOTYPES
 
         # get diff time #
         diff = self.vdiff
@@ -52684,8 +52963,10 @@ struct cmsghdr {
 
                     return
 
+                # convert args #
                 args = self.convSyscallArgs()
 
+            # print output #
             self.handleSyscallOutput(args)
 
             # check syscall condition #
@@ -52707,6 +52988,40 @@ struct cmsghdr {
             except:
                 diff = long(0)
 
+            # set return value from register #
+            retval = self.getRet()
+
+            # check wait condition #
+            if self.wait:
+                if self.wait == name and retval == 0:
+                    # unset wait condition #
+                    self.wait = None
+                return
+
+            # convert error code #
+            if retval < 0:
+                try:
+                    retstr = -1
+                    errtype = ConfigMgr.ERR_TYPE[abs(retval+1)]
+                    err = '%s (%s)' % (errtype, os.strerror(abs(retval)))
+
+                    # correct wrong status for sys_enter #
+                    if errtype == 'ENOSYS':
+                        self.status = 'exit'
+                        return
+
+                    self.addSample(name, '??', err=retval)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    err = ''
+            else:
+                try:
+                    retstr = '%s(%s)' % (retval, hex(retval).rstrip('L'))
+                except:
+                    retstr = retval
+                err = ''
+
             # get diff time #
             if self.isRealtime:
                 # apply diff and update maximum diff #
@@ -52722,42 +53037,6 @@ struct cmsghdr {
                     sys.exit(0)
                 except:
                     self.syscallStat[name] = [diff, diff]
-
-            # set return value from register #
-            retval = self.getRet()
-
-            # check wait condition #
-            if self.wait:
-                if self.wait == name and \
-                    retval == 0:
-                    # unset wait condition #
-                    self.wait = None
-                return
-
-            # convert error code #
-            if retval < 0:
-                try:
-                    err = '%s (%s)' % \
-                        (ConfigMgr.ERR_TYPE[abs(retval+1)],
-                            os.strerror(abs(retval)))
-
-                    self.addSample(name, '??', err=retval)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    err = ''
-            else:
-                err = ''
-
-            # convert type #
-            try:
-                rtype = proto[name][0]
-                if '*' in rtype:
-                    retval = '0x%s' % long(str(retval), 16)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
 
             # print context in JSON format #
             if SysMgr.jsonEnable:
@@ -52780,10 +53059,6 @@ struct cmsghdr {
 
                 return
 
-            # convert return format #
-            if type(retval) is long:
-                retval = hex(retval).rstrip('L')
-
             # convert error color #
             if err:
                 err = ' ' + UtilMgr.convColor(err, 'RED')
@@ -52796,7 +53071,7 @@ struct cmsghdr {
                 diffStr = UtilMgr.convColor(diffStr, 'CYAN')
 
             # build call string #
-            callString = '= %s%s%s' % (retval, err, diffStr)
+            callString = '= %s%s%s' % (retstr, err, diffStr)
 
             if SysMgr.outPath:
                 if SysMgr.showAll and len(self.callPrint) > 0:
@@ -53112,7 +53387,7 @@ struct cmsghdr {
             self.detach(only=True)
 
             # detach from the child task #
-            self.detach(only=True, pid=tid, cont=True)
+            self.detach(only=True, pid=tid, check=True)
 
             # attach to the parent task again #
             if self.attach(verb=True) < 0:
@@ -53187,7 +53462,7 @@ struct cmsghdr {
             SysMgr.setStream()
 
         # continue tasks #
-        self.cont()
+        os.kill(self.pid, signal.SIGCONT)
 
         return pid
 
@@ -53314,6 +53589,7 @@ struct cmsghdr {
         self.regList = dict()
         self.repeatCntList = dict()
         self.symbolCacheList = dict()
+        self.failedAddrList = dict()
         self.prevReturn = -1
         self.startAddr = None
 
@@ -53593,7 +53869,7 @@ struct cmsghdr {
             try:
                 # add tracing overhead to start time #
                 if updateTime:
-                    overhead = time.time() - self.current + self.timeDelay
+                    overhead = time.time() - self.current
                     self.dstart += overhead
 
                 # wait for target to be stopped #
@@ -53605,7 +53881,7 @@ struct cmsghdr {
                     self.vdiff = self.current - self.dstart
 
                 # check clone event #
-                if not SysMgr.optStrace and \
+                if not Debugger.dbusEnable and \
                     SysMgr.cloneEnable and \
                     self.checkCloned(ostat):
 
@@ -53698,6 +53974,7 @@ struct cmsghdr {
                         self.handleTrapEvent(ostat)
                         continue
 
+                    # update status #
                     self.status = 'stop'
                     SysMgr.printWarn(
                         'blocked %s(%s) because of %s' % \
@@ -53714,10 +53991,13 @@ struct cmsghdr {
 
                 # KILL / SEGV / ABRT signal #
                 elif SysMgr.isTermSignal(stat):
+                    # get signal name #
+                    signame = ConfigMgr.SIG_LIST[stat]
+
                     # print status #
                     SysMgr.printWarn(
                         'detected %s for %s(%s)' % \
-                            (ConfigMgr.SIG_LIST[stat], self.comm, self.pid), True)
+                            (signame, self.comm, self.pid), True)
 
                     # print context info #
                     if SysMgr.showAll:
@@ -53726,6 +54006,10 @@ struct cmsghdr {
                     # deliver signal #
                     if self.cont(check=True, sig=stat) < 0:
                         sys.exit(0)
+
+                    # stop target before ptrace_syscall #
+                    if self.mode == 'syscall':
+                        self.stop()
 
                     # set fault flag to shared memory #
                     self.setFaultFlag()
@@ -53807,7 +54091,14 @@ struct cmsghdr {
         self.mode = mode
         self.multi = multi
         self.lockObj = lock
-        self.pbufsize = SysMgr.ttyCols >> 1
+
+        # set maximum string size #
+        if Debugger.strSize > -1:
+            self.pbufsize = Debugger.strSize
+        elif SysMgr.outPath:
+            self.pbufsize = sys.maxsize
+        else:
+            self.pbufsize = SysMgr.ttyCols >> 1
 
         # update break mode #
         self.updateBreakMode()
@@ -74774,7 +75065,7 @@ class TaskAnalyzer(object):
                 details = ' '
 
             procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>4}| {1:<106}|'.format(
+                (procInfo, '{0:>4}| {1:<102}|'.format(
                 len(value['fdList']), details))
 
             fdCnt = long(0)
@@ -74856,7 +75147,7 @@ class TaskAnalyzer(object):
                             reason=True)
 
                 SysMgr.addPrint(
-                    ("{0:>1}|{1:>4}| {2:<106}|\n").format(
+                    ("{0:>1}|{1:>4}| {2:<102}|\n").format(
                     ' ' * procInfoLen, fd, path))
 
                 fdCnt += 1
@@ -79023,9 +79314,14 @@ class TaskAnalyzer(object):
             SysMgr.addPrint(twoLine)
             return
 
-        # set comm and pid size #
+        # pid length #
         pd = self.getPidLen()
-        cl = 26 - (pd * 2)
+
+        # comm length #
+        if 'COMMLEN' in SysMgr.environList:
+            cl = long(SysMgr.environList['COMMLEN'][0])
+        else:
+            cl = 26 - (pd * 2)
 
         # calculate resource usage of processes #
         self.setProcUsage()
@@ -79066,6 +79362,7 @@ class TaskAnalyzer(object):
         convertNum = UtilMgr.convNum
         convertFunc = UtilMgr.convSize2Unit
         convTime = UtilMgr.convTime
+        convColor = UtilMgr.convColor
 
         totalStats = {\
             'read': long(0), 'write': long(0),
@@ -79255,7 +79552,7 @@ class TaskAnalyzer(object):
                     dtime = long(totalTime - value['ttime'])
 
                 if dtime > 0:
-                    dtime = UtilMgr.convColor('%3s' % dtime, 'RED')
+                    dtime = convColor('%3s' % dtime, 'RED')
             except SystemExit:
                 sys.exit(0)
             except:
@@ -79265,11 +79562,11 @@ class TaskAnalyzer(object):
             try:
                 readSize = value['read'] >> 20
                 if readSize > 0:
-                    readSize = UtilMgr.convColor('%4s' % readSize, 'RED')
+                    readSize = convColor('%4s' % readSize, 'RED')
 
                 writeSize = value['write'] >> 20
                 if writeSize > 0:
-                    writeSize = UtilMgr.convColor('%4s' % writeSize, 'RED')
+                    writeSize = convColor('%4s' % writeSize, 'RED')
             except:
                 readSize = '-'
                 writeSize = '-'
@@ -79343,31 +79640,31 @@ class TaskAnalyzer(object):
                 pass
             else:
                 if value['ttime'] >= SysMgr.cpuPerHighThreshold:
-                    ttime = UtilMgr.convColor(ttime, 'RED', 4)
+                    ttime = convColor(ttime, 'RED', 4)
                 else:
-                    ttime = UtilMgr.convColor(ttime, 'YELLOW', 4)
+                    ttime = convColor(ttime, 'YELLOW', 4)
 
             # convert color for RSS #
             if mems < SysMgr.memLowThreshold:
                 memstr = mems
             else:
                 if mems >= SysMgr.memHighThreshold:
-                    memstr = UtilMgr.convColor(mems, 'RED', 4)
+                    memstr = convColor(mems, 'RED', 4)
                 else:
-                    memstr = UtilMgr.convColor(mems, 'YELLOW', 4)
+                    memstr = convColor(mems, 'YELLOW', 4)
 
             # convert color for BTIME #
             if float(btime) > 0:
-                btimestr = UtilMgr.convColor(btime, 'RED', 4)
+                btimestr = convColor(btime, 'RED', 4)
             else:
                 btimestr = btime
 
             try:
                 if nrPrio < 20:
                     if nrPrio >= 0:
-                        sched = UtilMgr.convColor(sched, 'YELLOW', 4)
+                        sched = convColor(sched, 'YELLOW', 4)
                     else:
-                        sched = UtilMgr.convColor(sched, 'RED', 4)
+                        sched = convColor(sched, 'RED', 4)
             except SystemExit:
                 sys.exit(0)
             except:
@@ -79597,28 +79894,28 @@ class TaskAnalyzer(object):
             if totalStats['ttime'] == 0:
                 pass
             elif totalStats['ttime'] >= SysMgr.cpuPerHighThreshold:
-                totalTime = UtilMgr.convColor(totalTime, 'RED')
+                totalTime = convColor(totalTime, 'RED')
             else:
-                totalTime = UtilMgr.convColor(totalTime, 'YELLOW')
+                totalTime = convColor(totalTime, 'YELLOW')
 
             # total BLOCK #
             totalBtime = totalStats['btime']
             if totalStats['btime'] > 0:
-                totalBtime = UtilMgr.convColor(totalBtime, 'RED', 4)
+                totalBtime = convColor(totalBtime, 'RED', 4)
 
             # total READ #
             readsize = totalStats['read']
             if readsize != '-':
                 readsize = readsize >> 20
                 if readsize > 0:
-                    readsize = UtilMgr.convColor(readsize, 'RED', 4)
+                    readsize = convColor(readsize, 'RED', 4)
 
             # total WRITE #
             writesize = totalStats['write']
             if writesize != '-':
                 writesize = writesize >> 20
                 if writesize > 0:
-                    writesize = UtilMgr.convColor(writesize, 'RED', 4)
+                    writesize = convColor(writesize, 'RED', 4)
 
             # print total stats #
             SysMgr.addPrint(
