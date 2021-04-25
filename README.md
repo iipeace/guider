@@ -244,45 +244,44 @@ Output
 
     # guider/guider.py pytop -g iotop -H
 
-    [Top Pycall Info] [Time: 4544070.210] [Interval: 1.001] [NrSamples: 215] [iotop(12198): 26%(Usr/14%+Sys/11%)] [guider(1219): 77%] [SampleRate: 0.001]
+    [Top Pycall Info] [Time: 7469667.000] [Interval: 1.003] [NrSamples: 283] [iotop(2943070): 13%(Usr/10%+Sys/2%)] [guider(2943073): 53%] [SampleRate: 0.001]
     ==========================================================================================================================================================
      Usage  | Function [PATH] <Sample>
     ==========================================================================================================================================================
-      25.6% | read@GLIBC_2.26 [/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 55>
-                94.5% |  <- _Py_read[/usr/bin/python3.8] <- 0x649360[/usr/bin/python3.8] <- 0x503d30[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8]
-                         <- PyObject_CallMethodObjArgs[/usr/bin/python3.8] <- 0x64db00[/usr/bin/python3.8] <- 0x64e430[/usr/bin/python3.8]
-                         <- 0x504630[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8] <- PyObject_CallMethodObjArgs[/usr/bin/python3.8]
-                         <- 0x6206e0[/usr/bin/python3.8] <- 0x51ce00[/usr/bin/python3.8] <- 0x51d990[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- 0x4f4d80[/usr/bin/python3.8] <- 0x5ee220[/usr/bin/python3.8]
-                         <- _PyObject_MakeTpCall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                         <- _PyEval_EvalCodeWithName[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                 5.5% |  <- _Py_read[/usr/bin/python3.8] <- 0x649360[/usr/bin/python3.8] <- 0x503d30[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8]
-                         <- PyObject_CallMethodObjArgs[/usr/bin/python3.8] <- 0x64db00[/usr/bin/python3.8] <- 0x64e430[/usr/bin/python3.8]
-                         <- 0x504630[/usr/bin/python3.8] <- 0x5f4b00[/usr/bin/python3.8] <- PyObject_CallMethodObjArgs[/usr/bin/python3.8]
-                         <- 0x6206e0[/usr/bin/python3.8] <- 0x61ed80[/usr/bin/python3.8] <- 0x504630[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- 0x4f4d80[/usr/bin/python3.8] <- 0x5ee220[/usr/bin/python3.8]
-                         <- _PyObject_MakeTpCall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                         <- _PyEval_EvalCodeWithName[/usr/bin/python3.8] <- _PyFunction_Vectorcall[/usr/bin/python3.8]
-                         <- _PyEval_EvalFrameDefault[/usr/bin/python3.8] <- _PyEval_EvalCodeWithName[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- _PyEval_EvalFrameDefault[/usr/bin/python3.8]
-                         <- _PyFunction_Vectorcall[/usr/bin/python3.8] <- PyObject_Call[/usr/bin/python3.8]
+      56.9% | WAIT(poll@GLIBC_2.2.5) [/usr/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 161>
+               100.0% |  <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <module>[/usr/sbin/iotop] <Cnt: 161>
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
-       6.5% | parse_proc_pid_status [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 14>
+      10.2% | parse_proc_pid_status [/usr/lib/python3/dist-packages/iotop/data.py] <Cnt: 29>
                100.0% |  <- get_cmdline[/usr/lib/python3/dist-packages/iotop/data.py] <- format[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py] <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
                          <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
-                         <- <module>[/usr/sbin/iotop]
+                         <- <module>[/usr/sbin/iotop] <Cnt: 29>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       4.6% | read@GLIBC_2.26 [/usr/lib/x86_64-linux-gnu/libc-2.31.so] <Cnt: 13>
+                76.9% |  <- parse_proc_pid_status[/usr/lib/python3/dist-packages/iotop/data.py] <- get_cmdline[/usr/lib/python3/dist-packages/iotop/data.py]
+                         <- format[/usr/lib/python3/dist-packages/iotop/ui.py] <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py] <- run[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py] <- wrapper[/usr/lib/python3.8/curses/__init__.py]
+                         <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py] <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- main[/usr/lib/python3/dist-packages/iotop/ui.py] <- <module>[/usr/sbin/iotop] <Cnt: 10>
+                23.1% |  <- get_cmdline[/usr/lib/python3/dist-packages/iotop/data.py] <- format[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py] <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <module>[/usr/sbin/iotop] <Cnt: 3>
+    ----------------------------------------------------------------------------------------------------------------------------------------------------------
+       4.2% | format [/usr/lib/python3/dist-packages/iotop/ui.py] <Cnt: 12>
+               100.0% |  <- get_data[/usr/lib/python3/dist-packages/iotop/ui.py] <- refresh_display[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- run[/usr/lib/python3/dist-packages/iotop/ui.py] <- run_iotop_window[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- wrapper[/usr/lib/python3.8/curses/__init__.py] <- run_iotop[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <lambda>[/usr/lib/python3/dist-packages/iotop/ui.py] <- main[/usr/lib/python3/dist-packages/iotop/ui.py]
+                         <- <module>[/usr/sbin/iotop] <Cnt: 12>
     ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 >>>
@@ -1231,12 +1230,12 @@ COMMAND:
                     printdbus         <D-Bus>
                     printdbusintro    <D-Bus>
                     printdbusstat     <D-Bus>
+                    printdbussub      <D-Bus>
                     printdir          <Dir>
                     printenv          <Env>
                     printinfo         <System>
                     printns           <Namespace>
                     printsig          <Signal>
-                    printsub          <D-Bus>
                     printsvc          <systemd>
                     pstree            <Process>
                     readelf           <File>

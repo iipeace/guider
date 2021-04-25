@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210421"
+__revision__ = "210425"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -420,6 +420,24 @@ class ConfigMgr(object):
         "EPOLL_CTL_DEL",  # Remove a file decriptor from the interface
         "EPOLL_CTL_MOD",  # Change file decriptor epoll_event structure
     ]
+
+    # epoll event type #
+    EPOLL_EVENT_TYPE = {
+        0x001: "EPOLLIN",
+        0x002: "EPOLLPRI",
+        0x004: "EPOLLOUT",
+        0x040: "EPOLLRDNORM",
+        0x080: "EPOLLRDBAND",
+        0x100: "EPOLLWRNORM",
+        0x200: "EPOLLWRBAND",
+        0x400: "EPOLLMSG",
+        0x008: "EPOLLERR",
+        0x010: "EPOLLHUP",
+        0x2000: "EPOLLRDHUP",
+        (1 << 29): "EPOLLWAKEUP",
+        (1 << 30): "EPOLLONESHOT",
+        (1 << 31): "EPOLLET",
+    }
 
     # madvise type #
     MADV_TYPE = {
@@ -8189,7 +8207,7 @@ class PageAnalyzer(object):
                     sys.exit(0)
 
             SysMgr.printPipe(
-                "\n[ TASK: %s(%s) ] [ AREA: %s ] [ HELP: %s ]" % \
+                "\n[Mem Info] [Proc: %s(%s)] [AREA: %s] [HELP: %s]" % \
                     (comm, pid, vaddr, "kernel/Documentation/vm/pagemap.txt"))
 
             PageAnalyzer.printMemoryArea(pid, addrs, addre)
@@ -8270,7 +8288,7 @@ class PageAnalyzer(object):
             rssIdx = ConfigMgr.STATM_TYPE.index("RSS")
             rss = convert(long(mlist[rssIdx]) << 12)
             SysMgr.printPipe(
-                "\n[ TASK: %s(%s) ] [ VSS: %s ] [ RSS: %s ]" % \
+                "\n[Mem Info] [Proc: %s(%s)] [VSS: %s] [RSS: %s]" % \
                     (comm, pid, vss, rss))
 
         start = hex(start)
@@ -19085,12 +19103,12 @@ class SysMgr(object):
                 'printdbus': 'D-Bus',
                 'printdbusintro': 'D-Bus',
                 'printdbusstat': 'D-Bus',
+                'printdbussub': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
                 'printinfo': 'System',
                 'printns': 'Namespace',
                 'printsig': 'Signal',
-                'printsub': 'D-Bus',
                 'printsvc': 'systemd',
                 'pstree': 'Process',
                 'readelf': 'File',
@@ -21645,8 +21663,8 @@ Examples:
         # {0:1} {1:1} -g a.out, java
                     '''.format(cmd, mode)
 
-                # printsub #
-                elif SysMgr.checkMode('printsub'):
+                # printdbussub #
+                elif SysMgr.checkMode('printdbussub'):
                     helpStr = '''
 Usage:
     # {0:1} {1:1} [OPTIONS] [--help]
@@ -27352,7 +27370,7 @@ Copyright:
 
         # split params #
         if value:
-            repeatParams = UtilMgr.cleanItem(value.split(':'))
+            repeatParams = UtilMgr.cleanItem(value.split(':'), False)
 
         if not value:
             SysMgr.intervalEnable = 1
@@ -28228,7 +28246,7 @@ Copyright:
         elif option == 'G':
             SysMgr.checkOptVal(option, value)
             itemList = UtilMgr.splitString(value)
-            SysMgr.ignoreItemList = UtilMgr.cleanItem(itemList, union=True)
+            SysMgr.ignoreItemList = UtilMgr.cleanItem(itemList)
             SysMgr.printInfo(
                 "applied ignore keyword [ %s ]" % \
                     ', '.join(SysMgr.ignoreItemList))
@@ -28919,8 +28937,8 @@ Copyright:
 
             DbusMgr.runDbusSnooper(mode='printintro')
 
-        # PRINTSUB MODE #
-        elif SysMgr.checkMode('printsub'):
+        # PRINTDBUSSUB MODE #
+        elif SysMgr.checkMode('printdbussub'):
             SysMgr.printLogo(big=True, onlyFile=True)
 
             DbusMgr.runDbusSnooper(mode='signal')
@@ -30345,7 +30363,12 @@ Copyright:
 
             # ignore signals and wait for child #
             SysMgr.setIgnoreSignal()
-            os.wait()
+            try:
+                os.wait()
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
             SysMgr.setNormalSignal()
 
 
@@ -32630,7 +32653,7 @@ Copyright:
             cmdline = SysMgr.getCmdline(pid)
 
             SysMgr.printPipe(
-                '\n[ %s(%s) ] < %s >\n%s\n' % \
+                '\n[Env Info] [Proc: %s(%s)] [Cmd: %s]\n%s\n' % \
                     (comm, pid, cmdline, oneLine[:lenLine]))
 
             # filter variables #
@@ -37986,7 +38009,7 @@ Copyright:
 
     @staticmethod
     def setTTY(rows, cols):
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux or SysMgr.parentPid > 0:
             return
 
         # set terminal size by ioctl #
@@ -38011,6 +38034,8 @@ Copyright:
                 (SysMgr.ttyRows, SysMgr.ttyCols))
 
             return
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -38023,6 +38048,8 @@ Copyright:
             os.system('stty cols %d 2> %s' % (long(cols), SysMgr.nullPath))
             SysMgr.ttyRows = rows
             SysMgr.ttyCols = cols
+        except SystemExit:
+            sys.exit(0)
         except:
             return
 
@@ -38030,7 +38057,7 @@ Copyright:
 
     @staticmethod
     def getTty(update=False):
-        if not SysMgr.isLinux:
+        if not SysMgr.isLinux or SysMgr.parentPid > 0:
             return
 
         if update and not SysMgr.termGetId:
@@ -42914,8 +42941,8 @@ class DbusMgr(object):
 
         # print perProc signals #
         SysMgr.printPipe((
-            '\nD-Bus Signal Proxy Info [Target: %s] '
-            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+            '\n[D-Bus Signal Proxy Info] (Target: %s) '
+            '(nrProc: %s) (nrSub: %s)\n%s') % \
                 (procId, conv(len(perProc)), conv(totalSubscription), twoLine))
         SysMgr.printPipe(
             "{0:^23} {1:<23} {2:^10} {3:>1}".format(
@@ -42955,14 +42982,14 @@ class DbusMgr(object):
 
             # print process stat #
             SysMgr.printPipe(
-                "{0:>23} [nrStub: {1:1}, nrSignal: {2:1}]".format(
+                "{0:>23} <nrStub: {1:1}, nrSignal: {2:1}>".format(
                     proc, conv(len(mergedList)), conv(stats['nrSignal'])))
 
             # print signal stat #
             for sender, iface in sorted(mergedList.items(),
                 key=lambda e: len(e[1]), reverse=True):
                 SysMgr.printPipe(
-                    "{0:>23} {1:<23} [nrSignal: {2:1}]".format(
+                    "{0:>23} {1:<23} <nrSignal: {2:1}>".format(
                         ' ', sender, conv(len(iface))))
                 if not SysMgr.showAll:
                     continue
@@ -42999,8 +43026,8 @@ class DbusMgr(object):
 
         # print perSignal processes #
         SysMgr.printPipe((
-            '\nD-Bus Signal Stub Info [Target: %s] '
-            '[nrProcess: %s] [nrSubscription: %s]\n%s') % \
+            '\n[D-Bus Signal Stub Info] (Target: %s) '
+            '(nrProc: %s) (nrSub: %s)\n%s') % \
                 (procId, conv(len(perSig)), conv(totalSubscription), twoLine))
         SysMgr.printPipe(
             "{0:^23} {1:^12} {2:<23}".format(
@@ -43010,7 +43037,7 @@ class DbusMgr(object):
             key=lambda e: len(e[1]['proxyList']), reverse=True):
             # print stub process stat #
             SysMgr.printPipe(
-                "{0:>23} [nrProxy: {1:1}, nrSignal: {2:1}]".format(
+                "{0:>23} <nrProxy: {1:1}, nrSignal: {2:1}>".format(
                     serv, conv(len(stats['proxyList'])),
                     conv(stats['nrSignal'])))
 
@@ -43022,7 +43049,7 @@ class DbusMgr(object):
                     procList.update(procs)
 
                 SysMgr.printPipe(
-                    "{0:>23} {1:<12} [nrProxy: {2:1}] [nrSignal: {3:1}]".format(
+                    "{0:>23} {1:<12} <nrProxy: {2:1}> <nrSignal: {3:1}>".format(
                         ' ', iface, conv(len(procList)), conv(len(receiver))))
 
                 if not SysMgr.showAll:
@@ -43501,7 +43528,7 @@ class DbusMgr(object):
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(
-                            "fail to get type of GDbusMessage", reason=True)
+                            "fail to get type of GDBusMessage", reason=True)
                         TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -43543,14 +43570,15 @@ class DbusMgr(object):
 
                             addInfo = " %s.%s" % \
                                 (iface.decode(), member.decode())
+                            addInfo = UtilMgr.convColor(addInfo, 'GREEN')
 
                         mtime = jsonData['time']
 
                         msgStr = \
-                            "[%s] %.6f %s(%s) %s->%s %s %g %s%s" % \
+                            "[%s] %.6f %s(%s) %3s %s->%s %g %s%s" % \
                             (DbusMgr.msgColorList[mtype],
-                                mtime, jsonData['comm'], tid, srcInfo,
-                                desInfo, direction, jsonData['timediff'],
+                                mtime, jsonData['comm'], tid, direction,
+                                srcInfo, desInfo, jsonData['timediff'],
                                 UtilMgr.convSize2Unit(hsize), addInfo)
 
                         if effectiveReply:
@@ -43796,9 +43824,18 @@ class DbusMgr(object):
         # check filter #
         taskList = []
         if not SysMgr.filterGroup:
-            onlyDaemon = True
-            taskList += _getDefaultTasks('dbus-daemon')
-            taskList += _getDefaultTasks('dbus-broker')
+            if SysMgr.hasMainArg():
+                onlyDaemon = False
+                items = SysMgr.getMainArgs()
+                for val in items:
+                    if SysMgr.groupProcEnable:
+                        taskList += SysMgr.getPids(val, sibling=True)
+                    else:
+                        taskList += _getDefaultTasks(val)
+            else:
+                onlyDaemon = True
+                taskList += _getDefaultTasks('dbus-daemon')
+                taskList += _getDefaultTasks('dbus-broker')
         else:
             onlyDaemon = False
             for val in SysMgr.filterGroup:
@@ -43806,6 +43843,8 @@ class DbusMgr(object):
                     taskList += SysMgr.getPids(val, sibling=True)
                 else:
                     taskList += _getDefaultTasks(val)
+
+        # check task list #
         if not taskList:
             SysMgr.printErr(
                 "fail to find task to analyze D-Bus message")
@@ -43867,11 +43906,11 @@ class DbusMgr(object):
 
         # set colors for each message types #
         DbusMgr.msgColorList = {
-            'INVALID': UtilMgr.convColor('INVALID', 'RED'),
-            'ERROR': UtilMgr.convColor('ERROR', 'RED'),
-            'METHOD': UtilMgr.convColor('METHOD', 'CYAN'),
-            'RETURN': UtilMgr.convColor('RETURN', 'BLUE'),
-            'SIGNAL': UtilMgr.convColor('SIGNAL', 'PINK'),
+            'INVALID': UtilMgr.convColor('INVALI', 'RED', 6),
+            'ERROR': UtilMgr.convColor('ERROR', 'RED', 6),
+            'METHOD': UtilMgr.convColor('METHOD', 'CYAN', 6),
+            'RETURN': UtilMgr.convColor('RETURN', 'BLUE', 6),
+            'SIGNAL': UtilMgr.convColor('SIGNAL', 'PINK', 6),
         }
 
         # create child processes to monitor each targets #
@@ -43960,26 +43999,27 @@ class DbusMgr(object):
             else:
                 busServiceList[tid].setdefault(bus, dict())
 
-            # print introspection #
+            # define process string #
+            procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
+
+            # printintro #
             if mode == 'printintro':
                 for service, intro in introList.items():
                     DbusMgr.printIntrospection(tid, introList)
                 continue
-
-            # monitor messages #
-            if mode == 'monitor':
+            # monitor #
+            elif mode == 'monitor':
                 ret = DbusMgr.runMonitor(bus)
                 continue
-
-            # print signals #
-            procStr = '%s(%s)' % (SysMgr.getComm(tid, cache=True), tid)
-            if mode == 'signal':
+            # signal #
+            elif mode == 'signal':
                 ret = DbusMgr.getStats(bus, 'allmatch', procStr=procStr)
                 if ret:
                     perProc, perSig = ret
                     DbusMgr.printSignalInfo(
                         tid, perProc, perSig, busProcList)
                 continue
+            # printstat #
             elif mode == 'printstat':
                 ret = DbusMgr.getStats(bus, 'stats', procStr=procStr)
                 DbusMgr.printStatInfo(tid, ret)
@@ -44054,12 +44094,16 @@ class DltAnalyzer(object):
     DLT_DAEMON_TEXTSIZE = 10024
     DLT_FILTER_MAX = 30
 
+    # define message color type #
+    msgColorList = []
+
     # define message type #
     MSGTYPE = \
         ["log", "app_trace", "nw_trace", "control"]
+
+    # define log type #
     LOGINFO = \
         ["", "fatal", "error", "warn", "info", "debug", "verb"]
-    msgColorList = []
 
     # define log level #
     LOGLEVEL = {
@@ -46935,8 +46979,13 @@ struct cmsghdr {
 
                 # strip garbage #
                 if ret and not fixed:
-                    ret = ret.split("\x00")[0]
-                    size = len(ret)
+                    try:
+                        ret = ret.split("\x00")[0]
+                        size = len(ret)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
                 # convert to binary #
                 try:
@@ -48099,7 +48148,7 @@ struct cmsghdr {
                 # check return #
                 if exit:
                     sys.exit(0)
-                if not cont:
+                elif not cont:
                     return -1
                 elif self.isAlive():
                     time.sleep(SysMgr.waitDelay)
@@ -48107,10 +48156,12 @@ struct cmsghdr {
                 else:
                     sys.exit(0)
             else:
+                self.attached = True
+
                 SysMgr.printWarn(
                     'attached %s(%s) to guider(%s)' % \
                         (self.comm, pid, SysMgr.pid))
-                self.attached = True
+
                 return 0
 
 
@@ -49534,12 +49585,10 @@ struct cmsghdr {
                         "fail to get mmsghdr for %s" % \
                             syscall, True, reason=True)
                     return value
-        elif syscall == "epoll_ctl":
-            if argname == "op":
-                try:
-                    return ConfigMgr.EPOLL_CMD_TYPE[value]
-                except:
-                    return value
+        elif syscall == 'open' or syscall == 'accept4':
+            if argname == 'flags':
+                return UtilMgr.getFlagString(
+                    value, ConfigMgr.OPEN_TYPE, num='oct')
         elif syscall == "execve":
             if argname in ("argv", "envp"):
                 # toDo: handle double pointer values #
@@ -49547,21 +49596,21 @@ struct cmsghdr {
         elif syscall == "ptrace" and argname == "request":
             try:
                 return ConfigMgr.PTRACE_TYPE[value]
+            except SystemExit:
+                sys.exit(0)
             except:
                 return value
         elif syscall == "socketcall":
             if argname == "call":
                 try:
                     return ConfigMgr.SOCKETCALL[value]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return value
             elif argname == "args":
                 # toDo: handle socket call args #
                 return value
-        elif syscall == 'open' or syscall == 'accept4':
-            if argname == 'flags':
-                return UtilMgr.getFlagString(
-                    value, ConfigMgr.OPEN_TYPE, num='oct')
         elif syscall == 'access':
             if argname == 'mode':
                 return UtilMgr.getFlagString(
@@ -49570,10 +49619,33 @@ struct cmsghdr {
             if argname == 'flags':
                 return UtilMgr.getFlagString(
                     value, ConfigMgr.CLONE_TYPE)
+        elif syscall == "epoll_ctl" or \
+            syscall == "epoll_wait" or \
+            syscall == "epoll_pwait":
+            if argname == "op":
+                try:
+                    return ConfigMgr.EPOLL_CMD_TYPE[value]
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
+            elif ref and argname.startswith("event"):
+                try:
+                    value = self.readMem(value, 4)
+                    value = struct.unpack('I', value)[0]
+                    value = UtilMgr.getFlagString(
+                        value, ConfigMgr.EPOLL_EVENT_TYPE)
+                    return ' %s ' % value
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    return value
         elif syscall == 'prctl':
             if argname == 'option':
                 try:
                     return ConfigMgr.PRCTL_TYPE[value]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return value
         elif syscall.startswith('mmap') or syscall == 'mprotect':
@@ -49599,6 +49671,8 @@ struct cmsghdr {
             if argname == 'behavior':
                 try:
                     return ConfigMgr.MADV_TYPE[int(value)]
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     return value
 
@@ -49613,7 +49687,7 @@ struct cmsghdr {
             except SystemExit:
                 sys.exit(0)
             except:
-                return value
+                return str(value)
 
         # convert pointer to string #
         if ref and argtype == "const char *" and \
@@ -49634,6 +49708,8 @@ struct cmsghdr {
                 if ret != argset['vec']:
                     self.changeArg('vec', ret)
                 return value
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "fail to read iovector for %s" % \
@@ -50018,6 +50094,8 @@ struct cmsghdr {
             _checkInterval()
 
             _resetStats()
+
+
 
         # check master process #
         if SysMgr.masterPid > 0 and \
@@ -51753,8 +51831,8 @@ struct cmsghdr {
         else:
             # build current symbol string #
             callString = '\n%s %s%s%s%s/%s%s [%s]' % \
-                (diffstr, tinfo, indent, sym, elapsed,
-                    hex(addr).rstrip('L'), argstr, fname)
+                (diffstr, tinfo, indent, UtilMgr.convColor(sym, 'GREEN'),
+                    elapsed, hex(addr).rstrip('L'), argstr, fname)
 
         if callString:
             # emphasize string #
@@ -52034,7 +52112,7 @@ struct cmsghdr {
         except:
             signame = 'UNKNOWN(%s)' % sig
 
-        callString = '\n%3.6f %s[%s]' % \
+        callString = '%3.6f %s[%s]' % \
             (diff, tinfo, signame)
 
         SysMgr.printPipe(callString)
@@ -52812,8 +52890,9 @@ struct cmsghdr {
             if deferrable:
                 callString = '%s)%s' % (argText, bts)
             else:
+                syscall = UtilMgr.convColor(self.syscall, 'GREEN')
                 callString = '%3.6f %s(%s) %s(%s)%s' % \
-                    (diff, self.comm, self.pid, self.syscall, argText, bts)
+                    (diff, self.comm, self.pid, syscall, argText, bts)
 
         # print call info #
         if self.isRealtime:
@@ -52953,7 +53032,8 @@ struct cmsghdr {
 
                     # build call string #
                     callString = '%3.6f %s(%s) %s(' % \
-                        (diff, self.comm, self.pid, name)
+                        (diff, self.comm, self.pid,
+                            UtilMgr.convColor(name, 'GREEN'))
 
                     if SysMgr.outPath:
                         self.bufferedStr = callString
@@ -53217,7 +53297,7 @@ struct cmsghdr {
         self.prevCpuStat = [ttime, utime, stime]
 
         # get CPU diff #
-        if prevUsage == None:
+        if prevUsage == None or ttime == 0:
             ret = [0, 0, 0]
         else:
             ret = [ttime - prevUsage[0],
@@ -53461,8 +53541,10 @@ struct cmsghdr {
         if not SysMgr.outPath:
             SysMgr.setStream()
 
-        # continue tasks #
-        os.kill(self.pid, signal.SIGCONT)
+        # continue target #
+        if self.mode == 'syscall':
+            SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
+        self.cont(check=True, sig=signal.SIGCONT)
 
         return pid
 
@@ -53546,11 +53628,6 @@ struct cmsghdr {
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
-        # check python version for target #
-        if self.mode == 'pybreak' or self.mode == 'pycall':
-            if not self.checkPyVer():
-                sys.exit(0)
-
         # update previous CPU usage #
         if hasattr(self, 'prevCpuStat'):
             self.prevCpuStat = self.getCpuUsage()
@@ -53611,14 +53688,15 @@ struct cmsghdr {
             self.readPyState = self.readPyState64
 
         # index variables #
-        self.sigExecFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
-        self.sigCloneFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
-        self.sigForkFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
-        self.sigVforkFlag = signal.SIGTRAP | \
-            ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
+        if not hasattr(self, 'sigExecFlag'):
+            self.sigExecFlag = signal.SIGTRAP | \
+                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXEC') << 8
+            self.sigCloneFlag = signal.SIGTRAP | \
+                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_CLONE') << 8
+            self.sigForkFlag = signal.SIGTRAP | \
+                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
+            self.sigVforkFlag = signal.SIGTRAP | \
+                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
 
         # make object for myself #
         if not Debugger.selfInstance or \
@@ -53895,9 +53973,7 @@ struct cmsghdr {
                     self.handoverNewTarget(fork=forked)
 
                     # continue to exit event for clone syscall #
-                    if self.mode == 'syscall':
-                        pass
-                    else:
+                    if not self.mode == 'syscall':
                         continue
 
                 # handle exec event #
@@ -53937,8 +54013,8 @@ struct cmsghdr {
                                 self.removeAllBp()
 
                             # load symbols again #
-                            if self.loadSymbols():
-                                self.updateBpList()
+                            self.loadSymbols()
+                            self.updateBpList()
 
                             # continue target #
                             if self.cont(check=True) < 0:
@@ -53982,7 +54058,7 @@ struct cmsghdr {
 
                     # continue #
                     if self.isBreakMode or self.mode == 'signal':
-                        if self.cont(check=True) < 0:
+                        if self.cont(check=True, sig=stat) < 0:
                             sys.exit(0)
                     # set up trap again #
                     elif self.mode == 'syscall':
@@ -54023,6 +54099,7 @@ struct cmsghdr {
                     SysMgr.printErr(
                         'terminated %s(%s)' % (self.comm, self.pid))
 
+                    # wait event #
                     if SysMgr.isTopMode() and self.totalCall:
                         SysMgr.waitEvent()
 
@@ -54030,18 +54107,18 @@ struct cmsghdr {
 
                 # signal #
                 elif self.mode == 'signal':
+                    # handle signal #
                     self.handleSignal(stat)
 
+                    # deliver signal #
                     self.cont(sig=stat)
-                    if self.cont(check=True, sig=stat) < 0:
-                        sys.exit(0)
-
                 # other #
                 else:
                     SysMgr.printWarn(
                         'detected %s(%s) with %s' % \
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
+                    # handle signal #
                     if self.mode == 'sample' or self.mode == 'pycall':
                         self.handleTrapEvent(ostat)
 
@@ -54161,6 +54238,10 @@ struct cmsghdr {
                     'do sampling every %s instrunctions' % \
                         UtilMgr.convNum(SysMgr.funcDepth))
 
+        # init python environment #
+        if self.mode == 'pycall' or self.mode == 'pybreak':
+            self.initPyEnv()
+
         # prepare environment for the running target #
         if self.isRunning:
             # check the process is running #
@@ -54177,8 +54258,8 @@ struct cmsghdr {
                 sys.exit(0)
 
             # initialize environment for python #
-            if mode == 'pycall':
-                self.initPyEnv()
+            if mode == 'pycall' or mode == 'pybreak':
+                pass
             # load user symbols #
             elif (mode != 'syscall' and mode != 'signal') or \
                 SysMgr.funcDepth > 0:
@@ -59168,7 +59249,9 @@ Section header string table index: %d
                 except:
                     size_per = 0
 
-                size_str = '%s(%2.1f%%)' % (UtilMgr.convNum(sh_size), size_per)
+                size_str = '%s(%4.1f%%)' % \
+                    (UtilMgr.convNum(sh_size), size_per)
+
                 SysMgr.printPipe(
                     "[%02d] %50s%15s%12s%12s%20s%8s%5s%5s%7s%6s" % \
                     (i, symbol,
@@ -61410,7 +61493,7 @@ class TaskAnalyzer(object):
                         pass
 
                 # set diff to the union list if this file is lastest one #
-                if idx == len(flist)-1:
+                if idx == len(flist)-1 and len(flist) > 1:
                     unionGpuList[pname] = value['diff']
 
             # remove * characters #
@@ -61550,7 +61633,12 @@ class TaskAnalyzer(object):
 
         for pname, value in sorted(unionCpuList.items(),
             key=lambda e:float(e[1]), reverse=True):
-            printBuf = "%16s | " % pname
+
+            if pname == 'TOTAL':
+                printBuf = "%16s | " % '[CPU/AVG]'
+            else:
+                printBuf = "%16s | " % pname
+
             for idx, fname in enumerate(flist):
                 try:
                     prevCpuProcList = \
@@ -61722,6 +61810,12 @@ class TaskAnalyzer(object):
         for pname, value in sorted(unionRssList.items(),
             key=lambda e:long(e[1]), reverse=True):
             printBuf = "%16s | " % pname
+
+            if pname == 'FREE':
+                printBuf = "%16s | " % '[FREE]'
+            else:
+                printBuf = "%16s | " % pname
+
             for idx, fname in enumerate(flist):
                 try:
                     prevRssProcList = \
@@ -70419,7 +70513,7 @@ class TaskAnalyzer(object):
         # Print total CPU usage #
         procInfo = \
             "{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})| {5:^17} |".\
-            format('[CPU]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
+            format('[CPU/AVG]', '-', '-', '-', '-', cpuInfo, cl=cl, pd=pd)
         procInfoLen = len(procInfo)
         maxLineLen = SysMgr.lineLength
 
