@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210425"
+__revision__ = "210427"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5094,6 +5094,9 @@ window.addEventListener("keydown",function (e) {
     if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
         e.preventDefault();
         search_prompt();
+    } else if (e.keyCode === 27 || (e.ctrlKey && e.keyCode === 90)) {
+        e.preventDefault();
+        unzoom()
     }
 }, false)
 // functions
@@ -5307,7 +5310,7 @@ function search_prompt() {
         reset_search();
         searching = 0;
         searchbtn.classList.remove("show");
-        searchbtn.firstChild.nodeValue = "Search"
+        searchbtn.firstChild.nodeValue = "Search (F3)"
         matchedtxt.classList.add("hide");
         matchedtxt.firstChild.nodeValue = ""
     }
@@ -5351,7 +5354,7 @@ function search(term) {
     history.replaceState(null, null, parse_params(params));
 
     searchbtn.classList.add("show");
-    searchbtn.firstChild.nodeValue = "Reset Search";
+    searchbtn.firstChild.nodeValue = "Reset Search (F3)";
     // calculate percent matched, excluding vertical overlap
     var count = 0;
     var lastx = -1;
@@ -5396,8 +5399,8 @@ function format_percent(n) {
     <text id="title" x="50.0000%%" y="24.00">Guider Flamegraph</text>
     <text id="subtitle" x="0.0000%%" y="50.00">%s</text>
     <text id="details" x="10" y="213.00"></text>
-    <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom</text>
-    <text id="search" x="1090" y="24.00">Search</text>
+    <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom (ESC)</text>
+    <text id="search" x="1090" y="24.00">Search (F3)</text>
     <text id="matched" x="1090" y="213.00"></text>
     <svg id="frames" x="10" y="20" width="1180">
 ''' % ('\r\n%s' % title if title else '')
@@ -14229,13 +14232,15 @@ class FileAnalyzer(object):
             if not m:
                 continue
 
+            d = m.groupdict()
+
             # get execution permission #
-            if onlyExec and m['perm'][-2] == '-':
+            if 'perm' in d and onlyExec and d['perm'][-2] == '-':
                 continue
 
             # get size info #
-            startAddr = long(m['startAddr'], 16)
-            endAddr = long(m['endAddr'], 16)
+            startAddr = long(d['startAddr'], 16)
+            endAddr = long(d['endAddr'], 16)
             size = endAddr - startAddr
 
             anonMap.append([startAddr, endAddr])
