@@ -3619,12 +3619,6 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def setTime():
-        UtilMgr.curTime = time.time()
-
-
-
-    @staticmethod
     def convHtmlChar(string):
         chars = {
             '<': '&lt;',
@@ -3652,14 +3646,23 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def printTime(name=None, update=False):
+    def saveTime():
+        UtilMgr.printTime(update=True, verb=False)
+
+
+
+    @staticmethod
+    def printTime(name=None, update=False, verb=True):
         # get current time #
         now = time.time()
         diff = now - UtilMgr.curTime
 
         # update timestamp #
         if update:
-            UtilMgr.current = now
+            UtilMgr.curTime = now
+
+        if not verb:
+            return
 
         # add name #
         if name:
@@ -3964,7 +3967,7 @@ class UtilMgr(object):
         for idx, syscall in enumerate(systable):
             if idx % 4 == 0:
                 bufstring += '\n'
-            bufstring += "'%s', " % syscall
+            bufstring = "%s'%s', " % (bufstring, syscall)
 
         print(bufstring)
 
@@ -36509,14 +36512,15 @@ Copyright:
                 for name, val in sorted(items.items(),
                     key=lambda e: long(e[1]) if type(e[1]) != list else sys.maxsize):
                     if name != 'protection':
-                        zonestr += "%s:%7s, " % (name, conv(val << 12))
+                        zonestr = "%s%s:%7s, " % \
+                            (zonestr, name, conv(val << 12))
 
                 if 'protection' in items:
-                    zonestr += "%s: %7s" % \
-                        ('protection', ', '.join(items['protection']))
-                    zonestr += ", "
+                    zonestr = "%s%s: %7s" % \
+                        (zonestr, 'protection', ', '.join(items['protection']))
+                    zonestr = "%s, " % zonestr
 
-                zonestr = zonestr + '\n'
+                zonestr = '%s\n' % zonestr
 
             return zonestr[:-2]
 
@@ -39237,15 +39241,16 @@ Copyright:
             # apply filter #
             for comm in list(SysMgr.filterGroup):
                 # comm #
-                cmd += \
-                    "prev_comm == \"*%s*\" || next_comm == \"*%s*\" || " % \
-                    (comm, comm)
+                cmd = '''%sprev_comm == "*%s*" || next_comm == "*%s*" || ''' % \
+                    (cmd, comm, comm)
 
                 # tid #
                 try:
                     pid = long(comm)
-                    cmd += "prev_pid == \"%s\" || next_pid == \"%s\" || " % \
-                        (pid, pid)
+                    cmd = "%sprev_pid == %s || next_pid == %s || " % \
+                        (cmd, pid, pid)
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     try:
                         ldir = comm.find('>')
@@ -39268,7 +39273,7 @@ Copyright:
                     except:
                         pass
 
-            cmd = cmd[0:cmd.rfind("||")]
+            cmd = cmd[0:cmd.rfind("||")].strip()
             if SysMgr.writeCmd('sched/sched_switch/filter', cmd) < 0:
                 SysMgr.printErr(
                     "fail to set filter [ %s ]" % \
@@ -39292,10 +39297,10 @@ Copyright:
 
             # apply filter #
             for comm in list(SysMgr.filterGroup):
-                cmd += "comm == \"*%s*\" || " % (comm)
+                cmd = '''%scomm == "*%s*" || ''' % (cmd, comm)
                 try:
                     pid = long(comm)
-                    cmd += "pid == \"%s\" || " % (pid)
+                    cmd = '''%spid == %s || ''' % (cmd, pid)
                 except:
                     try:
                         ldir = comm.find('>')
@@ -59228,13 +59233,13 @@ Section header string table index: %d
             # check permission #
             f = ""
             if sh_flags & ElfAnalyzer.SHF_WRITE:
-                f += "W"
+                f = "%sW" % f
             if sh_flags & ElfAnalyzer.SHF_ALLOC:
-                f += "A"
+                f = "%sA" % f
             if sh_flags & ElfAnalyzer.SHF_EXECINSTR:
-                f += "X"
+                f = "%sX" % f
             if sh_flags & ElfAnalyzer.SHF_MASKPROC:
-                f += "M"
+                f = "%sM" % f
 
             # get symbol string #
             symbol = self.getString(str_section, sh_name)
@@ -77041,15 +77046,14 @@ class TaskAnalyzer(object):
             cmaTotalMem = cmaFreeMem = cmaDevMem = long(0)
             SysMgr.printWarn("fail to get cmaMem")
 
+        '''
         try:
-            pass
-            '''
             shMem = vmData['nr_shmem'] >> 8
             pageTableMem = vmData['nr_page_table_pages'] >> 8
             kernelStackMem = vmData['nr_kernel_stack'] * 8 >> 10
-            '''
         except:
             SysMgr.printWarn("fail to get etcMem")
+        '''
 
         # check available memory type #
         if SysMgr.freeMemEnable:
