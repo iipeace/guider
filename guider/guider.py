@@ -20702,7 +20702,7 @@ Examples:
     - Monitor D-Bus messages including specific word
         # {0:1} {1:1} -c test
 
-    - Monitor D-Bus messages except for specific messages
+    - Monitor D-Bus messages and erase specific words in live messages
         # {0:1} {1:1} -G sendData
 
     - Monitor D-Bus messages for a specific session bus
@@ -43364,20 +43364,21 @@ class DbusMgr(object):
                             reason=True)
 
         def _handleMsg(ctype, msgList, jsonData, data):
+            if type(msgList) is not dict:
+                return
+
             try:
                 tid, params, bus, service = data
-
-                libgioObj = SysMgr.libgioObj
-                libgObj = SysMgr.libgObj
 
                 mlist = {}
                 cnt = long(0)
                 gdmsg = long(0)
 
-                if type(msgList) is not dict:
-                    return
-
+                libgioObj = SysMgr.libgioObj
+                libgObj = SysMgr.libgObj
                 G_IO_ERROR_TYPE = DbusMgr.G_IO_ERROR_TYPE
+
+                isTopMode = SysMgr.checkMode('dbustop')
 
                 msgs = []
                 for key, msg in sorted(msgList.items()):
@@ -43566,24 +43567,28 @@ class DbusMgr(object):
                                 c_ulong(gdmsg))
                         if repSerial in msgTable:
                             effectiveReply = True
+                        else:
+                            effectiveReply = False
 
                     # print message #
-                    if SysMgr.checkMode('printdbus') or SysMgr.customCmd:
+                    if not isTopMode or SysMgr.customCmd:
                         if len(jsonData['backtrace']) > 2:
                             backtrace = \
                                 'Backtrace: %s\n' % jsonData['backtrace']
                         else:
                             backtrace = ''
 
-                        if SysMgr.checkMode('dbustop') or SysMgr.showAll:
+                        if isTopMode or SysMgr.showAll:
                             addInfo = "\n%s%s" % \
                                 (libgioObj.g_dbus_message_print(
                                     c_ulong(gdmsg), c_ulong(0)).decode(),
                                     backtrace)
                         else:
+                            '''
                             path = libgioObj.g_dbus_message_get_path(addr)
                             if not path:
                                 path = b''
+                            '''
 
                             iface = \
                                 libgioObj.g_dbus_message_get_interface(addr)
@@ -43598,13 +43603,16 @@ class DbusMgr(object):
                                 (iface.decode(), member.decode())
                             addInfo = UtilMgr.convColor(addInfo, 'GREEN')
 
-                        mtime = jsonData['time']
+                        # get serial number #
+                        serial = libgioObj.g_dbus_message_get_serial(addr)
+                        if not serial:
+                            serial = b''
 
                         msgStr = \
-                            "[%s] %.6f %s(%s) %3s %s->%s %g %s%s" % \
+                            "[%s] %.6f %s(%s) %3s %s->%s %s %sB%s" % \
                             (DbusMgr.msgColorList[mtype],
-                                mtime, jsonData['comm'], tid, direction,
-                                srcInfo, desInfo, jsonData['timediff'],
+                                jsonData['time'], jsonData['comm'], tid,
+                                direction, srcInfo, desInfo, serial,
                                 UtilMgr.convSize2Unit(hsize), addInfo)
 
                         if effectiveReply:
@@ -43614,7 +43622,8 @@ class DbusMgr(object):
                                 msgStr, SysMgr.customCmd, ignCap=True):
                             continue
 
-                        if SysMgr.checkMode('printdbus'):
+                        # finish printing this message #
+                        if not isTopMode:
                             SysMgr.printPipe(msgStr, flush=True)
                             continue
 
@@ -43624,7 +43633,7 @@ class DbusMgr(object):
 
                     # return check #
                     if mtype == 'RETURN':
-                        if repSerial in msgTable:
+                        if effectiveReply:
                             targetIf, prevTime = msgTable[repSerial]
                         else:
                             targetIf = prevTime = None
@@ -43691,10 +43700,6 @@ class DbusMgr(object):
 
                     # save timestamp #
                     data[tid][mname]['time'] = jsonData['time']
-
-                    # save last interface except for signal #
-                    if mtype != 'SIGNAL':
-                        pass
 
                 if cnt == 0:
                     return
