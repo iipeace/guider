@@ -19575,6 +19575,9 @@ Examples:
     - Trace all native calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
+    - Trace all native calls with python backtrace for specific threads
+        # {0:1} {1:1} -g a.out -H -q PYSTACK
+
     - Trace specific native calls for specific threads
         # {0:1} {1:1} -g 1234 -c printPeace
 
@@ -20239,6 +20242,9 @@ Examples:
     - Monitor syscalls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
 
+    - Monitor syscalls with python backtrace for specific threads
+        # {0:1} {1:1} -g a.out -H -q PYSTACK
+
     - Monitor syscalls for child tasks created by specific threads
         # {0:1} {1:1} -g a.out -W
 
@@ -20420,6 +20426,9 @@ Examples:
 
     - Monitor native function calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
+
+    - Monitor native function calls with python backtrace for specific threads
+        # {0:1} {1:1} -g a.out -H -q PYSTACK
 
     - Monitor native function calls for specific threads every 2 second for 1 minute with 1 ms sampling
         # {0:1} {1:1} -g 1234 -T 1000 -i 2 -R 1m
@@ -20850,6 +20859,12 @@ Examples:
 
     - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
+
+    - Trace all read syscalls with backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -t read -H
+
+    - Trace all read syscalls with python backtrace for a specific thread
+        # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
 
     - Trace all write syscalls with specific command and print standard output
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
@@ -45368,6 +45383,7 @@ class Debugger(object):
         'NOSTRIP': False,
         'CONTALONE': False,
         'INCNATIVE': False,
+        'PYSTACK': False,
     }
 
     def getSigStruct(self):
@@ -47814,7 +47830,7 @@ struct cmsghdr {
                 continue
 
             # inject a breakpoint #
-            ret = self.injectBp(
+            self.injectBp(
                 addr, symbol, fname=fname, reins=True, cmd=cmdList[idx])
 
             # remove the address from exception list #
@@ -51193,11 +51209,24 @@ struct cmsghdr {
 
 
 
-    def getBacktrace(self, limit=32, cur=False, force=False):
+    def getBacktrace(self, limit=32, cur=False, force=False, native=False):
         try:
             # use backtrace cache #
             if not force and self.btList:
                 self.btList
+
+            # return language callstack #
+            if not native:
+                btList = None
+
+                # python callstack #
+                if Debugger.envFlags['PYSTACK']:
+                    btList = self.handlePycall(retbt=True)
+
+                # save and return backtrace #
+                if btList:
+                    self.btList = btList
+                    return self.btList
 
             restored = True
 
@@ -51960,8 +51989,7 @@ struct cmsghdr {
             origWord = self.loadInst(fname, offset)
 
             # register this lost breakpoint #
-            ret = self.injectBp(
-                addr, sym, fname=fname, origWord=origWord)
+            self.injectBp(addr, sym, fname=fname, origWord=origWord)
 
             # check memory map again #
             if addr not in self.bpList:
@@ -52067,11 +52095,7 @@ struct cmsghdr {
             self.checkStat(ret, reason="injection failed")
 
         # register this breakpoint again #
-        ret = self.injectBp(
-            addr, sym, fname=fname, reins=reins)
-        if not ret:
-            self.unlock(nrLock)
-            sys.exit(0)
+        self.injectBp(addr, sym, fname=fname, reins=reins)
 
         # unlock between processes #
         self.unlock(nrLock)
@@ -52569,7 +52593,7 @@ struct cmsghdr {
 
 
 
-    def handlePycall(self):
+    def handlePycall(self, retbt=False):
         # check init status #
         if not self.pyAddr and not self.initPyEnv():
             return
@@ -52580,7 +52604,8 @@ struct cmsghdr {
             self.updateRegs()
             curSym = self.getSymbolInfo(self.pc)[0]
             if not curSym.startswith('_Py') and not curSym.startswith('Py'):
-                nativeStack = self.getBacktrace(SysMgr.funcDepth, cur=True)
+                nativeStack = self.getBacktrace(
+                    SysMgr.funcDepth, cur=True, native=True)
 
         # read address for PyThreadState #
         pyThreadStateP = self.readMem(self.pyAddr)
@@ -52652,6 +52677,9 @@ struct cmsghdr {
             lastAddr, lastName, lastFile = bt.pop(0)
 
         # add a call stack sample #
+        if retbt:
+            return bt
+
         self.addSample(lastName, lastFile, realtime=True, bt=bt)
 
 
@@ -52875,7 +52903,10 @@ struct cmsghdr {
 
         # get backtrace #
         if SysMgr.funcDepth > 0:
+            # get backtrace list #
             backtrace = self.getBacktrace(limit=SysMgr.funcDepth, cur=True)
+
+            # convert list to string #
             bts = self.getBacktraceStr(backtrace)
             if bts:
                 bts = '\n%s%s ' % (' ' * 20, bts)
@@ -53874,15 +53905,14 @@ struct cmsghdr {
         ret = self.injectBp(
             pos, newSym, fname, reins=True, cmd=None)
         if not ret:
-            # ignore error message #
-            pass
+            return False
 
         # register the new breakpoint to per-thread list #
         if not pos in self.bpNewList and pos in self.bpList:
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
-        # toDo: handle stack for no return procesure such like plt #
+        # toDo: handle stack for no return procesure such like PLT #
         self.entryTime.setdefault(sym, list())
         self.entryTime[sym].append(self.vdiff)
 
