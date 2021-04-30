@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210427"
+__revision__ = "210430"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4955,11 +4955,12 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def writeFlamegraph(path, samples, title):
+    def writeFlamegraph(path, samples, title, depth=20):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
-        flameCode = '''<?xml version="1.0" standalone="no"?>
+        flameCode = ('''<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="1200" height="230" onload="init(evt)" viewBox="0 0 1200 230"
+<svg version="1.1" width="1200" height="%s" onload="init(evt)" viewBox="0 0 1200 230"
+        ''' % (15*depth+100)) + '''
         xmlns="http://www.w3.org/2000/svg"
         xmlns:xlink="http://www.w3.org/1999/xlink">
         <!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
@@ -14195,6 +14196,31 @@ class FileAnalyzer(object):
 
 
     @staticmethod
+    def getProcMapFd(pid, verb=False):
+        fd = FileAnalyzer.getMapFd(pid, verb)
+        if fd:
+            return fd
+        else:
+            # get comm #
+            comm = SysMgr.getComm(pid)
+
+            # check alive #
+            if not SysMgr.isAlive(pid):
+                reason = ' because it is terminated'
+            # check root #
+            elif not SysMgr.isRoot():
+                reason = ' because of no root permission'
+            else:
+                reason = ''
+
+            SysMgr.printErr(
+                'fail to get memory map for %s(%s)%s' % \
+                    (comm, pid, reason))
+            sys.exit(0)
+
+
+
+    @staticmethod
     def getMapFd(pid, verb=False):
         # open maps #
         try:
@@ -14214,12 +14240,7 @@ class FileAnalyzer(object):
         if fd:
             fd.seek(0, 0)
         else:
-            fd = FileAnalyzer.getMapFd(pid, True)
-            if not fd:
-                comm = SysMgr.getComm(pid)
-                SysMgr.printErr(
-                    'fail to get memory map for %s(%s)' % (comm, pid))
-                sys.exit(0)
+            fd = FileAnalyzer.getProcMapFd(pid)
 
         # read maps #
         mapBuf = fd.readlines()
@@ -14258,12 +14279,7 @@ class FileAnalyzer(object):
         if fd:
             fd.seek(0, 0)
         else:
-            fd = FileAnalyzer.getMapFd(pid, True)
-            if not fd:
-                comm = SysMgr.getComm(pid)
-                SysMgr.printErr(
-                    'fail to get memory map for %s(%s)' % (comm, pid))
-                sys.exit(0)
+            fd = FileAnalyzer.getProcMapFd(pid)
 
         # read maps #
         mapBuf = fd.readlines()
@@ -49796,7 +49812,8 @@ struct cmsghdr {
         # create palette for colors #
         palette = Timeline.Config().PALETTE
 
-        def _iterNode(array, target, callCnt, depth=0, pos=0, height=36):
+        def _iterNode(
+            array, target, callCnt, depth=0, pos=0, height=36, hsize=15):
             for node, value in sorted(target.items(),
                 key=lambda x:x[1]['cnt'], reverse=True):
                 # get stats #
@@ -49820,7 +49837,7 @@ struct cmsghdr {
                 tagStr += (
                     '%s<rect x="%.4f%%" y="%s" width="%.4f%%" '
                     'height="%s" fill="%s"/>\n') % \
-                        (indent, pos, height, per, 15, color)
+                        (indent, pos, height, per, hsize, color)
                 tagStr += '%s<text x="%.4f%%" y="%.2f"></text>\n' % \
                     (indent, pos+0.25, height+10.5)
                 tagStr += '</g>'
@@ -49853,7 +49870,7 @@ struct cmsghdr {
 
         # convert list to tree for call samples #
         try:
-            callTree, callCnt = Debugger.convCallList2Tree(callList)
+            callTree, callCnt, depth = Debugger.convCallList2Tree(callList)
         except SystemExit:
             sys.exit(0)
         except:
@@ -49873,7 +49890,7 @@ struct cmsghdr {
 
         # write svg code to the file #
         try:
-            UtilMgr.writeFlamegraph(outputPath, svgStr, title)
+            UtilMgr.writeFlamegraph(outputPath, svgStr, title, depth)
         except SystemExit:
             sys.exit(0)
         except:
@@ -49892,6 +49909,7 @@ struct cmsghdr {
         tree = {}
         totals = {}
         pos = None
+        maxLevel = 0
 
         # iterate calls #
         for sample, count in callList.items():
@@ -49913,7 +49931,11 @@ struct cmsghdr {
                 totals[level] += count
                 level += 1
 
-        return tree, totals
+                # update max depth #
+                if level >= maxLevel:
+                    maxLevel = level
+
+        return tree, totals, maxLevel
 
 
 
@@ -71632,6 +71654,10 @@ class TaskAnalyzer(object):
 
                 # get CPU time by runtime #
                 try:
+                    # ignore tasks used CPU lesser than 1% #
+                    if ttime < 1:
+                        raise Exception()
+
                     cpuPer = round(ttime / float(runtime) * 100, 1)
                     if cpuPer > 0:
                         cpuPer = UtilMgr.convColor(cpuPer, 'GREEN')
