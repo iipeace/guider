@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210430"
+__revision__ = "210501"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4205,7 +4205,7 @@ class UtilMgr(object):
             elif num == 'bin' and numVal & 0 == 0:
                 string = '%s|%s' % (flist[bit], string)
 
-        if len(string) > 0:
+        if string:
             return string[:-1]
         else:
             return value
@@ -6153,8 +6153,7 @@ class NetworkMgr(object):
                 except:
                     pass
 
-                if len(output) < self.recvSize and \
-                    output[-1] == '\n':
+                if len(output) < self.recvSize and output[-1] == '\n':
                     break
         except SystemExit:
             sys.exit(0)
@@ -6455,9 +6454,9 @@ class NetworkMgr(object):
         addrList = addr.split(':')
         if len(addrList) >= 2:
             try:
-                if len(addrList[0]) > 0:
+                if addrList[0]:
                     ip = addrList[0]
-                if len(addrList[1]) > 0:
+                if addrList[1]:
                     port = long(addrList[1])
             except:
                 pass
@@ -9754,7 +9753,7 @@ class FunctionAnalyzer(object):
                     src = proc.stdout.readline().decode().replace('\n', '')
 
                     err = proc.stderr.readline().decode().replace('\n', '')
-                    if len(err) > 0:
+                    if err:
                         SysMgr.printWarn(err[err.find(':') + 2:])
 
                     if _updateSymbol(addr, symbol, src, relocated):
@@ -10393,7 +10392,7 @@ class FunctionAnalyzer(object):
             return False
 
         # check fixed event list #
-        if len(self.customEventTable) > 0 and \
+        if self.customEventTable and \
             (func[:-1] in self.customEventTable or \
             len([event for event in self.customEventTable \
                 if event.endswith(func[:-1])]) > 0):
@@ -10919,8 +10918,8 @@ class FunctionAnalyzer(object):
         # custom event #
         elif not isFixedEvent:
             try:
-                if len([event for event in self.customEventTable \
-                    if event.endswith(func[:-1])]) == 0:
+                if not [event for event in self.customEventTable \
+                    if event.endswith(func[:-1])]:
                     cond = self.customEventTable[func[:-1]] = None
                 else:
                     cond = self.customEventTable[func[:-1]]
@@ -11208,7 +11207,7 @@ class FunctionAnalyzer(object):
                 continue
 
             try:
-                if len(value['syscallTable']) > 0:
+                if value['syscallTable']:
                     threadInfo = "%16s(%7s/%7s)" % \
                         (value['comm'], key, value['tgid'])
                 else:
@@ -14723,7 +14722,7 @@ class FileAnalyzer(object):
                     "skip analyzing %s because it is device node" % fileName)
                 continue
 
-            if len(self.intervalFileData) > 0:
+            if self.intervalFileData:
                 # use file descriptor already saved as possible #
                 try:
                     fileData = self.intervalFileData
@@ -14900,7 +14899,7 @@ class FileAnalyzer(object):
                 val['fd'].close()
                 val['fd'] = None
 
-        if len(self.fileData) > 0:
+        if self.fileData:
             SysMgr.printGood(
                 'profiled a total of %d files' % self.profSuccessCnt)
         else:
@@ -19035,7 +19034,7 @@ class SysMgr(object):
         for ctype, tvalue in sorted(cmdList.items()):
             prefix = ctype
             for cmd, cvalue in sorted(tvalue.items()):
-                if len(prefix) > 0:
+                if prefix:
                     types = '[%s]' % prefix.upper()
                 else:
                     types = ' '
@@ -24053,7 +24052,7 @@ Copyright:
             pass
 
         try:
-            if len(perfbuf) > 0:
+            if perfbuf:
                 perfbuf = '[%s]' % perfbuf[:perfbuf.rfind(' /')]
         except SystemExit:
             sys.exit(0)
@@ -24390,9 +24389,9 @@ Copyright:
                     sfilter += " id == %s ||" % val
                 sfilter = "%s )" % sfilter[:sfilter.rfind(" ||")]
 
-            if len(sfilter) > 0 and len(pfilter) > 0:
+            if sfilter and pfilter:
                 scmd = "(%s && %s)" % (sfilter, pfilter)
-            elif len(sfilter) > 0:
+            elif sfilter:
                 scmd = sfilter
                 for item in defaultList:
                     try:
@@ -24400,7 +24399,7 @@ Copyright:
                             (scmd, ConfigMgr.sysList.index(item))
                     except:
                         continue
-            elif len(pfilter) > 0:
+            elif pfilter:
                 scmd = "(%s)" % pfilter
             else:
                 pass
@@ -24523,7 +24522,7 @@ Copyright:
             else:
                 effectiveCmd.append(cmdFormat[0])
 
-        if len(effectiveCmd) > 0:
+        if effectiveCmd:
             SysMgr.printInfo(
                 "enabled custom events [ %s ]" % ', '.join(effectiveCmd))
 
@@ -26319,7 +26318,7 @@ Copyright:
                     SysMgr.customEventList.append(tempItem[0])
                 else:
                     filterList.pop(idx)
-            if len(filterList) > 0:
+            if filterList:
                 SysMgr.printInfo(
                     "profiled custom events [ %s ]" % ', '.join(filterList))
                 if not SysMgr.customCmd:
@@ -30077,7 +30076,7 @@ Copyright:
                         netList = '%s%s/%s,' % (netList, addr, '/'.join(stat))
                     else:
                         netList = '%s%s,' % (netList, addr)
-                if len(netList) > 0:
+                if netList:
                     network = '(%s)' % netList[:-1]
                 else:
                     network = ''
@@ -33047,7 +33046,7 @@ Copyright:
             SysMgr.printPipe('%s\n' % oneLine)
 
         # print filtered list #
-        if len(filteredList) > 0:
+        if filteredList:
             SysMgr.printPipe(
                 '[Systemd Exceptional Service] (NrItems: %s)\n%s' % \
                     (cv(len(filteredList)), twoLine))
@@ -36860,7 +36859,7 @@ Copyright:
                 sys.exit(0)
 
         # wait for childs #
-        if len(pidList) > 0:
+        if pidList:
             while 1:
                 try:
                     _printUsage(obj, pid, size, alloc=False)
@@ -40488,8 +40487,7 @@ Copyright:
 
     def saveUserInfo(self):
         # check user data #
-        if len(self.userData) > 0 or \
-            SysMgr.isAndroid:
+        if self.userData or SysMgr.isAndroid:
             return
 
         try:
@@ -40818,7 +40816,7 @@ Copyright:
                 for idx in range(0, depth):
                     indent = '%s%s|' % (indent, '     ')
 
-                if len(cstr) > 0:
+                if cstr:
                     cstr = ' <%s>' % cstr[:-2]
 
                 # define worker info #
@@ -40837,7 +40835,7 @@ Copyright:
                     curdir = UtilMgr.convColor(curdir, 'GREEN')
 
                 # parent node #
-                if len(tempSubdir) > 0:
+                if tempSubdir:
                     nrChild = '[sub:%s]' % len(tempSubdir)
 
                     if curdir == 'PROCS':
@@ -41491,7 +41489,7 @@ Copyright:
                 title = diskInfo
                 splitLen = SysMgr.lineLength - len(diskInfo) - 1
 
-                if len(val['option']) > 0:
+                if val['option']:
                     mountList = '%s <%s>' % (val['path'], val['option'])
                 else:
                     mountList = val['path']
@@ -52929,7 +52927,7 @@ struct cmsghdr {
 
             # marshaling args #
             for idx, arg in enumerate(self.args):
-                if len(args) > 0:
+                if args:
                     jsonData['args'][arg[1]] = args[idx]
                 else:
                     jsonData['args'][arg[1]] = arg[2]
@@ -55528,7 +55526,7 @@ class EventAnalyzer(object):
     def printEventInfo():
         eventData = EventAnalyzer.eventData
 
-        if len(eventData) > 0:
+        if eventData:
             SysMgr.printPipe(
                 "\n[%s] [ Total: %d ]" % ('Event Info', len(eventData)))
             SysMgr.printPipe(twoLine)
@@ -57960,7 +57958,7 @@ class ElfAnalyzer(object):
             # handle error #
             if not line:
                 err = proc.stderr.read()
-                if len(err) > 0:
+                if err:
                     try:
                         proc.terminate()
                     except:
@@ -62443,7 +62441,7 @@ class TaskAnalyzer(object):
                 '''
 
             # warn uncompleted block request #
-            if len(self.ioData) > 0:
+            if self.ioData:
                 SysMgr.printWarn(
                     "fail to handle %s block requests" % \
                         UtilMgr.convNum(len(self.ioData)))
@@ -64479,7 +64477,7 @@ class TaskAnalyzer(object):
                             pass
 
                         # set color #
-                        if len(prefix) > 0:
+                        if prefix:
                             gcolor = None
                         else:
                             gcolor = 'olive'
@@ -64525,7 +64523,7 @@ class TaskAnalyzer(object):
                                 ymax = blkWait[idx]
 
                         # set color #
-                        if len(prefix) > 0:
+                        if prefix:
                             icolor = None
                         else:
                             icolor = 'pink'
@@ -64563,7 +64561,7 @@ class TaskAnalyzer(object):
                             break
 
                     # set color #
-                    if len(prefix) > 0:
+                    if prefix:
                         ccolor = None
                     else:
                         ccolor = 'red'
@@ -64831,7 +64829,7 @@ class TaskAnalyzer(object):
                     (prefix, convSize2Unit(usage[-1] << 10))
 
                 # set color #
-                if len(prefix) > 0:
+                if prefix:
                     rcolor = None
                 else:
                     rcolor = color
@@ -65312,7 +65310,7 @@ class TaskAnalyzer(object):
                 lastval = '%s%s' % (prefix, lastsize)
 
                 # set color #
-                if len(prefix) > 0:
+                if prefix:
                     fcolor = None
                 else:
                     fcolor = color
@@ -66630,7 +66628,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # print workqueue information #
-        if len(self.wqData) > 0:
+        if self.wqData:
             totalCnt = long(0)
             totalUsage = float(0)
 
@@ -66704,7 +66702,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # print interrupt information #
-        if len(self.irqData) > 0:
+        if self.irqData:
             totalCnt = long(0)
             totalUsage = float(0)
 
@@ -66774,7 +66772,7 @@ class TaskAnalyzer(object):
                 self.kernelInfo[key] = value['kernelEvent']
 
         # print custom event info #
-        if len(self.customEventInfo) > 0:
+        if self.customEventInfo:
             SysMgr.clearPrint()
             SysMgr.printPipe('\n[Thread CUSTOM Event Info]')
             SysMgr.printPipe(twoLine)
@@ -66846,7 +66844,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # print user event info #
-        if len(self.userEventInfo) > 0:
+        if self.userEventInfo:
             SysMgr.clearPrint()
             SysMgr.printPipe('\n[Thread User Event Info]')
             SysMgr.printPipe(twoLine)
@@ -66937,7 +66935,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe(oneLine)
 
         # print kernel event info #
-        if len(self.kernelEventInfo) > 0:
+        if self.kernelEventInfo:
             SysMgr.clearPrint()
             SysMgr.printPipe('\n[Thread Kernel Event Info]')
             SysMgr.printPipe(twoLine)
@@ -68263,7 +68261,7 @@ class TaskAnalyzer(object):
                 continue
 
             try:
-                if len(value['syscallInfo']) > 0:
+                if value['syscallInfo']:
                     threadInfo = "%16s(%7s)" % (value['comm'], key)
                 else:
                     continue
@@ -68678,11 +68676,11 @@ class TaskAnalyzer(object):
         totalStr = '{0:^25}'.format('TOTAL')
 
         # total read #
-        if len(self.blockTable[0]) > 0:
+        if self.blockTable[0]:
             tcnt = _printBlkUsage(totalStr, self.blockTable[0], 'READ', tcnt)
 
         # total write #
-        if len(self.blockTable[1]) > 0:
+        if self.blockTable[1]:
             tcnt = _printBlkUsage(totalStr, self.blockTable[1], 'WRITE', tcnt)
 
         if tcnt > 0:
@@ -68699,11 +68697,11 @@ class TaskAnalyzer(object):
             cid = '%s(%s)' % (comm, tid)
 
             # thread read #
-            if len(data[0]) > 0:
+            if data[0]:
                 tcnt = _printBlkUsage(cid, data[0], 'READ', tcnt)
 
             # thread write #
-            if len(data[1]) > 0:
+            if data[1]:
                 tcnt = _printBlkUsage(cid, data[1], 'WRITE', tcnt)
 
             if tcnt > 0:
@@ -72988,13 +72986,12 @@ class TaskAnalyzer(object):
 
             # save block time with lock by futex #
             try:
-                if len(self.threadData[prev_id]['futexObj']) > 0:
+                if self.threadData[prev_id]['futexObj']:
                     self.threadData[prev_id]['ftxLBlock'] = ftime
                     self.threadData[prev_id]['ftxLSwitch'] += 1
 
                     # remove previous BLOCK enter event #
-                    if len(self.futexData) > 0 and \
-                        self.futexData[-1][1] == time:
+                    if self.futexData and self.futexData[-1][1] == time:
                         del self.futexData[-1]
 
                     opt = '{0:^24}'.format('LOCK_BLOCK')
@@ -75253,11 +75250,11 @@ class TaskAnalyzer(object):
                     if path.startswith('socket'):
                         obj = path.split('[')[1][:-1]
                         addr = SysMgr.getSocketAddrList([obj])
-                        if len(addr) > 0:
+                        if addr:
                             path = '%s (%s)' % (path, addr[0])
                             raise Exception('skip UDS socket')
                         uds = SysMgr.getSocketPathList([obj])
-                        if len(uds) > 0:
+                        if uds:
                             path = '%s (%s)' % (path, uds[0])
                 except SystemExit:
                     sys.exit(0)
@@ -76475,7 +76472,7 @@ class TaskAnalyzer(object):
                 continue
             cstr = '%s%s:%s, ' % (cstr, clist[1], clist[2])
 
-        if len(cstr) > 0:
+        if cstr:
             self.procData[tid]['cgroup'] = cstr[:-2]
 
 
@@ -76530,7 +76527,7 @@ class TaskAnalyzer(object):
     def saveProcData(self, path, tid, pid=None):
         def _getStatBuf(self, path, tid):
             self.procData[tid]['statFd'] = open(path, 'rb')
-            statBuf = self.procData[tid]['statFd'].read().decode()
+            statBuf = self.procData[tid]['statFd'].read()
 
             if tid in self.prevProcData:
                 self.prevProcData[tid]['alive'] = True
@@ -76565,7 +76562,7 @@ class TaskAnalyzer(object):
                 self.prevProcData[tid]['statFd']:
                 self.prevProcData[tid]['statFd'].seek(0)
                 self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-                statBuf = self.procData[tid]['statFd'].read().decode()
+                statBuf = self.procData[tid]['statFd'].read()
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = _getStatBuf(self, statPath, tid)
@@ -76587,7 +76584,7 @@ class TaskAnalyzer(object):
             self.procData[tid]['changed'] = False
         else:
             # convert string to list #
-            statList = statBuf.split()
+            statList = statBuf.decode().split()
 
             # merge comm parts that splited by space #
             statList = SysMgr.mergeCommStat(statList, self.commIdx)
@@ -76742,7 +76739,7 @@ class TaskAnalyzer(object):
 
     def updateOOMScore(self, path, tid):
         # check main thread to remove redundant operation #
-        if SysMgr.checkMode('ttop'):
+        if not SysMgr.processEnable:
             mainID = self.procData[tid]['mainID']
             if mainID in self.procData:
                 if 'oomScore' in self.procData[mainID]:
@@ -77468,7 +77465,7 @@ class TaskAnalyzer(object):
             percoreStats = {}
             lenCoreStat = 0
 
-            if len(self.cpuData) > 0:
+            if self.cpuData:
                 SysMgr.addPrint('%s\n' % oneLine)
 
             freqPath = '/sys/devices/system/cpu/cpu'
@@ -78620,18 +78617,20 @@ class TaskAnalyzer(object):
             return
 
         perfString = SysMgr.getPerfString(SysMgr.perfEventData)
-        if len(perfString) > 0:
-            SysMgr.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
+        if not perfString:
+            return
 
-            # add JSON stats #
-            if SysMgr.jsonEnable:
-                SysMgr.jsonData.setdefault('PMU', dict())
-                jsonData = SysMgr.jsonData['PMU']
+        SysMgr.addPrint("%s %s\n" % (' ' * nrIndent, perfString))
 
-                plist = perfString[1:-1].split(' / ')
-                for stat in plist:
-                    metric, value = stat.split(':')
-                    jsonData['PMU'][metric] = value.strip()
+        # add JSON stats #
+        if SysMgr.jsonEnable:
+            SysMgr.jsonData.setdefault('PMU', dict())
+            jsonData = SysMgr.jsonData['PMU']
+
+            plist = perfString[1:-1].split(' / ')
+            for stat in plist:
+                metric, value = stat.split(':')
+                jsonData['PMU'][metric] = value.strip()
 
 
 
@@ -78903,7 +78902,7 @@ class TaskAnalyzer(object):
             option = value['mount']['option']
 
             # make disk stat string #
-            if len(option) > 0:
+            if option:
                 mountInfo = '%s <%s>' % (path, option)
             else:
                 mountInfo = path
@@ -78930,7 +78929,11 @@ class TaskAnalyzer(object):
         checkCond = True
 
         # memory #
-        if SysMgr.sort == 'm':
+        if not SysMgr.sort:
+            # set CPU usage as default #
+            sortedProcData = sorted(self.procData.items(),
+                key=lambda e: e[1]['ttime'], reverse=True)
+        elif SysMgr.sort == 'm':
             sortedProcData = sorted(self.procData.items(),
                 key=lambda e: long(e[1]['stat'][self.rssIdx]), reverse=True)
         # block #
@@ -79195,8 +79198,7 @@ class TaskAnalyzer(object):
                 target = 1
 
             # check sort condition #
-            if SysMgr.sortCond and \
-                target < SysMgr.sortCond:
+            if SysMgr.sortCond and target < SysMgr.sortCond:
                 return True
 
             # check filter #
@@ -79267,10 +79269,10 @@ class TaskAnalyzer(object):
             return exceptFlag
 
         def _getParentList():
-            plist = {}
             if not SysMgr.groupProcEnable:
-                return plist
+                return {}
 
+            plist = {}
             for idx, value in sortedProcData:
                 for item in SysMgr.filterGroup:
                     if not item in value['stat'][self.commIdx]:
@@ -79647,9 +79649,12 @@ class TaskAnalyzer(object):
 
             # user #
             try:
-                userData = SysMgr.sysInstance.userData
-                uid = value['status']['Uid'].split()[0]
-                value['user'] = userData[uid]['name']
+                if 'user' in self.prevProcData[idx]:
+                    value['user'] = self.prevProcData[idx]['user']
+                else:
+                    userData = SysMgr.sysInstance.userData
+                    uid = value['status']['Uid'].split()[0]
+                    value['user'] = userData[uid]['name']
             except SystemExit:
                 sys.exit(0)
             except:
@@ -79731,6 +79736,8 @@ class TaskAnalyzer(object):
                 writeSize = value['write'] >> 20
                 if writeSize > 0:
                     writeSize = convColor('%4s' % writeSize, 'RED')
+            except SystemExit:
+                sys.exit(0)
             except:
                 readSize = '-'
                 writeSize = '-'
@@ -79757,8 +79764,8 @@ class TaskAnalyzer(object):
                 etc = '-'
 
             try:
-                sched = \
-                    SCHED_POLICY[int(stat[self.policyIdx])] + str(schedValue)
+                sched = '%s%s' % \
+                    (SCHED_POLICY[int(stat[self.policyIdx])], schedValue)
             except:
                 sched = '?'
 
@@ -79800,9 +79807,7 @@ class TaskAnalyzer(object):
                 btime = value['btime']
 
             # convert color for CPU usage #
-            if value['ttime'] < SysMgr.cpuPerLowThreshold:
-                pass
-            else:
+            if value['ttime'] >= SysMgr.cpuPerLowThreshold:
                 if value['ttime'] >= SysMgr.cpuPerHighThreshold:
                     ttime = convColor(ttime, 'RED', 4)
                 else:
@@ -79904,7 +79909,7 @@ class TaskAnalyzer(object):
                     perfData = \
                         SysMgr.collectProcPerfData(value['perfFds'])
                     perfString = SysMgr.getPerfString(perfData)
-                    if len(perfString) > 0:
+                    if perfString:
                         ret = SysMgr.addPrint(
                             "{0:>40}| {1:1}\n".format('PERF', perfString))
                         if not ret:
@@ -79984,8 +79989,7 @@ class TaskAnalyzer(object):
                                 'MEM(SUM)', memstr[:-2]))
 
             # print cmdline #
-            if SysMgr.cmdlineEnable and \
-                len(value['cmdline']) > 0:
+            if SysMgr.cmdlineEnable and value['cmdline']:
                 SysMgr.addPrint(
                     "{0:>39} | {1:1}\n".format('CMDLINE', value['cmdline']))
 
@@ -80026,8 +80030,7 @@ class TaskAnalyzer(object):
                 pass
 
             # print D-Bus #
-            if 'dbusList' in value and \
-                len(value['dbusList']) > 0:
+            if 'dbusList' in value and value['dbusList']:
                 for line in value['dbusList']:
                     SysMgr.addPrint(
                         "{0:>39} | {1:1}\n".format('D-BUS', line))
