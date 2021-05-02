@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210501"
+__revision__ = "210502"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -16994,18 +16994,31 @@ class SysMgr(object):
         SysMgr.printStat('start reading %s%s...' % (inputParam, fsize))
 
         # convert binary file to string #
-        clist = UtilMgr.convBin2Str(inputParam, pos=True)
+        clist = UtilMgr.convBin2Str(inputParam, pos=SysMgr.showAll)
         if not clist:
             SysMgr.printErr("no available string")
             return
 
-        lastPos = sorted(clist.values())[-1]
-        maxDigit = len(hex(lastPos))
+        # print position #
+        if SysMgr.showAll:
+            lastPos = sorted(clist.values())[-1]
+            maxDigit = len(hex(lastPos))
 
-        # print strings #
-        for string, pos in sorted(clist.items(), key=lambda e:e[1]):
-            SysMgr.printPipe(
-                '{0:>{digit}} {1}'.format(hex(pos), string, digit=maxDigit))
+            # print strings #
+            for string, pos in sorted(clist.items(), key=lambda e:e[1]):
+                if not UtilMgr.isValidStr(string, inc=True, ignCap=True):
+                    continue
+                SysMgr.printPipe(
+                    '{0:>{digit}} {1}'.format(
+                        hex(pos), string, digit=maxDigit))
+        else:
+            if SysMgr.filterGroup:
+                for string in clist:
+                    if not UtilMgr.isValidStr(string, inc=True, ignCap=True):
+                        continue
+                    SysMgr.printPipe(string)
+            else:
+                SysMgr.printPipe('\n'.join(clist))
 
 
 
@@ -20766,6 +20779,8 @@ Description:
                     helpStr += '''
 Options:
     -I  <FILE>                  set file path
+    -a                          show position info
+    -g  <WORD>                  set filter
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -v                          verbose
@@ -20773,8 +20788,14 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Print the sequences of printable characters in files
+    - Print printable characters in a specific file
         # {0:1} {1:1} -I a.out
+
+    - Print the sequences of printable characters in a specific file
+        # {0:1} {1:1} -I a.out -a
+
+    - Print specific printable characters in a specific file
+        # {0:1} {1:1} -I a.out -g PEACE
                     '''.format(cmd, mode)
 
                 # dump #
@@ -62101,6 +62122,7 @@ class TaskAnalyzer(object):
             self.cutimeIdx = ConfigMgr.STAT_ATTR.index("CUTIME")
             self.cstimeIdx = ConfigMgr.STAT_ATTR.index("CSTIME")
             self.btimeIdx = ConfigMgr.STAT_ATTR.index("DELAYBLKTICK")
+            self.swapIdx = ConfigMgr.STAT_ATTR.index("NSWAP")
             self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
             self.ppidIdx = ConfigMgr.STAT_ATTR.index("PPID")
             self.nrthreadIdx = ConfigMgr.STAT_ATTR.index("NRTHREAD")
@@ -76425,7 +76447,7 @@ class TaskAnalyzer(object):
 
 
 
-    def saveTaskData(self, path, tid, name):
+    def saveTaskData(self, path, tid, name, decode=True):
         buf = []
 
         try:
@@ -76452,7 +76474,7 @@ class TaskAnalyzer(object):
                 SysMgr.printOpenWarn(newPath)
 
         # decode data #
-        if sys.version_info >= (3, 0):
+        if decode and sys.version_info >= (3, 0):
             buf = list(map(lambda x: x.decode(), buf))
 
         return buf
@@ -76482,45 +76504,53 @@ class TaskAnalyzer(object):
             return
 
         stat = 'status'
-        statusBuf = self.saveTaskData(path, tid, stat)
-        if not self.procData[tid]['status']:
-            self.procData[tid]['status'] = {}
+        if not self.procData[tid][stat]:
+            statusBuf = self.saveTaskData(path, tid, stat, False)
+            if not self.procData[tid]['status']:
+                self.procData[tid]['status'] = {}
 
-        # check status change #
-        self.procData[tid]['statusOrig'] = statusBuf
-        if tid in self.prevProcData and \
-            'statusOrig' in self.prevProcData[tid] and \
-            self.prevProcData[tid]['statusOrig'] == statusBuf:
-            self.procData[tid]['status'] = self.prevProcData[tid]['status']
-            del self.prevProcData[tid]['statusOrig']
-        else:
-            for line in statusBuf:
-                try:
-                    statusList = line.split(':')
-                    self.procData[tid]['status'][statusList[0]] = \
-                        statusList[1].strip()
-                except:
-                    pass
+            # check status change #
+            self.procData[tid]['statusOrig'] = statusBuf
+            if tid in self.prevProcData and \
+                'statusOrig' in self.prevProcData[tid] and \
+                self.prevProcData[tid]['statusOrig'] == statusBuf:
+                self.procData[tid]['status'] = \
+                    self.prevProcData[tid]['status']
+            else:
+                # decode items #
+                if sys.version_info >= (3, 0):
+                    statusBuf = list(map(lambda x: x.decode(), statusBuf))
+
+                for line in statusBuf:
+                    try:
+                        statusList = line.split(':', 1)
+                        self.procData[tid]['status'][statusList[0]] = \
+                            statusList[1].strip()
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
         stat = 'statm'
-        mainID = self.procData[tid]['mainID']
+        if not self.procData[tid][stat]:
+            mainID = self.procData[tid]['mainID']
 
-        # kernel thread #
-        if self.isKernelThread(tid):
-            pass
-        # sibling thread #
-        elif mainID in self.procData and \
-            stat in self.procData[mainID] and  \
-            self.procData[mainID][stat]:
-            self.procData[tid][stat] = \
-                self.procData[mainID][stat]
-        # main thread #
-        else:
-            statmBuf = self.saveTaskData(path, tid, stat)
-            if statmBuf:
-                self.procData[tid][stat] = statmBuf[0].split()
-                if mainID in self.procData:
-                    self.procData[mainID][stat] = self.procData[tid][stat]
+            # kernel thread #
+            if self.isKernelThread(tid):
+                pass
+            # sibling thread #
+            elif mainID in self.procData and \
+                stat in self.procData[mainID] and  \
+                self.procData[mainID][stat]:
+                self.procData[tid][stat] = \
+                    self.procData[mainID][stat]
+            # main thread #
+            else:
+                statmBuf = self.saveTaskData(path, tid, stat)
+                if statmBuf:
+                    self.procData[tid][stat] = statmBuf[0].split()
+                    if mainID in self.procData:
+                        self.procData[mainID][stat] = self.procData[tid][stat]
 
 
 
