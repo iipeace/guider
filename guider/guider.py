@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210502"
+__revision__ = "210503"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15607,6 +15607,7 @@ class SysMgr(object):
     isLinux = True
     isAndroid = False
     drawMode = False
+    forceColorEnable = False
     archOption = None
 
     # page size #
@@ -18932,6 +18933,9 @@ class SysMgr(object):
             except:
                 pass
 
+            # set force color flag #
+            SysMgr.forceColorEnable = SysMgr.isTraceMode()
+
             # android #
             if 'ANDROID_ROOT' in os.environ:
                 SysMgr.isAndroid = True
@@ -18986,6 +18990,8 @@ class SysMgr(object):
                     lang = os.getenv('LANG')
                     if not lang or not 'UTF' in lang:
                         SysMgr.encodeEnable = False
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -27027,15 +27033,16 @@ Copyright:
                 # no limit #
                 if cols == 0 or SysMgr.jsonEnable:
                     line = '\n'.join([nline for nline in line.split('\n')])
-                # rstrip for colorful lines #
-                elif SysMgr.colorEnable and ConfigMgr.ENDC in line:
+                # trim a colorful line by terminal width #
+                elif not SysMgr.forceColorEnable and \
+                    SysMgr.colorEnable and ConfigMgr.ENDC in line:
                     ansi = r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]'
                     ansiObj = re.compile(ansi)
                     line = '\n'.join(
                         [ansiObj.sub('', n)[:cols] \
                             if len(ansiObj.sub('', n)) > cols else n \
                             for n in line.split('\n')])
-                # rstrip for normal lines #
+                # trim a normal line by terminal width #
                 else:
                     line = '\n'.join(
                         [nline[:cols-1] for nline in line.split('\n')])
@@ -27152,6 +27159,8 @@ Copyright:
 
         try:
             line = line.rstrip('\n')
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -42206,7 +42215,7 @@ class DbusMgr(object):
     def getStats(bus, request, des=None, tid=None, procStr=None):
         def _printWarn(procStr, line, err):
             SysMgr.printWarn((
-                'fail to parse from D-Bus message for %s at %s line '
+                'fail to parse D-Bus message for %s at %s line '
                 'because %s') % \
                     (procStr, line, err), True)
 
@@ -42526,18 +42535,14 @@ class DbusMgr(object):
                     # get signal info #
                     dbusObj.dbus_message_iter_get_basic(
                         arraySigIterP, byref(sigInfo))
-                    if not sigInfo.value:
-                        _printWarn(procStr, getLine(), getErr())
-                        dbusObj.dbus_message_unref(msg)
-                        dbusObj.dbus_message_unref(reply)
-                        #dbusObj.dbus_connection_unref(conn)
-                        return
+
+                    sinfo = {}
 
                     # parse items #
-                    sinfo = {}
-                    for item in sigInfo.value.decode().split(','):
-                        slist = item.strip('"').split('=')
-                        sinfo[slist[0]] = slist[1].strip("'")
+                    if sigInfo.value:
+                        for item in sigInfo.value.decode().split(','):
+                            slist = item.strip('"').split('=')
+                            sinfo[slist[0]] = slist[1].strip("'")
 
                     # save items to list #
                     if 'interface' in sinfo:
@@ -42559,8 +42564,10 @@ class DbusMgr(object):
                         procSigList.setdefault(sender, dict())
                         procSigList[sender].setdefault(addr, dict())
                         if 'arg0' in sinfo:
-                            argList = [ '%s' % sinfo[i] for i in sorted(list(sinfo.keys())) if i.startswith('arg') ]
-                            procSigList[sender][addr].setdefault(', '.join(argList))
+                            argList = [ '%s' % sinfo[i] for i in sorted(
+                                list(sinfo.keys())) if i.startswith('arg') ]
+                            procSigList[sender][addr].setdefault(
+                                ', '.join(argList))
 
                         # save perSignal items #
                         perSigList.setdefault(sender, dict())
@@ -43241,6 +43248,7 @@ class DbusMgr(object):
                         os.kill(SysMgr.pid, signal.SIGINT)
                         sys.exit(0)
 
+            # check repeat count #
             if SysMgr.checkMode('printdbus'):
                 _checkRepeatCnt()
                 return
@@ -43251,7 +43259,7 @@ class DbusMgr(object):
             # check user input #
             SysMgr.waitUserInput(0.000001)
 
-            # get summary list #
+            # acquire lock for shared stats #
             if lock:
                 lock.acquire()
 
@@ -43266,6 +43274,7 @@ class DbusMgr(object):
             TaskAnalyzer.dbusData = \
                 {'totalCnt': long(0), 'totalErr': long(0)}
 
+            # release lock for shared stats #
             if lock and lock.locked():
                 try:
                     lock.release()
@@ -43408,7 +43417,7 @@ class DbusMgr(object):
                 cnt = long(0)
                 gdmsg = long(0)
 
-                libgioObj = SysMgr.libgioObj
+                gioObj = SysMgr.libgioObj
                 libgObj = SysMgr.libgObj
                 G_IO_ERROR_TYPE = DbusMgr.G_IO_ERROR_TYPE
 
@@ -43506,7 +43515,7 @@ class DbusMgr(object):
                     errp = POINTER(DbusMgr.errObj)()
 
                     # check message size in header #
-                    hsize = libgioObj.g_dbus_message_bytes_needed(
+                    hsize = gioObj.g_dbus_message_bytes_needed(
                         buf, c_ulong(len(call)), byref(errp))
                     if direction == 'OUT' and errp:
                         SysMgr.printWarn((
@@ -43515,7 +43524,7 @@ class DbusMgr(object):
                                 ([call], jsonData['comm'], jsonData['tid'],
                                 G_IO_ERROR_TYPE[errp.contents.code],
                                 errp.contents.message))
-                        libgioObj.g_error_free(byref(errp.contents))
+                        gioObj.g_error_free(byref(errp.contents))
                         TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
                     elif direction == 'OUT' and hsize > len(call):
@@ -43529,7 +43538,7 @@ class DbusMgr(object):
                             DbusMgr.prevData[tid][ctype] = ''
 
                     # create GDBusMessage from bytes #
-                    gdmsg = libgioObj.g_dbus_message_new_from_blob(
+                    gdmsg = gioObj.g_dbus_message_new_from_blob(
                         buf, c_ulong(len(call)), 0, byref(errp))
 
                     # check error #
@@ -43540,7 +43549,7 @@ class DbusMgr(object):
                                 ([call], jsonData['comm'], jsonData['tid'],
                                 G_IO_ERROR_TYPE[errp.contents.code],
                                 errp.contents.message))
-                        libgioObj.g_error_free(byref(errp.contents))
+                        gioObj.g_error_free(byref(errp.contents))
                         TaskAnalyzer.dbusData['totalErr'] += 1
                         continue
 
@@ -43549,7 +43558,7 @@ class DbusMgr(object):
 
                     # get sender #
                     srcInfo = '??'
-                    src = libgioObj.g_dbus_message_get_sender(addr)
+                    src = gioObj.g_dbus_message_get_sender(addr)
                     if src:
                         if type(src) is bytes:
                             src = src.decode()
@@ -43560,13 +43569,13 @@ class DbusMgr(object):
                                 srcInfo = service[src]
                             else:
                                 service[src] = src
-                                ret = _updateServiceProc(bus, tid, None, service)
+                                ret = _updateServiceProc(bus, tid, service)
                                 if src in service:
                                     srcInfo = service[src]
 
                     # get receiver #
                     desInfo = '??'
-                    des = libgioObj.g_dbus_message_get_destination(addr)
+                    des = gioObj.g_dbus_message_get_destination(addr)
                     if des:
                         if type(des) is bytes:
                             des = des.decode()
@@ -43577,13 +43586,13 @@ class DbusMgr(object):
                                 desInfo = service[des]
                             else:
                                 service[des] = des
-                                ret = _updateServiceProc(bus, tid, None, service)
+                                ret = _updateServiceProc(bus, tid, service)
                                 if des in service:
                                     desInfo = service[des]
 
                     # get message type #
                     try:
-                        nrType = libgioObj.g_dbus_message_get_message_type(addr)
+                        nrType = gioObj.g_dbus_message_get_message_type(addr)
                         mtype = DbusMgr.GDBusMessageType[nrType]
                     except SystemExit:
                         sys.exit(0)
@@ -43597,7 +43606,7 @@ class DbusMgr(object):
                     if mtype == 'RETURN':
                         # get reply-serial #
                         repSerial = \
-                            libgioObj.g_dbus_message_get_reply_serial(
+                            gioObj.g_dbus_message_get_reply_serial(
                                 c_ulong(gdmsg))
                         if repSerial in msgTable:
                             effectiveReply = True
@@ -43614,22 +43623,21 @@ class DbusMgr(object):
 
                         if isTopMode or SysMgr.showAll:
                             addInfo = "\n%s%s" % \
-                                (libgioObj.g_dbus_message_print(
+                                (gioObj.g_dbus_message_print(
                                     c_ulong(gdmsg), c_ulong(0)).decode(),
                                     backtrace)
                         else:
                             '''
-                            path = libgioObj.g_dbus_message_get_path(addr)
+                            path = gioObj.g_dbus_message_get_path(addr)
                             if not path:
                                 path = b''
                             '''
 
-                            iface = \
-                                libgioObj.g_dbus_message_get_interface(addr)
+                            iface = gioObj.g_dbus_message_get_interface(addr)
                             if not iface:
                                 iface = b''
 
-                            member = libgioObj.g_dbus_message_get_member(addr)
+                            member = gioObj.g_dbus_message_get_member(addr)
                             if not member:
                                 member = b''
 
@@ -43638,7 +43646,7 @@ class DbusMgr(object):
                             addInfo = UtilMgr.convColor(addInfo, 'GREEN')
 
                         # get serial number #
-                        serial = libgioObj.g_dbus_message_get_serial(addr)
+                        serial = gioObj.g_dbus_message_get_serial(addr)
                         if not serial:
                             serial = b''
 
@@ -43691,15 +43699,15 @@ class DbusMgr(object):
                         continue
 
                     # get properties from message #
-                    #path = libgioObj.g_dbus_message_get_path(addr)
-                    interface = libgioObj.g_dbus_message_get_interface(addr)
-                    member = libgioObj.g_dbus_message_get_member(addr)
-                    arg0 = libgioObj.g_dbus_message_get_arg0(addr)
-                    serial = libgioObj.g_dbus_message_get_serial(addr)
+                    #path = gioObj.g_dbus_message_get_path(addr)
+                    interface = gioObj.g_dbus_message_get_interface(addr)
+                    member = gioObj.g_dbus_message_get_member(addr)
+                    arg0 = gioObj.g_dbus_message_get_arg0(addr)
+                    serial = gioObj.g_dbus_message_get_serial(addr)
 
                     # handle error message #
                     if mtype == 'ERROR' or mtype == 'INVALID':
-                        ename = libgioObj.g_dbus_message_get_error_name(addr)
+                        ename = gioObj.g_dbus_message_get_error_name(addr)
                         if not ename:
                             continue
 
@@ -43841,7 +43849,7 @@ class DbusMgr(object):
 
                 return
 
-        def _updateServiceProc(bus, tid, addr, serviceList):
+        def _updateServiceProc(bus, tid, serviceList, addr=None):
             '''
             some case, hang up for remote call with below error message.
             so disable this feature.
@@ -48208,8 +48216,9 @@ struct cmsghdr {
                 else:
                     reason = ''
 
-                SysMgr.printWarn('fail to attach %s(%s) to guider(%s)%s' % \
-                    (self.comm, pid, SysMgr.pid, reason), verb)
+                SysMgr.printWarn(
+                    'fail to attach %s(%s) to guider(%s)%s' % \
+                        (self.comm, pid, SysMgr.pid, reason), verb)
 
                 # check return #
                 if exit:
@@ -52165,6 +52174,24 @@ struct cmsghdr {
 
 
 
+    def handleExit(self):
+        # read return code #
+        ret = self.getEventMsg()
+
+        # get task info #
+        tinfo = '%s(%s)' % (self.comm, self.pid)
+
+        # get diff time #
+        self.vdiff = self.current - self.dstart
+        diffstr = '%3.6f' % self.vdiff
+
+        exitStr = UtilMgr.convColor(
+            '+++ exited %s with %s +++' % (tinfo, ret), 'RED')
+
+        SysMgr.printPipe('\n%s %s' % (diffstr, exitStr))
+
+
+
     def handleSignal(self, sig):
         if not SysMgr.printEnable:
             return
@@ -52536,6 +52563,8 @@ struct cmsghdr {
         # get diff time #
         diffstr = '%3.6f' % self.vdiff
 
+        convColor = UtilMgr.convColor
+
         # build backtrace #
         if isRet:
             btstr = ''
@@ -52543,7 +52572,7 @@ struct cmsghdr {
             etime = self.vdiff - entry
             elapsed = '/%.6f' % etime
             if etime >= Debugger.pyElapsed:
-                elapsed = UtilMgr.convColor(elapsed, 'CYAN')
+                elapsed = convColor(elapsed, 'CYAN')
 
             if self.prevPySym in self.prevPyIndent:
                 indent = self.prevPyIndent[self.prevPySym].pop()
@@ -52588,7 +52617,8 @@ struct cmsghdr {
 
             # build current symbol string #
             callString = '\n%s %s%s%s%s [%s:%s]' % \
-                (diffstr, tinfo, indent, call, elapsed, fname, line)
+                (diffstr, tinfo, indent, convColor(call, 'GREEN'),
+                    elapsed, fname, line)
 
         # add backtrace #
         if btstr:
@@ -53618,7 +53648,7 @@ struct cmsghdr {
                     "fail to notify initialization to %s(%s)" % \
                         (self.comm, origPid), reason=True)
         else:
-            return
+            return self.pid
 
         # set trace event #
         self.ptraceEvent(self.traceEventList)
@@ -53685,14 +53715,23 @@ struct cmsghdr {
 
 
     def initValues(self):
-        # default info #
-        self.traceEventList = [
-            'PTRACE_O_TRACEEXEC',
-            'PTRACE_O_TRACESYSGOOD',
-            'PTRACE_O_TRACECLONE',
-            'PTRACE_O_TRACEFORK',
-            'PTRACE_O_TRACEVFORK',
-        ]
+        # trace flags with root permission #
+        if SysMgr.isRoot():
+            self.traceEventList = [
+                'PTRACE_O_TRACEEXEC',
+                'PTRACE_O_TRACESYSGOOD',
+                'PTRACE_O_TRACECLONE',
+                'PTRACE_O_TRACEFORK',
+                'PTRACE_O_TRACEVFORK',
+                'PTRACE_O_TRACEEXIT',
+            ]
+        # trace flags without root permission #
+        else:
+            self.traceEventList = [
+                'PTRACE_O_TRACEEXEC',
+                'PTRACE_O_TRACESYSGOOD',
+                'PTRACE_O_TRACEEXIT',
+            ]
 
         # stat variables #
         self.pthreadid = 0
@@ -53784,6 +53823,8 @@ struct cmsghdr {
                 ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_FORK') << 8
             self.sigVforkFlag = signal.SIGTRAP | \
                 ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_VFORK') << 8
+            self.sigExitFlag = signal.SIGTRAP | \
+                ConfigMgr.PTRACE_EVENT_TYPE.index('PTRACE_EVENT_EXIT') << 8
 
         # make object for myself #
         if not Debugger.selfInstance or \
@@ -53968,6 +54009,7 @@ struct cmsghdr {
                 else:
                     forked = False
 
+                # handle a new task #
                 pid = self.handoverNewTarget(fork=forked)
                 if pid > 0:
                     continue
@@ -54078,8 +54120,14 @@ struct cmsghdr {
 
                 # trap #
                 if stat == signal.SIGTRAP:
+                    # handle exit event #
+                    if self.isExited(ostat):
+                        self.handleExit()
+                        self.cont()
+                        continue
+
                     # after execve() #
-                    if self.status == 'ready':
+                    elif self.status == 'ready':
                         # initialize variables #
                         self.initValues()
 
@@ -54178,9 +54226,6 @@ struct cmsghdr {
 
                 # exit #
                 elif stat == -1:
-                    if self.status == 'exit':
-                        SysMgr.printPipe(' ')
-
                     # print status #
                     SysMgr.printErr(
                         'terminated %s(%s)' % (self.comm, self.pid))
@@ -54198,6 +54243,7 @@ struct cmsghdr {
 
                     # deliver signal #
                     self.cont(sig=stat)
+
                 # other #
                 else:
                     SysMgr.printWarn(
@@ -54998,6 +55044,11 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         stat = status >> 8
         return (stat == self.sigForkFlag or \
             stat == self.sigVforkFlag)
+
+
+
+    def isExited(self, status):
+        return (status >> 8 == self.sigExitFlag)
 
 
 
