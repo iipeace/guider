@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210503"
+__revision__ = "210504"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4596,7 +4596,8 @@ class UtilMgr(object):
             string = '{0:<{size}}'.format(str(string), size=size)
 
         try:
-            return (ConfigMgr.COLOR_LIST[color] + string + ConfigMgr.ENDC)
+            return '%s%s%s' % \
+                (ConfigMgr.COLOR_LIST[color], string, ConfigMgr.ENDC)
         except SystemExit:
             sys.exit(0)
         except:
@@ -6700,22 +6701,31 @@ class NetworkMgr(object):
 
     @staticmethod
     def getUsingIps():
-        effectiveList = {}
         connPaths = \
             ['%s/net/udp' % SysMgr.procPath,
             '%s/net/tcp' % SysMgr.procPath]
 
+        effectiveList = {}
+        cacheList = {}
+
         for path in connPaths:
             try:
                 with open(path, 'r') as fd:
-                    ipList = fd.readlines()
+                    ipList = fd.read().split('\n')
 
                 # remove title #
                 ipList.pop(0)
 
                 for line in ipList:
-                    items = line.split()
-                    ip = SysMgr.convertCIDR(items[1].split(':')[0])
+                    if not line:
+                        continue
+                    items = line.split(None, 2)
+                    addr = items[1].split(':')[0]
+                    if addr in cacheList:
+                        continue
+
+                    cacheList[addr] = None
+                    ip = SysMgr.convertCIDR(addr)
                     effectiveList[ip] = None
             except SystemExit:
                 sys.exit(0)
@@ -6753,8 +6763,6 @@ class NetworkMgr(object):
 
     @staticmethod
     def getMainIp():
-        ipList = {}
-
         ipList = NetworkMgr.getUsingIps()
 
         # remove invaild ip #
@@ -15742,8 +15750,10 @@ class SysMgr(object):
     pyFuncFilter = []
     userCmd = []
     kernelCmd = []
-    udpListCache = []
-    tcpListCache = []
+    udpListCache = {}
+    tcpListCache = {}
+    udsListCache = {}
+    ipAddrCache = {}
     customEventList = []
     userEventList = []
     kernelEventList = []
@@ -16202,7 +16212,8 @@ class SysMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            pass
+            SysMgr.printWarn(
+                'fail to raise the number of maximum open file', reason=True)
 
         # try to get maxFd by native call #
         try:
@@ -18943,7 +18954,6 @@ class SysMgr(object):
                 SysMgr.libcppPath = 'libstdc++'
                 SysMgr.libdemanglePath = 'libgccdemangle'
                 SysMgr.cacheDirPath = '/data/log/guider'
-                SysMgr.colorEnable = False
         elif sys.platform.startswith('win') or \
             sys.platform.startswith('darwin'):
             SysMgr.isLinux = False
@@ -24715,37 +24725,68 @@ Copyright:
 
 
     @staticmethod
-    def getUdsList():
+    def getUdsList(addrList):
+        def _getStats(addrList):
+            retList = []
+            for item in addrList:
+                if item in SysMgr.udsListCache:
+                    retList.append(SysMgr.udsListCache[item])
+            return retList
+
+        if SysMgr.udsListCache:
+            return _getStats(addrList)
+
+        inodeIdx = ConfigMgr.UDS_ATTR.index('Inode')
+        pathIdx = ConfigMgr.UDS_ATTR.index('Path')
+
         udsBuf = []
         udsPath = '%s/net/unix' % SysMgr.procPath
 
+        # make dictionary #
         try:
             with open(udsPath, 'r') as fd:
-                udsBuf = fd.readlines()
+                udsBuf = fd.read().split('\n')
         except SystemExit:
             sys.exit(0)
         except:
             SysMgr.printOpenErr(udsPath)
             return udsBuf
 
-        UDS_ATTR = []
-        for line in udsBuf:
-            UDS_ATTR.append(line.split())
-
         # remove title #
-        UDS_ATTR.pop(0)
+        udsBuf.pop(0)
 
-        return UDS_ATTR
+        for line in udsBuf:
+            try:
+                if not line:
+                    continue
+
+                uds = line.split()
+                SysMgr.udsListCache[uds[inodeIdx]] = uds[pathIdx]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+        return _getStats(addrList)
 
 
 
     @staticmethod
-    def getUdpList():
+    def getUdpList(addrList):
+        def _getStats(addrList):
+            retList = []
+            for item in addrList:
+                if item in SysMgr.udpListCache:
+                    retList.append(SysMgr.udpListCache[item])
+            return retList
+
         if SysMgr.udpListCache:
-            return SysMgr.udpListCache
+            return _getStats(addrList)
+
+        inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
+        addrIdx = ConfigMgr.UDP_ATTR.index('local_address')
 
         udpBuf = []
-
         udpFileList = [
             '%s/net/udp' % SysMgr.procPath,
             '%s/net/udp6' % SysMgr.procPath,
@@ -24754,58 +24795,105 @@ Copyright:
         for udpPath in udpFileList:
             try:
                 with open(udpPath, 'r') as fd:
-                    udpBuf = fd.readlines()
+                    udpBuf = fd.read().split('\n')
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenErr(udpPath)
-                return udpBuf
-
-            udpList = []
-            for line in udpBuf:
-                udpList.append(line.split())
+                continue
 
             # remove title #
-            udpList.pop(0)
+            udpBuf.pop(0)
 
-            SysMgr.udpListCache += udpList
+            for line in udpBuf:
+                try:
+                    if not line:
+                        continue
 
-        return SysMgr.udpListCache
+                    udp = line.split()
+
+                    ip, port = udp[addrIdx].split(':')
+
+                    # convert ip address and port #
+                    ip = SysMgr.convertCIDR(ip)
+
+                    item = "UDP:%s:%s" % (ip, long(port, base=16))
+
+                    SysMgr.udpListCache[udp[inodeIdx]] = item
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "fail to parse UDP data '%s'" % line, reason=True)
+
+        return _getStats(addrList)
 
 
 
     @staticmethod
-    def getTcpList():
+    def getTcpList(addrList):
+        def _getStats(addrList):
+            retList = []
+            for item in addrList:
+                if item in SysMgr.tcpListCache:
+                    retList.append(SysMgr.tcpListCache[item])
+            return retList
+
         if SysMgr.tcpListCache:
-            return SysMgr.tcpListCache
+            return _getStats(addrList)
+
+        stIdx = ConfigMgr.UDP_ATTR.index('st')
+        inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
+        addrIdx = ConfigMgr.UDP_ATTR.index('local_address')
 
         tcpBuf = []
-
         tcpFileList = [
             '%s/net/tcp' % SysMgr.procPath,
             '%s/net/tcp6' % SysMgr.procPath,
         ]
 
+        # make dictionary #
         for tcpPath in tcpFileList:
             try:
                 with open(tcpPath, 'r') as fd:
-                    tcpBuf = fd.readlines()
+                    tcpBuf = fd.read().split('\n')
             except SystemExit:
                 sys.exit(0)
             except:
                 SysMgr.printOpenErr(tcpPath)
-                return tcpBuf
-
-            tcpList = []
-            for line in tcpBuf:
-                tcpList.append(line.split())
+                continue
 
             # remove title #
-            tcpList.pop(0)
+            tcpBuf.pop(0)
 
-            SysMgr.tcpListCache += tcpList
+            for line in tcpBuf:
+                try:
+                    if not line:
+                        continue
 
-        return SysMgr.tcpListCache
+                    tcp = line.split()
+
+                    ip, port = tcp[addrIdx].split(':')
+
+                    # convert ip address and port #
+                    ip = SysMgr.convertCIDR(ip)
+
+                    try:
+                        stat = '/%s' % \
+                            ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
+                    except:
+                        stat = ''
+
+                    item = "TCP:%s:%s%s" % (ip, long(port, base=16), stat)
+
+                    SysMgr.tcpListCache[tcp[inodeIdx]] = item
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        "fail to parse TCP data '%s'" % line, reason=True)
+
+        return _getStats(addrList)
 
 
 
@@ -29493,29 +29581,17 @@ Copyright:
 
     @staticmethod
     def convertCIDR(addr):
+        if addr in SysMgr.ipAddrCache:
+            return SysMgr.ipAddrCache[addr]
+
         addrList = []
         splitAddr = [addr[i:i+2] for i in range(0, len(addr), 2)]
         for num in reversed(splitAddr):
             addrList.append(str(long(num, base=16)))
-        return '.'.join(addrList)
+        retval = '.'.join(addrList)
 
-
-
-    @staticmethod
-    def getSocketPathList(addrList):
-        pathList = {}
-        inodeIdx = ConfigMgr.UDS_ATTR.index('Inode')
-        pathIdx = ConfigMgr.UDS_ATTR.index('Path')
-
-        UDS_ATTR = SysMgr.getUdsList()
-        for uds in UDS_ATTR:
-            try:
-                if uds[inodeIdx] in addrList:
-                    pathList[uds[pathIdx]] = None
-            except:
-                pass
-
-        return list(pathList.keys())
+        SysMgr.ipAddrCache[addr] = retval
+        return retval
 
 
 
@@ -29596,55 +29672,15 @@ Copyright:
 
     @staticmethod
     def getSocketAddrList(addrList):
-        portList = {}
-        stIdx = ConfigMgr.UDP_ATTR.index('st')
-        inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
-        addrIdx = ConfigMgr.UDP_ATTR.index('local_address')
+        portList = []
 
         # get udp list #
-        udpList = SysMgr.getUdpList()
-        for udp in udpList:
-            try:
-                if not udp[inodeIdx] in addrList:
-                    continue
-
-                ip, port = udp[addrIdx].split(':')
-
-                # convert ip address and port #
-                ip = SysMgr.convertCIDR(ip)
-
-                portList["UDP:%s:%s" % (ip, long(port, base=16))] = None
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        portList += SysMgr.getUdpList(addrList)
 
         # get tcp list #
-        tcpList = SysMgr.getTcpList()
-        for tcp in tcpList:
-            try:
-                if not tcp[inodeIdx] in addrList:
-                    continue
+        portList += SysMgr.getTcpList(addrList)
 
-                ip, port = tcp[addrIdx].split(':')
-
-                # convert ip address and port #
-                ip = SysMgr.convertCIDR(ip)
-
-                try:
-                    stat = '/%s' % \
-                        ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
-                except:
-                    stat = ''
-
-                item = "TCP:%s:%s%s" % (ip, long(port, base=16), stat)
-                portList[item] = None
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
-
-        return list(portList.keys())
+        return list(set(portList))
 
 
 
@@ -30135,6 +30171,7 @@ Copyright:
                     (printBuf, pid, ppid, comm,
                         state, rss, runtime, cmdline, network)
 
+        # return result #
         if isJson:
             return printDict
         else:
@@ -62639,8 +62676,10 @@ class TaskAnalyzer(object):
 
             return [procFilter, fileFilter]
 
+        # check root permission #
         SysMgr.checkRootPerm()
 
+        # check proc access #
         if not os.path.isdir(SysMgr.procPath):
             SysMgr.printErr("fail to access to proc filesystem")
             sys.exit(0)
@@ -62662,6 +62701,9 @@ class TaskAnalyzer(object):
         TaskAnalyzer.dbgObj.initValues()
         TaskAnalyzer.dbgObj.getCpuUsage()
 
+        # set initial repeat value #
+        SysMgr.progressCnt = 1
+
         while 1:
             # save timestamp #
             prevTime = time.time()
@@ -62680,8 +62722,9 @@ class TaskAnalyzer(object):
             self.printFileStat(nowFilter)
 
             # flush socket cache #
-            SysMgr.udpListCache = []
-            SysMgr.tcpListCache = []
+            SysMgr.udpListCache = {}
+            SysMgr.tcpListCache = {}
+            SysMgr.udsListCache = {}
 
             # check repeat count #
             SysMgr.checkProgress()
@@ -75251,14 +75294,14 @@ class TaskAnalyzer(object):
         stime = cpuUsage[2] / diff
         cpuStr = '%d%%(Usr:%d%%/Sys:%d%%)' % (ttime, utime, stime)
 
-        SysMgr.addPrint((
+        SysMgr.addPrint(UtilMgr.convColor((
             "[Top File Info] [Time: %7.3f] [Proc: %s] "
             "[FD: %s] [File: %s] [CPU: %s] (Unit: %%/MB/NR)\n") % \
             (SysMgr.uptime, convNum(self.nrProcess),
-            convNum(self.nrFd), convNum(len(self.fileData)), cpuStr))
+            convNum(self.nrFd), convNum(len(self.fileData)), cpuStr), 'BOLD'))
 
         SysMgr.addPrint("%s\n" % twoLine + \
-            ("{0:^16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^4}|{6:^103}|\n{7:1}\n").\
+            ("{0:^16} ({1:^7}/{2:^7}/{3:^4}/{4:>4})|{5:^6}|{6:^101}|\n{7:1}\n").\
             format("Process", "ID", "PID", "Nr", "Pri", "FD", "Path", oneLine),
             newline = 3)
 
@@ -75300,7 +75343,7 @@ class TaskAnalyzer(object):
                 details = ' '
 
             procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>4}| {1:<102}|'.format(
+                (procInfo, '{0:>6}| {1:<100}|'.format(
                 len(value['fdList']), details))
 
             fdCnt = long(0)
@@ -75322,11 +75365,13 @@ class TaskAnalyzer(object):
                 try:
                     if path.startswith('socket'):
                         obj = path.split('[')[1][:-1]
+
                         addr = SysMgr.getSocketAddrList([obj])
                         if addr:
                             path = '%s (%s)' % (path, addr[0])
                             raise Exception('skip UDS socket')
-                        uds = SysMgr.getSocketPathList([obj])
+
+                        uds = SysMgr.getUdsList([obj])
                         if uds:
                             path = '%s (%s)' % (path, uds[0])
                 except SystemExit:
@@ -75381,8 +75426,9 @@ class TaskAnalyzer(object):
                         'fail to read attributes from %s' % fdinfoPath,
                             reason=True)
 
+                # print stat #
                 SysMgr.addPrint(
-                    ("{0:>1}|{1:>4}| {2:<102}|\n").format(
+                    ("{0:>1}|{1:>6}| {2:<100}|\n").format(
                     ' ' * procInfoLen, fd, path))
 
                 fdCnt += 1
@@ -75395,6 +75441,7 @@ class TaskAnalyzer(object):
                 if not ret:
                     break
 
+        # print total stats #
         if procCnt == 0:
             text = "{0:^16}".format('None')
             frame = '%s%s|' % \
@@ -76177,6 +76224,8 @@ class TaskAnalyzer(object):
         try:
             with open(fpath, 'r') as fd:
                 buf = fd.readlines()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.procInstance[tid]['maps'] = None
             SysMgr.printOpenWarn(fpath)
@@ -76554,8 +76603,11 @@ class TaskAnalyzer(object):
         if not tid in self.procData:
             return
 
+        # PID/status #
         stat = 'status'
-        if not self.procData[tid][stat]:
+        if SysMgr.processEnable and self.isKernelThread(tid):
+            pass
+        elif not self.procData[tid][stat]:
             statusBuf = self.saveTaskData(path, tid, stat, False)
             if not self.procData[tid]['status']:
                 self.procData[tid]['status'] = {}
@@ -76582,6 +76634,7 @@ class TaskAnalyzer(object):
                     except:
                         pass
 
+        # PID/statm #
         stat = 'statm'
         if not self.procData[tid][stat]:
             mainID = self.procData[tid]['mainID']
@@ -76607,16 +76660,15 @@ class TaskAnalyzer(object):
 
     def saveProcData(self, path, tid, pid=None):
         def _getStatBuf(self, path, tid):
-            self.procData[tid]['statFd'] = open(path, 'rb')
-            statBuf = self.procData[tid]['statFd'].read()
+            self.procData[tid]['statFd'] = os.open(path, os.O_RDONLY)
+            statBuf = os.read(self.procData[tid]['statFd'], 1024)
 
             if tid in self.prevProcData:
                 self.prevProcData[tid]['alive'] = True
 
             # fd resource is about to run out #
-            if SysMgr.maxKeepFd < \
-                self.procData[tid]['statFd'].fileno():
-                self.procData[tid]['statFd'].close()
+            if SysMgr.maxKeepFd < self.procData[tid]['statFd']:
+                os.close(self.procData[tid]['statFd'])
                 self.procData[tid]['statFd'] = None
                 self.reclaimFds()
 
@@ -76640,10 +76692,10 @@ class TaskAnalyzer(object):
         try:
             if tid in self.prevProcData and \
                 'statFd' in self.prevProcData[tid] and \
-                self.prevProcData[tid]['statFd']:
-                self.prevProcData[tid]['statFd'].seek(0)
+                self.prevProcData[tid]['statFd'] is not None:
+                os.lseek(self.prevProcData[tid]['statFd'], 0, 0)
                 self.procData[tid]['statFd'] = self.prevProcData[tid]['statFd']
-                statBuf = self.procData[tid]['statFd'].read()
+                statBuf = os.read(self.procData[tid]['statFd'], 1024)
                 self.prevProcData[tid]['alive'] = True
             else:
                 statBuf = _getStatBuf(self, statPath, tid)
@@ -76874,7 +76926,11 @@ class TaskAnalyzer(object):
 
                 # close file descriptors #
                 try:
-                    val[item].close()
+                    if type(val[item]) is long:
+                        os.close(val[item])
+                    else:
+                        val[item].close()
+
                     val[item] = None
                     nrRclm += 1
                 except SystemExit:
@@ -76882,6 +76938,7 @@ class TaskAnalyzer(object):
                 except:
                     pass
 
+            # return the number of closed files #
             if nrRclm >= nrReq:
                 return nrRclm
 
@@ -78573,8 +78630,8 @@ class TaskAnalyzer(object):
             if oomstr:
                 jsonData['oomKill'] = oom_kill
 
-        SysMgr.addPrint(UtilMgr.convColor(
-            ("%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
+        SysMgr.addPrint(UtilMgr.convColor((
+            "%s [Time: %7.3f] [Inter: %.1f] [Ctxt: %d] "
             "[Life: +%d/-%d]%s[IRQ: %d] [Core: %d] [Task: %d/%d] "
             "[Load: %s] [RAM: %s] [Swap: %s]\n") % \
             (title, SysMgr.uptime, SysMgr.uptimeDiff,
@@ -79902,6 +79959,18 @@ class TaskAnalyzer(object):
                     memstr = convColor(mems, 'RED', 4)
                 else:
                     memstr = convColor(mems, 'YELLOW', 4)
+
+            # convert color for SHM #
+            try:
+                if shr >= SysMgr.memLowThreshold:
+                    if shr >= SysMgr.memHighThreshold:
+                        shr = convColor(shr, 'RED', 3)
+                    else:
+                        shr = convColor(shr, 'YELLOW', 3)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
             # convert color for BTIME #
             if float(btime) > 0:
