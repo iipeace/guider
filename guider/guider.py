@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210504"
+__revision__ = "210506"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6765,12 +6765,13 @@ class NetworkMgr(object):
     def getMainIp():
         ipList = NetworkMgr.getUsingIps()
 
-        # remove invaild ip #
+        # remove invaild IP #
         try:
             ipList.remove('0.0.0.0')
         except:
             pass
 
+        # return main IP #
         if not ipList or not ipList:
             return None
         elif '127.0.0.1' in ipList:
@@ -16200,62 +16201,19 @@ class SysMgr(object):
             return
         '''
 
-        # try to set maxFd with hard limit #
+        # define resource and value #
+        rtype = ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE')
+        slim = 1048576
+        hlim = 1048576
+
+        # try to change maximum open file #
         try:
-            resource = SysMgr.getPkg('resource', False, True)
-            if resource:
-                resource.setrlimit(resource.RLIMIT_NOFILE, (1048576, 1048576))
-                soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-                SysMgr.maxFd = hard
-                SysMgr.maxKeepFd = SysMgr.maxFd - 16
-                return
-        except SystemExit:
-            sys.exit(0)
-        except:
-            SysMgr.printWarn(
-                'fail to raise the number of maximum open file', reason=True)
+            ret = SysMgr.chRlimit(os.getpid(), rtype, slim, hlim)
+            if not ret:
+                raise Exception('N/A')
 
-        # try to get maxFd by native call #
-        try:
-            func = SysMgr.guiderObj.getrlimit # pylint: disable=no-member
-            SysMgr.maxFd = \
-                func(ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'))
-            SysMgr.maxKeepFd = SysMgr.maxFd - 16
-            return
-        except SystemExit:
-            sys.exit(0)
-        except:
-            pass
-
-        # get ctypes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            return
-
-        class rlimit(Structure):
-            _fields_ = (
-                ("rlim_cur", c_ulong),
-                ("rlim_max", c_ulong),
-            )
-
-        # try to get maxFd by standard library call #
-        try:
-            # load libc #
-            SysMgr.loadLibcObj()
-
-            SysMgr.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
-            SysMgr.libcObj.getrlimit.restype = c_int
-
-            rlim = rlimit()
-            rlim.rlim_cur = c_ulong(1048576)
-            rlim.rlim_max = c_ulong(1048576)
-
-            ret = SysMgr.libcObj.setrlimit(
-                ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
-
-            ret = SysMgr.libcObj.getrlimit(
-                ConfigMgr.RLIMIT_TYPE.index('RLIMIT_NOFILE'), byref(rlim))
-
-            SysMgr.maxFd = rlim.rlim_cur
+            # update the number of maximum open file #
+            SysMgr.maxFd = ret[0]
             SysMgr.maxKeepFd = SysMgr.maxFd - 16
         except SystemExit:
             sys.exit(0)
@@ -16975,6 +16933,162 @@ class SysMgr(object):
 
         # dump memory #
         Debugger.dumpTaskMemory(pid, meminfo, output)
+
+
+
+    @staticmethod
+    def doRlimit():
+        # get argument #
+        if SysMgr.hasMainArg():
+            value = SysMgr.getMainArgs()
+        elif SysMgr.filterGroup:
+            value = SysMgr.filterGroup
+        else:
+            SysMgr.printErr(
+                ("wrong value to change resource limit, "
+                "input in the format TID|COMM:RTYPE:SLIM:HLIM"))
+            sys.exit(0)
+
+        for item in value:
+            conf = item.split(':')
+            if len(conf) != 1 and len(conf) != 4:
+                SysMgr.printErr(
+                    ("wrong value to change resource limit, "
+                    "input in the format TID|COMM:RTYPE:SLIM:HLIM"))
+                sys.exit(0)
+
+            conf = UtilMgr.cleanItem(conf, False)
+
+            # get tasks #
+            target = SysMgr.getPids(conf[0])
+            if not target:
+                SysMgr.printErr(
+                    "no task related to '%s'" % conf[0])
+                sys.exit(0)
+
+            if len(conf) == 4:
+                # get return type #
+                rtype = ConfigMgr.RLIMIT_TYPE.index(conf[1])
+                if rtype < 0:
+                    SysMgr.printErr('wrong resource type %s' % conf[1])
+                    sys.exit(0)
+
+                slim, hlim = list(map(long, conf[2:4]))
+
+            # apply new limits #
+            for tid in target:
+                # get comm for the task #
+                comm = SysMgr.getComm(tid, cache=True)
+
+                if len(conf) == 1:
+                    rlist = SysMgr.readProcData(tid, 'limits')
+                    if rlist:
+                        SysMgr.printPipe(
+                            '\n[Task Limit Info] [%s(%s)]\n%s%s%s' % \
+                                (comm, tid, twoLine, ''.join(rlist), oneLine))
+                    continue
+
+                # change resource limit #
+                ret = SysMgr.chRlimit(long(tid), rtype, slim, hlim)
+                if ret:
+                    SysMgr.printInfo(
+                        "changed %s to %s/%s for %s(%s)" % \
+                            (conf[1], UtilMgr.convNum(ret[0]),
+                                UtilMgr.convNum(ret[1]), comm, tid))
+                else:
+                    SysMgr.printErr(
+                        "fail to change %s to %s/%s for %s(%s)" % \
+                            (conf[1], UtilMgr.convNum(slim),
+                                UtilMgr.convNum(hlim), comm, tid))
+
+
+
+    @staticmethod
+    def chRlimit(pid, rtype, slim, hlim):
+        if rtype in ConfigMgr.RLIMIT_TYPE:
+            SysMgr.printErr(
+                'fail to change rlimit for %s because wrong resource' % rtype)
+            return False
+
+        rname = ConfigMgr.RLIMIT_TYPE[rtype]
+
+        # resource package #
+        try:
+            resource = SysMgr.getPkg('resource', False, True)
+            if resource:
+                resource.prlimit(pid, rtype, (slim, hlim))
+                soft, hard = resource.prlimit(pid, rtype)
+                return (soft, hard)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to change %s to (%s,%s)' % (rname, slim, hlim),
+                reason=True)
+
+        # get ctypes object #
+        if not SysMgr.importPkgItems('ctypes', False):
+            return
+
+        class rlimit(Structure):
+            _fields_ = (
+                ("rlim_cur", c_ulong),
+                ("rlim_max", c_ulong),
+            )
+
+        # try to get maxFd by standard library call #
+        try:
+            # load libc #
+            SysMgr.loadLibcObj()
+
+            # create new object #
+            rlim = rlimit()
+            rlim.rlim_cur = c_ulong(slim)
+            rlim.rlim_max = c_ulong(hlim)
+
+            # prlimit #
+            if hasattr(SysMgr.libcObj, 'prlimit') or \
+                hasattr(SysMgr.libcObj, 'prlimit64'):
+
+                # define real function #
+                if hasattr(SysMgr.libcObj, 'prlimit'):
+                    func = SysMgr.libcObj.prlimit
+                else:
+                    func = SysMgr.libcObj.prlimit64
+
+                func.argtypes = \
+                    (c_int, c_int, POINTER(rlimit), POINTER(rlimit))
+                func.restype = c_int
+
+                # create origin object #
+                oldrlim = rlimit()
+
+                ret = func(
+                    c_int(os.getpid()), rtype, byref(rlim), byref(oldrlim))
+                if ret != 0:
+                    raise Exception('error return %s' % ret)
+            # getrlimit / setrlimit #
+            elif hasattr(SysMgr.libcObj, 'getrlimit'):
+                SysMgr.libcObj.getrlimit.argtypes = (c_int, POINTER(rlimit))
+                SysMgr.libcObj.getrlimit.restype = c_int
+
+                # set resource value #
+                ret = SysMgr.libcObj.setrlimit(rtype, byref(rlim))
+                if ret != 0:
+                    raise Exception('error return %s' % ret)
+
+                # get new resource value #
+                ret = SysMgr.libcObj.getrlimit(rtype, byref(rlim))
+            else:
+                raise Exception('no function')
+
+            return (rlim.rlim_cur, rlim.rlim_max)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                'fail to change %s to (%s,%s)' % (rname, slim, hlim),
+                reason=True)
 
 
 
@@ -19166,6 +19280,7 @@ class SysMgr(object):
                 'readelf': 'File',
                 'remote': 'Command',
                 'req': 'URL',
+                'rlimit': 'Resource',
                 'setafnt': 'Affinity',
                 'setcpu': 'Clock',
                 'setsched': 'Priority',
@@ -22488,6 +22603,35 @@ Examples:
 
     - Draw graphs for response time for specific requests
         # {0:1} {1:1} guider.out -g www.google.com
+                    '''.format(cmd, mode)
+
+                # rlimit #
+                elif SysMgr.checkMode('rlimit'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} -g <TID|COMM:RTYPE:SLIM:HLIM> [OPTIONS] [--help]
+
+Description:
+    Change resource limit for specific tasks
+
+Resource:
+    {2:1}
+
+Options:
+    -g <TID|COMM:RTYPE:SLIM:HLIM> set value
+    -v                            verbose
+                        '''.format(cmd, mode,
+                            '\n    '.join(ConfigMgr.RLIMIT_TYPE))
+
+                    helpStr += '''
+Examples:
+    - Change resource limit for specific tasks
+        # {0:1} {1:1} "a.out:RLIMIT_NOFILE:1000:2000"
+        # {0:1} {1:1} -g "a.out:RLIMIT_NOFILE:1000:2000"
+
+    - Show resource limits for specific tasks
+        # {0:1} {1:1} a.out
+        # {0:1} {1:1} -g a.out
                     '''.format(cmd, mode)
 
                 # setsched #
@@ -29243,6 +29387,10 @@ Copyright:
         elif SysMgr.checkMode('setsched'):
             SysMgr.doSetSched()
 
+        # RLIMIT MODE #
+        elif SysMgr.checkMode('rlimit'):
+            SysMgr.doRlimit()
+
         # CONVERT MODE #
         elif SysMgr.checkMode('convert'):
             SysMgr.doConvert()
@@ -32697,12 +32845,14 @@ Copyright:
         value = ','.join(value)
 
         while 1:
+            # change priority #
             SysMgr.applyPriority(value)
 
-            if SysMgr.intervalEnable:
-                time.sleep(SysMgr.intervalEnable)
-            else:
+            if not SysMgr.intervalEnable:
                 break
+
+            # wait for next interval #
+            time.sleep(SysMgr.intervalEnable)
 
 
 

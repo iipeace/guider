@@ -1241,6 +1241,7 @@ COMMAND:
                     readelf           <File>
                     remote            <Command>
                     req               <URL>
+                    rlimit            <Resource>
                     setafnt           <Affinity>
                     setcpu            <Clock>
                     setsched          <Priority>
