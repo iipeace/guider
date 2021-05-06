@@ -50368,13 +50368,19 @@ struct cmsghdr {
 
 
 
+        # define term variable #
+        term = False
+
         # check master process #
         if SysMgr.masterPid > 0 and \
             not Debugger.envFlags['CONTALONE'] and \
             not SysMgr.isAlive(SysMgr.masterPid):
             SysMgr.printWarn(
                 "terminated the master process for %s" % __module__)
-            sys.exit(0)
+            if self.callTable:
+                term = True
+            else:
+                sys.exit(0)
 
         # check samples #
         if not self.callTable:
@@ -50417,7 +50423,10 @@ struct cmsghdr {
                 # skip on break mode #
                 if self.mode == 'break':
                     _resetStats()
-                    return
+                    if term:
+                        sys.exit(0)
+                    else:
+                        return
 
                 # print status #
                 SysMgr.printWarn(
@@ -50436,7 +50445,10 @@ struct cmsghdr {
                     self.cont()
 
                 _resetStats()
-                return
+                if term:
+                    sys.exit(0)
+                else:
+                    return
 
         # get CPU Usage for target #
         cpuUsage = self.getCpuUsage()
@@ -50448,7 +50460,10 @@ struct cmsghdr {
         # check CPU threshold #
         if Debugger.cpuCond > -1 and Debugger.cpuCond > ttime:
             _resetStats()
-            return
+            if term:
+                sys.exit(0)
+            else:
+                return
 
         # print summary table #
         if self.mode == 'syscall':
@@ -50606,7 +50621,10 @@ struct cmsghdr {
                         if needStop:
                             self.stop(check=True)
 
-                        return
+                        if term:
+                            sys.exit(0)
+                        else:
+                            return
 
                     ret = SysMgr.addPrint(
                         '{0:>17} | {1:<1} <Cnt: {2:1}>\n'.format(
@@ -50628,6 +50646,10 @@ struct cmsghdr {
 
         # print stats #
         _finishPrint()
+
+        # check term condition #
+        if term:
+            sys.exit(0)
 
         # print progress #
         if SysMgr.repeatCount > 0:
