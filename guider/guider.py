@@ -24905,7 +24905,10 @@ Copyright:
                     continue
 
                 uds = line.split()
-                SysMgr.udsListCache[uds[inodeIdx]] = uds[pathIdx]
+
+                item = "UDS>%s" % uds[pathIdx]
+
+                SysMgr.udsListCache[uds[inodeIdx]] = item
             except SystemExit:
                 sys.exit(0)
             except:
@@ -24961,7 +24964,7 @@ Copyright:
                     # convert ip address and port #
                     ip = SysMgr.convertCIDR(ip)
 
-                    item = "UDP:%s:%s" % (ip, long(port, base=16))
+                    item = "UDP>%s:%s" % (ip, long(port, base=16))
 
                     SysMgr.udpListCache[udp[inodeIdx]] = item
                 except SystemExit:
@@ -25028,7 +25031,7 @@ Copyright:
                     except:
                         stat = ''
 
-                    item = "TCP:%s:%s%s" % (ip, long(port, base=16), stat)
+                    item = "TCP>%s:%s%s" % (ip, long(port, base=16), stat)
 
                     SysMgr.tcpListCache[tcp[inodeIdx]] = item
                 except SystemExit:
