@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210506"
+__revision__ = "210507"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -44194,6 +44194,10 @@ class DbusMgr(object):
             'SIGNAL': UtilMgr.convColor('SIGNAL', 'PINK', 6),
         }
 
+        syncLock = Debugger.getGlobalLock(SysMgr.pid, exit=False)
+        if syncLock:
+            lockf(syncLock, LOCK_EX)
+
         # create child processes to monitor each targets #
         for tid in taskList:
             # create pipe #
@@ -44340,6 +44344,11 @@ class DbusMgr(object):
                 SysMgr.jsonEnable = True
                 Debugger.dbusEnable = True
 
+                # wait for parent to create all childs #
+                if syncLock:
+                    lockf(syncLock, LOCK_EX)
+                    lockf(syncLock, LOCK_UN)
+
                 # execute strace mode #
                 SysMgr.doTrace('syscall')
 
@@ -44352,6 +44361,10 @@ class DbusMgr(object):
         # check signal mode #
         if mode == 'signal':
             return
+
+        # release lock to start tracers #
+        if syncLock:
+            lockf(syncLock, LOCK_UN)
 
         # start worker threads #
         for tobj in threadingList:
@@ -46489,7 +46502,7 @@ struct cmsghdr {
 
 
     @staticmethod
-    def getGlobalLock(name=None, size=0):
+    def getGlobalLock(name=None, size=0, exit=True):
         if Debugger.gLockObj:
             return Debugger.gLockObj
 
@@ -46517,7 +46530,7 @@ struct cmsghdr {
             SysMgr.printErr(
                 "fail to create %s for lock" % Debugger.gLockPath, True)
 
-            if not SysMgr.forceEnable:
+            if exit and not SysMgr.forceEnable:
                 sys.exit(0)
 
         return Debugger.gLockObj
