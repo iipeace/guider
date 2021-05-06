@@ -568,6 +568,10 @@ class ConfigMgr(object):
         'sendto': 0,
         'recv': 0,
         'recvfrom': 0,
+        'pread': 0,
+        'pread64': 0,
+        'pwrite': 0,
+        'pwrite64': 0,
     }
 
     # syscall prototypes #
@@ -579,6 +583,8 @@ class ConfigMgr(object):
         'readv': 0,
         'readlink': 0,
         'recvfrom': 0,
+        'pread': 0,
+        'pread64': 0,
         'clock_gettime': 0,
         'getgroups': 0,
         'getgroups16': 0,
@@ -20397,6 +20403,12 @@ Examples:
     - Monitor CPU usage on whole system of syscalls for a specific thread
         # {0:1} {1:1} -g a.out -e c
 
+    - Monitor only successful syscalls for specific threads
+        # {0:1} {1:1} -g a.out -q ONLYOK
+
+    - Monitor only failed syscalls for specific threads
+        # {0:1} {1:1} -g a.out -q ONLYFAIL
+
     - Monitor syscalls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
 
@@ -21013,6 +21025,12 @@ Examples:
 
     - Trace all read syscalls with backtrace for a specific thread
         # {0:1} {1:1} -g a.out -t read -H
+
+    - Trace only successful syscalls for a specific thread
+        # {0:1} {1:1} -g a.out -q ONLYOK
+
+    - Trace only failed syscalls for a specific thread
+        # {0:1} {1:1} -g a.out -q ONLYFAIL
 
     - Trace all read syscalls with python backtrace for a specific thread
         # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
@@ -45601,6 +45619,8 @@ class Debugger(object):
         'CONTALONE': False,
         'INCNATIVE': False,
         'PYSTACK': False,
+        'ONLYOK': False,
+        'ONLYFAIL': False,
     }
 
     def getSigStruct(self):
@@ -51215,6 +51235,20 @@ struct cmsghdr {
 
 
 
+    def popSample(self, sym):
+        if self.callList:
+            self.callList.pop(-1)
+
+        if sym in self.callTable:
+            self.callTable[sym]['cnt'] -= 1
+            if self.callTable[sym]['cnt'] == 0:
+                self.callTable.pop(sym, None)
+
+        if self.totalCall > 0:
+            self.totalCall -= 1
+
+
+
     def addSample(
         self, sym, filename, realtime=False, bt=None, err=None, elapsed=None):
         if not self.runStatus and Debugger.envFlags['EXCEPTWAIT']:
@@ -52400,7 +52434,18 @@ struct cmsghdr {
         exitStr = UtilMgr.convColor(
             '+++ exited %s with %s +++' % (tinfo, ret), 'RED')
 
-        SysMgr.printPipe('\n%s %s' % (diffstr, exitStr))
+        exitStr = '\n%s %s' % (diffstr, exitStr)
+
+        if SysMgr.outPath:
+            # print history #
+            if SysMgr.showAll:
+                self.callPrint.append(exitStr.rstrip())
+
+            # print to stdout #
+            if SysMgr.printStreamEnable:
+                sys.stdout.write(exitStr)
+        else:
+            SysMgr.printPipe(exitStr, flush=True)
 
 
 
@@ -53150,7 +53195,7 @@ struct cmsghdr {
 
 
 
-    def isDeferrableCall(self, name):
+    def isDeferCall(self, name):
         if name in ConfigMgr.SYSCALL_DEFFERABLE:
             return True
         else:
@@ -53158,7 +53203,7 @@ struct cmsghdr {
 
 
 
-    def handleSyscallOutput(self, args, deferrable=False):
+    def handleSyscallOutput(self, args, defer=False):
         # get diff time #
         diff = self.vdiff
 
@@ -53174,6 +53219,12 @@ struct cmsghdr {
         else:
             backtrace = None
             bts = ''
+
+        # set filter flag #
+        if Debugger.envFlags['ONLYOK'] or Debugger.envFlags['ONLYFAIL']:
+            filtered = True
+        else:
+            filtered = False
 
         # print context in JSON format #
         if SysMgr.jsonEnable:
@@ -53216,20 +53267,41 @@ struct cmsghdr {
                 argText = ', '.join(str(arg[2]) for arg in self.args)
 
             # build call string #
-            if deferrable:
+            if defer:
                 callString = '%s)%s' % (argText, bts)
             else:
                 syscall = UtilMgr.convColor(self.syscall, 'GREEN')
                 callString = '%3.6f %s(%s) %s(%s)%s' % \
                     (diff, self.comm, self.pid, syscall, argText, bts)
 
+            # handle call string for enter #
+            if filtered:
+                if defer:
+                    self.bufferedStr = '%s%s' % (self.bufferedStr, callString)
+                else:
+                    self.bufferedStr = callString
+
         # print call info #
         if self.isRealtime:
             self.addSample(
                 self.syscall, '??', realtime=True, bt=backtrace)
+
+            if filtered:
+                return
         elif SysMgr.outPath:
             self.addSample(self.syscall, '??', bt=backtrace)
+
+            if filtered:
+                return
+
+            # print to stdout #
+            if SysMgr.printStreamEnable:
+                callString = '%s' % callString[:self.pbufsize]
+                sys.stdout.write(callString)
         else:
+            if filtered:
+                return
+
             ttyColsOrig = SysMgr.ttyCols
 
             if SysMgr.showAll or SysMgr.funcDepth > 0:
@@ -53237,7 +53309,7 @@ struct cmsghdr {
             else:
                 callString = '%s ' % callString[:self.pbufsize]
 
-            if deferrable:
+            if defer:
                 prefix = ''
             else:
                 prefix = '\n'
@@ -53249,7 +53321,7 @@ struct cmsghdr {
 
         # print call history #
         if SysMgr.showAll and SysMgr.outPath:
-            if deferrable:
+            if defer:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
 
@@ -53279,7 +53351,7 @@ struct cmsghdr {
             args = self.convSyscallArgs(retval)
 
         # print output #
-        self.handleSyscallOutput(args, deferrable=True)
+        self.handleSyscallOutput(args, defer=True)
 
 
 
@@ -53289,8 +53361,8 @@ struct cmsghdr {
             self.status = 'enter'
             return
 
-        # check deferrable #
-        if self.status == 'deferrable':
+        # check defer #
+        if self.status == 'defer':
             self.handleDefSyscall()
 
         # ignore return #
@@ -53353,9 +53425,10 @@ struct cmsghdr {
 
             # convert args except for top mode #
             if not self.isRealtime:
-                if self.isDeferrableCall(name):
-                    self.status = 'deferrable'
+                if self.isDeferCall(name):
+                    self.status = 'defer'
 
+                    # check return condition #
                     if SysMgr.jsonEnable:
                         return
 
@@ -53364,7 +53437,10 @@ struct cmsghdr {
                         (diff, self.comm, self.pid,
                             UtilMgr.convColor(name, 'GREEN'))
 
-                    if SysMgr.outPath:
+                    # handle call string for enter #
+                    if SysMgr.outPath or \
+                        Debugger.envFlags['ONLYOK'] or \
+                        Debugger.envFlags['ONLYFAIL']:
                         self.bufferedStr = callString
                     else:
                         SysMgr.printPipe(
@@ -53386,6 +53462,8 @@ struct cmsghdr {
 
         # exit #
         elif self.status == 'exit':
+            callString = ''
+
             # set next status #
             self.status = 'enter'
 
@@ -53409,6 +53487,15 @@ struct cmsghdr {
 
             # convert error code #
             if retval < 0:
+                # check exit condition for success #
+                if Debugger.envFlags['ONLYOK']:
+                    self.clearArgs()
+                    self.popSample(name)
+                    return
+                # print enter context #
+                elif Debugger.envFlags['ONLYFAIL']:
+                    callString = '\n%s ' % self.bufferedStr
+
                 try:
                     retstr = -1
                     errtype = ConfigMgr.ERR_TYPE[abs(retval+1)]
@@ -53425,6 +53512,15 @@ struct cmsghdr {
                 except:
                     err = ''
             else:
+                # check exit condition for fail #
+                if Debugger.envFlags['ONLYFAIL']:
+                    self.clearArgs()
+                    self.popSample(name)
+                    return
+                # print exit context #
+                elif Debugger.envFlags['ONLYOK']:
+                    callString = '\n%s ' % self.bufferedStr
+
                 try:
                     retstr = '%s(%s)' % (retval, hex(retval).rstrip('L'))
                 except:
@@ -53480,12 +53576,19 @@ struct cmsghdr {
                 diffStr = UtilMgr.convColor(diffStr, 'CYAN')
 
             # build call string #
-            callString = '= %s%s%s' % (retstr, err, diffStr)
+            callString = '%s= %s%s%s' % (callString, retstr, err, diffStr)
 
             if SysMgr.outPath:
-                if SysMgr.showAll and len(self.callPrint) > 0:
-                    self.callPrint[-1] = '%s%s' % \
-                        (self.callPrint[-1], callString)
+                if SysMgr.showAll:
+                    if self.callPrint:
+                        self.callPrint[-1] = '%s%s' % \
+                            (self.callPrint[-1], callString)
+                    else:
+                        self.callPrint.append(callString)
+
+                # print to stdout #
+                if SysMgr.printStreamEnable:
+                    sys.stdout.write('%s\n' % callString)
             elif self.isRealtime:
                 pass
             else:
