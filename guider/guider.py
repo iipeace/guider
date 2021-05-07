@@ -19739,7 +19739,7 @@ Examples:
         # {0:1} {1:1} -g a.out -c printPeace -R 2s
 
     - Trace sepcific native calls and report the result to ./guider.out
-        # {0:1} {1:1} -g a.out -c printPeace -o . -a
+        # {0:1} {1:1} -g a.out -c printPeace -o .
 
     - Trace specific native calls including specific word
         # {0:1} {1:1} -g 1234 -c "*printPeace"
@@ -21049,8 +21049,8 @@ Examples:
     - Trace all write syscalls for a specific thread and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
 
-    - Trace all read syscalls for a specific thread and save summary tables, call history to ./guider.out
-        # {0:1} {1:1} -g a.out -t read -o . -a
+    - Trace all read syscalls for a specific thread and report the result to ./guider.out
+        # {0:1} {1:1} -g a.out -t read -o .
 
     - Trace all syscalls with breakpoint for read including register info for a specific thread
         # {0:1} {1:1} -g a.out -c read -a
@@ -21128,7 +21128,7 @@ Examples:
     - Trace usercalls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g a.out -H 10
 
-    - Trace usercalls for a specific thread and save summary tables, call history to ./guider.out
+    - Trace usercalls for a specific thread and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
     - Trace usercalls with breakpoint for peace including register info for a specific thread
@@ -21205,7 +21205,7 @@ Examples:
     - Trace python calls with 1/10 instructions for a specific thread
         # {0:1} {1:1} -g a.out -H 10
 
-    - Trace python calls for a specific thread and save summary tables, call history to ./guider.out
+    - Trace python calls for a specific thread and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -o . -a
 
     - Trace python calls with breakpoint for peace including register info for a specific thread
@@ -27091,7 +27091,7 @@ Copyright:
 
 
     @staticmethod
-    def printPipe(line='', newline=True, flush=False, pager=True):
+    def printPipe(line='', newline=True, flush=False, pager=True, trim=True):
         # check logging option #
         if SysMgr.loggingEnable:
             if SysMgr.dltEnable:
@@ -27278,7 +27278,10 @@ Copyright:
                     "fail to write to %s" % SysMgr.printFd.name, True)
         # console output #
         else:
-            cols = SysMgr.ttyCols
+            if trim:
+                cols = SysMgr.ttyCols
+            else:
+                cols = 0
 
             # rstrip by terminal size #
             try:
@@ -29922,7 +29925,7 @@ Copyright:
             # get server address #
             addr = addrs[0]
 
-            return addr[addr.find(':')+1:]
+            return addr[addr.find('>')+1:]
         elif len(pids) > 1:
             SysMgr.printWarn(
                 "Found multiple running %s processes" % name, True)
@@ -30307,13 +30310,15 @@ Copyright:
                 netList = ''
                 for addr, stat in netDict.items():
                     if stat:
-                        netList = '%s%s/%s,' % (netList, addr, '/'.join(stat))
+                        netList = '%s%s/%s|' % (netList, addr, '/'.join(stat))
                     else:
-                        netList = '%s%s,' % (netList, addr)
+                        netList = '%s%s|' % (netList, addr)
                 if netList:
                     network = '(%s)' % netList[:-1]
                 else:
                     network = ''
+            except SystemExit:
+                sys.exit(0)
             except:
                 network = ''
 
@@ -52206,8 +52211,7 @@ struct cmsghdr {
                     sym, fname, realtime=True, elapsed=etime)
 
                 # print history #
-                if SysMgr.showAll:
-                    self.callPrint.append(callString.rstrip())
+                self.callPrint.append(callString.rstrip())
 
                 # print to stdout #
                 if SysMgr.printStreamEnable:
@@ -52900,8 +52904,7 @@ struct cmsghdr {
                 call, fname, realtime=True, elapsed=None)
 
             # print history #
-            if SysMgr.showAll:
-                self.callPrint.append(callString.rstrip())
+            self.callPrint.append(callString.rstrip())
 
             # print to stdout #
             if SysMgr.printStreamEnable:
@@ -53112,11 +53115,13 @@ struct cmsghdr {
             # backup callString #
             self.prevCallString = callString
 
+            # file output #
             if SysMgr.outPath:
                 self.addSample(sym, fname)
 
-                if SysMgr.showAll:
-                    self.callPrint.append(callString)
+                # print history #
+                self.callPrint.append(callString)
+            # console output #
             else:
                 SysMgr.printPipe(
                     '\n%s' % callString, newline=False, flush=True)
@@ -53315,11 +53320,8 @@ struct cmsghdr {
             if filtered:
                 return
 
-            ttyColsOrig = SysMgr.ttyCols
-
-            if SysMgr.showAll or SysMgr.funcDepth > 0:
-                SysMgr.ttyCols = long(0)
-            else:
+            # trim string #
+            if not SysMgr.showAll and SysMgr.funcDepth == 0:
                 callString = '%s ' % callString[:self.pbufsize]
 
             if defer:
@@ -53328,12 +53330,11 @@ struct cmsghdr {
                 prefix = '\n'
 
             SysMgr.printPipe(
-                '%s%s' % (prefix, callString), newline=False, flush=True)
+                '%s%s' % (prefix, callString),
+                newline=False, flush=True, trim=False)
 
-            SysMgr.ttyCols = ttyColsOrig
-
-        # print call history #
-        if SysMgr.showAll and SysMgr.outPath:
+        # file output #
+        if SysMgr.outPath:
             if defer:
                 callString = '%s%s' % (self.bufferedStr, callString)
             self.callPrint.append(callString)
@@ -53591,13 +53592,13 @@ struct cmsghdr {
             # build call string #
             callString = '%s= %s%s%s' % (callString, retstr, err, diffStr)
 
+            # print call string #
             if SysMgr.outPath:
-                if SysMgr.showAll:
-                    if self.callPrint:
-                        self.callPrint[-1] = '%s%s' % \
-                            (self.callPrint[-1], callString)
-                    else:
-                        self.callPrint.append(callString)
+                if self.callPrint:
+                    self.callPrint[-1] = '%s%s' % \
+                        (self.callPrint[-1], callString)
+                else:
+                    self.callPrint.append(callString)
 
                 # print to stdout #
                 if SysMgr.printStreamEnable:
@@ -53607,6 +53608,7 @@ struct cmsghdr {
             else:
                 SysMgr.printPipe(callString, newline=False, flush=True)
 
+            # remove arg string #
             self.clearArgs()
 
         else:
@@ -53878,14 +53880,19 @@ struct cmsghdr {
 
 
     def handoverNewTarget(self, fork=False):
+        # get tid of the child task #
+        tid = self.getEventMsg()
+
+        # give up the new tracee #
         if not SysMgr.isRoot():
             SysMgr.printWarn((
                 'fail to trace a new cloned tracee '
                 'because of no root permission'), True)
-            return self.pid
 
-        # get tid of the child task #
-        tid = self.getEventMsg()
+            # detach the new tracee #
+            self.detach(only=True, pid=tid, check=True)
+
+            return self.pid
 
         # stop tracees #
         self.stop()
@@ -54425,6 +54432,7 @@ struct cmsghdr {
 
                     # handle clone event #
                     ret = self.handoverNewTarget(fork=forked)
+                    # failure for handling clone #
                     if ret == self.pid:
                         self.cont()
 
