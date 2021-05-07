@@ -4348,9 +4348,8 @@ class UtilMgr(object):
         elif sys.version_info >= (3, 0, 0):
             if isinstance(value, bytes):
                 return True
-        else:
-            if isinstance(value, unicode): # pylint: disable=undefined-variable
-                return True
+        elif isinstance(value, unicode): # pylint: disable=undefined-variable
+            return True
         return False
 
 
@@ -44194,9 +44193,10 @@ class DbusMgr(object):
             'SIGNAL': UtilMgr.convColor('SIGNAL', 'PINK', 6),
         }
 
+        # create a sync lock #
         syncLock = Debugger.getGlobalLock(SysMgr.pid, exit=False)
         if syncLock:
-            lockf(syncLock, LOCK_EX)
+            lockf(syncLock, LOCK_EX) # pylint: disable=undefined-variable
 
         # create child processes to monitor each targets #
         for tid in taskList:
@@ -44346,8 +44346,8 @@ class DbusMgr(object):
 
                 # wait for parent to create all childs #
                 if syncLock:
-                    lockf(syncLock, LOCK_EX)
-                    lockf(syncLock, LOCK_UN)
+                    lockf(syncLock, LOCK_EX) # pylint: disable=undefined-variable
+                    lockf(syncLock, LOCK_UN) # pylint: disable=undefined-variable
 
                 # execute strace mode #
                 SysMgr.doTrace('syscall')
@@ -44364,7 +44364,7 @@ class DbusMgr(object):
 
         # release lock to start tracers #
         if syncLock:
-            lockf(syncLock, LOCK_UN)
+            lockf(syncLock, LOCK_UN) # pylint: disable=undefined-variable
 
         # start worker threads #
         for tobj in threadingList:
@@ -53878,6 +53878,12 @@ struct cmsghdr {
 
 
     def handoverNewTarget(self, fork=False):
+        if not SysMgr.isRoot():
+            SysMgr.printWarn((
+                'fail to trace a new cloned tracee '
+                'because of no root permission'), True)
+            return self.pid
+
         # get tid of the child task #
         tid = self.getEventMsg()
 
@@ -54044,22 +54050,14 @@ struct cmsghdr {
 
     def initValues(self):
         # trace flags with root permission #
-        if SysMgr.isRoot():
-            self.traceEventList = [
-                'PTRACE_O_TRACEEXEC',
-                'PTRACE_O_TRACESYSGOOD',
-                'PTRACE_O_TRACECLONE',
-                'PTRACE_O_TRACEFORK',
-                'PTRACE_O_TRACEVFORK',
-                'PTRACE_O_TRACEEXIT',
-            ]
-        # trace flags without root permission #
-        else:
-            self.traceEventList = [
-                'PTRACE_O_TRACEEXEC',
-                'PTRACE_O_TRACESYSGOOD',
-                'PTRACE_O_TRACEEXIT',
-            ]
+        self.traceEventList = [
+            'PTRACE_O_TRACEEXEC',
+            'PTRACE_O_TRACESYSGOOD',
+            'PTRACE_O_TRACECLONE',
+            'PTRACE_O_TRACEFORK',
+            'PTRACE_O_TRACEVFORK',
+            'PTRACE_O_TRACEEXIT',
+        ]
 
         # stat variables #
         self.pthreadid = 0
@@ -54426,7 +54424,9 @@ struct cmsghdr {
                         forked = False
 
                     # handle clone event #
-                    self.handoverNewTarget(fork=forked)
+                    ret = self.handoverNewTarget(fork=forked)
+                    if ret == self.pid:
+                        self.cont()
 
                     # continue to exit event for clone syscall #
                     if not self.mode == 'syscall':
