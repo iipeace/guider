@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210507"
+__revision__ = "210508"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3168,7 +3168,7 @@ class ConfigMgr(object):
 
     # signal #
     SIG_LIST = [
-        'ZERO', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
+        'N/A', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
         'SIGKILL', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
         'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', #16#
@@ -3178,6 +3178,92 @@ class ConfigMgr(object):
         'SIGIO', 'SIGPWR', 'SIGSYS', 'NONE', 'NONE'] + \
         ['SIGRT%d' % idx for idx in range(0, 32, 1)]
     SIGKILL = SIG_LIST.index('SIGKILL')
+
+    # SIGCHLD si_codes #
+    SIGCHLD_CODE = [
+        "N/A",
+        "CLD_EXITED",	 # /* child has exited */
+        "CLD_KILLED",    # /* child was killed */
+        "CLD_DUMPED",    # /* child terminated abnormally */
+        "CLD_TRAPPED",   # /* traced child has trapped */
+        "CLD_STOPPED",   # /* child has stopped */
+        "CLD_CONTINUED", # /* stopped child has continued */
+    ]
+
+    # SIGSEGV si_codes #
+    SIGSEGV_CODE = [
+        "N/A",
+        "SEGV_MAPERR",  # /* address not mapped to object */
+        "SEGV_ACCERR",  # /* invalid permissions for mapped object */
+        "SEGV_BNDERR",  # /* failed address bound checks */
+        "SEGV_PSTKOVF", # /* paragraph stack overflow */
+        "SEGV_ACCADI",  # /* ADI not enabled for mapped object */
+        "SEGV_ADIDERR", # /* Disrupting MCD error */
+        "SEGV_ADIPERR", # /* Precise MCD exception */
+        "SEGV_MTEAERR", # /* Asynchronous ARM MTE error */
+        "SEGV_MTESERR", # /* Synchronous ARM MTE exception */
+    ]
+
+    # SIGILL si_codes #
+    SIGILL_CODE = [
+        "N/A",
+        "ILL_ILLOPC",   # /* illegal opcode */
+        "ILL_ILLOPN",   # /* illegal operand */
+        "ILL_ILLADR",   # /* illegal addressing mode */
+        "ILL_ILLTRP",   # /* illegal trap */
+        "ILL_PRVOPC",   # /* privileged opcode */
+        "ILL_PRVREG",   # /* privileged register */
+        "ILL_COPROC",   # /* coprocessor error */
+        "ILL_BADSTK",   # /* internal stack error */
+        "ILL_BADIADDR", # /* unimplemented instruction address */
+        "__ILL_BREAK",  # /* illegal break */
+        "__ILL_BNDMOD", # /* bundle-update (modification) in progress */
+    ]
+
+    # SIGTRAP si_codes #
+    SIGTRAP_CODE = [
+        "N/A",
+        "TRAP_BRKPT",  # /* process breakpoint */
+        "TRAP_TRACE",  # /* process trace trap */
+        "TRAP_BRANCH", # /* process taken branch trap */
+        "TRAP_HWBKPT", # /* hardware breakpoint/watchpoint */
+        "TRAP_UNK",    # /* undiagnosed trap */
+    ]
+
+
+    # SIGFPE si_codes #
+    SIGFPE_CODE = [
+        "N/A",
+        "FPE_INTDIV",   # /* integer divide by zero */
+        "FPE_INTOVF",   # /* integer overflow */
+        "FPE_FLTDIV",   # /* floating point divide by zero */
+        "FPE_FLTOVF",   # /* floating point overflow */
+        "FPE_FLTUND",   # /* floating point underflow */
+        "FPE_FLTRES",   # /* floating point inexact result */
+        "FPE_FLTINV",   # /* floating point invalid operation */
+        "FPE_FLTSUB",   # /* subscript out of range */
+        "__FPE_DECOVF", # /* decimal overflow */
+        "__FPE_DECDIV", # /* decimal division by zero */
+        "__FPE_DECERR", # /* packed decimal error */
+        "__FPE_INVASC", # /* invalid ASCII digit */
+        "__FPE_INVDEC", # /* invalid decimal digit */
+        "FPE_FLTUNK",   # /* undiagnosed floating-point exception */
+        "FPE_CONDTRAP", # /* trap on condition */
+    ]
+
+    # si_codes #
+    SI_CODE = {
+        0: "SI_USER", # /* sent by kill, sigsend, raise */
+        0x80: "SI_KERNEL", #/* sent by the kernel from somewhere */
+        -1: "SI_QUEUE", # /* sent by sigqueue */
+        -2: "SI_TIMER", # /* sent by timer expiration */
+        -3: "SI_MESGQ", # /* sent by real time mesq state change */
+        -4: "SI_ASYNCIO", # /* sent by AIO completion */
+        -5: "SI_SIGIO", # /* sent by queued SIGIO */
+        -6: "SI_TKILL", # /* sent by tkill system call */
+        -7: "SI_DETHREAD", # /* sent by execve() killing subsidiary threads */
+        -60: "SI_ASYNCNL", # /* sent by glibc async name lookup completion */
+    }
 
     # stat fields from http://linux.die.net/man/5/proc #
     STAT_ATTR = [
@@ -21352,6 +21438,7 @@ Options:
     -d  <CHARACTER>             disable options
           [ C:clone | e:encode | E:exec | g:general ]
     -u                          run in the background
+    -a                          show all info
     -g  <COMM|TID{:FILE}>       set task filter
     -I  <COMMAND>               set command
     -R  <TIME>                  set timer
@@ -21369,6 +21456,9 @@ Examples:
 
     - Trace all signals for a specific command
         # {0:1} {1:1} -I "ls"
+
+    - Trace all signals with detailed info for a specific thread
+        # {0:1} {1:1} -g a.out -a
 
     - Trace the SIGINT signal for a specific thread
         # {0:1} {1:1} -g 1234 -c SIGINT
@@ -45647,6 +45737,13 @@ class Debugger(object):
                 ("_addr", c_void_p),
             )
 
+        class _sifields_kill_t(Structure):
+            _fields_ = (
+                ("pid", c_int),
+                ("uid", c_ushort),
+            )
+
+
         class _sifields_sigchld_t(Structure):
             _fields_ = (
                 ("pid", c_int),
@@ -45659,12 +45756,12 @@ class Debugger(object):
         class _sifields_t(Union):
             _fields_ = (
                 ("pad", c_char * (128 - 3 * sizeof(c_int))),
+                #("_kill", _sifields_kill_t),
+                #("_timer", _sifields_timer_t),
                 ("_sigchld", _sifields_sigchld_t),
                 ("_sigfault", _sifields_sigfault_t),
-                #        ("_kill", _sifields_kill_t),
-                #        ("_timer", _sifields_timer_t),
-                #        ("_rt", _sifields_rt_t),
-                #        ("_sigpoll", _sifields_sigpoll_t),
+                #("_rt", _sifields_rt_t),
+                #("_sigpoll", _sifields_sigpoll_t),
             )
 
         class siginfo(Structure):
@@ -52488,14 +52585,89 @@ struct cmsghdr {
         else:
             tinfo = ''
 
+        # signal name #
         try:
-            signame = ConfigMgr.SIG_LIST[sig]
+            signame = UtilMgr.convColor(ConfigMgr.SIG_LIST[sig], 'GREEN')
+        except SystemExit:
+            sys.exit(0)
         except:
             signame = 'UNKNOWN(%s)' % sig
 
-        callString = '%3.6f %s[%s]' % \
-            (diff, tinfo, signame)
+        callString = '%3.6f %s[%s]' % (diff, tinfo, signame)
 
+        # get signal info #
+        ret = self.getSigInfo()
+        if ret == 0:
+            if self.sigObj.si_errno > 0:
+                errinfo = 'si_errno=%s, ' % \
+                    UtilMgr.convColor(self.sigObj.si_errno, 'RED')
+            else:
+                errinfo = ''
+
+            # code #
+            try:
+                code = self.sigObj.si_code
+                if signame == 'SIGCHLD':
+                    code = ConfigMgr.SIGCHLD_CODE[code]
+                elif signame == 'SIGTRAP':
+                    code = ConfigMgr.SIGTRAP_CODE[code]
+                elif signame == 'SIGSEGV':
+                    code = ConfigMgr.SIGSEGV_CODE[code]
+                elif signame == 'SIGILL':
+                    code = ConfigMgr.SIGILL_CODE[code]
+                elif signame == 'SIGFPE':
+                    code = ConfigMgr.SIGFPE_CODE[code]
+                elif self.sigObj.si_code in ConfigMgr.SI_CODE:
+                    code = ConfigMgr.SI_CODE[code]
+                else:
+                    raise Exception('No Signal Code')
+            except:
+                pass
+
+            callString = '%s {%ssi_code=%s' % (callString, errinfo, code)
+
+            if self.sigObj._sifields:
+                fields = self.sigObj._sifields._sigchld
+
+                # status #
+                try:
+                    status = ConfigMgr.SIG_LIST[fields.status]
+                except:
+                    status = fields.status
+
+                # pid #
+                try:
+                    pid = fields.pid
+                    if SysMgr.showAll and pid > 0:
+                        comm = SysMgr.getComm(pid, cache=True)
+                        pid = '%s(%s)' % (comm, pid)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                # uid #
+                try:
+                    uid = fields.uid
+                    if SysMgr.showAll:
+                        if not SysMgr.sysInstance:
+                            SysMgr()
+                        userData = SysMgr.sysInstance.userData
+                        uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+                callString = \
+                    ('%s si_pid=%s, si_uid=%s, si_status=%s '
+                        'si_utime=%s, si_stime=%s}') % \
+                            (callString, pid, uid,
+                                    status, fields.utime, fields.stime)
+            else:
+                callString = '%s}' % callString
+
+        # print context #
         SysMgr.printPipe(callString)
 
         # print backtrace #
@@ -54590,8 +54762,14 @@ struct cmsghdr {
                     if self.mode == 'sample' or self.mode == 'pycall':
                         self.handleTrapEvent(ostat)
 
-                    # continue target from signal stop #
-                    if self.mode != 'syscall':
+                    # signal delivery #
+                    if self.mode == 'syscall':
+                        # retrieve information about the signal #
+                        self.getSigInfo()
+
+                        # set the signal information #
+                        self.setSigInfo()
+                    else:
                         if self.cont(check=True, sig=stat) < 0:
                             sys.exit(0)
             except SystemExit:
