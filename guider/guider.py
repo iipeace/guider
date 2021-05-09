@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210508"
+__revision__ = "210509"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5082,7 +5082,7 @@ var xpad = 10;
 var inverted = true;
 var searchcolor = 'rgb(230,0,230)';
 var fluiddrawing = true;
-var truncate_text_right = false;]]>
+var truncate_text_right = true;]]>
                 <![CDATA["use strict";
 var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
 function init(evt) {
@@ -5102,6 +5102,12 @@ function init(evt) {
         if (params.s)
             search(params.s);
     };
+
+    // Convert special characters in titles.
+    var title = svg.getElementsByTagName("title");
+    for (var x = 0; x < title.length; x++) {
+        title[x].innerHTML = title[x].innerHTML.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+    }
 
     if (fluiddrawing) {
         // Make width dynamic so the SVG fits its parent's width.
@@ -5253,7 +5259,7 @@ function update_text(e) {
     var r = find_child(e, "rect");
     var t = find_child(e, "text");
     var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
-    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    var txt = find_child(e, "title").textContent;
     t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
     // Smaller than this size won't fit anything
     if (w < 2 * fontsize * fontwidth) {
@@ -21787,20 +21793,20 @@ Examples:
         # {0:1} {1:1}
 
     - Send SIGSTOP signal to specific tasks
-        # {0:1} {1:1} -stop 1234
-        # {0:1} {1:1} -stop a.out
-        # {0:1} {1:1} -stop a.out*
+        # {0:1} {1:1} -STOP 1234
+        # {0:1} {1:1} -STOP a.out
+        # {0:1} {1:1} -STOP "a.out*"
 
     - Send SIGSTOP signal to specific tasks until one gets the signal
-        # {0:1} {1:1} -stop 1234 -W
+        # {0:1} {1:1} -STOP 1234 -W
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
-        # {0:1} {1:1} -kill 1234
+        # {0:1} {1:1} -KILL 1234
 
     - Send 9th signal SIGKILL to specific tasks every 2 seconds
         # {0:1} {1:1} -9 1234 -i 2
-        # {0:1} {1:1} -kill 1234 -i 2
+        # {0:1} {1:1} -KILL 1234 -i 2
                     '''.format(cmd, mode)
 
                 # pause #
@@ -28016,15 +28022,15 @@ Copyright:
 
                     if SysMgr.intervalEnable <= 0:
                         SysMgr.printErr((
-                            "wrong value for interval, "
-                            "input number bigger than 0") % option)
+                            "wrong value '%s' for interval, "
+                            "input number bigger than 0") % value)
                         sys.exit(0)
                 except SystemExit:
                     sys.exit(0)
                 except:
                     SysMgr.printErr((
-                        "wrong value for interval, "
-                        "input number in integer format") % option)
+                        "wrong value '%s' for interval, "
+                        "input number in integer format") % value)
                     sys.exit(0)
 
             elif SysMgr.isCommonOption(option):
@@ -50333,7 +50339,7 @@ struct cmsghdr {
 
         for line in fd:
             # get start keyword #
-            if line.startswith('[Top '):
+            if line.startswith('[Top ') or line.startswith('[Trace '):
                 if not ' Summary]' in line or context:
                     return samples, title
 
@@ -52587,10 +52593,12 @@ struct cmsghdr {
 
         # signal name #
         try:
-            signame = UtilMgr.convColor(ConfigMgr.SIG_LIST[sig], 'GREEN')
+            name = ConfigMgr.SIG_LIST[sig]
+            signame = UtilMgr.convColor(name, 'GREEN')
         except SystemExit:
             sys.exit(0)
         except:
+            name = sig
             signame = 'UNKNOWN(%s)' % sig
 
         callString = '%3.6f %s[%s]' % (diff, tinfo, signame)
@@ -52607,15 +52615,15 @@ struct cmsghdr {
             # code #
             try:
                 code = self.sigObj.si_code
-                if signame == 'SIGCHLD':
+                if name == 'SIGCHLD':
                     code = ConfigMgr.SIGCHLD_CODE[code]
-                elif signame == 'SIGTRAP':
+                elif name == 'SIGTRAP':
                     code = ConfigMgr.SIGTRAP_CODE[code]
-                elif signame == 'SIGSEGV':
+                elif name == 'SIGSEGV':
                     code = ConfigMgr.SIGSEGV_CODE[code]
-                elif signame == 'SIGILL':
+                elif name == 'SIGILL':
                     code = ConfigMgr.SIGILL_CODE[code]
-                elif signame == 'SIGFPE':
+                elif name == 'SIGFPE':
                     code = ConfigMgr.SIGFPE_CODE[code]
                 elif self.sigObj.si_code in ConfigMgr.SI_CODE:
                     code = ConfigMgr.SI_CODE[code]
@@ -52640,7 +52648,8 @@ struct cmsghdr {
                     pid = fields.pid
                     if SysMgr.showAll and pid > 0:
                         comm = SysMgr.getComm(pid, cache=True)
-                        pid = '%s(%s)' % (comm, pid)
+                        if comm:
+                            pid = '%s(%s)' % (comm, pid)
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -52666,6 +52675,10 @@ struct cmsghdr {
                                     status, fields.utime, fields.stime)
             else:
                 callString = '%s}' % callString
+        else:
+            # check alive #
+            if not self.isAlive():
+                sys.exit(0)
 
         # print context #
         SysMgr.printPipe(callString)
@@ -54536,6 +54549,19 @@ struct cmsghdr {
 
 
     def runEventLoop(self):
+        # set mode #
+        sampleMode = pycallMode = signalMode = syscallMode = instMode = False
+        if self.mode == 'sample':
+            sampleMode = True
+        elif self.mode == 'pycall':
+            pycallMode = True
+        elif self.mode == 'signal':
+            signalMode = True
+        elif self.mode == 'syscall':
+            syscallMode = True
+        elif self.mode == 'inst':
+            instMode = True
+
         # timestamp variables #
         self.updateCurrent()
 
@@ -54565,12 +54591,12 @@ struct cmsghdr {
                 pass
             else:
                 # wait for sample calls #
-                if self.mode == 'sample' or self.mode == 'pycall':
+                if sampleMode or pycallMode:
                     self.checkInterval()
-                elif self.isBreakMode or self.mode == 'signal':
+                elif self.isBreakMode or signalMode:
                     pass
                 # skip instructions for performance #
-                elif self.mode == 'inst' and self.skipInst > 0:
+                elif instMode and self.skipInst > 0:
                     for i in range(0, self.skipInst):
                         self.ptrace(self.cmd)
                 # setup trap #
@@ -54609,7 +54635,7 @@ struct cmsghdr {
                         self.cont()
 
                     # continue to exit event for clone syscall #
-                    if not self.mode == 'syscall':
+                    if not syscallMode:
                         continue
 
                 # handle exec event #
@@ -54666,15 +54692,35 @@ struct cmsghdr {
                         self.status = 'enter'
 
                     # usercall / breakcall #
-                    elif self.isBreakMode or self.mode == 'inst':
+                    elif self.isBreakMode or instMode:
                         self.handleTrapEvent(ostat)
 
                     # wrong status for syscall #
-                    elif self.mode == 'syscall' and self.status == 'enter':
+                    elif syscallMode and self.status == 'enter':
                         self.status = 'skip'
                         self.ptraceEvent(self.traceEventList)
                         self.ptrace(self.cmd)
                         continue
+
+                # exit #
+                elif stat == -1:
+                    # print status #
+                    SysMgr.printErr(
+                        'terminated %s(%s)' % (self.comm, self.pid))
+
+                    # wait event #
+                    if SysMgr.isTopMode() and self.totalCall:
+                        SysMgr.waitEvent()
+
+                    sys.exit(0)
+
+                # signal #
+                elif signalMode:
+                    # handle signal #
+                    self.handleSignal(stat)
+
+                    # deliver signal #
+                    self.cont(sig=stat)
 
                 # breakpoint for ARM #
                 elif stat == signal.SIGILL and self.isBreakMode:
@@ -54683,12 +54729,12 @@ struct cmsghdr {
                 # syscall #
                 elif stat == syscallTrapFlag:
                     # interprete syscall context #
-                    if self.mode == 'syscall':
+                    if syscallMode:
                         self.handleSyscall()
 
                 # STOP signal #
                 elif stat == signal.SIGSTOP:
-                    if self.mode == 'sample' or self.mode == 'pycall':
+                    if sampleMode or pycallMode:
                         self.handleTrapEvent(ostat)
                         continue
 
@@ -54699,11 +54745,11 @@ struct cmsghdr {
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
-                    if self.isBreakMode or self.mode == 'signal':
+                    if self.isBreakMode or signalMode:
                         if self.cont(check=True, sig=stat) < 0:
                             sys.exit(0)
                     # set up trap again #
-                    elif self.mode == 'syscall':
+                    elif syscallMode:
                         self.ptraceEvent(self.traceEventList)
                         self.ptrace(self.cmd)
 
@@ -54726,31 +54772,11 @@ struct cmsghdr {
                         sys.exit(0)
 
                     # stop target before ptrace_syscall #
-                    if self.mode == 'syscall':
+                    if syscallMode:
                         self.stop()
 
                     # set fault flag to shared memory #
                     self.setFaultFlag()
-
-                # exit #
-                elif stat == -1:
-                    # print status #
-                    SysMgr.printErr(
-                        'terminated %s(%s)' % (self.comm, self.pid))
-
-                    # wait event #
-                    if SysMgr.isTopMode() and self.totalCall:
-                        SysMgr.waitEvent()
-
-                    sys.exit(0)
-
-                # signal #
-                elif self.mode == 'signal':
-                    # handle signal #
-                    self.handleSignal(stat)
-
-                    # deliver signal #
-                    self.cont(sig=stat)
 
                 # other #
                 else:
@@ -54759,11 +54785,11 @@ struct cmsghdr {
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # handle signal #
-                    if self.mode == 'sample' or self.mode == 'pycall':
+                    if sampleMode or pycallMode:
                         self.handleTrapEvent(ostat)
 
                     # signal delivery #
-                    if self.mode == 'syscall':
+                    if syscallMode:
                         # retrieve information about the signal #
                         self.getSigInfo()
 
