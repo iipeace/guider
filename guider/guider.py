@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210509"
+__revision__ = "210510"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3168,7 +3168,7 @@ class ConfigMgr(object):
 
     # signal #
     SIG_LIST = [
-        'N/A', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
+        '0', 'SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', #4#
         'SIGTRAP', 'SIGABRT', 'SIGBUS', 'SIGFPE', #8#
         'SIGKILL', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', #12#
         'SIGPIPE', 'SIGALRM', 'SIGTERM', 'SIGSTKFLT', #16#
@@ -37409,8 +37409,10 @@ Copyright:
             SysMgr.printErr("no target thread")
             sys.exit(0)
 
+        # initialize task stats #
         tobj = TaskAnalyzer(onlyInstance=True)
-        for pid in pids:
+
+        for pid in sorted(pids):
             proc = '%s(%s)' % (SysMgr.getComm(pid), pid)
 
             # get process info #
@@ -52615,7 +52617,9 @@ struct cmsghdr {
             # code #
             try:
                 code = self.sigObj.si_code
-                if name == 'SIGCHLD':
+                if self.sigObj.si_code in ConfigMgr.SI_CODE:
+                    code = ConfigMgr.SI_CODE[code]
+                elif name == 'SIGCHLD':
                     code = ConfigMgr.SIGCHLD_CODE[code]
                 elif name == 'SIGTRAP':
                     code = ConfigMgr.SIGTRAP_CODE[code]
@@ -52625,8 +52629,6 @@ struct cmsghdr {
                     code = ConfigMgr.SIGILL_CODE[code]
                 elif name == 'SIGFPE':
                     code = ConfigMgr.SIGFPE_CODE[code]
-                elif self.sigObj.si_code in ConfigMgr.SI_CODE:
-                    code = ConfigMgr.SI_CODE[code]
                 else:
                     raise Exception('No Signal Code')
             except:
@@ -52636,43 +52638,76 @@ struct cmsghdr {
 
             if self.sigObj._sifields:
                 fields = self.sigObj._sifields._sigchld
+                if name == 'SIGSEGV':
+                    callString = ('%s si_addr=%s}') % \
+                        (callString, hex(fields.pid))
+                elif name == 'SIGCHLD':
+                    # status #
+                    try:
+                        if code == "CLD_EXITED":
+                            status = fields.status
+                        else:
+                            status = ConfigMgr.SIG_LIST[fields.status]
+                    except:
+                        status = fields.status
 
-                # status #
-                try:
-                    status = ConfigMgr.SIG_LIST[fields.status]
-                except:
-                    status = fields.status
+                    # pid #
+                    try:
+                        pid = fields.pid
+                        if SysMgr.showAll and pid > 0:
+                            comm = SysMgr.getComm(pid, cache=True)
+                            if comm:
+                                pid = '%s(%s)' % (comm, pid)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
-                # pid #
-                try:
-                    pid = fields.pid
-                    if SysMgr.showAll and pid > 0:
-                        comm = SysMgr.getComm(pid, cache=True)
-                        if comm:
-                            pid = '%s(%s)' % (comm, pid)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                    # uid #
+                    try:
+                        uid = fields.uid
+                        if SysMgr.showAll:
+                            if not SysMgr.sysInstance:
+                                SysMgr()
+                            userData = SysMgr.sysInstance.userData
+                            uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
-                # uid #
-                try:
-                    uid = fields.uid
-                    if SysMgr.showAll:
+                    callString = \
+                        ('%s si_pid=%s, si_uid=%s, si_status=%s '
+                            'si_utime=%s, si_stime=%s}') % \
+                                (callString, pid, uid,
+                                    status, fields.utime, fields.stime)
+                else:
+                    # pid #
+                    try:
+                        pid = fields.pid
+                        if pid > 0:
+                            comm = SysMgr.getComm(pid, cache=True)
+                            if comm:
+                                pid = '%s(%s)' % (comm, pid)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+                    # uid #
+                    try:
+                        uid = fields.uid
                         if not SysMgr.sysInstance:
                             SysMgr()
                         userData = SysMgr.sysInstance.userData
                         uid = '%s(%s)' % (userData[str(uid)]['name'], uid)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
-                callString = \
-                    ('%s si_pid=%s, si_uid=%s, si_status=%s '
-                        'si_utime=%s, si_stime=%s}') % \
-                            (callString, pid, uid,
-                                    status, fields.utime, fields.stime)
+                    callString = '%s si_pid=%s, si_uid=%s}' % \
+                        (callString, pid, uid)
             else:
                 callString = '%s}' % callString
         else:

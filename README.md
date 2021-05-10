@@ -642,6 +642,45 @@ Output
     [Info] limited cpu usage of yes(22371) process to 50%, it used 50%
 
 >>>
+
+    # guider/guider.py sigtrace -g a.out
+
+	[INFO] start profiling a.out(3100585)...
+
+	0.000130 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	0.000276 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	0.000287 [SIGRT1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	0.000307 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	0.000317 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	0.000326 [SIGRT2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955804 [SIGCHLD] {si_code=CLD_EXITED si_pid=3100586, si_uid=0, si_status=0 si_utime=0, si_stime=0}
+	1.955816 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955826 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955836 [SIGRT3] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955846 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955856 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955866 [SIGRT4] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955875 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955884 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955893 [SIGRT5] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955903 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955912 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955922 [SIGRT6] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955931 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955941 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955950 [SIGRT7] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955959 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955969 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955978 [SIGRT8] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955987 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.955997 [SIGUSR2] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.956006 [SIGRT9] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.956015 [SIGUSR1] {si_code=SI_USER si_pid=a.out(3100585), si_uid=root(0)}
+	1.956025 [SIGSEGV] {si_code=SEGV_MAPERR si_addr=0x4d2}
+
+	2.191489 +++ exited a.out(3100585) with 139 +++
+
+>>>
            
     # guider/guider.py setsched r:90:22371
 
