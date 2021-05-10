@@ -27456,7 +27456,7 @@ Copyright:
 
 
     @staticmethod
-    def printWarn(line, always=False, reason=False):
+    def printWarn(line, always=False, reason=False, newline=True):
         # print backtrace #
         #SysMgr.printBacktrace()
 
@@ -27478,8 +27478,11 @@ Copyright:
 
         proc = SysMgr.getProcInfo()
 
-        log = ('\n%s%s%s%s%s%s\n' % \
+        log = ('\n%s%s%s%s%s%s' % \
             (color, '[WARN] ', proc, line, rstring, colorl))
+
+        if newline:
+            log = '%s\n' % log
 
         # write log #
         if SysMgr.stdlog:
@@ -46304,8 +46307,8 @@ struct cmsghdr {
         try:
             if stop:
                 os.kill(self.pid, signal.SIGSTOP)
-            elif self.isStopped():
-                os.kill(self.pid, signal.SIGCONT)
+            else:
+                SysMgr.syscall(self.tkillIdx, self.pid, signal.SIGCONT)
         except:
             SysMgr.printSigError(self.pid, 'SIGCONT')
             return
@@ -49262,9 +49265,6 @@ struct cmsghdr {
 
 
     def cont(self, pid=None, check=False, sig=0):
-        if not self.attached:
-            return 0
-
         if not pid:
             pid = self.pid
 
@@ -49353,9 +49353,6 @@ struct cmsghdr {
     def detach(self, only=False, pid=None, check=False):
         if only:
             return self.doDetach(pid, check=check)
-
-        if not self.attached:
-            return 0
 
         if hasattr(self, 'pid'):
             pid = self.pid
@@ -52571,12 +52568,12 @@ struct cmsghdr {
 
 
 
-    def handleSignal(self, sig):
+    def handleSignal(self, sig, warn=False, taskinfo=False):
         if not SysMgr.printEnable:
             return
 
         # check signal filter #
-        if SysMgr.customCmd:
+        if self.mode == 'signal' and SysMgr.customCmd:
             found = False
             for signame in SysMgr.customCmd:
                 if signame.upper() == ConfigMgr.SIG_LIST[sig]:
@@ -52588,7 +52585,7 @@ struct cmsghdr {
         # get diff time #
         diff = self.vdiff
 
-        if self.multi:
+        if taskinfo or self.multi:
             tinfo = '%s(%s) ' % (self.comm, self.pid)
         else:
             tinfo = ''
@@ -52603,7 +52600,10 @@ struct cmsghdr {
             name = sig
             signame = 'UNKNOWN(%s)' % sig
 
-        callString = '%3.6f %s[%s]' % (diff, tinfo, signame)
+        if diff > 0:
+            callString = '%3.6f %s[%s]' % (diff, tinfo, signame)
+        else:
+            callString = '%s[%s]' % (tinfo, signame)
 
         # get signal info #
         ret = self.getSigInfo()
@@ -52716,7 +52716,10 @@ struct cmsghdr {
                 sys.exit(0)
 
         # print context #
-        SysMgr.printPipe(callString)
+        if warn:
+            SysMgr.printWarn(callString, newline=False)
+        else:
+            SysMgr.printPipe(callString)
 
         # print backtrace #
         if not self.isRealtime and SysMgr.funcDepth > 0:
@@ -54780,7 +54783,7 @@ struct cmsghdr {
                         (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
 
                     # continue #
-                    if self.isBreakMode or signalMode:
+                    if self.isBreakMode:
                         if self.cont(check=True, sig=stat) < 0:
                             sys.exit(0)
                     # set up trap again #
@@ -54790,13 +54793,11 @@ struct cmsghdr {
 
                 # KILL / SEGV / ABRT signal #
                 elif SysMgr.isTermSignal(stat):
-                    # get signal name #
-                    signame = ConfigMgr.SIG_LIST[stat]
+                    # print a new line #
+                    sys.stdout.write('\n')
 
-                    # print status #
-                    SysMgr.printWarn(
-                        'detected %s for %s(%s)' % \
-                            (signame, self.comm, self.pid), True)
+                    # print signal info #
+                    self.handleSignal(stat, taskinfo=syscallMode)
 
                     # print context info #
                     if SysMgr.showAll:
@@ -54806,7 +54807,7 @@ struct cmsghdr {
                     if self.cont(check=True, sig=stat) < 0:
                         sys.exit(0)
 
-                    # stop target before ptrace_syscall #
+                    # stop target for next syscall #
                     if syscallMode:
                         self.stop()
 
@@ -54815,24 +54816,22 @@ struct cmsghdr {
 
                 # other #
                 else:
-                    SysMgr.printWarn(
-                        'detected %s(%s) with %s' % \
-                        (self.comm, self.pid, ConfigMgr.SIG_LIST[stat]))
+                    # print signal info #
+                    if SysMgr.warnEnable:
+                        self.handleSignal(
+                            stat, warn=True, taskinfo=syscallMode)
 
                     # handle signal #
                     if sampleMode or pycallMode:
                         self.handleTrapEvent(ostat)
 
-                    # signal delivery #
-                    if syscallMode:
-                        # retrieve information about the signal #
-                        self.getSigInfo()
+                    # deliver signal #
+                    if self.cont(check=True, sig=stat) < 0:
+                        sys.exit(0)
 
-                        # set the signal information #
-                        self.setSigInfo()
-                    else:
-                        if self.cont(check=True, sig=stat) < 0:
-                            sys.exit(0)
+                    # stop target for next syscall #
+                    if syscallMode:
+                        self.stop()
             except SystemExit:
                 return
             except:
