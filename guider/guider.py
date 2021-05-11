@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210510"
+__revision__ = "210511"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -15540,6 +15540,29 @@ class LogMgr(object):
                 for line in logBuf.split('\n'):
                     if not UtilMgr.isValidStr(line):
                         continue
+
+                    # convert log level #
+                    if line.startswith('<'):
+                        try:
+                            level, line = line.split('>', 1)
+
+                            nrLevel = long(level[1:])
+                            try:
+                                level = ConfigMgr.LOG_LEVEL[nrLevel]
+                            except:
+                                level = nrLevel
+
+                            ts, line = line.split(' ', 1)
+
+                            line = '%s <%s> %s' % (ts, level, line)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            pass
+
+                    if SysMgr.outPath and console:
+                        print(line)
+
                     SysMgr.printPipe(line)
 
             while 1:
@@ -15563,6 +15586,8 @@ class LogMgr(object):
         # change file position #
         try:
             SysMgr.kmsgFd.seek(0)
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
 
@@ -15575,6 +15600,7 @@ class LogMgr(object):
                 continue
 
             # parse log #
+            # PRIORITY,SEQUENCE_NUM,TIMESTAMP,-;MESSAGE #
             pos = log.find(';')
 
             meta = log[:pos].split(',')
@@ -15592,15 +15618,27 @@ class LogMgr(object):
                 else:
                     ltime = '%s.%s' % (ltime[:-6], ltime[-6:])
 
-                # name & log #
+                # update pos #
                 log = log[pos + 1:]
+
+                # name #
                 npos = log.find(':')
-                name = log[:npos]
+                if npos < 0:
+                    name = ''
+                else:
+                    name = log[:npos]
+
+                # log #
                 if log[-1] == '\n':
                     log = log[npos + 1:-1]
                 else:
                     log = log[npos + 1:]
 
+                # update message #
+                if name:
+                    log = '%s: %s' % (name, log)
+
+                # set message #
                 if SysMgr.jsonEnable:
                     jsonResult = \
                         dict(time=ltime, level=level, name=name, log=log)
@@ -15609,7 +15647,7 @@ class LogMgr(object):
                         level = UtilMgr.convColor(level, 'BOLD')
                         name = UtilMgr.convColor(name, 'SPECIAL')
                         ltime = UtilMgr.convColor(ltime, 'GREEN')
-                    log = '[%s] (%s) %s: %s' % (ltime, level, name, log)
+                    log = '[%s] (%s) %s' % (ltime, level, log)
 
             # apply filter #
             if SysMgr.filterGroup:
@@ -15622,14 +15660,16 @@ class LogMgr(object):
                 if not found:
                     continue
 
+            # print message #
             if SysMgr.jsonEnable:
-                jsonResult = UtilMgr.convDict2Str(jsonResult)
-                SysMgr.printPipe(jsonResult)
+                if jsonResult:
+                    jsonResult = UtilMgr.convDict2Str(jsonResult)
+                    SysMgr.printPipe(jsonResult)
             else:
                 if SysMgr.outPath and console:
-                    print(log[:-1])
+                    print(log.rstrip())
 
-                SysMgr.printPipe(log[:-1])
+                SysMgr.printPipe(log.rstrip())
 
 
 
@@ -15639,16 +15679,24 @@ class LogMgr(object):
         try:
             if not SysMgr.kmsgFd:
                 SysMgr.kmsgFd = open(SysMgr.kmsgPath, 'w')
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printOpenErr(SysMgr.kmsgPath)
-            sys.exit(0)
+            return -1
 
+        # print message lines #
         try:
-            SysMgr.kmsgFd.write(msg)
-            SysMgr.kmsgFd.flush()
+            msgList = msg.split('\n')
+            for line in msgList:
+                SysMgr.kmsgFd.write(line)
+                SysMgr.kmsgFd.flush()
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printWarn(
                 "fail to write kmsg", reason=True)
+            return -1
 
         return 0
 
@@ -15657,14 +15705,16 @@ class LogMgr(object):
     @staticmethod
     def doLogSyslog(msg=None, level=None):
         if not msg:
-            return
+            return -1
 
         # load libc #
         SysMgr.loadLibcObj(exit=True)
 
+        # set default level #
         if level is None:
             level = LogMgr.LOG_NOTICE
 
+        # write message #
         SysMgr.libcObj.syslog(level, msg.encode())
 
         return 0
@@ -15677,8 +15727,9 @@ class LogMgr(object):
         SysMgr.importPkgItems('ctypes')
 
         if not msg:
-            return
+            return -1
 
+        # set default level #
         if level is None:
             level = LogMgr.LOG_NOTICE
 
@@ -15693,11 +15744,14 @@ class LogMgr(object):
             if not hasattr(SysMgr.systemdObj, func):
                 raise Exception(
                     'no %s in %s' % (func, SysMgr.libsystemdPath))
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.printErr(
                 "fail to log journal", True)
-            sys.exit(0)
+            return -1
 
+        # print message #
         return SysMgr.systemdObj.sd_journal_print(level, msg.encode())
 
 
@@ -17119,9 +17173,7 @@ class SysMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn(
-                'fail to change %s to (%s,%s)' % (rname, slim, hlim),
-                reason=True)
+            pass
 
         # get ctypes object #
         if not SysMgr.importPkgItems('ctypes', False):
@@ -19451,6 +19503,7 @@ Usage:
     -o  <DIR|FILE>              set output path
     -u                          run in the background
     -W                          wait for input
+    -f                          force execution
     -b  <SIZE:KB>               set buffer size
     -T  <PROC>                  set process number
     -j  <DIR|FILE>              set report path
@@ -22954,7 +23007,9 @@ Description:
 
 Options:
     -g  <OP:PATH>               set path
-    -R  <TIME>                  set timer
+    -i  <TIME>                  set timer
+    -R  <COUNT>                 set repeat count
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -22967,11 +23022,26 @@ Examples:
         # {0:1} {1:1} .
         # {0:1} {1:1} -g .
 
+    - Read all files from current directory recursively for 3 seconds
+        # {0:1} {1:1} . -i 3
+        # {0:1} {1:1} -g . -i 3
+
+    - Read the specific file 5 times
+        # {0:1} {1:1} read:TEST -R 5
+
     - Read all device nodes mounted
         # {0:1} {1:1} -a
 
-    - Write dummy data to a specific file infinitely
+    - Read all device nodes mounted after flushing the system cache
+        # {0:1} {1:1} -a -q DROPCACHE
+
+    - Write dummy data to the specific file infinitely
+        # {0:1} {1:1} write:TEST
         # {0:1} {1:1} -g write:TEST
+
+    - Write 100MB of dummy data to the specific file
+        # {0:1} {1:1} write:TEST:100m
+        # {0:1} {1:1} -g write:TEST:100m
                     '''.format(cmd, mode)
 
                 # nettest #
@@ -25044,7 +25114,7 @@ Copyright:
             return _getStats(addrList)
 
         inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
-        addrIdx = ConfigMgr.UDP_ATTR.index('local_address')
+        laddrIdx = ConfigMgr.UDP_ATTR.index('local_address')
 
         udpBuf = []
         udpFileList = [
@@ -25072,13 +25142,26 @@ Copyright:
 
                     udp = line.split()
 
-                    ip, port = udp[addrIdx].split(':')
+                    # convert local address #
+                    lip, lport = udp[laddrIdx].split(':')
+                    lip = SysMgr.convertCIDR(lip)
+                    item = "UDP>%s:%s" % (lip, long(lport, base=16))
 
-                    # convert ip address and port #
-                    ip = SysMgr.convertCIDR(ip)
+                    # convert remote address #
+                    rip, rport = udp[laddrIdx+1].split(':')
 
-                    item = "UDP>%s:%s" % (ip, long(port, base=16))
+                    # append remote address #
+                    try:
+                        rport = long(rport, 16)
+                        if long(rip, 16) > 0 and rport > 0:
+                            rip = SysMgr.convertCIDR(rip)
+                            item = "%s->%s:%s" % (item, rip, rport)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
+                    # cache string #
                     SysMgr.udpListCache[udp[inodeIdx]] = item
                 except SystemExit:
                     sys.exit(0)
@@ -25104,7 +25187,7 @@ Copyright:
 
         stIdx = ConfigMgr.UDP_ATTR.index('st')
         inodeIdx = ConfigMgr.UDP_ATTR.index('inode')
-        addrIdx = ConfigMgr.UDP_ATTR.index('local_address')
+        laddrIdx = ConfigMgr.UDP_ATTR.index('local_address')
 
         tcpBuf = []
         tcpFileList = [
@@ -25133,19 +25216,36 @@ Copyright:
 
                     tcp = line.split()
 
-                    ip, port = tcp[addrIdx].split(':')
+                    # convert local address #
+                    lip, lport = tcp[laddrIdx].split(':')
+                    lip = SysMgr.convertCIDR(lip)
+                    item = "TCP>%s:%s" % (lip, long(lport, base=16))
 
-                    # convert ip address and port #
-                    ip = SysMgr.convertCIDR(ip)
+                    # convert remote address #
+                    rip, rport = tcp[laddrIdx+1].split(':')
 
+                    # append remote address #
+                    try:
+                        rport = long(rport, 16)
+                        if long(rip, 16) > 0 and rport > 0:
+                            rip = SysMgr.convertCIDR(rip)
+                            item = "%s->%s:%s" % (item, rip, rport)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
+
+                    # define status #
                     try:
                         stat = '/%s' % \
                             ConfigMgr.TCP_STAT[long(tcp[stIdx], 16)]
                     except:
                         stat = ''
 
-                    item = "TCP>%s:%s%s" % (ip, long(port, base=16), stat)
+                    # append status #
+                    item = '%s%s' % (item, stat)
 
+                    # cache string #
                     SysMgr.tcpListCache[tcp[inodeIdx]] = item
                 except SystemExit:
                     sys.exit(0)
@@ -29820,6 +29920,9 @@ Copyright:
 
     @staticmethod
     def checkDiskTopCond():
+        if SysMgr.forceEnable:
+            return True
+
         procPath = SysMgr.procPath
         if not SysMgr.isRoot():
             SysMgr.printErr(
@@ -29836,6 +29939,9 @@ Copyright:
 
     @staticmethod
     def checkStackTopCond():
+        if SysMgr.forceEnable:
+            return True
+
         if not SysMgr.isRoot():
             SysMgr.printErr(
                 "fail to get root permission to sample stack")
@@ -29855,12 +29961,28 @@ Copyright:
             return SysMgr.ipAddrCache[addr]
 
         addrList = []
-        splitAddr = [addr[i:i+2] for i in range(0, len(addr), 2)]
-        for num in reversed(splitAddr):
-            addrList.append(str(long(num, base=16)))
-        retval = '.'.join(addrList)
 
+        # slice last 64bits for IPv6 #
+        try:
+            addr = addr[-8:]
+        except:
+            pass
+
+        # check 0 #
+        if long(addr, 16) == 0:
+            retval = '*'
+        else:
+            # convert IP #
+            splitAddr = [addr[i:i+2] for i in range(0, len(addr), 2)]
+            for num in reversed(splitAddr):
+                addrList.append(str(long(num, base=16)))
+
+            # build IP string #
+            retval = '.'.join(addrList)
+
+        # cache result #
         SysMgr.ipAddrCache[addr] = retval
+
         return retval
 
 
@@ -35372,38 +35494,39 @@ Copyright:
                     'fali to flush system cache', reason=True)
 
         def _iotask(num, load):
-            def _readChunk(fobj, size=4096):
+            def _readChunk(fobj, chunk=4096):
                 while 1:
-                    ret = os.read(fobj, size)
+                    ret = os.read(fobj, chunk)
                     yield ret
 
-            def _writeChunk(fobj, sync=False, size=4096):
+            def _writeChunk(fobj, sync=False, chunk=4096):
                 while 1:
-                    ret = os.write(fobj, writeData[:size])
+                    ret = os.write(fobj, writeData[:chunk])
                     if sync:
                         os.fsync(fobj)
                     yield ret
 
+            # set default signal handlers #
             SysMgr.setDefaultSignal()
 
+            # get jobs #
             op = load['op']
             path = load['path']
-            if op == 'read':
-                flag = os.O_RDONLY
-            elif op == 'write':
-                flag = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            size = load['size']
 
-            # set operation #
+            # set handler #
             if op == 'read':
                 opFunc = _readChunk
+                flag = os.O_RDONLY
             elif op == 'write':
                 opFunc = _writeChunk
+                flag = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
             else:
                 SysMgr.printErr(
                     "failed to recognize operation %s" % op)
                 sys.exit(0)
 
-            # set direction #
+            # set operation #
             if op == 'write':
                 direct = 'to'
             elif op == 'read':
@@ -35417,30 +35540,65 @@ Copyright:
                     path = os.path.join(path, 'WRTEST')
                 else:
                     target = 'dir'
-            elif op == 'write' and \
-                SysMgr.isWritable(path):
+            elif op == 'write' and SysMgr.isWritable(path):
                 target = 'file'
             else:
                 SysMgr.printErr(
                     "failed to access '%s'" % path)
                 return
 
+            # set repeat count #
+            repeat = SysMgr.repeatInterval
+            if repeat == 0:
+                repeat = 1
+
+            # make file size string #
+            fsize = ''
+            if target == 'file':
+                # get output size #
+                fsize = UtilMgr.getFileSize(path)
+                if fsize and fsize != '0':
+                    fsize = '[%s]' % fsize
+
+
+            # make load string #
+            if size > 0:
+                loadStr = 'only %s ' % UtilMgr.convSize2Unit(size)
+            else:
+                loadStr = ''
+
+            conv = UtilMgr.convNum
+
             SysMgr.printInfo(
-                "created a new process to %s %s '%s'" % \
-                    (op, direct, path))
+                "created a new process to %s %s%s '%s%s' %s times\n" % \
+                    (op, loadStr, direct, path, fsize, conv(repeat)))
 
             # run loop #
-            while 1:
+            for seq in range(repeat):
+                sys.stdout.write("[%s] Start... " % conv(seq))
+                sys.stdout.flush()
+
                 # flush page caches #
-                _flushCache()
+                if 'DROPCACHE' in SysMgr.environList:
+                    _flushCache()
 
                 # FILE #
                 if target == 'file':
                     try:
+                        done = 0
                         fd = os.open(path, flag)
                         for piece in opFunc(fd):
+                            # update progress #
+                            if type(piece) is long:
+                                done += piece
+                            else:
+                                done += len(piece)
+
+                            # check stop condition #
                             if not piece:
-                                return
+                                break
+                            elif size > 0 and done >= size:
+                                break
                         os.close(fd)
                     except SystemExit:
                         sys.exit(0)
@@ -35472,8 +35630,11 @@ Copyright:
                                 'failed to access %s for %s' % (fpath, op),
                                 True, True)
 
+                sys.stdout.write("Done\n")
+
         # get tasks #
         try:
+            # get option #
             if SysMgr.hasMainArg():
                 opList = SysMgr.getMainArgs(False)
             elif SysMgr.filterGroup:
@@ -35481,38 +35642,45 @@ Copyright:
             else:
                 opList = None
 
+            # parse option #
             if opList:
                 for item in opList:
+                    size = 0
+
                     item = item.split(':')
+
                     if len(item) == 1:
                         op = 'read'
                         path = item[0]
+                    elif len(item) == 3:
+                        op, path, size = item
+                        try:
+                            size = UtilMgr.convUnit2Size(size)
+                        except SystemExit:
+                            sys.exit(0)
+                        except:
+                            sys.exit(0)
                     else:
                         op, path = item
 
-                    if op != 'write' and \
-                        not os.path.exists(path):
-                        SysMgr.printErr(
-                            "fail to access %s" % path)
-                        sys.exit(0)
-
                     workload.append(
-                        {'op': op, 'path': path})
-
+                        {'op': op, 'path': path, 'size': size})
+            # read all mount directories #
             elif SysMgr.showAll:
                 for path, value in SysMgr.sysInstance.mountInfo.items():
-                    if path.startswith('/dev/') and \
-                        not 'loop' in path:
+                    if not path.startswith('/dev/') or 'loop' in path:
+                        continue
 
-                        if hasattr(os, 'statvfs'):
-                            stat = os.statvfs(value['path'])
-                        else:
-                            stat = SysMgr.statvfs(value['path'])
+                    if hasattr(os, 'statvfs'):
+                        stat = os.statvfs(value['path'])
+                    else:
+                        stat = SysMgr.statvfs(value['path'])
 
-                        size = (stat.f_bsize * stat.f_blocks)
+                    size = (stat.f_bsize * stat.f_blocks)
 
-                        workload.append(
-                            {'op': 'read', 'path': path, 'size': size})
+                    workload.append(
+                        {'op': 'read', 'path': path, 'size': size})
+            # read current directory #
             else:
                 # get device id #
                 fstat = os.lstat('.')
@@ -35548,8 +35716,9 @@ Copyright:
                         SysMgr.getErrMsg())
             sys.exit(0)
 
-        # drop cache #
-        _flushCache(verb=True)
+        # flush page caches #
+        if 'DROPCACHE' in SysMgr.environList:
+            _flushCache(verb=True)
 
         # run tasks #
         ioTasks = dict()
@@ -35569,9 +35738,8 @@ Copyright:
                     sys.exit(0)
 
         # set alarm #
-        SysMgr.repeatCount = sys.maxsize
         signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(1)
+        signal.alarm(SysMgr.intervalEnable)
 
         # wait for childs #
         while 1:
@@ -44819,6 +44987,8 @@ class DltAnalyzer(object):
             if not SysMgr.dltObj:
                 raise Exception('no DLT library')
             dltObj = SysMgr.dltObj
+        except SystemExit:
+            sys.exit(0)
         except:
             SysMgr.dltObj = None
             SysMgr.printWarn(
