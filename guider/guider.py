@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210512"
+__revision__ = "210513"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -50780,12 +50780,13 @@ struct cmsghdr {
                 else:
                     return
 
-        # get CPU Usage for target #
+        # get resource usage for target #
         cpuUsage = self.getCpuUsage()
         ttime = cpuUsage[0] / diff
         utime = cpuUsage[1] / diff
         stime = cpuUsage[2] / diff
         cpuStr = '%d%%(Usr/%d%%+Sys/%d%%)' % (ttime, utime, stime)
+        rssStr = self.getMemUsage()
 
         # check CPU threshold #
         if Debugger.cpuCond > -1 and Debugger.cpuCond > ttime:
@@ -50807,11 +50808,11 @@ struct cmsghdr {
         elif self.mode == 'pycall':
             ctype = 'Pycall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [SampleRate: %g]' % self.sampleTime
+            sampleStr = ' [Freq: %g]' % self.sampleTime
         else:
             ctype = 'Usercall'
             addInfo = '[PATH] <Sample>'
-            sampleStr = ' [SampleRate: %g]' % self.sampleTime
+            sampleStr = ' [Freq: %g]' % self.sampleTime
 
             # continue target to prevent too long freezing #
             if self.traceStatus and self.isAlive():
@@ -50823,10 +50824,11 @@ struct cmsghdr {
         convert = UtilMgr.convNum
         convColor = UtilMgr.convColor
 
-        # get CPU Usage for myself #
+        # get resource usage for myself #
         cpuUsage = Debugger.selfInstance.getCpuUsage()
         mttime = cpuUsage[0] / diff
         mcpuStr = '%d%%' % mttime
+        mrssStr = Debugger.selfInstance.getMemUsage()
 
         # add CPU time info #
         self.cpuUsageList.append([ttime, utime, stime])
@@ -50849,13 +50851,13 @@ struct cmsghdr {
 
         # print top stat #
         ret = SysMgr.addPrint((
-            '[Top %s Info] [Time: %.3f] [Interval: %.3f] [NrSamples: %s] '
-            '[%s(%s): %s] [%s(%s): %s]%s \n%s\n') % \
+            '[Top %s Info] [Time: %.3f] [Interval: %.3f] [Samples: %s] '
+            '[%s(%s): %s/%s] [%s(%s): %s/%s]%s \n%s\n') % \
                 (ctype, SysMgr.uptime, diff,
                 convert(self.totalCall), comm, self.pid,
-                cpuStr, Debugger.selfInstance.comm,
-                Debugger.selfInstance.pid,
-                mcpuStr, sampleStr, twoLine), newline=2)
+                cpuStr, rssStr, Debugger.selfInstance.comm,
+                Debugger.selfInstance.pid, mcpuStr, mrssStr,
+                sampleStr, twoLine), newline=2)
         if not ret:
             _finishPrint()
 
@@ -54145,6 +54147,24 @@ struct cmsghdr {
 
 
 
+    def getMemUsage(self):
+        stat = self.getStatList(retstr=True)
+        if not stat:
+            SysMgr.printWarn(
+                "fail to get Memory usage for %s(%s)" % \
+                    (self.comm, self.pid))
+            return '0'
+
+        # convert string to list #
+        statList = stat.split(')')[1].split()
+
+        rss = UtilMgr.convSize2Unit(
+            long(statList[self.rssIdx-2]) << 12, True)
+
+        return rss
+
+
+
     def getCpuUsage(self):
         stat = self.getStatList(retstr=True)
         if not stat:
@@ -54518,6 +54538,7 @@ struct cmsghdr {
         self.commIdx = ConfigMgr.STAT_ATTR.index("COMM")
         self.utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         self.stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
+        self.rssIdx = ConfigMgr.STAT_ATTR.index("RSS")
 
         # update previous CPU usage #
         if hasattr(self, 'prevCpuStat'):
@@ -55506,11 +55527,11 @@ struct cmsghdr {
             perSample = '100'
 
         if instance.sampleTime > 0:
-            samplingStr = ' [SampleRate: %g] ' % instance.sampleTime
-            sampleRateStr = '(%s%%)' % perSample
+            samplingStr = ' [Freq: %g] ' % instance.sampleTime
+            freqStr = '(%s%%)' % perSample
         else:
             samplingStr = ''
-            sampleRateStr = ''
+            freqStr = ''
 
         # set task info #
         procInfo = '%s(%s)' % (instance.comm, instance.pid)
@@ -55536,7 +55557,7 @@ struct cmsghdr {
             '\n[%s %s Summary] [Elapsed: %.3f]%s%s '
             '[NrSamples: %s%s] [NrSymbols: %s] %s') % \
                 (mtype, ctype, elapsed, samplingStr, cpuStr,
-                convert(long(nrTotal)), sampleRateStr,
+                convert(long(nrTotal)), freqStr,
                 convert(len(callTable)), suffix))
 
         SysMgr.printPipe('%s%s' % (twoLine, suffix))
