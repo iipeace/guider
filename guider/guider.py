@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210511"
+__revision__ = "210512"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3699,6 +3699,13 @@ class ConfigMgr(object):
 class UtilMgr(object):
     """ Manager for utilities """
 
+    '''
+    [ TIPS ]
+    - vim replacement
+        - PROBLEM: replace all "type(???) is long" with "isinstance(???, (int, long))"
+        - SOLUTION: %s/type(\(.*\)) is long/isinstance(\1, (int, long)/g
+    '''
+
     curTime = 0
     progressCnt = 0
     progressChar = {
@@ -4459,8 +4466,7 @@ class UtilMgr(object):
 
     @staticmethod
     def isNumber(value):
-        if type(value) is int or \
-            type(value) is long:
+        if isinstance(value, (int, long)):
             return True
         elif type(value) is str:
             if value.isdigit():
@@ -4637,7 +4643,7 @@ class UtilMgr(object):
     @staticmethod
     def convStr2Num(string, verb=True):
         try:
-            if type(string) is long:
+            if isinstance(string, (int, long)):
                 return string
             elif string.isdigit():
                 string = long(string)
@@ -14364,7 +14370,7 @@ class FileAnalyzer(object):
             d = m.groupdict()
 
             # get execution permission #
-            if 'perm' in d and onlyExec and d['perm'][-2] == '-':
+            if onlyExec and 'perm' in d and d['perm'][-2] == '-':
                 continue
 
             # get size info #
@@ -14393,6 +14399,8 @@ class FileAnalyzer(object):
         try:
             if FileAnalyzer.procMapStrCache[pid] == mapBuf:
                 return FileAnalyzer.procMapCache[pid]
+        except SystemExit:
+            sys.exit(0)
         except:
             pass
         finally:
@@ -16045,6 +16053,7 @@ class SysMgr(object):
 
     # flags #
     fixTargetEnable = False
+    minStatEnable = False
     irqEnable = False
     cpuEnable = True
     cloneEnable = True
@@ -17687,12 +17696,12 @@ class SysMgr(object):
             countTo = (len(source)/2)*2
             count = 0
             while count < countTo:
-                if type(source[count+1]) is long:
+                if isinstance(source[count+1], (int, long)):
                     data1 = source[count+1]
                 else:
                     data1 = ord(source[count+1])
 
-                if type(source[count]) is long:
+                if isinstance(source[count], (int, long)):
                     data2 = source[count]
                 else:
                     data2 = ord(source[count])
@@ -18847,7 +18856,7 @@ class SysMgr(object):
         if not options:
             return False
 
-        optionList = 'BCDEFGHILNPRSTWYabcdefghijklmnopqrrstuvwxy'
+        optionList = 'BCDEFGHILMNPRSTWYabcdefghijklmnopqrrstuvwxy'
         for opt in options:
             if not opt in optionList:
                 return False
@@ -19547,7 +19556,7 @@ Options:
             C:compress | d:disk | D:DWARF | e:encode
             E:exec | f:float | F:wfc | G:cgroup
             h:sigHandler | H:sched | i:irq | I:elastic
-            L:cmdline | m:mem | n:net | N:namespace
+            L:cmdline | m:mem | M:min | n:net | N:namespace
             o:oomScore | O:color | p:pipe | P:perf
             q:quit | r:report | R:reportFile | s:stack
             S:pss| t:thread | T:total | u:uss | w:wss
@@ -19604,6 +19613,9 @@ Examples:
 
     - Monitor status of all {2:2} with bar graphs for cores
         # {0:1} {1:1} -a -e B
+
+    - Monitor status of all {2:2} with minimal stats
+        # {0:1} {1:1} -a -e M
 
     - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
@@ -20369,7 +20381,7 @@ Options:
     -u                          run in the background
     -W                          wait for input
     -b  <SIZE:KB>               set buffer size
-    -D                          trace thread dependency
+    -D                          trace task dependency
     -t  <SYSCALL>               trace syscall
     -B  <DIR|FILE>              set command script path
     -w  <TIME:FILE{:VALUE}>     set additional command
@@ -25475,6 +25487,11 @@ Copyright:
                 else:
                     disableStat += 'WSS '
 
+                if SysMgr.minStatEnable:
+                    enableStat += 'MIN '
+                else:
+                    disableStat += 'MIN '
+
                 if SysMgr.dltEnable:
                     enableStat += 'DLT '
                 else:
@@ -28355,6 +28372,9 @@ Copyright:
                         SysMgr.memEnable = True
                     else:
                         sys.exit(0)
+
+                if 'M' in options:
+                    SysMgr.minStatEnable = True
 
                 if 'w' in options:
                     if SysMgr.checkWssTopCond():
@@ -35589,7 +35609,7 @@ Copyright:
                         fd = os.open(path, flag)
                         for piece in opFunc(fd):
                             # update progress #
-                            if type(piece) is long:
+                            if isinstance(piece, (int, long)):
                                 done += piece
                             else:
                                 done += len(piece)
@@ -47449,7 +47469,7 @@ struct cmsghdr {
                     data = memset[1]
 
                     # args #
-                    if type(data) is long:
+                    if isinstance(data, (int, long)):
                         pass
                     elif data.isdigit() and long(data) < len(args):
                         data = args[long(data)]
@@ -49172,7 +49192,7 @@ struct cmsghdr {
         '''
 
         # set usercall address #
-        if type(usercall) is long:
+        if isinstance(usercall, (int, long)):
             func = usercall
         elif type(usercall) is str:
             # get function address #
@@ -49276,7 +49296,7 @@ struct cmsghdr {
         self.backupRegs()
 
         # set syscall number #
-        if type(syscall) is long:
+        if isinstance(syscall, (int, long)):
             sysid = syscall
         elif type(syscall) is str:
             syscall = syscall.lower()
@@ -51048,14 +51068,25 @@ struct cmsghdr {
 
 
     def updateProcMap(self, onlyExec=True):
-        # get file-mapped memory map #
+        # get original map #
+        try:
+            mapstr = FileAnalyzer.procMapStrCache[pid]
+        except:
+            mapstr = None
+
+        # update file-mapped memory map #
         self.pmap = FileAnalyzer.getProcMapInfo(
             self.pid, self.mapFd, onlyExec=onlyExec)
 
         # check map change #
-        if not self.pmap or self.prevPmap == self.pmap:
-            return False
-        else:
+        try:
+            if mapstr == FileAnalyzer.procMapStrCache[pid]:
+                return False
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
+        finally:
             self.prevPmap = self.pmap
 
         # get anonymous executable memory map #
@@ -51240,12 +51271,20 @@ struct cmsghdr {
             for addrs in self.amap:
                 if not addrs[0] <= vaddr <= addrs[1]:
                     continue
+
+                # convert address #
+                if SysMgr.showAll:
+                    addr = hex(vaddr).rstrip('L')
+                else:
+                    addr = 'JIT'
+
                 # return #
-                return [hex(vaddr).rstrip('L'), 'JIT', '??', '??', '??', '??']
+                return [addr, 'JIT', '??', '??', '??', '??']
 
             # set variable to rescan process map #
             self.needMapScan = True
 
+            # register failed address #
             if vaddr in self.failedAddrList:
                 self.failedAddrList[vaddr] = True
             else:
@@ -53672,7 +53711,7 @@ struct cmsghdr {
             # convert args to string ##
             if args:
                 argText = ', '.join(\
-                    hex(arg).rstrip('L') if type(arg) is long else str(arg) \
+                    hex(arg).rstrip('L') if isinstance(arg, (int, long)) else str(arg) \
                         for arg in args)
             else:
                 argText = ', '.join(str(arg[2]) for arg in self.args)
@@ -64495,7 +64534,7 @@ class TaskAnalyzer(object):
             elif type(value) is list:
                 if not value:
                     usage = 0
-                elif type(value[0]) is long:
+                elif isinstance(value[0], (int, long)):
                     usage = round(sum(value) / len(value), 1)
                 else:
                     continue
@@ -72374,13 +72413,31 @@ class TaskAnalyzer(object):
             else:
                 ppid = val['mainID']
 
+            try:
+                vss = convertFunc(long(stat[vssIdx]))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                vss = '-'
+
+            try:
+                rss = convertFunc(long(stat[rssIdx]) << 12)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                rss = '-'
+
+            try:
+                shm = convertFunc(long(statm[shrIdx]) << 12)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                shm = '-'
+
             SysMgr.printPipe((
                 "{0:>16}({1:>7}/{2:>7}) "
                 "{3:>8} {4:>8} {5:>8} {6:>12} {7:>20}\n").format(
-                    comm, pid, ppid,
-                    convertFunc(long(stat[vssIdx])),
-                    convertFunc(long(stat[rssIdx]) << 12),
-                    convertFunc(long(statm[shrIdx]) << 12),
+                    comm, pid, ppid, vss, rss, shm,
                     convertNum(val['oomScore']),
                     UtilMgr.convTime(runtime)))
 
@@ -72516,6 +72573,7 @@ class TaskAnalyzer(object):
 
                     cpuPer = round(ttime / float(runtime) * 100, 1)
                     if cpuPer > 0:
+                        cpuPer = '%.1f' % cpuPer
                         cpuPer = UtilMgr.convColor(cpuPer, 'GREEN')
                     else:
                         cpuPer = 0
@@ -77193,13 +77251,14 @@ class TaskAnalyzer(object):
         self.procData[tid]['execTime'] = long(0)
         self.procData[tid]['waitTime'] = long(0)
 
-        if not SysMgr.schedstatEnable:
+        if SysMgr.minStatEnable or not SysMgr.schedstatEnable:
             return
 
         try:
             schedBuf = self.saveTaskData(path, tid, 'schedstat')
             if not schedBuf:
-                SysMgr.schedstatEnable = False
+                if not os.path.exists('%s/1/schedstat' % SysMgr.procPath):
+                    SysMgr.schedstatEnable = False
                 return
 
             SCHED_POLICY = schedBuf[0].split()
@@ -77307,7 +77366,7 @@ class TaskAnalyzer(object):
 
 
     def saveProcStatusData(self, path, tid):
-        if not tid in self.procData:
+        if SysMgr.minStatEnable or not tid in self.procData:
             return
 
         # PID/status #
@@ -77633,7 +77692,7 @@ class TaskAnalyzer(object):
 
                 # close file descriptors #
                 try:
-                    if type(val[item]) is long:
+                    if isinstance(val[item], (int, long)):
                         os.close(val[item])
                     else:
                         val[item].close()
@@ -80669,7 +80728,7 @@ class TaskAnalyzer(object):
 
             # convert color for SHM #
             try:
-                if shr >= SysMgr.memLowThreshold:
+                if long(shr) >= SysMgr.memLowThreshold:
                     if shr >= SysMgr.memHighThreshold:
                         shr = convColor(shr, 'RED', 3)
                     else:
