@@ -39423,12 +39423,14 @@ Copyright:
 
         # binder #
         binderFlag = sm.binderEnable
+        '''
         self.cmdList["binder/binder_lock"] = binderFlag
         self.cmdList["binder/binder_locked"] = binderFlag
         self.cmdList["binder/binder_unlock"] = binderFlag
+        self.cmdList["binder/binder_set_priority"] = binderFlag
+        '''
         self.cmdList["binder/binder_transaction"] = binderFlag
         self.cmdList["binder/binder_transaction_received"] = binderFlag
-        self.cmdList["binder/binder_set_priority"] = binderFlag
 
         # workqueue #
         self.cmdList["workqueue/workqueue_queue_work"] = sm.wqEnable
@@ -62904,6 +62906,10 @@ class TaskAnalyzer(object):
                 {'usage': float(0), 'last': float(0), 'count': long(0),
                 'max': float(0), 'min': float(0), 'err': long(0)}
 
+            self.init_binderInfo = \
+                {'usage': float(0), 'last': float(0), 'count': long(0),
+                'max': float(0), 'min': float(0)}
+
             self.init_pageData = \
                 {'tid': '0', 'page': '0', 'flags': '0', 'type': '0',
                 'time': '0'}
@@ -67975,6 +67981,9 @@ class TaskAnalyzer(object):
         # print syscall usage #
         self.printSyscallInfo()
 
+        # print binder usage #
+        self.printBinderInfo()
+
         # print kernel messages #
         self.printConsoleInfo()
 
@@ -69024,9 +69033,9 @@ class TaskAnalyzer(object):
 
                 SysMgr.printPipe((
                     "{0:>12} {1:>16}{2:>17} {3:>4} {4:<24} " + \
-                    "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-                    format(time, comm, tid, core, value[3],
-                    otype, elapsed, value[6], ret, value[8]))
+                    "{5:>10} {6:>12} {7:>16} {8:>16} {9:>16}").format(
+                        time, comm, tid, core, value[3],
+                        otype, elapsed, value[6], ret, value[8]))
 
                 cnt += 1
             except:
@@ -69099,17 +69108,132 @@ class TaskAnalyzer(object):
                     comm = self.threadData[self.flockData[icount][0]]['comm']
                     tid = '(%6s)' % self.flockData[icount][0]
 
-                SysMgr.printPipe(
-                    "{0:>16}{1:>8} {2:>10} {3:>4} {4:>10} {5:>16} {6:>16} {7:>20}".\
-                    format(comm, tid, time,
-                    self.flockData[icount][2], self.flockData[icount][3],
-                    dev, inode, self.flockData[icount][5]))
+                SysMgr.printPipe((
+                    "{0:>16}{1:>8} {2:>10} {3:>4} {4:>10} "
+                    "{5:>16} {6:>16} {7:>20}").format(
+                        comm, tid, time,
+                        self.flockData[icount][2], self.flockData[icount][3],
+                        dev, inode, self.flockData[icount][5]))
                 cnt += 1
             except:
                 continue
         if cnt == 0:
             SysMgr.printPipe("\tNone")
         SysMgr.printPipe(oneLine)
+
+
+
+    def printBinderInfo(self):
+        if not self.binderServerData:
+            return
+
+        conv = UtilMgr.convNum
+
+        # stats #
+        for item in ['Server', 'Client']:
+            if item == 'Server':
+                dataList = self.binderServerData
+                opposite = 'Client'
+            else:
+                dataList = self.binderCliData
+                opposite = 'Server'
+
+            # server #
+            outputCnt = long(0)
+            SysMgr.printPipe(
+                '\n[Thread Binder %s Info] [Elapsed: %.3f] (Unit: Sec/NR)' % \
+                    (item, float(self.totalTime)))
+            SysMgr.printPipe(twoLine)
+            SysMgr.printPipe((
+                '{0:>42} {1:>12} {2:>12} {3:>12} {4:>12} {5:>12} '
+                '{6:>27} {7:>12}({8:>4})').format(
+                    item, "Elapsed", "Count", "Min", "Max", "Avg",
+                    opposite, "Count", "Per"))
+            SysMgr.printPipe(twoLine)
+
+            for key, value in sorted(dataList.items(),
+                key=lambda e: e[1]['usage'], reverse=True):
+
+                try:
+                    avg = '%.6f' % (value['usage'] / value['count'])
+                except:
+                    avg = '-'
+
+                # total stats #
+                SysMgr.printPipe(
+                    '{0:>42} {1:>12} {2:>12} {3:>12} {4:>12} {5:>12}'.format(
+                        key, '%.6f' % value['usage'], conv(value['count']),
+                        '%.6f' % value['min'], '%.6f' % value['max'], avg))
+
+                outputCnt += 1
+
+                if not SysMgr.showAll:
+                    continue
+
+                # opposite-side stats #
+                for ckey, cvalue in sorted(value['others'].items(),
+                    key=lambda e: e[1], reverse=True):
+                    try:
+                        per = (cvalue / float(value['count'])) * 100
+                    except:
+                        per = 0
+
+                    SysMgr.printPipe(
+                        '{0:>92} {1:>42} {2:>12}({3:>3}%)'.format(
+                            ' ', ckey, conv(cvalue), '%d' % per))
+
+                SysMgr.printPipe(oneLine)
+
+            if outputCnt == 0:
+                SysMgr.printPipe('\tNone\n%s' % oneLine)
+            elif not SysMgr.showAll:
+                SysMgr.printPipe(oneLine)
+
+        if not SysMgr.showAll:
+            return
+
+        # history #
+        SysMgr.printPipe('\n[Thread Binder History] (Unit: Sec/NR)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe((
+            "{0:>10} {1:^8} {7:>10} {3:^45} -> {4:^45} {2:>10} "
+            "{5:>8} {6:>8}").format(
+                "Time", "Type", "TranID", "Sender", "Receiver",
+                "Flags", "Code", "Elapsed"))
+        SysMgr.printPipe(twoLine)
+
+        outputCnt = long(0)
+        for item in self.binderData:
+            # get values #
+            stime, reply, tranid, sender,\
+                receiver, flags, code, diff, oneway = item
+
+            # type #
+            if reply:
+                ttype = '    REP'
+            elif oneway:
+                ttype = 'REQ/ONE'
+            else:
+                ttype = 'REQ    '
+
+            # diff #
+            if diff:
+                diff = '%.6f' % diff
+            else:
+                diff = ' '
+
+            SysMgr.printPipe((
+                "{0:>10} {1:>8} {7:>10} {3:>45} -> {4:>45} {2:>10} "
+                "{5:>8} {6:>8}").format(
+                    '%.6f' % stime, ttype, tranid, sender, receiver,
+                    flags, code, diff))
+
+            outputCnt += 1
+
+        if outputCnt == 0:
+            SysMgr.printPipe('\tNone\n%s' % oneLine)
+        else:
+            SysMgr.printPipe(oneLine)
 
 
 
@@ -69174,6 +69298,8 @@ class TaskAnalyzer(object):
                         convertNum(val['count']), convertNum(val['err']),
                         '%.6f' % val['min'], '%.6f' % val['max'],
                         val['average'])
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -69202,6 +69328,8 @@ class TaskAnalyzer(object):
 
                     totalInfo[sysId]['average'] = \
                         totalInfo[sysId]['usage'] / totalInfo[sysId]['count']
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     pass
 
@@ -73518,12 +73646,16 @@ class TaskAnalyzer(object):
         self.userEventData = []
         self.kernelEventData = []
         self.syscallData = []
+        self.binderData = []
         self.lastJob = {}
         self.preemptData = []
         self.suspendData = []
         self.markData = []
         self.consoleData = []
         self.statData = {}
+        self.binderTranData = {}
+        self.binderServerData = {}
+        self.binderCliData = {}
 
         self.customEventInfo = {}
         self.userEventInfo = {}
@@ -73704,13 +73836,13 @@ class TaskAnalyzer(object):
         try:
             if d['tgid'].startswith('-'):
                 raise Exception('no tgid')
-            threadData['tgid'] = d['tgid']
+            tgid = threadData['tgid'] = d['tgid']
         except:
             try:
-                threadData['tgid'] = \
+                tgid = threadData['tgid'] = \
                     SysMgr.savedProcTree[thread]
             except:
-                pass
+                tgid = 'N/A'
 
         # calculate usage of threads had been running longer than periodic interval #
         if SysMgr.intervalEnable > 0:
@@ -75593,6 +75725,187 @@ class TaskAnalyzer(object):
             refcnt = long(d['refcnt'])
 
             self.moduleData.append(['get', thread, time, module, refcnt])
+
+        elif func == "binder_transaction_received":
+            m = re.match(r'^\s*transaction=(?P<tranid>[0-9]+)', etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+
+            tranid = d['tranid']
+            if tranid in self.binderTranData:
+                self.threadData[thread]['binderTranId'] = tranid
+
+        elif func == "binder_transaction":
+            m = re.match((
+                r'^\s*transaction=(?P<tranid>[0-9]+)\s+'
+                r'dest_node=(?P<dnode>[0-9]+)\s+'
+                r'dest_proc=(?P<dproc>[0-9]+)\s+'
+                r'dest_thread=(?P<dthread>[0-9]+)\s+'
+                r'reply=(?P<reply>[0-9]+)\s+'
+                r'flags=(?P<flags>.*)\s+'
+                r'code=(?P<code>.*)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+
+            # get info #
+            commCache = SysMgr.commCache
+            tranid = d['tranid']
+            reply = d['reply']
+            flags = d['flags']
+            code = d['code']
+
+            # convert index string to number for method #
+            try:
+                code = long(code, 16)
+            except:
+                code = code
+
+            # convert flags string to number for call type #
+            try:
+                oneway = 0
+                flags = long(flags, 16)
+                oneway = 0x1 & flags
+                flags = hex(flags)
+            except:
+                pass
+
+            # sender thread #
+            sthr = '%s(%s)' % (comm, thread)
+
+            # sender process #
+            if tgid in SysMgr.commCache:
+                sproc = '%s(%s)' % (commCache[tgid], tgid)
+            else:
+                sproc = '??(%s)' % tgid
+
+            # sender #
+            if sthr == sproc:
+                sender = sthr
+            else:
+                sender = '%s@%s' % (sthr, sproc)
+
+            # receiver thread #
+            dthread = d['dthread']
+            if dthread == '0':
+                rthr = ''
+            elif dthread in SysMgr.commCache:
+                rthr = '%s(%s)' % (commCache[dthread], dthread)
+            else:
+                rthr = '??(%s)' % dthread
+
+            # receiver process #
+            dproc = d['dproc']
+            if dproc in SysMgr.commCache:
+                rproc = '%s(%s)' % (commCache[dproc], dproc)
+            else:
+                rproc = '??(%s)' % dproc
+
+            # receiver #
+            if rthr == rproc:
+                receiver = rthr
+            elif not rthr:
+                receiver = rproc
+            else:
+                receiver = '%s@%s' % (rthr, rproc)
+
+            err = False
+            reason = ''
+
+            # request #
+            if reply == '0':
+                self.binderTranData.setdefault(tranid,
+                    {'reqtime': ftime, 'receiver': dproc, 'sender': sproc})
+
+                # handle oneway calls that have no reply #
+                if oneway:
+                    # update stats #
+                    types = ['Server', 'Client']
+                    for item in types:
+                        if item == 'Server':
+                            dataList = self.binderServerData
+                            task = sproc
+                            ctask = rproc
+                        else:
+                            dataList = self.binderCliData
+                            task = rproc
+                            ctask = sproc
+
+                        # update my stats #
+                        dataList.setdefault(task, dict(self.init_binderInfo))
+                        binderStat = dataList[task]
+                        binderStat['count'] += 1
+                        binderStat['last'] = ftime
+
+                        # increase opposite-side call count #
+                        binderStat.setdefault('others', dict())
+                        binderStat['others'].setdefault(ctask, 0)
+                        binderStat['others'][ctask] += 1
+
+                # add to history #
+                if SysMgr.showAll:
+                    self.binderData.append(
+                        [allTime, False, tranid, sender, receiver,
+                            flags, code, None, oneway])
+            # response #
+            elif 'binderTranId' in self.threadData[thread]:
+                reqTranId = self.threadData[thread]['binderTranId']
+                if reqTranId in self.binderTranData:
+                    reqTime =  self.binderTranData[reqTranId]['reqtime']
+                    diff = ftime - reqTime
+                    self.binderTranData[reqTranId]['diff'] = diff
+
+                    # update stats #
+                    types = ['Server', 'Client']
+                    for item in types:
+                        if item == 'Server':
+                            dataList = self.binderServerData
+                            task = sproc
+                            ctask = rproc
+                        else:
+                            dataList = self.binderCliData
+                            task = rproc
+                            ctask = sproc
+
+                        # update my stats #
+                        dataList.setdefault(task, dict(self.init_binderInfo))
+                        binderStat = dataList[task]
+                        binderStat['count'] += 1
+                        binderStat['usage'] += diff
+                        binderStat['last'] = ftime
+                        if binderStat['max'] == 0 or binderStat['max'] < diff:
+                            dataList[task]['max'] = diff
+                        if binderStat['min'] <= 0 or binderStat['min'] > diff:
+                            dataList[task]['min'] = diff
+
+                        # increase opposite-side call count #
+                        binderStat.setdefault('others', dict())
+                        binderStat['others'].setdefault(ctask, 0)
+                        binderStat['others'][ctask] += 1
+                else:
+                    err = True
+                    diff = None
+
+                # add to history #
+                if SysMgr.showAll:
+                    self.binderData.append(
+                        [allTime, True, tranid, sender, receiver,
+                            '', '', diff, None])
+            else:
+                err = True
+
+            # print error line #
+            if err:
+                reason = ' because of no transaction ID for request'
+                SysMgr.printWarn((
+                    "fail to recognize binder transaction "
+                    "for the below line%s\n%s") % \
+                        (reason, string.strip()))
 
         elif func == "cpu_idle":
             m = re.match(
