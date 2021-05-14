@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210513"
+__revision__ = "210514"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5012,8 +5012,7 @@ class UtilMgr(object):
 
     @staticmethod
     def printProgress(current=0, dest=0):
-        if not SysMgr.printEnable or \
-            dest == sys.maxsize:
+        if not SysMgr.printEnable or dest == sys.maxsize:
             return
 
         # just output #
@@ -16443,7 +16442,6 @@ class SysMgr(object):
             SysMgr.systemEnable = True
 
         # update record status #
-        SysMgr.recordStatus = True
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
 
         # change priority for process #
@@ -16625,8 +16623,7 @@ class SysMgr(object):
                 sys.exit(0)
 
             # check counter #
-            if SysMgr.repeatCount <= SysMgr.progressCnt and \
-                SysMgr.termFlag:
+            if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
                 sys.exit(0)
 
             # compare init time with now time for buffer verification #
@@ -19312,6 +19309,7 @@ class SysMgr(object):
             # remove progress #
             UtilMgr.deleteProgress()
 
+            # send signal to myself #
             try:
                 os.kill(SysMgr.pid, signal.SIGINT)
             except SystemExit:
@@ -20172,7 +20170,7 @@ Examples:
         # {0:1} {1:1} -s . -R 3m
 
     - record default function events for all threads to ./guider.dat every 3 minutes continuously
-        # {0:1} {1:1} -s . -R 3m:1:
+        # {0:1} {1:1} -s . -R 3m:1:1
 
     - record default function events for specific threads having TID bigger than 1024 to ./guider.dat in the background
         # {0:1} {1:1} -s . -g 1024\< -u
@@ -20432,7 +20430,7 @@ Examples:
         # {0:1} {1:1} -s . -R 3
 
     - record default events of all threads to ./guider.dat every 3 seconds continuously
-        # {0:1} {1:1} -s . -R 3:1:
+        # {0:1} {1:1} -s . -R 3:1:1
 
     - record specific events including memory, block, irq of all threads to ./guider.dat in the background
         # {0:1} {1:1} -s . -e m, b, i -u
@@ -25767,8 +25765,7 @@ Copyright:
         # write user command #
         SysMgr.writeTraceCmd('STOP')
 
-        if SysMgr.isFileMode() or \
-            SysMgr.isSystemMode():
+        if SysMgr.isFileMode() or SysMgr.isSystemMode():
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
@@ -25825,9 +25822,8 @@ Copyright:
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
             SysMgr.stopRecording()
 
-        # update record status #
+        # update record stats #
         SysMgr.recordStatus = False
-
         SysMgr.repeatCount = long(0)
 
         SysMgr.printStat(
@@ -25938,12 +25934,13 @@ Copyright:
 
     @staticmethod
     def alarmHandler(signum, frame):
-        if SysMgr.repeatCount <= SysMgr.progressCnt and \
-            SysMgr.termFlag:
+        # check exit condition #
+        if SysMgr.repeatCount <= SysMgr.progressCnt and SysMgr.termFlag:
             UtilMgr.deleteProgress()
             sys.exit(0)
 
-        if SysMgr.repeatCount > 0:
+        # print progress #
+        if not SysMgr.isRecordMode() and SysMgr.repeatCount > 0:
             UtilMgr.printProgress(
                 SysMgr.progressCnt, SysMgr.repeatCount)
 
@@ -25958,8 +25955,8 @@ Copyright:
 
         if SysMgr.pipeEnable:
             if repeatCount == progressCnt:
+                # stop recording #
                 SysMgr.stopRecording()
-                SysMgr.recordStatus = False
             signal.alarm(repeatInterval)
         elif SysMgr.outputFile:
             if repeatCount == 1 and SysMgr.termFlag:
@@ -25967,6 +25964,9 @@ Copyright:
             else:
                 output = '%s_%s' % \
                     (SysMgr.outputFile, SysMgr.getRuntime())
+
+            # stop recording #
+            SysMgr.stopRecording()
 
             # save system info #
             SysMgr.sysInstance.saveSysStat()
@@ -25986,8 +25986,6 @@ Copyright:
             try:
                 SysMgr.saveTraceData(lines, output)
                 SysMgr.clearInfoBuffer()
-            except SystemExit:
-                sys.exit(0)
             except:
                 sys.exit(0)
         else:
@@ -39497,6 +39495,9 @@ Copyright:
         # write start event #
         SysMgr.writeEvent("EVENT_START", False)
 
+        # update status #
+        SysMgr.recordStatus = True
+
 
 
     def enableEvents(self):
@@ -39794,6 +39795,7 @@ Copyright:
             # start tracing #
             self.startTracing()
 
+            # print log #
             _printStartLog()
             return
 
@@ -40014,9 +40016,9 @@ Copyright:
 
     @staticmethod
     def stopRecording():
-        if not (SysMgr.isRecordMode() and \
-            (SysMgr.isThreadMode() or \
-            SysMgr.isFuncMode())):
+        if not SysMgr.recordStatus or \
+            not (SysMgr.isRecordMode() and \
+            (SysMgr.isThreadMode() or SysMgr.isFuncMode())):
             return
 
         # write signal command #
@@ -40036,8 +40038,9 @@ Copyright:
                     'cat %s../trace > %s\n' % \
                         (SysMgr.mountPath, SysMgr.outputFile)
 
-        # start tracing #
+        # stop tracing #
         SysMgr.writeCmd('../tracing_on', '0')
+        SysMgr.recordStatus = False
 
         # disable all ftrace options registered #
         for idx, val in SysMgr.cmdList.items():
@@ -40045,9 +40048,7 @@ Copyright:
                 if SysMgr.writeCmd(str(idx) + '/enable', '0') >= 0:
                     SysMgr.writeCmd(str(idx) + '/filter', '0')
 
-        if not SysMgr.graphEnable and \
-            SysMgr.customCmd:
-
+        if not SysMgr.graphEnable and SysMgr.customCmd:
             for cmd in SysMgr.customCmd:
                 event = cmd.split(':')[0]
                 SysMgr.writeCmd(event + '/enable', '0')
@@ -69148,7 +69149,7 @@ class TaskAnalyzer(object):
                 '{0:>42} {1:>12} {2:>12} {3:>12} {4:>12} {5:>12} '
                 '{6:>27} {7:>12}({8:>4})').format(
                     item, "Elapsed", "Count", "Min", "Max", "Avg",
-                    opposite, "Count", "Per"))
+                    '%s[CODE]' % opposite, "Count", "Per"))
             SysMgr.printPipe(twoLine)
 
             for key, value in sorted(dataList.items(),
@@ -69167,20 +69168,38 @@ class TaskAnalyzer(object):
 
                 outputCnt += 1
 
-                if not SysMgr.showAll:
+                if not SysMgr.showAll or not 'others' in value:
                     continue
 
                 # opposite-side stats #
                 for ckey, cvalue in sorted(value['others'].items(),
-                    key=lambda e: e[1], reverse=True):
+                    key=lambda e: e[1]['count'], reverse=True):
+                    # get values #
+                    totalCnt = cvalue['count']
+                    codeList = cvalue['call']
+
                     try:
-                        per = (cvalue / float(value['count'])) * 100
+                        per = (totalCnt / float(value['count'])) * 100
                     except:
                         per = 0
 
                     SysMgr.printPipe(
-                        '{0:>92} {1:>42} {2:>12}({3:>3}%)'.format(
-                            ' ', ckey, conv(cvalue), '%d' % per))
+                        '\n{0:>92} {1:>42} {2:>12}({3:>3}%)'.format(
+                            ' ', ckey, conv(totalCnt), '%d' % per))
+
+                    # code stats #
+                    for code, callCnt in sorted(codeList.items(),
+                        key=lambda e: e[1], reverse=True):
+                        codestr = '[%4s]' % code
+
+                        try:
+                            cper = (callCnt/ float(totalCnt)) * 100
+                        except:
+                            cper = 0
+
+                        SysMgr.printPipe(
+                            '{0:>92} {1:>42} {2:>12}({3:>3}%)'.format(
+                                ' ', codestr, conv(callCnt), '%d' % cper))
 
                 SysMgr.printPipe(oneLine)
 
@@ -75032,7 +75051,14 @@ class TaskAnalyzer(object):
             if sysItem['last'] > 0:
                 start_delta = long((float(sysItem['last'])-stime)*1000000)
                 stop_delta = long((float(ftime)-stime)*1000000)
-                text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
+
+                try:
+                    text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn('wrong syscall number %s' % nr)
+                    return time
 
                 # add timeline data #
                 self.timelineData['segments'].append({
@@ -75817,10 +75843,21 @@ class TaskAnalyzer(object):
             err = False
             reason = ''
 
+            # sub stat update function #
+            def _updateBinderStat(binderStat, ctask, code):
+                binderStat.setdefault('others', dict())
+                binderStat['others'].setdefault(ctask, dict())
+                binderStat['others'][ctask].setdefault('count', 0)
+                binderStat['others'][ctask]['count'] += 1
+                binderStat['others'][ctask].setdefault('call', dict())
+                binderStat['others'][ctask]['call'].setdefault(code, 0)
+                binderStat['others'][ctask]['call'][code] += 1
+
             # request #
             if reply == '0':
                 self.binderTranData.setdefault(tranid,
-                    {'reqtime': ftime, 'receiver': dproc, 'sender': sproc})
+                    {'reqtime': ftime, 'receiver': dproc,
+                        'sender': sproc, 'code': code})
 
                 # handle oneway calls that have no reply #
                 if oneway:
@@ -75842,10 +75879,8 @@ class TaskAnalyzer(object):
                         binderStat['count'] += 1
                         binderStat['last'] = ftime
 
-                        # increase opposite-side call count #
-                        binderStat.setdefault('others', dict())
-                        binderStat['others'].setdefault(ctask, 0)
-                        binderStat['others'][ctask] += 1
+                        # update sub stats #
+                        _updateBinderStat(binderStat, ctask, code)
 
                 # add to history #
                 if SysMgr.showAll:
@@ -75857,6 +75892,7 @@ class TaskAnalyzer(object):
                 reqTranId = self.threadData[thread]['binderTranId']
                 if reqTranId in self.binderTranData:
                     reqTime =  self.binderTranData[reqTranId]['reqtime']
+                    origCode =  self.binderTranData[reqTranId]['code']
                     diff = ftime - reqTime
                     self.binderTranData[reqTranId]['diff'] = diff
 
@@ -75883,10 +75919,8 @@ class TaskAnalyzer(object):
                         if binderStat['min'] <= 0 or binderStat['min'] > diff:
                             dataList[task]['min'] = diff
 
-                        # increase opposite-side call count #
-                        binderStat.setdefault('others', dict())
-                        binderStat['others'].setdefault(ctask, 0)
-                        binderStat['others'][ctask] += 1
+                        # update sub stats #
+                        _updateBinderStat(binderStat, ctask, origCode)
                 else:
                     err = True
                     diff = None
