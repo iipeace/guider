@@ -3,7 +3,7 @@ import site, os, sys, shutil
 
 setup(
     name = 'guider',
-    version = '3.9.81',
+    version = '3.9.83',
     license = 'GPL2',
     description = 'A system-wide analyzer of performance',
     author = 'Peace Lee',

@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210514"
+__revision__ = "210515"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -26345,8 +26345,7 @@ Copyright:
     @staticmethod
     def clearScreen():
         # check stdout status #
-        if not SysMgr.printEnable or \
-            SysMgr.pipeForPager:
+        if not SysMgr.printEnable or SysMgr.pipeForPager:
             return
 
         if SysMgr.isLinux and \
@@ -28163,12 +28162,11 @@ Copyright:
                     SysMgr.parseCustomRecordCmd(value)
 
             elif option == 'a':
+                SysMgr.printOptionWarn(option, value)
                 SysMgr.showAll = True
 
-            elif option == 'D':
-                SysMgr.depEnable = True
-
             elif option == 'P':
+                SysMgr.printOptionWarn(option, value)
                 SysMgr.groupProcEnable = True
 
             elif option == 'p':
@@ -28183,6 +28181,7 @@ Copyright:
                     SysMgr.applyPriority(value)
 
             elif option == 'J':
+                SysMgr.printOptionWarn(option, value)
                 SysMgr.jsonEnable = True
 
             elif option == 'k':
@@ -28256,9 +28255,6 @@ Copyright:
             elif option == 'g':
                 itemList = UtilMgr.splitString(value)
                 SysMgr.filterGroup = UtilMgr.cleanItem(itemList)
-
-            elif option == 'W':
-                SysMgr.waitEnable = True
 
             elif 'F' in option:
                 SysMgr.checkOptVal(option, value)
@@ -28683,11 +28679,22 @@ Copyright:
 
 
     @staticmethod
+    def printOptionWarn(option, value):
+        if not value:
+            return
+
+        SysMgr.printWarn(
+            'the %s option does not require value' % option, True)
+
+
+
+    @staticmethod
     def parseCommonOption(option, value):
         if value:
             value = value.strip()
 
         if option == 'f':
+            SysMgr.printOptionWarn(option, value)
             SysMgr.forceEnable = True
 
         elif option == 'L':
@@ -28736,6 +28743,7 @@ Copyright:
                 sys.exit(0)
 
         elif option == 'Q':
+            SysMgr.printOptionWarn(option, value)
             SysMgr.setStream()
 
         elif option == 'q':
@@ -28761,6 +28769,7 @@ Copyright:
             SysMgr.setArch(value)
 
         elif option == 'W':
+            SysMgr.printOptionWarn(option, value)
             SysMgr.waitEnable = True
 
         elif option == 'C':
@@ -28792,7 +28801,12 @@ Copyright:
                     ', '.join(SysMgr.ignoreItemList))
 
         elif option == 'u':
+            SysMgr.printOptionWarn(option, value)
             SysMgr.runBackgroundMode()
+
+        elif option == 'D':
+            SysMgr.printOptionWarn(option, value)
+            SysMgr.depEnable = True
 
 
 
@@ -28901,9 +28915,6 @@ Copyright:
                     "only specific threads [ %s ] are recorded" % \
                     ', '.join(SysMgr.filterGroup))
 
-            elif option == 'D':
-                SysMgr.depEnable = True
-
             elif option == 'w':
                 SysMgr.rcmdList = \
                     SysMgr.parseCustomRecordCmd(value)
@@ -28925,6 +28936,7 @@ Copyright:
                     "use %s as objdump path" % SysMgr.objdumpPath)
 
             elif option == 'F':
+                SysMgr.printOptionWarn(option, value)
                 SysMgr.fileEnable = True
 
             elif option == 'B':
@@ -30612,11 +30624,12 @@ Copyright:
             return
 
         # set default message #
-        if not msg:
-            if SysMgr.idList:
-                msg = "input a task index... ( Help / Quit)"
-            else:
-                msg = "input a command... ( Help / Quit )"
+        if msg:
+            msg = "\ninput %s key..." % msg
+        elif SysMgr.idList:
+            msg = "input a task index... ( Help / Quit)"
+        else:
+            msg = "input a command... ( Help / Quit )"
 
         # wait for user input #
         try:
@@ -33805,7 +33818,11 @@ Copyright:
 
                 # create object #
                 procObj = Debugger(pid=pid, mode='break')
-                if not procObj or not procObj.checkPyVer():
+                if not procObj:
+                    os.kill(pid, signal.SIGCONT)
+                    continue
+                elif (mode == 'pycall' or mode == 'pytrace') and \
+                    not procObj.checkPyVer():
                     os.kill(pid, signal.SIGCONT)
                     continue
 
@@ -34324,10 +34341,15 @@ Copyright:
             totalFile = long(0)
             totalDir = long(0)
 
+            # check return condition #
             if not fileList or (maxLevel != -1 and maxLevel <= level):
                 return (0, 0, 0)
 
+            # print progress #
             UtilMgr.printProgress()
+
+            convSize = UtilMgr.convSize2Unit
+            convColor = UtilMgr.convColor
 
             # sort by size #
             if SysMgr.showAll:
@@ -34360,10 +34382,12 @@ Copyright:
                     if SysMgr.filterGroup:
                         if UtilMgr.isValidStr(subPath, inc=False):
                             isEffective = True
-                            SysMgr.printPipe('[%s]' % fullPath)
+                            SysMgr.printPipe(
+                                '[%s]' % convColor(fullPath, 'GREEN'))
                     else:
                         isEffective = True
-                        string = "%s%s[%s]" % (prefix, idc, subPath)
+                        string = "%s%s[%s]" % \
+                            (prefix, idc, convColor(subPath, 'GREEN'))
                         result.append(string)
 
                     # apply command #
@@ -34406,7 +34430,8 @@ Copyright:
                         try:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                            size = ' <%s>' % UtilMgr.convSize2Unit(size)
+                            size = convSize(size)
+                            size = ' <%s>' % convColor(size, 'CYAN')
                         except SystemExit:
                             sys.exit(0)
                         except:
@@ -34426,7 +34451,8 @@ Copyright:
                         if not size:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                            size = ' <%s>' % UtilMgr.convSize2Unit(size)
+                            size = convSize(size)
+                            size = ' <%s>' % convColor(size, 'CYAN')
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -34446,7 +34472,7 @@ Copyright:
 
             if totalSize:
                 tsize = 'SIZE: %s, ' % \
-                        UtilMgr.convSize2Unit(totalSize)
+                        convColor(convSize(totalSize), 'CYAN')
             else:
                 tsize = ''
 
@@ -48080,6 +48106,7 @@ struct cmsghdr {
         if Debugger.envFlags['NOMUTE']:
             mute = False
 
+        # create a new process #
         pid = SysMgr.createProcess()
         if pid == 0:
             self.pid = os.getpid()
@@ -50728,8 +50755,7 @@ struct cmsghdr {
         self.sampleStatus = True
 
         # check user input #
-        SysMgr.waitUserInput(
-            wait=0.000001, msg="press enter key...")
+        SysMgr.waitUserInput(wait=0.000001, msg="Ctrl+c")
 
         # define stop flag #
         needStop = False
@@ -63087,8 +63113,7 @@ class TaskAnalyzer(object):
 
             # wait for input #
             if SysMgr.waitEnable:
-                SysMgr.waitUserInput(
-                    0, msg="\npress enter key...", force=True)
+                SysMgr.waitUserInput(0, msg="Ctrl+c", force=True)
 
             # apply print condition via resource threshold #
             TaskAnalyzer.applyPrintCond()
@@ -63520,8 +63545,7 @@ class TaskAnalyzer(object):
                 waitTime = SysMgr.intervalEnable - delayTime
 
             # wait for next interval #
-            if not SysMgr.waitUserInput(
-                waitTime, msg="press enter key..."):
+            if not SysMgr.waitUserInput(waitTime, msg="Ctrl+c"):
                 time.sleep(waitTime)
 
 
@@ -82930,8 +82954,7 @@ def main(args=None):
 
         # wait for input #
         if SysMgr.waitEnable:
-            SysMgr.waitUserInput(
-                0, msg="\npress enter key...", force=True)
+            SysMgr.waitUserInput(0, msg="Ctrl+c", force=True)
 
         # set normal signal #
         SysMgr.setNormalSignal()
