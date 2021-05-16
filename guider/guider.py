@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210515"
+__revision__ = "210516"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -22305,6 +22305,7 @@ Options:
     -a                          show all attributes
     -g  <WORD>                  set filter
     -c  <COMMAND>               set command
+    -q  <NAME{{:VALUE}}>          set environment variables
     -H  <LEVEL>                 set function depth level
                         '''.format(cmd, mode)
 
@@ -22328,6 +22329,12 @@ Examples:
         # {0:1} {1:1} -I / -a -g test
         # {0:1} {1:1} -I / -a -g "test*"
         # {0:1} {1:1} -I / -a -g "*test"
+
+    - Print directory structure with files bigger than 1MB from / dir
+        # {0:1} {1:1} -I / -a -q SIZECOND:BT:1M
+
+    - Print directory structure with files lesser than 1MB from / dir
+        # {0:1} {1:1} -I / -a -q SIZECOND:LT:1M
 
     - Print specific directories and files from / dir and apply command
         # {0:1} {1:1} -I / -a -g test -c "rm -rf TARGET"
@@ -34271,6 +34278,9 @@ Copyright:
             totalFile = long(0)
             totalDir = long(0)
 
+            # print progress #
+            UtilMgr.printProgress()
+
             # sort by size #
             if SysMgr.showAll:
                 fileList.sort(
@@ -34308,11 +34318,20 @@ Copyright:
                     totalFile += totalInfo[2]
 
                 elif os.path.isfile(fullPath):
+                    # apply filter #
+                    if SysMgr.filterGroup:
+                        if not UtilMgr.isValidStr(subPath, inc=False):
+                            continue
+
                     totalFile += 1
                     size = os.stat(fullPath).st_size
                     totalSize += size
 
                     if not SysMgr.showAll:
+                        continue
+
+                    # size #
+                    if not _isValidSize(condop, condval, size):
                         continue
 
                     if 'subFiles' not in result[parentAbsPath]:
@@ -34335,6 +34354,23 @@ Copyright:
                     os.waitpid(pid, 0)
                 elif pid == 0:
                     sys.exit(0)
+
+        def _isValidSize(condop, condval, size):
+            if not condop:
+                return True
+
+            if condop == 'BT':
+                if condval <= size:
+                    return True
+                else:
+                    return False
+            elif condop == 'LT':
+                if condval >= size:
+                    return True
+                else:
+                    return False
+            else:
+                return True
 
         def _recurse(parentPath, fileList, prefix, result, level, maxLevel):
             totalSize = long(0)
@@ -34423,6 +34459,7 @@ Copyright:
 
                     # apply filter #
                     if SysMgr.filterGroup:
+                        # name #
                         if not UtilMgr.isValidStr(subPath, inc=False):
                             continue
 
@@ -34430,14 +34467,18 @@ Copyright:
                         try:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                            size = convSize(size)
-                            size = ' <%s>' % convColor(size, 'CYAN')
+                            sizeStr = convSize(size)
+                            sizeStr = ' <%s>' % convColor(sizeStr, 'CYAN')
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            size = ''
+                            sizeStr = ''
 
-                        string = '%s%s' % (fullPath, size)
+                        # size #
+                        if not _isValidSize(condop, condval, size):
+                            continue
+
+                        string = '%s%s' % (fullPath, sizeStr)
                         SysMgr.printPipe(string)
 
                         # apply command #
@@ -34451,25 +34492,30 @@ Copyright:
                         if not size:
                             size = os.stat(fullPath).st_size
                             totalSize += size
-                            size = convSize(size)
-                            size = ' <%s>' % convColor(size, 'CYAN')
+                            sizeStr = convSize(size)
+                            sizeStr = ' <%s>' % convColor(sizeStr, 'CYAN')
                     except SystemExit:
                         sys.exit(0)
                     except:
                         SysMgr.printWarn(
                             'fail to get size of %s' % fullPath, reason=True)
-                        size = ''
+                        sizeStr = ''
 
                     if not SysMgr.showAll or SysMgr.filterGroup:
+                        continue
+
+                    # size #
+                    if not _isValidSize(condop, condval, size):
                         continue
 
                     # apply command #
                     if SysMgr.customCmd:
                         _executeCmd(fullPath)
 
-                    string = "%s%s%s%s" % (prefix, idc, subPath, size)
+                    string = "%s%s%s%s" % (prefix, idc, subPath, sizeStr)
                     result.append(string)
 
+            # convert total size #
             if totalSize:
                 tsize = 'SIZE: %s, ' % \
                         convColor(convSize(totalSize), 'CYAN')
@@ -34500,17 +34546,58 @@ Copyright:
             if not SysMgr.filterGroup:
                 SysMgr.filterGroup = ['*']
 
+        # parse filter for file size #
+        condop = None
+        condval = None
+        if 'SIZECOND' in SysMgr.environList:
+            sizeFilter = SysMgr.environList['SIZECOND'][0].split(':')
+
+            # init variables #
+            error = False
+
+            # parse condition values #
+            if len(sizeFilter) != 2:
+                error = True
+            elif sizeFilter[0].strip() == 'BT':
+                condop = 'BT'
+                try:
+                    condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
+                except:
+                    condval = None
+                    error = True
+            elif sizeFilter[0].strip() == 'LT':
+                condop = 'LT'
+                try:
+                    condval = UtilMgr.convUnit2Size(sizeFilter[1].strip())
+                except:
+                    error = True
+            else:
+                error = True
+
+            # handle error #
+            if error:
+                SysMgr.printErr(
+                    'wrong input value for SIZECOND')
+                sys.exit(0)
+        else:
+            sizeFilter = None
+
+        # print start directory #
+        abspath = os.path.abspath(path)
+        SysMgr.printStat(
+            r"start traversing dirs from [%s]..." % abspath)
+
         # print start path #
         if SysMgr.jsonEnable:
             result = dict()
             if SysMgr.showAll:
-                result[os.path.abspath(path)] = \
-                    dict(subDirs=dict(), subFiles=dict())
+                result[abspath] = dict(subDirs=dict(), subFiles=dict())
             else:
-                result[os.path.abspath(path)] = dict(subDirs=dict())
+                result[abspath] = dict(subDirs=dict())
 
             _getDirs(result, path, 0, -1)
             jsonResult = UtilMgr.convDict2Str(result)
+            UtilMgr.deleteProgress()
             SysMgr.printPipe(jsonResult)
         else:
             try:
@@ -34522,16 +34609,12 @@ Copyright:
                     "fail to access %s" % path, reason=True)
                 sys.exit(0)
 
-            abspath = "[%s]" % (os.path.abspath(path))
+            abspath = "[%s]" % (abspath)
             result = [abspath]
-
-            SysMgr.printStat(
-                r"start traversing dirs from %s..." % abspath)
 
             _recurse(path, initDir, "  ", result, 0, maxLevel)
             output = "\n%s\n" % "\n".join(result)
             UtilMgr.deleteProgress()
-
             SysMgr.printPipe(output)
 
 
