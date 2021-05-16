@@ -5964,7 +5964,7 @@ class NetworkMgr(object):
                     SysMgr.printInfo(
                         "downloaded %s [%s] from %s:%s:%s successfully\n" % \
                         (targetPath, UtilMgr.getFileSize(targetPath),
-                            targetIp, targetPort, origPath))
+                            targetIp, targetPort, origPath), suffix=False)
 
                     # send ACK #
                     receiver.send('ACK'.encode())
@@ -6038,7 +6038,7 @@ class NetworkMgr(object):
                 SysMgr.printInfo(
                     "uploaded %s [%s] to %s:%s successfully\n" % \
                         (origPath, UtilMgr.getFileSize(origPath),
-                            addr, targetPath))
+                            addr, targetPath), suffix=False)
 
                 res = True
             except:
