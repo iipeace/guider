@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210516"
+__revision__ = "210517"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14076,12 +14076,12 @@ class FileAnalyzer(object):
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^16}({1:_^6})|{2:_^12}|{3:_^16}({4:_^5}) |".\
+            "{0:_^16}({1:_^7})|{2:_^12}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "MaxRAM", "ThreadName", "TID"))
         SysMgr.printPipe(twoLine)
 
-        procInfo = "{0:_^16}({1:^6})|{2:11} |".format('', '', '')
-        threadInfo = " {0:^16}({1:^6}) |".format('', '')
+        procInfo = "{0:_^16}({1:^7})|{2:11} |".format('', '', '')
+        threadInfo = " {0:^16}({1:^7}) |".format('', '')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
@@ -14099,13 +14099,13 @@ class FileAnalyzer(object):
             if rsize > 0:
                 rsize = convColor(convert(rsize), 'YELLOW', 11)
 
-            printMsg = "{0:>16}({1:>6})|{2:>11} |".\
+            printMsg = "{0:>16}({1:>7})|{2:>11} |".\
                 format(val['comm'][:SysMgr.commLen], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:>16}({1:>6}) |".format(
+                    "{0:>16}({1:>7}) |".format(
                         threadVal['comm'][:SysMgr.commLen], tid)
 
                 linePos += threadLength
@@ -14150,6 +14150,11 @@ class FileAnalyzer(object):
         # print interval usage #
         for fileName, val in sorted(self.fileList.items(),
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
+
+            # check exceptional file #
+            if FileAnalyzer.isExceptFile(fileName):
+                continue
+
             try:
                 memSize = \
                     self.intervalFileData[0][fileName]['pageCnt'] * pageSize
@@ -14253,7 +14258,7 @@ class FileAnalyzer(object):
                     convert(totalMemSize), 'YELLOW', 11)
 
             printMsg += \
-                "{0:11}|{1:3}| {2:1}".format(totalMemSize, per, fileName)
+                "{0:>10} |{1:>3}| {2:1}".format(totalMemSize, per, fileName)
 
             SysMgr.printPipe(printMsg)
 
@@ -14263,6 +14268,24 @@ class FileAnalyzer(object):
 
     def makeReadaheadList(self):
         pass
+
+
+
+    @staticmethod
+    def isExceptFile(fileName):
+        # skip non-files #
+        if not fileName.startswith('/'):
+            return True
+        # skip device nodes #
+        elif fileName.startswith('/dev'):
+            SysMgr.printWarn(
+                "skip analyzing %s because it is device node" % fileName)
+            return True
+        # skip non-contiguous segments #
+        elif SysMgr.magicStr in fileName:
+            return True
+        else:
+            return False
 
 
 
@@ -14597,12 +14620,12 @@ class FileAnalyzer(object):
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
-            "{0:_^16}({1:_^6})|{2:_^13}|{3:_^16}({4:_^6}) |".\
+            "{0:_^16}({1:_^7})|{2:_^13}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "RAM", "Thread", "TID"))
         SysMgr.printPipe(twoLine)
 
-        procInfo = "{0:^16}({0:^6})|{0:12} |".format('')
-        threadInfo = " {0:^16}({0:^6}) |".format('')
+        procInfo = "{0:^16}({0:^7})|{0:12} |".format('')
+        threadInfo = " {0:^16}({0:^7}) |".format('')
         procLength = len(procInfo)
         threadLength = len(threadInfo)
         lineLength = SysMgr.lineLength
@@ -14620,13 +14643,13 @@ class FileAnalyzer(object):
             if rsize > 0:
                 rsize = convColor(convert(rsize), 'YELLOW', 12)
 
-            printMsg = "{0:>16}({1:>6})|{2:>12} |".\
+            printMsg = "{0:>16}({1:>7})|{2:>12} |".\
                 format(val['comm'][:SysMgr.commLen], pid, rsize)
             linePos = len(printMsg)
 
             for tid, threadVal in sorted(val['tids'].items(), reverse=True):
                 threadInfo = \
-                    "{0:^16}({1:>6}) |".format(
+                    "{0:^16}({1:>7}) |".format(
                         threadVal['comm'][:SysMgr.commLen], tid)
 
                 linePos += threadLength
@@ -14653,10 +14676,13 @@ class FileAnalyzer(object):
 
         for fileName, val in sorted(self.fileData.items(),
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
+
+            # check exceptional file #
+            if FileAnalyzer.isExceptFile(fileName):
+                continue
+
             memSize = val['pageCnt'] * pageSize
-
             idx = val['totalSize'] + pageSize - 1
-
             fileSize = long(idx / pageSize) * pageSize
 
             if fileSize != 0:
@@ -14700,7 +14726,7 @@ class FileAnalyzer(object):
                     linePos = indentLength + pidLength
                     pidInfo += '\n' + (' ' * indentLength) + '|'
 
-                pidInfo += " %16s (%6s) |" % \
+                pidInfo += " %16s (%7s) |" % \
                     (comm[:SysMgr.commLen], pid)
 
                 linePos += pidLength
@@ -14860,11 +14886,8 @@ class FileAnalyzer(object):
         self.profFailedCnt = long(0)
 
         for fileName, val in self.fileData.items():
-            if not fileName.startswith('/'):
-                continue
-            elif fileName.startswith('/dev'):
-                SysMgr.printWarn(
-                    "skip analyzing %s because it is device node" % fileName)
+            # check exceptional file #
+            if FileAnalyzer.isExceptFile(fileName):
                 continue
 
             if self.intervalFileData:
@@ -19541,7 +19564,7 @@ Usage:
                 topCommonStr = '''
     -o  <DIR|FILE>              set output path
     -u                          run in the background
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -f                          force execution
     -b  <SIZE:KB>               set buffer size
     -T  <PROC>                  set process number
@@ -19872,6 +19895,9 @@ Examples:
     - Trace all native calls and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - Trace all native calls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -q WAITCLONE
+
     - Trace all native calls except for wait status for specific threads
         # {0:1} {1:1} -g a.out -q EXCEPTWAIT
 
@@ -20160,7 +20186,7 @@ Options:
     -b  <SIZE:KB>               set buffer size
     -t  <SYSCALL>               trace syscall
     -B  <DIR|FILE>              set command script path
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -U  <NAME:FUNC|ADDR:FILE>   set user event
     -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
@@ -20249,7 +20275,7 @@ Options:
           [ e:encode | g:genearlInfo ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -20293,7 +20319,7 @@ Options:
     -u                          run in the background
     -b  <SIZE:KB>               set buffer size
     -t  <SYSCALL>               trace syscall
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -w  <TIME:FILE{:VALUE}>     set additional command
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
@@ -20370,7 +20396,7 @@ Options:
           [ e:encode | g:genearlInfo ]
     -s  <DIR|FILE>              save trace data
     -u                          run in the background
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -Q                          print all rows in a stream
@@ -20409,7 +20435,7 @@ Options:
     -s  <DIR|FILE>              save trace data
     -f                          force execution
     -u                          run in the background
-    -W                          wait for input
+    -W  <SEC>                   wait for input
     -b  <SIZE:KB>               set buffer size
     -D                          trace task dependency
     -t  <SYSCALL>               trace syscall
@@ -20592,6 +20618,9 @@ Examples:
     - Monitor only successful syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYOK
 
+    - Monitor syscalls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -q WAITCLONE
+
     - Monitor only failed syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
@@ -20732,6 +20761,9 @@ Examples:
     - Monitor native function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
         # {0:1} {1:1} -I a.out -g a.out
+
+    - Monitor native function calls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -q WAITCLONE
 
     - Monitor native function calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -21204,7 +21236,7 @@ Examples:
         # {0:1} {1:1} -g a.out -t ^read
 
     - Trace all read syscalls for child tasks created by a specific thread
-        # {0:1} {1:1} -g 1234 -t read -W
+        # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
 
     - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
@@ -21381,7 +21413,10 @@ Examples:
         # {0:1} {1:1} -g a.out -i 10000
 
     - Trace python calls for a specific thread and print standard output
-        # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
+        # {0:1} {1:1} -g a.out -q NOMUTE
+
+    - Trace python calls for child tasks created by a specific thread
+        # {0:1} {1:1} -g a.out -q WAITCLONE
 
     - Trace python calls  with colorful elapsed time when the elapsed time exceed 0 second
         # {0:1} {1:1} -g a.out -c write -q PYELAPSED:0
@@ -21878,7 +21913,8 @@ Options:
     -g  <TID|COMM>              set task filter
     -i  <SEC>                   set interval
     -l                          print signal list
-    -W                          wait for task
+    -W  <SEC>                   wait for input
+    -f                          force execution
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -21892,8 +21928,11 @@ Examples:
         # {0:1} {1:1} -STOP a.out
         # {0:1} {1:1} -STOP "a.out*"
 
+    - Send SIGSTOP to specific tasks after 5 seconds
+        # {0:1} {1:1} -STOP 1234 -W 5s
+
     - Send SIGSTOP signal to specific tasks until one gets the signal
-        # {0:1} {1:1} -STOP 1234 -W
+        # {0:1} {1:1} -STOP 1234 -f
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
@@ -22870,6 +22909,7 @@ Options:
     -g <POLICY:PRIORITY|TIME:TID|COMM> set value
     -P                                 group threads in a same process
     -i  <SEC>                          set interval
+    -W  <SEC>                          wait for input
     -v                                 verbose
                         '''.format(cmd, mode)
 
@@ -22878,6 +22918,9 @@ Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
+
+    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread after 5 seconds
+        # {0:1} {1:1} "-20:a.out" -W 5s
 
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread every 2 seconds
         # {0:1} {1:1} "-20:a.out" -i 2
@@ -28811,8 +28854,14 @@ Copyright:
             SysMgr.setArch(value)
 
         elif option == 'W':
-            SysMgr.printOptionWarn(option, value)
-            SysMgr.waitEnable = True
+            if value:
+                if not SysMgr.waitEnable:
+                    SysMgr.waitEnable = UtilMgr.convUnit2Time(value)
+                    SysMgr.printStat(
+                        "wait for %s seconds" % \
+                            (UtilMgr.convNum(SysMgr.waitEnable)))
+            else:
+                SysMgr.waitEnable = True
 
         elif option == 'C':
             if not ConfigMgr.confData:
@@ -29287,6 +29336,11 @@ Copyright:
         # parse options #
         SysMgr.parseAnalOption()
 
+        # wait for input #
+        if SysMgr.waitEnable:
+            SysMgr.waitUserInput(
+                SysMgr.waitEnable, msg="Ctrl+c", force=True)
+
         # LIST MODE #
         if SysMgr.checkMode('list'):
             SysMgr.printBgProcs()
@@ -29344,15 +29398,13 @@ Copyright:
 
                 sys.exit(0)
 
-            waitFlag = SysMgr.waitEnable
-
             while 1:
                 # send signal #
                 if SysMgr.checkMode('tkill'):
                     SysMgr.sendSignalArgs(
-                        argList, isThread=True, wait=waitFlag)
+                        argList, isThread=True, wait=SysMgr.forceEnable)
                 else:
-                    SysMgr.sendSignalArgs(argList, wait=waitFlag)
+                    SysMgr.sendSignalArgs(argList, wait=SysMgr.forceEnable)
 
                 if SysMgr.intervalEnable:
                     time.sleep(SysMgr.intervalEnable)
@@ -30664,6 +30716,10 @@ Copyright:
         if not selectObj:
             SysMgr.selectEnable = False
             return
+
+        # convert infinite value #
+        if wait is True:
+            wait = 0
 
         # set default message #
         if msg:
@@ -35065,7 +35121,7 @@ Copyright:
                         (ConfigMgr.SIG_LIST[sig], comm, pid, purpose))
             except:
                 SysMgr.printErr(
-                    "fail to send signal %s to %s profiling" % \
+                    "fail to send %s to %s profiling" % \
                         (ConfigMgr.SIG_LIST[startSig], purpose), reason=True)
                 return -1
 
@@ -35389,7 +35445,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "fail to send signal %s to start profiling" % \
+                    "fail to send %s to start profiling" % \
                         ConfigMgr.SIG_LIST[startSig], reason=True)
                 sys.exit(0)
 
@@ -35427,7 +35483,7 @@ Copyright:
                 sys.exit(0)
             except:
                 SysMgr.printErr(
-                    "fail to send signal %s to stop profiling" % \
+                    "fail to send %s to stop profiling" % \
                         ConfigMgr.SIG_LIST[stopSig], reason=True)
                 sys.exit(0)
 
@@ -38252,7 +38308,7 @@ Copyright:
 
                     if verbose:
                         SysMgr.printInfo(
-                            "sent signal %s to %s(%s) %s" % \
+                            "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
                 except SystemExit:
                     sys.exit(0)
@@ -38328,7 +38384,7 @@ Copyright:
                                 "started %s(%s) to profile" % (comm, pid))
                         else:
                             SysMgr.printInfo(
-                                "sent signal %s to %s(%s) %s" % \
+                                "sent %s to %s(%s) %s" % \
                                     (SIG_LIST[nrSig], comm, pid, taskType))
                 except SystemExit:
                     sys.exit(0)
@@ -38340,7 +38396,7 @@ Copyright:
 
                     if verbose:
                         SysMgr.printInfo(
-                            "sent signal %s to %s(%s) %s" % \
+                            "sent %s to %s(%s) %s" % \
                                 (SIG_LIST[nrSig], comm, pid, taskType))
                 except SystemExit:
                     sys.exit(0)
@@ -46101,6 +46157,7 @@ class Debugger(object):
         'PYSTACK': False,
         'ONLYOK': False,
         'ONLYFAIL': False,
+        'WAITCLONE': False,
     }
 
     def getSigStruct(self):
@@ -55450,8 +55507,7 @@ struct cmsghdr {
         SysMgr.addExitFunc(Debugger.printSummary, [self])
 
         # wait for task creation #
-        if SysMgr.waitEnable and self.isBreakMode:
-            SysMgr.waitEnable = False
+        if Debugger.envFlags['WAITCLONE']:
             self.waitForClone()
 
         # set timer #
@@ -63252,10 +63308,6 @@ class TaskAnalyzer(object):
             if SysMgr.outPath:
                 SysMgr.printStat(
                     r"start profiling... [ STOP(Ctrl+c), SAVE(Ctrl+\) ]")
-
-            # wait for input #
-            if SysMgr.waitEnable:
-                SysMgr.waitUserInput(0, msg="Ctrl+c", force=True)
 
             # apply print condition via resource threshold #
             TaskAnalyzer.applyPrintCond()
@@ -72908,13 +72960,13 @@ class TaskAnalyzer(object):
                     cpuPer = round(ttime / float(runtime) * 100, 1)
                     if cpuPer > 0:
                         cpuPer = '%.1f' % cpuPer
-                        cpuPer = UtilMgr.convColor(cpuPer, 'GREEN')
+                        cpuPer = UtilMgr.convColor(cpuPer, 'GREEN', 5)
                     else:
-                        cpuPer = 0
+                        cpuPer = '%5s' % 0
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    cpuPer = 0
+                    cpuPer = '%5s' % 0
 
                 if depth == 0:
                     indent = '\n'
@@ -83096,7 +83148,8 @@ def main(args=None):
 
         # wait for input #
         if SysMgr.waitEnable:
-            SysMgr.waitUserInput(0, msg="Ctrl+c", force=True)
+            SysMgr.waitUserInput(
+                SysMgr.waitEnable, msg="Ctrl+c", force=True)
 
         # set normal signal #
         SysMgr.setNormalSignal()
