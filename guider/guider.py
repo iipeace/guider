@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210517"
+__revision__ = "210518"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8478,6 +8478,10 @@ class PageAnalyzer(object):
         if printSummary:
             for fname, info in sorted(buf.items(),
                 key=lambda e: e[1]['vstart']):
+                # skip non-contiguous segments #
+                if SysMgr.magicStr in fname:
+                    continue
+
                 try:
                     soffset = hex(info['vstart']).rstrip('L')
                     eoffset = hex(info['vend']).rstrip('L')
@@ -13927,9 +13931,10 @@ class FileAnalyzer(object):
         {'offset': long(0), 'size': long(0), 'pageCnt': long(0),
         'fd': None, 'totalSize': long(0), 'fileMap': None, 'pids': None,
         'linkCnt': long(0), 'inode': None, 'accessTime': None,
-        'devid': None, 'isRep': True, 'perm': None,
+        'devid': None, 'isRep': True, 'perm': None, 'nrOpen': long(0),
         'repFile': None, 'hardLink': long(1), 'linkList': None,
-        'vstart': long(0), 'vend': long(0), 'elfInfo': None}
+        'vstart': long(0), 'vend': long(0), 'elfInfo': None,
+        'nrMap': long(0)}
 
 
 
@@ -14152,7 +14157,7 @@ class FileAnalyzer(object):
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
 
             # check exceptional file #
-            if FileAnalyzer.isExceptFile(fileName):
+            if not FileAnalyzer.isValidFile(fileName):
                 continue
 
             try:
@@ -14272,20 +14277,27 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def isExceptFile(fileName):
+    def isValidFile(fileName):
         # skip non-files #
         if not fileName.startswith('/'):
-            return True
+            return False
         # skip device nodes #
         elif fileName.startswith('/dev'):
-            SysMgr.printWarn(
-                "skip analyzing %s because it is device node" % fileName)
-            return True
+            return False
+        # skip proc nodes #
+        elif fileName.startswith('/proc'):
+            return False
+        # skip sys nodes #
+        elif fileName.startswith('/sys'):
+            return False
         # skip non-contiguous segments #
         elif SysMgr.magicStr in fileName:
-            return True
-        else:
             return False
+        # skip deleted files #
+        elif ' (deleted)' in fileName:
+            return False
+        else:
+            return True
 
 
 
@@ -14512,6 +14524,7 @@ class FileAnalyzer(object):
             dataObj[fileName] = dict(FileAnalyzer.init_mapData)
             dataObj[fileName]['offset'] = newOffset
             dataObj[fileName]['size'] = newSize
+            dataObj[fileName]['nrMap'] = 1
 
 
 
@@ -14610,6 +14623,7 @@ class FileAnalyzer(object):
         # define alias #
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
+        convNum = UtilMgr.convNum
         pageSize = SysMgr.pageSize
 
         # Print process list #
@@ -14678,7 +14692,7 @@ class FileAnalyzer(object):
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
 
             # check exceptional file #
-            if FileAnalyzer.isExceptFile(fileName):
+            if not FileAnalyzer.isValidFile(fileName):
                 continue
 
             memSize = val['pageCnt'] * pageSize
@@ -14700,11 +14714,21 @@ class FileAnalyzer(object):
             if not val['isRep']:
                 continue
             else:
+                if val['nrMap']-1 > 0:
+                    cntStr = ' [Map: %s]' % convNum(val['nrMap']-1)
+                else:
+                    cntStr = ''
+
+                if val['nrOpen'] > 0:
+                    cntStr += ' [Open: %s]' % convNum(val['nrOpen'])
+                else:
+                    cntStr += ''
+
                 SysMgr.printPipe((
                     "{0:>11} |{1:>9} |{2:>5} | {3:1} "
-                    "[Proc: {4:1}] [Link: {5:1}]").\
+                    "[Proc: {4:1}] [Link: {5:1}]{6:1}").\
                     format(memSize, convert(fileSize), per, fileName,
-                    len(val['pids']), val['hardLink']))
+                    len(val['pids']), convNum(val['hardLink']), cntStr))
 
             # prepare for printing process list #
             pidInfo = ''
@@ -14748,6 +14772,9 @@ class FileAnalyzer(object):
             SysMgr.printOpenErr(SysMgr.procPath)
             sys.exit(0)
 
+        # initialize proc object #
+        procObj = TaskAnalyzer(onlyInstance=True)
+
         # scan comms include words in target list #
         for pid in pids:
             try:
@@ -14755,25 +14782,22 @@ class FileAnalyzer(object):
             except:
                 continue
 
-            # make path of comm #
+            # make process path #
             procPath = "%s/%s" % (SysMgr.procPath, pid)
-            commPath = "%s/%s" % (procPath, 'comm')
-            pidComm = ''
 
-            # make comm path of process #
+            # save stat of process #
             try:
-                self.procData[pid]['comm']
+                ret = procObj.saveProcData(procPath, pid)
+                pidComm = procObj.procData[pid]['comm']
+            except SystemExit:
+                sys.exit(0)
             except:
-                try:
-                    fd = open(commPath, 'r')
-                    pidComm = fd.readline()
-                    pidComm = pidComm[0:len(pidComm) - 1]
-                    fd.close()
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printOpenWarn(commPath)
-                    continue
+                SysMgr.printOpenWarn(procPath)
+                continue
+
+            # skip kernel tasks #
+            if procObj.isKernelThread(pid):
+                continue
 
             # make path of tid #
             taskPath = "%s/%s" % (procPath, 'task')
@@ -14793,44 +14817,77 @@ class FileAnalyzer(object):
                 except:
                     continue
 
-                # make comm path of thread #
+                # make thread path #
                 threadPath = "%s/%s" % (taskPath, tid)
-                commPath = "%s/%s" % (threadPath, 'comm')
 
+                # save stat of thread #
                 try:
-                    fd = open(commPath, 'r')
-                    comm = fd.readline()
-                    comm = comm[0:len(comm) - 1]
-                    fd.close()
+                    ret = procObj.saveProcData(threadPath, tid)
+                    comm = procObj.procData[tid]['comm']
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printOpenWarn(commPath)
+                    SysMgr.printOpenWarn(threadPath)
                     continue
 
                 # save process info #
                 for val in self.target:
-                    if val in comm or tid == val:
-                        # access procData #
-                        try:
-                            self.procData[pid]
-                        except:
-                            self.procData[pid] = dict(self.init_procData)
-                            self.procData[pid]['tids'] = {}
-                            self.procData[pid]['procMap'] = {}
-                            self.procData[pid]['comm'] = pidComm
+                    if not val in comm and tid != val:
+                        continue
 
-                            # make or update mapInfo per process #
-                            self.procData[pid]['procMap'] = \
-                                FileAnalyzer.getProcMapInfo(pid)
+                    # update procData #
+                    if not pid in self.procData:
+                        self.procData[pid] = dict(self.init_procData)
+                        self.procData[pid]['tids'] = {}
+                        self.procData[pid]['procMap'] = {}
+                        self.procData[pid]['comm'] = pidComm
 
-                        # access threadData #
+                        # update mapInfo per process #
+                        self.procData[pid]['procMap'] = \
+                            FileAnalyzer.getProcMapInfo(pid)
+
+                        # save file info per process #
                         try:
-                            self.procData[pid]['tids'][tid]
+                            fdlist = []
+                            fdlistPath = '%s/fd' % procPath
+                            fdlist = os.listdir(fdlistPath)
+                        except SystemExit:
+                            sys.exit(0)
                         except:
-                            self.procData[pid]['tids'][tid] = \
-                                dict(self.init_threadData)
-                            self.procData[pid]['tids'][tid]['comm'] = comm
+                            SysMgr.printOpenWarn(fdlistPath)
+
+                        # scan file descriptors #
+                        for fd in os.listdir(fdlistPath):
+                            try:
+                                # get real path #
+                                fdPath = "%s/%s" % (fdlistPath, long(fd))
+                                fname = os.readlink(fdPath)
+
+                                # check files #
+                                if not FileAnalyzer.isValidFile(fname):
+                                    continue
+                                elif fname in self.procData[pid]['procMap']:
+                                    continue
+
+                                # init file info #
+                                size = os.stat(fname).st_size
+                                if size == 0:
+                                    continue
+                                procMap = self.procData[pid]['procMap']
+                                procMap[fname] = \
+                                    dict(FileAnalyzer.init_mapData)
+                                procMap[fname]['size'] = size
+                                procMap[fname]['nrOpen'] = 1
+                            except SystemExit:
+                                sys.exit(0)
+                            except:
+                                pass
+
+                    # update threadData #
+                    if not tid in self.procData[pid]['tids']:
+                        self.procData[pid]['tids'][tid] = \
+                            dict(self.init_threadData)
+                        self.procData[pid]['tids'][tid]['comm'] = comm
 
 
 
@@ -14872,6 +14929,14 @@ class FileAnalyzer(object):
                 FileAnalyzer.addMapLine(
                     self.fileData, fileName, newOffset, newSize)
 
+                # add map count #
+                if scope['nrMap']:
+                    self.fileData[fileName]['nrMap'] += scope['nrMap']
+
+                # add open count #
+                if scope['nrOpen']:
+                    self.fileData[fileName]['nrOpen'] += scope['nrOpen']
+
                 # add pid into file info #
                 if not self.fileData[fileName]['pids']:
                     self.fileData[fileName]['pids'] = dict()
@@ -14887,7 +14952,7 @@ class FileAnalyzer(object):
 
         for fileName, val in self.fileData.items():
             # check exceptional file #
-            if FileAnalyzer.isExceptFile(fileName):
+            if not FileAnalyzer.isValidFile(fileName):
                 continue
 
             if self.intervalFileData:
@@ -14977,17 +15042,19 @@ class FileAnalyzer(object):
                         self.inodeData[inode] = dict(self.init_inodeData)
                         self.inodeData[inode][fileName] = devid
 
+                    # get meta data #
                     size = stat.st_size
                     linkCnt = stat.st_nlink
                     time = stat.st_atime
 
+                    # update meta data #
                     val['inode'] = inode
                     val['totalSize'] = size
                     val['linkCnt'] = linkCnt
                     val['accessTime'] = time
 
-                    fd = open(fileName, "r")
-                    val['fd'] = fd
+                    # open file #
+                    val['fd'] = open(fileName, "r")
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -16510,7 +16577,7 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getFd(fname, perm='rb'):
+    def getFd(fname, perm='rb', verb=True):
         if fname in SysMgr.fdCache and \
             SysMgr.fdCache[fname]['perm'] == perm:
             return SysMgr.fdCache[fname]['fd']
@@ -16524,7 +16591,8 @@ class SysMgr(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printOpenErr(fname)
+            if verb:
+                SysMgr.printOpenErr(fname)
             return None
 
 
@@ -20289,13 +20357,13 @@ Options:
 
                     helpStr += '''
 Examples:
-    - report all analysis results of files mapped to all processes to ./guider.out
+    - report all analysis results of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -a
 
-    - report all analysis results of files mapped to specific processes
+    - report all analysis results of on-memory files for specific processes
         # {0:1} {1:1} -g a.out
 
-    - report analysis result on each intervals of files mapped to all processes to ./guider.out
+    - report analysis result on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
                     '''.format(cmd, mode)
 
@@ -20444,6 +20512,7 @@ Options:
     -U  <NAME:FUNC|ADDR:FILE>   set user event
     -K  <NAME:FUNC|ADDR:ARGS>   set kernel event
     -R  <INTERVAL:TIME:TERM>    set repeat count
+    -L  <PATH>                  set log file
 
   [report]
     -a                          show all stats and events
@@ -26059,8 +26128,12 @@ Copyright:
             # read trace data #
             try:
                 rpath = os.path.join(SysMgr.mountPath, '../trace')
-                with open(rpath, 'r') as fr:
-                    lines = fr.readlines()
+                if sys.version_info >= (3, 0, 0):
+                    with open(rpath, 'r', encoding='latin-1') as fr:
+                        lines = fr.readlines()
+                else:
+                    with open(rpath, 'r') as fr:
+                        lines = fr.readlines()
             except SystemExit:
                 sys.exit(0)
             except:
@@ -26608,6 +26681,7 @@ Copyright:
         if infoBuf == '':
             return
 
+        # get area info #
         mountPosStart = infoBuf.find('Storage Info')
         if mountPosStart == -1:
             return
@@ -26628,6 +26702,7 @@ Copyright:
         if mountPosEnd == -1:
             return
 
+        # split string to list #
         try:
             mountTable = []
             tempTable = infoBuf[mountPosStart:mountPosEnd].split('\n')
@@ -26640,6 +26715,7 @@ Copyright:
 
         init_mountData = {'dev': ' ', 'filesystem': ' ', 'mount': ' '}
 
+        # parse items #
         for item in mountTable:
             m = re.match((
                 r'(?P<dev>\S+)\s+\((?P<devt>\S+)\)\s+\[(?P<range>\S+)\]\s+'
@@ -35980,8 +36056,13 @@ Copyright:
                     sys.exit(0)
 
         # set alarm #
-        signal.signal(signal.SIGALRM, SysMgr.onAlarm)
-        signal.alarm(SysMgr.intervalEnable)
+        try:
+            signal.signal(signal.SIGALRM, SysMgr.onAlarm)
+            signal.alarm(SysMgr.intervalEnable)
+        except:
+            SysMgr.printErr(
+                'fail to set alarm to %s' % SysMgr.intervalEnable, True)
+            sys.exit(0)
 
         # wait for childs #
         while 1:
@@ -40246,9 +40327,7 @@ Copyright:
             return
 
         # write signal command #
-        if SysMgr.cmdEnable is not False and \
-            SysMgr.cmdFd:
-
+        if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
             if SysMgr.signalCmd:
                 try:
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
@@ -42157,11 +42236,13 @@ Copyright:
                 beforeInfo = self.diskInfo['prev'][dev]
                 afterInfo = self.diskInfo['next'][dev]
 
+                # read #
                 read = readSize = \
                     (long(afterInfo['sectorRead']) - \
                         long(beforeInfo['sectorRead'])) << 9
                 readSize = UtilMgr.convSize2Unit(readSize)
 
+                # write #
                 write = writeSize = \
                     (long(afterInfo['sectorWrite']) - \
                         long(beforeInfo['sectorWrite'])) << 9
@@ -42278,6 +42359,8 @@ Copyright:
                         'fs': val['fs'],
                         'mount': '%s %s' % (val['path'], val['option']),
                     }
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -69867,20 +69950,8 @@ class TaskAnalyzer(object):
                 except:
                     seqPer = '?'
 
-                try:
-                    size = format((val[0] >> 10), ',')
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    size = val[0] >> 10
-
-                try:
-                    seqSize = format((val[3] >> 10), ',')
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    seqSize = '?'
-
+                size = UtilMgr.convSize2Unit(val[0])
+                seqSize = UtilMgr.convSize2Unit(val[3])
                 seqString = '%s(%5s)' % (seqSize, seqPer)
 
                 if tcnt > 0:
@@ -69909,7 +69980,7 @@ class TaskAnalyzer(object):
         if not SysMgr.blockEnable:
             return
 
-        SysMgr.printPipe('\n[Thread Block Info] (Unit: KB/NR)')
+        SysMgr.printPipe('\n[Thread Block Info] (Unit: NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:^25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:^20}".\
@@ -69939,7 +70010,7 @@ class TaskAnalyzer(object):
 
         # sort threads by read size #
         for tid, data in sorted(self.blockTable[2].items(),
-            key=lambda e:sorted(e[1][0]), reverse=True):
+            key=lambda e:e[1][2], reverse=True):
             tcnt = long(0)
             comm = self.threadData[tid]['comm'][:16]
             cid = '%s(%s)' % (comm, tid)
@@ -73334,7 +73405,7 @@ class TaskAnalyzer(object):
             idx = size.bit_length() - 1
             return 1 << idx
 
-        def _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset):
+        def _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset, did):
             # per-device size stat #
             try:
                 targetTable[did][0] += size
@@ -73346,6 +73417,8 @@ class TaskAnalyzer(object):
                     targetTable[did][4] += 1
 
                 targetTable[did][2] = blkOffset
+            except SystemExit:
+                sys.exit(0)
             except:
                 sizeTable = {}
                 targetTable[did] = [size, 1, blkOffset, size, 1, sizeTable]
@@ -73378,20 +73451,24 @@ class TaskAnalyzer(object):
             blkOffset = addr + 1
 
         blkSize = _getBlkOptSize(size)
-
-        # revise real minor number by address #
-        for did, val in SysMgr.savedMountTree.items():
-            try:
-                if did.split(':')[0] == major and \
-                    val['start'] <= addr <= val['end']:
-                    minor = did.split(':')[1]
-                    break
-            except:
-                pass
-
-        # make device id #
         did = '%s:%s' % (major, minor)
 
+        # revise real minor number by address #
+        if not did in SysMgr.savedMountTree.items():
+            for mid, val in SysMgr.savedMountTree.items():
+                try:
+                    if mid.split(':')[0] == major and \
+                        val['start'] <= addr <= val['end']:
+                        # update device id #
+                        minor = mid.split(':')[1]
+                        did = '%s:%s' % (major, minor)
+                        break
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+        # map data to total table #
         if opt == 'R':
             targetTable = readTable
         elif opt == 'W':
@@ -73402,11 +73479,13 @@ class TaskAnalyzer(object):
             return
 
         # apply total block info #
-        _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset)
+        _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset, did)
 
+        # init task stat #
         if tid not in taskTable:
-            taskTable[tid] = [{}, {}]
+            taskTable[tid] = [{}, {}, 0]
 
+        # map data to task table #
         if opt == 'R':
             targetTable = taskTable[tid][0]
         elif opt == 'W':
@@ -73416,8 +73495,11 @@ class TaskAnalyzer(object):
                 "fail to recognize block operation '%s'" % opt)
             return
 
+        # increase task I/O size #
+        taskTable[tid][2] += size
+
         # apply thread block info #
-        _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset)
+        _applyBlkOpt(targetTable, addr, size, blkSize, blkOffset, did)
 
 
 
@@ -76835,7 +76917,7 @@ class TaskAnalyzer(object):
 
         # remove myself info #
         try:
-            del pids[pids.index(str(SysMgr.pid))]
+            pids.remove(str(SysMgr.pid))
         except SystemExit:
             sys.exit(0)
         except:
