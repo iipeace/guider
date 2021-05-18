@@ -10,14 +10,11 @@
 # any later version.
 
 # check valid Python in order: user-specified, python, python3 and 2 #
+PYTHON=`which $PYTHON || which python || which python3 || which python2`
 if [ z`$PYTHON -V 2>/dev/null | cut -d' ' -f1` != "zPython" ]
     then
-        PYTHON=`which python || which python3 || which python2`
-        if [ z`$PYTHON -V 2>/dev/null | cut -d' ' -f1` != "zPython" ]
-            then
-                echo "[Error] fail to find python"
-                exit
-        fi
+        echo "[Error] fail to find python"
+        exit
 fi
 
 # export CMDLINE for Guider #
