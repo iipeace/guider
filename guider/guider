@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Guider Launcher
 #
 # Copyright (c) 2016-2021 Peace Lee <iipeace5@gmail.com>
@@ -7,22 +9,14 @@
 # Software Foundation; either version 2 of the License, or (at your option)
 # any later version.
 
-# check python #
-if [ ! $PYTHON ]
+# check valid Python in order: user-specified, python, python3 and 2 #
+if [ z`$PYTHON -V 2>/dev/null | cut -d' ' -f1` != "zPython" ]
     then
-        PYTHON=$(which python)
-        if [ ! $PYTHON ]
+        PYTHON=`which python || which python3 || which python2`
+        if [ z`$PYTHON -V 2>/dev/null | cut -d' ' -f1` != "zPython" ]
             then
-                PYTHON=$(which python3)
-		if [ ! $PYTHON ]
-                    then
-                        PYTHON=$(which python2)
-		        if [ ! $PYTHON ]
-                            then
-                                echo "[Error] fail to find python"
-                                exit
-                        fi
-                fi
+                echo "[Error] fail to find python"
+                exit
         fi
 fi
 
