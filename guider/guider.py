@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210518"
+__revision__ = "210520"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5873,6 +5873,177 @@ class NetworkMgr(object):
 
 
 
+    @staticmethod
+    def sendFile(sock, ip, port, src, des):
+        # verify path #
+        target = src
+        if target.startswith('/'):
+            sdir, name = target.rsplit('/', 1)[0]
+        else:
+            sdir = '.'
+            name = target
+
+        # get file list #
+        targetList = UtilMgr.getFiles(sdir, [name])
+        if not targetList:
+            SysMgr.printWarn(
+                'failed to find %s to transfer' % target, True)
+
+            return False
+
+        for target in targetList:
+            SysMgr.printInfo(
+                "start uploading %s[%s] to %s:%s... " % \
+                    (target, UtilMgr.getFileSize(target),
+                        sock.ip, sock.port), suffix=False)
+
+            # send file info #
+            totalSize = os.stat(target).st_size
+            fileInfo = '%s#%s' % (target, totalSize)
+            sock.send(UtilMgr.encodeStr(fileInfo))
+
+            # read for ACK #
+            while 1:
+                ret = sock.recv(3)
+                if ret is None:
+                    continue
+                elif ret is False:
+                    raise Exception('No Response')
+                else:
+                    break
+
+            # send a file #
+            with open(target, 'rb') as fd:
+                buf = fd.read(sock.sendSize)
+                curSize = 0
+                while buf:
+                    # send a chunk #
+                    sock.send(buf)
+                    curSize += len(buf)
+
+                    # read for ACK #
+                    while 1:
+                        ret = sock.recv(3)
+                        if ret is None:
+                            continue
+                        elif ret is False:
+                            raise Exception('No Response')
+                        else:
+                            break
+
+                    # read a chunk #
+                    buf = fd.read(sock.sendSize)
+
+            # read for ACK #
+            while 1:
+                ret = sock.recv(3)
+                if ret is None:
+                    continue
+                elif ret is False:
+                    raise Exception('No Response')
+                else:
+                    break
+
+            SysMgr.printInfo(
+                "uploaded %s[%s] to %s:%s successfully" % \
+                    (target, UtilMgr.getFileSize(target),
+                        sock.ip, sock.port))
+
+        return True
+
+
+
+    @staticmethod
+    def recvFile(sock, ip, port, src, des):
+        # get select object #
+        selectObj = SysMgr.getPkg('select')
+
+        while 1:
+            curSize = long(0)
+            totalSize = None
+
+            # receive file info #
+            while 1:
+                fileInfo = sock.recv(sock.recvSize)
+                if not fileInfo:
+                    continue
+
+                # check termination condition #
+                name, size = fileInfo.decode().split('#', 1)
+                if name == '@DONE':
+                    return True
+                elif not size:
+                    continue
+
+                # send ACK for file info #
+                totalSize = long(size)
+                sock.send('ACK'.encode())
+                break
+
+            # set destination path #
+            if des:
+                target = des
+            else:
+                target = name
+
+            # make dirs #
+            dirPos = target.rfind('/')
+            if dirPos >= 0 and not os.path.isdir(target[:dirPos]):
+                os.makedirs(target[:dirPos])
+
+            SysMgr.printInfo(
+                    "start downloading %s[%s]@%s:%s to %s..." % \
+                (target, UtilMgr.convSize2Unit(totalSize),
+                    ip, port, name), suffix=False)
+
+            # receive a file #
+            with open(target, 'wb') as fd:
+                sent = 0
+                while 1:
+                    selectObj.select([sock.socket], [], [], 3)
+
+                    # receive a chunk #
+                    buf = sock.recv(sock.recvSize)
+                    if not buf:
+                        break
+
+                    # update stat and write a chunk to file #
+                    curSize += len(buf)
+                    sent += len(buf)
+                    fd.write(buf)
+
+                    # check received size #
+                    if curSize >= totalSize:
+                        sock.send('ACK'.encode())
+                        break
+
+                    # send ACK for a complete chunk #
+                    if sent == sock.recvSize:
+                        sock.send('ACK'.encode())
+                        sent = 0
+
+                    # print progress #
+                    UtilMgr.printProgress(curSize, totalSize)
+
+            # remove progress #
+            UtilMgr.deleteProgress()
+
+            # check received size #
+            if curSize < totalSize:
+                raise Exception('Broken Connection')
+
+            SysMgr.printInfo(
+                    "downloaded %s[%s]@%s:%s to %s successfully\n" % \
+                (target, UtilMgr.getFileSize(target),
+                    ip, port, name), suffix=False)
+
+            # send ACK #
+            sock.send('ACK'.encode())
+
+        return True
+
+
+
     def connect(self, addr=None):
         if addr is None:
             addr = (self.ip, self.port)
@@ -5888,8 +6059,8 @@ class NetworkMgr(object):
     def handleServerRequest(self, req, onlySocket=False):
         def _onDownload(req):
             # parse path #
-            plist = req.split('|', 1)[1]
-            path = UtilMgr.cleanItem(plist.split('@'), False)
+            reqList = req.split('|', 1)[1]
+            path = UtilMgr.cleanItem(reqList.split('@'), False)
             if len(path) == 2:
                 origPath, desPath = path
                 if origPath and not desPath:
@@ -5898,91 +6069,27 @@ class NetworkMgr(object):
                 origPath = path[0]
                 desPath = None
 
-            receiver = self
-            targetIp = self.ip
-            targetPort = self.port
-            addr = '%s:%s' % (targetIp, targetPort)
-
-            # get select object #
-            selectObj = SysMgr.getPkg('select')
-
             # receive file #
             try:
-                while 1:
-                    curSize = long(0)
-                    totalSize = None
-
-                    # receive file info #
-                    while 1:
-                        fileInfo = receiver.recv(receiver.recvSize)
-                        if not fileInfo:
-                            continue
-
-                        name, size = fileInfo.decode().split('#', 1)
-                        if name == '@DONE':
-                            return
-
-                        if not size:
-                            continue
-
-                        totalSize = long(size)
-                        receiver.send('ACK'.encode())
-                        break
-
-                    # set destination path #
-                    if desPath:
-                        targetPath = desPath
-                    else:
-                        targetPath = name
-
-                    # make dirs #
-                    dirPos = targetPath.rfind('/')
-                    if dirPos >= 0 and not os.path.isdir(targetPath[:dirPos]):
-                        os.makedirs(targetPath[:dirPos])
-
-                    # receive file #
-                    with open(targetPath, 'wb') as fd:
-                        while 1:
-                            selectObj.select([receiver.socket], [], [], 3)
-
-                            buf = receiver.recv(receiver.recvSize)
-                            if buf:
-                                curSize += len(buf)
-                                fd.write(buf)
-                            else:
-                                break
-
-                            # check received size #
-                            if curSize >= totalSize:
-                                break
-
-                            # print progress #
-                            UtilMgr.printProgress(curSize, totalSize)
-
-                    UtilMgr.deleteProgress()
-
-                    SysMgr.printInfo(
-                        "downloaded %s [%s] from %s:%s:%s successfully\n" % \
-                        (targetPath, UtilMgr.getFileSize(targetPath),
-                            targetIp, targetPort, origPath), suffix=False)
-
-                    # send ACK #
-                    receiver.send('ACK'.encode())
-
-                    res = True
+                res = False
+                res = NetworkMgr.recvFile(
+                    self, self.ip, self.port, origPath, desPath)
             except:
                 SysMgr.printErr(
-                    'fail to download %s from %s in %s' % \
-                        (origPath, targetPath, addr), True)
-                res = False
+                    'fail to download %s from %s in %s:%s' % \
+                        (origPath, desPath, self.ip, self.port), True)
             finally:
-                receiver.close()
-                return res
+                try:
+                    self.close()
+                except:
+                    pass
+                finally:
+                    return res
 
         def _onUpload(req):
             # parse path #
-            plist = req.split('|', 1)[1]
-            path = UtilMgr.cleanItem(plist.split('@'), False)
+            reqList = req.split('|', 1)[1]
+            path = UtilMgr.cleanItem(reqList.split('@'), False)
             if len(path) == 2:
                 origPath, targetPath = path
                 if origPath and not targetPath:
@@ -5990,65 +6097,23 @@ class NetworkMgr(object):
             else:
                 origPath = targetPath = path[0]
 
-            sender = self
-            targetIp = self.ip
-            targetPort = self.port
-            addr = '%s:%s' % (targetIp, targetPort)
-
-            # check file #
-            if not os.path.isfile(origPath):
-                SysMgr.printErr(
-                    'failed to find %s to transfer' % origPath)
-                return
-
+            # transfer file #
             try:
-                # receive file size #
-                stat = os.stat(origPath)
-                st_size = '%s' % stat.st_size
-                sender.send(st_size)
-
-                # read for ACK #
-                while 1:
-                    ret = sender.recv(3)
-                    if ret is None:
-                        continue
-                    elif ret is False:
-                        sys.exit(0)
-                    else:
-                        break
-
-                # transfer file #
-                curSize = long(0)
-                totalSize = long(st_size)
-                with open(origPath, 'rb') as fd:
-                    buf = fd.read(sender.sendSize)
-
-                    while buf:
-                        # print progress #
-                        UtilMgr.printProgress(curSize, totalSize)
-
-                        assert sender.send(buf)
-
-                        curSize = len(buf)
-
-                        buf = fd.read(sender.sendSize)
-
-                UtilMgr.deleteProgress()
-
-                SysMgr.printInfo(
-                    "uploaded %s [%s] to %s:%s successfully\n" % \
-                        (origPath, UtilMgr.getFileSize(origPath),
-                            addr, targetPath), suffix=False)
-
-                res = True
+                res = False
+                res = NetworkMgr.sendFile(
+                    self, self.ip, self.port, origPath, targetPath)
             except:
                 SysMgr.printErr(
-                    "fail to upload %s to %s in %s" % \
-                        (origPath, targetPath, addr), True)
-                res = False
+                    "fail to upload %s to %s in %s:%s" % \
+                        (origPath, targetPath, self.ip, self.port), True)
             finally:
-                sender.close()
-                return res
+                try:
+                    self.send('@DONE#0'.encode())
+                    self.close()
+                except:
+                    pass
+                finally:
+                    return res
 
         def _onList(req):
             SysMgr.printInfo(req.lstrip('LIST:'))
@@ -6397,8 +6462,14 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def requestPing(addr=None, verb=True):
-        return NetworkMgr.execRemoteCmd("PING:PING", addr=addr, verb=verb)
+    def requestPing(addr=None, verb=True, cmd=None):
+        if cmd:
+            cmd = cmd.upper()
+            cmd = "%s:%s" % (cmd, cmd)
+        else:
+            cmd = "PING:PING"
+
+        return NetworkMgr.execRemoteCmd(cmd, addr=addr, verb=verb)
 
 
 
@@ -6416,6 +6487,7 @@ class NetworkMgr(object):
             'NEW': None,
             'PING': None,
             'LIST': None,
+            'RESTART': None,
         }
 
         # add command prefix #
@@ -17423,6 +17495,24 @@ class SysMgr(object):
                     SysMgr.printPipe(string)
             else:
                 SysMgr.printPipe('\n'.join(clist))
+
+
+
+    @staticmethod
+    def restart(cmd=[], env=None):
+        try:
+            if not cmd:
+                cmd = SysMgr.getCmdline(os.getpid()).split()
+
+            if not env:
+                env = deepcopy(os.environ)
+
+            os.execvpe(cmd[0], cmd, env)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to restart %s' % __module__, True)
 
 
 
@@ -31799,78 +31889,23 @@ Copyright:
                     "wrong format for path, input in the format {SRC@DES}")
                 return
 
-            # verify path #
-            targetPath = src
-            if targetPath.startswith('/'):
-                startPath, name = targetPath.rsplit('/', 1)[0]
-            else:
-                startPath = '.'
-                name = targetPath
-
-            # get file list #
-            targetList = UtilMgr.getFiles(startPath, [name])
-            if not targetList:
-                SysMgr.printWarn(
-                    'failed to find %s to transfer' % targetPath, True)
-                _sendErrMsg(netObj, "wrong path '%s'" % targetPath)
-                return
-
             # response from command request #
             netObj.send(response)
 
-            remotePath = des
-            addr = '%s:%s' % (netObj.ip, netObj.port)
-
             # transfer file #
             try:
-                for target in targetList:
-                    last = target
-                    # send file size #
-                    stat = os.stat(target)
-                    fileInfo = '%s#%s' % (target, stat.st_size)
-                    netObj.send(UtilMgr.encodeStr(fileInfo))
-
-                    # read for ACK #
-                    while 1:
-                        ret = netObj.recv(3)
-                        if ret is None:
-                            continue
-                        elif ret is False:
-                            sys.exit(0)
-                        else:
-                            break
-
-                    # send file #
-                    with open(target, 'rb') as fd:
-                        buf = fd.read(netObj.sendSize)
-                        while (buf):
-                            netObj.send(buf)
-                            buf = fd.read(netObj.sendSize)
-
-                    SysMgr.printInfo(
-                        "uploaded %s [%s] to %s:%s successfully" % \
-                            (target, UtilMgr.getFileSize(target),
-                                addr, remotePath))
-
-                    # read for ACK #
-                    while 1:
-                        ret = netObj.recv(3)
-                        if ret is None:
-                            continue
-                        elif ret is False:
-                            sys.exit(0)
-                        else:
-                            break
+                NetworkMgr.sendFile(
+                    netObj, netObj.ip, netObj.port, src, des)
             except:
                 SysMgr.printErr(
-                    "fail to upload %s to %s in %s" % \
-                    (last, remotePath, addr), True)
+                    "fail to upload %s to %s in %s:%s" % \
+                        (src, des, netObj.ip, netObj.port), True)
             finally:
                 try:
-                    netObj.send(UtilMgr.encodeStr('@DONE#0'))
+                    netObj.send('@DONE#0'.encode())
+                    netObj.close()
                 except:
                     pass
-                netObj.close()
 
         def _onUpload(netObj, value, response):
             try:
@@ -31882,7 +31917,8 @@ Copyright:
                     elif not src:
                         raise Exception()
                 else:
-                    src = des = files[0]
+                    src = files[0]
+                    des = None
             except:
                 SysMgr.printWarn(
                     'failed to recognize %s' % value, True)
@@ -31890,55 +31926,17 @@ Copyright:
                     "wrong format for path, input in the format {SRC@DES}")
                 return
 
-            # response from command request #
+            # send response #
             netObj.send(response)
-
-            # get select object #
-            selectObj = SysMgr.getPkg('select')
-
-            # get connection info #
-            addr = '%s:%s' % (netObj.ip, netObj.port)
 
             # receive file #
             try:
-                curSize = long(0)
-                totalSize = None
-                origPath = src
-                targetPath = des
-
-                # receive file size #
-                while 1:
-                    size = netObj.recv(netObj.recvSize)
-                    if not size:
-                        continue
-                    else:
-                        totalSize = long(size.decode())
-                        netObj.send('ACK')
-                        break
-
-                # receive file #
-                with open(targetPath, 'wb') as fd:
-                    while 1:
-                        [read, write, error] = \
-                            selectObj.select([netObj.socket], [], [], 3)
-
-                        buf = netObj.recv(netObj.recvSize)
-                        if buf:
-                            fd.write(buf)
-                            curSize += len(buf)
-                        else:
-                            break
-
-                        #UtilMgr.printProgress(curSize, totalSize)
-
-                SysMgr.printInfo(
-                    "downloaded %s [%s] from %s:%s successfully" % \
-                    (targetPath, UtilMgr.getFileSize(targetPath),
-                        addr, origPath))
+                NetworkMgr.recvFile(
+                    netObj, netObj.ip, netObj.port, src, des)
             except:
                 SysMgr.printErr(
-                    'fail to download %s from %s in %s' % \
-                        (origPath, targetPath, addr), True)
+                    'fail to download %s from %s in %s:%s' % \
+                        (src, des, netObj.ip, netObj.port), True)
             finally:
                 netObj.close()
 
@@ -31994,6 +31992,9 @@ Copyright:
                 SysMgr.printWarn(
                     'fail to register the service node(%s)' % value,
                     reason=True)
+
+        def _onRestart(connObj, value, response):
+            return True
 
         def _onList(connObj, value, response):
             try:
@@ -32289,6 +32290,7 @@ Copyright:
                 'NEW': _onNew,
                 'PING': _onPing,
                 'LIST': _onList,
+                'RESTART': _onRestart,
             }
 
             # check request type #
@@ -32305,6 +32307,9 @@ Copyright:
             elif request == 'BROADCAST':
                 # update service node list #
                 _updateNodeList()
+            elif request == 'RESTART':
+                SysMgr.printInfo('RESTART by %s:%s' % (ip, port))
+                SysMgr.restart()
 
             # build response data #
             response = '%s|%s' % (request, value)
@@ -32424,14 +32429,16 @@ Copyright:
                 '- BROADCAST:Command\n'
                 '- PING\n'
                 '- LIST\n'
+                '- RESTART\n'
                 '- HISTORY\n'
                 '- QUIT\n'
                 '\n'
             )
 
-        def _doPing(uinput):
+        def _doPing(uinput, cmd=None):
             # get addrs from string #
-            cmd = 'ping'
+            if not cmd:
+                cmd = 'ping'
             addrs = uinput.strip(cmd).strip(cmd.upper())
             if addrs and not addrs[0].isdigit():
                 addrs = addrs[1:]
@@ -32446,7 +32453,7 @@ Copyright:
                 else:
                     NetworkMgr.setRemoteServer(addrs, tcp=True)
 
-            ret = NetworkMgr.requestPing()
+            ret = NetworkMgr.requestPing(cmd=cmd)
             if ret:
                 SysMgr.printInfo('server is alive')
 
@@ -32505,6 +32512,9 @@ Copyright:
             uinputUpper = uinput.upper()
             if uinputUpper.startswith('PING'):
                 _doPing(uinput)
+                return
+            elif uinputUpper.startswith('RESTART'):
+                _doPing(uinputUpper, 'RESTART')
                 return
 
             # launch remote command #
