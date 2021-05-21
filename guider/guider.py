@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210520"
+__revision__ = "210521"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -170,6 +170,24 @@ class ConfigMgr(object):
         'writeTime', 'currentIO', 'ioTime', 'ioWTime',
         'discComplete', 'discMerged', 'sectorDisc', 'discTime', # 4.18+
         'flushComplete', 'flushTime', # 5.5+
+    ]
+
+    BGRECLAIMSTAT = [
+        'pgsteal_kswapd',
+        'pgsteal_kswapd_normal',
+        'pgsteal_kswapd_high',
+        'pgsteal_kswapd_dma',
+        'pgsteal_kswapd_dma32',
+        'pgsteal_kswapd_movable',
+    ]
+
+    FGRECLAIMSTAT = [
+        'pgsteal_direct',
+        'pgsteal_direct_normal',
+        'pgsteal_direct_high',
+        'pgsteal_direct_dma',
+        'pgsteal_direct_dma32',
+        'pgsteal_direct_movable',
     ]
 
     # socketcall attributes #
@@ -14147,9 +14165,9 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %d ] [ LastRAM: %s ]"
+            "[%s] [ Process : %s ] [ LastRAM: %s ]"
             " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
-                ('File Process Info', len(self.procList),
+                ('File Process Info', UtilMgr.convNum(len(self.procList)),
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -14197,11 +14215,16 @@ class FileAnalyzer(object):
 
         SysMgr.printPipe("%s\n\n" % oneLine)
 
+        # remove invalid files #
+        for fileName in list(self.fileList.keys()):
+            if not FileAnalyzer.isValidFile(fileName):
+                self.fileList.pop(fileName, None)
+
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %d ] [ LastRAM: %s ] "
+            "[%s] [ File: %s ] [ LastRAM: %s ] "
             "[ Keys: Foward/Back/Save/Quit ]") % \
-                ('File Usage Info', len(self.fileList),
+                ('File Usage Info', UtilMgr.convNum(len(self.fileList)),
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
 
@@ -14212,26 +14235,19 @@ class FileAnalyzer(object):
             for idx in range(1, len(self.intervalFileData)):
                 printMsg += "{0:_^15}|".format(str(idx))
 
-        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM", "%")
-
+        # print title #
         lineLength = SysMgr.lineLength
-
+        printMsg += "{0:_^11}|{1:_^3}|".format("LastRAM", "%")
         printMsg += '_' * (long((lineLength - len(printMsg)) / 2) - 2)
         printMsg += 'Library'
         printMsg += '_' * (lineLength - len(printMsg))
-
+        printMsg += '\n%s' % twoLine
         SysMgr.printPipe(printMsg)
-
-        SysMgr.printPipe(twoLine)
 
         # print interval usage #
         for fileName, val in sorted(self.fileList.items(),
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
-
-            # check exceptional file #
-            if not FileAnalyzer.isValidFile(fileName):
-                continue
-
+            # memory size #
             try:
                 memSize = \
                     self.intervalFileData[0][fileName]['pageCnt'] * pageSize
@@ -14354,13 +14370,13 @@ class FileAnalyzer(object):
         if not fileName.startswith('/'):
             return False
         # skip device nodes #
-        elif fileName.startswith('/dev'):
+        elif fileName.startswith('/dev/'):
             return False
         # skip proc nodes #
-        elif fileName.startswith('/proc'):
+        elif fileName.startswith('/proc/'):
             return False
         # skip sys nodes #
-        elif fileName.startswith('/sys'):
+        elif fileName.startswith('/sys/'):
             return False
         # skip non-contiguous segments #
         elif SysMgr.magicStr in fileName:
@@ -14700,9 +14716,9 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %d ] [ RAM: %s ]"
+            "[%s] [ Process : %s ] [ RAM: %s ]"
             "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
-                ('File Process Info', len(self.procData),
+                ('File Process Info', UtilMgr.convNum(len(self.procData)),
                 convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
@@ -14750,10 +14766,15 @@ class FileAnalyzer(object):
 
         SysMgr.printPipe("%s\n\n" % oneLine)
 
+        # remove invalid files #
+        for fileName in list(self.fileData.keys()):
+            if not FileAnalyzer.isValidFile(fileName):
+                self.fileData.pop(fileName, None)
+
         # Print file list #
         SysMgr.printPipe(
-            "[%s] [ File: %d ] [ RAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', len(self.fileData),
+            "[%s] [ File: %s ] [ RAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
+            ('File Usage Info', UtilMgr.convNum(len(self.fileData)),
             convert(self.profPageCnt * 4 << 10)))
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
@@ -14763,10 +14784,7 @@ class FileAnalyzer(object):
         for fileName, val in sorted(self.fileData.items(),
             key=lambda e: long(e[1]['pageCnt']), reverse=True):
 
-            # check exceptional file #
-            if not FileAnalyzer.isValidFile(fileName):
-                continue
-
+            # get stat #
             memSize = val['pageCnt'] * pageSize
             idx = val['totalSize'] + pageSize - 1
             fileSize = long(idx / pageSize) * pageSize
@@ -14929,7 +14947,7 @@ class FileAnalyzer(object):
                             SysMgr.printOpenWarn(fdlistPath)
 
                         # scan file descriptors #
-                        for fd in os.listdir(fdlistPath):
+                        for fd in fdlist:
                             try:
                                 # get real path #
                                 fdPath = "%s/%s" % (fdlistPath, long(fd))
@@ -15208,14 +15226,16 @@ class FileAnalyzer(object):
 
         if self.fileData:
             SysMgr.printGood(
-                'profiled a total of %d files' % self.profSuccessCnt)
+                'profiled a total of %s files' % \
+                    UtilMgr.convNum(self.profSuccessCnt))
         else:
             SysMgr.printErr('fail to profile files')
             sys.exit(0)
 
         if self.profFailedCnt > 0:
             SysMgr.printWarn(
-                'fail to open a total of %d files' % self.profFailedCnt)
+                'fail to open a total of %s files' % \
+                    UtilMgr.convNum(self.profFailedCnt))
 
 
 
@@ -19819,7 +19839,7 @@ Examples:
     - Monitor status of {2:2} that use CPU more than 1% without including "test" in COMM
         # {0:1} {1:1} -g ^test -S c:1
 
-    - Monitor status of {2:2} used CPU resource totally
+    - Monitor status of {2:2} used system resource totally
         # {0:1} {1:1} -e T
 
     - Monitor status of all {2:2} with bar graphs for cores
@@ -22069,7 +22089,6 @@ Description:
     Send specific signal to specific tasks or all running Guiders
 
 Options:
-    -g  <TID|COMM>              set task filter
     -i  <SEC>                   set interval
     -l                          print signal list
     -W  <SEC>                   wait for input
@@ -24899,7 +24918,7 @@ Copyright:
                     objdumpPath = SysMgr.environList['OBJDUMP'][0]
 
                     SysMgr.printInfo(
-                        "use '%s' as objdump path" % objdumpPath)
+                        "apply '%s' to objdump path" % objdumpPath)
 
                     if not os.path.isfile(objdumpPath):
                         SysMgr.printErr(
@@ -28958,7 +28977,7 @@ Copyright:
             elif not SysMgr.stdlog:
                 if os.path.isdir(value):
                     value = os.path.join(value, 'guider.log')
-                SysMgr.printInfo("use '%s' for log" % value)
+                SysMgr.printInfo("apply '%s' to log path" % value)
                 SysMgr.stdlog = LogMgr(value)
 
         elif option == 'o':
@@ -30899,14 +30918,21 @@ Copyright:
         try:
             SysMgr.inWaitStatus = True
 
+            # set suffix #
             if newline:
                 suffix = '\n'
             else:
                 suffix = ''
 
+            # set fd list for input #
+            if SysMgr.bgStatus:
+                inputList = []
+            else:
+                inputList = [sys.stdin]
+
             # there was user input #
             if selectObj.select(
-                [sys.stdin], [], [], wait) == ([sys.stdin], [], []):
+                inputList, [], [], wait) == ([sys.stdin], [], []):
                 sys.stdout.write('\b' * SysMgr.ttyCols)
                 sys.stdout.write(msg + suffix)
                 sys.stdout.flush()
@@ -31686,6 +31712,9 @@ Copyright:
 
     @staticmethod
     def runBackgroundMode():
+        if SysMgr.bgStatus:
+            return
+
         pid = SysMgr.createProcess(isDaemon=True)
 
         if pid > 0:
@@ -38306,15 +38335,12 @@ Copyright:
             return
 
         # convert pid list #
-        if SysMgr.filterGroup:
-            argList = SysMgr.filterGroup
-        elif argList:
-            try:
-                argList = (''.join(argList)).split(',')
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        try:
+            argList = UtilMgr.cleanItem((''.join(argList)).split(','))
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         isPrinted = False
 
@@ -38583,7 +38609,7 @@ Copyright:
                         "no thread related to '%s'" % task)
 
                 # change priority for tasks #
-                for task in targetList:
+                for task in sorted(targetList):
                     if schedSet[0].upper() == 'D':
                         # parse deadline arguments #
                         runtime, deadline, period = \
@@ -38815,6 +38841,7 @@ Copyright:
                     policy = upolicy
                     raise Exception('no setpriority')
 
+            # print result #
             if verb:
                 SysMgr.printInfo(
                     'changed priority for %s(%s) to %d[%s]' % \
@@ -40653,8 +40680,10 @@ Copyright:
         # system uptime #
         try:
             uptime = UtilMgr.convTime(SysMgr.uptime)
+            uptimeSec = UtilMgr.convNum(SysMgr.uptime)
+            uptimeStr = '%s (%s sec)' % (uptime, uptimeSec)
             SysMgr.infoBufferPrint(
-                "{0:20} {1:<100}".format('Uptime', uptime))
+                "{0:20} {1:<100}".format('Uptime', uptimeStr))
 
             if SysMgr.jsonEnable:
                 jsonData['uptime'] = uptime
@@ -63264,7 +63293,7 @@ class TaskAnalyzer(object):
             self.init_cpuData = \
                 {'user': long(0), 'system': long(0), 'nice': long(0),
                 'idle': long(0), 'wait': long(0), 'irq': long(0),
-                'softirq': long(0)}
+                'softirq': long(0), 'iowait': long(0)}
 
             self.nrThread = long(0)
             self.nrPrevThread = long(0)
@@ -71104,9 +71133,12 @@ class TaskAnalyzer(object):
                 nowIn = long(nowStat[SysMgr.netInIndex])
                 nowOut = long(nowStat[SysMgr.netInIndex + 1])
 
-                prevStat = prev[idx].split()
-                prevIn = long(prevStat[SysMgr.netInIndex])
-                prevOut = long(prevStat[SysMgr.netInIndex + 1])
+                if SysMgr.totalEnable:
+                    prevIn = prevOut = 0
+                else:
+                    prevStat = prev[idx].split()
+                    prevIn = long(prevStat[SysMgr.netInIndex])
+                    prevOut = long(prevStat[SysMgr.netInIndex + 1])
 
                 inDiff = nowIn - prevIn
                 outDiff = nowOut - prevOut
@@ -75502,9 +75534,9 @@ class TaskAnalyzer(object):
             SysMgr.blockEnable = True
 
             opt = d['operation']
-
             bio = '%s/%s/%s/%s' % \
                 (d['major'], d['minor'], d['operation'][0], d['address'])
+            bsize = long(d['size'])
 
             # skip redundant operation #
             if func == "block_bio_queue" and bio in self.ioData:
@@ -75512,14 +75544,14 @@ class TaskAnalyzer(object):
 
             self.ioData[bio] = {'thread': thread, 'time': ftime,
                 'major': d['major'], 'minor': d['minor'],
-                'address': long(d['address']), 'size': long(d['size'])}
+                'address': long(d['address']), 'size': bsize}
 
             self.saveBlkOpt(thread, comm, opt[0], d['major'], d['minor'],
-                d['address'], SysMgr.blockSize * long(d['size']))
+                d['address'], SysMgr.blockSize * bsize)
 
             # read operations #
             if opt[0] == 'R':
-                threadData['reqRdBlock'] += long(d['size'])
+                threadData['reqRdBlock'] += bsize
                 threadData['readQueueCnt'] += 1
                 threadData['readBlockCnt'] += 1
                 threadData['blkCore'] = coreId
@@ -75529,7 +75561,7 @@ class TaskAnalyzer(object):
                     threadData['readStart'] = ftime
             # synchronous write operation #
             elif opt == 'WS':
-                threadData['reqWrBlock'] += long(d['size'])
+                threadData['reqWrBlock'] += bsize
                 threadData['writeQueueCnt'] += 1
                 threadData['writeBlockCnt'] += 1
                 threadData['blkCore'] = coreId
@@ -77374,24 +77406,26 @@ class TaskAnalyzer(object):
                 cpuId = statList[0]
                 if cpuId == 'cpu':
                     if not 'all' in self.cpuData:
-                        self.cpuData['all'] = \
-                            {'user': long(statList[1]),
+                        self.cpuData['all'] = {
+                            'user': long(statList[1]),
                             'nice': long(statList[2]),
                             'system': long(statList[3]),
                             'idle': long(statList[4]),
                             'iowait': long(statList[5]),
                             'irq': long(statList[6]),
-                            'softirq': long(statList[7])}
+                            'softirq': long(statList[7])
+                        }
                 elif cpuId.startswith('cpu'):
                     if not long(cpuId[3:]) in self.cpuData:
-                        self.cpuData[int(cpuId[3:])] = \
-                            {'user': long(statList[1]),
+                        self.cpuData[int(cpuId[3:])] = {
+                            'user': long(statList[1]),
                             'nice': long(statList[2]),
                             'system': long(statList[3]),
                             'idle': long(statList[4]),
                             'iowait': long(statList[5]),
                             'irq': long(statList[6]),
-                            'softirq': long(statList[7])}
+                            'softirq': long(statList[7])
+                        }
                 else:
                     if not cpuId in self.cpuData:
                         self.cpuData[cpuId] = {cpuId: long(statList[1])}
@@ -78528,10 +78562,15 @@ class TaskAnalyzer(object):
 
         # paged in/out from/to disk #
         try:
-            pgInMemDiff = \
-                (vmData['pgpgin'] - self.prevVmData['pgpgin']) >> 10
-            pgOutMemDiff = \
-                (vmData['pgpgout'] - self.prevVmData['pgpgout']) >> 10
+            if SysMgr.totalEnable:
+                prevpgpgin = 0
+                prevpgpgout = 0
+            else:
+                prevpgpgin = self.prevVmData['pgpgin']
+                prevpgpgout = self.prevVmData['pgpgout']
+
+            pgInMemDiff = (vmData['pgpgin'] - prevpgpgin) >> 10
+            pgOutMemDiff = (vmData['pgpgout'] - prevpgpgout) >> 10
         except SystemExit:
             sys.exit(0)
         except:
@@ -78562,35 +78601,27 @@ class TaskAnalyzer(object):
 
         # background reclaim #
         try:
+            # init variable #
             pgRclmBg = long(0)
-            if 'pgsteal_kswapd' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd'] - \
-                    self.prevVmData['pgsteal_kswapd']
-            if 'pgsteal_kswapd_normal' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd_normal'] - \
-                    self.prevVmData['pgsteal_kswapd_normal']
-            if 'pgsteal_kswapd_high' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd_high'] - \
-                    self.prevVmData['pgsteal_kswapd_high']
-            if 'pgsteal_kswapd_dma' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd_dma'] - \
-                    self.prevVmData['pgsteal_kswapd_dma']
-            if 'pgsteal_kswapd_dma32' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd_dma32'] - \
-                    self.prevVmData['pgsteal_kswapd_dma32']
-            if 'pgsteal_kswapd_movable' in vmData:
-                pgRclmBg += \
-                    vmData['pgsteal_kswapd_movable'] - \
-                    self.prevVmData['pgsteal_kswapd_movable']
 
-            # convert to MB #
-            #pgRclmBg = pgRclmBg >> 8
+            if SysMgr.totalEnable:
+                prevData = None
+            else:
+                prevData = self.prevVmData
 
+            # accumulate the number of pages #
+            for name in list(ConfigMgr.BGRECLAIMSTAT):
+                try:
+                    prevStat = prevData[name]
+                except:
+                    prevStat = 0
+
+                try:
+                    pgRclmBg += vmData[name] - prevStat
+                except:
+                    ConfigMgr.BGRECLAIMSTAT.remove(name)
+
+            # calculate the count #
             try:
                 nrBgReclaim = \
                     vmData['pageoutrun'] - \
@@ -78603,39 +78634,30 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgRclmBg = nrBgReclaim = long(0)
-            SysMgr.printWarn("fail to get bgReclmMem")
+            SysMgr.printWarn("fail to get bgReclmMem", reason=True)
 
         # direct reclaim #
         try:
             pgRclmFg = long(0)
-            if 'pgsteal_direct' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct'] - \
-                    self.prevVmData['pgsteal_direct']
-            if 'pgsteal_direct_normal' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct_normal'] - \
-                    self.prevVmData['pgsteal_direct_normal']
-            if 'pgsteal_direct_high' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct_high'] - \
-                    self.prevVmData['pgsteal_direct_high']
-            if 'pgsteal_direct_dma' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct_dma'] - \
-                    self.prevVmData['pgsteal_direct_dma']
-            if 'pgsteal_direct_dma32' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct_dma32'] - \
-                    self.prevVmData['pgsteal_direct_dma32']
-            if 'pgsteal_direct_movable' in vmData:
-                pgRclmFg += \
-                    vmData['pgsteal_direct_movable'] - \
-                    self.prevVmData['pgsteal_direct_movable']
 
-            # convert to MB #
-            #pgRclmFg = pgRclmFg >> 8
+            if SysMgr.totalEnable:
+                prevData = None
+            else:
+                prevData = self.prevVmData
 
+            # accumulate the number of pages #
+            for name in list(ConfigMgr.FGRECLAIMSTAT):
+                try:
+                    prevStat = prevData[name]
+                except:
+                    prevStat = 0
+
+                try:
+                    pgRclmFg += vmData[name] - prevStat
+                except:
+                    ConfigMgr.FGRECLAIMSTAT.remove(name)
+
+            # calculate the count #
             try:
                 nrDrReclaim = \
                     vmData['allocstall'] - self.prevVmData['allocstall']
@@ -78647,13 +78669,13 @@ class TaskAnalyzer(object):
             sys.exit(0)
         except:
             pgRclmFg = nrDrReclaim = long(0)
-            SysMgr.printWarn("fail to get drReclmMem")
+            SysMgr.printWarn("fail to get drReclmMem", reason=True)
 
 
         # mlock #
         try:
             pgMlock = vmData['nr_mlock']
-            #mappedMem = vmData['nr_mapped'] >> 8
+            # mappedMem = vmData['nr_mapped'] >> 8
         except:
             pgMlock = long(0)
             SysMgr.printWarn("fail to get mlockMem")
@@ -78702,7 +78724,7 @@ class TaskAnalyzer(object):
             memTitle = 'MemAvl'
 
         # get iowait time #
-        #iowait = SysMgr.getIowaitTime()
+        # iowait = SysMgr.getIowaitTime()
 
         # print system status menu #
         SysMgr.addPrint(
@@ -78717,10 +78739,15 @@ class TaskAnalyzer(object):
             "Blk", "NrSIRQ", "PgMlk", "PgDirt", "Network")), oneLine)),
             newline = 3)
 
-        interval = SysMgr.uptimeDiff
-        if interval == 0:
-            return
+        # set interval #
+        if SysMgr.totalEnable:
+            interval = 1
+        else:
+            interval = SysMgr.uptimeDiff
+            if interval == 0:
+                return
 
+        # set context switch #
         try:
             nrCtxSwc = \
                 self.cpuData['ctxt']['ctxt'] - \
@@ -78781,7 +78808,11 @@ class TaskAnalyzer(object):
                     SysMgr.addPrint('%s\n' % coreStat)
                     continue
 
-                prevData = self.prevCpuData[int(idx)]
+                # set previous stat #
+                if SysMgr.totalEnable:
+                    prevData = self.init_cpuData
+                else:
+                    prevData = self.prevCpuData[int(idx)]
 
                 coreStats[idx] = dict()
 
@@ -78804,11 +78835,14 @@ class TaskAnalyzer(object):
                     long((nowData['idle'] - prevData['idle']) / interval)
 
                 #-------------------- REVISED STAT --------------------#
-                # get scaled factor #
-                totalStat = \
-                    userCoreUsage + kerCoreUsage + \
-                    ioCoreUsage + irqCoreUsage + idleCoreUsage
-                scale = 100 / float(totalStat)
+                if SysMgr.totalEnable:
+                    scale = 1
+                else:
+                    # get scaled factor #
+                    totalStat = \
+                        userCoreUsage + kerCoreUsage + \
+                        ioCoreUsage + irqCoreUsage + idleCoreUsage
+                    scale = 100 / float(totalStat)
 
                 # get CPU stats #
                 coreStats[idx]['user'] = long(userCoreUsage * scale)
@@ -78834,7 +78868,9 @@ class TaskAnalyzer(object):
         idleUsage = long(idleUsage / nrCore)
 
         # get total usage #
-        if idleUsage < maxUsage:
+        if SysMgr.totalEnable:
+            totalUsage = userUsage + kerUsage + irqUsage
+        elif idleUsage < maxUsage:
             totalUsage = maxUsage - idleUsage - ioUsage
         else:
             totalUsage = long(0)
@@ -79075,16 +79111,20 @@ class TaskAnalyzer(object):
                     idleCoreUsage = coreStats[idx]['idle']
 
                     # get total usage #
-                    if idleCoreUsage < 100:
+                    if SysMgr.totalEnable:
+                        totalCoreUsage = \
+                            userCoreUsage + kerCoreUsage + irqCoreUsage
+                    elif idleCoreUsage < 100:
                         totalCoreUsage = 100 - idleCoreUsage - ioCoreUsage
                     else:
                         totalCoreUsage = long(0)
 
                     # limit total core usage in each modes #
-                    if userCoreUsage > 100:
-                        userCoreUsage = 100
-                    if kerCoreUsage > 100:
-                        kerCoreUsage = 100
+                    if not SysMgr.totalEnable:
+                        if userCoreUsage > 100:
+                            userCoreUsage = 100
+                        if kerCoreUsage > 100:
+                            kerCoreUsage = 100
 
                     # set percore stats #
                     percoreStats[idx]['user'] = userCoreUsage
@@ -79094,6 +79134,7 @@ class TaskAnalyzer(object):
                     percoreStats[idx]['idle'] = idleCoreUsage
                     percoreStats[idx]['total'] = totalCoreUsage
 
+                    # apply color #
                     if totalCoreUsage == 0:
                         totalCoreUsageStr = totalCoreUsage
                     elif totalCoreUsage >= SysMgr.cpuPerHighThreshold:
@@ -79332,7 +79373,7 @@ class TaskAnalyzer(object):
                     lenLine = SysMgr.lineLength - lenCoreStat - lenFreq - 2
 
                     # print graph of per-core usage #
-                    if totalCoreUsage > 0:
+                    if not SysMgr.totalEnable and totalCoreUsage > 0:
                         coreGraph = '#' * long(lenLine * totalCoreUsage / 100)
                         coreGraph += (' ' * (lenLine - len(coreGraph)))
 
@@ -79794,7 +79835,8 @@ class TaskAnalyzer(object):
 
                 # user time #
                 value['utime'] = long(nowData[self.utimeIdx] / interval)
-                if value['utime'] >= 100 and \
+                if not SysMgr.totalEnable and \
+                    value['utime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['utime'] = 100
                 if SysMgr.floatEnable:
@@ -79804,7 +79846,8 @@ class TaskAnalyzer(object):
 
                 # system time #
                 value['stime'] = long(nowData[self.stimeIdx] / interval)
-                if value['stime'] >= 100 and \
+                if not SysMgr.totalEnable and \
+                    value['stime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['stime'] = 100
                 if SysMgr.floatEnable:
@@ -79814,7 +79857,8 @@ class TaskAnalyzer(object):
 
                 # total time #
                 value['ttime'] = utick + stick
-                if value['ttime'] >= 100 and \
+                if not SysMgr.totalEnable and \
+                    value['ttime'] >= 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['ttime'] = 100
 
@@ -79833,7 +79877,8 @@ class TaskAnalyzer(object):
                         round(nowData[self.btimeIdx] / interval, 1)
                 else:
                     value['btime'] = long(nowData[self.btimeIdx] / interval)
-                if value['ttime'] + value['btime'] > 100 and \
+                if not SysMgr.totalEnable and \
+                    value['ttime'] + value['btime'] > 100 and \
                     value['stat'][self.nrthreadIdx] == '1':
                     value['btime'] = 100 - value['ttime']
 
@@ -79842,7 +79887,7 @@ class TaskAnalyzer(object):
                     value['write'] = value['io']['write_bytes']
 
             # check delayacct_blkio_ticks error #
-            if value['btime'] >= 100:
+            if not SysMgr.totalEnable and value['btime'] >= 100:
                 value['btime'] = long(0)
 
 
