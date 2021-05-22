@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210521"
+__revision__ = "210522"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -6257,8 +6257,17 @@ class NetworkMgr(object):
         if UtilMgr.isString(message):
             message = UtilMgr.encodeStr(message)
 
+        # convert list to bytes #
+        if type(message) is list:
+            if not message:
+                message = ''.encode()
+            elif message[0][-1] == '\n':
+                message = ''.join(message).encode()
+            else:
+                message = '\n'.join(message).encode()
+
         try:
-            # check protocol #
+            # send data #
             if self.tcp or self.netlink:
                 ret = self.socket.send(message)
             elif not write and SysMgr.localServObj:
@@ -6267,10 +6276,10 @@ class NetworkMgr(object):
             else:
                 ret = self.socket.sendto(message, (self.ip, self.port))
 
+            # check result #
             if ret < 0:
                 raise Exception('send error')
-
-            if self.status != 'ALWAYS':
+            elif self.status != 'ALWAYS':
                 self.status = 'SENT'
             return True
         except SystemExit:
@@ -21122,13 +21131,13 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor WSS(Working Set Size) of processes after clearing page reference bits
+    Monitor WSS(Working Set Size) of specific processes after clearing their all page reference bits
                         '''.format(cmd, mode)
 
                     examStr = '''
 Examples:
-    - Monitor WSS(Working Set Size) change of specific processes
-        # {0:1} {1:1} -g chrome
+    - Monitor WSS(Working Set Size) of specific processes
+        # {0:1} {1:1} chrome
 
     See the top COMMAND help for more examples.
                     '''.format(cmd, mode)
@@ -30213,12 +30222,10 @@ Copyright:
 
     @staticmethod
     def checkWssTopCond():
-        if not SysMgr.getOption('g'):
-            SysMgr.printErr(
-                "wrong option for wss monitoring, "
-                "use also -g option to track memory working set")
+        if not SysMgr.hasMainArg() and not SysMgr.filterGroup:
+            SysMgr.printErr("no target task")
             return False
-        elif not SysMgr.isRoot():
+        if not SysMgr.isRoot():
             SysMgr.printErr(
                 "fail to get root permission to clear refcnts")
             return False
@@ -39746,7 +39753,6 @@ Copyright:
         # network #
         netFlag = sm.networkEnable
         self.cmdList["net/net_dev_xmit"] = netFlag
-        self.cmdList["net/netif_receive_skb"] = netFlag
 
         # probes #
         self.cmdList["uprobes"] = sm.ueventEnable
@@ -63901,15 +63907,22 @@ class TaskAnalyzer(object):
             # save timestamp #
             prevTime = time.time()
 
+            # handle first tick for printing total resource #
+            if SysMgr.totalEnable and not self.prevCpuData:
+                SysMgr.progressCnt += 1
+                self.reinitStats()
+                self.saveSystemStat()
+
+            # print stats #
             if self.prevCpuData:
                 # print system status #
                 self.printSystemStat(idIndex=True)
 
+                # report system status for elastic stack
                 if SysMgr.elasticEnable:
-                    # report system status for elastic stack
                     self.reportSystemStatElastic()
+                # report system status #
                 elif SysMgr.reportEnable:
-                    # report system status #
                     self.reportSystemStat()
 
             # check repeat count #
@@ -63928,14 +63941,13 @@ class TaskAnalyzer(object):
             else:
                 waitTime = SysMgr.intervalEnable - delayTime
 
+            # get stack of threads #
             if SysMgr.stackEnable and self.stackTable:
-                # get stack of threads #
                 self.sampleStack(waitTime)
                 SysMgr.waitUserInput(0.000001)
-            else:
-                # wait for next interval #
-                if not SysMgr.waitUserInput(waitTime):
-                    time.sleep(waitTime)
+            # wait for next interval #
+            elif not SysMgr.waitUserInput(waitTime):
+                time.sleep(waitTime)
 
             # check request from client #
             self.checkServer()
@@ -76034,10 +76046,14 @@ class TaskAnalyzer(object):
                 self.suspendData.append([time, state])
 
         elif func == "net_dev_xmit":
-            pass
+            m = re.match((
+                r'^\s*dev=(?P<dev>.*)\s+skbaddr=(?P<addr>.*)'
+                r'\s+len=(?P<len>.*)\s+rc=(?P<rc>.*)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
 
-        elif func == "netif_receive_skb":
-            pass
+            d = m.groupdict()
 
         elif func == "module_load":
             m = re.match(r'^\s*(?P<module>.*)\s+(?P<address>.*)', etc)
