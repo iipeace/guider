@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210522"
+__revision__ = "210523"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -3997,7 +3997,7 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def convList2Dict(optList, sep=':'):
+    def convList2Dict(optList, sep=':', cap=False):
         newDict = {}
         for item in optList:
             try:
@@ -4008,6 +4008,10 @@ class UtilMgr(object):
                     value = 'SET'
                 else:
                     key, value = values
+
+                # change to capital #
+                if cap:
+                    key = key.upper()
 
                 # set values #
                 if key in newDict:
@@ -5926,7 +5930,7 @@ class NetworkMgr(object):
                 if ret is None:
                     continue
                 elif ret is False:
-                    raise Exception('No Response')
+                    raise Exception('no response')
                 else:
                     break
 
@@ -5945,7 +5949,7 @@ class NetworkMgr(object):
                         if ret is None:
                             continue
                         elif ret is False:
-                            raise Exception('No Response')
+                            raise Exception('no response')
                         else:
                             break
 
@@ -5958,7 +5962,7 @@ class NetworkMgr(object):
                 if ret is None:
                     continue
                 elif ret is False:
-                    raise Exception('No Response')
+                    raise Exception('no response')
                 else:
                     break
 
@@ -6048,7 +6052,7 @@ class NetworkMgr(object):
 
             # check received size #
             if curSize < totalSize:
-                raise Exception('Broken Connection')
+                raise Exception('broken connection')
 
             SysMgr.printInfo(
                     "downloaded %s[%s]@%s:%s to %s successfully\n" % \
@@ -19778,7 +19782,7 @@ Usage:
     -J                          print in JSON format
     -L  <PATH>                  set log file
     -l  <TYPE>                  set log type
-          [ dlt / kmsg / journal / syslog ]
+          [ d:dlt / k:kmsg / j:journal / s:syslog ]
     -E  <DIR>                   set cache dir
     -H  <LEVEL>                 set function depth level
     -G  <KEYWORD>               set ignore list
@@ -28706,6 +28710,7 @@ Copyright:
                 SysMgr.functionEnable = True
 
             elif option == 'l':
+                # BOUNDARY #
                 if SysMgr.isDrawMode():
                     SysMgr.boundaryLine = \
                         UtilMgr.cleanItem(value.split(','))
@@ -28718,29 +28723,28 @@ Copyright:
                             ', '.join(SysMgr.boundaryLine))
 
                         SysMgr.boundaryLine = cval
+                    except SystemExit:
+                        sys.exit(0)
                     except:
                         SysMgr.printErr(
                             'fail to convert [%s] to number' % \
                                 ', '.join(SysMgr.boundaryLine), True)
                         sys.exit(0)
+                # LOG #
                 else:
                     options = value
-
-                    if 'd' in options:
+                    SysMgr.dltEnable = 'd' in options
+                    SysMgr.kmsgEnable = 'k' in options
+                    SysMgr.journalEnable = 'j' in options
+                    SysMgr.syslogEnable = 's' in options
+                    if any([
+                        SysMgr.dltEnable,
+                        SysMgr.kmsgEnable,
+                        SysMgr.journalEnable,
+                        SysMgr.syslogEnable,
+                        ]):
                         SysMgr.loggingEnable = True
-                        SysMgr.dltEnable = True
-
-                    if 'k' in options:
-                        SysMgr.loggingEnable = True
-                        SysMgr.kmsgEnable = True
-
-                    if 'j' in options:
-                        SysMgr.loggingEnable = True
-                        SysMgr.journalEnable = True
-
-                    if 's' in options:
-                        SysMgr.loggingEnable = True
-                        SysMgr.syslogEnable = True
+                        SysMgr.colorEnable = False
 
             elif option == 'r':
                 SysMgr.checkOptVal(option, value)
@@ -28816,9 +28820,11 @@ Copyright:
                                 ConfigMgr.sysList.index('sys_%s' % val)
 
                         if exceptFlag:
-                            disabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+                            disabledSyscall.append(
+                                ConfigMgr.sysList[nrSyscall])
                         else:
-                            enabledSyscall.append(ConfigMgr.sysList[nrSyscall])
+                            enabledSyscall.append(
+                                ConfigMgr.sysList[nrSyscall])
 
                         if exceptFlag:
                             SysMgr.syscallExceptList.append(nrSyscall)
@@ -29029,7 +29035,8 @@ Copyright:
             SysMgr.checkOptVal(option, value)
             if not SysMgr.environList:
                 itemList = UtilMgr.splitString(value)
-                SysMgr.environList = UtilMgr.convList2Dict(itemList)
+                SysMgr.environList = \
+                    UtilMgr.convList2Dict(itemList, cap=True)
 
         elif option == 'R':
             # set maximum count #
@@ -30726,6 +30733,8 @@ Copyright:
             try:
                 threadPath = "%s/%s/task" % (SysMgr.procPath, pid)
                 tids = os.listdir(threadPath)
+            except SystemExit:
+                sys.exit(0)
             except:
                 continue
 
@@ -45249,9 +45258,7 @@ class DltAnalyzer(object):
             if filterGroup:
                 skipFlag = True
                 for cond in filterGroup:
-                    if cond == ecuId or \
-                        cond == apId or \
-                        cond == ctxId:
+                    if cond == ecuId or cond == apId or cond == ctxId:
                         skipFlag = False
                         break
                 if skipFlag:
@@ -45327,8 +45334,7 @@ class DltAnalyzer(object):
 
 
     @staticmethod
-    def doLogDlt(
-        appid='GUID'.encode(), context='GUID'.encode(), msg=None, level='INFO'):
+    def doLogDlt(appid=b'GIDR', context=b'GIDR', msg=None, level='INFO'):
         # get ctypes object #
         SysMgr.importPkgItems('ctypes')
 
@@ -53197,7 +53203,7 @@ struct cmsghdr {
                 elif name == 'SIGFPE':
                     code = ConfigMgr.SIGFPE_CODE[code]
                 else:
-                    raise Exception('No Signal Code')
+                    raise Exception('no signal code')
             except:
                 pass
 
@@ -58874,7 +58880,7 @@ class ElfAnalyzer(object):
                 elfObj = ElfAnalyzer(path)
                 if not elfObj or not elfObj.ret:
                     raiseExcept = True
-                    raise Exception('not an ELF file')
+                    raise Exception('no ELF format')
 
                 ElfAnalyzer.cachedFiles[path] = elfObj
                 SysMgr.printInfo("[done]", prefix=False, notitle=True)
