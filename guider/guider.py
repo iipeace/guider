@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210523"
+__revision__ = "210524"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14061,6 +14061,24 @@ class FileAnalyzer(object):
         self.init_threadData = {'comm': ''}
         self.init_inodeData = {}
 
+        # set system maximum fd number #
+        SysMgr.setMaxFd()
+
+        # set specific file #
+        if SysMgr.customCmd:
+            fdList = []
+            SysMgr.filterGroup.append(str(SysMgr.pid))
+            SysMgr.customCmd = UtilMgr.getFileList(SysMgr.customCmd)
+            for fname in SysMgr.customCmd:
+                try:
+                    fdList.append(open(fname, 'r'))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr(
+                        "fail to open '%s'" % fname, reason=True)
+                    sys.exit(0)
+
         # handle no target case #
         if SysMgr.filterGroup:
             self.target = SysMgr.filterGroup
@@ -14084,12 +14102,9 @@ class FileAnalyzer(object):
                 [POINTER(None), c_size_t, POINTER(c_ubyte)]
             SysMgr.libcObj.mincore.restype = c_int
 
-        # set system maximum fd number #
-        SysMgr.setMaxFd()
-
         while 1:
             # scan proc directory and save map information of processes #
-            self.scanProcs()
+            self.scanProcs(filterList=SysMgr.customCmd)
 
             # merge maps of processes into a integrated file map #
             self.mergeFileMapInfo()
@@ -14100,7 +14115,7 @@ class FileAnalyzer(object):
             # fill file map of each processes #
             self.fillFileMaps()
 
-            if SysMgr.intervalEnable > 0:
+            if SysMgr.intervalEnable:
                 # save previous file usage and initialize all variables #
                 self.intervalProcData.append(self.procData)
                 self.intervalFileData.append(self.fileData)
@@ -14865,7 +14880,7 @@ class FileAnalyzer(object):
 
 
 
-    def scanProcs(self):
+    def scanProcs(self, filterList=[]):
         # get process list in proc filesystem #
         try:
             pids = os.listdir(SysMgr.procPath)
@@ -14946,8 +14961,9 @@ class FileAnalyzer(object):
                         self.procData[pid]['comm'] = pidComm
 
                         # update mapInfo per process #
-                        self.procData[pid]['procMap'] = \
-                            FileAnalyzer.getProcMapInfo(pid)
+                        if not filterList:
+                            self.procData[pid]['procMap'] = \
+                                FileAnalyzer.getProcMapInfo(pid)
 
                         # save file info per process #
                         try:
@@ -14970,6 +14986,8 @@ class FileAnalyzer(object):
                                 if not FileAnalyzer.isValidFile(fname):
                                     continue
                                 elif fname in self.procData[pid]['procMap']:
+                                    continue
+                                elif not UtilMgr.isValidStr(fname, filterList):
                                     continue
 
                                 # init file info #
@@ -15830,6 +15848,7 @@ class LogMgr(object):
             jsonResult = dict()
             log = SysMgr.kmsgFd.readline()
 
+            # apply filter #
             if not UtilMgr.isValidStr(log):
                 continue
 
@@ -15882,17 +15901,6 @@ class LogMgr(object):
                         name = UtilMgr.convColor(name, 'SPECIAL')
                         ltime = UtilMgr.convColor(ltime, 'GREEN')
                     log = '[%s] (%s) %s' % (ltime, level, log)
-
-            # apply filter #
-            if SysMgr.filterGroup:
-                found = False
-                for string in SysMgr.filterGroup:
-                    if string in log:
-                        found = True
-                        break
-
-                if not found:
-                    continue
 
             # print message #
             if SysMgr.jsonEnable:
@@ -17234,6 +17242,7 @@ class SysMgr(object):
             SysMgr.printErr("wrong option value")
             sys.exit(0)
 
+        doneList = set()
         for origVal in jobs:
             try:
                 value = origVal.split(':')
@@ -17255,8 +17264,12 @@ class SysMgr(object):
                     sibling = SysMgr.groupProcEnable
                     targetList = SysMgr.getPids(tid, sibling=sibling)
                     targetList = list(map(long, targetList))
+                    targetList = list(set(targetList)-doneList)
                     if targetList:
                         SysMgr.setAffinity(mask, targetList)
+                        doneList = set(list(doneList) + targetList)
+                    elif doneList:
+                        pass
                     else:
                         SysMgr.printWarn(
                             "no thread related to '%s'" % tid)
@@ -17807,45 +17820,48 @@ class SysMgr(object):
         # get the number of core #
         nrCore = SysMgr.getNrCore()
 
+        threadList = []
         for pid in pids:
             if isProcess:
-                threadList = SysMgr.getThreadList(pid)
+                threadList += SysMgr.getThreadList(pid)
             else:
-                threadList = [pid]
+                threadList += [pid]
 
-            for pid in threadList:
-                try:
-                    if SysMgr.guiderObj:
-                        guiderObj = SysMgr.guiderObj
-                        ret = guiderObj.sched_setaffinity(long(pid), mask) # pylint: disable=no-member
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+        for pid in list(set(threadList)):
+            try:
+                if SysMgr.guiderObj:
+                    guiderObj = SysMgr.guiderObj
+                    ret = guiderObj.sched_setaffinity(long(pid), mask) # pylint: disable=no-member
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
 
-                try:
-                    SysMgr.libcObj.sched_setaffinity.argtypes = \
-                        [c_int, c_ulong, POINTER(c_ulong)]
+            try:
+                # define function prototype #
+                SysMgr.libcObj.sched_setaffinity.argtypes = \
+                    [c_int, c_ulong, POINTER(c_ulong)]
 
-                    ret = SysMgr.libcObj.sched_setaffinity(
-                        long(pid), nrCore,
-                        byref(c_ulong(((0x1 << nrCore) - 1) & mask)))
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    ret = -1
-                    SysMgr.printWarn(
-                        "fail to set CPU affinity of tasks "
-                        "because of sched_setaffinity fail")
+                cmask = c_ulong(((0x1 << nrCore) - 1) & mask)
 
-                if ret >= 0:
-                    SysMgr.printInfo(
-                        'affinity of %s(%s) is changed to 0x%X' % \
-                            (SysMgr.getComm(pid), pid, mask))
-                else:
-                    SysMgr.printErr(
-                        'fail to set affinity of %s(%s) as 0x%X' % \
-                            (SysMgr.getComm(pid), pid, mask))
+                ret = SysMgr.libcObj.sched_setaffinity(
+                    c_int(pid), c_ulong(nrCore), byref(cmask))
+            except SystemExit:
+                sys.exit(0)
+            except:
+                ret = -1
+                SysMgr.printWarn(
+                    "fail to set CPU affinity for %s(%s) to 0x%X" % \
+                        (SysMgr.getComm(pid), pid, cmask.value), reason=True)
+
+            if ret >= 0:
+                SysMgr.printInfo(
+                    'CPU affinity of %s(%s) is changed to 0x%X' % \
+                        (SysMgr.getComm(pid), pid, cmask.value))
+            else:
+                SysMgr.printErr(
+                    'fail to set CPU affinity for %s(%s) to 0x%X' % \
+                        (SysMgr.getComm(pid), pid, cmask.value))
 
 
 
@@ -17868,25 +17884,30 @@ class SysMgr(object):
             if not SysMgr.loadLibcObj():
                 raise Exception('no libc')
 
+            # define function prototype #
             SysMgr.libcObj.sched_getaffinity.argtypes = \
                 [c_int, c_ulong, POINTER(c_ulong)]
 
-            cpuset = c_ulong(0)
+            # define variables #
+            __cpu_mask = c_ulong
+            __CPU_SETSIZE = 1024
+            __NCPUBITS = (sizeof(c_ulong) * 8)
+            mask = (c_ulong*long(__CPU_SETSIZE/__NCPUBITS))()
+            size = sizeof(mask)
 
-            size = long(1024 / (sizeof(c_ulong) * 8))
+            # get affinity #
             ret = SysMgr.libcObj.sched_getaffinity(
-                long(pid), size, pointer(cpuset))
-
-            if ret >= 0:
-                return hex(cpuset.value).rstrip('L')
-            else:
+                c_int(pid), c_ulong(size), mask)
+            if ret < 0:
                 raise Exception('wrong affinity')
+
+            return hex(mask[0]).rstrip('L')
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printWarn((
-                "fail to get CPU affinity of tasks "
-                "because of sched_getaffinity fail"))
+            SysMgr.printWarn(
+                "fail to get CPU affinity for %s(%s)" % \
+                    (SysMgr.getComm(pid), pid), reason=True)
 
 
 
@@ -20472,6 +20493,7 @@ Options:
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
     -g  <COMM|TID{:FILE}>       set task filter
+    -c  <PATH>                  set target path
     -Q                          print all rows in a stream
     -q  <NAME{:VALUE}>          set environment variables
     -E  <DIR>                   set cache dir path
@@ -20485,6 +20507,10 @@ Examples:
 
     - report all analysis results of on-memory files for specific processes
         # {0:1} {1:1} -g a.out
+
+    - report all analysis results of specific on-memory files
+        # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
+        # {0:1} {1:1} -c "/home/test/*"
 
     - report analysis result on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
@@ -73013,7 +73039,7 @@ class TaskAnalyzer(object):
             return
 
         commIdx = ConfigMgr.STAT_ATTR.index("COMM")
-        stttimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+        startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
         utimeIdx = ConfigMgr.STAT_ATTR.index("UTIME")
         stimeIdx = ConfigMgr.STAT_ATTR.index("STIME")
 
@@ -73032,9 +73058,10 @@ class TaskAnalyzer(object):
 
         # print title #
         printFunc((
-            "\n[%s Tree Info]\n%s\n"
+            "\n[%s Tree Info] [Runtime: %s]\n%s\n"
             "  %-22s %4s(%8s/%11s) <%s>\n%s") % \
-                (target, twoLine, 'Name(ID)', 'Per', 'CPUTIME',
+                (target, UtilMgr.convTime(SysMgr.uptime),
+                    twoLine, 'Name(ID)', 'Per', 'CPUTIME',
                     'RUNTIME', 'SUB', oneLine))
 
         # print nodes in tree #
@@ -73059,7 +73086,7 @@ class TaskAnalyzer(object):
 
                 # get runtime #
                 try:
-                    runtime = long(instance[pid]['stat'][stttimeIdx]) / 100
+                    runtime = long(instance[pid]['stat'][startIdx]) / 100
                     runtime = SysMgr.uptime - runtime
                     runtimestr = UtilMgr.convTime(runtime)
                 except SystemExit:
@@ -77670,9 +77697,9 @@ class TaskAnalyzer(object):
                 nodePointer = nodePointer[item]
 
         # make dictionary for tree #
-        starttimeIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
+        startIdx = ConfigMgr.STAT_ATTR.index("STARTTIME")
         for pid, item in sorted(procInstance.items(),
-            key=lambda e: long(e[1]['stat'][starttimeIdx])):
+            key=lambda e: long(e[1]['stat'][startIdx])):
             ppid = procInstance[pid]['stat'][ppidIdx]
 
             if ppid == '0':
