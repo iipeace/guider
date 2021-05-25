@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210524"
+__revision__ = "210525"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -18354,7 +18354,7 @@ class SysMgr(object):
     def getExeCmd(pid):
         cmd = SysMgr.getCmdline(pid, retList=True)[:2]
         if cmd[1][0] != '/':
-            pwd = SysMgr.getCwd(pid)
+            pwd = SysMgr.getPwd(pid)
             cmd[1] = '%s/%s' % (pwd, cmd[1])
         return cmd
 
@@ -18429,13 +18429,6 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getCwd(pid):
-        cwdPath = '%s/%s/cwd' % (SysMgr.procPath, pid)
-        return os.readlink(cwdPath)
-
-
-
-    @staticmethod
     def getPyLibPath(load=True):
         if SysMgr.pyLibPath:
             return SysMgr.pyLibPath
@@ -18469,8 +18462,8 @@ class SysMgr(object):
 
     @staticmethod
     def getExeName(pid):
-        exePath = '%s/%s/exe' % (SysMgr.procPath, pid)
         try:
+            exePath = '%s/%s/exe' % (SysMgr.procPath, pid)
             return os.readlink(exePath)
         except SystemExit:
             sys.exit(0)
@@ -18600,12 +18593,24 @@ class SysMgr(object):
 
 
     @staticmethod
-    def getPwd(pid):
-        pwdPath = \
-            '%s/%s/cwd' % (SysMgr.procPath, pid)
-        pwd = None
-
+    def getFdName(pid, fd):
         try:
+            fdPath = '%s/%s/fd/%s' % (SysMgr.procPath, pid, fd)
+            return os.readlink(fdPath)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printWarn(
+                "fail to read file name from fd(%s) for %s(%s)" % \
+                    (fd, SysMgr.getComm(pid), pid), reason=True)
+            return None
+
+
+
+    @staticmethod
+    def getPwd(pid):
+        try:
+            pwdPath = '%s/%s/cwd' % (SysMgr.procPath, pid)
             pwd = os.readlink(pwdPath)
         except SystemExit:
             sys.exit(0)
@@ -20107,6 +20112,10 @@ Examples:
     - Trace all native calls and standard output from a specific binary
         # {0:1} {1:1} "ls" -q NOMUTE
 
+    - Trace all native calls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
+
     - Trace all native calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
 
@@ -20452,13 +20461,13 @@ Examples:
         # {0:1} {1:1} -s . -t
 
     - record specific function events including softirq_entry event for all threads to ./guider.dat
-        # {0:1} {1:1} -s . -c softirq_entry:vec==1
+        # {0:1} {1:1} -s . -c "softirq_entry:vec==1"
 
     - record specific function events including segmentation fault for all threads to ./guider.dat in real-time
-        # {0:1} {1:1} -s . -d c -K segflt:bad_area -e p
+        # {0:1} {1:1} -s . -d c -K "segflt:bad_area" -e p
 
     - record specific function events including blocking for all threads to ./guider.dat
-        # {0:1} {1:1} -s . -d c -K block:schedule
+        # {0:1} {1:1} -s . -d c -K "block:schedule"
 
     - record default function events for all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
@@ -20718,20 +20727,20 @@ Examples:
         # {0:1} {1:1} -s . -e L
 
     - record default events including specific user function of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -U evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out -q OBJDUMP:/usr/bin/objdump
+        # {0:1} {1:1} -s . -U "evt1:func1:/tmp/a.out, evt2:0x1234:/tmp/b.out" -q OBJDUMP:/usr/bin/objdump
 
     - record default events including specific kernel function of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -d c -K evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16
+        # {0:1} {1:1} -s . -d c -K "evt1:func1:u32, evt2:0x1234:s16, evt3:func2:x16"
 
     - record default events including specific kernel function with args of all threads on x86 to ./guider.dat
-        # {0:1} {1:1} -s . -d c -K open:do_sys_open:dfd=%ax\ filename=%bx\;u64\ flags=%cx\;s32\ mode=+4\($stack\):NONE
+        # {0:1} {1:1} -s . -d c -K "open:do_sys_open:dfd=%ax filename=%bx;u64 flags=%cx;s32 mode=+4(\$stack):NONE"
 
     - record default events including specific kernel function with register values of all threads on x86 to ./guider.dat
-        # {0:1} {1:1} -s . -d c -K strace32:func1:%bp/u32.%sp/s64, strace:0x1234:$stack:NONE
+        # {0:1} {1:1} -s . -d c -K "strace32:func1:%bp/u32.%sp/s64, strace:0x1234:\$stack:NONE"
 
     - record default events including specific kernel function with the return value of all threads to ./guider.dat
-        # {0:1} {1:1} -s . -d c -K openfile:getname::*string, access:0x1234:NONE:*string
-        # {0:1} {1:1} -s . -d c -K openfile:getname::**string, access:0x1234:NONE:*string
+        # {0:1} {1:1} -s . -d c -K "openfile:getname::*string, access:0x1234:NONE:*string"
+        # {0:1} {1:1} -s . -d c -K "openfile:getname::**string, access:0x1234:NONE:*string"
 
     - record default events of all threads to ./guider.dat and execute user commands
         # {0:1} {1:1} -s . -w BEFORE:/tmp/started:1, BEFORE:ls
@@ -20848,6 +20857,10 @@ Examples:
     - Monitor syscalls and report the result to ./guider.out when SIGINT signal arrives
         # {0:1} {1:1} -o .
 
+    - Monitor syscalls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
+
     - Monitor syscalls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
 
@@ -20912,6 +20925,10 @@ Examples:
     - Monitor python calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
         # {0:1} {1:1} "python -c \"while 1: print('OK')\""
+
+    - Monitor python calls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
 
     - Monitor python calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -20982,6 +20999,10 @@ Examples:
 
     - Monitor native function calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
+
+    - Monitor native function calls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK
+        # {0:1} {1:1} a.out -g a.out -q WAITTASK:1
 
     - Monitor native function calls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} a.out -g a.out -q CONTALONE
@@ -21447,52 +21468,56 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Trace all read syscalls for a specific thread
+    - Trace all read syscalls for specific threads
         # {0:1} {1:1} -g a.out -t read
 
-    - Trace all syscalls except for read for a specific thread
+    - Trace all syscalls except for read for specific threads
         # {0:1} {1:1} -g a.out -t ^read
 
-    - Trace all read syscalls for child tasks created by a specific thread
+    - Trace all read syscalls for child tasks created by specific threads
         # {0:1} {1:1} -g 1234 -t read -q WAITCLONE
 
     - Trace all write syscalls with specific command
         # {0:1} {1:1} -I "ls -al" -t write
 
-    - Trace all read syscalls with backtrace for a specific thread
+    - Trace all read syscalls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H
 
-    - Trace only successful syscalls for a specific thread
+    - Trace only successful syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYOK
 
-    - Trace only failed syscalls for a specific thread
+    - Trace only failed syscalls for specific threads
         # {0:1} {1:1} -g a.out -q ONLYFAIL
 
-    - Trace all read syscalls with python backtrace for a specific thread
+    - Trace all read syscalls with python backtrace for specific threads
         # {0:1} {1:1} -g a.out -t read -H -q PYSTACK
 
-    - Trace all write syscalls with specific command and print standard output
+    - Trace all write syscalls with specific command (print standard output)
         # {0:1} {1:1} -I "ls -al" -t write -q NOMUTE
+
+    - Trace all syscalls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
 
     - Trace all write syscalls with specific command with no strip for buffer contents
         # {0:1} {1:1} -I "ls -al" -t write -q NOSTRIP
 
-    - Trace all write syscalls for a specific thread even if the master tracer is terminated
+    - Trace all syscalls for specific threads even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
 
     - Trace all write syscalls with colorful elapsed time when the elapsed time exceed 0.1 second
         # {0:1} {1:1} -g a.out -c write -q ELAPSED:0.1
 
-    - Trace all write syscalls for a specific thread and print strings in specific maximum size
+    - Trace all syscalls for specific threads and print strings in specific maximum size
         # {0:1} {1:1} -g a.out -q STRSIZE:10
 
-    - Trace all read syscalls for a specific thread and report the result to ./guider.out
+    - Trace all read syscalls for specific threads and report the result to ./guider.out
         # {0:1} {1:1} -g a.out -t read -o .
 
-    - Trace all syscalls with breakpoint for read including register info for a specific thread
+    - Trace all syscalls with breakpoint for read including register info for specific threads
         # {0:1} {1:1} -g a.out -c read -a
 
-    - Trace all syscalls for a specific thread only for 1 minute
+    - Trace all syscalls for specific threads only for 1 minute
         # {0:1} {1:1} -g a.out -R 1m
 
     - Trace all syscalls and pause when catching open syscall
@@ -21556,8 +21581,12 @@ Examples:
     - Trace usercalls for a specific thread in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - Trace usercalls for a specific thread and print standard output
+    - Trace usercalls for a specific thread (print standard output)
         # {0:1} {1:1} -g a.out -i 10000 -q NOMUTE
+
+    - Trace usercalls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
 
     - Trace usercalls for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -21630,8 +21659,12 @@ Examples:
     - Trace python calls for a specific thread in 10ms cycles
         # {0:1} {1:1} -g a.out -i 10000
 
-    - Trace python calls for a specific thread and print standard output
+    - Trace python calls for a specific thread (print standard output)
         # {0:1} {1:1} -g a.out -q NOMUTE
+
+    - Trace python calls for specific threads (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
 
     - Trace python calls for child tasks created by a specific thread
         # {0:1} {1:1} -g a.out -q WAITCLONE
@@ -21744,8 +21777,12 @@ Options:
     -v                          verbose
 
 Examples:
-    - Replace standard malloc function calls with customized malloc function calls in libhook.so for a.out process
+    - Replace standard malloc function calls with customized malloc function calls in libhook.so for specific processes
         # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc
+
+    - Replace standard malloc function calls with customized malloc function calls in libhook.so for specific processes (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK
+        # {0:1} {1:1} -g a.out -c malloc#./libhook.so#malloc -q WAITTASK:1
                     '''.format(cmd, mode)
 
                 # printbind #
@@ -21817,8 +21854,12 @@ Examples:
     - Trace the SIGINT signal for a specific thread
         # {0:1} {1:1} -g 1234 -c SIGINT
 
-    - Trace the SIGINT signal for a specific thread and print standard output
+    - Trace the SIGINT signal for a specific thread (print standard output)
         # {0:1} {1:1} -g 1234 -c SIGINT -q NOMUTE
+
+    - Trace all signals for specific threads (wait for new target if no task)
+        # {0:1} {1:1} -g a.out -q WAITTASK
+        # {0:1} {1:1} -g a.out -q WAITTASK:1
 
     - Trace all signals for a specific thread even if the master tracer is terminated
         # {0:1} {1:1} -g a.out -q CONTALONE
@@ -22131,7 +22172,6 @@ Options:
     -i  <SEC>                   set interval
     -l                          print signal list
     -W  <SEC>                   wait for input
-    -f                          force execution
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -22149,7 +22189,8 @@ Examples:
         # {0:1} {1:1} -STOP 1234 -W 5s
 
     - Send SIGSTOP signal to specific tasks until one gets the signal
-        # {0:1} {1:1} -STOP 1234 -f
+        # {0:1} {1:1} -STOP a.out "-q WAITTASK"
+        # {0:1} {1:1} -STOP a.out "-q WAITTASK:1"
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
@@ -22661,26 +22702,31 @@ Options:
     -g  <PID|COMM>              set target process
     -k  <{{START,}}STOP>          set signal
     -C  <PATH>                  set config path
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
+    - Report memory leakage hints of a specific process when user input Ctrl + c key after setting environment variables
         # {0:1} {1:1} -g a.out
 
-    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with binary injection
+    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection
         # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so
 
-    - Create an output file for memory leakage hints of a specific process when user input Ctrl + c key with binary injection and a temporary writable path
+    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection and a temporary writable path
         # {0:1} {1:1} -g a.out -I /var/log/guider -T /home/root/libleaktracer.so
 
-    - Create an output file for memory leakage hints of a specific process after sending signal 36 to stop profiling
+    - Report memory leakage hints of a specific process after sending signal 36 to stop profiling
         # {0:1} {1:1} -g a.out -k 36
 
-    - Create an output file for memory leakage hints of a specific process when it's RSS reached the specific size
+    - Report memory leakage hints of a specific process when it's RSS reached the specific size
         # {0:1} {1:1} -g a.out -c 20m
         # {0:1} {1:1} -g a.out -c 15m,20m
+
+    - Report memory leakage hints of a specific process when user input Ctrl + c key with binary injection (wait for new process if no process)
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK
+        # {0:1} {1:1} -g a.out -T /home/root/libleaktracer.so -q WAITTASK:1
 
     - Print funtions caused memory leakage of a specific process
         # {0:1} {1:1} -I ./leaks.out -g a.out
@@ -22987,13 +23033,18 @@ Options:
     -g  <TID|COMM>              set task filter
     -R  <TIME>                  set timer
     -P                          group threads in a same process
+    -q  <NAME{{:VALUE}}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Limit CPU usage of the specific thread
+    - Limit CPU usage for specific threads
         # {0:1} {1:1} yes:20
+
+    - Limit CPU usage for specific threads (wait for new target if no task)
+        # {0:1} {1:1} yes:20 -q WAITTASK
+        # {0:1} {1:1} yes:20 -q WAITTASK:1
 
     - Limit CPU usage of specific threads for 3 seconds
         # {0:1} {1:1} -g 1234:10, yes:20 -R 3
@@ -23127,6 +23178,7 @@ Options:
     -P                                 group threads in a same process
     -i  <SEC>                          set interval
     -W  <SEC>                          wait for input
+    -q  <NAME{{:VALUE}}>                 set environment variables
     -v                                 verbose
                         '''.format(cmd, mode)
 
@@ -23135,6 +23187,10 @@ Examples:
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
+
+    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread (wait for new target if no task)
+        # {0:1} {1:1} "-20:a.out" -q WAITTASK
+        # {0:1} {1:1} "-20:a.out" -q WAITTASK:1
 
     - Set CPU scheduler policy(CFS), priority(-20) for a specific thread after 5 seconds
         # {0:1} {1:1} "-20:a.out" -W 5s
@@ -23187,6 +23243,7 @@ Options:
     -g  <TID|COMM:MASK>         set values
     -P                          group threads in a same process
     -i  <SEC>                   set interval
+    -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
                         '''.format(cmd, mode)
 
@@ -23195,6 +23252,10 @@ Examples:
     - Set CPU affinity of a specific thread to use only CPU 1 and CPU 2
         # {0:1} {1:1} a.out:3
         # {0:1} {1:1} -g a.out:3
+
+    - Set CPU affinity of a specific thread to use only CPU 1 (wait for new target if no task)
+        # {0:1} {1:1} a.out:2 -q WAITTASK
+        # {0:1} {1:1} a.out:2 -q WAITTASK:1
 
     - Set CPU affinity of a specific thread to use only CPU 1 every 2 seconds
         # {0:1} {1:1} a.out:1 -i 2
@@ -26530,10 +26591,16 @@ Copyright:
         try:
             if append:
                 os.write(fd, bytes(UtilMgr.encodeStr(val)))
-                os.fsync(fd)
+                try:
+                    os.fsync(fd)
+                except:
+                    pass
             else:
                 fd.write(val)
-                fd.flush()
+                try:
+                    fd.flush()
+                except:
+                    pass
 
             # modify flags in command list #
             if path.endswith('/enable'):
@@ -29628,10 +29695,11 @@ Copyright:
             while 1:
                 # send signal #
                 if SysMgr.checkMode('tkill'):
-                    SysMgr.sendSignalArgs(
-                        argList, isThread=True, wait=SysMgr.forceEnable)
+                    isThread = True
                 else:
-                    SysMgr.sendSignalArgs(argList, wait=SysMgr.forceEnable)
+                    isThread = False
+
+                SysMgr.sendSignalArgs(argList, isThread=isThread)
 
                 if SysMgr.intervalEnable:
                     time.sleep(SysMgr.intervalEnable)
@@ -30725,67 +30793,106 @@ Copyright:
         name, isThread=True, sibling=False,
         main=False, inc=False, cache=False):
 
-        pidList = []
+        def _checkWait(pidList, waitTime):
+            if not waitTime:
+                return False
 
-        # tid #
-        if UtilMgr.isNumber(name) and \
-            os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
-            if sibling:
-                path = '%s/%s/task' % (SysMgr.procPath, name)
-                for pid in os.listdir(path):
-                    if pid.isdigit():
-                        pidList.append(pid)
-                return pidList
-            elif main:
-                return list(set([name, SysMgr.getTgid(name)]))
-            else:
-                return [name]
+            SysMgr.printWarn(
+                "wait for '%s' because no task yet" % name)
 
-        # comm #
-        nameList = [name]
-        for pid in os.listdir(SysMgr.procPath):
-            if not pid.isdigit():
-                continue
+            time.sleep(waitTime)
 
-            # process #
-            if not isThread:
-                # get comm #
-                comm = SysMgr.getComm(pid, cache)
-                if UtilMgr.isValidStr(comm, nameList, inc=inc):
-                    pidList.append(pid)
-                continue
+            return True
 
-            # thread #
+        # define wait time for target #
+        if 'WAITTASK' in SysMgr.environList:
             try:
-                threadPath = "%s/%s/task" % (SysMgr.procPath, pid)
-                tids = os.listdir(threadPath)
+                waitTime = long(SysMgr.environList['WAITTASK'][0]) / 1000
             except SystemExit:
                 sys.exit(0)
             except:
+                waitTime = 0.1
+        else:
+            waitTime = 0
+
+        pidList = []
+        prevTargetList = []
+
+        while 1:
+            # tid #
+            if UtilMgr.isNumber(name) and \
+                os.path.isdir('%s/%s' % (SysMgr.procPath, name)):
+                if sibling:
+                    path = '%s/%s/task' % (SysMgr.procPath, name)
+                    for pid in os.listdir(path):
+                        if pid.isdigit():
+                            pidList.append(pid)
+
+                    # check retry condition #
+                    if not pidList and _checkWait(pidList, waitTime):
+                        continue
+
+                    return pidList
+                elif main:
+                    return list(set([name, SysMgr.getTgid(name)]))
+                else:
+                    return [name]
+
+            # comm #
+            nameList = [name]
+
+            # set check list #
+            targetList = os.listdir(SysMgr.procPath)
+            curList = set(targetList) - set(prevTargetList)
+            prevTargetList = targetList
+
+            for pid in curList:
+                if not pid.isdigit():
+                    continue
+
+                # process #
+                if not isThread:
+                    # get comm #
+                    comm = SysMgr.getComm(pid, cache)
+                    if UtilMgr.isValidStr(comm, nameList, inc=inc):
+                        pidList.append(pid)
+                    continue
+
+                # thread #
+                try:
+                    threadPath = "%s/%s/task" % (SysMgr.procPath, pid)
+                    tids = os.listdir(threadPath)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    continue
+
+                for tid in tids:
+                    if not tid.isdigit():
+                        continue
+
+                    # get comm #
+                    comm = SysMgr.getComm(tid, cache=cache)
+                    if not UtilMgr.isValidStr(comm, nameList, inc=inc):
+                        continue
+
+                    # include all siblings #
+                    if sibling:
+                        pidList += tids
+                        break
+
+                    # include the main thread #
+                    if main:
+                        pidList.append(pid)
+
+                    # include a thread #
+                    pidList.append(tid)
+
+            # check retry condition #
+            if not pidList and _checkWait(pidList, waitTime):
                 continue
 
-            for tid in tids:
-                if not tid.isdigit():
-                    continue
-
-                # get comm #
-                comm = SysMgr.getComm(tid, cache=cache)
-                if not UtilMgr.isValidStr(comm, nameList, inc=inc):
-                    continue
-
-                # include all siblings #
-                if sibling:
-                    pidList += tids
-                    break
-
-                # include the main thread #
-                if main:
-                    pidList.append(pid)
-
-                # include a thread #
-                pidList.append(tid)
-
-        return list(set(pidList))
+            return list(set(pidList))
 
 
 
@@ -33407,7 +33514,7 @@ Copyright:
             if not SysMgr.intervalEnable:
                 break
 
-            # wait for next interval #
+            # wait for next tick #
             time.sleep(SysMgr.intervalEnable)
 
 
@@ -35301,8 +35408,7 @@ Copyright:
         startTime = endTime = 0
         pids = SysMgr.convPidList(targetList, exceptMe=True)
         if not pids:
-            SysMgr.printErr("no %s process" % \
-                ', '.join(targetList))
+            SysMgr.printErr("no '%s' process" % ', '.join(targetList))
             sys.exit(0)
         elif len(pids) > 1:
             SysMgr.printWarn(
@@ -38342,7 +38448,7 @@ Copyright:
 
 
     @staticmethod
-    def sendSignalArgs(argList, isThread=False, wait=False):
+    def sendSignalArgs(argList, isThread=False):
         sig = signal.SIGQUIT
         SIG_LIST = ConfigMgr.SIG_LIST
         if not argList:
@@ -38384,27 +38490,13 @@ Copyright:
         except:
             pass
 
-        isPrinted = False
-
         # convert comm to pid #
-        while 1:
-            targets = SysMgr.convPidList(
-                argList, isThread=isThread, exceptMe=True, cache=wait)
-            if targets:
-                targetList = targets
-            else:
-                targetList = argList
-
-            # check break condition #
-            if not wait:
-                break
-            elif targets:
-                break
-
-            if not isPrinted:
-                SysMgr.printInfo(
-                    "start busy-waiting for '%s'" % ', '.join(argList))
-                isPrinted = True
+        targets = SysMgr.convPidList(
+            argList, isThread=isThread, exceptMe=True)
+        if targets:
+            targetList = targets
+        else:
+            targetList = argList
 
         # send signal #
         SysMgr.sendSignalProcs(sig, targetList, isThread=isThread)
@@ -63792,7 +63884,7 @@ class TaskAnalyzer(object):
             else:
                 waitTime = SysMgr.intervalEnable - delayTime
 
-            # wait for next interval #
+            # wait for next tick #
             if not SysMgr.waitUserInput(waitTime):
                 time.sleep(waitTime)
 
@@ -63898,7 +63990,7 @@ class TaskAnalyzer(object):
             else:
                 waitTime = SysMgr.intervalEnable - delayTime
 
-            # wait for next interval #
+            # wait for next tick #
             if not SysMgr.waitUserInput(waitTime, msg="Ctrl+c"):
                 time.sleep(waitTime)
 
@@ -63977,7 +64069,7 @@ class TaskAnalyzer(object):
             if SysMgr.stackEnable and self.stackTable:
                 self.sampleStack(waitTime)
                 SysMgr.waitUserInput(0.000001)
-            # wait for next interval #
+            # wait for next tick #
             elif not SysMgr.waitUserInput(waitTime):
                 time.sleep(waitTime)
 
@@ -68051,7 +68143,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} {5:>10}".\
+                "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} {5:>10}".\
                 format('Event', 'COMM', 'TID', 'Count',
                 'MaxPeriod', 'MinPeriod'))
             SysMgr.printPipe(twoLine)
@@ -68065,7 +68157,7 @@ class TaskAnalyzer(object):
                     newLine = True
 
                 SysMgr.printPipe(
-                    "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                    "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'],
                     val['minPeriod']))
 
@@ -68080,7 +68172,7 @@ class TaskAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                        "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['count'], value[idx]['maxPeriod'],
                         value[idx]['minPeriod']))
@@ -68092,7 +68184,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event History]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:^10} {2:>16}({3:>6}) {4:<1}".\
+                "{0:^32} {1:^10} {2:>16}({3:>7}) {4:<1}".\
                 format('EVENT', 'TIME', 'COMM', 'TID', 'ARG'))
             SysMgr.printPipe(twoLine)
 
@@ -68111,7 +68203,7 @@ class TaskAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe(
-                    "{0:^32} {1:>10.6f} {2:>16}({3:>6}) {4:<1}".\
+                    "{0:^32} {1:>10.6f} {2:>16}({3:>7}) {4:<1}".\
                     format(val[0], val[3], val[1], val[2], val[4]))
             if cnt == 0:
                 SysMgr.printPipe("\tNone")
@@ -68123,7 +68215,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread User Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
+                "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'COMM', 'TID', 'Usage', 'Count',
                 'ProcMax', 'ProcMin', 'InterMax', 'InterMin'))
@@ -68138,7 +68230,7 @@ class TaskAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'],
                     val['max'], val['min'], val['maxPeriod'], val['minPeriod']))
@@ -68154,7 +68246,7 @@ class TaskAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} "
+                        ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
                         "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['usage'], value[idx]['count'],
@@ -68168,7 +68260,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread User Event History]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>6} {2:^10} {3:>16}({4:>6}) {5:^16} {6:>10}".\
+                "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) {5:^16} {6:>10}".\
                 format('EVENT', 'TYPE', 'TIME', 'COMM', 'TID',
                     'CALLER', 'ELAPSED'))
             SysMgr.printPipe(twoLine)
@@ -68200,7 +68292,7 @@ class TaskAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe((
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>6}) "
+                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
                     "{5:>16} {6:>10}").\
                     format(val[1], val[0], val[4], val[2],
                     val[3], val[5], elapsed))
@@ -68214,7 +68306,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread Kernel Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe((
-                "{0:^32} {1:>16}({2:>6}) {3:>10} {4:>10} "
+                "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} "
                 "{5:>10} {6:>10} {7:>10} {8:>10}").\
                 format('Event', 'COMM', 'TID', 'Usage', 'Count', 'ProcMax',
                 'ProcMin', 'InterMax', 'InterMin'))
@@ -68229,7 +68321,7 @@ class TaskAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'],
                     val['count'], val['max'], val['min'],
@@ -68246,7 +68338,7 @@ class TaskAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>6}) {3:>10.6f} {4:>10} "
+                        ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
                         "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                         format(' ', self.threadData[key]['comm'], key,
                         value[idx]['usage'], value[idx]['count'],
@@ -68262,7 +68354,7 @@ class TaskAnalyzer(object):
         SysMgr.printPipe('\n[Thread Kernel Event History]')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:^32} {1:>6} {2:^10} {3:>16}({4:>6}) "
+            "{0:^32} {1:>6} {2:^10} {3:>16}({4:>7}) "
             "{5:^22} {6:>10} {7:<1}").\
             format('EVENT', 'TYPE', 'TIME', 'COMM',
             'TID', 'CALLER', 'ELAPSED', 'ARG'))
@@ -68296,7 +68388,7 @@ class TaskAnalyzer(object):
             cnt += 1
             args = (' '.join(val[7].split(' arg'))).replace('=','>')
             SysMgr.printPipe((
-                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>6}) "
+                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
                 "{5:>22} {6:>10} {7:<1}").\
                 format(val[1], val[0], val[5], val[3],
                 val[4], val[6], elapsed, args))
@@ -69088,7 +69180,7 @@ class TaskAnalyzer(object):
         SysMgr.addPrint('\n[Thread Module History]\n')
         SysMgr.addPrint('%s\n' % twoLine)
         SysMgr.addPrint(
-            "{3:>16} ({4:^6})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
+            "{3:>16} ({4:^7})|{0:^6}|{1:^12}|{2:^32}|{5:^12}|{6:^8}|\n".\
                 format("Type", "Time", "Module", "Comm", "TID",
                     "Elapsed", "RefCnt"))
         SysMgr.addPrint('%s\n' % twoLine)
@@ -69120,7 +69212,7 @@ class TaskAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SysMgr.addPrint(
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('LOAD', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -69136,7 +69228,7 @@ class TaskAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SysMgr.addPrint(
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('FREE', current, module, comm, tid, lifetime, refCnt))
                 printCnt += 1
 
@@ -69147,7 +69239,7 @@ class TaskAnalyzer(object):
                 refCnt = moduleTable[module]['refCnt']
 
                 SysMgr.addPrint(
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('GET', current, module, comm, tid, '', refCnt))
                 printCnt += 1
 
@@ -69166,7 +69258,7 @@ class TaskAnalyzer(object):
                     elapsed = ''
 
                 SysMgr.addPrint(
-                    "{3:>16} ({4:>5})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
+                    "{3:>16} ({4:>7})|{0:^6}|{1:12.6f}|{2:^32}|{5:>12}|{6:^8}|\n".\
                     format('PUT', current, module, comm, tid, elapsed, refCnt))
                 printCnt += 1
 
@@ -74214,8 +74306,11 @@ class TaskAnalyzer(object):
             thread = d['thread']
 
         # update comm #
-        if comm == '<...>' and thread in SysMgr.commCache:
-            comm = SysMgr.commCache[thread]
+        if comm == '<...>':
+            if thread in SysMgr.commCache:
+                comm = SysMgr.commCache[thread]
+            elif thread in self.threadData:
+                comm = self.threadData[thread]['comm']
 
         # make core thread entity in advance for total irq per core #
         try:
