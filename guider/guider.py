@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210525"
+__revision__ = "210526"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7513,8 +7513,12 @@ class Timeline(object):
                 height_pos = \
                     self.height_iogroup_pos[group_idx] = \
                     self.config.FONT_SIZE
-        # CPU #
+        # CPU & SYSCALL #
         else:
+            # SYSCALL #
+            if segment.state == 'SYSCALL':
+                pass
+
             # initialize group data #
             self.last_group_segment.setdefault(group_idx, None)
             self.last_group_time.setdefault(group_idx, x0)
@@ -14066,8 +14070,11 @@ class FileAnalyzer(object):
 
         # set specific file #
         if SysMgr.customCmd:
+            SysMgr.printInfo(
+                "only specific files [ %s ] are analyzed" % \
+                    ', '.join(SysMgr.customCmd))
+
             fdList = []
-            SysMgr.filterGroup.append(str(SysMgr.pid))
             SysMgr.customCmd = UtilMgr.getFileList(SysMgr.customCmd)
             for fname in SysMgr.customCmd:
                 try:
@@ -14104,10 +14111,12 @@ class FileAnalyzer(object):
 
         while 1:
             # scan proc directory and save map information of processes #
+            SysMgr.printStat("start collecting file info...")
             self.scanProcs(filterList=SysMgr.customCmd)
 
             # merge maps of processes into a integrated file map #
-            self.mergeFileMapInfo()
+            SysMgr.printStat("start merging file info...")
+            self.mergeFileMapInfo(filterList=SysMgr.customCmd)
 
             # get file map info on memory #
             self.getFilePageMaps()
@@ -14961,9 +14970,8 @@ class FileAnalyzer(object):
                         self.procData[pid]['comm'] = pidComm
 
                         # update mapInfo per process #
-                        if not filterList:
-                            self.procData[pid]['procMap'] = \
-                                FileAnalyzer.getProcMapInfo(pid)
+                        self.procData[pid]['procMap'] = \
+                            FileAnalyzer.getProcMapInfo(pid)
 
                         # save file info per process #
                         try:
@@ -15023,7 +15031,9 @@ class FileAnalyzer(object):
         pageSize = SysMgr.pageSize
         for pid, val in self.procData.items():
             for fileName, mapInfo in val['procMap'].items():
-                if not self.fileData[fileName]['fileMap'] or not mapInfo:
+                if not fileName in self.fileData:
+                    continue
+                elif not self.fileData[fileName]['fileMap'] or not mapInfo:
                     continue
 
                 # convert address and size to index in mapping table #
@@ -15040,9 +15050,13 @@ class FileAnalyzer(object):
 
 
 
-    def mergeFileMapInfo(self):
+    def mergeFileMapInfo(self, filterList=[]):
         for pid, val in self.procData.items():
             for fileName, scope in val['procMap'].items():
+                # check file filter #
+                if not UtilMgr.isValidStr(fileName, filterList):
+                    continue
+
                 newOffset = scope['offset']
                 newSize = scope['size']
 
@@ -22181,24 +22195,24 @@ Examples:
         # {0:1} {1:1}
 
     - Send SIGSTOP signal to specific tasks
-        # {0:1} {1:1} -STOP 1234
-        # {0:1} {1:1} -STOP a.out
-        # {0:1} {1:1} -STOP "a.out*"
+        # {0:1} {1:1} -sigstop 1234
+        # {0:1} {1:1} -sigstop a.out
+        # {0:1} {1:1} -sigstop "a.out*"
 
     - Send SIGSTOP to specific tasks after 5 seconds
-        # {0:1} {1:1} -STOP 1234 -W 5s
+        # {0:1} {1:1} -sigstop 1234 "-W 5s"
 
     - Send SIGSTOP signal to specific tasks until one gets the signal
-        # {0:1} {1:1} -STOP a.out "-q WAITTASK"
-        # {0:1} {1:1} -STOP a.out "-q WAITTASK:1"
+        # {0:1} {1:1} -sigstop a.out "-q WAITTASK"
+        # {0:1} {1:1} -sigstop a.out "-q WAITTASK:1"
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
-        # {0:1} {1:1} -KILL 1234
+        # {0:1} {1:1} -sigkill 1234
 
     - Send 9th signal SIGKILL to specific tasks every 2 seconds
-        # {0:1} {1:1} -9 1234 -i 2
-        # {0:1} {1:1} -KILL 1234 -i 2
+        # {0:1} {1:1} -9 1234 "-i 2"
+        # {0:1} {1:1} -sigkill 1234 "-i 2"
                     '''.format(cmd, mode)
 
                 # pause #
@@ -22643,17 +22657,20 @@ Examples:
     - Print directory structure from current working directory
         # {0:1} {1:1}
 
-    - Print directory structure from / dir
+    - Print directory structure from / directory
         # {0:1} {1:1} /
         # {0:1} {1:1} -I /
 
-    - Print directory structure in 2-depth from / dir
+    - Print directory structure for specific directories
+        # {0:1} {1:1} "/data, /tmp"
+
+    - Print directory structure in 2-depth from / directory
         # {0:1} {1:1} -I / -H 2
 
-    - Print directory structure with files from / dir
+    - Print directory structure with files from / directory
         # {0:1} {1:1} -I / -a
 
-    - Print specific directories and files from / dir
+    - Print specific directories and files from / directory
         # {0:1} {1:1} -I / -a -g
         # {0:1} {1:1} -I / -a -g test
         # {0:1} {1:1} -I / -a -g "test*"
@@ -27345,7 +27362,7 @@ Copyright:
         else:
             inputStr = ''
 
-        SysMgr.printInfo(
+        SysMgr.printStat(
             "start drawing timeline%s..." % inputStr)
 
         try:
@@ -29821,11 +29838,12 @@ Copyright:
 
             # get start dir #
             if SysMgr.hasMainArg():
-                root = SysMgr.getMainArg()
+                rootList = SysMgr.getMainArgs()
             elif SysMgr.inputParam:
-                root = SysMgr.inputParam
+                rootList = SysMgr.inputParam.split(',')
+                rootList = UtilMgr.cleanItem(rootList, True)
             else:
-                root = '.'
+                rootList = ['.']
 
             # get depth #
             if not SysMgr.funcDepth:
@@ -29833,7 +29851,9 @@ Copyright:
             else:
                 maxLevel = SysMgr.funcDepth
 
-            SysMgr.printDirs(root, maxLevel)
+            # start printing dirs #
+            for root in rootList:
+                SysMgr.printDirs(root, maxLevel)
 
         # PRINTCGROUP MODE #
         elif SysMgr.checkMode('printcg'):
@@ -31128,7 +31148,7 @@ Copyright:
   exam) s r:1:123, c:-1:1234
 
 [Kill]     {-SIGNAL} {COMM|PID}
-  exam) k -stop 123, a.out
+  exam) k -sigstop 123, a.out
 
 [Affinity] {MASK} {COMM|PID}
   exam) a 1f 123, a.out
@@ -36062,7 +36082,9 @@ Copyright:
             if target == 'file':
                 # get output size #
                 fsize = UtilMgr.getFileSize(path)
-                if fsize and fsize != '0':
+                if fsize == '?':
+                    fsize = ''
+                elif fsize and fsize != '0':
                     fsize = '[%s]' % fsize
 
 
@@ -63648,14 +63670,6 @@ class TaskAnalyzer(object):
             'start analyzing... [ STOP(Ctrl+c) ]')
         SysMgr.totalLine = len(lines)
 
-        # get indexes for trim #
-        if 'TRIM' in SysMgr.environList:
-            start, end = SysMgr.environList['TRIM'][0].split(':')
-            if start.strip():
-                self.trimStart = float(start.strip())
-            if end.strip():
-                self.trimStop = float(end.strip())
-
         for idx, log in enumerate(lines):
             time = self.parse(log)
             UtilMgr.printProgress(idx, SysMgr.totalLine)
@@ -74169,8 +74183,21 @@ class TaskAnalyzer(object):
         self.cxtSwitch = long(0)
         self.nrNewTask = long(0)
         self.thisInterval = long(0)
-        self.trimStart = float(0)
-        self.trimStop = float(0)
+
+        # set customized interval #
+        if 'TRIM' in SysMgr.environList:
+            try:
+                start, end = SysMgr.environList['TRIM'][0].split(':')
+                if start.strip():
+                    self.trimStart = float(start.strip())
+                if end.strip():
+                    self.trimStop = float(end.strip())
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to parse TRIM variable', True)
+                sys.exit(0)
 
 
 
@@ -74275,10 +74302,11 @@ class TaskAnalyzer(object):
         SysMgr.logSize += len(string)
 
         # check trim range #
-        if self.trimStart > 0 and allTime < self.trimStart:
-            return time
-        elif self.trimStop > 0 and allTime > self.trimStop:
-            return time
+        if hasattr(self, 'trimStart'):
+            if self.trimStart > 0 and allTime < self.trimStart:
+                return time
+            elif self.trimStop > 0 and allTime > self.trimStop:
+                return time
 
         # check skip condition #
         if SysMgr.perCoreList and \
@@ -75544,7 +75572,7 @@ class TaskAnalyzer(object):
 
                 # add timeline data #
                 self.timelineData['segments'].append({
-                    'group': core,
+                    'group': long(core),
                     'text': text,
                     'id': thread,
                     'state': 'SYSCALL',
@@ -75564,13 +75592,14 @@ class TaskAnalyzer(object):
                 if ret[0] == '-':
                     threadData['syscallInfo'][nrstr]['err'] += 1
             else:
-                start_delta = long(0)
+                # start_delta = long(0)
                 stop_delta = long((float(ftime)-stime)*1000000)
+                start_delta = long((float(ftime)-stime)*1000000)
                 text = '%s(%s)_%s' % (comm, thread, ConfigMgr.sysList[nr])
 
                 # add timeline data #
                 self.timelineData['segments'].append({
-                    'group': core,
+                    'group': long(core),
                     'text': text,
                     'id': thread,
                     'state': 'SYSCALL',
@@ -75840,7 +75869,7 @@ class TaskAnalyzer(object):
 
                         # add timeline data #
                         self.timelineData['segments'].append({
-                            'group': lastCore,
+                            'group': long(lastCore),
                             'text': text,
                             'id': reqThd,
                             'state': 'RD',
@@ -75879,7 +75908,7 @@ class TaskAnalyzer(object):
 
                         # add timeline data #
                         self.timelineData['segments'].append({
-                            'group': lastCore,
+                            'group': long(lastCore),
                             'text': text,
                             'id': reqThd,
                             'state': 'WR',
