@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210526"
+__revision__ = "210527"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -14049,6 +14049,8 @@ class FileAnalyzer(object):
         self.profSuccessCnt = long(0)
         self.profFailedCnt = long(0)
         self.profPageCnt = long(0)
+        self.pgRclmBg = long(0)
+        self.pgRclmFg = long(0)
         self.procData = {}
         self.fileData = {}
         self.inodeData = {}
@@ -14069,16 +14071,29 @@ class FileAnalyzer(object):
         SysMgr.setMaxFd()
 
         # set specific file #
+        targetFiles = []
         if SysMgr.customCmd:
             SysMgr.printInfo(
-                "only specific files [ %s ] are analyzed" % \
+                "start checking specific files related to [ %s ]" % \
                     ', '.join(SysMgr.customCmd))
 
             fdList = []
-            SysMgr.customCmd = UtilMgr.getFileList(SysMgr.customCmd)
-            for fname in SysMgr.customCmd:
+            convList = UtilMgr.getFileList(SysMgr.customCmd)
+            if not convList:
+                SysMgr.printErr(
+                    'no file related to [ %s ]' % ', '.join(SysMgr.customCmd))
+                sys.exit(0)
+
+            for fname in convList:
                 try:
-                    fdList.append(open(fname, 'r'))
+                    if os.path.isdir(fname):
+                        for subfname in UtilMgr.getFiles(
+                            fname, recursive=SysMgr.recursionEnable):
+                            fdList.append(open(subfname, 'r'))
+                            targetFiles.append(os.path.abspath(subfname))
+                    elif os.path.isfile(fname):
+                        fdList.append(open(fname, 'r'))
+                        targetFiles.append(os.path.abspath(fname))
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -14110,13 +14125,21 @@ class FileAnalyzer(object):
             SysMgr.libcObj.mincore.restype = c_int
 
         while 1:
+            # print plan #
+            if targetFiles:
+                SysMgr.printStat(
+                    "start collecting a total of %s files..." % \
+                        UtilMgr.convNum(len(targetFiles)))
+            else:
+                SysMgr.printStat(
+                    "start collecting all files that mapped or opened...")
+
             # scan proc directory and save map information of processes #
-            SysMgr.printStat("start collecting file info...")
-            self.scanProcs(filterList=SysMgr.customCmd)
+            self.scanProcs(filterList=targetFiles)
 
             # merge maps of processes into a integrated file map #
             SysMgr.printStat("start merging file info...")
-            self.mergeFileMapInfo(filterList=SysMgr.customCmd)
+            self.mergeFileMapInfo(filterList=targetFiles)
 
             # get file map info on memory #
             self.getFilePageMaps()
@@ -14141,6 +14164,24 @@ class FileAnalyzer(object):
                     break
             else:
                 break
+
+        # save system reclaim info
+        try:
+            # get vmstat #
+            vmData = SysMgr.getVmstat(retDict=True)
+
+            for name in list(ConfigMgr.BGRECLAIMSTAT):
+                if name in vmData:
+                    self.pgRclmBg += vmData[name]
+
+            for name in list(ConfigMgr.FGRECLAIMSTAT):
+                if name in vmData:
+                    self.pgRclmFg += vmData[name]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            SysMgr.printErr(
+                'fail to get system reclaim stat', True)
 
 
 
@@ -14202,11 +14243,12 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ LastRAM: %s ]"
-            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
+            "[%s] [ Process : %s ] [ LastRAM: %s ] [ RECLAIM: %s/%s ] "
+            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procList)),
-                convert(self.profPageCnt * 4 << 10)))
-        SysMgr.printPipe(twoLine)
+                convert(self.profPageCnt * 4 << 10),
+                convert(self.pgRclmBg * 4 << 10),
+                convert(self.pgRclmFg * 4 << 10), twoLine))
         SysMgr.printPipe(
             "{0:_^16}({1:_^7})|{2:_^12}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "MaxRAM", "ThreadName", "TID"))
@@ -14259,11 +14301,12 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ LastRAM: %s ] "
-            "[ Keys: Foward/Back/Save/Quit ]") % \
+            "[%s] [ File: %s ] [ LastRAM: %s ] [ RECLAIM: %s/%s ] "
+            "[ Keys: Foward/Back/Save/Quit ]\n%s") % \
                 ('File Usage Info', UtilMgr.convNum(len(self.fileList)),
-                convert(self.profPageCnt * 4 << 10)))
-        SysMgr.printPipe(twoLine)
+                convert(self.profPageCnt * 4 << 10),
+                convert(self.pgRclmBg * 4 << 10),
+                convert(self.pgRclmFg * 4 << 10), twoLine))
 
         printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format(
             "InitRAM", "File", "%")
@@ -14753,11 +14796,12 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ RAM: %s ]"
-            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]") % \
+            "[%s] [ Process : %s ] [ RAM: %s ] [ RECLAIM: %s/%s ] "
+            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procData)),
-                convert(self.profPageCnt * 4 << 10)))
-        SysMgr.printPipe(twoLine)
+                convert(self.profPageCnt * 4 << 10),
+                convert(self.pgRclmBg * 4 << 10),
+                convert(self.pgRclmFg * 4 << 10), twoLine))
         SysMgr.printPipe(
             "{0:_^16}({1:_^7})|{2:_^13}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "RAM", "Thread", "TID"))
@@ -14809,11 +14853,13 @@ class FileAnalyzer(object):
                 self.fileData.pop(fileName, None)
 
         # Print file list #
-        SysMgr.printPipe(
-            "[%s] [ File: %s ] [ RAM: %s ] [ Keys: Foward/Back/Save/Quit ]" % \
-            ('File Usage Info', UtilMgr.convNum(len(self.fileData)),
-            convert(self.profPageCnt * 4 << 10)))
-        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe((
+            "[%s] [ File: %s ] [ RAM: %s ] [ RECLAIM: %s/%s ] "
+            "[ Keys: Foward/Back/Save/Quit ]\n%s") % \
+                ('File Usage Info', UtilMgr.convNum(len(self.fileData)),
+                convert(self.profPageCnt * 4 << 10),
+                convert(self.pgRclmBg * 4 << 10),
+                convert(self.pgRclmFg * 4 << 10), twoLine))
         SysMgr.printPipe("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
             format("RAM", "File", "%", "Library & Process"))
         SysMgr.printPipe(twoLine)
@@ -16241,6 +16287,7 @@ class SysMgr(object):
 
     cpuAvgEnable = True
     reportEnable = False
+    recursionEnable = False
     truncEnable = True
     countEnable = False
     reportObject = None
@@ -16668,6 +16715,39 @@ class SysMgr(object):
 
         # print system information #
         SysMgr.printPipe(SysMgr.systemInfoBuffer)
+
+
+
+    @staticmethod
+    def getVmstat(retDict=False):
+        try:
+            vmBuf = None
+            SysMgr.vmstatFd.seek(0)
+            vmBuf = SysMgr.vmstatFd.readlines()
+        except:
+            try:
+                vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
+                SysMgr.vmstatFd = open(vmstatPath, 'r')
+                vmBuf = SysMgr.vmstatFd.readlines()
+            except:
+                SysMgr.printOpenWarn(vmstatPath)
+
+        # convert list to dictionary #
+        if retDict:
+            newDict = dict()
+
+            for line in vmBuf:
+                try:
+                    item = line.strip().split()
+                    newDict.setdefault(item[0], long(item[1]))
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    pass
+
+            return newDict
+
+        return vmBuf
 
 
 
@@ -20515,6 +20595,7 @@ Options:
     -o  <DIR|FILE>              set output path
     -m  <ROWS:COLS:SYSTEM>      set terminal size
     -a                          show all stats and events
+    -r                          set recursive traversal of directories
     -g  <COMM|TID{:FILE}>       set task filter
     -c  <PATH>                  set target path
     -Q                          print all rows in a stream
@@ -20534,6 +20615,9 @@ Examples:
     - report all analysis results of specific on-memory files
         # {0:1} {1:1} -c "/home/test/BIN, /home/work/DATA"
         # {0:1} {1:1} -c "/home/test/*"
+
+    - report all analysis results of specific on-memory files from specific directories recursively
+        # {0:1} {1:1} -c "/usr/share" -r
 
     - report analysis result on each intervals of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -i
@@ -26145,7 +26229,10 @@ Copyright:
         # write user command #
         SysMgr.writeTraceCmd('STOP')
 
-        if SysMgr.isFileMode() or SysMgr.isSystemMode():
+        if SysMgr.checkMode('filerec') and not SysMgr.intervalEnable:
+            sys.exit(0)
+
+        elif SysMgr.isFileMode() or SysMgr.isSystemMode():
             SysMgr.condExit = True
 
         elif SysMgr.isTopMode() or SysMgr.isTraceMode():
@@ -28857,9 +28944,10 @@ Copyright:
                         SysMgr.colorEnable = False
 
             elif option == 'r':
-                SysMgr.checkOptVal(option, value)
-
-                SysMgr.rootPath = value
+                if value.strip():
+                    SysMgr.rootPath = value
+                else:
+                    SysMgr.recursionEnable = True
 
             elif option == 'T':
                 SysMgr.checkOptVal(option, value)
@@ -37490,18 +37578,7 @@ Copyright:
 
         def _getVminfo():
             # save mem info #
-            try:
-                vmBuf = None
-                SysMgr.vmstatFd.seek(0)
-                vmBuf = SysMgr.vmstatFd.readlines()
-            except:
-                try:
-                    vmstatPath = "%s/%s" % (SysMgr.procPath, 'vmstat')
-                    SysMgr.vmstatFd = open(vmstatPath, 'r')
-                    vmBuf = SysMgr.vmstatFd.readlines()
-                except:
-                    SysMgr.printOpenWarn(vmstatPath)
-
+            vmBuf = SysMgr.getVmstat()
             if not vmBuf:
                 return ''
 
