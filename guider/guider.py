@@ -17449,6 +17449,7 @@ class SysMgr(object):
     funcDepth = long(0)
     maxPid = 32768
     maxRdCnt = 1024
+    maxSize = 2147483647
     pidDigit = 5
     stdlog = None
     stderr = sys.stderr
@@ -19728,7 +19729,7 @@ class SysMgr(object):
                 count = SysMgr.repeatInterval
 
         # set count string #
-        if count == sys.maxsize:
+        if count == sys.maxsize or count == SysMgr.maxSize:
             countStr = 'INFINITE'
         else:
             countStr = '%s' % UtilMgr.convNum(count)
@@ -29738,8 +29739,15 @@ Copyright:
         if value:
             repeatParams = UtilMgr.cleanItem(value.split(':'), False)
 
+        # check interval value by other option #
+        if SysMgr.getOption('i'):
+            applyInterval = False
+        else:
+            applyInterval = True
+
         if not value:
-            SysMgr.intervalEnable = 1
+            if applyInterval:
+                SysMgr.intervalEnable = 1
             SysMgr.repeatCount = 1
             repeatParams = None
         elif len(repeatParams) == 2 or len(repeatParams) == 3:
@@ -29751,7 +29759,8 @@ Copyright:
                 else:
                     interval = convTime(repeatParams[0])
 
-                SysMgr.intervalEnable = interval
+                if applyInterval:
+                    SysMgr.intervalEnable = interval
                 SysMgr.repeatInterval = interval
 
                 # get count #
@@ -29782,16 +29791,19 @@ Copyright:
                         interval = long(interval / ival)
                         SysMgr.repeatCount = interval
                         SysMgr.repeatInterval = interval
-                        SysMgr.intervalEnable = ival
+                        if applyInterval:
+                            SysMgr.intervalEnable = ival
                     else:
                         SysMgr.repeatCount = interval
                         SysMgr.repeatInterval = interval
-                        SysMgr.intervalEnable = 1
+                        if applyInterval:
+                            SysMgr.intervalEnable = 1
                 # record mode #
                 else:
                     SysMgr.repeatCount = 1
                     SysMgr.repeatInterval = interval
-                    SysMgr.intervalEnable = interval
+                    if applyInterval:
+                        SysMgr.intervalEnable = interval
             except SystemExit:
                 sys.exit(0)
             except:
@@ -29813,6 +29825,19 @@ Copyright:
             SysMgr.printErr(
                 "wrong value for runtime option, input values bigger than 0")
             sys.exit(0)
+
+        # change too big interval to prevent overflow #
+        if SysMgr.intervalEnable == sys.maxsize:
+            try:
+                # just use maximum value for 32-bit system #
+                SysMgr.intervalEnable = SysMgr.maxSize
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr((
+                    "wrong value for interval option because %s, "
+                    "input integer value") % SysMgr.getErrMsg())
+                sys.exit(0)
 
         # get termination flag #
         if SysMgr.checkMode('req'):
@@ -36799,7 +36824,7 @@ Copyright:
             path = '%s/%s' % (SysMgr.procPath, pid)
 
             # check destination value #
-            if cond == sys.maxsize:
+            if cond == sys.maxsize or cond == SysMgr.maxSize:
                 condUnit = ''
             else:
                 condUnit = '/%s' % UtilMgr.convSize2Unit(cond)
@@ -38294,7 +38319,7 @@ Copyright:
                 acpu = '?'
 
             # make repeat string #
-            if repeat == sys.maxsize:
+            if repeat == sys.maxsize or repeat == SysMgr.maxSize:
                 repeatStr = 'INFINITE'
             else:
                 repeatStr = convNum(len(reqs)*repeat)
@@ -38553,7 +38578,7 @@ Copyright:
             procStr = ''
 
         # make repeat string #
-        if repeat == sys.maxsize:
+        if repeat == sys.maxsize or repeat == SysMgr.maxSize:
             repeatStr = 'INFINITE'
         else:
             repeatStr = UtilMgr.convNum(repeat)
