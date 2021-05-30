@@ -8179,8 +8179,9 @@ class Ext4Analyzer(object):
                 yield self.block_count
 
             def __repr__(self):
-                return (f"{type(self).__name__:s}({self.file_block_idx!r:s}, "
-                f"{self.disk_block_idx!r:s}, {self.block_count!r:s})")
+                return ("%s(%s, %s, %s)" % \
+                    (type(self).__name__, self.file_block_idx,
+                        self.disk_block_idx, self.block_count))
 
             def copy(self):
                 return MappingEntry(
@@ -8256,8 +8257,9 @@ class Ext4Analyzer(object):
 
                 if not ignore_magic and self.superblock.s_magic != 0xEF53:
                     raise MagicError((
-                        f"Invalid magic value in superblock: "
-                        f"0x{self.superblock.s_magic:04X} (expected 0xEF53)"))
+                        "Invalid magic value in superblock: "
+                        "0x%04X (expected 0xEF53)") % \
+                            self.superblock.s_magic)
 
                 # Group descriptors
                 self.group_descriptors = \
@@ -8275,10 +8277,9 @@ class Ext4Analyzer(object):
                         self.read_struct(ext4_group_descriptor, group_desc_offset)
 
             def __repr__(self):
-                return (f"{type(self).__name__:s}"
-                f"(volume_name = {self.superblock.s_volume_name!r:s}, "
-                f"uuid = {self.uuid!r:s}, last_mounted = "
-                f"{self.superblock.s_last_mounted!r:s})")
+                return ("%s(volume_name = %s, uuid = %s, last_mounted = %s)" % \
+                    (type(self).__name__, self.superblock.s_volume_name,
+                        self.uuid, self.superblock.s_last_mounted))
 
             @property
             def block_size(self):
@@ -8353,7 +8354,7 @@ class Ext4Analyzer(object):
                 uuid = self.superblock.s_uuid
                 uuid = [uuid[:4], uuid[4 : 6], uuid[6 : 8], uuid[8 : 10], uuid[10:]]
                 return "-".join("".join(
-                    f"{c:02X}" for c in part) for part in uuid)
+                    "%02X" % c for c in part) for part in uuid)
 
 
 
@@ -8383,14 +8384,13 @@ class Ext4Analyzer(object):
 
             def __repr__(self):
                 if self.inode_idx != None:
-                    return (f"{type(self).__name__:s}"
-                    f"(inode_idx = {self.inode_idx!r:s}, "
-                    f"offset = 0x{self.offset:X}, "
-                    f"volume_uuid = {self.volume.uuid!r:s})")
+                    return ("%s(inode_idx = %s, offset = 0x%X, "
+                    "volume_uuid = %s") % \
+                        (type(self).__name__, self.inode_idx,
+                            self.offset, self.volume.uuid)
                 else:
-                    return (f"{type(self).__name__:s}"
-                    f"(offset = 0x{self.offset:X}, "
-                    f"volume_uuid = {self.volume.uuid!r:s})")
+                    return ("%s(offset = 0x%X, volume_uuid = %s)" % \
+                        (type(self).__name__, self.offset, self.volume.uuid))
 
             def _parse_xattrs(self, raw_data, offset, prefix_override = {}):
                 """
@@ -8432,10 +8432,9 @@ class Ext4Analyzer(object):
                         break
 
                     if not xattr_entry.e_name_index in prefixes:
-                        raise Ext4Error((
-                            f"Unknown attribute prefix "
-                            f"{xattr_entry.e_name_index:d} in inode "
-                            f"{self.inode_idx:d}"))
+                        raise Ext4Error(
+                            "Unknown attribute prefix %d in inode %d" % \
+                                (xattr_entry.e_name_idx, self.inode_idx))
 
                     xattr_name = \
                         prefixes[xattr_entry.e_name_index] + \
@@ -8450,10 +8449,11 @@ class Ext4Analyzer(object):
                             (xattr_inode.inode.i_flags & \
                                 ext4_inode.EXT4_EA_INODE_FL) != 0:
                             raise Ext4Error((
-                                f"Inode {xattr_inode.inode_idx:d} "
-                                f"associated with the extended attribute "
-                                f"{xattr_name!r:s} of inode {self.inode_idx:d}"
-                                f"is not marked as large extended attribute value."))
+                                "Inode %d associated with the extended "
+                                "attribute %s of inode %d is not marked as "
+                                "large extended attribute value.") % \
+                                    (xattr_inode.inode_idx, xattr_name,
+                                        self.inode_idx))
 
                         # TODO Use xattr_entry.e_value_size or xattr_inode.inode.i_size?
                         xattr_value = xattr_inode.open_read().read()
@@ -8470,7 +8470,7 @@ class Ext4Analyzer(object):
 
 
 
-            def get_inode(self, *relative_path, decode_name = None):
+            def get_inode(self, *relative_path):
                 """
                 Returns the inode specified by the path relative_path
                 (list of entry names) relative to this inode. "." and ".."
@@ -8488,17 +8488,18 @@ class Ext4Analyzer(object):
                 """
                 if not self.is_dir:
                     raise Ext4Error(
-                        f"Inode {self.inode_idx:d} is not a directory.")
+                        "Inode %d is not a directory" % self.inode_idx)
 
                 current_inode = self
+                decode_name = None
 
                 for i, part in enumerate(relative_path):
                     if not self.volume.ignore_flags and \
                         not current_inode.is_dir:
                         current_path = "/".join(relative_path[:i])
-                        raise Ext4Error((
-                            f"{current_path!r:s} (Inode {inode_idx:d}) "
-                            f"is not a directory."))
+                        raise Ext4Error(
+                            "%s (Inode %d) is not a directory." % \
+                                (current_path, inode_idx))
 
                     file_name, inode_idx, file_type = \
                         next(filter(lambda entry: entry[0] == part,
@@ -8507,9 +8508,9 @@ class Ext4Analyzer(object):
 
                     if inode_idx == None:
                         current_path = "/".join(relative_path[:i])
-                        raise FileNotFoundError((
-                            f"{part!r:s} not found in {current_path!r:s} "
-                            f"(Inode {current_inode.inode_idx:d})."))
+                        raise FileNotFoundError(
+                            "%s not found in %s (Inode %d)" % \
+                                (part, current_path, current_inode.inode_idx))
 
                     current_inode = current_inode.volume.get_inode(inode_idx)
 
@@ -8613,13 +8614,13 @@ class Ext4Analyzer(object):
 
                 if not self.volume.ignore_flags and not self.is_dir:
                     raise Ext4Error(
-                        f"Inode ({self.inode_idx:d}) is not a directory.")
+                        "Inode (%d) is not a directory." % self.inode_idx)
 
                 # Hash trees are compatible with linear arrays
                 if (self.inode.i_flags & ext4_inode.EXT4_INDEX_FL) != 0:
                     SysMgr.printWarn(
                         "hash trees are not implemented yet for ext4")
-                    return None
+                    return
                     raise NotImplementedError(
                         "Hash trees are not implemented yet")
 
@@ -8657,10 +8658,11 @@ class Ext4Analyzer(object):
                         if not self.volume.ignore_magic and \
                             header.eh_magic != 0xF30A:
                             raise MagicError((
-                                f"Invalid magic value in extent header at "
-                                f"offset 0x{header_offset:X} of inode "
-                                f"{self.inode_idx:d}: 0x{header.eh_magic:04X}"
-                                f"(expected 0xF30A)"))
+                                "Invalid magic value in extent header at "
+                                "offset 0x%X of inode %d: 0x%04X "
+                                "(expected 0xF30A)") % \
+                                    (header_offset, self.inode_idx,
+                                        header.eh_magic))
 
                         if header.eh_depth != 0:
                             indices = self.volume.read_struct(
@@ -8743,17 +8745,18 @@ class Ext4Analyzer(object):
                     if not self.volume.ignore_magic and \
                         xattrs_header.h_magic != 0xEA020000:
                         raise MagicError((
-                            f"Invalid magic value in xattrs block header at "
-                            f"offset 0x{xattrs_block_start:X} of inode "
-                            f"{self.inode_idx:d}: 0x{xattrs_header.h_magic} "
-                            f"(expected 0xEA020000)"))
+                            "Invalid magic value in xattrs block header at "
+                            "offset 0x%X of inode %d: 0x%X "
+                            "(expected 0xEA020000)") % \
+                                (xattrs_block_start, self.inode_idx,
+                                    xattrs_header.h_magic))
 
                     if xattrs_header.h_blocks != 1:
-                        raise Ext4Error((
-                            f"Invalid number of xattr blocks at offset "
-                            f"0x{xattrs_block_start:X} of inode "
-                            f"{self.inode_idx:d}: {xattrs_header.h_blocks:d}"
-                            f"(expected 1)"))
+                        raise Ext4Error(
+                            "Invalid number of xattr blocks at offset "
+                            "0x%X of inode %d: %d (expected 1)" % \
+                                (xattrs_block_start, self.inode_idx,
+                                    xattrs_header.h_blocks))
 
                     # The ext4_xattr_entry following the header is aligned on a 4-byte boundary
                     offset = 4 * ((sizeof(ext4_xattr_header) + 3) // 4)
@@ -8791,10 +8794,10 @@ class Ext4Analyzer(object):
                 self.block_map = block_map
 
             def __repr__(self):
-                return (f"{type(self).__name__:s}"
-                f"(byte_size = {self.byte_size!r:s}, "
-                f"block_map = {self.block_map!r:s}, "
-                f"volume_uuid = {self.volume.uuid!r:s})")
+                return ("%s(byte_size = %s, block_map = %s, "
+                "volume_uuid = %s)" % \
+                    (type(self).__name__, self.byte_size,
+                        self.block_map, self.volume.uuid))
 
             def get_block_mapping(self, file_block_idx):
                 """
@@ -8851,8 +8854,9 @@ class Ext4Analyzer(object):
                 # Check read
                 if len(result) != end_of_stream_check:
                     raise EndOfStreamError((
-                        f"The volume's underlying stream ended "
-                        f"{byte_len - len(result):d} bytes before EOF."))
+                        "The volume's underlying stream ended "
+                        "%s bytes before EOF.") % \
+                            (UtilMgr.convNum(byte_len-len(result))))
 
                 self.cursor += len(result)
                 return result
@@ -8930,6 +8934,7 @@ class Ext4Analyzer(object):
             return None
 
         if inode:
+            inode = long(inode)
             inodeObj = self.volume.get_inode(inode)
             return inodeObj
 
