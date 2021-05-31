@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210530"
+__revision__ = "210531"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -8962,15 +8962,18 @@ class Ext4Analyzer(object):
                 start = self.volume.root
                 path = '/'
 
-            # traverse all items #
+            # open directory #
             FILE_TYPE = Ext4Analyzer.FILE_TYPE
             try:
                 dirnode = start.open_dir()
+            except SystemExit:
+                sys.exit(0)
             except:
                 SysMgr.printWarn(
                     "fail to open '%s' directory" % None, True)
                 return
 
+            # traverse all items #
             for fname, inode, ftype in dirnode:
                 if fname == '.' or fname == '..':
                     continue
@@ -17805,6 +17808,8 @@ class SysMgr(object):
         self.networkInfo = {}
         self.systemInfo = {}
         self.partitionInfo = {}
+        self.devArchInfo = {}
+        self.devNodeInfo = {}
 
         self.cpuData = None
         self.gpuData = {}
@@ -20387,6 +20392,25 @@ class SysMgr(object):
             UtilMgr.convSize2Unit(writeMsTotal))
 
         return retstr
+
+
+
+    def updateNodeInfo(self):
+        if self.devNodeInfo:
+            return
+
+        try:
+            nodePath = '/dev/block'
+            for item in os.listdir(nodePath):
+                path = os.path.join(nodePath, item)
+                if os.path.islink(path):
+                    path = os.path.abspath(
+                        os.path.join(nodePath, os.readlink(path)))
+                self.devNodeInfo[item] = path
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
 
 
@@ -26626,24 +26650,33 @@ Copyright:
     def getErrMsg(start=2):
         et, err, to = sys.exc_info()
         lineno = SysMgr.getLine(start=start)
+        if lineno:
+            linestr = ' at %s line' % lineno
+        else:
+            linestr = ''
 
+        # error #
         try:
             if not err.args or err.args[0] == 0:
-                return '%s at %s line' % \
-                    (sys.exc_info()[0].__name__, lineno)
+                return '%s%s' % (sys.exc_info()[0].__name__, linestr)
+        except SystemExit:
+            sys.exit(0)
         except:
             if to:
-                return 'N/A at %s line' % lineno
+                return 'N/A%s' % linestr
             else:
                 return 'N/A'
 
+        # error code #
         try:
             code = '%s-' % errno.errorcode[err.args[0]]
+        except SystemExit:
+            sys.exit(0)
         except:
             code = ''
 
         errstr = ' '.join(list(map(str, err.args)))
-        return '%s%s at %s line' % (code, errstr, lineno)
+        return '%s%s%s' % (code, errstr, linestr)
 
 
 
@@ -40890,6 +40923,7 @@ Copyright:
 
         # update disk data #
         SysMgr.updateDiskStats()
+        self.updateNodeInfo()
 
         # update only a last diskstats if there is a first diskstats exist #
         if not 'prev' in self.diskData:
@@ -40913,11 +40947,13 @@ Copyright:
                     devPath = '/sys/class/block/%s/dev' % subdirname
                     startPath = '/sys/class/block/%s/start' % subdirname
                     sizePath = '/sys/class/block/%s/size' % subdirname
+                    listPath = '/sys/class/block/%s/device' % subdirname
 
                     with open(sizePath, 'r') as sizeFd:
                         size = sizeFd.readline()[:-1]
 
-                    if any(char.isdigit() for char in subdirname):
+                    if any(char.isdigit() for char in subdirname) and \
+                        os.path.exists(startPath):
                         with open(startPath, 'r') as startFd:
                             start = startFd.readline()[:-1]
                     else:
@@ -40929,6 +40965,33 @@ Copyright:
                         self.partitionInfo[partName]['start'] = long(start)
                         self.partitionInfo[partName]['end'] = \
                             long(start) + long(size)
+
+                    # skip slave dev #
+                    if not os.path.exists(listPath):
+                        continue
+
+                    # master dev #
+                    dirPath = '/sys/class/block/%s' % subdirname
+                    dirList = [subdirname] + os.listdir(dirPath)
+                    for subdev in dirList:
+                        if subdev == subdirname:
+                            subdevPath = '%s/dev' % (dirPath)
+                        elif subdev.startswith(subdirname):
+                            subdevPath = '%s/%s/dev' % (dirPath, subdev)
+                        else:
+                            continue
+
+                        with open(subdevPath, 'r') as subdevFd:
+                            devid = subdevFd.readline()[:-1]
+                            if devid in self.devNodeInfo:
+                                rpath = self.devNodeInfo[devid]
+                            elif subdev in self.devNodeInfo:
+                                rpath = self.devNodeInfo[subdev]
+                            else:
+                                rpath = subdevPath
+
+                            self.devArchInfo.setdefault(subdirname, dict())
+                            self.devArchInfo[subdirname][rpath] = devid
                 except SystemExit:
                     sys.exit(0)
                 except:
@@ -41347,7 +41410,7 @@ Copyright:
         '''
         self.cmdList["block/block_rq_complete"] = bioFlag
         self.cmdList["writeback/writeback_dirty_page"] = bioFlag
-        self.cmdList["writeback/wbc_writepage"] = bioFlag
+        #self.cmdList["writeback/wbc_writepage"] = bioFlag
 
         # fs #
         fsFlag = sm.fsEnable
@@ -41742,13 +41805,15 @@ Copyright:
                     'writeback/writeback_dirty_page/filter', cmd)
                 SysMgr.writeCmd(
                     'writeback/writeback_dirty_page/enable', '1')
+                '''
                 SysMgr.writeCmd('writeback/wbc_writepage/filter', cmd)
                 SysMgr.writeCmd('writeback/wbc_writepage/enable', '1')
+                '''
             else:
                 SysMgr.writeCmd('block/block_bio_queue/enable', '0')
                 SysMgr.writeCmd(
                     'writeback/writeback_dirty_page/enable', '0')
-                SysMgr.writeCmd('writeback/wbc_writepage/enable', '0')
+                #SysMgr.writeCmd('writeback/wbc_writepage/enable', '0')
 
             # special events #
             _writeCommonCmd()
@@ -42664,6 +42729,24 @@ Copyright:
                 'option': option,
                 'soption': soption,
             }
+
+        for name, subdir in self.devArchInfo.items():
+            for node, devid in subdir.items():
+                if node in self.mountInfo:
+                    continue
+
+                major, minor = devid.strip().split(':')
+
+                # save mount info #
+                self.mountInfo[node] = {
+                    'major': major,
+                    'minor': minor,
+                    'mountid': '-1',
+                    'path': '-',
+                    'fs': '-',
+                    'option': '',
+                    'soption': '',
+                }
 
 
 
@@ -43909,7 +43992,7 @@ Copyright:
                         long(beforeInfo['sectorWrite'])) << 9
                 writeSize = UtilMgr.convSize2Unit(writeSize)
 
-                if val['fs'] != 'tmpfs':
+                if val['fs'] != 'tmpfs' and val['fs'] != '-':
                     totalInfo['read'] += read
                     totalInfo['write'] += write
             except SystemExit:
@@ -43955,6 +44038,13 @@ Copyright:
             except:
                 pass
 
+            # update device number #
+            if major == '?' and minor == '?':
+                if 'major' in val:
+                    major = long(val['major'])
+                if 'minor' in val:
+                    minor = long(val['minor'])
+
             # get partition range #
             try:
                 devid = '%s:%s' % (major, minor)
@@ -43968,6 +44058,8 @@ Copyright:
             try:
                 key = '%s (%s) %s' % \
                     (key, ','.join(self.devInfo['block'][major]), prange)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -70179,6 +70271,15 @@ class TaskAnalyzer(object):
         SysMgr.doPrint()
         SysMgr.printPipe(oneLine)
 
+        # apply sort value automatically #
+        if not SysMgr.sort:
+            if SysMgr.cpuEnable:
+                pass
+            elif SysMgr.memEnable:
+                SysMgr.sort = 'm'
+            elif SysMgr.blockEnable:
+                SysMgr.sort = 'b'
+
         # set sort value #
         if SysMgr.sort == 'm':
             sortedThreadData = sorted(self.threadData.items(),
@@ -71594,13 +71695,17 @@ class TaskAnalyzer(object):
 
                 try:
                     mountInfo = SysMgr.savedMountTree
-                    dev = mountInfo[num]['dev']
-                    filesystem = mountInfo[num]['filesystem']
+                    fs = mountInfo[num]['filesystem']
+                    mountdata = mountInfo[num]['mount']
+                    if mountdata == '-':
+                        dev = mountInfo[num]['dev']
+                    else:
+                        dev = mountdata
                 except SystemExit:
                     sys.exit(0)
                 except:
                     dev = '?'
-                    filesystem = '?'
+                    fs = '?'
 
                 try:
                     seqPer = round((val[3] / float(val[0])) * 100, 1)
@@ -71616,9 +71721,10 @@ class TaskAnalyzer(object):
                 if tcnt > 0:
                     SysMgr.printPipe()
 
-                SysMgr.printPipe(
-                    "{0:>25} {1:>5} {2:>8} {3:>20} {4:>25} {5:^12} {6:<20}".\
-                    format(cid, opt, num, size, seqString, filesystem, dev))
+                SysMgr.printPipe((
+                    "{0:>25} {1:>5} {2:>8} {3:>20} "
+                    "{4:>25} {5:^12} {6:1}").format(
+                        cid, opt, num, size, seqString, fs, dev))
 
                 opt = ''
 
@@ -71656,11 +71762,13 @@ class TaskAnalyzer(object):
 
         # total read #
         if self.blockTable[0]:
-            tcnt = _printBlkUsage(totalStr, self.blockTable[0], 'READ', tcnt)
+            tcnt = _printBlkUsage(
+                totalStr, self.blockTable[0], 'READ', tcnt)
 
         # total write #
         if self.blockTable[1]:
-            tcnt = _printBlkUsage(totalStr, self.blockTable[1], 'WRITE', tcnt)
+            tcnt = _printBlkUsage(
+                totalStr, self.blockTable[1], 'WRITE', tcnt)
 
         if tcnt > 0:
             SysMgr.printPipe(oneLine)
@@ -71693,47 +71801,72 @@ class TaskAnalyzer(object):
         if not self.fsTable:
             return
 
-        SysMgr.printPipe('\n[Thread Filesystem Info] (Unit: NR)')
+        # print menu #
+        SysMgr.printPipe('\n[Thread FS Info] (Unit: NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe(
             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} {5:>12} {6:<75}".\
             format('ID', 'OPT', 'NrDev', 'INODE', 'Size', 'FS', 'PATH'))
         SysMgr.printPipe(twoLine)
 
+        convSize = UtilMgr.convSize2Unit
+
         # TOTAL #
         for op, data in sorted(self.fsTable[0].items(),
             key=lambda e:e[1], reverse=True):
-            SysMgr.printPipe("{0:^25} {1:>7}".format('TOTAL', op))
+            opSize = 0
+            devStr = ''
 
             for did, item in sorted(data.items()):
                 try:
                     mountInfo = SysMgr.savedMountTree
-                    dev = mountInfo[did]['dev']
                     fs = mountInfo[did]['filesystem']
+                    mountdata = mountInfo[did]['mount']
+                    if mountdata == '-':
+                        dev = mountInfo[did]['dev']
+                    else:
+                        dev = mountdata
                 except SystemExit:
                     sys.exit(0)
                 except:
                     dev = '?'
                     fs = '?'
 
-                SysMgr.printPipe(
-                    "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} {5:>12} {6:<75}".\
-                    format(' ', ' ', did, ' ', ' ', fs, dev))
+                totalSize = 0
+                inodeStr = ''
 
                 for inode, cnt in sorted(item.items(),
                     key=lambda e:e[1], reverse=True):
 
                     # convert page to size #
-                    size = UtilMgr.convSize2Unit(cnt << 12)
+                    realSize = cnt << 12
+                    totalSize += realSize
+                    size = convSize(realSize)
 
                     # convert inode to path #
+                    '''
+                    use a below command to convert inode to path
+                    # debugfs -R 'ncheck INODE' DEVNODE_PATH
+                    '''
                     path = ' '
 
-                    SysMgr.printPipe((
+                    inodeStr = '%s%s'  % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<75}").format(
+                        "{5:>12} {6:<75}\n").format(
                             ' ', ' ', ' ', inode, size, ' ', path))
 
+                opSize += totalSize
+
+                devStr = '%s%s' % (devStr, ((
+                    "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                    "{5:>12} {6:<75}\n").format(
+                        '', '', did, '', convSize(totalSize), fs, dev)))
+                devStr = '%s%s' % (devStr, inodeStr)
+
+            SysMgr.printPipe(
+                "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
+                    'TOTAL', op, ' ', ' ', convSize(opSize)))
+            SysMgr.printPipe(devStr)
             SysMgr.printPipe(oneLine)
 
         # THREAD #
@@ -71743,7 +71876,8 @@ class TaskAnalyzer(object):
 
             for op, data in sorted(ops.items(),
                 key=lambda e:e[1], reverse=True):
-                SysMgr.printPipe("{0:>25} {1:>7}".format(tinfo, op))
+                opSize = 0
+                devStr = ''
 
                 for did, item in sorted(data.items()):
                     try:
@@ -71756,16 +71890,16 @@ class TaskAnalyzer(object):
                         dev = '?'
                         fs = '?'
 
-                    SysMgr.printPipe((
-                        "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                        "{5:>12} {6:<75}").format(
-                            ' ', ' ', did, ' ', ' ', fs, dev))
+                    totalSize = 0
+                    inodeStr = ''
 
                     for inode, cnt in sorted(item.items(),
                         key=lambda e:e[1], reverse=True):
 
                         # convert page to size #
-                        size = UtilMgr.convSize2Unit(cnt << 12)
+                        realSize = cnt << 12
+                        totalSize += realSize
+                        size = convSize(realSize)
 
                         # convert inode to path #
                         '''
@@ -71774,11 +71908,23 @@ class TaskAnalyzer(object):
                         '''
                         path = ' '
 
-                        SysMgr.printPipe((
+                        inodeStr = '%s%s'  % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
-                            "{5:>12} {6:<75}").format(
+                            "{5:>12} {6:<75}\n").format(
                                 ' ', ' ', ' ', inode, size, ' ', path))
 
+                    opSize += totalSize
+
+                    devStr = '%s%s' % (devStr, ((
+                        "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} "
+                        "{5:>12} {6:<75}\n").format(
+                            '', '', did, '', convSize(totalSize), fs, dev)))
+                    devStr = '%s%s' % (devStr, inodeStr)
+
+                SysMgr.printPipe(
+                    "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
+                        tinfo, op, ' ', ' ', convSize(opSize)))
+                SysMgr.printPipe(devStr)
                 SysMgr.printPipe(oneLine)
 
 
@@ -75210,12 +75356,23 @@ class TaskAnalyzer(object):
             blkOffset = addr + 1
 
         blkSize = _getBlkOptSize(size)
-        did = '%s:%s' % (major, minor)
+        origid = did = '%s:%s' % (major, minor)
 
         # revise real minor number by address #
-        if not did in SysMgr.savedMountTree.items():
+        if not did in SysMgr.savedMountTree or minor == '0':
             for mid, val in SysMgr.savedMountTree.items():
                 try:
+                    if did == mid:
+                        continue
+
+                    if minor == '0' and \
+                        did in SysMgr.savedMountTree:
+                        devPath = SysMgr.savedMountTree[did]['dev']
+                        if SysMgr.savedMountTree[mid]['dev'].startswith(devPath) and \
+                            val['start'] <= addr <= val['end']:
+                            did = mid
+                            break
+
                     if mid.split(':')[0] == major and \
                         val['start'] <= addr <= val['end']:
                         # update device id #
@@ -75904,7 +76061,8 @@ class TaskAnalyzer(object):
         if comm == '<...>':
             if thread in SysMgr.commCache:
                 comm = SysMgr.commCache[thread]
-            elif thread in self.threadData:
+            elif thread in self.threadData and \
+                self.threadData[thread]['comm']:
                 comm = self.threadData[thread]['comm']
 
         # make core thread entity in advance for total irq per core #
@@ -77600,6 +77758,8 @@ class TaskAnalyzer(object):
                 SysMgr.printWarn((
                     "fail to handle a new task %s(%s) "
                     "because it is already exist") % (data['comm'], pid))
+            except SystemExit:
+                sys.exit(0)
             except:
                 self.threadData[pid] = dict(self.init_threadData)
                 self.threadData[pid]['comm'] = d['comm']
@@ -77627,12 +77787,7 @@ class TaskAnalyzer(object):
             cpid = d['child_pid']
             ccomm = d['child_comm']
 
-            try:
-                data = self.threadData[cpid]
-                SysMgr.printWarn((
-                    "fail to handle a new task %s(%s) "
-                    "because it is already exist") % (data['comm'], cpid))
-            except:
+            if not cpid in self.threadData:
                 self.threadData[cpid] = dict(self.init_threadData)
                 self.threadData[cpid]['comm'] = ccomm
                 self.threadData[cpid]['ptid'] = thread
@@ -78573,9 +78728,13 @@ class TaskAnalyzer(object):
             else:
                 details = ' '
 
+            # convert the number of fds #
+            nrFd = len(value['fdList'])
+            if nrFd > 1000:
+                nrFd = UtilMgr.convColor(nrFd, 'RED', 6)
+
             procInfo = "%s|%s\n" % \
-                (procInfo, '{0:>6}| {1:<100}|'.format(
-                len(value['fdList']), details))
+                (procInfo, '{0:>6}| {1:<100}|'.format(nrFd, details))
 
             fdCnt = long(0)
             if SysMgr.sort == 'f':
@@ -80041,6 +80200,12 @@ class TaskAnalyzer(object):
         # save I/O data #
         if SysMgr.blockEnable:
             ioBuf = self.saveTaskData(path, tid, 'io')
+            # check io support in proc filesystem #
+            if not ioBuf and \
+                not os.path.isfile('%s/self/io' % SysMgr.procPath):
+                SysMgr.printWarn(
+                    "fail to use bio event, please check kernel config")
+                SysMgr.blockEnable = False
             self.procData[tid]['ioData'] = ioBuf
 
             # check I/O data #
@@ -83046,8 +83211,13 @@ class TaskAnalyzer(object):
             # save size of file descriptor table #
             try:
                 value['fdsize'] = value['status']['FDSize']
+                fdstr = value['fdsize']
+                if fdstr.isdigit() and long(fdstr) > 1000:
+                    fdstr = convColor(fdstr, 'RED', 4)
+            except SystemExit:
+                sys.exit(0)
             except:
-                value['fdsize'] = '-'
+                fdstr = value['fdsize'] = '-'
 
             # scheduling info #
             if SysMgr.processEnable:
@@ -83245,7 +83415,7 @@ class TaskAnalyzer(object):
                 sched, ttime, value['utime'], value['stime'],
                 dtime, vss, memstr, codeSize, shr, swapSize,
                 btimestr, readSize, writeSize, value['majflt'],
-                yld, prtd, value['fdsize'], lifeTime[:9], etc[:21],
+                yld, prtd, fdstr, lifeTime[:9], etc[:21],
                 cl=cl, pd=pd))
             if not ret:
                 return
