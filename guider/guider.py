@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210531"
+__revision__ = "210601"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -5084,10 +5084,13 @@ class UtilMgr(object):
     @staticmethod
     def writeFlamegraph(path, samples, title, depth=20):
         # flamegraph from https://github.com/rbspy/rbspy/tree/master/src/ui/flamegraph.rs #
+        # fixed font size: 12, bar height: 15 #
+        height = 15*depth+100
+        width = "1"
         flameCode = ('''<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="1200" height="%s" onload="init(evt)" viewBox="0 0 1200 230"
-        ''' % (15*depth+100)) + '''
+<svg version="1.1" width="%s" height="%s" onload="init(evt)" viewBox="0 0 %s %s"
+        ''' % (width, height, width, height)) + '''
         xmlns="http://www.w3.org/2000/svg"
         xmlns:xlink="http://www.w3.org/1999/xlink">
         <!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
@@ -5099,16 +5102,16 @@ class UtilMgr(object):
                 </linearGradient>
         </defs>
         <style type="text/css">
-text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
-#title { text-anchor:middle; font-size:17px; }
-#search { opacity:0.1; cursor:pointer; }
-#search:hover, #search.show { opacity:1; }
-#subtitle { text-anchor:left; font-color:rgb(160,160,160); }
-#unzoom { cursor:pointer; }
-#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
-.hide { display:none; }
-.parent { opacity:0.5; }
-</style>
+            text { font-family:"Verdana"; font-size:12px; fill:rgb(0,0,0); }
+            #title { text-anchor:middle; font-size:17px; }
+            #search { opacity:0.1; cursor:pointer; }
+            #search:hover, #search.show { opacity:1; }
+            #subtitle { text-anchor:left; font-color:rgb(160,160,160); }
+            #unzoom { cursor:pointer; }
+            #frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+            .hide { display:none; }
+            .parent { opacity:0.5; }
+        </style>
         <script type="text/ecmascript">
                 <![CDATA[var nametype = 'Function:';
 var fontsize = 12;
@@ -5137,12 +5140,6 @@ function init(evt) {
         if (params.s)
             search(params.s);
     };
-
-    // Convert special characters in titles.
-    var title = svg.getElementsByTagName("title");
-    for (var x = 0; x < title.length; x++) {
-        title[x].innerHTML = title[x].innerHTML.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
-    }
 
     if (fluiddrawing) {
         // Make width dynamic so the SVG fits its parent's width.
@@ -5219,20 +5216,25 @@ window.addEventListener("click", function(e) {
 // show
 window.addEventListener("mouseover", function(e) {
     var target = find_group(e.target);
-    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+    if (target && details) {
+        details.nodeValue = nametype + " " + g_to_text(target);
+    }
 }, false)
 // clear
 window.addEventListener("mouseout", function(e) {
     var target = find_group(e.target);
-    if (target) details.nodeValue = ' ';
+    if (target && details) {
+        details.nodeValue = ' ';
+    }
 }, false)
-// ctrl-F for search
+// F3 / ctrl-F for search, ESC for reset search or zoom
 window.addEventListener("keydown",function (e) {
     if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
         e.preventDefault();
         search_prompt();
     } else if (e.keyCode === 27 || (e.ctrlKey && e.keyCode === 90)) {
         e.preventDefault();
+        reset_search();
         unzoom()
     }
 }, false)
@@ -5294,7 +5296,7 @@ function update_text(e) {
     var r = find_child(e, "rect");
     var t = find_child(e, "text");
     var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
-    var txt = find_child(e, "title").textContent;
+    var txt = find_child(e, "title").textContent.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
     t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
     // Smaller than this size won't fit anything
     if (w < 2 * fontsize * fontwidth) {
@@ -5447,9 +5449,13 @@ function search_prompt() {
         reset_search();
         searching = 0;
         searchbtn.classList.remove("show");
-        searchbtn.firstChild.nodeValue = "Search (F3)"
+        if (searchbtn.firstChild) {
+            searchbtn.firstChild.nodeValue = "Search (F3)"
+        }
         matchedtxt.classList.add("hide");
-        matchedtxt.firstChild.nodeValue = ""
+        if (matchedtxt.firstChild) {
+            matchedtxt.firstChild.nodeValue = ""
+        }
     }
 }
 function search(term) {
@@ -5491,7 +5497,9 @@ function search(term) {
     history.replaceState(null, null, parse_params(params));
 
     searchbtn.classList.add("show");
-    searchbtn.firstChild.nodeValue = "Reset Search (F3)";
+    if (searchbtn.firstChild) {
+        searchbtn.firstChild.nodeValue = "Reset Search (F3)";
+    }
     // calculate percent matched, excluding vertical overlap
     var count = 0;
     var lastx = -1;
@@ -5523,7 +5531,9 @@ function search(term) {
     matchedtxt.classList.remove("hide");
     var pct = 100 * count / maxwidth;
     if (pct != 100) pct = pct.toFixed(1);
-    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+    if (matchedtxt.firstChild) {
+        matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+    }
 }
 function format_percent(n) {
     return n.toFixed(4) + "%";
@@ -5532,15 +5542,15 @@ function format_percent(n) {
         </script>
 '''
         attrCode = '''
-    <rect x="0" y="0" width="100%%" height="230" fill="url(#background)"/>
+    <rect x="0" y="0" width="100%%" height="%s" fill="url(#background)"/>
     <text id="title" x="50.0000%%" y="24.00">Guider Flamegraph</text>
     <text id="subtitle" x="0.0000%%" y="50.00">%s</text>
     <text id="details" x="10" y="213.00"></text>
     <text id="unzoom" class="hide" x="10" y="24.00">Reset Zoom (ESC)</text>
     <text id="search" x="1090" y="24.00">Search (F3)</text>
     <text id="matched" x="1090" y="213.00"></text>
-    <svg id="frames" x="10" y="20" width="1180">
-''' % ('\r\n%s' % title if title else '')
+    <svg id="frames" x="10" y="20" width="%s">
+''' % (height, '\r\n%s' % title if title else '', width)
 
         # complete code for flamegraph #
         finalCode = flameCode + attrCode + samples + '\n</svg></svg>'
