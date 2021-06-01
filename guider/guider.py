@@ -7361,7 +7361,7 @@ class Timeline(object):
         if self.title:
             title = self.title
         else:
-            title = 'Guider Timeline Chart'
+            title = 'Guider timeline graph'
 
         # set font size for title #
         fontsize = self.config.FONT_SIZE * 10
@@ -17633,6 +17633,8 @@ class SysMgr(object):
     dbgEventLine = long(0)
     uptime = long(0)
     prevUptime = long(0)
+    deadlineUptime = long(0)
+    startUptime = long(0)
     uptimeDiff = long(0)
     diskStats = []
     prevDiskStats = []
@@ -21061,7 +21063,12 @@ class SysMgr(object):
         if not SysMgr.countEnable:
             return
 
-        if SysMgr.progressCnt >= SysMgr.repeatCount:
+        # check uptime deadline #
+        meetDeadline = SysMgr.progressCnt > 0 and \
+            SysMgr.deadlineUptime > 0 and \
+            SysMgr.deadlineUptime <= SysMgr.uptime
+
+        if SysMgr.progressCnt >= SysMgr.repeatCount or meetDeadline:
             # remove progress #
             UtilMgr.deleteProgress()
 
@@ -21372,6 +21379,18 @@ Examples:
     - Monitor status of all {2:2} with minimal stats
         # {0:1} {1:1} -a -e M
 
+    - Monitor status of all {2:2} after user input
+        # {0:1} {1:1} -a -W
+
+    - Monitor status of all {2:2} after 5 seconds
+        # {0:1} {1:1} -a -W 5s
+
+    - Monitor status of all {2:2} from 100 seconds of uptime
+        # {0:1} {1:1} -a -q START:100 -W
+
+    - Monitor status of all {2:2} until 100 seconds of uptime
+        # {0:1} {1:1} -a -q DEADLINE:100 -R
+
     - Monitor status of all {2:2} sorted by memory(RSS)
         # {0:1} {1:1} -S m
         # {0:1} {1:1} -S m:500
@@ -21485,20 +21504,22 @@ Examples:
 Examples:
     - Draw resource graph and memory chart
         # {0:1} {1:1} guider.out
+        # {0:1} {1:1} "guider.out, guider2.out"
+        # {0:1} {1:1} "data/*"
 
-    - Draw resource graph and timeline chart
+    - Draw resource graph and timeline graph
         # {0:1} {1:1} guider.dat
 
-    - Draw resource graph and timeline chart in ns timeunit
+    - Draw resource graph and timeline graph in ns timeunit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
 
     - Draw resource graph and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw resource graph and timeline chart for all events and tasks
+    - Draw resource graph and timeline graph for all events and tasks
         # {0:1} {1:1} guider.dat -a
 
-    - Draw resource graph and timeline chart for specific cores
+    - Draw resource graph and timeline graph for specific cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
 
     - Draw resource graph and memory chart to specific image format
@@ -21506,7 +21527,7 @@ Examples:
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw resource graph and timeline chart with config file
+    - Draw resource graph and timeline graph with config file
         # {0:1} {1:1} guider.dat -C config.json
 
     - Draw resource graph excluding chrome process and memory chart
@@ -22522,8 +22543,17 @@ Examples:
     - Monitor native function calls for specific threads with DWARF info
         # {0:1} {1:1} -g a.out -eD
 
-    - Monitor native function calls for child tasks created by a specific thread
+    - Monitor native function calls for specific threads after user input
         # {0:1} {1:1} -g a.out -W
+
+    - Monitor native function calls for specific threads after 5 seconds
+        # {0:1} {1:1} -g a.out -W 5s
+
+    - Monitor native function calls for specific threads from 100 seconds of uptime
+        # {0:1} {1:1} -g a.out -q START:100 -W
+
+    - Monitor native function calls for specific threads until 100 seconds of uptime
+        # {0:1} {1:1} -g a.out -q DEADLINE:100 -R
 
     - Monitor native function calls with backtrace for specific threads
         # {0:1} {1:1} -g a.out -H
@@ -23478,7 +23508,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw timeline chart from JSON format data
+    Draw timeline graph from JSON format data
                         '''.format(cmd, mode)
 
                     drawTimelineStr = '''
@@ -28933,7 +28963,7 @@ Copyright:
             fsize = ''
 
         SysMgr.printStat(
-            "wrote timeline chart into '%s'%s" %
+            "wrote timeline graph into '%s'%s" %
                 (outputPath, fsize))
 
 
@@ -29977,6 +30007,26 @@ Copyright:
 
 
     @staticmethod
+    def applyEnvironVars():
+        if 'DEADLINE' in SysMgr.environList:
+            var = SysMgr.environList['DEADLINE'][0]
+            if var.isdigit():
+                SysMgr.deadlineUptime = long(var)
+            else:
+                SysMgr.printErr('wrong value for DEADLINE %s' % var)
+                sys.exit(0)
+
+        if 'START' in SysMgr.environList:
+            var = SysMgr.environList['START'][0]
+            if var.isdigit():
+                SysMgr.startUptime = long(var)
+            else:
+                SysMgr.printErr('wrong value for START %s' % var)
+                sys.exit(0)
+
+
+
+    @staticmethod
     def checkOptVal(option, value):
         if not value:
             SysMgr.printErr(
@@ -30703,6 +30753,9 @@ Copyright:
                 SysMgr.environList = \
                     UtilMgr.convList2Dict(itemList, cap=True)
 
+            # apply environ variables #
+            SysMgr.applyEnvironVars()
+
         elif option == 'R':
             # set maximum count #
             if not value:
@@ -30720,11 +30773,19 @@ Copyright:
             SysMgr.setArch(value)
 
         elif option == 'W':
-            if value:
+            # uptime deadline #
+            if SysMgr.startUptime > 0:
+                start = SysMgr.startUptime
+                SysMgr.printStat(
+                    "wait until %s seconds for uptime" % \
+                        (UtilMgr.convNum(start)))
+                # wait until the uptime #
+                SysMgr.waitUptime(start)
+            elif value:
                 if not SysMgr.waitEnable:
                     SysMgr.waitEnable = UtilMgr.convUnit2Time(value)
                     SysMgr.printStat(
-                        "wait for %s seconds" % \
+                        "wait %s more seconds" % \
                             (UtilMgr.convNum(SysMgr.waitEnable)))
             else:
                 SysMgr.waitEnable = True
@@ -32611,6 +32672,20 @@ Copyright:
             return printDict
         else:
             return printBuf
+
+
+
+    @staticmethod
+    def waitUptime(deadline):
+        while 1:
+            current = SysMgr.updateUptime()
+            if current <= deadline:
+                time.sleep(0.1)
+                SysMgr.printWarn(
+                    "%.1f seconds left until %s seconds" % \
+                        (deadline-current, deadline))
+            else:
+                return
 
 
 
@@ -52854,8 +52929,12 @@ struct cmsghdr {
             if SysMgr.repeatCount == 0:
                 return
 
+            # check uptime deadline #
+            meetDeadline = SysMgr.deadlineUptime > 0 and \
+                SysMgr.deadlineUptime <= SysMgr.uptime
+
             SysMgr.progressCnt += 1
-            if SysMgr.repeatCount <= SysMgr.progressCnt:
+            if SysMgr.repeatCount <= SysMgr.progressCnt or meetDeadline:
                 sys.exit(0)
 
         def _finishPrint():
@@ -85402,14 +85481,14 @@ def main(args=None):
             # check svgwrite object #
             svgwrite = SysMgr.getPkg('svgwrite')
 
-            # prepare for timeline chart #
+            # prepare for timeline graph #
             SysMgr.graphEnable = False
             SysMgr.intervalEnable = 0
             tobj = TaskAnalyzer(origInputFile)
             outputPath = UtilMgr.prepareForImageFile(
                 SysMgr.inputFile, 'timeline')
 
-            # draw timeline chart #
+            # draw timeline graph #
             SysMgr.drawTimeline(
                 inputData=tobj.timelineData,
                 outputPath=outputPath,
