@@ -7702,6 +7702,7 @@ class Ext4Analyzer(object):
         # init variables #
         self.volume = None
         self.inodeList = dict()
+        self.failDirList = dict()
 
 
 
@@ -8606,7 +8607,7 @@ class Ext4Analyzer(object):
                         (self.inode.i_mode & ext4_inode.S_ISVTX) != 0),
                 ])
 
-            def open_dir(self, decode_name=None):
+            def open_dir(self, decode_name=None, path=None):
                 """
                 Generator: Yields the directory entries as tuples
                 (decode_name(name), inode, file_type) in their on-disk order,
@@ -8624,15 +8625,16 @@ class Ext4Analyzer(object):
 
                 if not self.volume.ignore_flags and not self.is_dir:
                     raise Ext4Error(
-                        "Inode (%d) is not a directory." % self.inode_idx)
+                        "Inode (%d) is not a directory (%s)" % \
+                            (self.inode_idx, path))
 
                 # Hash trees are compatible with linear arrays
                 if (self.inode.i_flags & ext4_inode.EXT4_INDEX_FL) != 0:
                     SysMgr.printWarn(
-                        "hash trees are not implemented yet for ext4")
+                        "hash trees are not implemented yet for %s" % path)
                     return
                     raise NotImplementedError(
-                        "Hash trees are not implemented yet")
+                        "Hash trees are not implemented yet for %s" % path)
 
                 # Read raw directory content
                 raw_data = self.open_read().read()
@@ -8957,9 +8959,9 @@ class Ext4Analyzer(object):
 
 
 
-    def getInodeList(self, start=None, path=None, verb=False):
+    def getInodeList(self, start=None, path=None, filters=[], verb=False):
         # define traverse function #
-        def _traverseItems(self, start=None, path=None, verb=verb):
+        def _traverseItems(self, start, path, filters, verb):
             if start:
                 if type(start) is str:
                     path = start.strip()
@@ -8972,13 +8974,19 @@ class Ext4Analyzer(object):
                 start = self.volume.root
                 path = '/'
 
+            # print progress #
+            UtilMgr.printProgress()
+
             # open directory #
             FILE_TYPE = Ext4Analyzer.FILE_TYPE
             try:
-                dirnode = start.open_dir()
+                dirnode = start.open_dir(path=path)
+                if not dirnode:
+                    self.failDirList.setdefault(path, None)
             except SystemExit:
                 sys.exit(0)
             except:
+                self.failDirList.setdefault(path, None)
                 SysMgr.printWarn(
                     "fail to open '%s' directory" % None, True)
                 return
@@ -8990,28 +8998,36 @@ class Ext4Analyzer(object):
                 elif inode in self.inodeList:
                     continue
 
+                # define attribute #
                 ftype = FILE_TYPE[ftype] if ftype in FILE_TYPE else "?"
                 inodeObj = self.volume.get_inode(inode)
-                self.inodeList[inode] = {
-                    'name': fname,
-                    'type': ftype,
-                    'size': len(inodeObj),
-                    'path': path,
-                }
+                fpath = os.path.join(path, fname)
 
-                if verb:
-                    SysMgr.printWarn(
-                        '%s [inode: %s] [type: %s] [size: %s]' % \
-                            (os.path.join(path, fname), inode, ftype,
-                                UtilMgr.convSize2Unit(len(inodeObj))),
-                        always=True, newline=False)
+                # check condition #
+                if not UtilMgr.isValidStr(str(inode), filters) and \
+                    not UtilMgr.isValidStr(fpath, filters):
+                    pass
+                else:
+                    self.inodeList[inode] = {
+                        'name': fname,
+                        'type': ftype,
+                        'size': len(inodeObj),
+                        'path': path,
+                    }
+
+                    if verb:
+                        SysMgr.printWarn(
+                            '%s [inode: %s] [type: %s] [size: %s]' % \
+                                (fpath, inode, ftype,
+                                    UtilMgr.convSize2Unit(len(inodeObj))),
+                            always=True, newline=False)
 
                 if ftype == 'dir':
-                    _traverseItems(self, inodeObj, os.path.join(path, fname))
+                    _traverseItems(self, inodeObj, fpath, filters, verb)
                     continue
 
         # start traversing all items #
-        _traverseItems(self, start)
+        _traverseItems(self, start, path, filters, verb)
 
         # return inode list #
         return self.inodeList
@@ -20984,6 +21000,7 @@ class SysMgr(object):
                 not SysMgr.checkMode('req') and \
                 not SysMgr.checkMode('ping') and \
                 not SysMgr.checkMode('strings') and \
+                not SysMgr.checkMode('printext') and \
                 not SysMgr.isHelpMode():
                 if len(sys.argv) == 1:
                     arg = sys.argv[0]
@@ -21167,6 +21184,7 @@ class SysMgr(object):
                 'printdbussub': 'D-Bus',
                 'printdir': 'Dir',
                 'printenv': 'Env',
+                'printext': 'Ext4',
                 'printinfo': 'System',
                 'printns': 'Namespace',
                 'printsig': 'Signal',
@@ -24088,6 +24106,32 @@ Examples:
     - Execute commands with enviornment variables
         # {0:1} {1:1} -I "ls -lha FILE" -q ENV:TEST=1, ENV:PATH=/data
         # {0:1} {1:1} -I "ls -lha FILE" -q ENVFILE:/data/env.sh
+                    '''.format(cmd, mode)
+
+                # printext #
+                elif SysMgr.checkMode('printext'):
+                    helpStr = '''
+Usage:
+    # {0:1} {1:1} [OPTIONS] [--help]
+
+Description:
+    Show inode attributes for ext4 filesystem
+
+Options:
+    -v                          verbose
+    -I  <DIR>                   set input path
+    -a                          show all attributes
+    -g  <WORD>                  set filter
+    -q  <NAME{{:VALUE}}>          set environment variables
+                        '''.format(cmd, mode)
+
+                    helpStr += '''
+Examples:
+    - Print all inode attributes for ext4 filesystem from the specific file
+        # {0:1} {1:1} /dev/sda1
+
+    - Print specific inode attributes for ext4 filesystem from the specific file
+        # {0:1} {1:1} /dev/sda1 -g data
                     '''.format(cmd, mode)
 
                 # printdir #
@@ -31347,6 +31391,10 @@ Copyright:
         elif SysMgr.checkMode('mkcache'):
             SysMgr.doMkCache()
 
+        # PRINTEXT MODE #
+        elif SysMgr.checkMode('printext'):
+            SysMgr.doPrintExt()
+
         # PRINTDIR MODE #
         elif SysMgr.checkMode('printdir'):
             SysMgr.printLogo(big=True, onlyFile=True)
@@ -36620,6 +36668,57 @@ Copyright:
             disableList = SysMgr.getOption('d')
             if not disableList or not 'D' in disableList:
                 SysMgr.dwarfEnable = True
+
+
+
+    @staticmethod
+    def doPrintExt():
+        SysMgr.printLogo(big=True, onlyFile=True)
+
+        # check input #
+        if SysMgr.hasMainArg():
+            inputArg = SysMgr.getMainArgs()
+        elif SysMgr.inputParam:
+            inputArg = str(SysMgr.inputParam).split(',')
+            inputArg = UtilMgr.cleanItem(inputArg, True)
+        else:
+            SysMgr.printErr("no input for PATH")
+            sys.exit(0)
+
+        for path in inputArg:
+            # make an ext4 object #
+            try:
+                eobj = Ext4Analyzer(path)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to create ext4 object for %s' % path, True)
+                continue
+
+            # traverse all inodes #
+            try:
+                inodeList = eobj.getInodeList(
+                    filters=SysMgr.filterGroup, verb=SysMgr.warnEnable)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printErr(
+                    'fail to traverse %s' % path, True)
+                continue
+
+            # print menu #
+            SysMgr.printPipe('[Ext4 Info] [Path: %s]\n%s' % (path, twoLine))
+            SysMgr.printPipe(
+                '{0:>12} {1:>6} {2:>1}\n{3:1}'.format(
+                    'INODE', 'TYPE', 'PATH', twoLine))
+
+            # print items #
+            for inode, values in sorted(inodeList.items()):
+                fpath = os.path.join(values['path'], values['name'])
+                SysMgr.printPipe(
+                    '{0:>12} {1:>6} {2:>1}'.format(
+                        inode, values['type'], fpath))
 
 
 
