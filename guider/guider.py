@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210601"
+__revision__ = "210602"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -9759,7 +9759,7 @@ class PageAnalyzer(object):
             elif type(pid) is not list or len(pid) != 1:
                 raise Exception('wrong pid')
 
-            pids = SysMgr.getPids(pid[0], isThread=False)
+            pids = SysMgr.getTids(pid[0], isThread=False)
             if not pids:
                 raise Exception('no task')
         except SystemExit:
@@ -15500,6 +15500,8 @@ class FileAnalyzer(object):
                 SysMgr.printStat(
                     "start collecting all files that mapped or opened...")
 
+            targetFiles = targetFiles if targetFiles else ['']
+
             # scan proc directory and save map information of processes #
             self.scanProcs(filterList=targetFiles)
 
@@ -15606,15 +15608,16 @@ class FileAnalyzer(object):
         pageSize = SysMgr.pageSize
         convert = UtilMgr.convSize2Unit
         convColor = UtilMgr.convColor
+        uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ LastRAM: %s ] [ RECLAIM: %s/%s ] "
+            "[%s] [ Process : %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
             " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procList)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), twoLine))
+                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
         SysMgr.printPipe(
             "{0:_^16}({1:_^7})|{2:_^12}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "MaxRAM", "ThreadName", "TID"))
@@ -15667,12 +15670,12 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ LastRAM: %s ] [ RECLAIM: %s/%s ] "
-            "[ Keys: Foward/Back/Save/Quit ]\n%s") % \
+            "[%s] [ File: %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
+            " [ Keys: Foward/Back/Save/Quit ]\n%s") % \
                 ('File Usage Info', UtilMgr.convNum(len(self.fileList)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), twoLine))
+                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
 
         printMsg = "{0:_^11}|{1:_^8}|{2:_^3}|".format(
             "InitRAM", "File", "%")
@@ -15711,7 +15714,7 @@ class FileAnalyzer(object):
                 per = long(long(memSize) / float(fileSize) * 100)
                 if per >= SysMgr.cpuPerHighThreshold:
                     per = UtilMgr.convColor(per, 'RED', 3)
-                else:
+                elif per > 0:
                     per = UtilMgr.convColor(per, 'YELLOW', 3)
             else:
                 per = long(0)
@@ -16159,15 +16162,16 @@ class FileAnalyzer(object):
         convColor = UtilMgr.convColor
         convNum = UtilMgr.convNum
         pageSize = SysMgr.pageSize
+        uptime = UtilMgr.convTime(SysMgr.updateUptime())
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ RAM: %s ] [ RECLAIM: %s/%s ] "
-            "[ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
+            "[%s] [ Process : %s ] [ RAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
+            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procData)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), twoLine))
+                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
         SysMgr.printPipe(
             "{0:_^16}({1:_^7})|{2:_^13}|{3:_^16}({4:_^7}) |".\
             format("Process", "PID", "RAM", "Thread", "TID"))
@@ -16220,12 +16224,12 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ RAM: %s ] [ RECLAIM: %s/%s ] "
-            "[ Keys: Foward/Back/Save/Quit ]\n%s") % \
+            "[%s] [ File: %s ] [ RAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
+            " [ Keys: Foward/Back/Save/Quit ]\n%s") % \
                 ('File Usage Info', UtilMgr.convNum(len(self.fileData)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
-                convert(self.pgRclmFg * 4 << 10), twoLine))
+                convert(self.pgRclmFg * 4 << 10), uptime, twoLine))
         SysMgr.printPipe("{0:_^12}|{1:_^10}|{2:_^6}|{3:_^123}".\
             format("RAM", "File", "%", "Library & Process"))
         SysMgr.printPipe(twoLine)
@@ -16242,7 +16246,7 @@ class FileAnalyzer(object):
                 per = long(long(memSize) / float(fileSize) * 100)
                 if per >= SysMgr.cpuPerHighThreshold:
                     per = UtilMgr.convColor(per, 'RED', 5)
-                else:
+                elif per > 0:
                     per = UtilMgr.convColor(per, 'YELLOW', 5)
             else:
                 per = long(0)
@@ -16301,7 +16305,7 @@ class FileAnalyzer(object):
 
 
 
-    def scanProcs(self, filterList=[]):
+    def scanProcs(self, filterList=None):
         # get process list in proc filesystem #
         try:
             pids = os.listdir(SysMgr.procPath)
@@ -16314,7 +16318,7 @@ class FileAnalyzer(object):
         # initialize proc object #
         procObj = TaskAnalyzer(onlyInstance=True)
 
-        # scan comms include words in target list #
+        # scan tasks #
         for pid in pids:
             try:
                 long(pid)
@@ -16349,7 +16353,7 @@ class FileAnalyzer(object):
                 SysMgr.printOpenWarn(taskPath)
                 continue
 
-            # make thread list in process object #
+            # scan threads #
             for tid in tids:
                 try:
                     long(tid)
@@ -16369,66 +16373,67 @@ class FileAnalyzer(object):
                     SysMgr.printOpenWarn(threadPath)
                     continue
 
-                # save process info #
-                for val in self.target:
-                    if not val in comm and tid != val:
-                        continue
+                # check condition #
+                if self.target and \
+                    not UtilMgr.isValidStr(tid, self.target) and \
+                    not UtilMgr.isValidStr(comm, self.target):
+                    continue
 
-                    # update procData #
-                    if not pid in self.procData:
-                        self.procData[pid] = dict(self.init_procData)
-                        self.procData[pid]['tids'] = {}
-                        self.procData[pid]['procMap'] = {}
-                        self.procData[pid]['comm'] = pidComm
+                # update procData #
+                if not pid in self.procData:
+                    self.procData[pid] = dict(self.init_procData)
+                    self.procData[pid]['tids'] = {}
+                    self.procData[pid]['procMap'] = {}
+                    self.procData[pid]['comm'] = pidComm
 
-                        # update mapInfo per process #
-                        self.procData[pid]['procMap'] = \
-                            FileAnalyzer.getProcMapInfo(pid)
+                    # update mapInfo per process #
+                    self.procData[pid]['procMap'] = \
+                        FileAnalyzer.getProcMapInfo(pid)
 
-                        # save file info per process #
+                    # save file info per process #
+                    try:
+                        fdlist = []
+                        fdlistPath = '%s/fd' % procPath
+                        fdlist = os.listdir(fdlistPath)
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        SysMgr.printOpenWarn(fdlistPath)
+
+                    # scan file descriptors #
+                    for fd in fdlist:
                         try:
-                            fdlist = []
-                            fdlistPath = '%s/fd' % procPath
-                            fdlist = os.listdir(fdlistPath)
+                            # get real path #
+                            fdPath = "%s/%s" % (fdlistPath, long(fd))
+                            fname = os.readlink(fdPath)
+
+                            # check files #
+                            if not FileAnalyzer.isValidFile(fname):
+                                continue
+                            elif tid != pid and \
+                                fname in self.procData[pid]['procMap']:
+                                continue
+                            elif not UtilMgr.isValidStr(fname, filterList):
+                                continue
+
+                            # init file info #
+                            size = os.stat(fname).st_size
+                            if size == 0:
+                                continue
+                            procMap = self.procData[pid]['procMap']
+                            procMap[fname] = dict(FileAnalyzer.init_mapData)
+                            procMap[fname]['size'] = size
+                            procMap[fname]['nrOpen'] = 1
                         except SystemExit:
                             sys.exit(0)
                         except:
-                            SysMgr.printOpenWarn(fdlistPath)
+                            pass
 
-                        # scan file descriptors #
-                        for fd in fdlist:
-                            try:
-                                # get real path #
-                                fdPath = "%s/%s" % (fdlistPath, long(fd))
-                                fname = os.readlink(fdPath)
-
-                                # check files #
-                                if not FileAnalyzer.isValidFile(fname):
-                                    continue
-                                elif fname in self.procData[pid]['procMap']:
-                                    continue
-                                elif not UtilMgr.isValidStr(fname, filterList):
-                                    continue
-
-                                # init file info #
-                                size = os.stat(fname).st_size
-                                if size == 0:
-                                    continue
-                                procMap = self.procData[pid]['procMap']
-                                procMap[fname] = \
-                                    dict(FileAnalyzer.init_mapData)
-                                procMap[fname]['size'] = size
-                                procMap[fname]['nrOpen'] = 1
-                            except SystemExit:
-                                sys.exit(0)
-                            except:
-                                pass
-
-                    # update threadData #
-                    if not tid in self.procData[pid]['tids']:
-                        self.procData[pid]['tids'][tid] = \
-                            dict(self.init_threadData)
-                        self.procData[pid]['tids'][tid]['comm'] = comm
+                # update threadData #
+                if not tid in self.procData[pid]['tids']:
+                    self.procData[pid]['tids'][tid] = \
+                        dict(self.init_threadData)
+                    self.procData[pid]['tids'][tid]['comm'] = comm
 
 
 
@@ -18145,7 +18150,7 @@ class SysMgr(object):
         # update record status #
         SysMgr.inputFile = '/sys/kernel/debug/tracing/trace'
 
-        # change priority for process #
+        # change the scheduling priority for process #
         if not SysMgr.prio:
             SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
@@ -18728,7 +18733,7 @@ class SysMgr(object):
 
                 if launch:
                     sibling = SysMgr.groupProcEnable
-                    targetList = SysMgr.getPids(tid, sibling=sibling)
+                    targetList = SysMgr.getTids(tid, sibling=sibling)
                     targetList = list(map(long, targetList))
                     targetList = list(set(targetList)-doneList)
                     if targetList:
@@ -18777,7 +18782,7 @@ class SysMgr(object):
         # convert comm to pid #
         targetList = []
         for item in inputParam:
-            targetList += SysMgr.getPids(item, isThread=False)
+            targetList += SysMgr.getTids(item, isThread=False)
         targetList = list(set(targetList))
 
         # check target #
@@ -18824,7 +18829,7 @@ class SysMgr(object):
             conf = UtilMgr.cleanItem(conf, False)
 
             # get tasks #
-            target = SysMgr.getPids(conf[0])
+            target = SysMgr.getTids(conf[0])
             if not target:
                 SysMgr.printErr(
                     "no task related to '%s'" % conf[0])
@@ -19207,7 +19212,7 @@ class SysMgr(object):
 
         try:
             for item in value:
-                targetList += SysMgr.getPids(item, sibling=sibling)
+                targetList += SysMgr.getTids(item, sibling=sibling)
 
             if not targetList:
                 SysMgr.printErr(
@@ -21402,10 +21407,10 @@ Examples:
     - Monitor status of threads context-switched more than 5000 after sorting by Context Switch
         # {0:1} {1:1} -S C:5000
 
-    - Monitor status and change priority for all {2:2} every second
+    - Monitor status and change the scheduling priority for all {2:2} every second
         # {0:1} {1:1} -Y "c:-20::CONT" -a
 
-    - Monitor status and change priority for specific {2:2} having name including a.out every second
+    - Monitor status and change the scheduling priority for specific {2:2} having name including a.out every second
         # {0:1} {1:1} -g a.out -Y "c:-20:a.out:CONT"
 
     - Monitor status of the fixed list for {2:2} to save CPU resource for monitoring
@@ -22021,7 +22026,7 @@ Examples:
     - report all analysis results of on-memory files for all processes to ./guider.out
         # {0:1} {1:1} -o . -a
 
-    - report all analysis results of on-memory files for specific processes
+    - report all analysis results of on-memory files for specific threads
         # {0:1} {1:1} -g a.out
 
     - report all analysis results of specific on-memory files
@@ -23740,10 +23745,12 @@ Options:
                     helpStr += '''
 Examples:
     - Pause specific running threads for 3 seconds
+        # {0:1} {1:1} -g a.out -R 3
         # {0:1} {1:1} -g 1234 -R 3
+        # {0:1} {1:1} -g "a*" -R 3
 
     - Pause specific running threads including a same process group
-        # {0:1} {1:1} -g 1234 -P
+        # {0:1} {1:1} -g a.out -P
                     '''.format(cmd, mode)
 
                 # readelf #
@@ -24711,7 +24718,7 @@ Usage:
     # {0:1} {1:1} -g <POLICY:PRIORITY|TIME:TID|COMM> [OPTIONS] [--help]
 
 Description:
-    Set CPU scheduler policy and priority for threads / processes
+    Set CPU scheduler policy and priority for tasks
 
 Policy:
     c: CFS [default]
@@ -24732,27 +24739,36 @@ Options:
 
                     helpStr += '''
 Examples:
-    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread
+    - Set CPU scheduler policy(CFS), priority(-20) for specific threads
         # {0:1} {1:1} "-20:a.out"
         # {0:1} {1:1} "c:-20:1234"
+        # {0:1} {1:1} "-20:a.out"
+        # {0:1} {1:1} "-20:a*"
+        # {0:1} {1:1} "-20:1234, 10:a.out, 15:test"
 
-    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread (wait for new target if no task)
+    - Set CPU scheduler policy(CFS), priority(-20) for specific processes
+        # {0:1} {1:1} "-20:a.out" -q PROCSEARCH
+
+    - Set CPU scheduler policy(CFS), priority(-20) for all sibling threads of specific processes
+        # {0:1} {1:1} "-20:a.out" -q PROCSEARCH -P (save CPU resource for searching tasks)
+
+    - Set CPU scheduler policy(CFS), priority(-20) for specific threads (wait for new target if no task)
         # {0:1} {1:1} "-20:a.out" -q WAITTASK
         # {0:1} {1:1} "-20:a.out" -q WAITTASK:1
 
-    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread after 5 seconds
+    - Set CPU scheduler policy(CFS), priority(-20) for specific threads after 5 seconds
         # {0:1} {1:1} "-20:a.out" -W 5s
 
-    - Set CPU scheduler policy(CFS), priority(-20) for a specific thread every 2 seconds
+    - Set CPU scheduler policy(CFS), priority(-20) for specific threads every 2 seconds
         # {0:1} {1:1} "-20:a.out" -i 2
 
     - Set CPU scheduler policy(CFS), priority(-20) for all threads in a specific process
         # {0:1} {1:1} "-20:a.out -P"
 
-    - Set CPU scheduler policy(FIFO), priority(90) for a specific thread
+    - Set CPU scheduler policy(FIFO), priority(90) for specific threads
         # {0:1} {1:1} "f:90:a.out"
 
-    - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for a specific thread
+    - Set CPU scheduler policy(DEADLINE), runtime(1ms), deadline(10ms), period(10ms) for specific threads
         # {0:1} {1:1} "d:1000000/10000000/10000000:a.out"
                     '''.format(cmd, mode)
 
@@ -31391,7 +31407,7 @@ Copyright:
             targetList = []
             sibling = SysMgr.groupProcEnable
             for item in targets:
-                targetList += SysMgr.getPids(item, sibling=sibling)
+                targetList += SysMgr.getTids(item, sibling=sibling)
             targetList = list(set(targetList))
 
             if not targetList:
@@ -31580,7 +31596,7 @@ Copyright:
 
         # LIMIT MODE #
         elif SysMgr.isLimitMode():
-            # change priority for process #
+            # change the scheduling priority for tasks #
             if not SysMgr.prio:
                 SysMgr.setPriority(SysMgr.pid, 'C', -20)
 
@@ -32433,7 +32449,7 @@ Copyright:
 
 
     @staticmethod
-    def getPids(
+    def getTids(
         name, isThread=True, sibling=False,
         main=False, inc=False, cache=False):
 
@@ -32921,7 +32937,7 @@ Copyright:
                 if tid.isdigit():
                     limitList[tid] = long(per)
                 else:
-                    tidList = SysMgr.getPids(tid)
+                    tidList = SysMgr.getTids(tid)
                     for tid in tidList:
                         limitList[tid] = long(per)
         except SystemExit:
@@ -35892,7 +35908,7 @@ Copyright:
                     deepcopy(procObj.exceptBpFileList)
 
                 # create a lock for a target multi-threaded process #
-                if SysMgr.getPids(pid, sibling=True):
+                if SysMgr.getTids(pid, sibling=True):
                     lockList[pid] = \
                         Debugger.getGlobalLock(pid, len(bpList[pid]))
 
@@ -36199,7 +36215,7 @@ Copyright:
         maxSymLen = 5
 
         # get pid list #
-        pids = SysMgr.getPids(inputArg)
+        pids = SysMgr.getTids(inputArg)
         taskList = []
         for tid in pids:
             taskList.append(SysMgr.getTgid(tid))
@@ -36818,7 +36834,7 @@ Copyright:
         # get pid list #
         pids = []
         for item in inputArg:
-            pids = SysMgr.getPids(item)
+            pids = SysMgr.getTids(item)
             taskList = []
             for tid in pids:
                 taskList.append(SysMgr.getTgid(tid))
@@ -36904,7 +36920,7 @@ Copyright:
         maxSymLen = 5
 
         # get pid list #
-        pids = SysMgr.getPids(inputArg)
+        pids = SysMgr.getTids(inputArg)
         taskList = []
         for tid in pids:
             taskList.append(SysMgr.getTgid(tid))
@@ -39777,14 +39793,14 @@ Copyright:
         # get pid list #
         pids = []
         if target:
-            pids += SysMgr.getPids(target)
+            pids += SysMgr.getTids(target)
         elif SysMgr.hasMainArg():
             items = SysMgr.getMainArgs()
             for item in items:
-                pids += SysMgr.getPids(item)
+                pids += SysMgr.getTids(item)
         else:
             for item in SysMgr.filterGroup:
-                pids += SysMgr.getPids(item)
+                pids += SysMgr.getTids(item)
 
         if not pids:
             SysMgr.printErr("no target thread")
@@ -40113,7 +40129,7 @@ Copyright:
                 inc = True
                 pid = pid.replace('*', '')
 
-            taskList = SysMgr.getPids(
+            taskList = SysMgr.getTids(
                 pid, isThread, sibling, False, inc, cache)
             targetList += taskList
 
@@ -40395,8 +40411,16 @@ Copyright:
 
         SysMgr.checkRootPerm()
 
+        # check process based search option #
+        if 'PROCSEARCH' in SysMgr.environList:
+            procSearch = True
+        else:
+            procSearch = False
+
+        # parse sched group #
         schedGroup = value.split(',')
         schedGroup = UtilMgr.cleanItem(schedGroup)
+
         for item in schedGroup:
             lastIdx = 4
             schedSet = item.split(':')
@@ -40436,13 +40460,26 @@ Copyright:
 
                 # get thread list #
                 sibling = SysMgr.groupProcEnable
-                targetList = SysMgr.getPids(task, sibling=sibling)
-                targetList = list(map(long, targetList))
+                if procSearch:
+                    targetList = []
+                    pidList = SysMgr.getTids(task, isThread=False)
+                    if sibling:
+                        for pid in pidList:
+                            siblingList = SysMgr.getThreadList(pid)
+                            if siblingList:
+                                targetList += siblingList
+                    else:
+                        targetList = pidList
+                else:
+                    targetList = SysMgr.getTids(task, sibling=sibling)
+
+                # convert thread list #
+                targetList = list(map(long, list(set(targetList))))
                 if not targetList:
                     SysMgr.printWarn(
                         "no thread related to '%s'" % task)
 
-                # change priority for tasks #
+                # change the scheduling priority for tasks #
                 for task in sorted(targetList):
                     if schedSet[0].upper() == 'D':
                         # parse deadline arguments #
@@ -40453,6 +40490,7 @@ Copyright:
                         SysMgr.setDeadlinePriority(
                             task, runtime, deadline, period)
                     else:
+                        # set other sched #
                         SysMgr.setPriority(task, policy, pri)
 
                 # change others continually #
@@ -40486,7 +40524,7 @@ Copyright:
             # check whether kernel version is higher than 3.14 #
             if ver < 3.14:
                 SysMgr.printErr((
-                    "fail to set priority for %s(%s) "
+                    "fail to set the scheduling priority for %s(%s) "
                     "because kernel version %g is lesser than 3.14") % \
                     (comm, pid, ver))
                 return -1
@@ -40548,7 +40586,7 @@ Copyright:
         # check deadline and period #
         if deadline == period == 0:
             SysMgr.printErr((
-                "fail to set priority for %s(%s) "
+                "fail to set the scheduling priority for %s(%s) "
                 "to runtime(ns)/deadline(ns)/period(ns)[D]") % (comm, pid))
             return -1
         elif deadline == 0:
@@ -40567,12 +40605,12 @@ Copyright:
         # check return value #
         if ret == 0:
             SysMgr.printInfo((
-                "changed the priority for %s(%s) to "
+                "changed the scheduling priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
         else:
             SysMgr.printErr((
-                "fail to set priority for %s(%s) to "
+                "fail to set the scheduling priority for %s(%s) to "
                 "runtime(%d)/deadline(%d)/period(%d)[D]") % \
                 (comm, pid, runtime, deadline, period))
 
@@ -40678,12 +40716,12 @@ Copyright:
             # print result #
             if verb:
                 SysMgr.printInfo(
-                    'changed priority for %s(%s) to %d[%s]' % \
+                    'changed the scheduling priority for %s(%s) to %d[%s]' % \
                         (comm, pid, pri, upolicy))
         except SystemExit:
             sys.exit(0)
         except:
-            err = "fail to set priority for %s(%s) to %s[%s]" % \
+            err = "fail to set the scheduling priority for %s(%s) to %s[%s]" % \
                 (comm, pid, pri, upolicy)
             SysMgr.printWarn(err, always=True, reason=True)
             return
@@ -46626,7 +46664,7 @@ class DbusMgr(object):
 
         def _getDefaultTasks(comm, sibling=True):
             taskList = []
-            tempList = SysMgr.getPids(comm, sibling=sibling)
+            tempList = SysMgr.getTids(comm, sibling=sibling)
             for tid in tempList:
                 taskList.append(SysMgr.getTgid(tid))
 
@@ -46650,7 +46688,7 @@ class DbusMgr(object):
                 items = SysMgr.getMainArgs()
                 for val in items:
                     if SysMgr.groupProcEnable:
-                        taskList += SysMgr.getPids(val, sibling=True)
+                        taskList += SysMgr.getTids(val, sibling=True)
                     else:
                         taskList += _getDefaultTasks(val)
             else:
@@ -46661,7 +46699,7 @@ class DbusMgr(object):
             onlyDaemon = False
             for val in SysMgr.filterGroup:
                 if SysMgr.groupProcEnable:
-                    taskList += SysMgr.getPids(val, sibling=True)
+                    taskList += SysMgr.getTids(val, sibling=True)
                 else:
                     taskList += _getDefaultTasks(val)
 
@@ -60815,7 +60853,7 @@ class ElfAnalyzer(object):
 
         # remove E. suffix #
         if 'E.' in symbol:
-            symbol = symbol[:symbol.rfind('E.')]
+            symbol = symbol[:symbol.rfind('E.')+1]
 
         hash_prefix_len = 3;
         hash_len = 16;
@@ -60881,6 +60919,15 @@ class ElfAnalyzer(object):
         if symbol in ElfAnalyzer.cachedDemangleTable:
             return ElfAnalyzer.cachedDemangleTable[symbol]
 
+        # get ctypes object #
+        if not SysMgr.importPkgItems('ctypes', False):
+            SysMgr.printWarn((
+                "fail to import python package: ctypes "
+                "to demangle symbol, so that "
+                "disable demangle feature"), True)
+            SysMgr.demangleEnable = False
+            return symbol
+
         # strip llvm info #
         if '.llvm.' in symbol:
             symbol = symbol[:symbol.find('.llvm.')]
@@ -60894,15 +60941,6 @@ class ElfAnalyzer(object):
             version = '@%s' % version
         else:
             version = ''
-
-        # get ctypes object #
-        if not SysMgr.importPkgItems('ctypes', False):
-            SysMgr.printWarn((
-                "fail to import python package: ctypes "
-                "to demangle symbol, so that "
-                "disable demangle feature"), True)
-            SysMgr.demangleEnable = False
-            return symbol
 
         # try to demangle symbol #
         try:
@@ -60920,6 +60958,7 @@ class ElfAnalyzer(object):
             funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
             funcp.restype = c_void_p
 
+            # init variables #
             status = c_int()
             mSymbol = c_char_p(UtilMgr.encodeStr(symbol))
 
@@ -60928,29 +60967,51 @@ class ElfAnalyzer(object):
 
             retc = cast(ret, c_char_p)
 
-            # check return status and convert type from bytes to string #
-            if status.value == 0:
+            # check 1st return status #
+            origStat = status.value
+            if origStat == 0:
                 try:
                     dmSymbol = str(retc.value.decode())
                 except:
                     dmSymbol = str(retc.value)
-            elif status.value == -1:
-                SysMgr.printWarn(
-                    "fail to allocate memory to demangle symbol %s" % symbol)
-                dmSymbol = symbol
-            elif status.value == -2:
-                SysMgr.printWarn(
-                    "fail to demangle %s because of invalid name" % symbol)
-                dmSymbol = symbol
-            elif status.value == -3:
-                SysMgr.printWarn(
-                    "fail to demangle %s because of invalid args" % symbol)
-                dmSymbol = symbol
             else:
-                SysMgr.printWarn(
-                    "fail to demangle %s because of unknown status %d" % \
-                        (symbol, status.value))
-                dmSymbol = symbol
+                # free demangled string array #
+                SysMgr.libcObj.free(ret)
+
+                # reinit variables #
+                status = c_int()
+                mSymbol = c_char_p(UtilMgr.encodeStr(origSym))
+
+                # call to demangle symbol #
+                ret = funcp(mSymbol, None, None, pointer(status))
+
+                retc = cast(ret, c_char_p)
+
+                # check 2nd return status #
+                if status.value == 0:
+                    try:
+                        dmSymbol = str(retc.value.decode())
+                    except:
+                        dmSymbol = str(retc.value)
+                else:
+                    isRust = False
+                    dmSymbol = symbol
+                    if origStat == -1:
+                        SysMgr.printWarn((
+                            "fail to allocate memory to "
+                            "demangle symbol %s") % origSym)
+                    elif origStat == -2:
+                        SysMgr.printWarn((
+                            "fail to demangle %s because of "
+                            "invalid name") % origSym)
+                    elif origStat == -3:
+                        SysMgr.printWarn((
+                            "fail to demangle %s because of "
+                            "invalid args") % origSym)
+                    else:
+                        SysMgr.printWarn((
+                            "fail to demangle %s because of "
+                            "unknown status %d") % (origSym, origStat))
 
             # free demangled string array #
             SysMgr.libcObj.free(ret)
@@ -76432,7 +76493,7 @@ class TaskAnalyzer(object):
             next_start = self.threadData[next_id]['start']
             next_stop = self.threadData[next_id]['stop']
 
-            # update priority for thread to highest one #
+            # update the scheduling priority for thread to highest one #
             if self.threadData[prev_id]['pri'] == '?' or \
                 long(self.threadData[prev_id]['pri']) > long(d['prev_prio']):
                 self.threadData[prev_id]['pri'] = d['prev_prio']
