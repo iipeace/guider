@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210602"
+__revision__ = "210606"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4164,6 +4164,55 @@ class UtilMgr(object):
 
 
     @staticmethod
+    def getInodes(path, inodeFilter=[], nameFilter=[], verb=True):
+        inodeList = {}
+
+        for r, d, f in os.walk(path):
+            # print progress #
+            UtilMgr.printProgress()
+
+            # get full path for upper dir #
+            fdir = os.path.abspath(r)
+
+            for name in (f+d):
+                # get full path for file ##
+                fpath = os.path.join(fdir, name)
+
+                # check name filter #
+                if nameFilter and \
+                    not UtilMgr.isValidStr(name, nameFilter):
+                    continue
+
+                # check inode filter #
+                try:
+                    fstat = os.stat(fpath)
+                    if not fstat:
+                        continue
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printWarn(
+                        'fail to get stat for %s' % fpath, reason=True)
+                    continue
+
+                # get inode #
+                inode = str(fstat.st_ino)
+                if inodeFilter and not inode in inodeFilter:
+                    continue
+
+                # register inode #
+                major = os.major(fstat.st_dev)
+                minor = os.minor(fstat.st_dev)
+                devid = '%s:%s' % (major, minor)
+
+                inodeList.setdefault(devid, dict())
+                inodeList[devid][inode] = os.path.join(fdir, name)
+
+        return inodeList
+
+
+
+    @staticmethod
     def getFiles(path, name=None, incFile=True, incDir=False, recursive=True):
         flist = list()
 
@@ -5631,11 +5680,11 @@ function format_percent(n) {
 
 
     @staticmethod
-    def which(file):
+    def which(cmd):
         pathList = []
         for path in os.environ["PATH"].split(os.pathsep):
-            if os.path.exists(os.path.join(path, file)):
-                pathList.append(os.path.join(path, file))
+            if os.path.exists(os.path.join(path, cmd)):
+                pathList.append(os.path.join(path, cmd))
         if not pathList:
             return None
         else:
@@ -6928,8 +6977,29 @@ class NetworkMgr(object):
             SysMgr.printOpenErr(dirPath)
             return
 
+        # skip virtual device #
         for dev in devices:
-            if dev == 'lo':
+            try:
+                if not 'phydev' in os.listdir('%s/%s' % (dirPath, dev)):
+                    raise Exception()
+
+                target = '%s/%s/address' % (dirPath, dev)
+                try:
+                    with open(target, 'r') as fd:
+                        addr = fd.readline()[:-1]
+                        return (dev, addr)
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printOpenErr(target)
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+        for dev in devices:
+            # skip virtual device #
+            if dev == 'lo' or dev.startswith('docker'):
                 continue
 
             target = '%s/%s/address' % (dirPath, dev)
@@ -7779,7 +7849,8 @@ class Ext4Analyzer(object):
                 # Variable length field "name" missing at 0x8
             ]
 
-            def _from_buffer_copy (raw, offset = 0, platform64 = True):
+            @classmethod
+            def _from_buffer_copy(cls, raw, offset=0, platform64=True):
                 # pylint: disable=no-self-argument
                 struct = ext4_dir_entry_2.from_buffer_copy(raw, offset)
                 struct.name = \
@@ -7848,7 +7919,8 @@ class Ext4Analyzer(object):
                 ("bg_reserved", c_uint),               # 0x003C
             ]
 
-            def _from_buffer_copy(raw, offset = 0, platform64 = True):
+            @classmethod
+            def _from_buffer_copy(cls, raw, offset=0, platform64=True):
                 # pylint: disable=no-self-argument
                 struct = ext4_group_descriptor.from_buffer_copy(raw, offset)
 
@@ -8048,7 +8120,8 @@ class Ext4Analyzer(object):
                 ("s_checksum", c_uint)                      # 0x03FC
             ]
 
-            def _from_buffer_copy(raw, platform64=True):
+            @classmethod
+            def _from_buffer_copy(cls, raw, platform64=True):
                 # pylint: disable=no-self-argument
                 struct = ext4_superblock.from_buffer_copy(raw)
 
@@ -8119,7 +8192,8 @@ class Ext4Analyzer(object):
                 # Variable length field "e_name" missing at 0x10
             ]
 
-            def _from_buffer_copy(raw, offset = 0, platform64 = True):
+            @classmethod
+            def _from_buffer_copy(cls, raw, offset=0, platform64=True):
                 # pylint: disable=no-self-argument
                 struct = ext4_xattr_entry.from_buffer_copy(raw, offset)
                 struct.e_name = \
@@ -8215,7 +8289,8 @@ class Ext4Analyzer(object):
 
                 return result
 
-            def optimize(entries):
+            @classmethod
+            def optimize(cls, entries):
                 # pylint: disable=no-self-argument
                 """
                 Sorts and stiches together a list of MappingEntry instances
@@ -8335,7 +8410,7 @@ class Ext4Analyzer(object):
 
                 return self.stream.read(byte_len)
 
-            def read_struct(self, structure, offset, platform64 = None):
+            def read_struct(self, structure, offset, platform64=None):
                 """
                 Interprets the bytes at offset as structure and returns
                 the interpreted instance
@@ -8391,7 +8466,7 @@ class Ext4Analyzer(object):
                 Returns the length in bytes of the content
                 referenced by this inode.
                 """
-                return self.inode.i_size
+                return int(self.inode.i_size)
 
             def __repr__(self):
                 if self.inode_idx != None:
@@ -8633,6 +8708,7 @@ class Ext4Analyzer(object):
                     SysMgr.printWarn(
                         "hash trees are not implemented yet for %s" % path)
                     return
+                    # TODO: implement hash tree parser #
                     raise NotImplementedError(
                         "Hash trees are not implemented yet for %s" % path)
 
@@ -10423,7 +10499,7 @@ class FunctionAnalyzer(object):
 
             try:
                 # Decrease page count of symbol allocated page  #
-                # toDo: fix bug about wrong count of pos #
+                # TODO: fix bug about wrong count of pos #
                 allocSym = self.pageTable[pfnv]['sym']
                 allocStackAddr = self.pageTable[pfnv]['subStackAddr']
                 allocKernelSym = self.pageTable[pfnv]['ksym']
@@ -11130,7 +11206,7 @@ class FunctionAnalyzer(object):
             if value['binary'] == '':
                 # user pos without offset #
                 if value['symbol'] == '' or value['symbol'] == '??':
-                    # toDo: find binary path and symbol of pos #
+                    # TODO: find binary path and symbol of pos #
                     value['binary'] = '??'
                     value['origBin'] = '??'
                     value['symbol'] = idx
@@ -12021,7 +12097,7 @@ class FunctionAnalyzer(object):
             isFixedEvent = True
 
         # CPU tick event #
-        # toDo: find shorter periodic event for sampling #
+        # TODO: find shorter periodic event for sampling #
         if isFixedEvent and func == "hrtimer_start:":
             if 'tick_sched_timer' in args:
                 self.cpuEnabled = True
@@ -15670,8 +15746,8 @@ class FileAnalyzer(object):
 
         # Print file list #
         SysMgr.printPipe((
-            "[%s] [ File: %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
-            " [ Keys: Foward/Back/Save/Quit ]\n%s") % \
+            "[%s] [ File: %s ] [ LastRAM: %s ] [ Reclaim: %s/%s ] "
+            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ]\n%s") % \
                 ('File Usage Info', UtilMgr.convNum(len(self.fileList)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
@@ -15814,7 +15890,7 @@ class FileAnalyzer(object):
 
 
     @staticmethod
-    def isValidFile(fileName):
+    def isValidFile(fileName, special=False):
         # skip non-files #
         if not fileName.startswith('/'):
             return False
@@ -15833,8 +15909,13 @@ class FileAnalyzer(object):
         # skip deleted files #
         elif ' (deleted)' in fileName:
             return False
-        else:
-            return True
+
+        # check special #
+        if special:
+            if fileName == 'vdso':
+                return True
+
+        return True
 
 
 
@@ -16166,8 +16247,9 @@ class FileAnalyzer(object):
 
         # Print process list #
         SysMgr.printPipe((
-            "[%s] [ Process : %s ] [ RAM: %s ] [ Reclaim: %s/%s ] [ Uptime: %s ]"
-            " [ Keys: Foward/Back/Save/Quit ] [ Capture: Ctrl+\\ ]\n%s") % \
+            "[%s] [ Process : %s ] [ RAM: %s ] [ Reclaim: %s/%s ] "
+            "[ Uptime: %s ] [ Keys: Foward/Back/Save/Quit ] "
+            "[ Capture: Ctrl+\\ ]\n%s") % \
                 ('File Process Info', UtilMgr.convNum(len(self.procData)),
                 convert(self.profPageCnt * 4 << 10),
                 convert(self.pgRclmBg * 4 << 10),
@@ -17552,6 +17634,7 @@ class SysMgr(object):
     libglesPath = 'libGLESv2'
     ldCachePath = '/etc/ld.so.cache'
     libdemanglePath = libcppPath
+    libLLVMPath = 'libLLVM.so'
     environList = {}
     environ = {}
     eventLogPath = None
@@ -17571,6 +17654,7 @@ class SysMgr(object):
     printFd = None
     fileSuffix = None
     parsedAnalOption = False
+    sttyEnable = None
     optionList = []
     customCmd = []
     pyFuncFilter = []
@@ -17616,6 +17700,8 @@ class SysMgr(object):
     guiderObj = None
     libcppObj = None
     libdemangleObj = None
+    libLLVMObj = None
+    demangleFunc = None
     matplotlibVersion = long(0)
     matplotlibDpi = 500
     sigsetObj = None
@@ -21390,6 +21476,9 @@ Examples:
     - Monitor status of all {2:2} after 5 seconds
         # {0:1} {1:1} -a -W 5s
 
+    - Monitor status of {2:2} that use CPU more than 1% except for system in a stream
+        # {0:1} {1:1} -a -q TASKSTREAM -S c:1
+
     - Monitor status of all {2:2} from 100 seconds of uptime
         # {0:1} {1:1} -a -q START:100 -W
 
@@ -21831,14 +21920,17 @@ Examples:
                 '''.format(cmd, mode)
 
                 reportStr = '''
-    - report all analysis results for specific threads having TID 1234 or COMM including 1234 to ./guider.out
-        # {0:1} guider.dat -o . -g 1234 -a
+    - report all analysis results for specific threads having TID 1234 or COMM including a.out to ./guider.out
+        # {0:1} guider.dat -o . -g "1234, a.out" -a
 
     - report all analysis results including interval information for all threads to ./guider.out
         # {0:1} guider.dat -o . -a -i
 
     - report analysis results including preemption info for specific threads to ./guider.out
         # {0:1} guider.dat -o . -p 1234, 4567
+
+    - report analysis results for specific threads to ./guider.out after converting all target inodes to names
+        # {0:1} guider.data -o . -q CONVINODE
 
     - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
@@ -23767,13 +23859,17 @@ Options:
               [ p:pipe | D:DWARF | e:encode ]
         -I  <FILE>                  set input path
         -g  <ADDR|SYMBOL>           set function filter
+        -q  <NAME{{:VALUE}}>          set environment variables
         -v                          verbose
                         '''.format(cmd, mode)
 
                     helpStr += '''
 Examples:
-    - Print ELF infomation of specific file
+    - Print ELF infomation of a specific file
         # {0:1} {1:1} -I /usr/bin/yes
+
+    - Print ELF infomation of a specific file with LLVM demangler
+        # {0:1} {1:1} -I /usr/bin/yes -q LIBLLVM:libLLVM-10.so
 
     - Print vDSO infomation
         # {0:1} {1:1} -I vdso
@@ -31403,13 +31499,15 @@ Copyright:
                     "no input value for COMM or TID")
                 sys.exit(0)
 
-            # convert comm to pid #
             targetList = []
             sibling = SysMgr.groupProcEnable
-            for item in targets:
-                targetList += SysMgr.getTids(item, sibling=sibling)
+
+            # convert comm to tid #
+            targetList = SysMgr.convTaskList(
+                targets, isThread=True, exceptMe=True, sibling=sibling)
             targetList = list(set(targetList))
 
+            # check target list #
             if not targetList:
                 SysMgr.printErr(
                     "no task related to '%s'" % ', '.join(targets))
@@ -32864,7 +32962,7 @@ Copyright:
         elif ucmd == 'AFFINITY' or cmd == 'a':
             if len(ulist) > 2:
                 pids = (' '.join(ulist[2:])).split(',')
-                pids = SysMgr.convPidList(pids, isThread=True)
+                pids = SysMgr.convTaskList(pids, isThread=True)
                 SysMgr.setAffinity(ulist[1], pids)
             else:
                 _printHelp()
@@ -35207,7 +35305,7 @@ Copyright:
         else:
             filterGroup = [str(SysMgr.pid)]
 
-        pids = SysMgr.convPidList(filterGroup, exceptMe=True)
+        pids = SysMgr.convTaskList(filterGroup, exceptMe=True)
         if not pids:
             SysMgr.printErr("fail to find %s process" % \
                 ', '.join(filterGroup))
@@ -35476,8 +35574,8 @@ Copyright:
         cmd, version = struct.unpack(str('=BBxx'), data[:4])
         data = data[4:]
 
-        attrs = dict(
-            zip(TASKSTATS_FIELD, struct.unpack(TASKSTATS_STRUCT, data[16:344])))
+        attrs = dict(zip(TASKSTATS_FIELD,
+            struct.unpack(TASKSTATS_STRUCT, data[16:344])))
         attrs['ac_comm'] = attrs['ac_comm'].decode().rstrip('\0')
 
         return attrs
@@ -35989,13 +36087,13 @@ Copyright:
         # get pids #
         if not inputParam:
             # convert comm to pid #
-            pids = SysMgr.convPidList(
+            pids = SysMgr.convTaskList(
                 SysMgr.filterGroup, isThread=True,
                     sibling=SysMgr.groupProcEnable)
 
             # get pids of process groups #
             if mode == 'breakcall' or mode == 'pytrace':
-                allpids = SysMgr.convPidList(
+                allpids = SysMgr.convTaskList(
                     SysMgr.filterGroup, isThread=True, sibling=True)
             else:
                 allpids = pids
@@ -36222,7 +36320,7 @@ Copyright:
         pids = list(set(taskList))
         procInfo = ''
 
-        # single file #
+        # a single file #
         if not pids:
             # check file #
             if not os.path.isfile(inputArg):
@@ -36235,7 +36333,7 @@ Copyright:
 
             filePath = inputArg
 
-            # create ELF object #
+            # create an ELF object #
             try:
                 binObj = ElfAnalyzer.getObject(filePath)
                 if not binObj:
@@ -36265,7 +36363,7 @@ Copyright:
                 "fail to select a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
-        # single process #
+        # a single process #
         else:
             pid = pids[0]
             comm = SysMgr.getComm(pid)
@@ -36684,6 +36782,7 @@ Copyright:
             SysMgr.printErr("fail to get memory map for %s" % procInfo)
             return resInfo
 
+        # apply file filter #
         if fileFilter:
             newFileList = {}
             if type(fileFilter) is str:
@@ -36701,11 +36800,16 @@ Copyright:
                 sys.exit(0)
             fileList = newFileList
 
+        # scan files #
         magicStr = SysMgr.magicStr
         for filePath, attr in sorted(
             fileList.items(), key=lambda e: e[1]['vstart']):
+            # skip invalid file #
+            if not FileAnalyzer.isValidFile(filePath, special=True):
+                continue
+
             for sym in symbolList:
-                # create ELF object #
+                # create an ELF object #
                 try:
                     if magicStr in filePath:
                         origFilePath = filePath[:filePath.rfind(magicStr)]
@@ -36754,8 +36858,11 @@ Copyright:
     @staticmethod
     def setDwarfFlag():
         # check DWARF requirement #
-        if not SysMgr.dwarfEnable and \
-            (SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM'):
+        if SysMgr.dwarfEnable:
+            return
+
+        # enable DWARF by default except for ARM #
+        if SysMgr.arch != 'AARCH64' or SysMgr.arch != 'ARM':
             disableList = SysMgr.getOption('d')
             if not disableList or not 'D' in disableList:
                 SysMgr.dwarfEnable = True
@@ -36777,6 +36884,9 @@ Copyright:
             sys.exit(0)
 
         for path in inputArg:
+            SysMgr.printStat(
+                r"start traversing ext4 filesystem from [%s]..." % path)
+
             # make an ext4 object #
             try:
                 eobj = Ext4Analyzer(path)
@@ -36810,6 +36920,7 @@ Copyright:
                 SysMgr.printPipe(
                     '{0:>12} {1:>6} {2:>1}'.format(
                         inode, values['type'], fpath))
+            SysMgr.printPipe(oneLine)
 
 
 
@@ -36927,7 +37038,7 @@ Copyright:
         pids = list(set(taskList))
         procInfo = ''
 
-        # single file #
+        # a single file #
         if not pids:
             # check file #
             if not os.path.isfile(inputArg):
@@ -36938,7 +37049,7 @@ Copyright:
             filePath = inputArg
 
             for sym in SysMgr.filterGroup:
-                # create ELF object #
+                # create an ELF object #
                 try:
                     offset = ElfAnalyzer.getSymOffset(sym, inputArg)
                     if not offset:
@@ -36962,7 +37073,7 @@ Copyright:
                 "fail to select a unique process because "
                 "[ %s ] are found") % SysMgr.getCommList(pids))
             sys.exit(0)
-        # single process #
+        # a single process #
         else:
             pid = pids[0]
             comm = SysMgr.getComm(pid)
@@ -37131,7 +37242,7 @@ Copyright:
         pid = None
         isMulti = False
         startTime = endTime = 0
-        pids = SysMgr.convPidList(targetList, exceptMe=True)
+        pids = SysMgr.convTaskList(targetList, exceptMe=True)
         if not pids:
             SysMgr.printErr("no '%s' process" % ', '.join(targetList))
             sys.exit(0)
@@ -39893,7 +40004,7 @@ Copyright:
             obj.printSystemUsage()
 
             # process task stat #
-            obj.printProcUsage()
+            obj.printTaskUsage()
         else:
             # process system stat #
             obj.printSystemStat()
@@ -40114,7 +40225,7 @@ Copyright:
 
 
     @staticmethod
-    def convPidList(
+    def convTaskList(
         procList, isThread=False, exceptMe=False,
         sibling=False, inc=False, cache=False):
 
@@ -40207,7 +40318,7 @@ Copyright:
             pass
 
         # convert comm to pid #
-        targets = SysMgr.convPidList(
+        targets = SysMgr.convTaskList(
             argList, isThread=isThread, exceptMe=True)
         if targets:
             targetList = targets
@@ -40772,8 +40883,25 @@ Copyright:
 
 
     @staticmethod
+    def hasStty():
+        if SysMgr.sttyEnable:
+            return True
+        elif SysMgr.sttyEnable is False:
+            return False
+
+        if UtilMgr.which('stty'):
+            SysMgr.sttyEnable = True
+        else:
+            SysMgr.sttyEnable = False
+        return SysMgr.sttyEnable
+
+
+
+    @staticmethod
     def resetTTY():
         if not SysMgr.isLinux:
+            return
+        elif not SysMgr.hasStty():
             return
 
         # reset terminal for recovery #
@@ -40823,7 +40951,7 @@ Copyright:
 
         # set terminal size by command #
         try:
-            if not UtilMgr.which('stty'):
+            if not SysMgr.hasStty():
                 return
 
             os.system('stty rows %d 2> %s' % (long(rows), SysMgr.nullPath))
@@ -40869,7 +40997,7 @@ Copyright:
 
         # update tty info by stty #
         try:
-            if not UtilMgr.which('stty'):
+            if not SysMgr.hasStty():
                 raise Exception("no stty")
 
             subprocess = SysMgr.getPkg('subprocess', False)
@@ -46099,7 +46227,7 @@ class DbusMgr(object):
 
             # print resource usage of tasks #
             taskManager.printSystemUsage()
-            taskManager.printProcUsage()
+            taskManager.printTaskUsage()
             taskManager.reinitStats()
             SysMgr.printTopStats()
 
@@ -47053,7 +47181,7 @@ class DltAnalyzer(object):
 
         # print daemon stat #
         if saved:
-            DltAnalyzer.procInfo.printProcUsage()
+            DltAnalyzer.procInfo.printTaskUsage()
             DltAnalyzer.procInfo.reinitStats()
         else:
             SysMgr.addPrint('%s\n' % twoLine)
@@ -51520,7 +51648,7 @@ struct cmsghdr {
             self.setSP(newSP)
             ret = self.writeMem(newSP, b'\x00' * wordSize)
         elif self.arch == 'x86':
-            # toDo: save all args to stack and install the trap finally #
+            # TODO: save all args to stack and install the trap finally #
             SysMgr.printErr(
                 "fail to set trap for return because %s is not supported" % \
                     self.arch)
@@ -52432,7 +52560,7 @@ struct cmsghdr {
         syscall = self.syscall
 
         '''
-        toDo:
+        TODO:
         1. convert a integer or mask values
         2. process_vm_readv
         '''
@@ -52470,7 +52598,7 @@ struct cmsghdr {
                     value, ConfigMgr.OPEN_TYPE, num='oct')
         elif syscall == "execve":
             if argname in ("argv", "envp"):
-                # toDo: handle double pointer values #
+                # TODO: handle double pointer values #
                 return value
         elif syscall == "ptrace" and argname == "request":
             try:
@@ -52488,7 +52616,7 @@ struct cmsghdr {
                 except:
                     return value
             elif argname == "args":
-                # toDo: handle socket call args #
+                # TODO: handle socket call args #
                 return value
         elif syscall == 'access':
             if argname == 'mode':
@@ -52649,10 +52777,10 @@ struct cmsghdr {
         if argtype.startswith("const "):
             argtype = argtype[6:]
 
-        # toDo: handle file path #
+        # TODO: handle file path #
         pass
 
-        # toDo: handle pointer data type #
+        # TODO: handle pointer data type #
         if argtype[-1] == '*':
             return value
 
@@ -53421,12 +53549,20 @@ struct cmsghdr {
                 self.dftBpFileList[fpath] = 0
 
         # load file-mapped objects #
+        ret = False
         printLog = True
         for mfile in list(self.pmap.keys()):
             try:
+                # check file validation #
+                if mfile in ElfAnalyzer.cachedFiles or \
+                    not FileAnalyzer.isValidFile(mfile, special=True):
+                    continue
+
+                # load object #
                 eobj = ElfAnalyzer.getObject(
                     mfile, overlay=self.overlayfsList, log=printLog)
                 if eobj:
+                    ret = True
                     eobj.mergeSymTable(onlyFunc=onlyFunc)
                     if printLog:
                         printLog = False
@@ -53449,7 +53585,7 @@ struct cmsghdr {
         if needStop:
             self.cont()
 
-        return True
+        return ret
 
 
 
@@ -54261,7 +54397,7 @@ struct cmsghdr {
         idx = UtilMgr.bisect_left(\
             fobj.attr['dwarf']['CFAIndex'], foffset) - 1
         faddr = fobj.attr['dwarf']['CFAIndex'][idx]
-        # toDo: check function scope from faddr #
+        # TODO: check function scope from faddr #
         if not faddr in fobj.attr['dwarf']['CFATable']:
             SysMgr.printWarn(
                 'fail to find CFA table info for %s(%s) in %s' % \
@@ -54901,8 +55037,11 @@ struct cmsghdr {
         if self.needMapScan or \
             (not self.libcLoaded and \
                 (sym.startswith('__libc_') or sym.startswith('malloc'))):
+            # load symbols from new objects #
             if self.loadSymbols():
                 self.updateBpList(verb=False)
+
+            # set update flag #
             self.needMapScan = False
 
         # check calls for memory map update #
@@ -55665,7 +55804,7 @@ struct cmsghdr {
         # read PyThreadState #
         frameList = self.readPyState(pyThreadStateP)
 
-        # toDo: get GIL usage by comparing thread_id with pthread_self() #
+        # TODO: get GIL usage by comparing thread_id with pthread_self() #
         nrThread = len(frameList)
 
         # get top-level frame for target task #
@@ -57045,7 +57184,7 @@ struct cmsghdr {
             self.bpNewList[pos] = self.bpList[pos]
 
         # register function entry time #
-        # toDo: handle stack for no return procesure such like PLT #
+        # TODO: handle stack for no return procesure such like PLT #
         self.entryTime.setdefault(sym, list())
         self.entryTime[sym].append(self.vdiff)
 
@@ -58100,6 +58239,13 @@ PTRACE_TRACEME. Once set, this sysctl value cannot be changed.
         except:
             SysMgr.printErr(
                 'fail to pause thread %s' % lastTid, True)
+        finally:
+            # send SIGCONT to targets #
+            for tid in tlist:
+                try:
+                    SysMgr.syscall('tkill', tid, signal.SIGCONT)
+                except:
+                    pass
 
 
 
@@ -60690,10 +60836,10 @@ class ElfAnalyzer(object):
             otime = os.stat(path).st_ctime
             ctime = os.stat(cpath).st_ctime
 
+            # check expired cache #
             if otime > ctime:
                 SysMgr.printWarn(
-                    "'%s' is more recent than the cache '%s'" % \
-                        (path, cpath), True)
+                    "'%s' is more recent than the cache '%s'" % (path, cpath))
         except SystemExit:
             sys.exit(0)
         except:
@@ -60710,17 +60856,6 @@ class ElfAnalyzer(object):
             return None
 
         return obj
-
-
-
-    @staticmethod
-    def isLoadableFile(path):
-        if path == 'vsyscall' or \
-            path == 'vvar' or \
-            path == 'stack':
-            return False
-        else:
-            return True
 
 
 
@@ -60905,6 +61040,7 @@ class ElfAnalyzer(object):
 
     @staticmethod
     def demangleSymbol(symbol, incArg=True):
+        # pylint: disable=not-callable
         origSym = symbol
         symbol = symbol.replace('@@', '@')
 
@@ -60928,20 +61064,6 @@ class ElfAnalyzer(object):
             SysMgr.demangleEnable = False
             return symbol
 
-        # strip llvm info #
-        if '.llvm.' in symbol:
-            symbol = symbol[:symbol.find('.llvm.')]
-
-        # remove suffixes for rust legacy #
-        symbol, isRust = ElfAnalyzer.demangleRustSymPre(symbol)
-
-        # check version #
-        if '@' in symbol:
-            symbol, version = symbol.split('@')
-            version = '@%s' % version
-        else:
-            version = ''
-
         # try to demangle symbol #
         try:
             # load libc #
@@ -60949,22 +61071,58 @@ class ElfAnalyzer(object):
 
             # load demangle library #
             if not SysMgr.libdemangleObj:
-                SysMgr.libdemangleObj = SysMgr.loadLib(SysMgr.libdemanglePath)
+                # update libllvm name #
+                if 'LIBLLVM' in SysMgr.environList:
+                    SysMgr.libLLVMPath = SysMgr.environList['LIBLLVM'][0]
 
-            # declare free() args #
-            SysMgr.libcObj.free.argtypes = [c_void_p]
+                # load llvm library #
+                SysMgr.libLLVMObj = SysMgr.libdemangleObj = \
+                    SysMgr.loadLib(SysMgr.libLLVMPath)
 
-            # declare __cxa_demangle() function pointer #
-            funcp = getattr(SysMgr.libdemangleObj, '__cxa_demangle')
-            funcp.restype = c_void_p
+                # load standard library #
+                if not SysMgr.libdemangleObj:
+                    SysMgr.libdemangleObj = \
+                        SysMgr.loadLib(SysMgr.libdemanglePath)
+
+            # declare demangler #
+            if not SysMgr.demangleFunc:
+                # llvm::itaniumDemangle() #
+                llvmFunc = '_ZN4llvm15itaniumDemangleEPKcPcPmPi'
+                if hasattr(SysMgr.libdemangleObj, llvmFunc):
+                    SysMgr.demangleFunc = \
+                        getattr(SysMgr.libdemangleObj, llvmFunc)
+                # __cxa_demangle() #
+                else:
+                    SysMgr.demangleFunc = \
+                        getattr(SysMgr.libdemangleObj, '__cxa_demangle')
+
+                # define return type for demangler #
+                SysMgr.demangleFunc.restype = c_void_p
+
+                # define arg types for free() #
+                SysMgr.libcObj.free.argtypes = [c_void_p]
+
+            # strip llvm info #
+            if '.llvm.' in symbol:
+                symbol = symbol[:symbol.find('.llvm.')]
+
+            # remove suffixes for rust legacy #
+            symbol, isRust = ElfAnalyzer.demangleRustSymPre(symbol)
+
+            # check version #
+            if '@' in symbol:
+                symbol, version = symbol.split('@')
+                version = '@%s' % version
+            else:
+                version = ''
 
             # init variables #
+            funcp = SysMgr.demangleFunc
             status = c_int()
             mSymbol = c_char_p(UtilMgr.encodeStr(symbol))
 
             # call to demangle symbol #
-            ret = funcp(mSymbol, None, None, pointer(status))
-
+            ret = funcp(mSymbol, 0, 0, pointer(status))
             retc = cast(ret, c_char_p)
 
             # check 1st return status #
@@ -61029,7 +61187,7 @@ class ElfAnalyzer(object):
 
             # demangle symbols for java #
             '''
-            toDo: implement demangleJavaSym()
+            TODO: implement demangleJavaSym()
             dmSymbol = ElfAnalyzer.demangleJavaSym(dmSymbol)
             '''
 
@@ -61092,10 +61250,9 @@ class ElfAnalyzer(object):
             except SystemExit:
                 sys.exit(0)
             except:
-                if ElfAnalyzer.isLoadableFile(binPath):
-                    SysMgr.printWarn(
-                        'fail to get offset for %s from %s' % \
-                            (symbol, binPath), reason=True)
+                SysMgr.printWarn(
+                    'fail to get offset for %s from %s' % \
+                        (symbol, binPath), reason=True)
                 return None
 
             if type(offsets) is str:
@@ -63081,7 +63238,7 @@ Section header string table index: %d
             e_shframe = e_shehframe
         elif '.debug_frame' in self.attr['sectionHeader'] and \
             self.attr['sectionHeader']['.debug_frame']['type'] != 'NOBITS':
-            # toDo: need to implement more for DWARF v4 #
+            # TODO: need to implement more for DWARF v4 #
             frameSectName = 'debug_frame'
             e_shframe = e_shdbgframe
         elif '.zdebug_frame' in self.attr['sectionHeader'] and \
@@ -65260,6 +65417,7 @@ class TaskAnalyzer(object):
             self.nrProcess = long(0)
             self.nrPrevProcess = long(0)
             self.nrFd = long(0)
+            self.printTick = long(0)
             self.maxPid = SysMgr.pid
             self.procData = {}
             self.prevProcData = {}
@@ -65312,6 +65470,13 @@ class TaskAnalyzer(object):
             except:
                 SysMgr.printWarn(
                     "fail to initialize netlink", reason=True)
+
+            # check task stream flag #
+            if 'TASKSTREAM' in SysMgr.environList:
+                self.taskStreamEnable = True
+                SysMgr.printStreamEnable = True
+            else:
+                self.taskStreamEnable = False
 
             # check to return just instance #
             if onlyInstance:
@@ -65999,6 +66164,8 @@ class TaskAnalyzer(object):
         context = None
         totalRam = None
 
+        convSize = UtilMgr.convUnit2Size
+
         # get total size #
         try:
             totalSize = os.stat(logFile).st_size
@@ -66051,12 +66218,12 @@ class TaskAnalyzer(object):
                     sline = line[strPos:].split()
 
                     try:
-                        totalRam = UtilMgr.convUnit2Size(sline[1][:-1])
+                        totalRam = convSize(sline[1][:-1])
                     except:
                         pass
 
                     try:
-                        totalSwap = UtilMgr.convUnit2Size(sline[3][:-1])
+                        totalSwap = convSize(sline[3][:-1])
                     except:
                         totalSwap = None
 
@@ -66572,12 +66739,9 @@ class TaskAnalyzer(object):
                     for item in intervalList.split():
                         busy, read, write, free = item.split('/')
                         busyList.append(busy)
-                        readList.append(
-                            UtilMgr.convUnit2Size(read) >> 10)
-                        writeList.append(
-                            UtilMgr.convUnit2Size(write) >> 10)
-                        freeList.append(
-                            UtilMgr.convUnit2Size(free) >> 10)
+                        readList.append(convSize(read) >> 10)
+                        writeList.append(convSize(write) >> 10)
+                        freeList.append(convSize(free) >> 10)
 
                     # save previous info #
                     storageUsage[sname]['busy'] = busyList
@@ -66603,10 +66767,8 @@ class TaskAnalyzer(object):
                     # convert previous stats e
                     for item in intervalList.split():
                         recv, tran = item.split('/')
-                        recvList.append(
-                            UtilMgr.convUnit2Size(recv) >> 10)
-                        tranList.append(
-                            UtilMgr.convUnit2Size(tran) >> 10)
+                        recvList.append(convSize(recv) >> 10)
+                        tranList.append(convSize(tran) >> 10)
 
                     # save previous info #
                     networkUsage[sname]['recv'] = recvList
@@ -67053,7 +67215,7 @@ class TaskAnalyzer(object):
         if type(flist) is str:
             flist = [flist]
 
-        # get stats from single file #
+        # get stats from a single file #
         if len(flist) == 1:
             logFile = flist[0]
 
@@ -69965,7 +70127,7 @@ class TaskAnalyzer(object):
             SysMgr.printPipe('\n[Thread CUSTOM Event Info]')
             SysMgr.printPipe(twoLine)
             SysMgr.printPipe(
-                "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10} {5:>10}".\
+                "{0:^32} {1:>32}({2:>7}) {3:>10} {4:>10} {5:>10}".\
                 format('Event', 'COMM', 'TID', 'Count',
                 'MaxPeriod', 'MinPeriod'))
             SysMgr.printPipe(twoLine)
@@ -69979,7 +70141,7 @@ class TaskAnalyzer(object):
                     newLine = True
 
                 SysMgr.printPipe(
-                    "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".\
+                    "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".\
                     format(idx, 'TOTAL', '-', val['count'], val['maxPeriod'],
                     val['minPeriod']))
 
@@ -69993,12 +70155,13 @@ class TaskAnalyzer(object):
                     except:
                         continue
 
-                    SysMgr.printPipe(
-                        "{0:^32} {1:>16}({2:>7}) {3:>10} {4:>10.6f} {5:>10.6f}".\
-                        format(' ', self.threadData[key]['comm'], key,
-                        value[idx]['count'], value[idx]['maxPeriod'],
-                        value[idx]['minPeriod']))
-            SysMgr.printPipe(oneLine)
+                    SysMgr.printPipe((
+                        "{0:<32} {1:>32}({2:>7}) {3:>10} {4:>10.6f} "
+                        "{5:>10.6f}").format(
+                            ' ', self.threadData[key]['comm'], key,
+                            value[idx]['count'], value[idx]['maxPeriod'],
+                            value[idx]['minPeriod']))
+                SysMgr.printPipe(oneLine)
 
         # print custom event history #
         if SysMgr.showAll and len(self.customEventData) > 0:
@@ -70025,8 +70188,8 @@ class TaskAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe(
-                    "{0:^32} {1:>10.6f} {2:>16}({3:>7}) {4:<1}".\
-                    format(val[0], val[3], val[1], val[2], val[4]))
+                    "{0:<32} {1:>10.6f} {2:>16}({3:>7}) {4:<1}".format(
+                        val[0], val[3], val[1][:16], val[2], val[4]))
             if cnt == 0:
                 SysMgr.printPipe("\tNone")
             SysMgr.printPipe(oneLine)
@@ -70052,7 +70215,7 @@ class TaskAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'], val['count'],
                     val['max'], val['min'], val['maxPeriod'], val['minPeriod']))
@@ -70068,12 +70231,12 @@ class TaskAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
-                        "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                        format(' ', self.threadData[key]['comm'], key,
-                        value[idx]['usage'], value[idx]['count'],
-                        value[idx]['max'], value[idx]['min'],
-                        value[idx]['maxPeriod'], value[idx]['minPeriod']))
+                        ("{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
+                        "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").format(
+                            ' ', self.threadData[key]['comm'][:16], key,
+                            value[idx]['usage'], value[idx]['count'],
+                            value[idx]['max'], value[idx]['min'],
+                            value[idx]['maxPeriod'], value[idx]['minPeriod']))
             SysMgr.printPipe(oneLine)
 
         # print user event history #
@@ -70114,9 +70277,9 @@ class TaskAnalyzer(object):
 
                 cnt += 1
                 SysMgr.printPipe((
-                    "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
+                    "{0:<32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
                     "{5:>16} {6:>10}").\
-                    format(val[1], val[0], val[4], val[2],
+                    format(val[1], val[0], val[4], val[2][:16],
                     val[3], val[5], elapsed))
             if cnt == 0:
                 SysMgr.printPipe("\tNone")
@@ -70143,7 +70306,7 @@ class TaskAnalyzer(object):
                 else:
                     newLine = True
                 SysMgr.printPipe(
-                    ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
+                    ("{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} {5:>10.6f} "
                     "{6:>10.6f} {7:>10.6f} {8:>10.6f}").\
                     format(idx, 'TOTAL', '-', val['usage'],
                     val['count'], val['max'], val['min'],
@@ -70160,9 +70323,9 @@ class TaskAnalyzer(object):
                         continue
 
                     SysMgr.printPipe(
-                        ("{0:^32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
+                        ("{0:<32} {1:>16}({2:>7}) {3:>10.6f} {4:>10} "
                         "{5:>10.6f} {6:>10.6f} {7:>10.6f} {8:>10.6f}").\
-                        format(' ', self.threadData[key]['comm'], key,
+                        format(' ', self.threadData[key]['comm'][:16], key,
                         value[idx]['usage'], value[idx]['count'],
                         value[idx]['max'], value[idx]['min'],
                         value[idx]['maxPeriod'], value[idx]['minPeriod']))
@@ -70210,9 +70373,9 @@ class TaskAnalyzer(object):
             cnt += 1
             args = (' '.join(val[7].split(' arg'))).replace('=','>')
             SysMgr.printPipe((
-                "{0:^32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
+                "{0:<32} {1:>6} {2:>10.6f} {3:>16}({4:>7}) "
                 "{5:>22} {6:>10} {7:<1}").\
-                format(val[1], val[0], val[5], val[3],
+                format(val[1], val[0], val[5], val[3][:16],
                 val[4], val[6], elapsed, args))
         if cnt == 0:
             SysMgr.printPipe("\tNone")
@@ -71289,9 +71452,9 @@ class TaskAnalyzer(object):
             '\n[Thread Futex Lock History] (Unit: Sec/NR)')
         SysMgr.printPipe(twoLine)
         SysMgr.printPipe((
-            "{0:>12} {1:>16}{2:>17} {3:>4} {4:^24} " + \
-            "{5:^10} {6:>12} {7:>16} {8:>16} {9:>16}").\
-            format("Time", "Name", "(  Tid/  Pid)", "Core", "Operation",
+            "{0:>12} {1:>16}({2:>7}/{3:>7}) {4:>4} {5:^24} " + \
+            "{6:^10} {7:>12} {8:>16} {9:>16} {10:>16}").\
+            format("Time", "Name", "Tid", "Pid", "Core", "Operation",
              "Type", "Elapsed", "Target", "Value", "Timer"))
         SysMgr.printPipe(twoLine)
 
@@ -71307,7 +71470,7 @@ class TaskAnalyzer(object):
                 time = '%.6f' % (atime - float(SysMgr.startTime))
 
                 comm = self.threadData[value[0]]['comm']
-                tid = '(%6s/%6s)' % \
+                tid = '(%7s/%7s)' % \
                     (value[0], self.threadData[value[0]]['tgid'])
                 core = value[2]
 
@@ -72047,7 +72210,7 @@ class TaskAnalyzer(object):
 
     def printFsInfo(self):
         # check fs data #
-        if not self.fsTable:
+        if not self.fsTable or not self.fsTable[0]:
             return
 
         # print menu #
@@ -72060,6 +72223,27 @@ class TaskAnalyzer(object):
 
         convSize = UtilMgr.convSize2Unit
 
+        # merge target inode list #
+        inodeList = {}
+        if self.fsTable[0]:
+            for value in self.fsTable[0].values():
+                inodeList.update(value)
+
+        # make target inode filter #
+        inodeInfo = {}
+        inodeFilter = []
+        mountInfo = SysMgr.savedMountTree
+        for did in list(inodeList.keys()):
+            inodeFilter += list(inodeList[did].keys())
+        inodeFilter = list(set(inodeFilter))
+
+        # get target inode info #
+        if 'CONVINODE' in SysMgr.environList:
+            targetDir = '/'
+            SysMgr.printStat(
+                r"start traversing inodes from [%s]..." % targetDir)
+            inodeInfo = UtilMgr.getInodes(targetDir, inodeFilter=inodeFilter)
+
         # TOTAL #
         for op, data in sorted(self.fsTable[0].items(),
             key=lambda e:e[1], reverse=True):
@@ -72068,7 +72252,6 @@ class TaskAnalyzer(object):
 
             for did, item in sorted(data.items()):
                 try:
-                    mountInfo = SysMgr.savedMountTree
                     fs = mountInfo[did]['filesystem']
                     mountdata = mountInfo[did]['mount']
                     if mountdata == '-':
@@ -72097,7 +72280,10 @@ class TaskAnalyzer(object):
                     use a below command to convert inode to path
                     # debugfs -R 'ncheck INODE' DEVNODE_PATH
                     '''
-                    path = ' '
+                    if did in inodeInfo and inode in inodeInfo[did]:
+                        path = inodeInfo[did][inode]
+                    else:
+                        path = ' '
 
                     inodeStr = '%s%s'  % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -72130,9 +72316,12 @@ class TaskAnalyzer(object):
 
                 for did, item in sorted(data.items()):
                     try:
-                        mountInfo = SysMgr.savedMountTree
-                        dev = mountInfo[did]['dev']
                         fs = mountInfo[did]['filesystem']
+                        mountdata = mountInfo[did]['mount']
+                        if mountdata == '-':
+                            dev = mountInfo[did]['dev']
+                        else:
+                            dev = mountdata
                     except SystemExit:
                         sys.exit(0)
                     except:
@@ -72155,7 +72344,10 @@ class TaskAnalyzer(object):
                         use a below command to convert inode to path
                         # debugfs -R 'ncheck INODE' DEVNODE_PATH
                         '''
-                        path = ' '
+                        if did in inodeInfo and inode in inodeInfo[did]:
+                            path = inodeInfo[did][inode]
+                        else:
+                            path = ' '
 
                         inodeStr = '%s%s'  % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -74651,6 +74843,8 @@ class TaskAnalyzer(object):
                    convSize2Unit(val['read'], True),
                    convSize2Unit(val['write'], True),
                    convSize2Unit(val['free'], True))
+            except SystemExit:
+                sys.exit(0)
             except:
                 continue
 
@@ -74672,6 +74866,8 @@ class TaskAnalyzer(object):
                         convSize2Unit(stats['read'], True),
                         convSize2Unit(stats['write'], True),
                         convSize2Unit(stats['free'], True))
+                except SystemExit:
+                    sys.exit(0)
                 except:
                     usage = '0/0/0/0'
 
@@ -78502,7 +78698,7 @@ class TaskAnalyzer(object):
                 self.threadData[tid]['lastOff'] = ftime
 
         elif func == "cpu_frequency":
-            # toDo: calculate power consumption for DVFS system #
+            # TODO: calculate power consumption for DVFS system #
             SysMgr.powerEnable = True
             return time
 
@@ -79104,7 +79300,7 @@ class TaskAnalyzer(object):
 
         # get process list #
         if procFilter:
-            pids = SysMgr.convPidList(
+            pids = SysMgr.convTaskList(
                 procFilter, isThread=True, inc=True)
             newPids = []
             for pid in pids:
@@ -82660,9 +82856,18 @@ class TaskAnalyzer(object):
             except:
                 writeSize = long(0)
 
-            total = convSize2Unit(value['total'] << 20)
+            # get other stats #
+            if value['total'] > 0:
+                total = convSize2Unit(value['total'] << 20)
+                free = convSize2Unit(value['free'] << 20)
+                favail = '%7s' % convSize2Unit(value['favail'])
+                if value['favail'] == 0:
+                    favail = '%s' % UtilMgr.convColor(favail, 'RED')
 
-            free = convSize2Unit(value['free'] << 20)
+                fs = value['mount']['fs']
+                path = value['mount']['path']
+            else:
+                total = free = favail = fs = path = '-'
 
             # get free space change on this interval #
             try:
@@ -82690,15 +82895,8 @@ class TaskAnalyzer(object):
             elif value['usagePer'] > 0:
                 usePer = '%s' % UtilMgr.convColor(usePer, 'YELLOW')
 
-            favail = '%7s' % convSize2Unit(value['favail'])
-            if value['favail'] == 0:
-                favail = '%s' % UtilMgr.convColor(favail, 'RED')
-
-            fs = value['mount']['fs']
-            path = value['mount']['path']
-            option = value['mount']['option']
-
             # make disk stat string #
+            option = value['mount']['option']
             if option:
                 mountInfo = '%s <%s>' % (path, option)
             else:
@@ -82706,9 +82904,9 @@ class TaskAnalyzer(object):
 
             diskInfo = \
                 ("{0:<24}|{1:>4}|{2:>5}|{3:>7}|{4:>7}|{5:>7}({6:>7})|"
-                "{7:>5}|{8:>7}|{9:>7}|{10:^8}| {11:<52}|\n").\
-                format(dev, busytime, avq, readSize, writeSize, free,
-                freeDiff, usePer, total, favail, fs, mountInfo[:51])
+                "{7:>5}|{8:>7}|{9:>7}|{10:^8}| {11:<52}|\n").format(
+                    dev[-24:], busytime, avq, readSize, writeSize, free,
+                    freeDiff, usePer, total, favail, fs, mountInfo[:51])
 
             if SysMgr.checkCutCond():
                 return
@@ -82953,7 +83151,7 @@ class TaskAnalyzer(object):
 
 
 
-    def printProcUsage(self, idIndex=False):
+    def printTaskUsage(self, idIndex=False):
         def _isBreakCond(idx, value):
             # define target #
             if not SysMgr.sort or SysMgr.sort == 'c':
@@ -83299,21 +83497,25 @@ class TaskAnalyzer(object):
             SysMgr.jsonData.setdefault(jtype, dict())
             jsonData = SysMgr.jsonData[jtype]
 
+        # increase print tick #
+        self.printTick += 1
+
         # print menu #
-        ret = SysMgr.addPrint((
-            "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
-            "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
-            "{9:>4}({10:>4}/{11:^3}/{12:^3}/{13:^3})|"
-            "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
-            "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
-                format(mode, pidType, ppidType, "Nr", "Pri",
-                    "CPU", "Usr", "Ker", dprop,
-                    "VSS", mem, "Txt", "Shr", "Swp",
-                    "Blk", "RD", "WR", "NrFlt",
-                    sidType, pgrpType, "FD", "LifeTime", etc,
-                    oneLine, twoLine, cl=cl, pd=pd), newline=3)
-        if not ret:
-            return
+        if not self.taskStreamEnable or self.printTick <= 1:
+            ret = SysMgr.addPrint((
+                "{24:1}\n{0:>{cl}} ({1:>{pd}}/{2:>{pd}}/{3:>4}/{4:>4})|"
+                "{5:>4}({6:^3}/{7:^3}/{8:^3})|"
+                "{9:>4}({10:>4}/{11:^3}/{12:^3}/{13:^3})|"
+                "{14:>4}({15:>4}/{16:>4}/{17:>5})|"
+                "{18:^5}|{19:^6}|{20:^4}|{21:>9}|{22:^21}|\n{23:1}\n").\
+                    format(mode, pidType, ppidType, "Nr", "Pri",
+                        "CPU", "Usr", "Ker", dprop,
+                        "VSS", mem, "Txt", "Shr", "Swp",
+                        "Blk", "RD", "WR", "NrFlt",
+                        sidType, pgrpType, "FD", "LifeTime", etc,
+                        oneLine, twoLine, cl=cl, pd=pd), newline=3)
+            if not ret:
+                return
 
         # set sort value #
         sortedProcData = self.getSortedProcData()
@@ -83669,6 +83871,10 @@ class TaskAnalyzer(object):
             if not ret:
                 return
 
+            # check stream flag #
+            if self.taskStreamEnable:
+                continue
+
             # sum stats #
             try:
                 totalStats['ttime'] += value['ttime']
@@ -83869,7 +84075,10 @@ class TaskAnalyzer(object):
             if SysMgr.memEnable:
                 SysMgr.addPrint("%s\n" % oneLine)
 
-        if procCnt > 0:
+        # check stream flag #
+        if self.taskStreamEnable:
+            return
+        elif procCnt > 0:
             # total CPU #
             totalTime = '%6.1f' % totalStats['ttime']
             if totalStats['ttime'] == 0:
@@ -85379,30 +85588,31 @@ class TaskAnalyzer(object):
         title = '[Top Info]'
         nrIndent = len(title)
 
-        # print default stats #
-        self.printDefaultUsage(title)
+        if not self.taskStreamEnable:
+            # print default stats #
+            self.printDefaultUsage(title)
 
-        # print zone stats #
-        self.printZoneUsage(nrIndent)
+            # print zone stats #
+            self.printZoneUsage(nrIndent)
 
-        # print irq stats #
-        self.printIrqUsage(nrIndent)
+            # print irq stats #
+            self.printIrqUsage(nrIndent)
 
-        # print PMU stat #
-        self.printPerfUsage(nrIndent)
+            # print PMU stat #
+            self.printPerfUsage(nrIndent)
 
-        # print system stat #
-        self.printSystemUsage()
+            # print system stat #
+            self.printSystemUsage()
 
-        # print disk stat #
-        self.printDiskUsage()
+            # print disk stat #
+            self.printDiskUsage()
 
-        # print network stat #
-        self.printNetworkUsage()
+            # print network stat #
+            self.printNetworkUsage()
 
         # print process stat #
         if target == 'task':
-            self.printProcUsage(idIndex=idIndex)
+            self.printTaskUsage(idIndex=idIndex)
         elif target == 'cgroup':
             self.printCgroupUsage()
         else:
