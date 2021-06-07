@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210606"
+__revision__ = "210607"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4168,11 +4168,13 @@ class UtilMgr(object):
         inodeList = {}
 
         for r, d, f in os.walk(path):
-            # print progress #
-            UtilMgr.printProgress()
-
             # get full path for upper dir #
             fdir = os.path.abspath(r)
+            if not FileAnalyzer.isValidFile(fdir):
+                continue
+
+            # print progress #
+            UtilMgr.printProgress()
 
             for name in (f+d):
                 # get full path for file ##
@@ -7396,7 +7398,7 @@ class Timeline(object):
 
             dwg.add(dwg.line(
                 (0, y_tick), (self.config.WIDTH, y_tick),
-                stroke='black', stroke_width=0.1))
+                stroke='black', stroke_width=2))
 
             dwg.add(dwg.text(
                 name, (self.config.FONT_SIZE, y_tick+self.scaled_height),
@@ -7405,15 +7407,23 @@ class Timeline(object):
 
 
 
-    def _draw_time_axis(self, dwg):
+    def _draw_time_axis(self, dwg, start=None):
         dwg.add(dwg.rect(
             (0, self.config.HEIGHT),
             (self.config.WIDTH, self.config.TIME_AXIS_HEIGHT), fill='black'))
 
         y_time_tick = self.config.HEIGHT + self.config.TIME_AXIS_HEIGHT / 2
+        ratio = 1 / self.ratio
+
+        # set time delta #
+        if start:
+            start = float(start) / self.time_factor
+        else:
+            start = 0
 
         for x_tick_time in range(0, self.config.WIDTH, self.config.TICKS):
-            tick_time = "{:10}".format(long(x_tick_time * (1 / self.ratio)))
+            abs_x_tick_time = (x_tick_time * ratio) + start
+            tick_time = "{:10}".format(long(abs_x_tick_time))
             dwg.add(dwg.text(
                 '%s %s' % (UtilMgr.convNum(tick_time), self.time_unit),
                 (x_tick_time, y_time_tick + self.config.FONT_SIZE*5),
@@ -7640,11 +7650,11 @@ class Timeline(object):
 
 
 
-    def draw(self, dwg):
+    def draw(self, dwg, start=None):
         self._draw_background(dwg)
         self._draw_grid(dwg)
         self._draw_group_axis(dwg)
-        self._draw_time_axis(dwg)
+        self._draw_time_axis(dwg, start)
         self._draw_segments(dwg)
 
 
@@ -7711,7 +7721,7 @@ class Timeline(object):
 
         if time_unit:
             SysMgr.printInfo(
-                "apply '%s' in timeunit" % time_unit)
+                "apply '%s' in time unit" % time_unit)
 
         # load segments #
         segments = Timeline._load_segments(data, time_factor)
@@ -17643,7 +17653,7 @@ class SysMgr(object):
     inputParam = None
     outPath = None
 
-    signalCmd = "trap 'kill $$' INT\nsleep 1d\n"
+    signalCmd = "trap 'kill $$' INT\nsleep 32767\n"
     saveCmd = None
     boundaryLine = None
     demangleEnable = True
@@ -18295,6 +18305,8 @@ class SysMgr(object):
                 SysMgr.printErr(
                     "fail to draw because this data is for function")
                 sys.exit(0)
+            elif SysMgr.forceEnable:
+                pass
             else:
                 SysMgr.printErr(
                     "fail to draw because this data is not supported")
@@ -21604,6 +21616,9 @@ Examples:
     - Draw resource graph and timeline graph
         # {0:1} {1:1} guider.dat
 
+    - Draw resource graph and timeline graph forcefully
+        # {0:1} {1:1} guider.dat -f
+
     - Draw resource graph and timeline graph in ns timeunit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
 
@@ -21633,6 +21648,9 @@ Examples:
     - Draw resource graph within specific interval range in second unit
         # {0:1} {1:1} guider.out -q TRIM:9:15
         # {0:1} {1:1} guider.out -q TRIM:0.9:1.5
+
+    - Draw resource graph on absolute timeline
+        # {0:1} {1:1} guider.out -q ABSTIME
 
     - Draw resource graph within specific interval range in index unit
         # {0:1} {1:1} guider.out -q TRIMIDX:0:3
@@ -28089,39 +28107,43 @@ Copyright:
         for line in lines:
             size += len(line)
 
-        SysMgr.printInfo(
-            "wait for writing data to '%s' [%s]" % \
-                (outputFile, UtilMgr.convSize2Unit(size)))
-
         try:
+            # strip trace data #
+            traceData = '\n'.join(lines)
+            magicPos = traceData.rfind(SysMgr.magicStr)
+            if magicPos > 0:
+                traceData = traceData[magicPos:]
+
+            # encoding data #
+            encodedInfoData = SysMgr.systemInfoBuffer.encode('latin-1')
+            encodedTraceData = traceData.encode('latin-1')
+            del traceData
+            totalSize = len(encodedInfoData) + len(encodedTraceData)
+
+            SysMgr.printInfo(
+                "wait for writing data to '%s' [%s]" % \
+                    (outputFile, UtilMgr.convSize2Unit(totalSize)))
+
+            f = open(outputFile, 'wb')
             if compressor:
-                fd = open(outputFile, 'wb')
-                f = compressor.GzipFile(fileobj=fd)
-            else:
-                f = open(outputFile, 'w')
+                f = compressor.GzipFile(fileobj=f)
 
             # write system info #
             if SysMgr.systemInfoBuffer:
                 magicStr = '%s\n' % SysMgr.magicStr
+                magicStr = magicStr.encode('latin-1')
 
-                if compressor:
-                    magicStr = magicStr.encode('utf-8')
-
+                # write start mark #
                 f.write(magicStr)
 
-                if compressor:
-                    f.write(SysMgr.systemInfoBuffer.encode('utf-8'))
-                else:
-                    f.write(SysMgr.systemInfoBuffer)
+                # write info data #
+                f.write(encodedInfoData)
 
+                # write end mark #
                 f.write(magicStr)
 
-            # write trace info #
-            if compressor:
-                f.write('\n'.join(lines).encode('utf-8'))
-            else:
-                f.writelines(lines)
-
+            # write trace info and close file #
+            f.write(encodedTraceData)
             f.close()
 
             # get output size #
@@ -28225,10 +28247,11 @@ Copyright:
                     cmd = 'echo "%s" > %s%s 2>%s\n' % \
                         (str(val), SysMgr.mountPath, path, SysMgr.nullPath)
                     SysMgr.cmdFd.write(cmd)
+                    SysMgr.cmdFd.flush()
                 except SystemExit:
                     sys.exit(0)
                 except:
-                    SysMgr.printErr("fail to write command")
+                    SysMgr.printErr("fail to write command", True)
                     return -1
 
         # open for applying command #
@@ -28675,7 +28698,7 @@ Copyright:
         # parse task tree #
         for pair in procTree:
             try:
-                ids = pair.split(':')
+                ids = pair.split('#')
                 tid = ids[0]
                 pid = ids[1]
 
@@ -28684,7 +28707,7 @@ Copyright:
                     group = pid
                     pidPos = group.find('(')
                     pid = group[:pidPos]
-                    comm = group[pidPos+1:-1]
+                    comm = group[pidPos+1:].rstrip(')')
                     SysMgr.savedProcComm[pid] = comm
 
                 SysMgr.savedProcTree[tid] = pid
@@ -28988,7 +29011,7 @@ Copyright:
     @staticmethod
     def drawTimeline(
         inputPath=None, inputData=None, outputPath=None,
-        configPath=None, configData=None, taskList=None):
+        configPath=None, configData=None, taskList=None, start=None):
 
         def _addUserEvent(inputData):
             if not inputData or \
@@ -29057,7 +29080,7 @@ Copyright:
             timeline = Timeline.load(inputPath, inputData, config, taskList)
 
             # draw timeslices #
-            timeline.draw(dwg)
+            timeline.draw(dwg, start=start)
 
             dwg.save()
         except SystemExit:
@@ -29866,16 +29889,16 @@ Copyright:
 
 
     @staticmethod
-    def printOpenErr(path):
+    def printOpenErr(path, reason=True):
         SysMgr.printErr(
-            'fail to open %s' % path, True)
+            'fail to open %s' % path, reason)
 
 
 
     @staticmethod
-    def printOpenWarn(path, always=False):
+    def printOpenWarn(path, always=False, reason=True):
         SysMgr.printWarn(
-            'fail to open %s' % path, always, reason=True)
+            'fail to open %s' % path, always, reason)
 
 
 
@@ -31080,14 +31103,14 @@ Copyright:
 
                 # change output path #
                 try:
-                    if SysMgr.isWritable(value):
-                        if os.path.isdir(value):
-                            SysMgr.cmdEnable = \
-                                '%s/%s' % (value, SysMgr.cmdFileName)
-                        else:
-                            SysMgr.cmdEnable = value
-                    else:
+                    if not SysMgr.isWritable(value):
                         raise Exception('not writable')
+
+                    if os.path.isdir(value):
+                        SysMgr.cmdEnable = \
+                            '%s/%s' % (value, SysMgr.cmdFileName)
+                    else:
+                        SysMgr.cmdEnable = value
                 except:
                     SysMgr.printErr(
                         "wrong value for command script path" % value)
@@ -41115,7 +41138,7 @@ Copyright:
         procTree = SysMgr.getProcTree()
         self.procData = '!!!!!'
         for tid, pid in procTree.items():
-            self.procData += '%s:%s,' % (tid, pid)
+            self.procData += '%s#%s,' % (tid, pid)
 
         # add comm cache #
         self.procData += '!!!!!'
@@ -42405,15 +42428,18 @@ Copyright:
             if SysMgr.signalCmd:
                 try:
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
+                    SysMgr.cmdFd.flush()
                     SysMgr.signalCmd = None
                     SysMgr.printInfo(
-                        "write commands to %s" % SysMgr.cmdEnable)
+                        "write trace commands to '%s'" % SysMgr.cmdEnable)
+                except SystemExit:
+                    sys.exit(0)
                 except:
-                    SysMgr.printErr("fail to write signal command")
-            elif SysMgr.outputFile:
-                SysMgr.saveCmd =\
-                    'cat %s../trace > %s\n' % \
-                        (SysMgr.mountPath, SysMgr.outputFile)
+                    SysMgr.printErr("fail to write signal commands", True)
+
+            if SysMgr.outputFile:
+                SysMgr.saveCmd = 'cat %s > %s\n' % \
+                    (SysMgr.inputFile, os.path.abspath(SysMgr.outputFile))
 
         # stop tracing #
         SysMgr.writeCmd('../tracing_on', '0')
@@ -42441,10 +42467,13 @@ Copyright:
             try:
                 SysMgr.cmdFd.write(SysMgr.saveCmd)
                 SysMgr.cmdFd.write(
-                    "echo '\nsaved command for tracing into %s\n'\n"\
-                    % SysMgr.outputFile)
+                    "echo '\nsaved commands for tracing into %s\n'\n" % \
+                        SysMgr.outputFile)
+                SysMgr.cmdFd.flush()
+            except SystemExit:
+                sys.exit(0)
             except:
-                SysMgr.printErr("fail to write save command")
+                SysMgr.printErr("fail to write command", True)
 
 
 
@@ -70923,9 +70952,9 @@ class TaskAnalyzer(object):
             if SysMgr.savedProcComm:
                 if value['tgid'] in SysMgr.savedProcComm:
                     lastField = "{0:>16}".format(
-                        SysMgr.savedProcComm[value['tgid']])
+                        SysMgr.savedProcComm[value['tgid']])[:16]
                 elif key == value['tgid']:
-                    lastField = "{0:>16}".format(value['comm'])
+                    lastField = "{0:>16}".format(value['comm'])[:16]
                 else:
                     lastField = "{0:>16}".format('?')
             else:
@@ -72284,6 +72313,10 @@ class TaskAnalyzer(object):
                         path = inodeInfo[did][inode]
                     else:
                         path = ' '
+                        mdid = "%s:" % did.split(':')[0]
+                        for devid in sorted(list(inodeInfo.keys())):
+                            if devid.startswith(mdid) and inode in inodeInfo[devid]:
+                                path = inodeInfo[devid][inode]
 
                     inodeStr = '%s%s'  % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -72348,6 +72381,10 @@ class TaskAnalyzer(object):
                             path = inodeInfo[did][inode]
                         else:
                             path = ' '
+                            mdid = "%s:" % did.split(':')[0]
+                            for devid in sorted(list(inodeInfo.keys())):
+                                if devid.startswith(mdid) and inode in inodeInfo[devid]:
+                                    path = inodeInfo[devid][inode]
 
                         inodeStr = '%s%s'  % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -72599,10 +72636,11 @@ class TaskAnalyzer(object):
             SysMgr.blockEnable):
             return
 
+        # print title #
         intervalEnable = SysMgr.intervalEnable
-
         SysMgr.printPipe(
-            '\n[Thread Interval Info] (Unit: %s Sec)' % intervalEnable)
+            '\n[Thread Interval Info] [ Start: %s ] (Unit: %s Sec)' % \
+                (round(float(SysMgr.startTime), 7), intervalEnable))
         SysMgr.printPipe(twoLine)
 
         # graph list #
@@ -72658,6 +72696,10 @@ class TaskAnalyzer(object):
         SysMgr.clearPrint()
 
         # total CPU usage on timeline #
+        cpuStr = ''
+        lval = long(float(self.totalTime) / intervalEnable) + 1
+        cpuAvgUsage = [0] * lval
+        cpuCnt = 0
         for key, value in sorted(self.threadData.items(),
             key=lambda e: TaskAnalyzer.getCoreId(e[1]['comm']),
             reverse=False):
@@ -72668,9 +72710,10 @@ class TaskAnalyzer(object):
             if key[0:2] != '0[':
                 continue
 
+            cpuCnt += 1
+
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 try:
                     # revise core usage in DVFS system #
@@ -72680,6 +72723,7 @@ class TaskAnalyzer(object):
                     else:
                         per = (100 - self.intData[icount][key]['cpuPer'])
                         timeLine += '%3d ' % per
+                        cpuAvgUsage[icount] += per
                 except:
                     timeLine += '%3s ' % '0'
 
@@ -72689,7 +72733,7 @@ class TaskAnalyzer(object):
                 else:
                     timeLineLen += 4
 
-            SysMgr.addPrint("%16s(%7s/%7s): " % \
+            cpuStr += ("%16s(%7s/%7s): " % \
                 (value['comm'][:16], '-', '-') + timeLine + '\n')
 
             # make CPU usage list for graph #
@@ -72700,10 +72744,30 @@ class TaskAnalyzer(object):
                 timeLineData = [int(n) for n in timeLine.split()]
                 cpuUsageList.append(timeLineData)
 
+        # average CPU usage on timeline #
+        if SysMgr.cpuEnable:
+            timeLine = ''
+            timeLineLen = titleLineLen
+            for icount, per in enumerate(cpuAvgUsage):
+                try:
+                    timeLine += '%3d ' % (per / cpuCnt)
+                except:
+                    timeLine += '%3s ' % '0'
+
+                if timeLineLen + 4 >= maxLineLen:
+                    timeLine += ('\n' + (' ' * (titleLineLen + 1)))
+                    timeLineLen = titleLineLen + 4
+                else:
+                    timeLineLen += 4
+
+            # print final CPU usage #
+            cpuAvgStr = ("%16s(%7s/%7s): " % \
+                ("CPU/AVG", '-', '-') + timeLine + '\n') + cpuStr
+            SysMgr.addPrint(cpuAvgStr)
+
         # total memory usage on timeline #
         timeLine = ''
         timeLineLen = titleLineLen
-        lval = long(float(self.totalTime) / intervalEnable) + 1
         for icount in range(0, lval):
             if timeLineLen + 4 > maxLineLen:
                 timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72733,7 +72797,6 @@ class TaskAnalyzer(object):
             brtotal = long(0)
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72762,7 +72825,6 @@ class TaskAnalyzer(object):
             bwtotal = long(0)
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72796,7 +72858,6 @@ class TaskAnalyzer(object):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72825,7 +72886,6 @@ class TaskAnalyzer(object):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72860,7 +72920,6 @@ class TaskAnalyzer(object):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 if timeLineLen + 4 > maxLineLen:
                     timeLine += ('\n' + (' ' * (titleLineLen + 1)))
@@ -72980,8 +73039,6 @@ class TaskAnalyzer(object):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = \
-                long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 newFlag = ' '
                 dieFlag = ' '
@@ -73131,7 +73188,6 @@ class TaskAnalyzer(object):
 
             timeLine = ''
             timeLineLen = titleLineLen
-            lval = long(float(self.totalTime) / intervalEnable) + 1
             for icount in range(0, lval):
                 newFlag = ' '
                 dieFlag = ' '
@@ -73205,8 +73261,6 @@ class TaskAnalyzer(object):
 
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = \
-                    long(float(self.totalTime) / intervalEnable) + 1
                 for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
@@ -73276,7 +73330,6 @@ class TaskAnalyzer(object):
 
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = long(float(self.totalTime) / intervalEnable) + 1
                 for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
@@ -73347,7 +73400,6 @@ class TaskAnalyzer(object):
 
                 timeLine = ''
                 timeLineLen = titleLineLen
-                lval = long(float(self.totalTime) / intervalEnable) + 1
                 for icount in range(0, lval):
                     newFlag = ' '
                     dieFlag = ' '
@@ -73476,16 +73528,20 @@ class TaskAnalyzer(object):
 
 
     @staticmethod
-    def readTraceData(file):
+    def readTraceData(fname):
         try:
             # not compressed data #
             if SysMgr.isRecordMode() or \
-                not UtilMgr.isCompressed(file):
-                with open(file, 'r') as fd:
-                    return fd.readlines()
+                not UtilMgr.isCompressed(fname):
+                if sys.version_info >= (3, 0, 0):
+                    with open(fname, 'r', encoding='latin-1') as fr:
+                        return fr.readlines()
+                else:
+                    with open(fname, 'r') as fr:
+                        return fr.readlines()
 
             # compressed data #
-            with open(file, 'rb') as fd:
+            with open(fname, 'rb') as fd:
                 compressor = SysMgr.getPkg('gzip')
                 fd = compressor.GzipFile(fileobj=fd)
 
@@ -73500,7 +73556,7 @@ class TaskAnalyzer(object):
         except SystemExit:
             sys.exit(0)
         except:
-            SysMgr.printOpenErr(file)
+            SysMgr.printOpenErr(fname)
             sys.exit(0)
 
 
@@ -75380,7 +75436,7 @@ class TaskAnalyzer(object):
 
                     cpuPer = round(ttime / float(runtime) * 100, 1)
                     if cpuPer > 0:
-                        cpuPer = '%.1f' % cpuPer
+                        cpuPer = '%5.1f' % cpuPer
                         cpuPer = UtilMgr.convColor(cpuPer, 'GREEN', 5)
                     else:
                         cpuPer = '%5s' % 0
@@ -85759,11 +85815,17 @@ def main(args=None):
             outputPath = UtilMgr.prepareForImageFile(
                 SysMgr.inputFile, 'timeline')
 
+            if 'ABSTIME' in SysMgr.environList:
+                start = SysMgr.startTime
+            else:
+                start = None
+
             # draw timeline graph #
             SysMgr.drawTimeline(
                 inputData=tobj.timelineData,
                 outputPath=outputPath,
-                taskList=list(tobj.threadData.keys()))
+                taskList=list(tobj.threadData.keys()),
+                start=start)
 
             # draw resource graph #
             SysMgr.graphEnable = True
