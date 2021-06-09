@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210607"
+__revision__ = "210609"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -7210,7 +7210,15 @@ class Timeline(object):
             self.HEIGHT = 770
             self.TIME_AXIS_HEIGHT = 1
             self.TICKS = 100
-            self.LABEL_SIZE_MIN = 0
+
+            # set label filter #
+            if 'LABELMIN' in SysMgr.environList:
+                self.LABEL_SIZE_MIN = long(SysMgr.environList['LABELMIN'][0])
+                SysMgr.printInfo(
+                    "only time segments bigger than %s are printed" % \
+                        UtilMgr.convNum(self.LABEL_SIZE_MIN))
+            else:
+                self.LABEL_SIZE_MIN = 0
 
             # set font size #
             if 'FONTSIZE' in SysMgr.environList:
@@ -7293,10 +7301,11 @@ class Timeline(object):
             config.FONT_SIZE = data.get("font_size", 3)
             config.TICKS = data.get("time_ticks", 5)
             config.TIME_AXIS_HEIGHT = data.get("time_axis_height", 5)
-            config.LABEL_SIZE_MIN = data.get("label_size_min", 5)
             config.PALETTE = config._conv_palette(data.get("palette", []))
             config.TIMEUNIT = data.get("time_unit", None)
             config.TIMEFACTOR = data.get("time_factor", 1)
+            if config.LABEL_SIZE_MIN == 0:
+                config.LABEL_SIZE_MIN = data.get("label_size_min", 5)
 
             return config
 
@@ -7403,7 +7412,7 @@ class Timeline(object):
             dwg.add(dwg.text(
                 name, (self.config.FONT_SIZE, y_tick+self.scaled_height),
                 font_size=self.scaled_height/2,
-                fill='rgb(220,220,220)'))
+                fill='rgb(200,200,200)'))
 
 
 
@@ -7441,7 +7450,7 @@ class Timeline(object):
         if self.title:
             title = self.title
         else:
-            title = 'Guider timeline graph'
+            title = 'Guider Timeline Graph'
 
         # set font size for title #
         fontsize = self.config.FONT_SIZE * 10
@@ -7450,7 +7459,7 @@ class Timeline(object):
             ((self.config.WIDTH/2)-(len(title)*fontsize/4), fontsize),
             font_size=fontsize,
             font_weight='bolder',
-            fill='rgb(230,230,230)'))
+            fill='rgb(200,200,200)'))
 
 
 
@@ -7547,10 +7556,14 @@ class Timeline(object):
                     (x1, y0), (x1, scaled_top_height),
                     stroke='black', stroke_width=0.3))
 
+        # check label flag #
+        if 'NOLABEL' in SysMgr.environList:
+            return
+
         # check duration #
         duration = segment.time_end - segment.time_start
         if not SysMgr.showAll and \
-            (scaled_width < self.config.LABEL_SIZE_MIN or duration == 0):
+            (duration < self.config.LABEL_SIZE_MIN or duration == 0):
             return
 
         # convert duration to text #
@@ -21619,8 +21632,14 @@ Examples:
     - Draw resource graph and timeline graph forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw resource graph and timeline graph in ns timeunit
+    - Draw resource graph and timeline graph in ns time unit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
+
+    - Draw resource graph and timeline graph except for label for timelines lesser than 100ms
+        # {0:1} {1:1} guider.dat -q LABELMIN:100
+
+    - Draw resource graph and timeline graph without label
+        # {0:1} {1:1} guider.dat -q NOTEXT
 
     - Draw resource graph and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
@@ -22080,6 +22099,9 @@ Examples:
 
     - record specific function events including all syscalls for all threads to ./guider.dat
         # {0:1} {1:1} -s . -t
+
+    - record default function events for all threads and save recording commands to specific script file
+        # {0:1} {1:1} -B guider.cmd
 
     - record specific function events including softirq_entry event for all threads to ./guider.dat
         # {0:1} {1:1} -s . -c "softirq_entry:vec==1"
@@ -28763,6 +28785,8 @@ Copyright:
                 archPosEnd = infoBuf.find('\n', archPosStart)
                 arch = infoBuf[archPosStart:archPosEnd].split()[1]
                 SysMgr.setArch(arch)
+            except SystemExit:
+                sys.exit(0)
             except:
                 pass
 
@@ -41769,7 +41793,6 @@ Copyright:
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_begin"] = memFlag
         self.cmdList["vmscan/mm_vmscan_direct_reclaim_end"] = memFlag
         self.cmdList["kmem/mm_page_free_direct"] = False
-        self.cmdList["filemap/mm_filemap_add_to_page_cache"] = False
         self.cmdList["timer/hrtimer_start"] = False
         self.cmdList["vmscan/mm_vmscan_wakeup_kswapd"] = False
         self.cmdList["vmscan/mm_vmscan_kswapd_sleep"] = False
@@ -41783,6 +41806,7 @@ Copyright:
         '''
         self.cmdList["block/block_rq_complete"] = bioFlag
         self.cmdList["writeback/writeback_dirty_page"] = bioFlag
+        self.cmdList["filemap/mm_filemap_add_to_page_cache"] = bioFlag
         #self.cmdList["writeback/wbc_writepage"] = bioFlag
 
         # fs #
@@ -42423,8 +42447,9 @@ Copyright:
             (SysMgr.isThreadMode() or SysMgr.isFuncMode())):
             return
 
-        # write signal command #
+        # write command #
         if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
+            # write signal command #
             if SysMgr.signalCmd:
                 try:
                     SysMgr.cmdFd.write(SysMgr.signalCmd)
@@ -42438,7 +42463,7 @@ Copyright:
                     SysMgr.printErr("fail to write signal commands", True)
 
             if SysMgr.outputFile:
-                SysMgr.saveCmd = 'cat %s > %s\n' % \
+                SysMgr.saveCmd = 'cat %s_pipe >> %s\n' % \
                     (SysMgr.inputFile, os.path.abspath(SysMgr.outputFile))
 
         # stop tracing #
@@ -42462,18 +42487,42 @@ Copyright:
             SysMgr.writeCmd('../trace_options', 'nouserstacktrace')
             SysMgr.writeCmd('../tracing_on', '0')
 
-        # write save command #
-        if SysMgr.saveCmd:
+        # write command #
+        if SysMgr.cmdEnable is not False and SysMgr.cmdFd:
+            outputPath = os.path.abspath(SysMgr.outputFile)
+
+            # remove exist file #
             try:
-                SysMgr.cmdFd.write(SysMgr.saveCmd)
-                SysMgr.cmdFd.write(
-                    "echo '\nsaved commands for tracing into %s\n'\n" % \
-                        SysMgr.outputFile)
+                SysMgr.cmdFd.write('rm -f %s 2> /dev/null\n' % outputPath)
+            except:
+                pass
+
+            # write system info #
+            try:
+                SysMgr.sysInstance.printSystemInfo()
+                infoStr = 'echo "%s\n%s\n%s\n" >> %s\n' % (
+                    SysMgr.magicStr, SysMgr.systemInfoBuffer,
+                    SysMgr.magicStr, outputPath)
+                SysMgr.clearInfoBuffer()
+                SysMgr.cmdFd.write(infoStr)
                 SysMgr.cmdFd.flush()
             except SystemExit:
                 sys.exit(0)
             except:
-                SysMgr.printErr("fail to write command", True)
+                pass
+
+            # write save command #
+            if SysMgr.saveCmd:
+                try:
+                    SysMgr.cmdFd.write(SysMgr.saveCmd)
+                    SysMgr.cmdFd.write(
+                        "echo '\nsaved commands for tracing into %s\n'\n" % \
+                            outputPath)
+                    SysMgr.cmdFd.flush()
+                except SystemExit:
+                    sys.exit(0)
+                except:
+                    SysMgr.printErr("fail to write command", True)
 
 
 
@@ -68015,6 +68064,9 @@ class TaskAnalyzer(object):
                         if idx != 0 and totalUsage[idx] == totalUsage[idx-1]:
                             continue
 
+                        if 'NOLABEL' in SysMgr.environList:
+                            break
+
                         text(timeline[idx], totalUsage[maxIdx],
                             '%s Max_%d%%|Avg_%.1f%%|Total_%s%%' % \
                             (prefix, maxUsage, avgUsage, conv(totalSumUsage)),
@@ -68127,9 +68179,11 @@ class TaskAnalyzer(object):
 
                     # mark text at peek #
                     ilabel = '%s%s%s' % (prefix, idx, maxPer)
-                    text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,
-                        fontsize=2, color=color, fontweight='normal',
-                        rotation=35, ha=_getTextAlign(maxIdx, timeline))
+
+                    if not 'NOLABEL' in SysMgr.environList:
+                        text(timeline[maxIdx], usage[maxIdx] + margin, ilabel,
+                            fontsize=2, color=color, fontweight='normal',
+                            rotation=35, ha=_getTextAlign(maxIdx, timeline))
 
                     labelList.append(
                         '%s%s - %s%%' % (prefix, idx, avgUsage))
@@ -68557,12 +68611,14 @@ class TaskAnalyzer(object):
                         color = \
                             plot(timeline, wrUsage, '-',
                                 linewidth=0.7)[0].get_color()
-                        if wrUsage[maxIdx] > 0:
+                        if wrUsage[maxIdx] > 0 and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], wrUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if wrUsage[-1] > 0:
+                        if wrUsage[-1] > 0 and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], wrUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -68591,12 +68647,14 @@ class TaskAnalyzer(object):
                         color = \
                             plot(timeline, rdUsage, '-',
                                 linewidth=0.7)[0].get_color()
-                        if rdUsage[maxIdx] > 0:
+                        if rdUsage[maxIdx] > 0 and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], rdUsage[maxIdx] + margin,
                                 maxval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if rdUsage[-1] > 0:
+                        if rdUsage[-1] > 0 and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], rdUsage[-1] + margin,
                                 lastval, fontsize=3, color=color,
                                 fontweight='normal', rotation=35, ha='right')
@@ -68821,15 +68879,18 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=0.7)[0].get_color()
 
-                        if usage[minIdx]:
+                        if usage[minIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] + margin,
                                 minval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 maxval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if usage[-1]:
+                        if usage[-1] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], usage[-1] + margin,
                                 lastval, color=color, fontsize=3, rotation=35,
                                 ha='right')
@@ -68932,11 +68993,13 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=0.7)[0].get_color()
 
-                        if usage[minIdx]:
+                        if usage[minIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] - margin,
                                 minval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 lastval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
@@ -69005,15 +69068,18 @@ class TaskAnalyzer(object):
                         color = plot(timeline, usage, '-',
                             linewidth=0.7)[0].get_color()
 
-                        if usage[minIdx]:
+                        if usage[minIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[minIdx], usage[minIdx] + margin,
                                 minval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(minIdx, timeline))
-                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx]:
+                        if usage[minIdx] != usage[maxIdx] and usage[maxIdx] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[maxIdx], usage[maxIdx] + margin,
                                 maxval, color=color, fontsize=3, rotation=35,
                                 ha=_getTextAlign(maxIdx, timeline))
-                        if usage[-1]:
+                        if usage[-1] and \
+                            not 'NOLABEL' in SysMgr.environList:
                             text(timeline[-1], usage[-1] + margin,
                                 lastval, color=color, fontsize=3, rotation=35,
                                 ha='right')
@@ -70456,8 +70522,11 @@ class TaskAnalyzer(object):
         # print block usage #
         self.printBlockInfo()
 
-        # print block usage #
+        # print fs usage #
         self.printFsInfo()
+
+        # print open history #
+        self.printOpenInfo()
 
         # print resource usage of threads on timeline #
         self.printIntervalInfo()
@@ -72157,7 +72226,7 @@ class TaskAnalyzer(object):
 
                 size = UtilMgr.convSize2Unit(val[0])
                 seqSize = UtilMgr.convSize2Unit(val[3])
-                seqString = '%s(%5s)' % (seqSize, seqPer)
+                seqString = '%s(%5.1f)' % (seqSize, seqPer)
 
                 if tcnt > 0:
                     SysMgr.printPipe()
@@ -72237,6 +72306,35 @@ class TaskAnalyzer(object):
 
 
 
+    def printOpenInfo(self):
+        if not self.openData:
+            return
+
+        # print menu #
+        SysMgr.printPipe('\n[Thread Open History] (Unit: NR)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:^10} {1:>25} {2:>6} {3:>6} {4:>1}".format(
+            'Time', 'Task(Comm)', 'Flags', 'Mode', 'Name'))
+        SysMgr.printPipe(twoLine)
+
+        # print history #
+        for item in self.openData:
+            atime, tid, path, flags, mode = item
+            if not tid in self.threadData:
+                continue
+
+            comm = self.threadData[tid]['comm']
+            taskInfo = '%s(%s)' % (comm, tid)
+
+            SysMgr.printPipe(
+                "{0:>10.6f} {1:>25} {2:>6} {3:>6} {4:>1}".format(
+                atime, taskInfo, flags, mode, path))
+
+        SysMgr.printPipe(twoLine)
+
+
+
     def printFsInfo(self):
         # check fs data #
         if not self.fsTable or not self.fsTable[0]:
@@ -72309,14 +72407,19 @@ class TaskAnalyzer(object):
                     use a below command to convert inode to path
                     # debugfs -R 'ncheck INODE' DEVNODE_PATH
                     '''
+                    # set file name #
                     if did in inodeInfo and inode in inodeInfo[did]:
                         path = inodeInfo[did][inode]
+                    # search candidate files for incorrect device id #
                     else:
                         path = ' '
                         mdid = "%s:" % did.split(':')[0]
+                        pathList = []
                         for devid in sorted(list(inodeInfo.keys())):
-                            if devid.startswith(mdid) and inode in inodeInfo[devid]:
-                                path = inodeInfo[devid][inode]
+                            if inode in inodeInfo[devid]:
+                                pathList.append(inodeInfo[devid][inode])
+                        if pathList:
+                            path = ' | '.join(pathList)
 
                     inodeStr = '%s%s'  % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -72339,6 +72442,9 @@ class TaskAnalyzer(object):
 
         # THREAD #
         for tid, ops in sorted(self.fsTable[1].items()):
+            if not tid in self.threadData:
+                continue
+
             # define thread info #
             tinfo = '%s(%s)' % (self.threadData[tid]['comm'][:16], tid)
 
@@ -72377,14 +72483,19 @@ class TaskAnalyzer(object):
                         use a below command to convert inode to path
                         # debugfs -R 'ncheck INODE' DEVNODE_PATH
                         '''
+                        # set file name #
                         if did in inodeInfo and inode in inodeInfo[did]:
                             path = inodeInfo[did][inode]
+                        # search candidate files for incorrect device id #
                         else:
                             path = ' '
                             mdid = "%s:" % did.split(':')[0]
+                            pathList = []
                             for devid in sorted(list(inodeInfo.keys())):
-                                if devid.startswith(mdid) and inode in inodeInfo[devid]:
-                                    path = inodeInfo[devid][inode]
+                                if inode in inodeInfo[devid]:
+                                    pathList.append(inodeInfo[devid][inode])
+                            if pathList:
+                                path = ' | '.join(pathList)
 
                         inodeStr = '%s%s'  % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
@@ -76393,6 +76504,7 @@ class TaskAnalyzer(object):
         self.binderTranData = {}
         self.binderServerData = {}
         self.binderCliData = {}
+        self.openData = []
 
         self.customEventInfo = {}
         self.userEventInfo = {}
@@ -77501,6 +77613,17 @@ class TaskAnalyzer(object):
                 self.wakeupData['from'] = self.wakeupData['tid']
                 self.wakeupData['to'] = pid
 
+        elif func == "do_sys_open":
+            m = re.match(r'^\s*"(?P<path>.*)" (?P<flags>.+) (?P<mode>.+)', etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+
+            self.openData.append(
+                [allTime, thread, d['path'], d['flags'], d['mode']])
+
         elif func == "sys_enter":
             m = re.match(r'^\s*NR (?P<nr>[0-9]+) (?P<args>.+)', etc)
             if not m:
@@ -78141,6 +78264,35 @@ class TaskAnalyzer(object):
                             'time_start': start_delta,
                             'time_end': stop_delta,
                         })
+
+        elif func == "mm_filemap_add_to_page_cache":
+            m = re.match((
+                r'^\s*dev\s+(?P<major>[0-9]+):(?P<minor>[0-9]+)\s*'
+                r'ino (?P<ino>\S+)\s+page=(?P<page>.+)\s+'
+                r'pfn=(?P<pfn>.+)\s+ofs=(?P<ofs>.+)'), etc)
+            if not m:
+                _printEventWarning(func)
+                return time
+
+            d = m.groupdict()
+
+            SysMgr.blockEnable = True
+
+            inode = str(long(d['ino'], 16))
+            did = "%s:%s" % (d['major'], d['minor'])
+
+            # total read #
+            self.fsTable[0].setdefault('READ', {})
+            self.fsTable[0]['READ'].setdefault(did, {})
+            self.fsTable[0]['READ'][did].setdefault(inode, 0)
+            self.fsTable[0]['READ'][did][inode] += 1
+
+            # thread read #
+            self.fsTable[1].setdefault(thread, dict())
+            self.fsTable[1][thread].setdefault('READ', dict())
+            self.fsTable[1][thread]['READ'].setdefault(did, {})
+            self.fsTable[1][thread]['READ'][did].setdefault(inode, 0)
+            self.fsTable[1][thread]['READ'][did][inode] += 1
 
         elif func == "writeback_dirty_page":
             m = re.match((
