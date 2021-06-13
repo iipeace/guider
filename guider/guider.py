@@ -23920,19 +23920,19 @@ Examples:
         # {0:1} {1:1} -sigstop "a.out*"
 
     - Send SIGSTOP to specific tasks after 5 seconds
-        # {0:1} {1:1} -sigstop 1234 "-W 5s"
+        # {0:1} {1:1} -sigstop 1234 -W 5s
 
     - Send SIGSTOP signal to specific tasks until one gets the signal
-        # {0:1} {1:1} -sigstop a.out "-q WAITTASK"
-        # {0:1} {1:1} -sigstop a.out "-q WAITTASK:1"
+        # {0:1} {1:1} -sigstop a.out -q WAITTASK
+        # {0:1} {1:1} -sigstop a.out -q WAITTASK:1
 
     - Send 9th signal SIGKILL to specific tasks
         # {0:1} {1:1} -9 1234
         # {0:1} {1:1} -sigkill 1234
 
     - Send 9th signal SIGKILL to specific tasks every 2 seconds
-        # {0:1} {1:1} -9 1234 "-i 2"
-        # {0:1} {1:1} -sigkill 1234 "-i 2"
+        # {0:1} {1:1} -9 1234 -i 2
+        # {0:1} {1:1} -sigkill 1234 -i 2
                     '''.format(cmd, mode)
 
                 # pause #
@@ -31569,14 +31569,16 @@ Copyright:
                 sys.exit(0)
 
             while 1:
-                # send signal #
+                # set target type #
                 if SysMgr.checkMode('tkill'):
                     isThread = True
                 else:
                     isThread = False
 
-                SysMgr.sendSignalArgs(argList, isThread=isThread)
+                # send signal #
+                SysMgr.sendSignalArgs(list(argList), isThread=isThread)
 
+                # check interval #
                 if SysMgr.intervalEnable:
                     time.sleep(SysMgr.intervalEnable)
                 else:
@@ -40424,9 +40426,10 @@ Copyright:
                 if not val.startswith('-'):
                     continue
 
-                sig = SysMgr.getSigNum(val[1:])
-                if sig:
-                    isFound = True
+                if not isFound:
+                    sig = SysMgr.getSigNum(val[1:])
+                    if sig:
+                        isFound = True
 
                 del argList[argList.index(val)]
             except SystemExit:
@@ -40443,7 +40446,7 @@ Copyright:
             SysMgr.printErr('fail to recognize signal to be sent')
             return
 
-        # convert pid list #
+        # convert target list #
         try:
             argList = UtilMgr.cleanItem((''.join(argList)).split(','))
         except SystemExit:
@@ -40451,7 +40454,7 @@ Copyright:
         except:
             pass
 
-        # convert comm to pid #
+        # convert items to pid #
         targets = SysMgr.convTaskList(
             argList, isThread=isThread, exceptMe=True)
         if targets:
