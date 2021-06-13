@@ -7,7 +7,7 @@ __module__ = "guider"
 __credits__ = "Peace Lee"
 __license__ = "GPLv2"
 __version__ = "3.9.8"
-__revision__ = "210609"
+__revision__ = "210613"
 __maintainer__ = "Peace Lee"
 __email__ = "iipeace5@gmail.com"
 __repository__ = "https://github.com/iipeace/guider"
@@ -4164,7 +4164,9 @@ class UtilMgr(object):
 
 
     @staticmethod
-    def getInodes(path, inodeFilter=[], nameFilter=[], verb=True):
+    def getInodes(
+        path, inodeFilter=[], nameFilter=[], fileAttr=None, verb=True):
+
         inodeList = {}
 
         for r, d, f in os.walk(path):
@@ -4202,13 +4204,19 @@ class UtilMgr(object):
                 if inodeFilter and not inode in inodeFilter:
                     continue
 
-                # register inode #
+                # make device id #
                 major = os.major(fstat.st_dev)
                 minor = os.minor(fstat.st_dev)
                 devid = '%s:%s' % (major, minor)
+                fpath = os.path.join(fdir, name)
 
+                # register inode #
                 inodeList.setdefault(devid, dict())
-                inodeList[devid][inode] = os.path.join(fdir, name)
+                inodeList[devid][inode] = fpath
+
+                # register file attribute #
+                if type(fileAttr) is dict:
+                    fileAttr[fpath] = fstat
 
         return inodeList
 
@@ -6968,7 +6976,45 @@ class NetworkMgr(object):
 
 
     @staticmethod
-    def getRepMacAddr():
+    def getDevByIp(ip):
+        # get device data #
+        data = SysMgr.getNetDevData()
+        if not data:
+            return
+
+        # create a new socket #
+        try:
+            fcntl = SysMgr.getPkg('fcntl', False)
+            socket = SysMgr.getPkg('socket', False)
+            sobj = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            return
+
+        # scan IP device and address #
+        for line in data:
+            try:
+                dev, stats = line.split(':')
+
+                dev = dev.strip()
+
+                res = fcntl.ioctl(
+                    sobj.fileno(), 0x8915, # SIOCGIFADDR
+                    struct.pack('256s', dev[:15].encode('utf-8')))
+
+                ipaddr = socket.inet_ntoa(res[20:24])
+                if ipaddr == ip:
+                    return dev
+            except SystemExit:
+                sys.exit(0)
+            except:
+                pass
+
+
+
+    @staticmethod
+    def getMainMacAddr():
         dirPath = '/sys/class/net'
 
         try:
@@ -6979,25 +7025,17 @@ class NetworkMgr(object):
             SysMgr.printOpenErr(dirPath)
             return
 
-        # skip virtual device #
-        for dev in devices:
-            try:
-                if not 'phydev' in os.listdir('%s/%s' % (dirPath, dev)):
-                    raise Exception()
-
-                target = '%s/%s/address' % (dirPath, dev)
-                try:
-                    with open(target, 'r') as fd:
-                        addr = fd.readline()[:-1]
-                        return (dev, addr)
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    SysMgr.printOpenErr(target)
-            except SystemExit:
-                sys.exit(0)
-            except:
-                pass
+        # return main IP and device #
+        try:
+            ip = NetworkMgr.getPublicIp()
+            if ip:
+                dev = NetworkMgr.getDevByIp(ip)
+                if dev:
+                    return (dev, ip)
+        except SystemExit:
+            sys.exit(0)
+        except:
+            pass
 
         for dev in devices:
             # skip virtual device #
@@ -7323,7 +7361,7 @@ class Timeline(object):
             min(segments, key=lambda segment: segment.time_start).time_start
         self.time_end = \
             max(segments, key=lambda segment: segment.time_end).time_end
-        self.segment_groups = set(s.group for s in self.segments)
+        self.segment_groups = sorted(list(set(s.group for s in self.segments)))
         self.groups = len(self.segment_groups)
         self.group_list = list(self.segment_groups)
         self.scaled_height = self.config.HEIGHT / self.groups
@@ -7450,7 +7488,7 @@ class Timeline(object):
         if self.title:
             title = self.title
         else:
-            title = 'Guider Timeline Graph'
+            title = 'Guider Timeline Segment'
 
         # set font size for title #
         fontsize = self.config.FONT_SIZE * 10
@@ -7480,6 +7518,7 @@ class Timeline(object):
         scaled_width = (x1 - x0)
         scaled_top_height = y0 + (self.scaled_height / 7)
         scaled_bottom_height = y1 - (self.scaled_height * 0.25)
+        duration = segment.time_end - segment.time_start
 
         # get color id #
         if segment.color:
@@ -7500,7 +7539,7 @@ class Timeline(object):
         if segment.state == 'OFF':
             dwg.add(dwg.line(
                 (x0, y0), (x1, y0),
-                stroke='black', stroke_width=1.5))
+                stroke='gray', stroke_width=3.5))
             return
 
         # draw circle and text for event #
@@ -7523,45 +7562,48 @@ class Timeline(object):
 
             return
 
+        # create the drawing group #
+        g = dwg.add(dwg.g())
+        g.set_desc(segment.text)
+
         # draw line for block_read status #
         if segment.state == 'RD':
-            dwg.add(dwg.rect((x0, scaled_bottom_height),
+            g.add(dwg.rect((x0, scaled_bottom_height),
                 (scaled_width, self.scaled_height*0.25),
                 rx=1, ry=1, fill='purple', fill_opacity=0.5))
         # draw line for block_write status #
         elif segment.state == 'WR':
-            dwg.add(dwg.rect((x0, scaled_bottom_height),
+            g.add(dwg.rect((x0, scaled_bottom_height),
                 (scaled_width, self.scaled_height*0.25),
                 rx=1, ry=1, fill='darkcyan', fill_opacity=0.5))
         # draw line for syscall status #
         elif segment.state == 'SYSCALL':
-            dwg.add(dwg.rect((x0, y0),
+            g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height*0.5),
                 rx=1, ry=1, fill=color, fill_opacity=0.5))
         # draw line for sched status #
         else:
-            # draw timeslice #
-            dwg.add(dwg.rect((x0, y0),
+            # draw CPU timeslice #
+            g.add(dwg.rect((x0, y0),
                 (scaled_width, self.scaled_height),
                 rx=1, ry=1, fill=color, fill_opacity=0.5))
 
             # draw preempted status #
             if segment.state == 'R':
-                dwg.add(dwg.line(
+                g.add(dwg.line(
                     (x1, y0), (x1, scaled_top_height),
                     stroke='red', stroke_width=0.3))
             # draw wait status #
             elif segment.state == 'D':
-                dwg.add(dwg.line(
+                g.add(dwg.line(
                     (x1, y0), (x1, scaled_top_height),
                     stroke='black', stroke_width=0.3))
 
         # check label flag #
-        if 'NOLABEL' in SysMgr.environList:
+        if not 'LABEL' in SysMgr.environList:
             return
 
         # check duration #
-        duration = segment.time_end - segment.time_start
         if not SysMgr.showAll and \
             (duration < self.config.LABEL_SIZE_MIN or duration == 0):
             return
@@ -7650,6 +7692,7 @@ class Timeline(object):
             if height_pos + scaled_pos*2.5 >= self.scaled_height:
                 height_pos = self.height_group_pos[group_idx] = 0
 
+        # set text position #
         xpos = x0
         ypos = y0 + scaled_pos + height_pos
 
@@ -19943,6 +19986,28 @@ class SysMgr(object):
 
 
     @staticmethod
+    def getNetDevData():
+        try:
+            SysMgr.netdevFd.seek(0)
+            data = SysMgr.netdevFd.readlines()[2:]
+        except SystemExit:
+            sys.exit(0)
+        except:
+            try:
+                devPath = '%s/net/dev' % SysMgr.procPath
+                SysMgr.netdevFd = open(devPath, 'r')
+                data = SysMgr.netdevFd.readlines()[2:]
+            except SystemExit:
+                sys.exit(0)
+            except:
+                SysMgr.printOpenWarn(devPath)
+                return
+
+        return data
+
+
+
+    @staticmethod
     def getConfigDict(name):
         confData = ConfigMgr.confData[name]
         if type(confData) is list:
@@ -21465,6 +21530,14 @@ Options:
     -O  <CORE>                  set core filter
     -q  <NAME{:VALUE}>          set environment variables
     -v                          verbose
+
+Segments:
+    Long Color   : Run
+    Upper Black  : Wait
+    Upper Red    : Preempted
+    Lower Purple : Read
+    Lower Cyan   : Write
+    Horizon Gray : Off
                     '''
 
                 if SysMgr.checkMode('ttop'):
@@ -21626,28 +21699,29 @@ Examples:
         # {0:1} {1:1} "guider.out, guider2.out"
         # {0:1} {1:1} "data/*"
 
-    - Draw resource graph and timeline graph
+    - Draw resource graph and timeline segment
         # {0:1} {1:1} guider.dat
 
-    - Draw resource graph and timeline graph forcefully
+    - Draw resource graph and timeline segment for all events and tasks
+        # {0:1} {1:1} guider.dat -a
+
+    - Draw resource graph and timeline segment forcefully
         # {0:1} {1:1} guider.dat -f
 
-    - Draw resource graph and timeline graph in ns time unit
+    - Draw resource graph and timeline segment in ns time unit
         # {0:1} {1:1} guider.dat -q TIMEUNIT:ns
 
-    - Draw resource graph and timeline graph except for label for timelines lesser than 100ms
+    - Draw resource graph and timeline segment except for label for timelines lesser than 100ms
         # {0:1} {1:1} guider.dat -q LABELMIN:100
 
-    - Draw resource graph and timeline graph without label
-        # {0:1} {1:1} guider.dat -q NOTEXT
+    - Draw resource graph and timeline segment with label setting
+        # {0:1} {1:1} guider.dat -q LABEL
+        # {0:1} {1:1} guider.dat -q NOLABEL
 
     - Draw resource graph and event markers on specific points
         # {0:1} {1:1} guider.dat -q EVENT:14:90:EVENT_1:cpu, EVENT:30:100:EVENT_2:cpu
 
-    - Draw resource graph and timeline graph for all events and tasks
-        # {0:1} {1:1} guider.dat -a
-
-    - Draw resource graph and timeline graph for specific cores
+    - Draw resource graph and timeline segment for specific cores
         # {0:1} {1:1} guider.dat -O 1, 4, 10
 
     - Draw resource graph and memory chart to specific image format
@@ -21655,7 +21729,7 @@ Examples:
         # {0:1} {1:1} guider.out -F pdf
         # {0:1} {1:1} guider.out -F svg
 
-    - Draw resource graph and timeline graph with config file
+    - Draw resource graph and timeline segment with config file
         # {0:1} {1:1} guider.dat -C config.json
 
     - Draw resource graph excluding chrome process and memory chart
@@ -21968,6 +22042,7 @@ Examples:
 
     - report analysis results for specific threads to ./guider.out after converting all target inodes to names
         # {0:1} guider.data -o . -q CONVINODE
+        # {0:1} guider.data -o . -q CONVINODE:/data
 
     - report all analysis results for specific threads including other threads involved in the same process to ./guider.out
         # {0:1} guider.dat -o . -P -g 1234, 4567 -a
@@ -22549,7 +22624,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor python calls consuming CPU
+    Monitor python calls
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -22621,7 +22696,7 @@ Usage:
     # {0:1} {1:1} -g <TARGET> [OPTIONS] [--help]
 
 Description:
-    Monitor native function calls consuming CPU
+    Monitor native function calls
                         '''.format(cmd, mode)
 
                     examStr = '''
@@ -22639,6 +22714,9 @@ Examples:
 
     - Monitor native function calls and standard output from a specific binary
         # {0:1} {1:1} a.out -q NOMUTE
+
+    - Monitor native function calls for specific threads with lazy cache loading
+        # {0:1} {1:1} a.out -q LAZYCACHE
 
     - Monitor native function calls for specific threads from a specific binary
         # {0:1} {1:1} a.out -g a.out
@@ -23645,7 +23723,7 @@ Usage:
     # {0:1} {1:1} <FILE> [OPTIONS] [--help]
 
 Description:
-    Draw timeline graph from JSON format data
+    Draw timeline segment from JSON format data
                         '''.format(cmd, mode)
 
                     drawTimelineStr = '''
@@ -29122,7 +29200,7 @@ Copyright:
             fsize = ''
 
         SysMgr.printStat(
-            "wrote timeline graph into '%s'%s" %
+            "wrote timeline segment into '%s'%s" %
                 (outputPath, fsize))
 
 
@@ -30648,6 +30726,7 @@ Copyright:
             elif option == 'O':
                 SysMgr.checkOptVal(option, value)
 
+                # split core values #
                 SysMgr.perCoreList = \
                     UtilMgr.cleanItem(value.split(','))
                 if not SysMgr.perCoreList:
@@ -30655,6 +30734,7 @@ Copyright:
                         "no input value for filter" % option)
                     sys.exit(0)
 
+                # check value type #
                 for item in SysMgr.perCoreList:
                     if not item.isdigit():
                         SysMgr.printErr((
@@ -35140,7 +35220,7 @@ Copyright:
 
         # get available CPU list #
         cpulist = {}
-        for f in os.listdir(freqPath):
+        for f in sorted(os.listdir(freqPath)):
             if not f.startswith('cpu'):
                 continue
 
@@ -35979,17 +36059,22 @@ Copyright:
 
             # load symbol caches at once #
             printLog = True
-            for item in mapList:
-                try:
-                    eobj = ElfAnalyzer.getObject(item, log=printLog)
-                    if len(pidList) == 1 and eobj:
-                        eobj.mergeSymTable()
-                        if printLog:
-                            printLog = False
-                except SystemExit:
-                    sys.exit(0)
-                except:
-                    pass
+            if not 'LAZYCACHE' in SysMgr.environList:
+                for item in mapList:
+                    # skip invalid file #
+                    if not FileAnalyzer.isValidFile(item, special=True):
+                        continue
+
+                    try:
+                        eobj = ElfAnalyzer.getObject(item, log=printLog)
+                        if len(pidList) == 1 and eobj:
+                            eobj.mergeSymTable()
+                            if printLog:
+                                printLog = False
+                    except SystemExit:
+                        sys.exit(0)
+                    except:
+                        pass
 
             # continue target #
             try:
@@ -36037,8 +36122,8 @@ Copyright:
                     [signal.SIGCONT, [pid], False, False])
 
                 # load common ELF cache files #
-                if procObj.loadSymbols():
-                    procObj.updateBpList()
+                procObj.loadSymbols()
+                procObj.updateBpList()
 
                 # save per-process breakpoint info #
                 bpList[pid] = \
@@ -36057,6 +36142,7 @@ Copyright:
                     lockList[pid] = \
                         Debugger.getGlobalLock(pid, len(bpList[pid]))
 
+                # detach task #
                 procObj.detach()
                 del procObj
 
@@ -37008,6 +37094,7 @@ Copyright:
                         "fail to recognize %s as a file or a process" % item)
                     sys.exit(0)
 
+                # load symbol caches #
                 ElfAnalyzer.getObject(item)
         else:
             procList = {}
@@ -42499,7 +42586,7 @@ Copyright:
 
             # write system info #
             try:
-                SysMgr.sysInstance.printSystemInfo()
+                SysMgr.sysInstance.printResourceInfo(tree=False)
                 infoStr = 'echo "%s\n%s\n%s\n" >> %s\n' % (
                     SysMgr.magicStr, SysMgr.systemInfoBuffer,
                     SysMgr.magicStr, outputPath)
@@ -42526,7 +42613,7 @@ Copyright:
 
 
 
-    def printResourceInfo(self):
+    def printResourceInfo(self, tree=True):
         if not SysMgr.generalEnable:
             return
 
@@ -42553,6 +42640,9 @@ Copyright:
         self.printCgroupInfo()
 
         self.printLimitInfo()
+
+        if not tree:
+            return
 
         if SysMgr.isRecordMode():
             TaskAnalyzer.printThreadTree()
@@ -43335,7 +43425,7 @@ Copyright:
 
         # mac address #
         try:
-            self.macAddr = NetworkMgr.getRepMacAddr()
+            self.macAddr = NetworkMgr.getMainMacAddr()
         except:
             pass
 
@@ -43366,22 +43456,12 @@ Copyright:
         else:
             self.netUpdate = SysMgr.uptime
 
-        try:
-            SysMgr.netdevFd.seek(0)
-            data = SysMgr.netdevFd.readlines()[2:]
-        except SystemExit:
-            sys.exit(0)
-        except:
-            try:
-                devPath = '%s/net/dev' % SysMgr.procPath
-                SysMgr.netdevFd = open(devPath, 'r')
-                data = SysMgr.netdevFd.readlines()[2:]
-            except SystemExit:
-                sys.exit(0)
-            except:
-                SysMgr.printOpenWarn(devPath)
-                return
+        # get device data #
+        data = SysMgr.getNetDevData()
+        if not data:
+            return
 
+        # import packages #
         try:
             socket = SysMgr.getPkg('socket', False)
             fcntl = SysMgr.getPkg('fcntl', False)
@@ -53591,7 +53671,7 @@ struct cmsghdr {
 
 
 
-    def loadSymbols(self, onlyFunc=True, onlyExec=True):
+    def loadSymbols(self, onlyFunc=True, onlyExec=True, tpath=None):
         ret = self.updateProcMap(onlyExec=onlyExec)
         if not ret:
             return False
@@ -53626,7 +53706,7 @@ struct cmsghdr {
             elif fname.startswith('libpthread'):
                 self.dftBpFileList[fpath] = 0
 
-        # load file-mapped objects #
+        # load memory-mapped file objects #
         ret = False
         printLog = True
         for mfile in list(self.pmap.keys()):
@@ -53634,6 +53714,12 @@ struct cmsghdr {
                 # check file validation #
                 if mfile in ElfAnalyzer.cachedFiles or \
                     not FileAnalyzer.isValidFile(mfile, special=True):
+                    continue
+                # check the target file #
+                elif tpath and mfile == tpath:
+                    pass
+                # skip files except for the target file #
+                elif 'LAZYCACHE' in SysMgr.environList:
                     continue
 
                 # load object #
@@ -53752,7 +53838,7 @@ struct cmsghdr {
             if SysMgr.warnEnable:
                 SysMgr.printWarn((
                     'fail to get symbol via %s for %s(%s) '
-                    'because of no file mapped to') % \
+                    'because of no file mapped to the address') % \
                         (hex(vaddr).rstrip('L'), self.comm, self.pid))
 
             return None
@@ -72093,7 +72179,10 @@ class TaskAnalyzer(object):
                 if icount > 0 and prevData[2] == nowData[2]:
                     tid = comm = ''
                 else:
-                    comm = self.threadData[nowData[2]]['comm']
+                    if nowData[2] in self.threadData:
+                        comm = self.threadData[nowData[2]]['comm']
+                    else:
+                        comm = '??'
                     tid = '(%7s)' % nowData[2]
 
                 if icount > 0 and prevData[3] == nowData[3]:
@@ -72290,7 +72379,12 @@ class TaskAnalyzer(object):
         for tid, data in sorted(self.blockTable[2].items(),
             key=lambda e:e[1][2], reverse=True):
             tcnt = long(0)
-            comm = self.threadData[tid]['comm'][:16]
+
+            # task info #
+            if tid in self.threadData:
+                comm = self.threadData[tid]['comm'][:16]
+            else:
+                comm = '??'
             cid = '%s(%s)' % (comm, tid)
 
             # thread read #
@@ -72357,7 +72451,9 @@ class TaskAnalyzer(object):
                 inodeList.update(value)
 
         # make target inode filter #
+        fileInfo = {}
         inodeInfo = {}
+        inodeCache = {}
         inodeFilter = []
         mountInfo = SysMgr.savedMountTree
         for did in list(inodeList.keys()):
@@ -72366,14 +72462,28 @@ class TaskAnalyzer(object):
 
         # get target inode info #
         if 'CONVINODE' in SysMgr.environList:
-            targetDir = '/'
+            # get scan dir #
+            if SysMgr.environList['CONVINODE'][0] != 'SET':
+                targetDir = os.path.abspath(
+                    SysMgr.environList['CONVINODE'][0])
+                # check dir #
+                if not os.path.isdir(targetDir):
+                    SysMgr.printErr(
+                        "wrong dir path '%s'" % targetDir)
+                    sys.exit(0)
+            else:
+                targetDir = '/'
+
             SysMgr.printStat(
                 r"start traversing inodes from [%s]..." % targetDir)
-            inodeInfo = UtilMgr.getInodes(targetDir, inodeFilter=inodeFilter)
+
+            # get inode info #
+            inodeInfo = UtilMgr.getInodes(
+                targetDir, inodeFilter=inodeFilter, fileAttr=fileInfo)
 
         # TOTAL #
         for op, data in sorted(self.fsTable[0].items(),
-            key=lambda e:e[1], reverse=True):
+            key=lambda e:str(e[1]), reverse=True):
             opSize = 0
             devStr = ''
 
@@ -72410,17 +72520,30 @@ class TaskAnalyzer(object):
                     # set file name #
                     if did in inodeInfo and inode in inodeInfo[did]:
                         path = inodeInfo[did][inode]
+                        if path in fileInfo:
+                            fsize = convSize(fileInfo[path].st_size)
+                            path = '%s[%s]' % (path, fsize)
                     # search candidate files for incorrect device id #
                     else:
                         path = ' '
                         mdid = "%s:" % did.split(':')[0]
                         pathList = []
                         for devid in sorted(list(inodeInfo.keys())):
-                            if inode in inodeInfo[devid]:
-                                pathList.append(inodeInfo[devid][inode])
+                            if not inode in inodeInfo[devid]:
+                                continue
+                            cpath = inodeInfo[devid][inode]
+                            if cpath in fileInfo:
+                                fsize = convSize(fileInfo[cpath].st_size)
+                                cpath = '%s[%s]' % (cpath, fsize)
+                            pathList.append(cpath)
                         if pathList:
                             path = ' | '.join(pathList)
 
+                    # cache inode #
+                    cacheId = '%s#%s' % (did, inode)
+                    inodeCache[cacheId] = path
+
+                    # build final string #
                     inodeStr = '%s%s'  % (inodeStr, (
                         "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
                         "{5:>12} {6:<75}\n").format(
@@ -72438,18 +72561,23 @@ class TaskAnalyzer(object):
                 "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
                     'TOTAL', op, ' ', ' ', convSize(opSize)))
             SysMgr.printPipe(devStr)
-            SysMgr.printPipe(oneLine)
+        SysMgr.printPipe(oneLine)
 
         # THREAD #
-        for tid, ops in sorted(self.fsTable[1].items()):
-            if not tid in self.threadData:
+        for tid, size in sorted(self.fsTable[2].items(),
+            key=lambda e:e[1], reverse=True):
+            # check thread data #
+            if not tid in self.fsTable[1]:
                 continue
 
             # define thread info #
-            tinfo = '%s(%s)' % (self.threadData[tid]['comm'][:16], tid)
+            if tid in self.threadData:
+                tinfo = '%s(%s)' % (self.threadData[tid]['comm'][:16], tid)
+            else:
+                tinfo = '??(%s)' % (tid)
 
-            for op, data in sorted(ops.items(),
-                key=lambda e:e[1], reverse=True):
+            for op, data in sorted(self.fsTable[1][tid].items(),
+                key=lambda e:str(e[1]), reverse=True):
                 opSize = 0
                 devStr = ''
 
@@ -72478,25 +72606,11 @@ class TaskAnalyzer(object):
                         totalSize += realSize
                         size = convSize(realSize)
 
-                        # convert inode to path #
-                        '''
-                        use a below command to convert inode to path
-                        # debugfs -R 'ncheck INODE' DEVNODE_PATH
-                        '''
-                        # set file name #
-                        if did in inodeInfo and inode in inodeInfo[did]:
-                            path = inodeInfo[did][inode]
-                        # search candidate files for incorrect device id #
-                        else:
-                            path = ' '
-                            mdid = "%s:" % did.split(':')[0]
-                            pathList = []
-                            for devid in sorted(list(inodeInfo.keys())):
-                                if inode in inodeInfo[devid]:
-                                    pathList.append(inodeInfo[devid][inode])
-                            if pathList:
-                                path = ' | '.join(pathList)
+                        # get file name from inode cache #
+                        cacheId = '%s#%s' % (did, inode)
+                        path = inodeCache[cacheId]
 
+                        # build final string #
                         inodeStr = '%s%s'  % (inodeStr, (
                             "{0:^25} {1:>7} {2:>8} {3:>12} {4:>12} "
                             "{5:>12} {6:<75}\n").format(
@@ -72514,7 +72628,41 @@ class TaskAnalyzer(object):
                     "{0:>25} {1:>7} {2:>8} {3:>12} {4:>12} ".format(
                         tinfo, op, ' ', ' ', convSize(opSize)))
                 SysMgr.printPipe(devStr)
-                SysMgr.printPipe(oneLine)
+            SysMgr.printPipe(oneLine)
+
+        if not SysMgr.showAll:
+            return
+        elif not self.fsData[0] and not self.fsData[1]:
+            return
+
+        # print menu #
+        SysMgr.printPipe('\n[Thread FS History] (Type: Read) (Unit: Byte)')
+        SysMgr.printPipe(twoLine)
+        SysMgr.printPipe(
+            "{0:>8} {1:>25} {2:>7} {3:>10} {4:>16} {5:>12} {6:<1}".\
+            format('Time', 'Task', 'Dev', 'Inode', 'Offset', 'Size', 'Path'))
+        SysMgr.printPipe(twoLine)
+
+        for item in self.fsData[0]:
+            tid, atime, dev, inode, offset, size = item
+
+            # set task info #
+            if not tid in self.threadData:
+                continue
+            comm = self.threadData[tid]['comm']
+            taskInfo = '%s(%s)' % (comm, tid)
+
+            # get file path #
+            cacheId = '%s#%s' % (dev, inode)
+            if cacheId in inodeCache:
+                path = inodeCache[cacheId]
+            else:
+                path = ''
+
+            SysMgr.printPipe(
+                "{0:>8} {1:>25} {2:>7} {3:>10} {4:>16} {5:>12} {6:<1}".\
+                format(atime, taskInfo, dev, inode, offset, size, path))
+        SysMgr.printPipe(oneLine)
 
 
 
@@ -76482,7 +76630,8 @@ class TaskAnalyzer(object):
         self.pageTable = {}
         self.kmemTable = {}
         self.blockTable = [{}, {}, {}]
-        self.fsTable = [{}, {}]
+        self.fsTable = [{}, {}, {}]
+        self.fsData = [[], []]
         self.moduleData = []
         self.intData = []
         self.depData = []
@@ -78280,19 +78429,44 @@ class TaskAnalyzer(object):
 
             inode = str(long(d['ino'], 16))
             did = "%s:%s" % (d['major'], d['minor'])
+            ofs = long(d['ofs'])
+            ops = 'READ'
 
             # total read #
-            self.fsTable[0].setdefault('READ', {})
-            self.fsTable[0]['READ'].setdefault(did, {})
-            self.fsTable[0]['READ'][did].setdefault(inode, 0)
-            self.fsTable[0]['READ'][did][inode] += 1
+            self.fsTable[0].setdefault(ops, dict())
+            self.fsTable[0][ops].setdefault(did, dict())
+            self.fsTable[0][ops][did].setdefault(inode, 0)
+            self.fsTable[0][ops][did][inode] += 1
 
             # thread read #
             self.fsTable[1].setdefault(thread, dict())
-            self.fsTable[1][thread].setdefault('READ', dict())
-            self.fsTable[1][thread]['READ'].setdefault(did, {})
-            self.fsTable[1][thread]['READ'][did].setdefault(inode, 0)
-            self.fsTable[1][thread]['READ'][did][inode] += 1
+            self.fsTable[1][thread].setdefault(ops, dict())
+            self.fsTable[1][thread][ops].setdefault(did, dict())
+            self.fsTable[1][thread][ops][did].setdefault(inode, 0)
+            self.fsTable[1][thread][ops][did][inode] += 1
+
+            # thread total #
+            self.fsTable[2].setdefault(thread, 0)
+            self.fsTable[2][thread] += 1
+
+            # add history #
+            if SysMgr.showAll:
+                access = '%.3f' % allTime
+
+                # merge with previous event #
+                if self.fsData[0]:
+                    lastData = self.fsData[0][-1]
+                    if lastData[0] == thread and \
+                        lastData[1] == access and \
+                        lastData[2] == did and \
+                        lastData[3] == inode and \
+                        lastData[4] + lastData[5] == ofs:
+                        lastData[5] += SysMgr.pageSize
+                        return time
+
+                # append new event #
+                self.fsData[0].append(
+                    [thread, access, did, inode, ofs, SysMgr.pageSize])
 
         elif func == "writeback_dirty_page":
             m = re.match((
@@ -78310,6 +78484,7 @@ class TaskAnalyzer(object):
             idx = d['index']
             did = "%s:%s" % (d['major'], d['minor'])
             bid = inode + idx
+            ops = 'WRITE'
 
             threadData['awriteBlock'] += 1
             threadData['awriteBlockCnt'] += 1
@@ -78317,17 +78492,21 @@ class TaskAnalyzer(object):
             self.threadData[coreId]['awriteBlockCnt'] += 1
 
             # total write #
-            self.fsTable[0].setdefault('WRITE', {})
-            self.fsTable[0]['WRITE'].setdefault(did, {})
-            self.fsTable[0]['WRITE'][did].setdefault(inode, 0)
-            self.fsTable[0]['WRITE'][did][inode] += 1
+            self.fsTable[0].setdefault(ops, dict())
+            self.fsTable[0][ops].setdefault(did, dict())
+            self.fsTable[0][ops][did].setdefault(inode, 0)
+            self.fsTable[0][ops][did][inode] += 1
 
             # thread write #
             self.fsTable[1].setdefault(thread, dict())
-            self.fsTable[1][thread].setdefault('WRITE', dict())
-            self.fsTable[1][thread]['WRITE'].setdefault(did, {})
-            self.fsTable[1][thread]['WRITE'][did].setdefault(inode, 0)
-            self.fsTable[1][thread]['WRITE'][did][inode] += 1
+            self.fsTable[1][thread].setdefault(ops, dict())
+            self.fsTable[1][thread][ops].setdefault(did, dict())
+            self.fsTable[1][thread][ops][did].setdefault(inode, 0)
+            self.fsTable[1][thread][ops][did][inode] += 1
+
+            # thread total #
+            self.fsTable[2].setdefault(thread, 0)
+            self.fsTable[2][thread] += 1
 
             self.saveBlkOpt(
                 thread, comm, 'W', d['major'], d['minor'], bid, 1)
@@ -85960,7 +86139,7 @@ def main(args=None):
             # check svgwrite object #
             svgwrite = SysMgr.getPkg('svgwrite')
 
-            # prepare for timeline graph #
+            # prepare for timeline segment #
             SysMgr.graphEnable = False
             SysMgr.intervalEnable = 0
             tobj = TaskAnalyzer(origInputFile)
@@ -85972,7 +86151,7 @@ def main(args=None):
             else:
                 start = None
 
-            # draw timeline graph #
+            # draw timeline segment #
             SysMgr.drawTimeline(
                 inputData=tobj.timelineData,
                 outputPath=outputPath,
